@@ -136,7 +136,7 @@ impl<T: 'static> EventProcessor<T> {
                         .expect("Failed to call XRefreshKeyboardMapping");
 
                     self.mod_keymap.reset_from_x_connection(&wt.xconn);
-                    self.device_mod_state.update(&self.mod_keymap);
+                    self.device_mod_state.update_keymap(&self.mod_keymap);
                 }
             }
 
@@ -546,6 +546,18 @@ impl<T: 'static> EventProcessor<T> {
                     };
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
+                    let modifiers = ModifiersState::from_x11_mask(xkev.state);
+                    let modifier = self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode);
+
+                    if let Some(modifiers) =
+                        self.device_mod_state.update_state(&modifiers, modifier)
+                    {
+                        callback(Event::DeviceEvent {
+                            device_id,
+                            event: DeviceEvent::ModifiersChanged { modifiers },
+                        });
+                    }
+
                     let modifiers = self.device_mod_state.modifiers();
 
                     callback(Event::WindowEvent {
@@ -611,7 +623,17 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
 
-                        let modifiers = ModifiersState::from(xev.mods);
+                        let modifiers = ModifiersState::from_x11(&xev.mods);
+
+                        if let Some(modifiers) =
+                            self.device_mod_state.update_state(&modifiers, None)
+                        {
+                            let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
+                            callback(Event::DeviceEvent {
+                                device_id,
+                                event: DeviceEvent::ModifiersChanged { modifiers },
+                            });
+                        }
 
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
@@ -687,7 +709,18 @@ impl<T: 'static> EventProcessor<T> {
                         let window_id = mkwid(xev.event);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
 
-                        let modifiers = ModifiersState::from(xev.mods);
+                        let modifiers = ModifiersState::from_x11(&xev.mods);
+
+                        if let Some(modifiers) =
+                            self.device_mod_state.update_state(&modifiers, None)
+                        {
+                            let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
+
+                            callback(Event::DeviceEvent {
+                                device_id,
+                                event: DeviceEvent::ModifiersChanged { modifiers },
+                            });
+                        }
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state.lock();
@@ -890,7 +923,7 @@ impl<T: 'static> EventProcessor<T> {
                             event: CursorMoved {
                                 device_id: mkdid(pointer_id),
                                 position,
-                                modifiers: ModifiersState::from(xev.mods),
+                                modifiers: ModifiersState::from_x11(&xev.mods),
                             },
                         });
                     }

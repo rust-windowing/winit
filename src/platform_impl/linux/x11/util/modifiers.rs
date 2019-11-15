@@ -35,6 +35,7 @@ pub struct ModifierKeymap {
 pub struct ModifierKeyState {
     // Contains currently pressed modifier keys and their corresponding modifiers
     keys: HashMap<ffi::KeyCode, Modifier>,
+    state: ModifiersState,
 }
 
 impl ModifierKeymap {
@@ -94,15 +95,7 @@ impl ModifierKeymap {
 }
 
 impl ModifierKeyState {
-    pub fn clear(&mut self) {
-        self.keys.clear();
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.keys.is_empty()
-    }
-
-    pub fn update(&mut self, mods: &ModifierKeymap) {
+    pub fn update_keymap(&mut self, mods: &ModifierKeymap) {
         self.keys.retain(|k, v| {
             if let Some(m) = mods.get_modifier(*k) {
                 *v = m;
@@ -111,16 +104,35 @@ impl ModifierKeyState {
                 false
             }
         });
+
+        self.reset_state();
+    }
+
+    pub fn update_state(
+        &mut self,
+        state: &ModifiersState,
+        except: Option<Modifier>,
+    ) -> Option<ModifiersState> {
+        let mut state = *state;
+
+        match except {
+            Some(Modifier::Alt) => state.alt = self.state.alt,
+            Some(Modifier::Ctrl) => state.ctrl = self.state.ctrl,
+            Some(Modifier::Shift) => state.shift = self.state.shift,
+            Some(Modifier::Logo) => state.logo = self.state.logo,
+            None => (),
+        }
+
+        if self.state == state {
+            None
+        } else {
+            self.state = state;
+            Some(state)
+        }
     }
 
     pub fn modifiers(&self) -> ModifiersState {
-        let mut state = ModifiersState::default();
-
-        for &m in self.keys.values() {
-            set_modifier(&mut state, m);
-        }
-
-        state
+        self.state
     }
 
     pub fn key_event(&mut self, state: ElementState, keycode: ffi::KeyCode, modifier: Modifier) {
@@ -132,10 +144,35 @@ impl ModifierKeyState {
 
     pub fn key_press(&mut self, keycode: ffi::KeyCode, modifier: Modifier) {
         self.keys.insert(keycode, modifier);
+
+        set_modifier(&mut self.state, modifier);
     }
 
     pub fn key_release(&mut self, keycode: ffi::KeyCode) {
-        self.keys.remove(&keycode);
+        if let Some(modifier) = self.keys.remove(&keycode) {
+            if self.keys.values().find(|&&m| m == modifier).is_none() {
+                unset_modifier(&mut self.state, modifier);
+            }
+        }
+    }
+
+    fn reset_state(&mut self) {
+        let mut state = ModifiersState::default();
+
+        for &m in self.keys.values() {
+            set_modifier(&mut state, m);
+        }
+
+        self.state = state;
+    }
+}
+
+fn unset_modifier(state: &mut ModifiersState, modifier: Modifier) {
+    match modifier {
+        Modifier::Alt => state.alt = false,
+        Modifier::Ctrl => state.ctrl = false,
+        Modifier::Shift => state.shift = false,
+        Modifier::Logo => state.logo = false,
     }
 }
 
