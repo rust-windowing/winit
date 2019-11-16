@@ -120,6 +120,26 @@ impl<T: 'static> EventProcessor<T> {
             return;
         }
 
+        // We can't call a `&mut self` method because of the above borrow,
+        // so we use this macro for repeated modifier state updates.
+        macro_rules! update_modifiers {
+            ( $state:expr , $modifier:expr ) => {{
+                match ($state, $modifier) {
+                    (state, modifier) => {
+                        if let Some(modifiers) =
+                            self.device_mod_state.update_state(&state, modifier)
+                        {
+                            let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
+                            callback(Event::DeviceEvent {
+                                device_id,
+                                event: DeviceEvent::ModifiersChanged { modifiers },
+                            });
+                        }
+                    }
+                }
+            }};
+        }
+
         let event_type = xev.get_type();
         match event_type {
             ffi::MappingNotify => {
@@ -546,17 +566,10 @@ impl<T: 'static> EventProcessor<T> {
                     };
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
-                    let modifiers = ModifiersState::from_x11_mask(xkev.state);
-                    let modifier = self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode);
-
-                    if let Some(modifiers) =
-                        self.device_mod_state.update_state(&modifiers, modifier)
-                    {
-                        callback(Event::DeviceEvent {
-                            device_id,
-                            event: DeviceEvent::ModifiersChanged { modifiers },
-                        });
-                    }
+                    update_modifiers!(
+                        ModifiersState::from_x11_mask(xkev.state),
+                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
+                    );
 
                     let modifiers = self.device_mod_state.modifiers();
 
@@ -624,16 +637,7 @@ impl<T: 'static> EventProcessor<T> {
                         }
 
                         let modifiers = ModifiersState::from_x11(&xev.mods);
-
-                        if let Some(modifiers) =
-                            self.device_mod_state.update_state(&modifiers, None)
-                        {
-                            let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-                            callback(Event::DeviceEvent {
-                                device_id,
-                                event: DeviceEvent::ModifiersChanged { modifiers },
-                            });
-                        }
+                        update_modifiers!(modifiers, None);
 
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
@@ -710,17 +714,7 @@ impl<T: 'static> EventProcessor<T> {
                         let new_cursor_pos = (xev.event_x, xev.event_y);
 
                         let modifiers = ModifiersState::from_x11(&xev.mods);
-
-                        if let Some(modifiers) =
-                            self.device_mod_state.update_state(&modifiers, None)
-                        {
-                            let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-
-                            callback(Event::DeviceEvent {
-                                device_id,
-                                event: DeviceEvent::ModifiersChanged { modifiers },
-                            });
-                        }
+                        update_modifiers!(modifiers, None);
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state.lock();
