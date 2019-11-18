@@ -113,21 +113,22 @@ impl ModifierKeyState {
         state: &ModifiersState,
         except: Option<Modifier>,
     ) -> Option<ModifiersState> {
-        let mut state = *state;
+        let mut new_state = *state;
 
         match except {
-            Some(Modifier::Alt) => state.alt = self.state.alt,
-            Some(Modifier::Ctrl) => state.ctrl = self.state.ctrl,
-            Some(Modifier::Shift) => state.shift = self.state.shift,
-            Some(Modifier::Logo) => state.logo = self.state.logo,
+            Some(Modifier::Alt) => new_state.alt = self.state.alt,
+            Some(Modifier::Ctrl) => new_state.ctrl = self.state.ctrl,
+            Some(Modifier::Shift) => new_state.shift = self.state.shift,
+            Some(Modifier::Logo) => new_state.logo = self.state.logo,
             None => (),
         }
 
-        if self.state == state {
+        if self.state == new_state {
             None
         } else {
-            self.state = state;
-            Some(state)
+            self.keys.retain(|_k, v| get_modifier(&new_state, *v));
+            self.state = new_state;
+            Some(new_state)
         }
     }
 
@@ -145,42 +146,42 @@ impl ModifierKeyState {
     pub fn key_press(&mut self, keycode: ffi::KeyCode, modifier: Modifier) {
         self.keys.insert(keycode, modifier);
 
-        set_modifier(&mut self.state, modifier);
+        set_modifier(&mut self.state, modifier, true);
     }
 
     pub fn key_release(&mut self, keycode: ffi::KeyCode) {
         if let Some(modifier) = self.keys.remove(&keycode) {
             if self.keys.values().find(|&&m| m == modifier).is_none() {
-                unset_modifier(&mut self.state, modifier);
+                set_modifier(&mut self.state, modifier, false);
             }
         }
     }
 
     fn reset_state(&mut self) {
-        let mut state = ModifiersState::default();
+        let mut new_state = ModifiersState::default();
 
         for &m in self.keys.values() {
-            set_modifier(&mut state, m);
+            set_modifier(&mut new_state, m, true);
         }
 
-        self.state = state;
+        self.state = new_state;
     }
 }
 
-fn unset_modifier(state: &mut ModifiersState, modifier: Modifier) {
+fn get_modifier(state: &ModifiersState, modifier: Modifier) -> bool {
     match modifier {
-        Modifier::Alt => state.alt = false,
-        Modifier::Ctrl => state.ctrl = false,
-        Modifier::Shift => state.shift = false,
-        Modifier::Logo => state.logo = false,
+        Modifier::Alt => state.alt,
+        Modifier::Ctrl => state.ctrl,
+        Modifier::Shift => state.shift,
+        Modifier::Logo => state.logo,
     }
 }
 
-fn set_modifier(state: &mut ModifiersState, modifier: Modifier) {
+fn set_modifier(state: &mut ModifiersState, modifier: Modifier, value: bool) {
     match modifier {
-        Modifier::Alt => state.alt = true,
-        Modifier::Ctrl => state.ctrl = true,
-        Modifier::Shift => state.shift = true,
-        Modifier::Logo => state.logo = true,
+        Modifier::Alt => state.alt = value,
+        Modifier::Ctrl => state.ctrl = value,
+        Modifier::Shift => state.shift = value,
+        Modifier::Logo => state.logo = value,
     }
 }
