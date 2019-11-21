@@ -203,7 +203,6 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalPosition<P> {
     }
 }
 
-
 /// A position represented in physical pixels.
 ///
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
@@ -338,7 +337,6 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalSize<P> {
         [self.width.cast(), self.height.cast()]
     }
 }
-
 
 /// A size represented in physical pixels.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
