@@ -1915,6 +1915,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 let theme = if is_dark_mode { Dark } else { Light };
 
                 window_state.is_dark_mode = is_dark_mode;
+                mem::drop(window_state);
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: ThemeChanged(theme),
