@@ -497,6 +497,13 @@ impl<T: 'static> EventProcessor<T> {
                 });
             }
 
+            ffi::VisibilityNotify => {
+                let xev: &ffi::XVisibilityEvent = xev.as_ref();
+                let xwindow = xev.window;
+
+                self.with_window(xwindow, |window| window.visibility_notify());
+            }
+
             ffi::Expose => {
                 let xev: &ffi::XExposeEvent = xev.as_ref();
 
