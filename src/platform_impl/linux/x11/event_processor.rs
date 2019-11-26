@@ -651,6 +651,14 @@ impl<T: 'static> EventProcessor<T> {
                         } else {
                             Released
                         };
+
+                        let dpi_factor = self
+                            .with_window(xev.event, |window| window.hidpi_factor())
+                            .unwrap_or(1.0);
+                        let position = LogicalPosition::from_physical(
+                            (xev.event_x as f64, xev.event_y as f64),
+                            dpi_factor,
+                        );
                         match xev.detail as u32 {
                             ffi::Button1 => callback(Event::WindowEvent {
                                 window_id,
@@ -659,6 +667,7 @@ impl<T: 'static> EventProcessor<T> {
                                     state,
                                     button: Left,
                                     modifiers,
+                                    position,
                                 },
                             }),
                             ffi::Button2 => callback(Event::WindowEvent {
@@ -668,6 +677,7 @@ impl<T: 'static> EventProcessor<T> {
                                     state,
                                     button: Middle,
                                     modifiers,
+                                    position,
                                 },
                             }),
                             ffi::Button3 => callback(Event::WindowEvent {
@@ -677,6 +687,7 @@ impl<T: 'static> EventProcessor<T> {
                                     state,
                                     button: Right,
                                     modifiers,
+                                    position,
                                 },
                             }),
 
@@ -710,6 +721,7 @@ impl<T: 'static> EventProcessor<T> {
                                     state,
                                     button: Other(x as u8),
                                     modifiers,
+                                    position,
                                 },
                             }),
                         }

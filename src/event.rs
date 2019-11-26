@@ -165,6 +165,7 @@ pub enum WindowEvent {
         state: ElementState,
         button: MouseButton,
         modifiers: ModifiersState,
+        position: LogicalPosition,
     },
 
     /// Touchpad pressure event.

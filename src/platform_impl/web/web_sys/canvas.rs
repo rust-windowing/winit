@@ -186,7 +186,7 @@ impl Canvas {
 
     pub fn on_mouse_release<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton, ModifiersState, LogicalPosition),
     {
         self.on_mouse_release = Some(self.add_user_event(
             "pointerup",
@@ -195,6 +195,7 @@ impl Canvas {
                     event.pointer_id(),
                     event::mouse_button(&event),
                     event::mouse_modifiers(&event),
+                    event::mouse_position(&event),
                 );
             },
         ));
@@ -202,7 +203,7 @@ impl Canvas {
 
     pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton, ModifiersState, LogicalPosition),
     {
         self.on_mouse_press = Some(self.add_user_event(
             "pointerdown",
@@ -211,6 +212,7 @@ impl Canvas {
                     event.pointer_id(),
                     event::mouse_button(&event),
                     event::mouse_modifiers(&event),
+                    event::mouse_position(&event),
                 );
             },
         ));

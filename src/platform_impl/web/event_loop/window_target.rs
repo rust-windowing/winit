@@ -128,7 +128,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_press(move |pointer_id, button, modifiers| {
+        canvas.on_mouse_press(move |pointer_id, button, modifiers, position| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::MouseInput {
@@ -136,12 +136,13 @@ impl<T> WindowTarget<T> {
                     state: ElementState::Pressed,
                     button,
                     modifiers,
+                    position,
                 },
             });
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_release(move |pointer_id, button, modifiers| {
+        canvas.on_mouse_release(move |pointer_id, button, modifiers, position| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::MouseInput {
@@ -149,6 +150,7 @@ impl<T> WindowTarget<T> {
                     state: ElementState::Released,
                     button,
                     modifiers,
+                    position,
                 },
             });
         });
