@@ -11,14 +11,17 @@ pub const VIRTUAL_CORE_KEYBOARD: c_int = 3;
 // To test if `lookup_utf8` works correctly, set this to 1.
 const TEXT_BUFFER_SIZE: usize = 1024;
 
-impl From<ffi::XIModifierState> for ModifiersState {
-    fn from(mods: ffi::XIModifierState) -> Self {
-        let state = mods.effective as c_uint;
+impl ModifiersState {
+    pub(crate) fn from_x11(state: &ffi::XIModifierState) -> Self {
+        ModifiersState::from_x11_mask(state.effective as c_uint)
+    }
+
+    pub(crate) fn from_x11_mask(mask: c_uint) -> Self {
         ModifiersState {
-            alt: state & ffi::Mod1Mask != 0,
-            shift: state & ffi::ShiftMask != 0,
-            ctrl: state & ffi::ControlMask != 0,
-            logo: state & ffi::Mod4Mask != 0,
+            alt: mask & ffi::Mod1Mask != 0,
+            shift: mask & ffi::ShiftMask != 0,
+            ctrl: mask & ffi::ControlMask != 0,
+            logo: mask & ffi::Mod4Mask != 0,
         }
     }
 }
@@ -40,7 +43,7 @@ pub struct PointerState<'a> {
 
 impl<'a> PointerState<'a> {
     pub fn get_modifier_state(&self) -> ModifiersState {
-        self.modifiers.into()
+        ModifiersState::from_x11(&self.modifiers)
     }
 }
 
