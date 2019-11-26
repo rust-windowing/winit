@@ -191,6 +191,18 @@ impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalPosition<P> {
     }
 }
 
+impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalPosition<P> {
+    fn from([x, y]: [X; 2]) -> LogicalPosition<P> {
+        LogicalPosition::new(x.cast(), y.cast())
+    }
+}
+
+impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalPosition<P> {
+    fn into(self: Self) -> [X; 2] {
+        [self.x.cast(), self.y.cast()]
+    }
+}
+
 /// A position represented in physical pixels.
 ///
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
@@ -248,6 +260,18 @@ impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalPosition<P> {
     }
 }
 
+impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalPosition<P> {
+    fn from([x, y]: [X; 2]) -> PhysicalPosition<P> {
+        PhysicalPosition::new(x.cast(), y.cast())
+    }
+}
+
+impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalPosition<P> {
+    fn into(self: Self) -> [X; 2] {
+        [self.x.cast(), self.y.cast()]
+    }
+}
+
 /// A size represented in logical pixels.
 ///
 /// The size is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
@@ -302,6 +326,18 @@ impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalSize<P> {
     }
 }
 
+impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalSize<P> {
+    fn from([x, y]: [X; 2]) -> LogicalSize<P> {
+        LogicalSize::new(x.cast(), y.cast())
+    }
+}
+
+impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalSize<P> {
+    fn into(self: Self) -> [X; 2] {
+        [self.width.cast(), self.height.cast()]
+    }
+}
+
 /// A size represented in physical pixels.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -349,6 +385,18 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalSize<P> {
 impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalSize<P> {
     fn into(self: Self) -> (X, X) {
         (self.width.cast(), self.height.cast())
+    }
+}
+
+impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalSize<P> {
+    fn from([x, y]: [X; 2]) -> PhysicalSize<P> {
+        PhysicalSize::new(x.cast(), y.cast())
+    }
+}
+
+impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalSize<P> {
+    fn into(self: Self) -> [X; 2] {
+        [self.width.cast(), self.height.cast()]
     }
 }
 
