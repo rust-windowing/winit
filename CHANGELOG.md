@@ -5,6 +5,7 @@
 - On X11, fix events not being reported when using `run_return`.
 - On X11, fix key modifiers being incorrectly reported.
 - On X11, fix window creation hanging when another window is fullscreen.
+- On Windows, fix focusing unfocused windows when switching from fullscreen to windowed.
 
 # 0.20.0 Alpha 4 (2019-10-18)
 
