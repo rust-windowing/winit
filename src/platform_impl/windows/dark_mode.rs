@@ -73,7 +73,7 @@ lazy_static! {
         // We won't try to do anything for windows versions < 17763
         // (Windows 10 October 2018 update)
         match *WIN10_BUILD_VERSION {
-            Some(v) => v > 18362,
+            Some(v) => v >= 17763,
             None => false
         }
     };
