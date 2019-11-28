@@ -28,16 +28,6 @@ use crate::{
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
 
-unsafe extern "C" fn visibility_predicate(
-    _display: *mut ffi::Display,
-    event: *mut ffi::XEvent,
-    arg: ffi::XPointer, // We populate this with the window ID (by value) when we call XIfEvent
-) -> ffi::Bool {
-    let event: &ffi::XAnyEvent = (*event).as_ref();
-    let window = arg as ffi::Window;
-    (event.window == window && event.type_ == ffi::VisibilityNotify) as _
-}
-
 #[derive(Debug)]
 pub struct SharedState {
     pub cursor_pos: Option<(f64, f64)>,
@@ -48,6 +38,8 @@ pub struct SharedState {
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(f64, f64)>,
     pub fullscreen: Option<Fullscreen>,
+    // Set when application calls `set_fullscreen` when window is not visible
+    pub desired_fullscreen: Option<Option<Fullscreen>>,
     // Used to restore position after exiting fullscreen
     pub restore_position: Option<(i32, i32)>,
     // Used to restore video mode after exiting fullscreen
@@ -55,14 +47,28 @@ pub struct SharedState {
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
     pub min_inner_size: Option<LogicalSize>,
     pub max_inner_size: Option<LogicalSize>,
-    pub is_visible: bool,
+    pub visibility: Visibility,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Visibility {
+    No,
+    Yes,
+    // Waiting for VisibilityNotify
+    YesWait,
 }
 
 impl SharedState {
     fn new(last_monitor: X11MonitorHandle, is_visible: bool) -> Mutex<Self> {
+        let visibility = if is_visible {
+            Visibility::YesWait
+        } else {
+            Visibility::No
+        };
+
         Mutex::new(SharedState {
             last_monitor,
-            is_visible,
+            visibility,
 
             cursor_pos: None,
             size: None,
@@ -71,6 +77,7 @@ impl SharedState {
             inner_position_rel_parent: None,
             dpi_adjusted: None,
             fullscreen: None,
+            desired_fullscreen: None,
             restore_position: None,
             desktop_video_mode: None,
             frame_extents: None,
@@ -360,8 +367,6 @@ impl UnownedWindow {
                 unsafe {
                     (xconn.xlib.XMapRaised)(xconn.display, window.xwindow);
                 } //.queue();
-
-                window.wait_for_visibility_notify();
             }
 
             // Attempt to make keyboard input repeat detectable
@@ -419,8 +424,7 @@ impl UnownedWindow {
             if window_attrs.fullscreen.is_some() {
                 window
                     .set_fullscreen_inner(window_attrs.fullscreen.clone())
-                    .unwrap()
-                    .queue();
+                    .map(|flusher| flusher.queue());
             }
             if window_attrs.always_on_top {
                 window
@@ -577,9 +581,13 @@ impl UnownedWindow {
     fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Option<util::Flusher<'_>> {
         let mut shared_state_lock = self.shared_state.lock();
 
-        if !shared_state_lock.is_visible {
+        match shared_state_lock.visibility {
             // Setting fullscreen on a window that is not visible will generate an error.
-            return None;
+            Visibility::No | Visibility::YesWait => {
+                shared_state_lock.desired_fullscreen = Some(fullscreen);
+                return None;
+            }
+            Visibility::Yes => (),
         }
 
         let old_fullscreen = shared_state_lock.fullscreen.clone();
@@ -690,7 +698,12 @@ impl UnownedWindow {
 
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        self.shared_state.lock().fullscreen.clone()
+        let shared_state = self.shared_state.lock();
+
+        shared_state
+            .desired_fullscreen
+            .clone()
+            .unwrap_or_else(|| shared_state.fullscreen.clone())
     }
 
     #[inline]
@@ -700,6 +713,26 @@ impl UnownedWindow {
                 .sync()
                 .expect("Failed to change window fullscreen state");
             self.invalidate_cached_frame_extents();
+        }
+    }
+
+    // Called by EventProcessor when a VisibilityNotify event is received
+    pub(crate) fn visibility_notify(&self) {
+        let mut shared_state = self.shared_state.lock();
+
+        match shared_state.visibility {
+            Visibility::No => unsafe {
+                (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
+            },
+            Visibility::Yes => (),
+            Visibility::YesWait => {
+                shared_state.visibility = Visibility::Yes;
+
+                if let Some(fullscreen) = shared_state.desired_fullscreen.take() {
+                    drop(shared_state);
+                    self.set_fullscreen(fullscreen);
+                }
+            }
         }
     }
 
@@ -838,44 +871,31 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
-        let is_visible = self.shared_state.lock().is_visible;
+        let mut shared_state = self.shared_state.lock();
 
-        if visible == is_visible {
-            return;
+        match (visible, shared_state.visibility) {
+            (true, Visibility::Yes) | (true, Visibility::YesWait) | (false, Visibility::No) => {
+                return
+            }
+            _ => (),
         }
 
-        match visible {
-            true => unsafe {
+        if visible {
+            unsafe {
                 (self.xconn.xlib.XMapRaised)(self.xconn.display, self.xwindow);
-                self.xconn
-                    .flush_requests()
-                    .expect("Failed to call XMapRaised");
-
-                // Some X requests may generate an error if the window is not
-                // visible, so we must wait until the window becomes visible.
-                self.wait_for_visibility_notify();
-            },
-            false => unsafe {
+            }
+            self.xconn
+                .flush_requests()
+                .expect("Failed to call XMapRaised");
+            shared_state.visibility = Visibility::YesWait;
+        } else {
+            unsafe {
                 (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
-                self.xconn
-                    .flush_requests()
-                    .expect("Failed to call XUnmapWindow");
-            },
-        }
-
-        self.shared_state.lock().is_visible = visible;
-    }
-
-    fn wait_for_visibility_notify(&self) {
-        unsafe {
-            let mut event = MaybeUninit::uninit();
-
-            (self.xconn.xlib.XIfEvent)(
-                self.xconn.display,
-                event.as_mut_ptr(),
-                Some(visibility_predicate),
-                self.xwindow as _,
-            );
+            }
+            self.xconn
+                .flush_requests()
+                .expect("Failed to call XUnmapWindow");
+            shared_state.visibility = Visibility::No;
         }
     }
 

@@ -202,7 +202,10 @@ impl Window {
                 y as c_int,
                 0,
                 0,
-                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER | winuser::SWP_NOSIZE,
+                winuser::SWP_ASYNCWINDOWPOS
+                    | winuser::SWP_NOZORDER
+                    | winuser::SWP_NOSIZE
+                    | winuser::SWP_NOACTIVATE,
             );
             winuser::UpdateWindow(self.window.0);
         }
@@ -615,7 +618,9 @@ impl Window {
                                 client_rect.top,
                                 client_rect.right - client_rect.left,
                                 client_rect.bottom - client_rect.top,
-                                winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER,
+                                winuser::SWP_ASYNCWINDOWPOS
+                                    | winuser::SWP_NOZORDER
+                                    | winuser::SWP_NOACTIVATE,
                             );
                             winuser::UpdateWindow(window.0);
                         }
