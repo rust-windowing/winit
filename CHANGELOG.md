@@ -1,6 +1,7 @@
 # Unreleased
 
 - On macOS, fix application termination on `ControlFlow::Exit`
+- On Windows, fix missing `ReceivedCharacter` events when Alt is held.
 - On macOS, stop emitting private corporate characters in `ReceivedCharacter` events.
 - On X11, fix misreporting DPI factor at startup.
 - On X11, fix events not being reported when using `run_return`.

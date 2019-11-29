@@ -1112,7 +1112,7 @@ unsafe extern "system" fn public_window_callback<T>(
             0
         }
 
-        winuser::WM_CHAR => {
+        winuser::WM_CHAR | winuser::WM_SYSCHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
             use std::char;
             let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
@@ -1144,12 +1144,6 @@ unsafe extern "system" fn public_window_callback<T>(
             }
             0
         }
-
-        // Prevents default windows menu hotkeys playing unwanted
-        // "ding" sounds. Alternatively could check for WM_SYSCOMMAND
-        // with wparam being SC_KEYMENU, but this may prevent some
-        // other unwanted default hotkeys as well.
-        winuser::WM_SYSCHAR => 0,
 
         winuser::WM_SYSCOMMAND => {
             if wparam == winuser::SC_SCREENSAVE {
