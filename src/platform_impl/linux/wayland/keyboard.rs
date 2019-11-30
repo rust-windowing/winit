@@ -74,6 +74,7 @@ pub fn init_keyboard(
                                         virtual_keycode: vkcode,
                                         modifiers: modifiers_tracker.lock().unwrap().clone(),
                                     },
+                                    is_synthetic: false,
                                 },
                             })
                             .unwrap();
@@ -125,6 +126,7 @@ pub fn init_keyboard(
                                 virtual_keycode: vkcode,
                                 modifiers: my_modifiers.lock().unwrap().clone(),
                             },
+                            is_synthetic: false,
                         },
                     })
                     .unwrap();
@@ -198,6 +200,7 @@ pub fn init_keyboard(
                                                 virtual_keycode: None,
                                                 modifiers: ModifiersState::default(),
                                             },
+                                            is_synthetic: false,
                                         },
                                     })
                                     .unwrap();
