@@ -6,9 +6,9 @@ use std::{
 
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 
+use winit_types::error::{Error, ErrorType};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -75,7 +75,7 @@ impl Inner {
         }
     }
 
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<LogicalPosition, Error> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             Ok(LogicalPosition {
@@ -85,7 +85,7 @@ impl Inner {
         }
     }
 
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<LogicalPosition, Error> {
         unsafe {
             let screen_frame = self.screen_frame();
             Ok(LogicalPosition {
@@ -157,12 +157,12 @@ impl Inner {
         debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), Error> {
+        Err(make_error!(ErrorType::NotSupported))
     }
 
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), Error> {
+        Err(make_error!(ErrorType::NotSupported))
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
@@ -315,7 +315,7 @@ impl Window {
         _event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window, RootOsError> {
+    ) -> Result<Window, Error> {
         if let Some(_) = window_attributes.min_inner_size {
             warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
         }
