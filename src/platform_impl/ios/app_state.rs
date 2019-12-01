@@ -12,7 +12,7 @@ use std::{
 use objc::runtime::{BOOL, YES};
 
 use crate::{
-    event::{Event, StartCause, WindowEvent},
+    event::{Event, StartCause},
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, Never},
@@ -51,11 +51,7 @@ enum UserCallbackTransitionResult<'a> {
 
 impl Event<Never> {
     fn is_redraw(&self) -> bool {
-        if let Event::WindowEvent {
-            window_id: _,
-            event: WindowEvent::RedrawRequested,
-        } = self
-        {
+        if let Event::RedrawRequested(_) = self {
             true
         } else {
             false
@@ -776,16 +772,13 @@ pub unsafe fn handle_main_events_cleared() {
 
     // User events are always sent out at the end of the "MainEventLoop"
     handle_user_events();
-    handle_nonuser_event(Event::EventsCleared);
+    handle_nonuser_event(Event::MainEventsCleared);
 
     let mut this = AppState::get_mut();
     let redraw_events = this
         .main_events_cleared_transition()
         .into_iter()
-        .map(|window| Event::WindowEvent {
-            window_id: RootWindowId(window.into()),
-            event: WindowEvent::RedrawRequested,
-        });
+        .map(|window| Event::RedrawRequested(RootWindowId(window.into())));
     drop(this);
 
     handle_nonuser_events(redraw_events);
