@@ -651,7 +651,7 @@ impl UnownedWindow {
                 };
 
                 // Don't set fullscreen on an invalid dummy monitor handle
-                if monitor.id == 0 {
+                if monitor.is_dummy() {
                     return None;
                 }
 

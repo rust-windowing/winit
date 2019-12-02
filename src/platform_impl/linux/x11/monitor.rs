@@ -143,6 +143,11 @@ impl MonitorHandle {
         }
     }
 
+    pub(crate) fn is_dummy(&self) -> bool {
+        // Zero is an invalid XID value; no real monitor will have it
+        self.id == 0
+    }
+
     pub fn name(&self) -> Option<String> {
         Some(self.name.clone())
     }
