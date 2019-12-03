@@ -117,3 +117,6 @@ package = "stdweb"
 version = "=0.4.20"
 optional = true
 features = ["experimental_features_which_may_break_on_minor_version_bumps"]
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+console_log = "0.1"
