@@ -675,21 +675,66 @@ pub enum VirtualKeyCode {
     Cut,
 }
 
-/// Represents the current state of the keyboard modifiers
-///
-/// Each field of this struct represents a modifier and is `true` if this modifier is active.
-#[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(default))]
-pub struct ModifiersState {
-    /// The "shift" key
-    pub shift: bool,
-    /// The "control" key
-    pub ctrl: bool,
-    /// The "alt" key
-    pub alt: bool,
-    /// The "logo" key
+bitflags! {
+    /// Represents the current state of the keyboard modifiers
     ///
-    /// This is the "windows" key on PC and "command" key on Mac.
-    pub logo: bool,
+    /// Each flag represents a modifier and is set if this modifier is active.
+    #[derive(Default)]
+    pub struct ModifiersState: u32 {
+        const SHIFT = 1 << 0;
+        const CTRL = 1 << 1;
+        const ALT = 1 << 2;
+        const LOGO = 1 << 3;
+    }
+}
+
+#[cfg(feature = "serde")]
+mod modifiers_serde {
+    use super::ModifiersState;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Default, Serialize, Deserialize)]
+    #[serde(default)]
+    #[serde(rename = "ModifiersState")]
+    pub struct ModifiersStateSerialize {
+        pub shift: bool,
+        pub ctrl: bool,
+        pub alt: bool,
+        pub logo: bool,
+    }
+
+    impl Serialize for ModifiersState {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let s = ModifiersStateSerialize {
+                shift: self.contains(ModifiersState::SHIFT),
+                ctrl: self.contains(ModifiersState::CTRL),
+                alt: self.contains(ModifiersState::ALT),
+                logo: self.contains(ModifiersState::LOGO),
+            };
+            s.serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for ModifiersState {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let ModifiersStateSerialize {
+                shift,
+                ctrl,
+                alt,
+                logo,
+            } = ModifiersStateSerialize::deserialize(deserializer)?;
+            let mut m = ModifiersState::empty();
+            m.set(ModifiersState::SHIFT, shift);
+            m.set(ModifiersState::CTRL, ctrl);
+            m.set(ModifiersState::ALT, alt);
+            m.set(ModifiersState::LOGO, logo);
+            Ok(m)
+        }
+    }
 }

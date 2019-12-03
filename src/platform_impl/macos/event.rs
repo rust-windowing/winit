@@ -224,12 +224,24 @@ pub fn check_function_keys(string: &str) -> Option<VirtualKeyCode> {
 
 pub fn event_mods(event: id) -> ModifiersState {
     let flags = unsafe { NSEvent::modifierFlags(event) };
-    ModifiersState {
-        shift: flags.contains(NSEventModifierFlags::NSShiftKeyMask),
-        ctrl: flags.contains(NSEventModifierFlags::NSControlKeyMask),
-        alt: flags.contains(NSEventModifierFlags::NSAlternateKeyMask),
-        logo: flags.contains(NSEventModifierFlags::NSCommandKeyMask),
-    }
+    let mut m = ModifiersState::empty();
+    m.set(
+        ModifiersState::SHIFT,
+        flags.contains(NSEventModifierFlags::NSShiftKeyMask),
+    );
+    m.set(
+        ModifiersState::CTRL,
+        flags.contains(NSEventModifierFlags::NSControlKeyMask),
+    );
+    m.set(
+        ModifiersState::ALT,
+        flags.contains(NSEventModifierFlags::NSAlternateKeyMask),
+    );
+    m.set(
+        ModifiersState::LOGO,
+        flags.contains(NSEventModifierFlags::NSCommandKeyMask),
+    );
+    m
 }
 
 pub fn get_scancode(event: cocoa::base::id) -> c_ushort {

@@ -17,13 +17,22 @@ fn key_pressed(vkey: c_int) -> bool {
 }
 
 pub fn get_key_mods() -> ModifiersState {
-    let mut mods = ModifiersState::default();
     let filter_out_altgr = layout_uses_altgr() && key_pressed(winuser::VK_RMENU);
 
-    mods.shift = key_pressed(winuser::VK_SHIFT);
-    mods.ctrl = key_pressed(winuser::VK_CONTROL) && !filter_out_altgr;
-    mods.alt = key_pressed(winuser::VK_MENU) && !filter_out_altgr;
-    mods.logo = key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN);
+    let mut mods = ModifiersState::empty();
+    mods.set(ModifiersState::SHIFT, key_pressed(winuser::VK_SHIFT));
+    mods.set(
+        ModifiersState::CTRL,
+        key_pressed(winuser::VK_CONTROL) && !filter_out_altgr,
+    );
+    mods.set(
+        ModifiersState::ALT,
+        key_pressed(winuser::VK_MENU) && !filter_out_altgr,
+    );
+    mods.set(
+        ModifiersState::LOGO,
+        key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN),
+    );
     mods
 }
 
