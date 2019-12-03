@@ -779,7 +779,7 @@ pub unsafe fn handle_main_events_cleared() {
         .main_events_cleared_transition()
         .into_iter()
         .map(|window| Event::RedrawRequested(RootWindowId(window.into())))
-        .map(|_: Event<Never>| Event::RedrawEventsCleared);
+        .chain(std::iter::once(Event::RedrawEventsCleared));
     drop(this);
 
     handle_nonuser_events(redraw_events);
