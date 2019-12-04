@@ -6,6 +6,7 @@ jobs:
   formatting:
     runs-on: ubuntu-latest
     steps:
+    - uses: actions/checkout@v1
     - uses: Osspial/setup-rust-action@windows-uninstall-default-stable
       with:
         rust-version: stable
