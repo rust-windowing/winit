@@ -22,8 +22,8 @@ jobs:
         platform:
           - { os: windows-latest, target: x86_64-pc-windows-msvc,   features: ',' }
           - { os: windows-latest, target: i686-pc-windows-msvc,     features: ',' }
-          - { os: windows-latest, target: x86_64-pc-windows-gnu,    features: ',' }
-          - { os: windows-latest, target: i686-pc-windows-gnu,      features: ',' }
+          - { os: windows-latest, target: x86_64-pc-windows-gnu,    features: ',', host: -x86_64-pc-windows-gnu }
+          - { os: windows-latest, target: i686-pc-windows-gnu,      features: ',', host: -x86_64-pc-windows-gnu }
           - { os: ubuntu-latest,  target: i686-unknown-linux-gnu,   features: ',' }
           - { os: ubuntu-latest,  target: i686-unknown-linux-gnu,   features: ',' }
           - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, features: ',' }
@@ -44,7 +44,7 @@ jobs:
     - uses: actions/checkout@v1
     - uses: Osspial/setup-rust-action@windows-uninstall-default-stable
       with:
-        rust-version: ${{ matrix.rust_version }}
+        rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
