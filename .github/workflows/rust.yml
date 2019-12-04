@@ -31,18 +31,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Install Rustup on macOS
-      if: matrix.platform.os == 'macos-latest'
-      run: |
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-        source $HOME/.cargo/env
-    - name: Install Rust
-      run: |
-        rustup self update; echo 1
-        rustup target add ${{ matrix.platform.target }}; echo 2
-        rustup toolchain install ${{ matrix.rust_version }}; echo 3
-        rustup toolchain install stable; echo 4
-        rustup component add rustfmt --toolchain stable; echo 5 
+    - uses: hecrj/setup-rust-action@v1
+      with:
+        rust-version: ${{ matrix.rust_version }}
+        targets: ${{ matrix.target }}
+    - uses: hecrj/setup-rust-action@v1
+      with:
+        rust-version: stable
+        components: rustfmt
     - name: Check Formatting
       run: cargo +stable fmt --all -- --check
     - name: Check documentation
