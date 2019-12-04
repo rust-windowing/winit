@@ -50,7 +50,7 @@ jobs:
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
     - name: Check documentation
-      run: cargo doc --no-deps --target ${{ matrix.platform.target }}
+      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
     - name: Install cargo-web
       if: matrix.platform.web == 'web'
       run: cargo install -f cargo-web
