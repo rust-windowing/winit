@@ -7,7 +7,7 @@ use winapi::{
     shared::{
         basetsd::SIZE_T,
         minwindef::{BOOL, DWORD, UINT, ULONG, WORD},
-        ntdef::{LPSTR, PVOID, WCHAR},
+        ntdef::{LPSTR, NTSTATUS, NT_SUCCESS, PVOID, WCHAR},
         windef::HWND,
     },
     um::{libloaderapi, uxtheme, winuser},
@@ -29,7 +29,7 @@ lazy_static! {
             szCSDVersion: [WCHAR; 128],
         }
 
-        type RtlGetVersion = unsafe extern "system" fn (*mut OSVERSIONINFOW);
+        type RtlGetVersion = unsafe extern "system" fn (*mut OSVERSIONINFOW) -> NTSTATUS;
         let handle = get_function!("ntdll.dll", RtlGetVersion);
 
         if let Some(rtl_get_version) = handle {
@@ -43,7 +43,8 @@ lazy_static! {
                     szCSDVersion: [0; 128],
                 };
 
-                (rtl_get_version)(&mut vi as _);
+                let status = (rtl_get_version)(&mut vi as _);
+                assert!(NT_SUCCESS(status));
 
                 if vi.dwMajorVersion == 10 && vi.dwMinorVersion == 0 {
                     Some(vi.dwBuildNumber)
@@ -109,11 +110,10 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) {
 
     #[allow(non_snake_case)]
     #[repr(C)]
-    struct WINDOWCOMPOSITIONATTRIBDATA
-    {
+    struct WINDOWCOMPOSITIONATTRIBDATA {
         Attrib: WINDOWCOMPOSITIONATTRIB,
         pvData: PVOID,
-        cbData: SIZE_T
+        cbData: SIZE_T,
     }
 
     lazy_static! {
@@ -124,20 +124,17 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) {
     if let Some(set_window_composition_attribute) = *SET_WINDOW_COMPOSITION_ATTRIBUTE {
         unsafe {
             // SetWindowCompositionAttribute needs a bigbool (i32), not bool.
-            let mut is_dark_mode_bigbool = is_dark_mode as BOOL;
+            let mut is_dark_mode_bigbool: BOOL = is_dark_mode.into();
 
             let mut data = WINDOWCOMPOSITIONATTRIBDATA {
                 Attrib: WCA_USEDARKMODECOLORS,
                 pvData: &mut is_dark_mode_bigbool as *mut _ as _,
-                cbData: std::mem::size_of_val(&is_dark_mode_bigbool) as _
+                cbData: std::mem::size_of_val(&is_dark_mode_bigbool) as _,
             };
 
             assert_eq!(
                 1,
-                set_window_composition_attribute(
-                    hwnd,
-                    &mut data as *mut _
-                )
+                set_window_composition_attribute(hwnd, &mut data as *mut _)
             );
         }
     }
@@ -152,15 +149,12 @@ fn should_apps_use_dark_mode() -> bool {
     lazy_static! {
         static ref SHOULD_APPS_USE_DARK_MODE: Option<ShouldAppsUseDarkMode> = {
             unsafe {
-
                 const UXTHEME_SHOULDAPPSUSEDARKMODE_ORDINAL: WORD = 132;
 
-                let module = libloaderapi::LoadLibraryA(
-                    "uxtheme.dll\0".as_ptr() as _
-                );
+                let module = libloaderapi::LoadLibraryA("uxtheme.dll\0".as_ptr() as _);
 
                 if module.is_null() {
-                    return None
+                    return None;
                 }
 
                 let handle = libloaderapi::GetProcAddress(
