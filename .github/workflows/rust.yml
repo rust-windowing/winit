@@ -1,0 +1,49 @@
+name: Rust
+
+on: [push]
+
+jobs:
+  build:
+    
+    strategy:
+      matrix:
+        rust_version: [stable, beta, nightly]
+        platform:
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: windows-latest, target: i686-pc-windows-msvc }
+          - { os: windows-latest, target: x86_64-pc-windows-gnu }
+          - { os: windows-latest, target: i686-pc-windows-gnu }
+          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu }
+          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
+          - { os: macos-latest,   target: x86_64-apple-darwin }
+          - { os: macos-latest,   target: x86_64-apple-darwin }
+          - { os: macos-latest,   target: x86_64-apple-ios }
+          - { os: macos-latest,   target: x86_64-apple-ios }
+          - { os: macos-latest,   target: armv7-apple-ios }
+          - { os: macos-latest,   target: armv7-apple-ios }
+          - { os: macos-latest,   target: aarch64-apple-ios }
+          - { os: macos-latest,   target: aarch64-apple-ios }
+
+    runs-on: ${{ matrix.platform.os }}
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install Rust
+      run: |
+        rustup self update
+        rustup target add ${{ matrix.platform.target }}
+        rustup toolchain install ${{ matrix.rust_version }}
+        rustup toolchain install stable
+        rustup component add rustfmt --toolchain stable 
+    - name: Check Formatting
+      run: cargo +stable fmt --all -- --check
+    - name: Check documentation
+      run: cargo doc --no-deps
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Run tests with serde enabled
+      run: cargo test --verbose --features serde
