@@ -924,7 +924,8 @@ impl<T: 'static> EventProcessor<T> {
                             },
                         });
 
-                        self.update_keys(window_id, ElementState::Pressed, &mut callback);
+                        // Issue key press events for all pressed keys
+                        self.handle_pressed_keys(window_id, ElementState::Pressed, &mut callback);
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
@@ -938,7 +939,8 @@ impl<T: 'static> EventProcessor<T> {
 
                         let window_id = mkwid(xev.event);
 
-                        self.update_keys(window_id, ElementState::Released, &mut callback);
+                        // Issue key release events for all pressed keys
+                        self.handle_pressed_keys(window_id, ElementState::Released, &mut callback);
 
                         callback(Event::WindowEvent {
                             window_id,
@@ -1171,7 +1173,7 @@ impl<T: 'static> EventProcessor<T> {
         }
     }
 
-    fn update_keys<F>(
+    fn handle_pressed_keys<F>(
         &self,
         window_id: crate::window::WindowId,
         state: ElementState,
@@ -1182,8 +1184,10 @@ impl<T: 'static> EventProcessor<T> {
         let wt = get_xtarget(&self.target);
 
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-        let keys = wt.xconn.query_keymap();
         let modifiers = self.device_mod_state.modifiers();
+
+        // Get the set of keys currently pressed and apply Key events to each
+        let keys = wt.xconn.query_keymap();
 
         for keycode in &keys {
             if keycode < 8 {

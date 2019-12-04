@@ -37,29 +37,27 @@ impl Iterator for KeymapIter<'_> {
     fn next(&mut self) -> Option<ffi::KeyCode> {
         if self.item.is_none() {
             while let Some((index, &item)) = self.iter.next() {
-                self.index = index;
-
                 if item != 0 {
+                    self.index = index;
                     self.item = Some(item);
                     break;
                 }
             }
         }
 
-        if let Some(item) = self.item.take() {
-            assert!(item != 0);
+        self.item.take().map(|item| {
+            debug_assert!(item != 0);
 
             let bit = first_bit(item);
 
             if item != bit {
+                // Remove the first bit; save the rest for further iterations
                 self.item = Some(item ^ bit);
             }
 
             let shift = bit.trailing_zeros() + (self.index * 8) as u32;
-            return Some(shift as ffi::KeyCode);
-        }
-
-        None
+            shift as ffi::KeyCode
+        })
     }
 }
 
