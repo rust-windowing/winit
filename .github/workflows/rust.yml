@@ -6,6 +6,7 @@ jobs:
   build:
     
     strategy:
+      fail-fast: false
       matrix:
         rust_version: [stable]
         platform:
