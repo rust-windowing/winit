@@ -27,6 +27,16 @@ pub fn get_key_mods() -> ModifiersState {
     mods
 }
 
+pub fn get_pressed_keys() -> impl Iterator<Item = c_int> {
+    let mut keyboard_state = vec![0u8; 256];
+    unsafe { winuser::GetKeyboardState(keyboard_state.as_mut_ptr()) };
+    keyboard_state
+        .into_iter()
+        .enumerate()
+        .filter(|(_, p)| (*p & (1 << 7)) != 0) // whether or not a key is pressed is communicated via the high-order bit
+        .map(|(i, _)| i as c_int)
+}
+
 unsafe fn get_char(keyboard_state: &[u8; 256], v_key: u32, hkl: HKL) -> Option<char> {
     let mut unicode_bytes = [0u16; 5];
     let len = winuser::ToUnicodeEx(

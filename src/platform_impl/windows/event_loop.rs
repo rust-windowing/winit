@@ -1771,7 +1771,27 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_SETFOCUS => {
-            use crate::event::WindowEvent::Focused;
+            use crate::event::{ElementState::Released, WindowEvent::Focused};
+            for windows_keycode in event::get_pressed_keys() {
+                let scancode =
+                    winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
+                let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
+
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            scancode,
+                            virtual_keycode,
+                            state: Released,
+                            modifiers: event::get_key_mods(),
+                        },
+                        is_synthetic: true,
+                    },
+                })
+            }
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Focused(true),
@@ -1781,7 +1801,27 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_KILLFOCUS => {
-            use crate::event::WindowEvent::Focused;
+            use crate::event::{ElementState::Released, WindowEvent::Focused};
+            for windows_keycode in event::get_pressed_keys() {
+                let scancode =
+                    winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
+                let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
+
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            scancode,
+                            virtual_keycode,
+                            state: Released,
+                            modifiers: event::get_key_mods(),
+                        },
+                        is_synthetic: true,
+                    },
+                })
+            }
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: Focused(false),
