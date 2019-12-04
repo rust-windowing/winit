@@ -36,6 +36,8 @@ jobs:
           - { os: macos-latest,   target: armv7-apple-ios }
           - { os: macos-latest,   target: aarch64-apple-ios }
           - { os: macos-latest,   target: aarch64-apple-ios }
+          - { os: ubuntu-latest,  target: wasm32-unknown-unknown, features=stdweb, web=web }
+          - { os: ubuntu-latest,  target: wasm32-unknown-unknown, features=web-sys }
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -47,8 +49,8 @@ jobs:
     - name: Check documentation
       run: cargo doc --no-deps
     - name: Build
-      run: cargo build --verbose
+      run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
     - name: Run tests with serde enabled
-      run: cargo test --verbose --features serde
+      run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features serde,${{ matrix.platform.features }}
