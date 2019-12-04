@@ -37,7 +37,7 @@ jobs:
           - { os: macos-latest,   target: aarch64-apple-ios,        features: ',' }
           - { os: macos-latest,   target: aarch64-apple-ios,        features: ',' }
           - { os: ubuntu-latest,  target: wasm32-unknown-unknown,   features: stdweb, web: web }
-          - { os: ubuntu-latest,  target: wasm32-unknown-unknown,   features: web-sys }
+          - { os: ubuntu-latest,  target: wasm32-unknown-unknown,   features: web-sys, web: web }
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -49,11 +49,12 @@ jobs:
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
-    - name: Check documentation
-      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
     - name: Install cargo-web
       if: matrix.platform.web == 'web'
       run: cargo install -f cargo-web
+    - name: Check documentation
+      if: matrix.platform.target != 'wasm32-unknown-unknown'
+      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
     - name: Build
       run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
     - name: Run tests
