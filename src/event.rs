@@ -675,16 +675,41 @@ pub enum VirtualKeyCode {
     Cut,
 }
 
+impl ModifiersState {
+    /// Returns `true` if the shift key is pressed.
+    pub fn shift(&self) -> bool {
+        self.intersects(Self::SHIFT)
+    }
+    /// Returns `true` if the control key is pressed.
+    pub fn ctrl(&self) -> bool {
+        self.intersects(Self::CTRL)
+    }
+    /// Returns `true` if the alt key is pressed.
+    pub fn alt(&self) -> bool {
+        self.intersects(Self::ALT)
+    }
+    /// Returns `true` if the logo key is pressed.
+    pub fn logo(&self) -> bool {
+        self.intersects(Self::LOGO)
+    }
+}
+
 bitflags! {
     /// Represents the current state of the keyboard modifiers
     ///
     /// Each flag represents a modifier and is set if this modifier is active.
     #[derive(Default)]
     pub struct ModifiersState: u32 {
-        const SHIFT = 1 << 0;
-        const CTRL = 1 << 1;
-        const ALT = 1 << 2;
-        const LOGO = 1 << 3;
+        // We're using every other bit here so that, when we distinguish between left and right
+        // modifiers, the left and right bits can be adjacent to eachother.
+        /// The "shift" key.
+        const SHIFT = 0b01 << 0;
+        /// The "control" key.
+        const CTRL  = 0b01 << 2;
+        /// The "alt" key.
+        const ALT   = 0b01 << 4;
+        /// This is the "windows" key on PC and "command" key on Mac.
+        const LOGO  = 0b01 << 6;
     }
 }
 
