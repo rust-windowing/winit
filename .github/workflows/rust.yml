@@ -7,7 +7,7 @@ jobs:
     
     strategy:
       matrix:
-        rust_version: [stable, beta, nightly]
+        rust_version: [stable]
         platform:
           - { os: windows-latest, target: x86_64-pc-windows-msvc }
           - { os: windows-latest, target: i686-pc-windows-msvc }
