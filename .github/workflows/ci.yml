@@ -45,7 +45,7 @@ jobs:
     - uses: Osspial/setup-rust-action@windows-uninstall-default-stable
       with:
         rust-version: ${{ matrix.rust_version }}
-        targets: ${{ matrix.target }}
+        targets: ${{ matrix.platform.target }}
     - name: Check documentation
       run: cargo doc --no-deps --target ${{ matrix.platform.target }}
     - name: Install cargo-web
