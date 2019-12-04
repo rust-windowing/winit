@@ -5,7 +5,7 @@ fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
     use winit::{
-        event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+        event::{ElementState, Event, ModifiersState, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
@@ -60,7 +60,7 @@ fn main() {
                         ..
                     } => {
                         window.set_title(&format!("{:?}", key));
-                        let state = !modifiers.shift;
+                        let state = !modifiers.contains(ModifiersState::SHIFT);
                         use VirtualKeyCode::*;
                         match key {
                             A => window.set_always_on_top(state),
@@ -81,7 +81,7 @@ fn main() {
                                     video_modes.iter().nth(video_mode_id).unwrap()
                                 );
                             }
-                            F => window.set_fullscreen(match (state, modifiers.alt) {
+                            F => window.set_fullscreen(match (state, modifiers.contains(ModifiersState::ALT)) {
                                 (true, false) => {
                                     Some(Fullscreen::Borderless(window.current_monitor()))
                                 }
