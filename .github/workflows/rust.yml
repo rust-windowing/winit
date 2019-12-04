@@ -33,7 +33,7 @@ jobs:
     - uses: actions/checkout@v1
     - name: Install Rustup on macOS
       if: matrix.platform.os == 'macos-latest'
-      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+      run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -y
     - name: Install Rust
       run: |
         rustup self update; echo 1
