@@ -20,24 +20,24 @@ jobs:
       matrix:
         rust_version: [stable]
         platform:
-          - { os: windows-latest, target: x86_64-pc-windows-msvc }
-          - { os: windows-latest, target: i686-pc-windows-msvc }
-          - { os: windows-latest, target: x86_64-pc-windows-gnu }
-          - { os: windows-latest, target: i686-pc-windows-gnu }
-          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu }
-          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu }
-          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
-          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu }
-          - { os: macos-latest,   target: x86_64-apple-darwin }
-          - { os: macos-latest,   target: x86_64-apple-darwin }
-          - { os: macos-latest,   target: x86_64-apple-ios }
-          - { os: macos-latest,   target: x86_64-apple-ios }
-          - { os: macos-latest,   target: armv7-apple-ios }
-          - { os: macos-latest,   target: armv7-apple-ios }
-          - { os: macos-latest,   target: aarch64-apple-ios }
-          - { os: macos-latest,   target: aarch64-apple-ios }
-          - { os: ubuntu-latest,  target: wasm32-unknown-unknown, features=stdweb, web=web }
-          - { os: ubuntu-latest,  target: wasm32-unknown-unknown, features=web-sys }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,   features='' }
+          - { os: windows-latest, target: i686-pc-windows-msvc,     features='' }
+          - { os: windows-latest, target: x86_64-pc-windows-gnu,    features='' }
+          - { os: windows-latest, target: i686-pc-windows-gnu,      features='' }
+          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu,   features='' }
+          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu,   features='' }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, features='' }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, features='' }
+          - { os: macos-latest,   target: x86_64-apple-darwin,      features='' }
+          - { os: macos-latest,   target: x86_64-apple-darwin,      features='' }
+          - { os: macos-latest,   target: x86_64-apple-ios,         features='' }
+          - { os: macos-latest,   target: x86_64-apple-ios,         features='' }
+          - { os: macos-latest,   target: armv7-apple-ios,          features='' }
+          - { os: macos-latest,   target: armv7-apple-ios,          features='' }
+          - { os: macos-latest,   target: aarch64-apple-ios,        features='' }
+          - { os: macos-latest,   target: aarch64-apple-ios,        features='' }
+          - { os: ubuntu-latest,  target: wasm32-unknown-unknown,   features=stdweb, web=web }
+          - { os: ubuntu-latest,  target: wasm32-unknown-unknown,   features=web-sys }
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -48,6 +48,9 @@ jobs:
         targets: ${{ matrix.target }}
     - name: Check documentation
       run: cargo doc --no-deps
+    - name: Install cargo-web
+      if: matrix.platform.web == 'web'
+      run: cargo install -f cargo-web
     - name: Build
       run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
     - name: Run tests
