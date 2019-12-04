@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.platform.os }}
 
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v1 #
     - uses: Osspial/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust_version }}
