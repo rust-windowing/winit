@@ -15,40 +15,25 @@ use winapi::{
 
 lazy_static! {
     static ref WIN10_BUILD_VERSION: Option<DWORD> = {
-        unsafe {
-            let module = libloaderapi::LoadLibraryExW(
-                widestring("ntdll.dll").as_ptr(),
-                std::ptr::null_mut(),
-                libloaderapi::LOAD_LIBRARY_SEARCH_SYSTEM32,
-            );
+        // FIXME: RtlGetVersion is a documented windows API,
+        // should be part of winapi!
 
-            let handle = libloaderapi::GetProcAddress(
-                module,
-                "RtlGetVersion\0".as_ptr() as _,
-            );
+        #[allow(non_snake_case)]
+        #[repr(C)]
+        struct OSVERSIONINFOW {
+            dwOSVersionInfoSize: ULONG,
+            dwMajorVersion: ULONG,
+            dwMinorVersion: ULONG,
+            dwBuildNumber: ULONG,
+            dwPlatformId: ULONG,
+            szCSDVersion: [WCHAR; 128],
+        }
 
-            if handle.is_null() {
-                None
-            } else {
-                // FIXME: RtlGetVersion is a documented windows API,
-                // should be part of winit!
+        type RtlGetVersion = unsafe extern "system" fn (*mut OSVERSIONINFOW);
+        let handle = get_function!("ntdll.dll", RtlGetVersion);
 
-                #[allow(non_snake_case)]
-                #[repr(C)]
-                struct OSVERSIONINFOW {
-                    dwOSVersionInfoSize: ULONG,
-                    dwMajorVersion: ULONG,
-                    dwMinorVersion: ULONG,
-                    dwBuildNumber: ULONG,
-                    dwPlatformId: ULONG,
-                    szCSDVersion: [WCHAR; 128],
-                }
-
-                #[allow(non_snake_case)]
-                let RtlGetVersion: unsafe extern "system" fn (
-                    *mut OSVERSIONINFOW
-                ) = std::mem::transmute(handle);
-
+        if let Some(rtl_get_version) = handle {
+            unsafe {
                 let mut vi = OSVERSIONINFOW {
                     dwOSVersionInfoSize: 0,
                     dwMajorVersion: 0,
@@ -58,7 +43,7 @@ lazy_static! {
                     szCSDVersion: [0; 128],
                 };
 
-                RtlGetVersion(&mut vi as _);
+                (rtl_get_version)(&mut vi as _);
 
                 if vi.dwMajorVersion == 10 && vi.dwMinorVersion == 0 {
                     Some(vi.dwBuildNumber)
@@ -66,6 +51,8 @@ lazy_static! {
                     None
                 }
             }
+        } else {
+            None
         }
     };
 
@@ -130,52 +117,29 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) {
     }
 
     lazy_static! {
-        static ref SET_WINDOW_COMPOSITION_ATTRIBUTE:
-        SetWindowCompositionAttribute = {
-            unsafe {
-                let module = libloaderapi::LoadLibraryExW(
-                    widestring("user32.dll").as_ptr(),
-                    std::ptr::null_mut(),
-                    libloaderapi::LOAD_LIBRARY_SEARCH_SYSTEM32,
-                );
-
-                let handle = libloaderapi::GetProcAddress(
-                    module,
-                    "SetWindowCompositionAttribute\0".as_ptr() as _,
-                );
-
-                if handle.is_null() {
-                    unsafe extern "system" fn always_false(
-                        _: HWND,
-                        _: *mut WINDOWCOMPOSITIONATTRIBDATA
-                    ) -> BOOL {
-                        false.into()
-                    }
-                    always_false
-                } else {
-                    std::mem::transmute(handle)
-                }
-            }
-        };
+        static ref SET_WINDOW_COMPOSITION_ATTRIBUTE: Option<SetWindowCompositionAttribute> =
+            get_function!("user32.dll", SetWindowCompositionAttribute);
     }
 
-    unsafe {
-        // SetWindowCompositionAttribute needs a bigbool (i32), not bool.
-        let mut is_dark_mode_bigbool = is_dark_mode as BOOL;
+    if let Some(set_window_composition_attribute) = *SET_WINDOW_COMPOSITION_ATTRIBUTE {
+        unsafe {
+            // SetWindowCompositionAttribute needs a bigbool (i32), not bool.
+            let mut is_dark_mode_bigbool = is_dark_mode as BOOL;
 
-        let mut data = WINDOWCOMPOSITIONATTRIBDATA {
-            Attrib: WCA_USEDARKMODECOLORS,
-            pvData: &mut is_dark_mode_bigbool as *mut _ as _,
-            cbData: std::mem::size_of_val(&is_dark_mode_bigbool) as _
-        };
+            let mut data = WINDOWCOMPOSITIONATTRIBDATA {
+                Attrib: WCA_USEDARKMODECOLORS,
+                pvData: &mut is_dark_mode_bigbool as *mut _ as _,
+                cbData: std::mem::size_of_val(&is_dark_mode_bigbool) as _
+            };
 
-        assert_eq!(
-            1,
-            SET_WINDOW_COMPOSITION_ATTRIBUTE(
-                hwnd,
-                &mut data as *mut _
-            )
-        );
+            assert_eq!(
+                1,
+                set_window_composition_attribute(
+                    hwnd,
+                    &mut data as *mut _
+                )
+            );
+        }
     }
 }
 
@@ -186,16 +150,18 @@ fn should_use_dark_mode() -> bool {
 fn should_apps_use_dark_mode() -> bool {
     type ShouldAppsUseDarkMode = unsafe extern "system" fn() -> bool;
     lazy_static! {
-        static ref SHOULD_APPS_USE_DARK_MODE: ShouldAppsUseDarkMode = {
+        static ref SHOULD_APPS_USE_DARK_MODE: Option<ShouldAppsUseDarkMode> = {
             unsafe {
 
                 const UXTHEME_SHOULDAPPSUSEDARKMODE_ORDINAL: WORD = 132;
 
-                let module = libloaderapi::LoadLibraryExW(
-                    widestring("uxtheme.dll").as_ptr(),
-                    std::ptr::null_mut(),
-                    libloaderapi::LOAD_LIBRARY_SEARCH_SYSTEM32,
+                let module = libloaderapi::LoadLibraryA(
+                    "uxtheme.dll\0".as_ptr() as _
                 );
+
+                if module.is_null() {
+                    return None
+                }
 
                 let handle = libloaderapi::GetProcAddress(
                     module,
@@ -203,18 +169,17 @@ fn should_apps_use_dark_mode() -> bool {
                 );
 
                 if handle.is_null() {
-                    unsafe extern "system" fn always_false() -> bool {
-                        false
-                    }
-                    always_false
+                    None
                 } else {
-                    std::mem::transmute(handle)
+                    Some(std::mem::transmute(handle))
                 }
             }
         };
     }
 
-    unsafe { SHOULD_APPS_USE_DARK_MODE() }
+    SHOULD_APPS_USE_DARK_MODE
+        .map(|should_apps_use_dark_mode| unsafe { (should_apps_use_dark_mode)() })
+        .unwrap_or(false)
 }
 
 // FIXME: This definition was missing from winapi. Can remove from
