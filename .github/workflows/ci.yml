@@ -59,4 +59,4 @@ jobs:
     - name: Run tests
       run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
     - name: Run tests with serde enabled
-      run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features serde,${{ matrix.platform.features }}
+      run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
