@@ -31,13 +31,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
+    - name: Install Rustup on macOS
+      if: matrix.platform.os == "macos-latest"
+      run: brew install rustup
     - name: Install Rust
       run: |
-        rustup self update
-        rustup target add ${{ matrix.platform.target }}
-        rustup toolchain install ${{ matrix.rust_version }}
-        rustup toolchain install stable; true
-        rustup component add rustfmt --toolchain stable 
+        rustup self update; echo 1
+        rustup target add ${{ matrix.platform.target }}; echo 2
+        rustup toolchain install ${{ matrix.rust_version }}; echo 3
+        rustup toolchain install stable; echo 4
+        rustup component add rustfmt --toolchain stable; echo 5 
     - name: Check Formatting
       run: cargo +stable fmt --all -- --check
     - name: Check documentation
