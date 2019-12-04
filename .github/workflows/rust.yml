@@ -34,7 +34,7 @@ jobs:
     - name: Install Rust
       run: |
         rustup self update
-        rustup target add ${{ matrix.platform.target }}
+        rustup target add ${{ matrix.platform.target }}; true
         rustup toolchain install ${{ matrix.rust_version }}
         rustup toolchain install stable
         rustup component add rustfmt --toolchain stable 
