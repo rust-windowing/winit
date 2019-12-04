@@ -33,7 +33,6 @@ jobs:
     - uses: Osspial/setup-rust-action@windows-uninstall-default-stable
       with:
         rust-version: ${{ matrix.rust_version }}
-        components: cargo,rust-std,rustc
         targets: ${{ matrix.target }}
     - uses: Osspial/setup-rust-action@windows-uninstall-default-stable
       with:
