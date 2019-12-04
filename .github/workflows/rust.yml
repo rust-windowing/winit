@@ -26,8 +26,9 @@ jobs:
           - { os: macos-latest,   target: aarch64-apple-ios }
           - { os: macos-latest,   target: aarch64-apple-ios }
 
-    runs-on: ${{ matrix.platform.os }}
 
+    runs-on: ${{ matrix.platform.os }}
+    
     steps:
     - uses: actions/checkout@v1
     - uses: Osspial/setup-rust-action@windows-uninstall-default-stable
