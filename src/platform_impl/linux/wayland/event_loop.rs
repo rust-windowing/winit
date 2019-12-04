@@ -664,60 +664,53 @@ impl<T> EventLoop<T> {
             }
         }
         // process pending resize/refresh
-        window_target.store.lock().unwrap().for_each(
-            |newsize,
-             size,
-             new_dpi,
-             refresh,
-             frame_refresh,
-             closed,
-             grab_cursor,
-             surface,
-             wid,
-             frame| {
-                if let Some(frame) = frame {
-                    if let Some(newsize) = newsize {
-                        // Drop resize events equaled to the current size
-                        if newsize != *size {
-                            let (w, h) = newsize;
-                            frame.resize(w, h);
-                            frame.refresh();
-                            let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                            sink.send_window_event(
-                                crate::event::WindowEvent::Resized(logical_size),
-                                wid,
-                            );
-                            *size = (w, h);
-                        } else {
-                            // Refresh csd, etc, otherwise
-                            frame.refresh();
-                        }
-                    } else if frame_refresh {
+        window_target.store.lock().unwrap().for_each(|window| {
+            if let Some(frame) = window.frame {
+                if let Some(newsize) = window.newsize {
+                    // Drop resize events equaled to the current size
+                    if newsize != *window.size {
+                        let (w, h) = newsize;
+                        frame.resize(w, h);
                         frame.refresh();
-                        if !refresh {
-                            frame.surface().commit()
-                        }
+                        let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
+                        sink.send_window_event(
+                            crate::event::WindowEvent::Resized(logical_size),
+                            window.wid,
+                        );
+                        *window.size = (w, h);
+                    } else {
+                        // Refresh csd, etc, otherwise
+                        frame.refresh();
+                    }
+                } else if window.frame_refresh {
+                    frame.refresh();
+                    if !window.refresh {
+                        frame.surface().commit()
                     }
                 }
-                if let Some(dpi) = new_dpi {
-                    sink.send_window_event(
-                        crate::event::WindowEvent::HiDpiFactorChanged(dpi as f64),
-                        wid,
-                    );
-                }
-                if refresh {
-                    sink.send_window_event(crate::event::WindowEvent::RedrawRequested, wid);
-                }
-                if closed {
-                    sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
-                }
+            }
+            if let Some(dpi) = window.new_dpi {
+                sink.send_window_event(
+                    crate::event::WindowEvent::HiDpiFactorChanged(dpi as f64),
+                    window.wid,
+                );
+            }
+            if window.refresh {
+                sink.send_window_event(crate::event::WindowEvent::RedrawRequested, window.wid);
+            }
+            if window.closed {
+                sink.send_window_event(crate::event::WindowEvent::CloseRequested, window.wid);
+            }
 
-                if let Some(grab_cursor) = grab_cursor {
-                    let surface = if grab_cursor { Some(surface) } else { None };
-                    self.cursor_manager.lock().unwrap().grab_pointer(surface);
-                }
-            },
-        )
+            if let Some(grab_cursor) = window.grab_cursor {
+                let surface = if grab_cursor {
+                    Some(window.surface)
+                } else {
+                    None
+                };
+                self.cursor_manager.lock().unwrap().grab_pointer(surface);
+            }
+        })
     }
 }
 
