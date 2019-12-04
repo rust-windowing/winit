@@ -34,9 +34,9 @@ jobs:
     - name: Install Rust
       run: |
         rustup self update
-        rustup target add ${{ matrix.platform.target }}; true
+        rustup target add ${{ matrix.platform.target }}
         rustup toolchain install ${{ matrix.rust_version }}
-        rustup toolchain install stable
+        rustup toolchain install stable; true
         rustup component add rustfmt --toolchain stable 
     - name: Check Formatting
       run: cargo +stable fmt --all -- --check
