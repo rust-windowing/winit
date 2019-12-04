@@ -34,6 +34,7 @@ jobs:
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust_version }}
+        components: cargo,rust-std,rustc
         targets: ${{ matrix.target }}
     - uses: hecrj/setup-rust-action@v1
       with:
