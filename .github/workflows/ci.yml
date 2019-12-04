@@ -20,22 +20,22 @@ jobs:
       matrix:
         rust_version: [stable]
         platform:
-          - { os: windows-latest, target: x86_64-pc-windows-msvc,   features: ',' }
-          - { os: windows-latest, target: i686-pc-windows-msvc,     features: ',' }
-          - { os: windows-latest, target: x86_64-pc-windows-gnu,    features: ',' }
-          - { os: windows-latest, target: i686-pc-windows-gnu,      features: ',' }
-          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu,   features: ',' }
-          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu,   features: ',' }
-          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, features: ',' }
-          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, features: ',' }
-          - { os: macos-latest,   target: x86_64-apple-darwin,      features: ',' }
-          - { os: macos-latest,   target: x86_64-apple-darwin,      features: ',' }
-          - { os: macos-latest,   target: x86_64-apple-ios,         features: ',' }
-          - { os: macos-latest,   target: x86_64-apple-ios,         features: ',' }
-          - { os: macos-latest,   target: armv7-apple-ios,          features: ',' }
-          - { os: macos-latest,   target: armv7-apple-ios,          features: ',' }
-          - { os: macos-latest,   target: aarch64-apple-ios,        features: ',' }
-          - { os: macos-latest,   target: aarch64-apple-ios,        features: ',' }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,   features: '' }
+          - { os: windows-latest, target: i686-pc-windows-msvc,     features: '' }
+          - { os: windows-latest, target: x86_64-pc-windows-gnu,    features: '' }
+          - { os: windows-latest, target: i686-pc-windows-gnu,      features: '' }
+          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu,   features: '' }
+          - { os: ubuntu-latest,  target: i686-unknown-linux-gnu,   features: '' }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, features: '' }
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu, features: '' }
+          - { os: macos-latest,   target: x86_64-apple-darwin,      features: '' }
+          - { os: macos-latest,   target: x86_64-apple-darwin,      features: '' }
+          - { os: macos-latest,   target: x86_64-apple-ios,         features: '' }
+          - { os: macos-latest,   target: x86_64-apple-ios,         features: '' }
+          - { os: macos-latest,   target: armv7-apple-ios,          features: '' }
+          - { os: macos-latest,   target: armv7-apple-ios,          features: '' }
+          - { os: macos-latest,   target: aarch64-apple-ios,        features: '' }
+          - { os: macos-latest,   target: aarch64-apple-ios,        features: '' }
           - { os: ubuntu-latest,  target: wasm32-unknown-unknown,   features: stdweb, web: web }
           - { os: ubuntu-latest,  target: wasm32-unknown-unknown,   features: web-sys, web: web }
 
@@ -54,10 +54,10 @@ jobs:
       run: cargo install -f cargo-web
     - name: Check documentation
       if: matrix.platform.target != 'wasm32-unknown-unknown'
-      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
+      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
     - name: Build
-      run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
+      run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
     - name: Run tests
-      run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features ${{ matrix.platform.features }}
+      run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
     - name: Run tests with serde enabled
       run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
