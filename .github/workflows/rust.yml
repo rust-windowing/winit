@@ -4,7 +4,6 @@ on: [push]
 
 jobs:
   test:
-    
     strategy:
       fail-fast: false
       matrix:
