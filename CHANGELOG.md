@@ -69,6 +69,7 @@
 - On Windows and Linux X11/Wayland, add platform-specific functions for creating an `EventLoop` outside the main thread.
 - On Wayland, drop resize events identical to the current window size.
 - On Windows, theme the title bar according to whether the system theme is "Light" or "Dark".
+- Added `WindowEvent::ThemeChanged` variant to handle changes to the system theme. Currently only implemented on Windows.
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
