@@ -1,4 +1,10 @@
-use std::{cell::RefCell, collections::HashMap, ptr, rc::Rc, slice};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    ptr,
+    rc::Rc,
+    slice,
+};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 
@@ -12,7 +18,7 @@ use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent},
+    event::{DeviceEvent, Event, KeyboardInput, ModifiersState, TouchPhase, WindowEvent},
     event_loop::EventLoopWindowTarget as RootELW,
 };
 
@@ -25,7 +31,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) target: Rc<RootELW<T>>,
     pub(super) mod_keymap: ModifierKeymap,
     pub(super) device_mod_state: ModifierKeyState,
-    pub(super) first_touch: Option<u64>,
+    // Set of touch events currently in progress
+    pub(super) touch: HashSet<u64>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -629,7 +636,7 @@ impl<T: 'static> EventProcessor<T> {
                     ElementState::{Pressed, Released},
                     MouseButton::{Left, Middle, Other, Right},
                     MouseScrollDelta::LineDelta,
-                    Touch, TouchPhase,
+                    Touch,
                     WindowEvent::{
                         AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseInput,
                         MouseWheel,
@@ -968,11 +975,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             // Mouse cursor position changes when touch events are received.
                             // Only the first concurrently active touch ID moves the mouse cursor.
-                            if first_touch(&mut self.first_touch, id) {
-                                if phase == TouchPhase::Ended {
-                                    self.first_touch = None;
-                                }
-
+                            if is_first_touch(&mut self.touch, id, phase) {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::CursorMoved {
@@ -1205,10 +1208,18 @@ impl<T: 'static> EventProcessor<T> {
     }
 }
 
-fn first_touch(m: &mut Option<u64>, id: u64) -> bool {
-    if m.is_none() {
-        *m = Some(id);
+fn is_first_touch(m: &mut HashSet<u64>, id: u64, phase: TouchPhase) -> bool {
+    let is_first = m.is_empty();
+
+    match phase {
+        TouchPhase::Started => {
+            m.insert(id);
+        }
+        TouchPhase::Cancelled | TouchPhase::Ended => {
+            m.remove(&id);
+        }
+        _ => (),
     }
 
-    *m == Some(id)
+    is_first
 }
