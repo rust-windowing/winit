@@ -193,6 +193,7 @@ impl<T: 'static> EventLoop<T> {
             xi2ext,
             mod_keymap,
             device_mod_state: Default::default(),
+            first_touch: None,
         };
 
         // Register for device hotplug events

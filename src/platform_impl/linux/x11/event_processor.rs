@@ -25,6 +25,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) target: Rc<RootELW<T>>,
     pub(super) mod_keymap: ModifierKeymap,
     pub(super) device_mod_state: ModifierKeyState,
+    pub(super) first_touch: Option<u64>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -958,21 +959,29 @@ impl<T: 'static> EventProcessor<T> {
                         let dpi_factor =
                             self.with_window(xev.event, |window| window.hidpi_factor());
                         if let Some(dpi_factor) = dpi_factor {
+                            let id = xev.detail as u64;
                             let modifiers = self.device_mod_state.modifiers();
                             let location = LogicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
                                 dpi_factor,
                             );
 
-                            // Mouse cursor position changes when touch events are received
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::CursorMoved {
-                                    device_id: mkdid(util::VIRTUAL_CORE_POINTER),
-                                    position: location,
-                                    modifiers,
-                                },
-                            });
+                            // Mouse cursor position changes when touch events are received.
+                            // Only the first concurrently active touch ID moves the mouse cursor.
+                            if first_touch(&mut self.first_touch, id) {
+                                if phase == TouchPhase::Ended {
+                                    self.first_touch = None;
+                                }
+
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::CursorMoved {
+                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER),
+                                        position: location,
+                                        modifiers,
+                                    },
+                                });
+                            }
 
                             callback(Event::WindowEvent {
                                 window_id,
@@ -981,7 +990,7 @@ impl<T: 'static> EventProcessor<T> {
                                     phase,
                                     location,
                                     force: None, // TODO
-                                    id: xev.detail as u64,
+                                    id,
                                 }),
                             })
                         }
@@ -1194,4 +1203,12 @@ impl<T: 'static> EventProcessor<T> {
             Err(_) => (),
         }
     }
+}
+
+fn first_touch(m: &mut Option<u64>, id: u64) -> bool {
+    if m.is_none() {
+        *m = Some(id);
+    }
+
+    *m == Some(id)
 }
