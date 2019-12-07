@@ -742,13 +742,13 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         unsafe {
             if winuser::PostMessageW(self.target_window, *USER_EVENT_MSG_ID, 0, 0) != 0 {
                 self.event_send.send(event).ok();
                 Ok(())
             } else {
-                Err(EventLoopClosed)
+                Err(EventLoopClosed(event))
             }
         }
     }

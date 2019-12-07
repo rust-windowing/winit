@@ -650,7 +650,7 @@ impl<T: 'static> EventLoop<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         match *self {
             EventLoopProxy::Wayland(ref proxy) => proxy.send_event(event),
             EventLoopProxy::X(ref proxy) => proxy.send_event(event),
