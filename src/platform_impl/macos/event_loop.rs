@@ -142,8 +142,10 @@ impl<T> Proxy<T> {
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
-        self.sender.send(event).map_err(|_| EventLoopClosed)?;
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+        self.sender
+            .send(event)
+            .map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);

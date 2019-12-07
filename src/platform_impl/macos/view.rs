@@ -582,6 +582,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
                     virtual_keycode,
                     modifiers: event_mods(event),
                 },
+                is_synthetic: false,
             },
         };
 
@@ -633,6 +634,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
                     virtual_keycode,
                     modifiers: event_mods(event),
                 },
+                is_synthetic: false,
             },
         };
 
@@ -741,6 +743,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
                     virtual_keycode,
                     modifiers: event_mods(event),
                 },
+                is_synthetic: false,
             },
         };
 

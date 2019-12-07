@@ -132,6 +132,15 @@ pub enum WindowEvent {
     KeyboardInput {
         device_id: DeviceId,
         input: KeyboardInput,
+        /// If `true`, the event was generated synthetically by winit
+        /// in one of the following circumstances:
+        ///
+        /// * **X11**: Synthetic key press events are generated for all keys pressed
+        ///   when a window gains focus. Likewise, synthetic key release events
+        ///   are generated for all keys pressed when a window goes out of focus.
+        ///
+        /// Otherwise, this value is always `false`.
+        is_synthetic: bool,
     },
 
     /// The cursor has moved on the window.

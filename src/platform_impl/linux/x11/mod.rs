@@ -1,4 +1,10 @@
-#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#![cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 
 mod dnd;
 mod event_processor;
@@ -426,8 +432,14 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
-        self.user_sender.send(event).map_err(|_| EventLoopClosed)
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+        self.user_sender.send(event).map_err(|e| {
+            EventLoopClosed(if let ::calloop::channel::SendError::Disconnected(x) = e {
+                x
+            } else {
+                unreachable!()
+            })
+        })
     }
 }
 

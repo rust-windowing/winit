@@ -67,6 +67,7 @@ impl<T> WindowTarget<T> {
                         virtual_keycode,
                         modifiers,
                     },
+                    is_synthetic: false,
                 },
             });
         });
@@ -83,6 +84,7 @@ impl<T> WindowTarget<T> {
                         virtual_keycode,
                         modifiers,
                     },
+                    is_synthetic: false,
                 },
             });
         });
