@@ -1277,6 +1277,7 @@ unsafe extern "system" fn public_window_callback<T>(
                                 virtual_keycode: vkey,
                                 modifiers: event::get_key_mods(),
                             },
+                            is_synthetic: false,
                         },
                     });
                     // Windows doesn't emit a delete character by default, but in order to make it
@@ -1305,6 +1306,7 @@ unsafe extern "system" fn public_window_callback<T>(
                             virtual_keycode: vkey,
                             modifiers: event::get_key_mods(),
                         },
+                        is_synthetic: false,
                     },
                 });
             }

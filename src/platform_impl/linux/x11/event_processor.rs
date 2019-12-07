@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, ptr, rc::Rc, slice};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, slice};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 
@@ -12,7 +12,7 @@ use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
     event_loop::EventLoopWindowTarget as RootELW,
 };
 
@@ -557,22 +557,13 @@ impl<T: 'static> EventProcessor<T> {
                 // value, though this should only be an issue under multiseat configurations.
                 let device = util::VIRTUAL_CORE_KEYBOARD;
                 let device_id = mkdid(device);
+                let keycode = xkev.keycode;
 
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
-                if xkev.keycode != 0 {
-                    let keysym = unsafe {
-                        let mut keysym = 0;
-                        (wt.xconn.xlib.XLookupString)(
-                            xkev,
-                            ptr::null_mut(),
-                            0,
-                            &mut keysym,
-                            ptr::null_mut(),
-                        );
-                        wt.xconn.check_errors().expect("Failed to lookup keysym");
-                        keysym
-                    };
+                if keycode != 0 {
+                    let scancode = keycode - 8;
+                    let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
                     update_modifiers!(
@@ -588,10 +579,11 @@ impl<T: 'static> EventProcessor<T> {
                             device_id,
                             input: KeyboardInput {
                                 state,
-                                scancode: xkev.keycode - 8,
+                                scancode,
                                 virtual_keycode,
                                 modifiers,
                             },
+                            is_synthetic: false,
                         },
                     });
                 }
@@ -908,6 +900,10 @@ impl<T: 'static> EventProcessor<T> {
                             event: Focused(true),
                         });
 
+                        let modifiers = ModifiersState::from_x11(&xev.mods);
+
+                        update_modifiers!(modifiers, None);
+
                         // The deviceid for this event is for a keyboard instead of a pointer,
                         // so we have to do a little extra work.
                         let pointer_id = self
@@ -926,9 +922,12 @@ impl<T: 'static> EventProcessor<T> {
                             event: CursorMoved {
                                 device_id: mkdid(pointer_id),
                                 position,
-                                modifiers: ModifiersState::from_x11(&xev.mods),
+                                modifiers,
                             },
                         });
+
+                        // Issue key press events for all pressed keys
+                        self.handle_pressed_keys(window_id, ElementState::Pressed, &mut callback);
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
@@ -940,8 +939,13 @@ impl<T: 'static> EventProcessor<T> {
                             .unfocus(xev.event)
                             .expect("Failed to unfocus input context");
 
+                        let window_id = mkwid(xev.event);
+
+                        // Issue key release events for all pressed keys
+                        self.handle_pressed_keys(window_id, ElementState::Released, &mut callback);
+
                         callback(Event::WindowEvent {
-                            window_id: mkwid(xev.event),
+                            window_id,
                             event: Focused(false),
                         })
                     }
@@ -1058,20 +1062,8 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
                         let scancode = (keycode - 8) as u32;
-
-                        let keysym = unsafe {
-                            (wt.xconn.xlib.XKeycodeToKeysym)(
-                                wt.xconn.display,
-                                xev.detail as ffi::KeyCode,
-                                0,
-                            )
-                        };
-                        wt.xconn
-                            .check_errors()
-                            .expect("Failed to lookup raw keysym");
-
+                        let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
-
                         let modifiers = self.device_mod_state.modifiers();
 
                         callback(Event::DeviceEvent {
@@ -1180,6 +1172,47 @@ impl<T: 'static> EventProcessor<T> {
                 wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
             }
             Err(_) => (),
+        }
+    }
+
+    fn handle_pressed_keys<F>(
+        &self,
+        window_id: crate::window::WindowId,
+        state: ElementState,
+        callback: &mut F,
+    ) where
+        F: FnMut(Event<T>),
+    {
+        let wt = get_xtarget(&self.target);
+
+        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
+        let modifiers = self.device_mod_state.modifiers();
+
+        // Get the set of keys currently pressed and apply Key events to each
+        let keys = wt.xconn.query_keymap();
+
+        for keycode in &keys {
+            if keycode < 8 {
+                continue;
+            }
+
+            let scancode = (keycode - 8) as u32;
+            let keysym = wt.xconn.keycode_to_keysym(keycode);
+            let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+
+            callback(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::KeyboardInput {
+                    device_id,
+                    input: KeyboardInput {
+                        scancode,
+                        state,
+                        virtual_keycode,
+                        modifiers,
+                    },
+                    is_synthetic: true,
+                },
+            });
         }
     }
 }
