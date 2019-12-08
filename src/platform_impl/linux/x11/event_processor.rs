@@ -1,9 +1,4 @@
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    rc::Rc,
-    slice,
-};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, slice};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 
@@ -32,8 +27,9 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) target: Rc<RootELW<T>>,
     pub(super) mod_keymap: ModifierKeymap,
     pub(super) device_mod_state: ModifierKeyState,
-    // Set of touch events currently in progress
-    pub(super) touch: HashSet<u64>,
+    // Number of touch events currently in progress
+    pub(super) num_touch: u32,
+    pub(super) first_touch: Option<u64>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -980,7 +976,8 @@ impl<T: 'static> EventProcessor<T> {
 
                             // Mouse cursor position changes when touch events are received.
                             // Only the first concurrently active touch ID moves the mouse cursor.
-                            if is_first_touch(&mut self.touch, id, phase) {
+                            if is_first_touch(&mut self.first_touch, &mut self.num_touch, id, phase)
+                            {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::CursorMoved {
@@ -1242,18 +1239,22 @@ impl<T: 'static> EventProcessor<T> {
     }
 }
 
-fn is_first_touch(m: &mut HashSet<u64>, id: u64, phase: TouchPhase) -> bool {
-    let is_first = m.is_empty();
-
+fn is_first_touch(first: &mut Option<u64>, num: &mut u32, id: u64, phase: TouchPhase) -> bool {
     match phase {
         TouchPhase::Started => {
-            m.insert(id);
+            if *num == 0 {
+                *first = Some(id);
+            }
+            *num += 1;
         }
         TouchPhase::Cancelled | TouchPhase::Ended => {
-            m.remove(&id);
+            if *first == Some(id) {
+                *first = None;
+            }
+            *num = num.saturating_sub(1);
         }
         _ => (),
     }
 
-    is_first
+    *first == Some(id)
 }
