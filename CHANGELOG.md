@@ -1,5 +1,7 @@
 # Unreleased
 
+# # 0.20.0 Alpha 5 (2019-12-09)
+
 - On macOS, fix application termination on `ControlFlow::Exit`
 - On Windows, fix missing `ReceivedCharacter` events when Alt is held.
 - On macOS, stop emitting private corporate characters in `ReceivedCharacter` events.
