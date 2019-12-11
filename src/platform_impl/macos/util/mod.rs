@@ -94,6 +94,18 @@ pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
     IdRef::new(NSString::alloc(nil).init_str(s))
 }
 
+pub unsafe fn app_name() -> Option<id> {
+    let bundle: id = msg_send![class!(NSBundle), mainBundle];
+    let dict: id = msg_send![bundle, infoDictionary];
+    let key = ns_string_id_ref("CFBundleName");
+    let app_name: id = msg_send![dict, objectForKey:*key];
+    if app_name != nil {
+        Some(app_name)
+    } else {
+        None
+    }
+}
+
 pub unsafe fn superclass<'a>(this: &'a Object) -> &'a Class {
     let superclass: id = msg_send![this, superclass];
     &*(superclass as *const _)
