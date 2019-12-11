@@ -8,7 +8,7 @@ use std::ops::{BitAnd, Deref};
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSRect, NSUInteger},
+    foundation::{NSAutoreleasePool, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
@@ -88,6 +88,10 @@ impl Clone for IdRef {
 // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
 pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
     CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)
+}
+
+pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
+    IdRef::new(NSString::alloc(nil).init_str(s))
 }
 
 pub unsafe fn superclass<'a>(this: &'a Object) -> &'a Class {

@@ -33,7 +33,7 @@ use cocoa::{
         NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize, NSString},
+    foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
@@ -170,7 +170,7 @@ fn create_window(
             NO,
         ));
         let res = ns_window.non_nil().map(|ns_window| {
-            let title = IdRef::new(NSString::alloc(nil).init_str(&attrs.title));
+            let title = util::ns_string_id_ref(&attrs.title);
             ns_window.setReleasedWhenClosed_(NO);
             ns_window.setTitle_(*title);
             ns_window.setAcceptsMouseMovedEvents_(YES);
@@ -877,7 +877,7 @@ impl UnownedWindow {
         unsafe {
             let screen: id = msg_send![*self.ns_window, screen];
             let desc = NSScreen::deviceDescription(screen);
-            let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
+            let key = util::ns_string_id_ref("NSScreenNumber");
             let value = NSDictionary::valueForKey_(desc, *key);
             let display_id = msg_send![value, unsignedIntegerValue];
             RootMonitorHandle {
