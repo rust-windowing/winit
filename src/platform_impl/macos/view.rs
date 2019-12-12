@@ -18,8 +18,8 @@ use objc::{
 
 use crate::{
     event::{
-        DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, MouseScrollDelta, TouchPhase,
-        VirtualKeyCode, WindowEvent,
+        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, MouseButton,
+        MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
     },
     platform_impl::platform::{
         app_state::AppState,
@@ -35,21 +35,13 @@ use crate::{
     window::WindowId,
 };
 
-#[derive(Default)]
-struct Modifiers {
-    shift_pressed: bool,
-    ctrl_pressed: bool,
-    win_pressed: bool,
-    alt_pressed: bool,
-}
-
 struct ViewState {
     ns_window: id,
     pub cursor: Arc<Mutex<util::Cursor>>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
     is_key_down: bool,
-    modifiers: Modifiers,
+    modifiers: ModifiersState,
 }
 
 pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
@@ -654,36 +646,36 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSShiftKeyMask,
-            state.modifiers.shift_pressed,
+            state.modifiers.shift,
         ) {
-            state.modifiers.shift_pressed = !state.modifiers.shift_pressed;
+            state.modifiers.shift = !state.modifiers.shift;
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSControlKeyMask,
-            state.modifiers.ctrl_pressed,
+            state.modifiers.ctrl,
         ) {
-            state.modifiers.ctrl_pressed = !state.modifiers.ctrl_pressed;
+            state.modifiers.ctrl = !state.modifiers.ctrl;
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSCommandKeyMask,
-            state.modifiers.win_pressed,
+            state.modifiers.logo,
         ) {
-            state.modifiers.win_pressed = !state.modifiers.win_pressed;
+            state.modifiers.logo = !state.modifiers.logo;
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSAlternateKeyMask,
-            state.modifiers.alt_pressed,
+            state.modifiers.alt,
         ) {
-            state.modifiers.alt_pressed = !state.modifiers.alt_pressed;
+            state.modifiers.alt = !state.modifiers.alt;
             events.push_back(window_event);
         }
 
@@ -693,6 +685,13 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
                 event,
             });
         }
+
+        AppState::queue_event(Event::DeviceEvent {
+            device_id: DEVICE_ID,
+            event: DeviceEvent::ModifiersChanged {
+                modifiers: state.modifiers,
+            },
+        });
     }
     trace!("Completed `flagsChanged`");
 }
