@@ -95,10 +95,10 @@ lazy_static! {
         //
         // A similar issue was found in SDL, but the resolution doesn't seem to
         // work for us: https://bugzilla.libsdl.org/show_bug.cgi?id=3051
-        decl.add_ivar::<bool>(UNBUNDLED_APP_ACTIVATION_HACK_FLAG);
+        decl.add_ivar::<bool>(ACTIVATION_HACK_FLAG);
         decl.add_method(
-            sel!(unbundledAppActivationHackUnfocus:),
-            unbundled_app_activation_hack_unfocus as extern "C" fn(&mut Object, Sel, id),
+            sel!(activationHackUnfocus:),
+            activation_hack_unfocus as extern "C" fn(&mut Object, Sel, id),
         );
 
         AppDelegateClass(decl.register())
@@ -109,7 +109,7 @@ extern "C" fn new(this: &Object, _: Sel, _: id) -> id {
     unsafe {
         let superclass = util::superclass(this);
         let this: id = msg_send![super(this, superclass), new];
-        set_unbundled_app_activation_hack_flag(&mut *this, false);
+        set_activation_hack_flag(&mut *this, false);
         this
     }
 }
@@ -128,7 +128,7 @@ extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) -> BOOL {
             // after our activeness has been determined.
             let () = msg_send![
                 this,
-                performSelector: sel!(unbundledAppActivationHackUnfocus:)
+                performSelector: sel!(activationHackUnfocus:)
                 withObject: nil
                 afterDelay: 0.0
             ];
@@ -157,7 +157,7 @@ extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
 
 extern "C" fn did_resign_active(this: &mut Object, _: Sel, _: id) {
     trace!("Triggered `didResignActive`");
-    unbundled_app_activation_hack_refocus(this);
+    activation_hack_refocus(this);
     trace!("Completed `didResignActive`");
 }
 
@@ -197,19 +197,19 @@ extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
     trace!("Completed `willTerminate`");
 }
 
-static UNBUNDLED_APP_ACTIVATION_HACK_FLAG: &'static str = "duringUnbundledAppActivationHack";
+static ACTIVATION_HACK_FLAG: &'static str = "activationHackFlag";
 
-unsafe fn set_unbundled_app_activation_hack_flag(this: &mut Object, value: bool) {
-    (*this).set_ivar(UNBUNDLED_APP_ACTIVATION_HACK_FLAG, value);
+unsafe fn set_activation_hack_flag(this: &mut Object, value: bool) {
+    (*this).set_ivar(ACTIVATION_HACK_FLAG, value);
 }
 
-unsafe fn get_unbundled_app_activation_hack_flag(this: &Object) -> bool {
-    *(*this).get_ivar(UNBUNDLED_APP_ACTIVATION_HACK_FLAG)
+unsafe fn get_activation_hack_flag(this: &Object) -> bool {
+    *(*this).get_ivar(ACTIVATION_HACK_FLAG)
 }
 
 // First, we switch focus to the dock.
-extern "C" fn unbundled_app_activation_hack_unfocus(this: &mut Object, _: Sel, _: id) {
-    trace!("Triggered `unbundledAppActivationHackUnfocus`");
+extern "C" fn activation_hack_unfocus(this: &mut Object, _: Sel, _: id) {
+    trace!("Triggered `activationHackUnfocus`");
     unsafe {
         // We only perform the hack if the app failed to activate, since
         // otherwise, there'd be a gross (but fast) flicker as it unfocused and
@@ -235,10 +235,10 @@ extern "C" fn unbundled_app_activation_hack_unfocus(this: &mut Object, _: Sel, _
                     "The Dock doesn't seem to be running, so switching focus to it is impossible"
                 );
             } else {
-                set_unbundled_app_activation_hack_flag(this, true);
+                set_activation_hack_flag(this, true);
                 let dock: id = msg_send![dock_array, objectAtIndex: 0];
                 // This will trigger `did_resign_active`, which will call
-                // `unbundled_app_activation_hack_refocus`.
+                // `activation_hack_refocus`.
                 let status: BOOL = msg_send![
                     dock,
                     activateWithOptions: NSApplicationActivateIgnoringOtherApps
@@ -249,15 +249,15 @@ extern "C" fn unbundled_app_activation_hack_unfocus(this: &mut Object, _: Sel, _
             }
         }
     }
-    trace!("Completed `unbundledAppActivationHackUnfocus`");
+    trace!("Completed `activationHackUnfocus`");
 }
 
 // Then, we switch focus back to our window, and the user rejoices!
-extern "C" fn unbundled_app_activation_hack_refocus(this: &mut Object) {
-    trace!("Triggered `unbundledAppActivationHackRefocus`");
+extern "C" fn activation_hack_refocus(this: &mut Object) {
+    trace!("Triggered `activationHackRefocus`");
     unsafe {
-        if get_unbundled_app_activation_hack_flag(this) {
-            set_unbundled_app_activation_hack_flag(this, false);
+        if get_activation_hack_flag(this) {
+            set_activation_hack_flag(this, false);
             let app: id = msg_send![class!(NSRunningApplication), currentApplication];
             // Simply calling `NSApp activateIgnoringOtherApps` doesn't work.
             // The nuanced difference isn't clear to me, but hey, I tried.
@@ -270,5 +270,5 @@ extern "C" fn unbundled_app_activation_hack_refocus(this: &mut Object) {
             }
         }
     }
-    trace!("Completed `unbundledAppActivationHackRefocus`");
+    trace!("Completed `activationHackRefocus`");
 }
