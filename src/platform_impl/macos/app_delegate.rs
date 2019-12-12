@@ -1,5 +1,4 @@
 use super::{app_state::AppState, util};
-
 use cocoa::{
     appkit::{NSApp, NSApplicationActivateIgnoringOtherApps},
     base::{id, nil},
@@ -8,6 +7,10 @@ use cocoa::{
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
+};
+use std::{
+    os::raw::c_void,
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 pub struct AppDelegateClass(pub *const Class);
@@ -19,10 +22,11 @@ lazy_static! {
         let superclass = class!(NSResponder);
         let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
 
-        decl.add_method(
-            sel!(new:),
-            new as extern "C" fn(&Object, Sel, id) -> id,
+        decl.add_class_method(
+            sel!(new),
+            new as extern "C" fn(&Class, Sel) -> id,
         );
+        decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
         decl.add_method(
             sel!(applicationDidFinishLaunching:),
             did_finish_launching as extern "C" fn(&Object, Sel, id) -> BOOL,
@@ -76,7 +80,7 @@ lazy_static! {
         //
         // A similar issue was found in SDL, but the resolution doesn't seem to
         // work for us: https://bugzilla.libsdl.org/show_bug.cgi?id=3051
-        decl.add_ivar::<bool>(ACTIVATION_HACK_FLAG);
+        decl.add_ivar::<*mut c_void>(ACTIVATION_HACK_FLAG);
         decl.add_method(
             sel!(activationHackUnfocus:),
             activation_hack_unfocus as extern "C" fn(&mut Object, Sel, id),
@@ -86,12 +90,19 @@ lazy_static! {
     };
 }
 
-extern "C" fn new(this: &Object, _: Sel, _: id) -> id {
+extern "C" fn new(class: &Class, _: Sel) -> id {
     unsafe {
-        let superclass = util::superclass(this);
-        let this: id = msg_send![super(this, superclass), new];
-        set_activation_hack_flag(&mut *this, false);
+        let this: id = msg_send![class, alloc];
+        let this: id = msg_send![this, init];
+        let flag = Box::new(AtomicBool::default());
+        (*this).set_ivar(ACTIVATION_HACK_FLAG, Box::into_raw(flag) as *mut c_void);
         this
+    }
+}
+
+extern "C" fn dealloc(this: &Object, _sel: Sel) {
+    unsafe {
+        Box::from_raw(activation_hack_flag_ptr(this));
     }
 }
 
@@ -128,12 +139,20 @@ extern "C" fn did_resign_active(this: &mut Object, _: Sel, _: id) {
 
 static ACTIVATION_HACK_FLAG: &'static str = "activationHackFlag";
 
-unsafe fn set_activation_hack_flag(this: &mut Object, value: bool) {
-    (*this).set_ivar(ACTIVATION_HACK_FLAG, value);
+unsafe fn activation_hack_flag_ptr(this: &Object) -> *mut AtomicBool {
+    let flag: *mut c_void = *(*this).get_ivar(ACTIVATION_HACK_FLAG);
+    assert!(!flag.is_null(), "`activationHackFlag` pointer was null");
+    flag as *mut AtomicBool
+}
+
+unsafe fn set_activation_hack_flag(this: &Object, value: bool) {
+    let flag = activation_hack_flag_ptr(this);
+    (*flag).store(value, Ordering::Release);
 }
 
 unsafe fn get_activation_hack_flag(this: &Object) -> bool {
-    *(*this).get_ivar(ACTIVATION_HACK_FLAG)
+    let flag = activation_hack_flag_ptr(this);
+    (*flag).load(Ordering::Acquire)
 }
 
 // First, we switch focus to the dock.
