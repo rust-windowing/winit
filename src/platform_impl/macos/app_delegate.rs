@@ -20,6 +20,10 @@ lazy_static! {
         let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
 
         decl.add_method(
+            sel!(new:),
+            new as extern "C" fn(&Object, Sel, id) -> id,
+        );
+        decl.add_method(
             sel!(applicationDidFinishLaunching:),
             did_finish_launching as extern "C" fn(&Object, Sel, id) -> BOOL,
         );
@@ -30,6 +34,10 @@ lazy_static! {
         decl.add_method(
             sel!(applicationWillResignActive:),
             will_resign_active as extern "C" fn(&Object, Sel, id),
+        );
+        decl.add_method(
+            sel!(applicationDidResignActive:),
+            did_resign_active as extern "C" fn(&mut Object, Sel, id),
         );
         decl.add_method(
             sel!(applicationWillEnterForeground:),
@@ -59,35 +67,51 @@ lazy_static! {
         // window into a normal state. None of this happens if the app is
         // bundled, i.e. when running via Xcode.
         //
-        // Solution courtesy of https://github.com/godotengine/godot/pull/17187
-        // (which appears to be based on https://stackoverflow.com/a/7602677)
-        // To emphasize the curious specialness of mouse move events, the same
-        // repro was found here:
-        // https://github.com/godotengine/godot/issues/8653#issuecomment-358130512
-        //
         // To fix this, we just switch focus to the Dock and then switch back
-        // to our app. We only do this for unbundled apps. We omit the 2nd step
-        // of the solution used in Godot, since it appears to have no effect -
-        // I speculate that it's just technical debt picked up from the SO
-        // answer; the API used is fairly exotic, and was historically used
-        // (i.e. in SDL) in very old versions of macOS that didn't support
-        // `activateIgnoringOtherApps`.
+        // to our app. We only do this for unbundled apps, and only when they
+        // fail to become active on their own.
         //
-        // Fun fact: this issue is still present in GLFW (https://github.com/glfw/glfw/issues/1515)
+        // This solution was derived from this Godot PR:
+        // https://github.com/godotengine/godot/pull/17187
+        // (which appears to be based on https://stackoverflow.com/a/7602677)
+        //
+        // We omit the 2nd step of the solution used in Godot, since it appears
+        // to have no effect - I speculate that it's just technical debt picked
+        // up from the SO answer; the API used is fairly exotic, and was
+        // historically used (i.e. in previous versions of SDL) for very old
+        // versions of macOS that didn't support `activateIgnoringOtherApps`.
+        //
+        // The `performSelector` delays in the Godot solution are used for
+        // sequencing, since refocusing the app will fail if the call is made
+        // before it finishes uncofusing. The delays used there are much
+        // smaller than the ones in the original SO answer, presumably because
+        // they found the fastest delay that works reliably through trial and
+        // error. Instead of using delays, we just handle
+        // `applicationDidResignActive`; despite the app not activating
+        // reliably, that still triggers when we switch focus to the Dock.
+        //
+        // Fun fact: this issue is still present in GLFW
+        // (https://github.com/glfw/glfw/issues/1515)
         //
         // A similar issue was found in SDL, but the resolution doesn't seem to
         // work for us: https://bugzilla.libsdl.org/show_bug.cgi?id=3051
+        decl.add_ivar::<bool>(UNBUNDLED_APP_ACTIVATION_HACK_FLAG);
         decl.add_method(
             sel!(unbundledAppActivationHackUnfocus:),
-            unbundled_app_activation_hack_unfocus as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(unbundledAppActivationHackRefocus:),
-            unbundled_app_activation_hack_refocus as extern "C" fn(&Object, Sel, id),
+            unbundled_app_activation_hack_unfocus as extern "C" fn(&mut Object, Sel, id),
         );
 
         AppDelegateClass(decl.register())
     };
+}
+
+extern "C" fn new(this: &Object, _: Sel, _: id) -> id {
+    unsafe {
+        let superclass = util::superclass(this);
+        let this: id = msg_send![super(this, superclass), new];
+        set_unbundled_app_activation_hack_flag(&mut *this, false);
+        this
+    }
 }
 
 extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) -> BOOL {
@@ -96,11 +120,17 @@ extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) -> BOOL {
         if let None = util::app_name() {
             // This app is unbundled, so we need to do some shenanigans for the
             // window to reliably activate correctly.
+            //
+            // While it would be nice to just call our method directly instead
+            // of using `performSelector` here, `NSApp isActive` always returns
+            // `NO` if we do that. Using `performSelector` with a zero delay
+            // queues the call on our run loop, so it won't be called until
+            // after our activeness has been determined.
             let () = msg_send![
                 this,
                 performSelector: sel!(unbundledAppActivationHackUnfocus:)
                 withObject: nil
-                afterDelay: UNBUNDLED_APP_ACTIVATION_HACK_DELAY
+                afterDelay: 0.0
             ];
         }
     }
@@ -123,6 +153,12 @@ extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
         HANDLER.lock().unwrap().handle_nonuser_event(Event::Suspended)
     }*/
     trace!("Completed `willResignActive`");
+}
+
+extern "C" fn did_resign_active(this: &mut Object, _: Sel, _: id) {
+    trace!("Triggered `didResignActive`");
+    unbundled_app_activation_hack_refocus(this);
+    trace!("Completed `didResignActive`");
 }
 
 extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {
@@ -161,24 +197,23 @@ extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
     trace!("Completed `willTerminate`");
 }
 
-// The Godot implementation doesn't explain why this delay was chosen, which is
-// notably different from the (also unexplained) choice of 0.1 in the
-// stackoverflow answer it's based on. However, from some cursory testing, this
-// delay seems to be the fastest one that works reliably... when using 0.0, it
-// would sometimes fail. Tragically, this is also why we have 2 separate
-// methods, since the delay between them is necessary for the racey garbage
-// we're doing.
-const UNBUNDLED_APP_ACTIVATION_HACK_DELAY: std::os::raw::c_double = 0.02;
+static UNBUNDLED_APP_ACTIVATION_HACK_FLAG: &'static str = "duringUnbundledAppActivationHack";
+
+unsafe fn set_unbundled_app_activation_hack_flag(this: &mut Object, value: bool) {
+    (*this).set_ivar(UNBUNDLED_APP_ACTIVATION_HACK_FLAG, value);
+}
+
+unsafe fn get_unbundled_app_activation_hack_flag(this: &Object) -> bool {
+    *(*this).get_ivar(UNBUNDLED_APP_ACTIVATION_HACK_FLAG)
+}
 
 // First, we switch focus to the dock.
-extern "C" fn unbundled_app_activation_hack_unfocus(this: &Object, _: Sel, _: id) {
+extern "C" fn unbundled_app_activation_hack_unfocus(this: &mut Object, _: Sel, _: id) {
     trace!("Triggered `unbundledAppActivationHackUnfocus`");
     unsafe {
         // We only perform the hack if the app failed to activate, since
         // otherwise, there'd be a gross (but fast) flicker as it unfocused and
-        // then refocused. While you'd think it would be nicer to do this check
-        // in `did_finish_launching`, it mysteriously doesn't work correctly if
-        // you do.
+        // then refocused.
         let active: BOOL = msg_send![NSApp(), isActive];
         info!(
             "Unbundled app detected as {}",
@@ -200,7 +235,10 @@ extern "C" fn unbundled_app_activation_hack_unfocus(this: &Object, _: Sel, _: id
                     "The Dock doesn't seem to be running, so switching focus to it is impossible"
                 );
             } else {
+                set_unbundled_app_activation_hack_flag(this, true);
                 let dock: id = msg_send![dock_array, objectAtIndex: 0];
+                // This will trigger `did_resign_active`, which will call
+                // `unbundled_app_activation_hack_refocus`.
                 let status: BOOL = msg_send![
                     dock,
                     activateWithOptions: NSApplicationActivateIgnoringOtherApps
@@ -208,12 +246,6 @@ extern "C" fn unbundled_app_activation_hack_unfocus(this: &Object, _: Sel, _: id
                 if status == NO {
                     error!("Failed to switch focus to Dock");
                 }
-                let () = msg_send![
-                    this,
-                    performSelector: sel!(unbundledAppActivationHackRefocus:)
-                    withObject: nil
-                    afterDelay: UNBUNDLED_APP_ACTIVATION_HACK_DELAY
-                ];
             }
         }
     }
@@ -221,18 +253,21 @@ extern "C" fn unbundled_app_activation_hack_unfocus(this: &Object, _: Sel, _: id
 }
 
 // Then, we switch focus back to our window, and the user rejoices!
-extern "C" fn unbundled_app_activation_hack_refocus(_: &Object, _: Sel, _: id) {
+extern "C" fn unbundled_app_activation_hack_refocus(this: &mut Object) {
     trace!("Triggered `unbundledAppActivationHackRefocus`");
     unsafe {
-        let app: id = msg_send![class!(NSRunningApplication), currentApplication];
-        // Simply calling `activateIgnoringOtherApps` on `NSApp` doesn't work.
-        // The nuanced difference isn't clear to me, but hey, at least I tried.
-        let success: BOOL = msg_send![
-            app,
-            activateWithOptions: NSApplicationActivateIgnoringOtherApps
-        ];
-        if success == NO {
-            error!("Failed to refocus app");
+        if get_unbundled_app_activation_hack_flag(this) {
+            set_unbundled_app_activation_hack_flag(this, false);
+            let app: id = msg_send![class!(NSRunningApplication), currentApplication];
+            // Simply calling `NSApp activateIgnoringOtherApps` doesn't work.
+            // The nuanced difference isn't clear to me, but hey, I tried.
+            let success: BOOL = msg_send![
+                app,
+                activateWithOptions: NSApplicationActivateIgnoringOtherApps
+            ];
+            if success == NO {
+                error!("Failed to refocus app");
+            }
         }
     }
     trace!("Completed `unbundledAppActivationHackRefocus`");
