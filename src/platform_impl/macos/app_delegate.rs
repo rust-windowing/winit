@@ -46,10 +46,10 @@ lazy_static! {
         // Apple isn't especially fond of unbundled apps, which is to say, they
         // seem to barely be supported. If you move the mouse while opening a
         // winit window from an unbundled app, the window will fail to activate
-        // and be in a grayed-out uninteractable state. Switching from another
-        // window and back to the winit window is the only way to get the winit
-        // window into a normal state. None of this happens if the app is
-        // bundled, i.e. when running via Xcode.
+        // and be in a grayed-out uninteractable state. Switching to another
+        // app and back is the only way to get the winit window into a normal
+        // state. None of this happens if the app is bundled, i.e. when running
+        // via Xcode.
         //
         // To workaround this, we just switch focus to the Dock and then switch
         // back to our app. We only do this for unbundled apps, and only when
@@ -68,7 +68,7 @@ lazy_static! {
         //
         // The `performSelector` delays in the Godot solution are used for
         // sequencing, since refocusing the app will fail if the call is made
-        // before it finishes uncofusing. The delays used there are much
+        // before it finishes unfocusing. The delays used there are much
         // smaller than the ones in the original SO answer, presumably because
         // they found the fastest delay that works reliably through trial and
         // error. Instead of using delays, we just handle
@@ -111,7 +111,7 @@ extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) -> BOOL {
     unsafe {
         if let None = util::app_name() {
             // This app is unbundled, so we need to do some shenanigans for the
-            // window to reliably activate correctly.
+            // app to reliably activate correctly.
             //
             // While it would be nice to just call our method directly instead
             // of using `performSelector` here, `NSApp isActive` always returns
@@ -200,7 +200,7 @@ extern "C" fn activation_hack_unfocus(this: &mut Object, _: Sel, _: id) {
     trace!("Completed `activation_hack_unfocus`");
 }
 
-// Then, we switch focus back to our window, and the user rejoices!
+// Then, we switch focus back to our app, and the user rejoices!
 extern "C" fn activation_hack_refocus(this: &mut Object) {
     trace!("Triggered `activation_hack_refocus`");
     unsafe {
