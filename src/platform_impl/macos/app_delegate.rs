@@ -47,9 +47,9 @@ lazy_static! {
         // window into a normal state. None of this happens if the app is
         // bundled, i.e. when running via Xcode.
         //
-        // To fix this, we just switch focus to the Dock and then switch back
-        // to our app. We only do this for unbundled apps, and only when they
-        // fail to become active on their own.
+        // To workaround this, we just switch focus to the Dock and then switch
+        // back to our app. We only do this for unbundled apps, and only when
+        // they fail to become active on their own.
         //
         // This solution was derived from this Godot PR:
         // https://github.com/godotengine/godot/pull/17187
@@ -58,8 +58,9 @@ lazy_static! {
         // We omit the 2nd step of the solution used in Godot, since it appears
         // to have no effect - I speculate that it's just technical debt picked
         // up from the SO answer; the API used is fairly exotic, and was
-        // historically used (i.e. in previous versions of SDL) for very old
-        // versions of macOS that didn't support `activateIgnoringOtherApps`.
+        // historically used for very old versions of macOS that didn't support
+        // `activateIgnoringOtherApps`, i.e. in previous versions of SDL:
+        // https://hg.libsdl.org/SDL/file/c0bcc39a3491/src/video/cocoa/SDL_cocoaevents.m#l322
         //
         // The `performSelector` delays in the Godot solution are used for
         // sequencing, since refocusing the app will fail if the call is made
