@@ -29,7 +29,7 @@ lazy_static! {
         decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
         decl.add_method(
             sel!(applicationDidFinishLaunching:),
-            did_finish_launching as extern "C" fn(&Object, Sel, id) -> BOOL,
+            did_finish_launching as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
             sel!(applicationDidResignActive:),
@@ -106,7 +106,7 @@ extern "C" fn dealloc(this: &Object, _sel: Sel) {
     }
 }
 
-extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) -> BOOL {
+extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
     trace!("Triggered `did_finish_launching`");
     unsafe {
         if let None = util::app_name() {
@@ -115,20 +115,22 @@ extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) -> BOOL {
             //
             // While it would be nice to just call our method directly instead
             // of using `performSelector` here, `NSApp isActive` always returns
-            // `NO` if we do that. Using `performSelector` with a zero delay
-            // queues the call on our run loop, so it won't be called until
-            // after our activeness has been determined.
+            // `NO` if we do that. We defer this until after activeness has
+            // been determined using the tried-and-true method of adding a
+            // delay... finding a more correct solution is hard, since despite
+            // `applicationDidResignActive` always firing when we switch focus
+            // to the Dock, we don't get a preceding
+            // `applicationDidBecomeActive` unless the app activated normally.
             let () = msg_send![
                 this,
                 performSelector: sel!(activationHackUnfocus:)
                 withObject: nil
-                afterDelay: 0.0
+                afterDelay: 0.02
             ];
         }
     }
     AppState::launched();
     trace!("Completed `did_finish_launching`");
-    YES
 }
 
 extern "C" fn did_resign_active(this: &mut Object, _: Sel, _: id) {
