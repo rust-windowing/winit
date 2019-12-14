@@ -39,7 +39,7 @@ unsafe fn get_char(keyboard_state: &[u8; 256], v_key: u32, hkl: HKL) -> Option<c
         hkl,
     );
     if len >= 1 {
-        char::decode_utf16(unicode_bytes.into_iter().cloned())
+        char::decode_utf16(unicode_bytes.iter().cloned())
             .next()
             .and_then(|c| c.ok())
     } else {

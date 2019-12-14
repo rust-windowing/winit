@@ -199,7 +199,7 @@ impl<T: 'static> EventLoopProxy<T> {
     /// function.
     ///
     /// Returns an `Err` if the associated `EventLoop` no longer exists.
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.event_loop_proxy.send_event(event)
     }
 }
@@ -211,17 +211,17 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
 }
 
 /// The error that is returned when an `EventLoopProxy` attempts to wake up an `EventLoop` that
-/// no longer exists.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct EventLoopClosed;
+/// no longer exists. Contains the original event given to `send_event`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EventLoopClosed<T>(pub T);
 
-impl fmt::Display for EventLoopClosed {
+impl<T: fmt::Debug> fmt::Display for EventLoopClosed<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", error::Error::description(self))
     }
 }
 
-impl error::Error for EventLoopClosed {
+impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {
     fn description(&self) -> &str {
         "Tried to wake up a closed `EventLoop`"
     }

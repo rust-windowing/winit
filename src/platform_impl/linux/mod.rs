@@ -1,11 +1,10 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{collections::VecDeque, env, ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
+use std::{collections::VecDeque, env, sync::Arc};
 
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
 use winit_types::error::Error;
-use winit_types::platform::{OsError, XError};
 
 use self::x11::{ffi::XVisualInfo, get_xtarget, util::WindowType as XWindowType, XConnection};
 use crate::{
@@ -599,7 +598,7 @@ impl<T: 'static> EventLoop<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         match *self {
             EventLoopProxy::Wayland(ref proxy) => proxy.send_event(event),
             EventLoopProxy::X(ref proxy) => proxy.send_event(event),

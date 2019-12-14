@@ -155,7 +155,7 @@ impl EventLoop {
 }
 
 impl EventLoopProxy {
-    pub fn wakeup(&self) -> Result<(), ::EventLoopClosed> {
+    pub fn wakeup(&self) -> Result<(), ::EventLoopClosed<()>> {
         android_glue::wake_event_loop();
         Ok(())
     }

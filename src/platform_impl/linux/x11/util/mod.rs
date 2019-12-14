@@ -9,6 +9,7 @@ mod geometry;
 mod hint;
 mod icon;
 mod input;
+pub mod keys;
 mod memory;
 pub mod modifiers;
 mod randr;

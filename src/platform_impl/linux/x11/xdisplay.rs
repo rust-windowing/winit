@@ -1,10 +1,8 @@
-use std::{collections::HashMap, fmt, os::raw::c_int, ptr, sync::Arc};
+use std::{collections::HashMap, fmt, os::raw::c_int, sync::Arc};
 
 use glutin_x11_sym::{Display, X11_DISPLAY};
-use libc;
 use parking_lot::Mutex;
 use winit_types::error::Error;
-use winit_types::platform::{OsError, XNotSupported};
 
 use crate::window::CursorIcon;
 
