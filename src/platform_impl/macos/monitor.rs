@@ -245,7 +245,10 @@ impl MonitorHandle {
         unsafe {
             let modes = {
                 let array = ffi::CGDisplayCopyAllDisplayModes(self.0, std::ptr::null());
-                assert!(!array.is_null(), "[winit] failed to get list of display modes");
+                assert!(
+                    !array.is_null(),
+                    "[winit] failed to get list of display modes"
+                );
                 let array_count = CFArrayGetCount(array);
                 let modes: Vec<_> = (0..array_count)
                     .map(move |i| {

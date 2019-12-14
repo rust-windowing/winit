@@ -172,7 +172,7 @@ impl UnownedWindow {
 
         let screen_id = match pl_attribs.screen_id {
             Some(id) => id,
-            None => unsafe { (xlib.XDefaultScreen)(xconn.display) },
+            None => unsafe { (xlib.XDefaultScreen)(**xconn.display) },
         };
 
         // creating
@@ -181,7 +181,7 @@ impl UnownedWindow {
             swa.colormap = if let Some(vi) = pl_attribs.visual_infos {
                 unsafe {
                     let visual = vi.visual;
-                    (xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone)
+                    (xlib.XCreateColormap)(**xconn.display, root, visual, ffi::AllocNone)
                 }
             } else {
                 0
@@ -209,7 +209,7 @@ impl UnownedWindow {
         // finally creating the window
         let xwindow = unsafe {
             (xlib.XCreateWindow)(
-                xconn.display,
+                **xconn.display,
                 root,
                 0,
                 0,
@@ -307,7 +307,7 @@ impl UnownedWindow {
                 (*class_hint).res_class = instance.as_ptr() as *mut c_char;
 
                 unsafe {
-                    (xlib.XSetClassHint)(xconn.display, window.xwindow, class_hint.ptr);
+                    (xlib.XSetClassHint)(**xconn.display, window.xwindow, class_hint.ptr);
                 } //.queue();
             }
 
@@ -357,7 +357,7 @@ impl UnownedWindow {
             // Opt into handling window close
             unsafe {
                 (xlib.XSetWMProtocols)(
-                    xconn.display,
+                    **xconn.display,
                     window.xwindow,
                     &[event_loop.wm_delete_window, event_loop.net_wm_ping] as *const ffi::Atom
                         as *mut ffi::Atom,
@@ -368,17 +368,17 @@ impl UnownedWindow {
             // Set visibility (map window)
             if window_attrs.visible {
                 unsafe {
-                    (xlib.XMapRaised)(xconn.display, window.xwindow);
+                    (xlib.XMapRaised)(**xconn.display, window.xwindow);
                 } //.queue();
             }
 
             // Attempt to make keyboard input repeat detectable
             unsafe {
                 let mut supported_ptr = ffi::False;
-                (xlib.XkbSetDetectableAutoRepeat)(xconn.display, ffi::True, &mut supported_ptr);
+                (xlib.XkbSetDetectableAutoRepeat)(**xconn.display, ffi::True, &mut supported_ptr);
                 if supported_ptr == ffi::False {
-                    return Err(make_oserror!(OsError::XMisc(
-                        "`XkbSetDetectableAutoRepeat` failed"
+                    return Err(make_oserror!(OsError::Misc(
+                        "`XkbSetDetectableAutoRepeat` failed".to_string()
                     )));
                 }
             }
@@ -409,7 +409,7 @@ impl UnownedWindow {
                     return Err(match err {
                         ImeContextCreationError::Error(err) => err,
                         ImeContextCreationError::Null => {
-                            make_oserror!(OsError::XMisc("IME Context creation failed"))
+                            make_oserror!(OsError::Misc("IME Context creation failed".to_string()))
                         }
                     });
                 }
@@ -563,7 +563,7 @@ impl UnownedWindow {
             // locking up the user's display.
             unsafe {
                 (xlib.XSetInputFocus)(
-                    self.xconn.display,
+                    **self.xconn.display,
                     self.xwindow,
                     ffi::RevertToParent,
                     ffi::CurrentTime,
@@ -719,7 +719,7 @@ impl UnownedWindow {
 
         match shared_state.visibility {
             Visibility::No => unsafe {
-                (xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
+                (xlib.XUnmapWindow)(**self.xconn.display, self.xwindow);
             },
             Visibility::Yes => (),
             Visibility::YesWait => {
@@ -776,7 +776,7 @@ impl UnownedWindow {
         let title = CString::new(title).expect("Window title contained null byte");
         unsafe {
             (xlib.XStoreName)(
-                self.xconn.display,
+                **self.xconn.display,
                 self.xwindow,
                 title.as_ptr() as *const c_char,
             );
@@ -881,7 +881,7 @@ impl UnownedWindow {
 
         if visible {
             unsafe {
-                (xlib.XMapRaised)(self.xconn.display, self.xwindow);
+                (xlib.XMapRaised)(**self.xconn.display, self.xwindow);
             }
             self.xconn
                 .flush_requests()
@@ -889,7 +889,7 @@ impl UnownedWindow {
             shared_state.visibility = Visibility::YesWait;
         } else {
             unsafe {
-                (xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
+                (xlib.XUnmapWindow)(**self.xconn.display, self.xwindow);
             }
             self.xconn
                 .flush_requests()
@@ -961,7 +961,7 @@ impl UnownedWindow {
             }
         }
         unsafe {
-            (xlib.XMoveWindow)(self.xconn.display, self.xwindow, x as c_int, y as c_int);
+            (xlib.XMoveWindow)(**self.xconn.display, self.xwindow, x as c_int, y as c_int);
         }
         util::Flusher::new(&self.xconn)
     }
@@ -1008,7 +1008,7 @@ impl UnownedWindow {
         let xlib = syms!(XLIB);
         unsafe {
             (xlib.XResizeWindow)(
-                self.xconn.display,
+                **self.xconn.display,
                 self.xwindow,
                 width as c_uint,
                 height as c_uint,
@@ -1091,7 +1091,7 @@ impl UnownedWindow {
         .expect("Failed to update normal hints");
         unsafe {
             (xlib.XResizeWindow)(
-                self.xconn.display,
+                **self.xconn.display,
                 self.xwindow,
                 new_width.round() as c_uint,
                 new_height.round() as c_uint,
@@ -1138,7 +1138,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn xlib_display(&self) -> *mut c_void {
-        self.xconn.display as _
+        **self.xconn.display as _
     }
 
     #[inline]
@@ -1154,7 +1154,7 @@ impl UnownedWindow {
     #[inline]
     pub fn xcb_connection(&self) -> *mut c_void {
         let xlib_xcb = syms!(XLIB_XCB);
-        unsafe { (xlib_xcb.XGetXCBConnection)(self.xconn.display) as *mut _ }
+        unsafe { (xlib_xcb.XGetXCBConnection)(**self.xconn.display) as *mut _ }
     }
 
     #[inline]
@@ -1175,12 +1175,12 @@ impl UnownedWindow {
         unsafe {
             // We ungrab before grabbing to prevent passive grabs from causing `AlreadyGrabbed`.
             // Therefore, this is common to both codepaths.
-            (xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
+            (xlib.XUngrabPointer)(**self.xconn.display, ffi::CurrentTime);
         }
         let result = if grab {
             let result = unsafe {
                 (xlib.XGrabPointer)(
-                    self.xconn.display,
+                    **self.xconn.display,
                     self.xwindow,
                     ffi::True,
                     (ffi::ButtonPressMask
@@ -1216,7 +1216,7 @@ impl UnownedWindow {
                 ffi::GrabFrozen => Err("Cursor could not be grabbed: frozen by another client"),
                 _ => unreachable!(),
             }
-            .map_err(|err| make_oserror!(OsError::XMisc(err)))
+            .map_err(|err| make_oserror!(OsError::Misc(err.to_string())))
         } else {
             self.xconn.flush_requests()
         };
@@ -1250,7 +1250,7 @@ impl UnownedWindow {
     pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), Error> {
         let xlib = syms!(XLIB);
         unsafe {
-            (xlib.XWarpPointer)(self.xconn.display, 0, self.xwindow, 0, 0, 0, 0, x, y);
+            (xlib.XWarpPointer)(**self.xconn.display, 0, self.xwindow, 0, 0, 0, 0, x, y);
             self.xconn.flush_requests()
         }
     }
@@ -1291,7 +1291,7 @@ impl UnownedWindow {
     pub fn raw_window_handle(&self) -> XlibHandle {
         XlibHandle {
             window: self.xwindow,
-            display: self.xconn.display as _,
+            display: **self.xconn.display as _,
             ..XlibHandle::empty()
         }
     }

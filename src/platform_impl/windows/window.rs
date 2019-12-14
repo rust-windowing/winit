@@ -1,8 +1,8 @@
 #![cfg(target_os = "windows")]
 
-use winit_types::error::Error;
 use parking_lot::Mutex;
 use raw_window_handle::{windows::WindowsHandle, RawWindowHandle};
+use winit_types::error::Error;
 
 use std::{
     cell::Cell,
@@ -438,10 +438,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(
-        &self,
-        logical_position: LogicalPosition,
-    ) -> Result<(), Error> {
+    pub fn set_cursor_position(&self, logical_position: LogicalPosition) -> Result<(), Error> {
         let dpi_factor = self.hidpi_factor();
         let (x, y) = logical_position.to_physical(dpi_factor).into();
         self.set_cursor_position_physical(x, y)

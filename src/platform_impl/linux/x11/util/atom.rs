@@ -26,13 +26,13 @@ impl XConnection {
             atom
         } else {
             let atom = unsafe {
-                (xlib.XInternAtom)(self.display, name.as_ptr() as *const c_char, ffi::False)
+                (xlib.XInternAtom)(**self.display, name.as_ptr() as *const c_char, ffi::False)
             };
             if atom == 0 {
                 panic!(
                     "[winit] `XInternAtom` failed, which really shouldn't happen. Atom: {:?}, Error: {:#?}",
                     name,
-                    self.check_errors(),
+                    self.display.check_errors(),
                 );
             }
             /*println!(
@@ -57,13 +57,13 @@ impl XConnection {
         let xlib = syms!(XLIB);
         let mut atoms = Vec::with_capacity(names.len());
         (xlib.XInternAtoms)(
-            self.display,
+            **self.display,
             names.as_ptr() as *mut _,
             names.len() as c_int,
             ffi::False,
             atoms.as_mut_ptr(),
         );
-        self.check_errors()?;
+        self.display.check_errors()?;
         atoms.set_len(names.len());
         /*println!(
             "XInternAtoms atoms:{:?}",

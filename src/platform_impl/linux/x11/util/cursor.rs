@@ -17,9 +17,9 @@ impl XConnection {
         let xlib = syms!(XLIB);
         let data = 0;
         let pixmap = unsafe {
-            let screen = (xlib.XDefaultScreen)(self.display);
-            let window = (xlib.XRootWindow)(self.display, screen);
-            (xlib.XCreateBitmapFromData)(self.display, window, &data, 1, 1)
+            let screen = (xlib.XDefaultScreen)(**self.display);
+            let window = (xlib.XRootWindow)(**self.display, screen);
+            (xlib.XCreateBitmapFromData)(**self.display, window, &data, 1, 1)
         };
 
         if pixmap == 0 {
@@ -31,7 +31,7 @@ impl XConnection {
             // in the pixmap which are not 0 in the mask.
             let mut dummy_color = MaybeUninit::uninit();
             let cursor = (xlib.XCreatePixmapCursor)(
-                self.display,
+                **self.display,
                 pixmap,
                 pixmap,
                 dummy_color.as_mut_ptr(),
@@ -39,7 +39,7 @@ impl XConnection {
                 0,
                 0,
             );
-            (xlib.XFreePixmap)(self.display, pixmap);
+            (xlib.XFreePixmap)(**self.display, pixmap);
 
             cursor
         }
@@ -47,7 +47,9 @@ impl XConnection {
 
     fn load_cursor(&self, name: &[u8]) -> ffi::Cursor {
         let xcursor = syms!(XCURSOR);
-        unsafe { (xcursor.XcursorLibraryLoadCursor)(self.display, name.as_ptr() as *const c_char) }
+        unsafe {
+            (xcursor.XcursorLibraryLoadCursor)(**self.display, name.as_ptr() as *const c_char)
+        }
     }
 
     fn load_first_existing_cursor(&self, names: &[&[u8]]) -> ffi::Cursor {
@@ -122,7 +124,7 @@ impl XConnection {
     fn update_cursor(&self, window: ffi::Window, cursor: ffi::Cursor) {
         let xlib = syms!(XLIB);
         unsafe {
-            (xlib.XDefineCursor)(self.display, window, cursor);
+            (xlib.XDefineCursor)(**self.display, window, cursor);
 
             self.flush_requests().expect("Failed to set the cursor");
         }

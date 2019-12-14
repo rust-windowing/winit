@@ -212,15 +212,15 @@ impl XConnection {
         unsafe {
             let mut major = 0;
             let mut minor = 0;
-            (xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
 
-            let root = (xlib.XDefaultRootWindow)(self.display);
+            let root = (xlib.XDefaultRootWindow)(**self.display);
             let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+                (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
             } else {
                 // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
                 // Upon failure, `resources` will be null.
-                (xrandr.XRRGetScreenResources)(self.display, root)
+                (xrandr.XRRGetScreenResources)(**self.display, root)
             };
 
             if resources.is_null() {
@@ -230,11 +230,11 @@ impl XConnection {
             let mut available;
             let mut has_primary = false;
 
-            let primary = (xrandr.XRRGetOutputPrimary)(self.display, root);
+            let primary = (xrandr.XRRGetOutputPrimary)(**self.display, root);
             available = Vec::with_capacity((*resources).ncrtc as usize);
             for crtc_index in 0..(*resources).ncrtc {
                 let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
-                let crtc = (xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+                let crtc = (xrandr.XRRGetCrtcInfo)(**self.display, resources, crtc_id);
                 let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
                 if is_active {
                     let is_primary = *(*crtc).outputs.offset(0) == primary;
@@ -286,7 +286,7 @@ impl XConnection {
         let has_xrandr = unsafe {
             let mut major = 0;
             let mut minor = 0;
-            (xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor)
+            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor)
         };
         assert!(
             has_xrandr == True,
@@ -296,16 +296,16 @@ impl XConnection {
         let mut event_offset = 0;
         let mut error_offset = 0;
         let status = unsafe {
-            (xrandr.XRRQueryExtension)(self.display, &mut event_offset, &mut error_offset)
+            (xrandr.XRRQueryExtension)(**self.display, &mut event_offset, &mut error_offset)
         };
 
         if status != True {
-            self.check_errors()?;
+            self.display.check_errors()?;
             unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
         }
 
         let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
-        unsafe { (xrandr.XRRSelectInput)(self.display, root, mask) };
+        unsafe { (xrandr.XRRSelectInput)(**self.display, root, mask) };
 
         Ok(event_offset)
     }

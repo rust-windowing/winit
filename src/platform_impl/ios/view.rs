@@ -410,9 +410,15 @@ pub unsafe fn create_view(
     let class = get_view_class(platform_attributes.root_view_class);
 
     let view: id = msg_send![class, alloc];
-    assert!(!view.is_null(), "[winit] Failed to create `UIView` instance");
+    assert!(
+        !view.is_null(),
+        "[winit] Failed to create `UIView` instance"
+    );
     let view: id = msg_send![view, initWithFrame: frame];
-    assert!(!view.is_null(), "[winit] Failed to initialize `UIView` instance");
+    assert!(
+        !view.is_null(),
+        "[winit] Failed to initialize `UIView` instance"
+    );
     let () = msg_send![view, setMultipleTouchEnabled: YES];
     if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
         let () = msg_send![view, setContentScaleFactor: hidpi_factor as CGFloat];
@@ -487,7 +493,10 @@ pub unsafe fn create_window(
     let class = get_window_class();
 
     let window: id = msg_send![class, alloc];
-    assert!(!window.is_null(), "[winit] Failed to create `UIWindow` instance");
+    assert!(
+        !window.is_null(),
+        "[winit] Failed to create `UIWindow` instance"
+    );
     let window: id = msg_send![window, initWithFrame: frame];
     assert!(
         !window.is_null(),

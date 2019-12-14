@@ -9,13 +9,13 @@ use winit_types::error::Error;
 pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), Error> {
     let xlib = syms!(XLIB);
     (xlib.XCloseIM)(im);
-    xconn.check_errors()
+    xconn.display.check_errors()
 }
 
 pub unsafe fn destroy_ic(xconn: &Arc<XConnection>, ic: ffi::XIC) -> Result<(), Error> {
     let xlib = syms!(XLIB);
     (xlib.XDestroyIC)(ic);
-    xconn.check_errors()
+    xconn.display.check_errors()
 }
 
 pub struct ImeInner {

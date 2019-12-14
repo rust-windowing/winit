@@ -193,12 +193,16 @@ impl Window {
 
     #[inline]
     pub fn outer_position(&self) -> Result<LogicalPosition, Error> {
-        Err(make_error!(ErrorType::NotSupported))
+        Err(make_error!(ErrorType::NotSupported(
+            "Getting the outer position is not supported on Wayland.".to_string()
+        )))
     }
 
     #[inline]
     pub fn inner_position(&self) -> Result<LogicalPosition, Error> {
-        Err(make_error!(ErrorType::NotSupported))
+        Err(make_error!(ErrorType::NotSupported(
+            "Getting the inner position is not supported on Wayland.".to_string()
+        )))
     }
 
     #[inline]
@@ -320,7 +324,9 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), Error> {
-        Err(make_error!(ErrorType::NotSupported))
+        Err(make_error!(ErrorType::NotSupported(
+            "Setting the cursor position is not supported on Wayland.".to_string()
+        )))
     }
 
     pub fn display(&self) -> &Display {

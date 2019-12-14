@@ -190,7 +190,7 @@ impl XConnection {
 
         unsafe {
             (xlib.XTranslateCoordinates)(
-                self.display,
+                **self.display,
                 window,
                 root,
                 0,
@@ -201,7 +201,7 @@ impl XConnection {
             );
         }
 
-        self.check_errors()?;
+        self.display.check_errors()?;
         Ok(coords)
     }
 
@@ -212,7 +212,7 @@ impl XConnection {
 
         let _status = unsafe {
             (xlib.XGetGeometry)(
-                self.display,
+                **self.display,
                 window,
                 &mut geometry.root,
                 &mut geometry.x_rel_parent,
@@ -224,7 +224,7 @@ impl XConnection {
             )
         };
 
-        self.check_errors()?;
+        self.display.check_errors()?;
         Ok(geometry)
     }
 
@@ -280,7 +280,7 @@ impl XConnection {
 
             // What's filled into `parent` if `window` is the root window?
             let _status = (xlib.XQueryTree)(
-                self.display,
+                **self.display,
                 window,
                 &mut root,
                 &mut parent,
@@ -295,7 +295,7 @@ impl XConnection {
 
             parent
         };
-        self.check_errors().map(|_| parent)
+        self.display.check_errors().map(|_| parent)
     }
 
     fn climb_hierarchy(

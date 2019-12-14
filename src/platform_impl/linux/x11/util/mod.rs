@@ -89,17 +89,17 @@ impl XConnection {
     // All util functions that abstract an async function will return a `Flusher`.
     pub fn flush_requests(&self) -> Result<(), Error> {
         let xlib = syms!(XLIB);
-        unsafe { (xlib.XFlush)(self.display) };
+        unsafe { (xlib.XFlush)(**self.display) };
         //println!("XFlush");
         // This isn't necessarily a useful time to check for errors (since our request hasn't
         // necessarily been processed yet)
-        self.check_errors()
+        self.display.check_errors()
     }
 
     pub fn sync_with_server(&self) -> Result<(), Error> {
         let xlib = syms!(XLIB);
-        unsafe { (xlib.XSync)(self.display, ffi::False) };
+        unsafe { (xlib.XSync)(**self.display, ffi::False) };
         //println!("XSync");
-        self.check_errors()
+        self.display.check_errors()
     }
 }

@@ -83,7 +83,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 impl<T: 'static> EventLoop<T> {
     pub fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
         let (xlib, xinput2) = syms!(XLIB, XINPUT2);
-        let root = unsafe { (xlib.XDefaultRootWindow)(xconn.display) };
+        let root = unsafe { (xlib.XDefaultRootWindow)(**xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
 
@@ -119,7 +119,7 @@ impl<T: 'static> EventLoop<T> {
             let mut ext = XExtension::default();
 
             let res = (xlib.XQueryExtension)(
-                xconn.display,
+                **xconn.display,
                 b"XInputExtension\0".as_ptr() as *const c_char,
                 &mut ext.opcode,
                 &mut ext.first_event_id,
@@ -136,8 +136,11 @@ impl<T: 'static> EventLoop<T> {
         unsafe {
             let mut xinput_major_ver = ffi::XI_2_Major;
             let mut xinput_minor_ver = ffi::XI_2_Minor;
-            if (xinput2.XIQueryVersion)(xconn.display, &mut xinput_major_ver, &mut xinput_minor_ver)
-                != ffi::Success as libc::c_int
+            if (xinput2.XIQueryVersion)(
+                **xconn.display,
+                &mut xinput_major_ver,
+                &mut xinput_minor_ver,
+            ) != ffi::Success as libc::c_int
             {
                 panic!(
                     "[winit] X server has XInput extension {}.{} but does not support XInput2",
@@ -443,8 +446,8 @@ impl DeviceInfo {
         let xinput2 = syms!(XINPUT2);
         unsafe {
             let mut count = 0;
-            let info = (xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors().ok()?;
+            let info = (xinput2.XIQueryDevice)(**xconn.display, device, &mut count);
+            xconn.display.check_errors().ok()?;
 
             if info.is_null() || count == 0 {
                 None
@@ -522,9 +525,9 @@ impl Drop for Window {
         let xconn = &window.xconn;
         let xlib = syms!(XLIB);
         unsafe {
-            (xlib.XDestroyWindow)(xconn.display, window.id().0);
+            (xlib.XDestroyWindow)(**xconn.display, window.id().0);
             // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
-            let _ = xconn.check_errors();
+            let _ = xconn.display.check_errors();
         }
     }
 }
@@ -544,7 +547,7 @@ impl<'a> GenericEventCookie<'a> {
         let xlib = syms!(XLIB);
         unsafe {
             let mut cookie: ffi::XGenericEventCookie = From::from(event);
-            if (xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
+            if (xlib.XGetEventData)(**xconn.display, &mut cookie) == ffi::True {
                 Some(GenericEventCookie { xconn, cookie })
             } else {
                 None
@@ -557,7 +560,7 @@ impl<'a> Drop for GenericEventCookie<'a> {
     fn drop(&mut self) {
         let xlib = syms!(XLIB);
         unsafe {
-            (xlib.XFreeEventData)(self.xconn.display, &mut self.cookie);
+            (xlib.XFreeEventData)(**self.xconn.display, &mut self.cookie);
         }
     }
 }

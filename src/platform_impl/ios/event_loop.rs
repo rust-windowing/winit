@@ -41,7 +41,9 @@ impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
         static mut SINGLETON_INIT: bool = false;
         unsafe {
-            assert_main_thread!("[winit] `EventLoop` can only be created on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `EventLoop` can only be created on the main thread on iOS"
+            );
             assert!(
                 !SINGLETON_INIT,
                 "[winit] Only one `EventLoop` is supported on iOS. \

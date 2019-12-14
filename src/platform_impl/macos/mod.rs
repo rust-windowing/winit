@@ -20,9 +20,7 @@ pub use self::{
     monitor::{MonitorHandle, VideoMode},
     window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
 };
-use crate::{
-    event::DeviceId as RootDeviceId, window::WindowAttributes,
-};
+use crate::{event::DeviceId as RootDeviceId, window::WindowAttributes};
 
 use winit_types::error::Error;
 

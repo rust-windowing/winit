@@ -60,7 +60,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 
 lazy_static! {
     pub static ref X11_BACKEND: Mutex<Result<Arc<XConnection>, Error>> =
-        { Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)) };
+        { Mutex::new(XConnection::new().map(Arc::new)) };
 }
 
 pub enum Window {
@@ -447,39 +447,6 @@ impl Window {
             &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
-}
-
-unsafe extern "C" fn x_error_callback(
-    display: *mut x11::ffi::Display,
-    event: *mut x11::ffi::XErrorEvent,
-) -> c_int {
-    let xlib = syms!(XLIB);
-    let xconn_lock = X11_BACKEND.lock();
-    if let Ok(ref xconn) = *xconn_lock {
-        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
-        // which do not require initialization.
-        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
-        (xlib.XGetErrorText)(
-            display,
-            (*event).error_code as c_int,
-            buf.as_mut_ptr() as *mut c_char,
-            buf.len() as c_int,
-        );
-        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
-
-        let error = make_oserror!(OsError::XError(XError {
-            description: description.into_owned(),
-            error_code: (*event).error_code,
-            request_code: (*event).request_code,
-            minor_code: (*event).minor_code,
-        }));
-
-        error!("X11 error: {:#?}", error);
-
-        *xconn.latest_error.lock() = Some(error);
-    }
-    // Fun fact: this return value is completely ignored.
-    0
 }
 
 pub enum EventLoop<T: 'static> {

@@ -37,7 +37,9 @@ impl Clone for VideoMode {
 impl Drop for VideoMode {
     fn drop(&mut self) {
         unsafe {
-            assert_main_thread!("[winit] `VideoMode` can only be dropped on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `VideoMode` can only be dropped on the main thread on iOS"
+            );
             let () = msg_send![self.screen_mode, release];
         }
     }
@@ -146,7 +148,9 @@ impl Clone for MonitorHandle {
 impl Drop for MonitorHandle {
     fn drop(&mut self) {
         unsafe {
-            assert_main_thread!("[winit] `MonitorHandle` can only be dropped on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `MonitorHandle` can only be dropped on the main thread on iOS"
+            );
         }
     }
 }
@@ -175,7 +179,9 @@ impl fmt::Debug for MonitorHandle {
 impl MonitorHandle {
     pub fn retained_new(uiscreen: id) -> MonitorHandle {
         unsafe {
-            assert_main_thread!("[winit] `MonitorHandle` can only be cloned on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `MonitorHandle` can only be cloned on the main thread on iOS"
+            );
             let () = msg_send![uiscreen, retain];
         }
         MonitorHandle {

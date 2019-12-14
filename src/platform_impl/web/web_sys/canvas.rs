@@ -36,12 +36,12 @@ impl Drop for Canvas {
 
 impl Canvas {
     pub fn create() -> Result<Self, Error> {
-        let window =
-            web_sys::window().ok_or(make_oserror!(OsError("Failed to obtain window".to_owned())))?;
+        let window = web_sys::window()
+            .ok_or(make_oserror!(OsError("Failed to obtain window".to_owned())))?;
 
-        let document = window
-            .document()
-            .ok_or(make_oserror!(OsError("Failed to obtain document".to_owned())))?;
+        let document = window.document().ok_or(make_oserror!(OsError(
+            "Failed to obtain document".to_owned()
+        )))?;
 
         let canvas: HtmlCanvasElement = document
             .create_element("canvas")

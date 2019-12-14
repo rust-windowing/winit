@@ -6,7 +6,6 @@ use std::{
 
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 
-use winit_types::error::{Error, ErrorType};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize},
     event::{Event, WindowEvent},
@@ -23,6 +22,7 @@ use crate::{
     },
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
+use winit_types::error::{Error, ErrorType};
 
 pub struct Inner {
     pub window: id,
@@ -158,11 +158,15 @@ impl Inner {
     }
 
     pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), Error> {
-        Err(make_error!(ErrorType::NotSupported))
+        Err(make_error!(ErrorType::NotSupported(
+            "Setting the cursor position is not supported on iOS.".to_string()
+        )))
     }
 
     pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), Error> {
-        Err(make_error!(ErrorType::NotSupported))
+        Err(make_error!(ErrorType::NotSupported(
+            "Setting the cursor grab is not supported on iOS.".to_string()
+        )))
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
@@ -295,7 +299,9 @@ impl Deref for Window {
 
     fn deref(&self) -> &Inner {
         unsafe {
-            assert_main_thread!("[winit] `Window` methods can only be run on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `Window` methods can only be run on the main thread on iOS"
+            );
         }
         &self.inner
     }
@@ -304,7 +310,9 @@ impl Deref for Window {
 impl DerefMut for Window {
     fn deref_mut(&mut self) -> &mut Inner {
         unsafe {
-            assert_main_thread!("[winit] `Window` methods can only be run on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `Window` methods can only be run on the main thread on iOS"
+            );
         }
         &mut self.inner
     }

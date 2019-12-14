@@ -27,7 +27,7 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
     (xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr());
 
     let im = (xlib.XOpenIM)(
-        xconn.display,
+        **xconn.display,
         ptr::null_mut(),
         ptr::null_mut(),
         ptr::null_mut(),
@@ -97,7 +97,7 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
     let xlib = syms!(XLIB);
     let servers_atom = xconn.get_atom_unchecked(b"XIM_SERVERS\0");
 
-    let root = (xlib.XDefaultRootWindow)(xconn.display);
+    let root = (xlib.XDefaultRootWindow)(**xconn.display);
 
     let mut atoms: Vec<ffi::Atom> = xconn
         .get_property(root, servers_atom, ffi::XA_ATOM)
@@ -105,7 +105,7 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
 
     let mut names: Vec<*const c_char> = Vec::with_capacity(atoms.len());
     (xlib.XGetAtomNames)(
-        xconn.display,
+        **xconn.display,
         atoms.as_mut_ptr(),
         atoms.len() as _,
         names.as_mut_ptr() as _,
@@ -121,7 +121,10 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
         (xlib.XFree)(name as _);
         formatted_names.push(string.replace("@server=", "@im="));
     }
-    xconn.check_errors().map_err(GetXimServersError::Error)?;
+    xconn
+        .display
+        .check_errors()
+        .map_err(GetXimServersError::Error)?;
     Ok(formatted_names)
 }
 

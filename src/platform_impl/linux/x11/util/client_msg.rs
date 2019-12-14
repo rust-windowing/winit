@@ -13,7 +13,7 @@ impl XConnection {
         let event_mask = event_mask.unwrap_or(ffi::NoEventMask);
         unsafe {
             (xlib.XSendEvent)(
-                self.display,
+                **self.display,
                 target_window,
                 ffi::False,
                 event_mask,
@@ -33,7 +33,7 @@ impl XConnection {
     ) -> Flusher<'_> {
         let event = ffi::XClientMessageEvent {
             type_: ffi::ClientMessage,
-            display: self.display,
+            display: **self.display,
             window,
             message_type,
             format: c_long::FORMAT as c_int,
@@ -61,7 +61,7 @@ impl XConnection {
         debug_assert_eq!(size_of_t, format.get_actual_size());
         let mut event = ffi::XClientMessageEvent {
             type_: ffi::ClientMessage,
-            display: self.display,
+            display: **self.display,
             window,
             message_type,
             format: format as c_int,

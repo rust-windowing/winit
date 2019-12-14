@@ -50,6 +50,7 @@ impl ImeContext {
 
         let ic = ic.ok_or(ImeContextCreationError::Null)?;
         xconn
+            .display
             .check_errors()
             .map_err(ImeContextCreationError::Error)?;
 
@@ -105,7 +106,7 @@ impl ImeContext {
         unsafe {
             (xlib.XSetICFocus)(self.ic);
         }
-        xconn.check_errors()
+        xconn.display.check_errors()
     }
 
     pub fn unfocus(&self, xconn: &Arc<XConnection>) -> Result<(), Error> {
@@ -113,7 +114,7 @@ impl ImeContext {
         unsafe {
             (xlib.XUnsetICFocus)(self.ic);
         }
-        xconn.check_errors()
+        xconn.display.check_errors()
     }
 
     pub fn set_spot(&mut self, x: c_short, y: c_short) {

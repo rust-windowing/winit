@@ -718,7 +718,10 @@ impl EventLoopThreadExecutor {
                     raw as *mut () as usize as WPARAM,
                     0,
                 );
-                assert!(res != 0, "[winit] PostMessage failed ; is the messages queue full?");
+                assert!(
+                    res != 0,
+                    "[winit] PostMessage failed ; is the messages queue full?"
+                );
             }
         }
     }

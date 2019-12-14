@@ -548,10 +548,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_position(
-        &self,
-        cursor_position: LogicalPosition,
-    ) -> Result<(), Error> {
+    pub fn set_cursor_position(&self, cursor_position: LogicalPosition) -> Result<(), Error> {
         let window_position = self.inner_position().unwrap();
         let point = appkit::CGPoint {
             x: (cursor_position.x + window_position.x) as CGFloat,
@@ -725,7 +722,10 @@ impl UnownedWindow {
                     video_mode.video_mode.native_mode.0,
                     std::ptr::null(),
                 );
-                assert!(result == ffi::kCGErrorSuccess, "[winit] failed to set video mode");
+                assert!(
+                    result == ffi::kCGErrorSuccess,
+                    "[winit] failed to set video mode"
+                );
 
                 // After the display has been configured, fade back in
                 // asynchronously

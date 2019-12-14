@@ -69,7 +69,7 @@ impl<T: 'static> EventProcessor<T> {
     pub(super) fn poll(&self) -> bool {
         let xlib = syms!(XLIB);
         let wt = get_xtarget(&self.target);
-        let result = unsafe { (xlib.XPending)(wt.xconn.display) };
+        let result = unsafe { (xlib.XPending)(**wt.xconn.display) };
 
         result != 0
     }
@@ -93,7 +93,7 @@ impl<T: 'static> EventProcessor<T> {
         }
 
         let result = (xlib.XCheckIfEvent)(
-            wt.xconn.display,
+            **wt.xconn.display,
             event_ptr,
             Some(predicate),
             std::ptr::null_mut(),
@@ -155,6 +155,7 @@ impl<T: 'static> EventProcessor<T> {
                         (xlib.XRefreshKeyboardMapping)(xev.as_mut());
                     }
                     wt.xconn
+                        .display
                         .check_errors()
                         .expect("Failed to call XRefreshKeyboardMapping");
 
@@ -450,7 +451,7 @@ impl<T: 'static> EventProcessor<T> {
                         } else {
                             unsafe {
                                 (xlib.XResizeWindow)(
-                                    wt.xconn.display,
+                                    **wt.xconn.display,
                                     xwindow,
                                     rounded_size.0 as c_uint,
                                     rounded_size.1 as c_uint,
@@ -571,7 +572,10 @@ impl<T: 'static> EventProcessor<T> {
                             &mut keysym,
                             ptr::null_mut(),
                         );
-                        wt.xconn.check_errors().expect("Failed to lookup keysym");
+                        wt.xconn
+                            .display
+                            .check_errors()
+                            .expect("Failed to lookup keysym");
                         keysym
                     };
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
@@ -1061,9 +1065,14 @@ impl<T: 'static> EventProcessor<T> {
                         let scancode = (keycode - 8) as u32;
 
                         let keysym = unsafe {
-                            (xlib.XKeycodeToKeysym)(wt.xconn.display, xev.detail as ffi::KeyCode, 0)
+                            (xlib.XKeycodeToKeysym)(
+                                **wt.xconn.display,
+                                xev.detail as ffi::KeyCode,
+                                0,
+                            )
                         };
                         wt.xconn
+                            .display
                             .check_errors()
                             .expect("Failed to lookup raw keysym");
 

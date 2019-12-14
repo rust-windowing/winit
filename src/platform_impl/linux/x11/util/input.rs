@@ -75,7 +75,7 @@ impl XConnection {
         };
         unsafe {
             (xinput2.XISelectEvents)(
-                self.display,
+                **self.display,
                 window,
                 &mut event_mask as *mut ffi::XIEventMask,
                 1, // number of masks to read from pointer above
@@ -87,7 +87,7 @@ impl XConnection {
     #[allow(dead_code)]
     pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher<'_>> {
         let xlib = syms!(XLIB);
-        let status = unsafe { (xlib.XkbSelectEvents)(self.display, device_id, mask, mask) };
+        let status = unsafe { (xlib.XkbSelectEvents)(**self.display, device_id, mask, mask) };
         if status == ffi::True {
             Some(Flusher::new(self))
         } else {
@@ -113,7 +113,7 @@ impl XConnection {
             let mut group = Default::default();
 
             let relative_to_window = (xinput2.XIQueryPointer)(
-                self.display,
+                **self.display,
                 device_id,
                 window,
                 &mut root,
@@ -127,7 +127,7 @@ impl XConnection {
                 &mut group,
             ) == ffi::True;
 
-            self.check_errors()?;
+            self.display.check_errors()?;
 
             Ok(PointerState {
                 root,

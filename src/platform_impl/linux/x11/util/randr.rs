@@ -42,7 +42,7 @@ impl XConnection {
     pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
         let xlib = syms!(XLIB);
         (xlib.XrmInitialize)();
-        let resource_manager_str = (xlib.XResourceManagerString)(self.display);
+        let resource_manager_str = (xlib.XResourceManagerString)(**self.display);
         if resource_manager_str == ptr::null_mut() {
             return None;
         }
@@ -64,17 +64,17 @@ impl XConnection {
     ) -> Option<(String, f64, Vec<VideoMode>)> {
         let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         let output_info =
-            (xrandr.XRRGetOutputInfo)(self.display, resources, *(*crtc).outputs.offset(0));
+            (xrandr.XRRGetOutputInfo)(**self.display, resources, *(*crtc).outputs.offset(0));
         if output_info.is_null() {
             // When calling `XRRGetOutputInfo` on a virtual monitor (versus a physical display)
             // it's possible for it to return null.
             // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=816596
-            let _ = self.check_errors(); // discard `BadRROutput` error
+            let _ = self.display.check_errors(); // discard `BadRROutput` error
             return None;
         }
 
-        let screen = (xlib.XDefaultScreen)(self.display);
-        let bit_depth = (xlib.XDefaultDepth)(self.display, screen);
+        let screen = (xlib.XDefaultScreen)(**self.display);
+        let bit_depth = (xlib.XDefaultDepth)(**self.display, screen);
 
         let output_modes =
             slice::from_raw_parts((*output_info).modes, (*output_info).nmode as usize);
@@ -129,18 +129,18 @@ impl XConnection {
         unsafe {
             let mut major = 0;
             let mut minor = 0;
-            (xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
 
-            let root = (xlib.XDefaultRootWindow)(self.display);
+            let root = (xlib.XDefaultRootWindow)(**self.display);
             let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+                (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
             } else {
-                (xrandr.XRRGetScreenResources)(self.display, root)
+                (xrandr.XRRGetScreenResources)(**self.display, root)
             };
 
-            let crtc = (xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+            let crtc = (xrandr.XRRGetCrtcInfo)(**self.display, resources, crtc_id);
             let status = (xrandr.XRRSetCrtcConfig)(
-                self.display,
+                **self.display,
                 resources,
                 crtc_id,
                 CurrentTime,
@@ -167,16 +167,16 @@ impl XConnection {
         unsafe {
             let mut major = 0;
             let mut minor = 0;
-            (xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
 
-            let root = (xlib.XDefaultRootWindow)(self.display);
+            let root = (xlib.XDefaultRootWindow)(**self.display);
             let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+                (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
             } else {
-                (xrandr.XRRGetScreenResources)(self.display, root)
+                (xrandr.XRRGetScreenResources)(**self.display, root)
             };
 
-            let crtc = (xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+            let crtc = (xrandr.XRRGetCrtcInfo)(**self.display, resources, crtc_id);
             let mode = (*crtc).mode;
             (xrandr.XRRFreeCrtcInfo)(crtc);
             (xrandr.XRRFreeScreenResources)(resources);

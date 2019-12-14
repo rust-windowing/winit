@@ -20,7 +20,7 @@ pub unsafe fn xim_set_callback(
     // It's advisable to wrap variadic FFI functions in our own functions, as we want to minimize
     // access that isn't type-checked.
     (xlib.XSetIMValues)(xim, field, callback, ptr::null_mut::<()>());
-    xconn.check_errors()
+    xconn.display.check_errors()
 }
 
 // Set a callback for when an input method matching the current locale modifiers becomes
@@ -35,14 +35,14 @@ pub unsafe fn set_instantiate_callback(
 ) -> Result<(), Error> {
     let xlib = syms!(XLIB);
     (xlib.XRegisterIMInstantiateCallback)(
-        xconn.display,
+        **xconn.display,
         ptr::null_mut(),
         ptr::null_mut(),
         ptr::null_mut(),
         Some(xim_instantiate_callback),
         client_data,
     );
-    xconn.check_errors()
+    xconn.display.check_errors()
 }
 
 pub unsafe fn unset_instantiate_callback(
@@ -51,14 +51,14 @@ pub unsafe fn unset_instantiate_callback(
 ) -> Result<(), Error> {
     let xlib = syms!(XLIB);
     (xlib.XUnregisterIMInstantiateCallback)(
-        xconn.display,
+        **xconn.display,
         ptr::null_mut(),
         ptr::null_mut(),
         ptr::null_mut(),
         Some(xim_instantiate_callback),
         client_data,
     );
-    xconn.check_errors()
+    xconn.display.check_errors()
 }
 
 pub unsafe fn set_destroy_callback(

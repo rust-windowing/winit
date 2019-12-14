@@ -55,7 +55,7 @@ impl XConnection {
         while !done {
             unsafe {
                 (xlib.XGetWindowProperty)(
-                    self.display,
+                    **self.display,
                     window,
                     property,
                     // This offset is in terms of 32-bit chunks.
@@ -73,7 +73,9 @@ impl XConnection {
                     &mut buf,
                 );
 
-                self.check_errors().map_err(GetPropertyError::Error)?;
+                self.display
+                    .check_errors()
+                    .map_err(GetPropertyError::Error)?;
 
                 if actual_type != property_type {
                     return Err(GetPropertyError::TypeMismatch(actual_type));
@@ -123,7 +125,7 @@ impl XConnection {
         debug_assert_eq!(mem::size_of::<T>(), T::FORMAT.get_actual_size());
         unsafe {
             (xlib.XChangeProperty)(
-                self.display,
+                **self.display,
                 window,
                 property,
                 property_type,
