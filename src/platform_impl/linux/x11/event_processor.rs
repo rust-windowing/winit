@@ -834,14 +834,15 @@ impl<T: 'static> EventProcessor<T> {
                                 }
                             }
                         }
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: CursorEntered { device_id },
-                        });
 
                         if let Some(dpi_factor) =
                             self.with_window(xev.event, |window| window.hidpi_factor())
                         {
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: CursorEntered { device_id },
+                            });
+
                             let position = LogicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
                                 dpi_factor,

@@ -1,5 +1,7 @@
 # Unreleased
 
+- On X11, fix `CursorEntered` event being generated for non-winit windows.
+
 # # 0.20.0 Alpha 5 (2019-12-09)
 
 - On macOS, fix application termination on `ControlFlow::Exit`
