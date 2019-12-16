@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, ptr, rc::Rc, slice};
+use std::{cell::RefCell, collections::HashMap, rc::Rc, slice};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 
@@ -12,7 +12,9 @@ use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    event::{DeviceEvent, Event, KeyboardInput, ModifiersState, WindowEvent},
+    event::{
+        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, TouchPhase, WindowEvent,
+    },
     event_loop::EventLoopWindowTarget as RootELW,
 };
 
@@ -25,6 +27,9 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) target: Rc<RootELW<T>>,
     pub(super) mod_keymap: ModifierKeymap,
     pub(super) device_mod_state: ModifierKeyState,
+    // Number of touch events currently in progress
+    pub(super) num_touch: u32,
+    pub(super) first_touch: Option<u64>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -120,6 +125,26 @@ impl<T: 'static> EventProcessor<T> {
             return;
         }
 
+        // We can't call a `&mut self` method because of the above borrow,
+        // so we use this macro for repeated modifier state updates.
+        macro_rules! update_modifiers {
+            ( $state:expr , $modifier:expr ) => {{
+                match ($state, $modifier) {
+                    (state, modifier) => {
+                        if let Some(modifiers) =
+                            self.device_mod_state.update_state(&state, modifier)
+                        {
+                            let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
+                            callback(Event::DeviceEvent {
+                                device_id,
+                                event: DeviceEvent::ModifiersChanged { modifiers },
+                            });
+                        }
+                    }
+                }
+            }};
+        }
+
         let event_type = xev.get_type();
         match event_type {
             ffi::MappingNotify => {
@@ -136,7 +161,7 @@ impl<T: 'static> EventProcessor<T> {
                         .expect("Failed to call XRefreshKeyboardMapping");
 
                     self.mod_keymap.reset_from_x_connection(&wt.xconn);
-                    self.device_mod_state.update(&self.mod_keymap);
+                    self.device_mod_state.update_keymap(&self.mod_keymap);
                 }
             }
 
@@ -386,14 +411,16 @@ impl<T: 'static> EventProcessor<T> {
                         let last_hidpi_factor = shared_state_lock.last_monitor.hidpi_factor;
                         let new_hidpi_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
-                            let new_hidpi_factor = monitor.hidpi_factor;
+                            let new_monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
 
-                            // Avoid caching an invalid dummy monitor handle
-                            if monitor.id != 0 {
+                            if new_monitor.is_dummy() {
+                                // Avoid updating monitor using a dummy monitor handle
+                                last_hidpi_factor
+                            } else {
+                                monitor = new_monitor;
                                 shared_state_lock.last_monitor = monitor.clone();
+                                monitor.hidpi_factor
                             }
-                            new_hidpi_factor
                         };
                         if last_hidpi_factor != new_hidpi_factor {
                             events.dpi_changed =
@@ -497,6 +524,13 @@ impl<T: 'static> EventProcessor<T> {
                 });
             }
 
+            ffi::VisibilityNotify => {
+                let xev: &ffi::XVisibilityEvent = xev.as_ref();
+                let xwindow = xev.window;
+
+                self.with_window(xwindow, |window| window.visibility_notify());
+            }
+
             ffi::Expose => {
                 let xev: &ffi::XExposeEvent = xev.as_ref();
 
@@ -528,23 +562,19 @@ impl<T: 'static> EventProcessor<T> {
                 // value, though this should only be an issue under multiseat configurations.
                 let device = util::VIRTUAL_CORE_KEYBOARD;
                 let device_id = mkdid(device);
+                let keycode = xkev.keycode;
 
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
-                if xkev.keycode != 0 {
-                    let keysym = unsafe {
-                        let mut keysym = 0;
-                        (wt.xconn.xlib.XLookupString)(
-                            xkev,
-                            ptr::null_mut(),
-                            0,
-                            &mut keysym,
-                            ptr::null_mut(),
-                        );
-                        wt.xconn.check_errors().expect("Failed to lookup keysym");
-                        keysym
-                    };
+                if keycode != 0 {
+                    let scancode = keycode - 8;
+                    let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+
+                    update_modifiers!(
+                        ModifiersState::from_x11_mask(xkev.state),
+                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
+                    );
 
                     let modifiers = self.device_mod_state.modifiers();
 
@@ -554,10 +584,11 @@ impl<T: 'static> EventProcessor<T> {
                             device_id,
                             input: KeyboardInput {
                                 state,
-                                scancode: xkev.keycode - 8,
+                                scancode,
                                 virtual_keycode,
                                 modifiers,
                             },
+                            is_synthetic: false,
                         },
                     });
                 }
@@ -594,7 +625,7 @@ impl<T: 'static> EventProcessor<T> {
                     ElementState::{Pressed, Released},
                     MouseButton::{Left, Middle, Other, Right},
                     MouseScrollDelta::LineDelta,
-                    Touch, TouchPhase,
+                    Touch,
                     WindowEvent::{
                         AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseInput,
                         MouseWheel,
@@ -611,7 +642,8 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
 
-                        let modifiers = ModifiersState::from(xev.mods);
+                        let modifiers = ModifiersState::from_x11(&xev.mods);
+                        update_modifiers!(modifiers, None);
 
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
@@ -687,7 +719,8 @@ impl<T: 'static> EventProcessor<T> {
                         let window_id = mkwid(xev.event);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
 
-                        let modifiers = ModifiersState::from(xev.mods);
+                        let modifiers = ModifiersState::from_x11(&xev.mods);
+                        update_modifiers!(modifiers, None);
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state.lock();
@@ -872,6 +905,10 @@ impl<T: 'static> EventProcessor<T> {
                             event: Focused(true),
                         });
 
+                        let modifiers = ModifiersState::from_x11(&xev.mods);
+
+                        update_modifiers!(modifiers, None);
+
                         // The deviceid for this event is for a keyboard instead of a pointer,
                         // so we have to do a little extra work.
                         let pointer_id = self
@@ -890,9 +927,12 @@ impl<T: 'static> EventProcessor<T> {
                             event: CursorMoved {
                                 device_id: mkdid(pointer_id),
                                 position,
-                                modifiers: ModifiersState::from(xev.mods),
+                                modifiers,
                             },
                         });
+
+                        // Issue key press events for all pressed keys
+                        self.handle_pressed_keys(window_id, ElementState::Pressed, &mut callback);
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
@@ -904,8 +944,13 @@ impl<T: 'static> EventProcessor<T> {
                             .unfocus(xev.event)
                             .expect("Failed to unfocus input context");
 
+                        let window_id = mkwid(xev.event);
+
+                        // Issue key release events for all pressed keys
+                        self.handle_pressed_keys(window_id, ElementState::Released, &mut callback);
+
                         callback(Event::WindowEvent {
-                            window_id: mkwid(xev.event),
+                            window_id,
                             event: Focused(false),
                         })
                     }
@@ -922,10 +967,27 @@ impl<T: 'static> EventProcessor<T> {
                         let dpi_factor =
                             self.with_window(xev.event, |window| window.hidpi_factor());
                         if let Some(dpi_factor) = dpi_factor {
+                            let id = xev.detail as u64;
+                            let modifiers = self.device_mod_state.modifiers();
                             let location = LogicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
                                 dpi_factor,
                             );
+
+                            // Mouse cursor position changes when touch events are received.
+                            // Only the first concurrently active touch ID moves the mouse cursor.
+                            if is_first_touch(&mut self.first_touch, &mut self.num_touch, id, phase)
+                            {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::CursorMoved {
+                                        device_id: mkdid(util::VIRTUAL_CORE_POINTER),
+                                        position: location,
+                                        modifiers,
+                                    },
+                                });
+                            }
+
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: WindowEvent::Touch(Touch {
@@ -933,7 +995,7 @@ impl<T: 'static> EventProcessor<T> {
                                     phase,
                                     location,
                                     force: None, // TODO
-                                    id: xev.detail as u64,
+                                    id,
                                 }),
                             })
                         }
@@ -1022,20 +1084,8 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
                         let scancode = (keycode - 8) as u32;
-
-                        let keysym = unsafe {
-                            (wt.xconn.xlib.XKeycodeToKeysym)(
-                                wt.xconn.display,
-                                xev.detail as ffi::KeyCode,
-                                0,
-                            )
-                        };
-                        wt.xconn
-                            .check_errors()
-                            .expect("Failed to lookup raw keysym");
-
+                        let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
-
                         let modifiers = self.device_mod_state.modifiers();
 
                         callback(Event::DeviceEvent {
@@ -1146,4 +1196,65 @@ impl<T: 'static> EventProcessor<T> {
             Err(_) => (),
         }
     }
+
+    fn handle_pressed_keys<F>(
+        &self,
+        window_id: crate::window::WindowId,
+        state: ElementState,
+        callback: &mut F,
+    ) where
+        F: FnMut(Event<T>),
+    {
+        let wt = get_xtarget(&self.target);
+
+        let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
+        let modifiers = self.device_mod_state.modifiers();
+
+        // Get the set of keys currently pressed and apply Key events to each
+        let keys = wt.xconn.query_keymap();
+
+        for keycode in &keys {
+            if keycode < 8 {
+                continue;
+            }
+
+            let scancode = (keycode - 8) as u32;
+            let keysym = wt.xconn.keycode_to_keysym(keycode);
+            let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+
+            callback(Event::WindowEvent {
+                window_id,
+                event: WindowEvent::KeyboardInput {
+                    device_id,
+                    input: KeyboardInput {
+                        scancode,
+                        state,
+                        virtual_keycode,
+                        modifiers,
+                    },
+                    is_synthetic: true,
+                },
+            });
+        }
+    }
+}
+
+fn is_first_touch(first: &mut Option<u64>, num: &mut u32, id: u64, phase: TouchPhase) -> bool {
+    match phase {
+        TouchPhase::Started => {
+            if *num == 0 {
+                *first = Some(id);
+            }
+            *num += 1;
+        }
+        TouchPhase::Cancelled | TouchPhase::Ended => {
+            if *first == Some(id) {
+                *first = None;
+            }
+            *num = num.saturating_sub(1);
+        }
+        _ => (),
+    }
+
+    *first == Some(id)
 }

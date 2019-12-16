@@ -74,6 +74,7 @@ pub fn init_keyboard(
                                         virtual_keycode: vkcode,
                                         modifiers: modifiers_tracker.lock().unwrap().clone(),
                                     },
+                                    is_synthetic: false,
                                 },
                             })
                             .unwrap();
@@ -97,7 +98,7 @@ pub fn init_keyboard(
                 KbEvent::Modifiers {
                     modifiers: event_modifiers,
                 } => {
-                    let modifiers = event_modifiers.into();
+                    let modifiers = ModifiersState::from_wayland(event_modifiers);
 
                     *modifiers_tracker.lock().unwrap() = modifiers;
 
@@ -125,6 +126,7 @@ pub fn init_keyboard(
                                 virtual_keycode: vkcode,
                                 modifiers: my_modifiers.lock().unwrap().clone(),
                             },
+                            is_synthetic: false,
                         },
                     })
                     .unwrap();
@@ -198,6 +200,7 @@ pub fn init_keyboard(
                                                 virtual_keycode: None,
                                                 modifiers: ModifiersState::default(),
                                             },
+                                            is_synthetic: false,
                                         },
                                     })
                                     .unwrap();
@@ -399,8 +402,8 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
     }
 }
 
-impl From<keyboard::ModifiersState> for ModifiersState {
-    fn from(mods: keyboard::ModifiersState) -> ModifiersState {
+impl ModifiersState {
+    pub(crate) fn from_wayland(mods: keyboard::ModifiersState) -> ModifiersState {
         ModifiersState {
             shift: mods.shift,
             ctrl: mods.ctrl,

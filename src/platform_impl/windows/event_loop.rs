@@ -742,13 +742,13 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         unsafe {
             if winuser::PostMessageW(self.target_window, *USER_EVENT_MSG_ID, 0, 0) != 0 {
                 self.event_send.send(event).ok();
                 Ok(())
             } else {
-                Err(EventLoopClosed)
+                Err(EventLoopClosed(event))
             }
         }
     }
@@ -1112,7 +1112,7 @@ unsafe extern "system" fn public_window_callback<T>(
             0
         }
 
-        winuser::WM_CHAR => {
+        winuser::WM_CHAR | winuser::WM_SYSCHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
             use std::char;
             let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
@@ -1144,12 +1144,6 @@ unsafe extern "system" fn public_window_callback<T>(
             }
             0
         }
-
-        // Prevents default windows menu hotkeys playing unwanted
-        // "ding" sounds. Alternatively could check for WM_SYSCOMMAND
-        // with wparam being SC_KEYMENU, but this may prevent some
-        // other unwanted default hotkeys as well.
-        winuser::WM_SYSCHAR => 0,
 
         // this is necessary for us to maintain minimize/restore state
         winuser::WM_SYSCOMMAND => {
@@ -1294,6 +1288,7 @@ unsafe extern "system" fn public_window_callback<T>(
                                 virtual_keycode: vkey,
                                 modifiers: event::get_key_mods(),
                             },
+                            is_synthetic: false,
                         },
                     });
                     // Windows doesn't emit a delete character by default, but in order to make it
@@ -1322,6 +1317,7 @@ unsafe extern "system" fn public_window_callback<T>(
                             virtual_keycode: vkey,
                             modifiers: event::get_key_mods(),
                         },
+                        is_synthetic: false,
                     },
                 });
             }

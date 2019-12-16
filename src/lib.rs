@@ -92,25 +92,26 @@
 //! retrieve the raw handle of the window (see the [`platform`] module), which in turn allows you
 //! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that will draw on the [`Window`].
 //!
-//! [`EventLoop`]: ./event_loop/struct.EventLoop.html
-//! [`EventLoop::new()`]: ./event_loop/struct.EventLoop.html#method.new
-//! [event_loop_run]: ./event_loop/struct.EventLoop.html#method.run
-//! [`ControlFlow`]: ./event_loop/enum.ControlFlow.html
-//! [`Exit`]: ./event_loop/enum.ControlFlow.html#variant.Exit
-//! [`Window`]: ./window/struct.Window.html
-//! [`WindowBuilder`]: ./window/struct.WindowBuilder.html
-//! [window_new]: ./window/struct.Window.html#method.new
-//! [window_builder_new]: ./window/struct.WindowBuilder.html#method.new
-//! [window_builder_build]: ./window/struct.WindowBuilder.html#method.build
-//! [window_id_fn]: ./window/struct.Window.html#method.id
-//! [`Event`]: ./event/enum.Event.html
-//! [`WindowEvent`]: ./event/enum.WindowEvent.html
-//! [`DeviceEvent`]: ./event/enum.DeviceEvent.html
-//! [`UserEvent`]: ./event/enum.Event.html#variant.UserEvent
-//! [`LoopDestroyed`]: ./event/enum.Event.html#variant.LoopDestroyed
-//! [`platform`]: ./platform/index.html
+//! [`EventLoop`]: event_loop::EventLoop
+//! [`EventLoop::new()`]: event_loop::EventLoop::new
+//! [event_loop_run]: event_loop::EventLoop::run
+//! [`ControlFlow`]: event_loop::ControlFlow
+//! [`Exit`]: event_loop::ControlFlow::Exit
+//! [`Window`]: window::Window
+//! [`WindowBuilder`]: window::WindowBuilder
+//! [window_new]: window::Window::new
+//! [window_builder_new]: window::WindowBuilder::new
+//! [window_builder_build]: window::WindowBuilder::build
+//! [window_id_fn]: window::Window::id
+//! [`Event`]: event::Event
+//! [`WindowEvent`]: event::WindowEvent
+//! [`DeviceEvent`]: event::DeviceEvent
+//! [`UserEvent`]: event::Event::UserEvent
+//! [`LoopDestroyed`]: event::Event::LoopDestroyed
+//! [`platform`]: platform
 
 #![deny(rust_2018_idioms)]
+#![deny(intra_doc_link_resolution_failure)]
 
 #[allow(unused_imports)]
 #[macro_use]
@@ -126,7 +127,7 @@ extern crate bitflags;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
-#[cfg(feature = "std_web")]
+#[cfg(all(target_arch = "wasm32", feature = "std_web"))]
 extern crate std_web as stdweb;
 
 pub mod dpi;

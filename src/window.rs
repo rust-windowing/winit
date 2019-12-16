@@ -195,7 +195,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_inner_size`] for details.
     ///
-    /// [`Window::set_inner_size`]: struct.Window.html#method.set_inner_size
+    /// [`Window::set_inner_size`]: crate::window::Window::set_inner_size
     #[inline]
     pub fn with_inner_size(mut self, size: LogicalSize) -> Self {
         self.window.inner_size = Some(size);
@@ -206,7 +206,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_min_inner_size`] for details.
     ///
-    /// [`Window::set_min_inner_size`]: struct.Window.html#method.set_min_inner_size
+    /// [`Window::set_min_inner_size`]: crate::window::Window::set_min_inner_size
     #[inline]
     pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> Self {
         self.window.min_inner_size = Some(min_size);
@@ -217,7 +217,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_max_inner_size`] for details.
     ///
-    /// [`Window::set_max_inner_size`]: struct.Window.html#method.set_max_inner_size
+    /// [`Window::set_max_inner_size`]: crate::window::Window::set_max_inner_size
     #[inline]
     pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> Self {
         self.window.max_inner_size = Some(max_size);
@@ -228,7 +228,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_resizable`] for details.
     ///
-    /// [`Window::set_resizable`]: struct.Window.html#method.set_resizable
+    /// [`Window::set_resizable`]: crate::window::Window::set_resizable
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.window.resizable = resizable;
@@ -239,7 +239,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_title`] for details.
     ///
-    /// [`Window::set_title`]: struct.Window.html#method.set_title
+    /// [`Window::set_title`]: crate::window::Window::set_title
     #[inline]
     pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
         self.window.title = title.into();
@@ -250,7 +250,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_fullscreen`] for details.
     ///
-    /// [`Window::set_fullscreen`]: struct.Window.html#method.set_fullscreen
+    /// [`Window::set_fullscreen`]: crate::window::Window::set_fullscreen
     #[inline]
     pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> Self {
         self.window.fullscreen = monitor;
@@ -261,7 +261,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_maximized`] for details.
     ///
-    /// [`Window::set_maximized`]: struct.Window.html#method.set_maximized
+    /// [`Window::set_maximized`]: crate::window::Window::set_maximized
     #[inline]
     pub fn with_maximized(mut self, maximized: bool) -> Self {
         self.window.maximized = maximized;
@@ -272,7 +272,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_visible`] for details.
     ///
-    /// [`Window::set_visible`]: struct.Window.html#method.set_visible
+    /// [`Window::set_visible`]: crate::window::Window::set_visible
     #[inline]
     pub fn with_visible(mut self, visible: bool) -> Self {
         self.window.visible = visible;
@@ -290,7 +290,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_decorations`] for details.
     ///
-    /// [`Window::set_decorations`]: struct.Window.html#method.set_decorations
+    /// [`Window::set_decorations`]: crate::window::Window::set_decorations
     #[inline]
     pub fn with_decorations(mut self, decorations: bool) -> Self {
         self.window.decorations = decorations;
@@ -301,7 +301,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_always_on_top`] for details.
     ///
-    /// [`Window::set_always_on_top`]: struct.Window.html#method.set_always_on_top
+    /// [`Window::set_always_on_top`]: crate::window::Window::set_always_on_top
     #[inline]
     pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
         self.window.always_on_top = always_on_top;
@@ -312,7 +312,7 @@ impl WindowBuilder {
     ///
     /// See [`Window::set_window_icon`] for details.
     ///
-    /// [`Window::set_window_icon`]: struct.Window.html#method.set_window_icon
+    /// [`Window::set_window_icon`]: crate::window::Window::set_window_icon
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
@@ -353,7 +353,7 @@ impl Window {
     /// - **Web**: The window is created but not inserted into the web page automatically. Please
     /// see the web platform module for more information.
     ///
-    /// [`WindowBuilder::new().build(event_loop)`]: struct.WindowBuilder.html#method.build
+    /// [`WindowBuilder::new().build(event_loop)`]: crate::window::WindowBuilder::build
     #[inline]
     pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
@@ -368,7 +368,7 @@ impl Window {
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](../dpi/index.html) module for more information.
+    /// See the [`dpi`](crate::dpi) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
     /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
@@ -605,16 +605,13 @@ impl Window {
     ///
     ///   `Fullscreen::Borderless` provides a borderless fullscreen window on a
     ///   separate space. This is the idiomatic way for fullscreen games to work
-    ///   on macOS. See [`WindowExtMacOs::set_simple_fullscreen`][simple] if
+    ///   on macOS. See `WindowExtMacOs::set_simple_fullscreen` if
     ///   separate spaces are not preferred.
     ///
     ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
-    ///
-    /// [simple]:
-    /// ../platform/macos/trait.WindowExtMacOS.html#tymethod.set_simple_fullscreen
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.window.set_fullscreen(fullscreen)

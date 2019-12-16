@@ -392,6 +392,19 @@ pub struct WindowStore {
     windows: Vec<InternalWindow>,
 }
 
+pub struct WindowStoreForEach<'a> {
+    pub newsize: Option<(u32, u32)>,
+    pub size: &'a mut (u32, u32),
+    pub new_dpi: Option<i32>,
+    pub refresh: bool,
+    pub frame_refresh: bool,
+    pub closed: bool,
+    pub grab_cursor: Option<bool>,
+    pub surface: &'a wl_surface::WlSurface,
+    pub wid: WindowId,
+    pub frame: Option<&'a mut SWindow<ConceptFrame>>,
+}
+
 impl WindowStore {
     pub fn new() -> WindowStore {
         WindowStore {
@@ -441,34 +454,23 @@ impl WindowStore {
 
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(
-            Option<(u32, u32)>,
-            &mut (u32, u32),
-            Option<i32>,
-            bool,
-            bool,
-            bool,
-            Option<bool>,
-            &wl_surface::WlSurface,
-            WindowId,
-            Option<&mut SWindow<ConceptFrame>>,
-        ),
+        F: FnMut(WindowStoreForEach<'_>),
     {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();
             let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
-            f(
-                window.newsize.take(),
-                &mut *(window.size.lock().unwrap()),
-                window.new_dpi,
-                replace(&mut *window.need_refresh.lock().unwrap(), false),
-                replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
-                window.closed,
-                window.cursor_grab_changed.lock().unwrap().take(),
-                &window.surface,
-                make_wid(&window.surface),
-                opt_mutex_lock.as_mut().map(|m| &mut **m),
-            );
+            f(WindowStoreForEach {
+                newsize: window.newsize.take(),
+                size: &mut *(window.size.lock().unwrap()),
+                new_dpi: window.new_dpi,
+                refresh: replace(&mut *window.need_refresh.lock().unwrap(), false),
+                frame_refresh: replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
+                closed: window.closed,
+                grab_cursor: window.cursor_grab_changed.lock().unwrap().take(),
+                surface: &window.surface,
+                wid: make_wid(&window.surface),
+                frame: opt_mutex_lock.as_mut().map(|m| &mut **m),
+            });
             if let Some(dpi) = window.new_dpi.take() {
                 window.current_dpi = dpi;
             }

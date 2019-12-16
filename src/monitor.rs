@@ -1,14 +1,14 @@
 //! Types useful for interacting with a user's monitors.
 //!
-//! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_id]
+//! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_handle]
 //! type. This is retreived from one of the following methods, which return an iterator of
-//! [`MonitorHandle`][monitor_id]:
+//! [`MonitorHandle`][monitor_handle]:
 //! - [`EventLoop::available_monitors`][loop_get]
 //! - [`Window::available_monitors`][window_get].
 //!
-//! [monitor_id]: ./struct.MonitorHandle.html
-//! [loop_get]: ../event_loop/struct.EventLoop.html#method.available_monitors
-//! [window_get]: ../window/struct.Window.html#method.available_monitors
+//! [monitor_handle]: crate::monitor::MonitorHandle
+//! [loop_get]: crate::event_loop::EventLoop::available_monitors
+//! [window_get]: crate::window::Window::available_monitors
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
@@ -19,7 +19,7 @@ use crate::{
 /// Can be acquired with:
 /// - [`MonitorHandle::video_modes`][monitor_get].
 ///
-/// [monitor_get]: ../monitor/struct.MonitorHandle.html#method.video_modes
+/// [monitor_get]: crate::monitor::MonitorHandle::video_modes
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct VideoMode {
     pub(crate) video_mode: platform_impl::VideoMode,
@@ -108,7 +108,7 @@ impl std::fmt::Display for VideoMode {
 ///
 /// Allows you to retrieve information about a given monitor and can be used in [`Window`] creation.
 ///
-/// [`Window`]: ../window/struct.Window.html
+/// [`Window`]: crate::window::Window
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MonitorHandle {
     pub(crate) inner: platform_impl::MonitorHandle,
@@ -150,7 +150,7 @@ impl MonitorHandle {
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](../dpi/index.html) module for more information.
+    /// See the [`dpi`](crate::dpi) module for more information.
     ///
     /// ## Platform-specific
     ///

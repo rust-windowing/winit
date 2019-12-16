@@ -260,7 +260,10 @@ impl WindowFlags {
                     0,
                     0,
                     0,
-                    winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOMOVE | winuser::SWP_NOSIZE,
+                    winuser::SWP_ASYNCWINDOWPOS
+                        | winuser::SWP_NOMOVE
+                        | winuser::SWP_NOSIZE
+                        | winuser::SWP_NOACTIVATE,
                 );
                 winuser::UpdateWindow(window);
             }

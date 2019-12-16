@@ -18,8 +18,8 @@ use objc::{
 
 use crate::{
     event::{
-        DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, MouseScrollDelta, TouchPhase,
-        VirtualKeyCode, WindowEvent,
+        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, MouseButton,
+        MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
     },
     platform_impl::platform::{
         app_state::AppState,
@@ -35,21 +35,13 @@ use crate::{
     window::WindowId,
 };
 
-#[derive(Default)]
-struct Modifiers {
-    shift_pressed: bool,
-    ctrl_pressed: bool,
-    win_pressed: bool,
-    alt_pressed: bool,
-}
-
 struct ViewState {
     ns_window: id,
     pub cursor: Arc<Mutex<util::Cursor>>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
     is_key_down: bool,
-    modifiers: Modifiers,
+    modifiers: ModifiersState,
 }
 
 pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
@@ -452,7 +444,7 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
         //let event: id = msg_send![NSApp(), currentEvent];
 
         let mut events = VecDeque::with_capacity(characters.len());
-        for character in string.chars() {
+        for character in string.chars().filter(|c| !is_corporate_character(*c)) {
             events.push_back(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::ReceivedCharacter(character),
@@ -484,7 +476,10 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
         } else {
             let raw_characters = state.raw_characters.take();
             if let Some(raw_characters) = raw_characters {
-                for character in raw_characters.chars() {
+                for character in raw_characters
+                    .chars()
+                    .filter(|c| !is_corporate_character(*c))
+                {
                     events.push_back(Event::WindowEvent {
                         window_id: WindowId(get_window_id(state.ns_window)),
                         event: WindowEvent::ReceivedCharacter(character),
@@ -512,6 +507,21 @@ fn get_characters(event: id, ignore_modifiers: bool) -> String {
 
         let string = str::from_utf8_unchecked(slice);
         string.to_owned()
+    }
+}
+
+// As defined in: https://www.unicode.org/Public/MAPPINGS/VENDORS/APPLE/CORPCHAR.TXT
+fn is_corporate_character(c: char) -> bool {
+    match c {
+        '\u{F700}'..='\u{F747}'
+        | '\u{F802}'..='\u{F84F}'
+        | '\u{F850}'
+        | '\u{F85C}'
+        | '\u{F85D}'
+        | '\u{F85F}'
+        | '\u{F860}'..='\u{F86B}'
+        | '\u{F870}'..='\u{F8FF}' => true,
+        _ => false,
     }
 }
 
@@ -564,6 +574,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
                     virtual_keycode,
                     modifiers: event_mods(event),
                 },
+                is_synthetic: false,
             },
         };
 
@@ -571,7 +582,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
             AppState::queue_event(window_event);
             // Emit `ReceivedCharacter` for key repeats
             if is_repeat && state.is_key_down {
-                for character in characters.chars() {
+                for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
                     AppState::queue_event(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ReceivedCharacter(character),
@@ -615,6 +626,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
                     virtual_keycode,
                     modifiers: event_mods(event),
                 },
+                is_synthetic: false,
             },
         };
 
@@ -634,36 +646,36 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSShiftKeyMask,
-            state.modifiers.shift_pressed,
+            state.modifiers.shift,
         ) {
-            state.modifiers.shift_pressed = !state.modifiers.shift_pressed;
+            state.modifiers.shift = !state.modifiers.shift;
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSControlKeyMask,
-            state.modifiers.ctrl_pressed,
+            state.modifiers.ctrl,
         ) {
-            state.modifiers.ctrl_pressed = !state.modifiers.ctrl_pressed;
+            state.modifiers.ctrl = !state.modifiers.ctrl;
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSCommandKeyMask,
-            state.modifiers.win_pressed,
+            state.modifiers.logo,
         ) {
-            state.modifiers.win_pressed = !state.modifiers.win_pressed;
+            state.modifiers.logo = !state.modifiers.logo;
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSAlternateKeyMask,
-            state.modifiers.alt_pressed,
+            state.modifiers.alt,
         ) {
-            state.modifiers.alt_pressed = !state.modifiers.alt_pressed;
+            state.modifiers.alt = !state.modifiers.alt;
             events.push_back(window_event);
         }
 
@@ -673,6 +685,13 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
                 event,
             });
         }
+
+        AppState::queue_event(Event::DeviceEvent {
+            device_id: DEVICE_ID,
+            event: DeviceEvent::ModifiersChanged {
+                modifiers: state.modifiers,
+            },
+        });
     }
     trace!("Completed `flagsChanged`");
 }
@@ -723,6 +742,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
                     virtual_keycode,
                     modifiers: event_mods(event),
                 },
+                is_synthetic: false,
             },
         };
 

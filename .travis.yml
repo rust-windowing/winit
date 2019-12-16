@@ -81,6 +81,8 @@ install:
 
 script:
   - cargo +stable fmt --all -- --check
+  # Ensure that the documentation builds properly.
+  - cargo doc --no-deps
   # Install cargo-web to build stdweb
   - if [[ $WEB = "web" ]]; then cargo install -f cargo-web; fi
   # Build without serde then with serde

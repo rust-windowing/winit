@@ -264,6 +264,7 @@ pub unsafe fn modifier_event(
                 virtual_keycode,
                 modifiers: event_mods(ns_event),
             },
+            is_synthetic: false,
         })
     } else {
         None

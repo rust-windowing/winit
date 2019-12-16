@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.20.0-alpha4"
+version = "0.20.0-alpha5"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2018"
@@ -83,7 +83,7 @@ x11-dl = "2.18.3"
 percent-encoding = "2.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
-version = "0.9"
+version = "0.10"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"

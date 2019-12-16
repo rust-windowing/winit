@@ -6,9 +6,9 @@
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
 //!
-//! [create_proxy]: ./struct.EventLoop.html#method.create_proxy
-//! [event_loop_proxy]: ./struct.EventLoopProxy.html
-//! [send_event]: ./struct.EventLoopProxy.html#method.send_event
+//! [create_proxy]: crate::event_loop::EventLoop::create_proxy
+//! [event_loop_proxy]: crate::event_loop::EventLoopProxy
+//! [send_event]: crate::event_loop::EventLoopProxy::send_event
 use instant::Instant;
 use std::ops::Deref;
 use std::{error, fmt};
@@ -68,7 +68,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 /// are **not** persistent between multiple calls to `run_return` - issuing a new call will reset
 /// the control flow to `Poll`.
 ///
-/// [events_cleared]: ../event/enum.Event.html#variant.EventsCleared
+/// [events_cleared]: crate::event::Event::EventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
@@ -139,7 +139,7 @@ impl<T> EventLoop<T> {
     ///
     /// Any values not passed to this function will *not* be dropped.
     ///
-    /// [`ControlFlow`]: ./enum.ControlFlow.html
+    /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
     where
@@ -199,7 +199,7 @@ impl<T: 'static> EventLoopProxy<T> {
     /// function.
     ///
     /// Returns an `Err` if the associated `EventLoop` no longer exists.
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.event_loop_proxy.send_event(event)
     }
 }
@@ -211,17 +211,17 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
 }
 
 /// The error that is returned when an `EventLoopProxy` attempts to wake up an `EventLoop` that
-/// no longer exists.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct EventLoopClosed;
+/// no longer exists. Contains the original event given to `send_event`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EventLoopClosed<T>(pub T);
 
-impl fmt::Display for EventLoopClosed {
+impl<T: fmt::Debug> fmt::Display for EventLoopClosed<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", error::Error::description(self))
     }
 }
 
-impl error::Error for EventLoopClosed {
+impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {
     fn description(&self) -> &str {
         "Tried to wake up a closed `EventLoop`"
     }
