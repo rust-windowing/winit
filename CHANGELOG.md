@@ -17,6 +17,7 @@
 - On X11, generate synthetic key events for keys held when a window gains or loses focus.
 - On X11, issue a `CursorMoved` event when a `Touch` event occurs,
   as X11 implicitly moves the cursor for such events.
+- On macOS, fix application not to terminate on `run_return`
 
 # 0.20.0 Alpha 4 (2019-10-18)
 

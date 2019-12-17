@@ -11,7 +11,7 @@ use std::{
     time::Instant,
 };
 
-use cocoa::{appkit::NSApp, base::nil};
+use cocoa::{appkit::NSApp, base::nil, foundation::NSString};
 
 use crate::{
     event::{Event, StartCause, WindowEvent},
@@ -19,6 +19,7 @@ use crate::{
     platform_impl::platform::{observer::EventLoopWaker, util::Never},
     window::WindowId,
 };
+use objc::runtime::Object;
 
 lazy_static! {
     static ref HANDLER: Handler = Default::default();
@@ -275,8 +276,24 @@ impl AppState {
             HANDLER.set_in_callback(false);
         }
         if HANDLER.should_exit() {
-            let _: () = unsafe { msg_send![NSApp(), terminate: nil] };
-            return;
+            unsafe {
+                let _: () = msg_send![NSApp(), stop: nil];
+
+                let main_window: *const Object = msg_send![NSApp(), mainWindow];
+                assert_ne!(main_window, nil);
+
+                let title: *const Object = msg_send![main_window, title];
+                assert_ne!(title, nil);
+                let postfix = NSString::alloc(nil).init_str("*");
+                let some_unique_title: *const Object =
+                    msg_send![title, stringByAppendingString: postfix];
+                assert_ne!(some_unique_title, nil);
+
+                // To stop event loop immediately, we need to send some UI event here.
+                let _: () = msg_send![main_window, setTitle: some_unique_title];
+                // And restore it.
+                let _: () = msg_send![main_window, setTitle: title];
+            };
         }
         HANDLER.update_start_time();
         match HANDLER.get_old_and_new_control_flow() {
