@@ -56,6 +56,13 @@ pub fn implement_pointer<T: 'static>(
                         let wid = store.find_wid(&surface);
                         if let Some(wid) = wid {
                             mouse_focus = Some(wid);
+
+                            // Reload cursor style only when we enter winit's surface. Calling
+                            // this function every time on `PtrEvent::Enter` could interfere with
+                            // SCTK CSD handling, since it changes cursor icons when you hover
+                            // cursor over the window borders.
+                            cursor_manager.reload_cursor_style();
+
                             sink.send_window_event(
                                 WindowEvent::CursorEntered {
                                     device_id: crate::event::DeviceId(
@@ -75,8 +82,6 @@ pub fn implement_pointer<T: 'static>(
                                 wid,
                             );
                         }
-
-                        cursor_manager.reload_cursor_style();
                     }
                     PtrEvent::Leave { surface, .. } => {
                         mouse_focus = None;
