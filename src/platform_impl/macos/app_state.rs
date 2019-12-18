@@ -279,10 +279,11 @@ impl AppState {
             unsafe {
                 let _: () = msg_send![NSApp(), stop: nil];
 
-                let main_window: *const Object = msg_send![NSApp(), mainWindow];
-                assert_ne!(main_window, nil);
+                let windows: *const Object = msg_send![NSApp(), windows];
+                let window: *const Object = msg_send![windows, objectAtIndex:0];
+                assert_ne!(window, nil);
 
-                let title: *const Object = msg_send![main_window, title];
+                let title: *const Object = msg_send![window, title];
                 assert_ne!(title, nil);
                 let postfix = NSString::alloc(nil).init_str("*");
                 let some_unique_title: *const Object =
@@ -290,9 +291,9 @@ impl AppState {
                 assert_ne!(some_unique_title, nil);
 
                 // To stop event loop immediately, we need to send some UI event here.
-                let _: () = msg_send![main_window, setTitle: some_unique_title];
+                let _: () = msg_send![window, setTitle: some_unique_title];
                 // And restore it.
-                let _: () = msg_send![main_window, setTitle: title];
+                let _: () = msg_send![window, setTitle: title];
             };
         }
         HANDLER.update_start_time();
