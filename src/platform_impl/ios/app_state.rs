@@ -775,11 +775,14 @@ pub unsafe fn handle_main_events_cleared() {
     handle_nonuser_event(Event::MainEventsCleared);
 
     let mut this = AppState::get_mut();
-    let redraw_events = this
+    let mut redraw_events : Vec<Event<Never>> = this
         .main_events_cleared_transition()
         .into_iter()
-        .map(|window| Event::RedrawRequested(RootWindowId(window.into())))
-        .chain(std::iter::once(Event::RedrawEventsCleared));
+        .map(|window| Event::RedrawRequested(RootWindowId(window.into()))).collect();
+
+    if !redraw_events.is_empty() {
+        redraw_events.push(Event::RedrawEventsCleared);
+    }
     drop(this);
 
     handle_nonuser_events(redraw_events);
