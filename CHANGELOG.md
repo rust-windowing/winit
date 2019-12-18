@@ -1,5 +1,7 @@
 # Unreleased
 
+- on macOS, fix crash when starting maximized without decorations
+
 # # 0.20.0 Alpha 5 (2019-12-09)
 
 - On macOS, fix application termination on `ControlFlow::Exit`
