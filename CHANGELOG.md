@@ -1,6 +1,7 @@
 # Unreleased
 
 - on macOS, fix crash when starting maximized without decorations
+- On Wayland, fix cursor icon updates on window borders when using CSD.
 
 # # 0.20.0 Alpha 5 (2019-12-09)
 
