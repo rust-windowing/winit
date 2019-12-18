@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Wayland, fix cursor icon updates on window borders when using CSD.
+
 # # 0.20.0 Alpha 5 (2019-12-09)
 
 - On macOS, fix application termination on `ControlFlow::Exit`
