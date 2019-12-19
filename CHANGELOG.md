@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix application not to terminate on `run_return`.
 - On Wayland, fix cursor icon updates on window borders when using CSD.
 
 # # 0.20.0 Alpha 5 (2019-12-09)
