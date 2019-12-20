@@ -673,20 +673,22 @@ impl<T> EventLoop<T> {
         window_target.store.lock().unwrap().for_each(|window| {
             if let Some(frame) = window.frame {
                 if let Some(newsize) = window.newsize {
-                    // Drop resize events equaled to the current size
+                    let (w, h) = newsize;
+                    // mutter (GNOME Wayland) relies on `set_geometry` to reposition window in case
+                    // it overlaps mutter's `bounding box`, so we can't avoid this resize call,
+                    // which calls `set_geometry` under the hood, for now.
+                    frame.resize(w, h);
+                    frame.refresh();
+                    // Don't send resize event downstream if the new size is identical to the
+                    // current one.
                     if newsize != *window.size {
-                        let (w, h) = newsize;
-                        frame.resize(w, h);
-                        frame.refresh();
                         let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
                         sink.send_window_event(
                             crate::event::WindowEvent::Resized(logical_size),
                             window.wid,
                         );
+
                         *window.size = (w, h);
-                    } else {
-                        // Refresh csd, etc, otherwise
-                        frame.refresh();
                     }
                 } else if window.frame_refresh {
                     frame.refresh();
