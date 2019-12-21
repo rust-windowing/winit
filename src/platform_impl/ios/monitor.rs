@@ -18,8 +18,30 @@ pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
-    pub(crate) screen_mode: id,
+    pub(crate) screen_mode: NativeDisplayMode,
     pub(crate) monitor: MonitorHandle,
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct NativeDisplayMode(pub id);
+
+unsafe impl Send for NativeDisplayMode {}
+
+impl Drop for NativeDisplayMode {
+    fn drop(&mut self) {
+        unsafe {
+            let () = msg_send![self.0, release];
+        }
+    }
+}
+
+impl Clone for NativeDisplayMode {
+    fn clone(&self) -> Self {
+        unsafe {
+            let () = msg_send![self.0, retain];
+        }
+        NativeDisplayMode(self.0)
+    }
 }
 
 impl Clone for VideoMode {
@@ -28,17 +50,8 @@ impl Clone for VideoMode {
             size: self.size,
             bit_depth: self.bit_depth,
             refresh_rate: self.refresh_rate,
-            screen_mode: unsafe { msg_send![self.screen_mode, retain] },
+            screen_mode: self.screen_mode.clone(),
             monitor: self.monitor.clone(),
-        }
-    }
-}
-
-impl Drop for VideoMode {
-    fn drop(&mut self) {
-        unsafe {
-            assert_main_thread!("`VideoMode` can only be dropped on the main thread on iOS");
-            let () = msg_send![self.screen_mode, release];
         }
     }
 }
@@ -64,11 +77,13 @@ impl VideoMode {
             60
         };
         let size: CGSize = msg_send![screen_mode, size];
+        let screen_mode: id = msg_send![screen_mode, retain];
+        let screen_mode = NativeDisplayMode(screen_mode);
         VideoMode {
             size: (size.width as u32, size.height as u32),
             bit_depth: 32,
             refresh_rate: refresh_rate as u16,
-            screen_mode: msg_send![screen_mode, retain],
+            screen_mode,
             monitor: MonitorHandle::retained_new(uiscreen),
         }
     }

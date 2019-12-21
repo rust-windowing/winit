@@ -497,7 +497,7 @@ pub unsafe fn create_window(
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             let uiscreen = video_mode.monitor().ui_screen() as id;
-            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
         Some(Fullscreen::Borderless(ref monitor)) => {
