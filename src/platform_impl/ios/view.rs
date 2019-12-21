@@ -103,10 +103,8 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let window: id = msg_send![object, window];
                 assert!(!window.is_null());
                 app_state::handle_nonuser_events(
-                    std::iter::once(Event::RedrawRequested(RootWindowId(
-                                window.into(),
-                                )))
-                    .chain(std::iter::once(Event::RedrawEventsCleared))
+                    std::iter::once(Event::RedrawRequested(RootWindowId(window.into())))
+                        .chain(std::iter::once(Event::RedrawEventsCleared)),
                 );
                 let superclass: &'static Class = msg_send![object, superclass];
                 let () = msg_send![super(object, superclass), drawRect: rect];
