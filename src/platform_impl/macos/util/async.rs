@@ -60,11 +60,15 @@ pub unsafe fn set_style_mask_async(ns_window: id, ns_view: id, mask: NSWindowSty
 }
 pub unsafe fn set_style_mask_sync(ns_window: id, ns_view: id, mask: NSWindowStyleMask) {
     let context = SetStyleMaskData::new_ptr(ns_window, ns_view, mask);
-    dispatch_sync_f(
-        dispatch_get_main_queue(),
-        context as *mut _,
-        set_style_mask_callback,
-    );
+    if msg_send![class!(NSThread), isMainThread] {
+        set_style_mask_callback(context as *mut _);
+    } else {
+        dispatch_sync_f(
+            dispatch_get_main_queue(),
+            context as *mut _,
+            set_style_mask_callback,
+        );
+    }
 }
 
 struct SetContentSizeData {
