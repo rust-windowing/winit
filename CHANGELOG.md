@@ -6,6 +6,8 @@
 - On macOS, fix application not to terminate on `run_return`.
 - On Wayland, fix cursor icon updates on window borders when using CSD.
 - On Wayland, under mutter(GNOME Wayland), fix CSD being behind the status bar, when starting window in maximized mode.
+- On Windows, theme the title bar according to whether the system theme is "Light" or "Dark".
+- Added `WindowEvent::ThemeChanged` variant to handle changes to the system theme. Currently only implemented on Windows.
 - Changes to the `RedrawRequested` event (#1041):
   - `RedrawRequested` has been moved from `WindowEvent` to `Event`.
   - `EventsCleared` has been renamed to `MainEventsCleared`.

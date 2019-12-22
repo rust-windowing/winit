@@ -48,6 +48,7 @@ use crate::{
     event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
+        dark_mode::try_dark_mode,
         dpi::{
             become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_scale_factor,
         },
@@ -1538,6 +1539,28 @@ unsafe extern "system" fn public_window_callback<T>(
             });
 
             0
+        }
+
+        winuser::WM_SETTINGCHANGE => {
+            use crate::event::WindowEvent::ThemeChanged;
+
+            let is_dark_mode = try_dark_mode(window);
+            let mut window_state = subclass_input.window_state.lock();
+            let changed = window_state.is_dark_mode != is_dark_mode;
+
+            if changed {
+                use crate::window::Theme::*;
+                let theme = if is_dark_mode { Dark } else { Light };
+
+                window_state.is_dark_mode = is_dark_mode;
+                mem::drop(window_state);
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: ThemeChanged(theme),
+                });
+            }
+
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
         _ => {

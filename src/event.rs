@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     platform_impl,
-    window::WindowId,
+    window::{Theme, WindowId},
 };
 
 /// Describes a generic event.
@@ -222,6 +222,14 @@ pub enum WindowEvent {
     ///
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     HiDpiFactorChanged(f64),
+
+    /// The system window theme has changed.
+    ///
+    /// Applications might wish to react to this to change the theme of the content of the window
+    /// when the system changes the window theme.
+    ///
+    /// At the moment this is only supported on Windows.
+    ThemeChanged(Theme),
 }
 
 /// Identifier of an input device.
