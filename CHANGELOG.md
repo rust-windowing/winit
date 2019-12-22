@@ -6,6 +6,11 @@
 - On macOS, fix application not to terminate on `run_return`.
 - On Wayland, fix cursor icon updates on window borders when using CSD.
 - On Wayland, under mutter(GNOME Wayland), fix CSD being behind the status bar, when starting window in maximized mode.
+- Changes to the `RedrawRequested` event (#1041):
+  - `RedrawRequested` has been moved from `WindowEvent` to `Event`.
+  - `EventsCleared` has been renamed to `MainEventsCleared`.
+  - `RedrawRequested` is now issued only after `MainEventsCleared`.
+  - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 
 # # 0.20.0 Alpha 5 (2019-12-09)
 
@@ -24,11 +29,6 @@
 - On X11, generate synthetic key events for keys held when a window gains or loses focus.
 - On X11, issue a `CursorMoved` event when a `Touch` event occurs,
   as X11 implicitly moves the cursor for such events.
-- Changes to the `RedrawRequested` event (#1041):
-  - `RedrawRequested` has been moved from `WindowEvent` to `Event`.
-  - `EventsCleared` has been renamed to `MainEventsCleared`.
-  - `RedrawRequested` is now issued only after `MainEventsCleared`.
-  - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 
 # 0.20.0 Alpha 4 (2019-10-18)
 
