@@ -12,7 +12,7 @@
   - `RedrawRequested` is now issued only after `MainEventsCleared`.
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 
-# # 0.20.0 Alpha 5 (2019-12-09)
+# 0.20.0 Alpha 5 (2019-12-09)
 
 - On macOS, fix application termination on `ControlFlow::Exit`
 - On Windows, fix missing `ReceivedCharacter` events when Alt is held.
