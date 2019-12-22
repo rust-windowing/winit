@@ -453,6 +453,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::MINIMIZED, minimized)
+            });
+        });
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);

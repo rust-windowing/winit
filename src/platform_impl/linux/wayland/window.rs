@@ -259,6 +259,13 @@ impl Window {
         *(self.need_frame_refresh.lock().unwrap()) = true;
     }
 
+    pub fn set_minimized(&self, minimized: bool) {
+        // An app cannot un-minimize itself on Wayland
+        if minimized {
+            self.frame.lock().unwrap().set_minimized();
+        }
+    }
+
     pub fn set_maximized(&self, maximized: bool) {
         if maximized {
             self.frame.lock().unwrap().set_maximized();

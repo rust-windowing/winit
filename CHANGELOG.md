@@ -1,5 +1,6 @@
 # Unreleased
 
+- On all platforms except mobile and WASM, implement `Window::set_minimized`.
 - On X11, fix `CursorEntered` event being generated for non-winit windows.
 - On macOS, fix crash when starting maximized without decorations.
 - On macOS, fix application not to terminate on `run_return`.
@@ -50,6 +51,7 @@
 - On X11, return dummy monitor data to avoid panicking when no monitors exist.
 - On X11, prevent stealing input focus when creating a new window.
   Only steal input focus when entering fullscreen mode.
+- On Wayland, fixed DeviceEvents for relative mouse movement is not always produced
 - On Wayland, add support for set_cursor_visible and set_cursor_grab.
 - On Wayland, fixed DeviceEvents for relative mouse movement is not always produced.
 - Removed `derivative` crate dependency.
