@@ -196,6 +196,10 @@ lazy_static! {
             window_did_exit_fullscreen as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
+            sel!(windowWillExitFullScreen:),
+            window_will_exit_fullscreen as extern "C" fn(&Object, Sel, id),
+        );
+        decl.add_method(
             sel!(windowDidFailToEnterFullScreen:),
             window_did_fail_to_enter_fullscreen as extern "C" fn(&Object, Sel, id),
         );
@@ -424,6 +428,12 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
         })
     });
     trace!("Completed `windowWillEnterFullscreen:`");
+}
+
+/// Invoked when before exit fullscreen
+extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
+    trace!("Triggered `windowWillExitFullScreen:`");
+    trace!("Completed `windowWillExitFullScreen:`");
 }
 
 extern "C" fn window_will_use_fullscreen_presentation_options(
