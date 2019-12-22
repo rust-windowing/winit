@@ -169,6 +169,10 @@ impl Inner {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
+    pub fn set_minimized(&self, _minimized: bool) {
+        warn!("`Window::set_minimized` is ignored on iOS")
+    }
+
     pub fn set_maximized(&self, _maximized: bool) {
         warn!("`Window::set_maximized` is ignored on iOS")
     }

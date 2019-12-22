@@ -625,6 +625,25 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        let is_minimized: BOOL = unsafe { msg_send![*self.ns_window, isMiniaturized] };
+        let is_minimized: bool = is_minimized == YES;
+        if is_minimized == minimized {
+            return;
+        }
+
+        if minimized {
+            unsafe {
+                NSWindow::miniaturize_(*self.ns_window, *self.ns_window);
+            }
+        } else {
+            unsafe {
+                NSWindow::deminiaturize_(*self.ns_window, *self.ns_window);
+            }
+        }
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {

@@ -1145,7 +1145,18 @@ unsafe extern "system" fn public_window_callback<T>(
             0
         }
 
+        // this is necessary for us to maintain minimize/restore state
         winuser::WM_SYSCOMMAND => {
+            if wparam == winuser::SC_RESTORE {
+                let mut w = subclass_input.window_state.lock();
+                w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, false));
+            }
+            if wparam == winuser::SC_MINIMIZE {
+                let mut w = subclass_input.window_state.lock();
+                w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
+            }
+            // Send `WindowEvent::Minimized` here if we decide to implement one
+
             if wparam == winuser::SC_SCREENSAVE {
                 let window_state = subclass_input.window_state.lock();
                 if window_state.fullscreen.is_some() {
