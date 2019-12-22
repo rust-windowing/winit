@@ -124,7 +124,7 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) {
     if let Some(set_window_composition_attribute) = *SET_WINDOW_COMPOSITION_ATTRIBUTE {
         unsafe {
             // SetWindowCompositionAttribute needs a bigbool (i32), not bool.
-            let mut is_dark_mode_bigbool: BOOL = is_dark_mode.into();
+            let mut is_dark_mode_bigbool = is_dark_mode as BOOL;
 
             let mut data = WINDOWCOMPOSITIONATTRIBDATA {
                 Attrib: WCA_USEDARKMODECOLORS,
