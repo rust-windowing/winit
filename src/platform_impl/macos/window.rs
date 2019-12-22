@@ -243,6 +243,13 @@ lazy_static! {
 pub struct SharedState {
     pub resizable: bool,
     pub fullscreen: Option<Fullscreen>,
+    // This is true between windowWillEnterFullScreen and windowDidEnterFullScreen
+    // or windowWillExitFullScreen and windowDidExitFullScreen.
+    // We must not toggle fullscreen when this is true.
+    pub in_fullscreen_transition: bool,
+    // If it is attempted to toggle fullscreen when in_fullscreen_transition is true,
+    // Set target_fullscreen and do after fullscreen transition is end.
+    pub target_fullscreen: Option<Option<Fullscreen>>,
     pub maximized: bool,
     pub standard_frame: Option<NSRect>,
     is_simple_fullscreen: bool,
@@ -642,8 +649,15 @@ impl UnownedWindow {
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         trace!("Locked shared state in `set_fullscreen`");
-        let shared_state_lock = self.shared_state.lock().unwrap();
+        let mut shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {
+            trace!("Unlocked shared state in `set_fullscreen`");
+            return;
+        }
+        if shared_state_lock.in_fullscreen_transition {
+            // We can't set fullscreen here.
+            // Set fullscreen after transition.
+            shared_state_lock.target_fullscreen = Some(fullscreen);
             trace!("Unlocked shared state in `set_fullscreen`");
             return;
         }
