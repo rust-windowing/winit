@@ -1,5 +1,6 @@
 # Unreleased
 
+- On X11, fix `CursorEntered` event being generated for non-winit windows.
 - On macOS, fix crash when starting maximized without decorations.
 - On macOS, fix application not to terminate on `run_return`.
 - On Wayland, fix cursor icon updates on window borders when using CSD.
