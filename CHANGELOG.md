@@ -8,8 +8,13 @@
 - On Wayland, under mutter(GNOME Wayland), fix CSD being behind the status bar, when starting window in maximized mode.
 - On Windows, theme the title bar according to whether the system theme is "Light" or "Dark".
 - Added `WindowEvent::ThemeChanged` variant to handle changes to the system theme. Currently only implemented on Windows.
+- Changes to the `RedrawRequested` event (#1041):
+  - `RedrawRequested` has been moved from `WindowEvent` to `Event`.
+  - `EventsCleared` has been renamed to `MainEventsCleared`.
+  - `RedrawRequested` is now issued only after `MainEventsCleared`.
+  - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 
-# # 0.20.0 Alpha 5 (2019-12-09)
+# 0.20.0 Alpha 5 (2019-12-09)
 
 - On macOS, fix application termination on `ControlFlow::Exit`
 - On Windows, fix missing `ReceivedCharacter` events when Alt is held.

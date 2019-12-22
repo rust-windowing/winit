@@ -37,10 +37,7 @@ use crate::{
         dark_mode::try_dark_mode,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{
-            self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID,
-            REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID,
-        },
+        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID},
         icon::{self, IconType, WinIcon},
         monitor,
         raw_input::register_all_mice_and_keyboards_for_raw_input,
@@ -143,20 +140,12 @@ impl Window {
     #[inline]
     pub fn request_redraw(&self) {
         unsafe {
-            if self.thread_executor.trigger_newevents_on_redraw() {
-                winuser::RedrawWindow(
-                    self.window.0,
-                    ptr::null(),
-                    ptr::null_mut(),
-                    winuser::RDW_INTERNALPAINT,
-                );
-            } else {
-                let mut window_state = self.window_state.lock();
-                if !window_state.queued_out_of_band_redraw {
-                    window_state.queued_out_of_band_redraw = true;
-                    winuser::PostMessageW(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
-                }
-            }
+            winuser::RedrawWindow(
+                self.window.0,
+                ptr::null(),
+                ptr::null_mut(),
+                winuser::RDW_INTERNALPAINT,
+            );
         }
     }
 

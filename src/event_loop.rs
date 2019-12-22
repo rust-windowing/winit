@@ -59,7 +59,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 
 /// Set by the user callback given to the `EventLoop::run` method.
 ///
-/// Indicates the desired behavior of the event loop after [`Event::EventsCleared`][events_cleared]
+/// Indicates the desired behavior of the event loop after [`Event::RedrawEventsCleared`][events_cleared]
 /// is emitted. Defaults to `Poll`.
 ///
 /// ## Persistency
@@ -68,7 +68,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 /// are **not** persistent between multiple calls to `run_return` - issuing a new call will reset
 /// the control flow to `Poll`.
 ///
-/// [events_cleared]: crate::event::Event::EventsCleared
+/// [events_cleared]: crate::event::Event::RedrawEventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
