@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix error when `set_fullscreen` is called during fullscreen transition.
 - On X11, fix `CursorEntered` event being generated for non-winit windows.
 - On macOS, fix crash when starting maximized without decorations.
 - On macOS, fix application not to terminate on `run_return`.
