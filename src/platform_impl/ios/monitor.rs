@@ -38,7 +38,7 @@ impl Drop for NativeDisplayMode {
 impl Clone for NativeDisplayMode {
     fn clone(&self) -> Self {
         unsafe {
-            let () = msg_send![self.0, retain];
+            let _: id = msg_send![self.0, retain];
         }
         NativeDisplayMode(self.0)
     }
