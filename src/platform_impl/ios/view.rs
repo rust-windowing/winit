@@ -102,10 +102,10 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             unsafe {
                 let window: id = msg_send![object, window];
                 assert!(!window.is_null());
-                app_state::handle_nonuser_event(Event::WindowEvent {
-                    window_id: RootWindowId(window.into()),
-                    event: WindowEvent::RedrawRequested,
-                });
+                app_state::handle_nonuser_events(
+                    std::iter::once(Event::RedrawRequested(RootWindowId(window.into())))
+                        .chain(std::iter::once(Event::RedrawEventsCleared)),
+                );
                 let superclass: &'static Class = msg_send![object, superclass];
                 let () = msg_send![super(object, superclass), drawRect: rect];
             }
@@ -497,7 +497,7 @@ pub unsafe fn create_window(
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             let uiscreen = video_mode.monitor().ui_screen() as id;
-            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
         Some(Fullscreen::Borderless(ref monitor)) => {

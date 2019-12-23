@@ -534,13 +534,14 @@ impl<T: 'static> EventProcessor<T> {
             ffi::Expose => {
                 let xev: &ffi::XExposeEvent = xev.as_ref();
 
-                let window = xev.window;
-                let window_id = mkwid(window);
+                // Multiple Expose events may be received for subareas of a window.
+                // We issue `RedrawRequested` only for the last event of such a series.
+                if xev.count == 0 {
+                    let window = xev.window;
+                    let window_id = mkwid(window);
 
-                callback(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::RedrawRequested,
-                });
+                    callback(Event::RedrawRequested(window_id));
+                }
             }
 
             ffi::KeyPress | ffi::KeyRelease => {
@@ -834,14 +835,15 @@ impl<T: 'static> EventProcessor<T> {
                                 }
                             }
                         }
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: CursorEntered { device_id },
-                        });
 
                         if let Some(dpi_factor) =
                             self.with_window(xev.event, |window| window.hidpi_factor())
                         {
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: CursorEntered { device_id },
+                            });
+
                             let position = LogicalPosition::from_physical(
                                 (xev.event_x as f64, xev.event_y as f64),
                                 dpi_factor,

@@ -749,6 +749,35 @@ impl UnownedWindow {
         self.xconn.primary_monitor()
     }
 
+    fn set_minimized_inner(&self, minimized: bool) -> util::Flusher<'_> {
+        unsafe {
+            if minimized {
+                let screen = (self.xconn.xlib.XDefaultScreen)(self.xconn.display);
+
+                (self.xconn.xlib.XIconifyWindow)(self.xconn.display, self.xwindow, screen);
+
+                util::Flusher::new(&self.xconn)
+            } else {
+                let atom = self.xconn.get_atom_unchecked(b"_NET_ACTIVE_WINDOW\0");
+
+                self.xconn.send_client_msg(
+                    self.xwindow,
+                    self.root,
+                    atom,
+                    Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                    [1, ffi::CurrentTime as c_long, 0, 0, 0],
+                )
+            }
+        }
+    }
+
+    #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        self.set_minimized_inner(minimized)
+            .flush()
+            .expect("Failed to change window minimization");
+    }
+
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn

@@ -572,6 +572,16 @@ impl Window {
         self.window.set_resizable(resizable)
     }
 
+    /// Sets the window to minimized or back
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS:** Has no effect
+    #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        self.window.set_minimized(minimized);
+    }
+
     /// Sets the window to maximized or back.
     ///
     /// ## Platform-specific
@@ -846,4 +856,10 @@ impl Default for CursorIcon {
 pub enum Fullscreen {
     Exclusive(VideoMode),
     Borderless(MonitorHandle),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Theme {
+    Light,
+    Dark,
 }

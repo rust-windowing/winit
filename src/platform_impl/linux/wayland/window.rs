@@ -259,6 +259,13 @@ impl Window {
         *(self.need_frame_refresh.lock().unwrap()) = true;
     }
 
+    pub fn set_minimized(&self, minimized: bool) {
+        // An app cannot un-minimize itself on Wayland
+        if minimized {
+            self.frame.lock().unwrap().set_minimized();
+        }
+    }
+
     pub fn set_maximized(&self, maximized: bool) {
         if maximized {
             self.frame.lock().unwrap().set_maximized();
@@ -389,8 +396,6 @@ pub struct WindowStoreForEach<'a> {
     pub newsize: Option<(u32, u32)>,
     pub size: &'a mut (u32, u32),
     pub new_dpi: Option<i32>,
-    pub refresh: bool,
-    pub frame_refresh: bool,
     pub closed: bool,
     pub grab_cursor: Option<bool>,
     pub surface: &'a wl_surface::WlSurface,
@@ -456,8 +461,6 @@ impl WindowStore {
                 newsize: window.newsize.take(),
                 size: &mut *(window.size.lock().unwrap()),
                 new_dpi: window.new_dpi,
-                refresh: replace(&mut *window.need_refresh.lock().unwrap(), false),
-                frame_refresh: replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 closed: window.closed,
                 grab_cursor: window.cursor_grab_changed.lock().unwrap().take(),
                 surface: &window.surface,
@@ -469,6 +472,22 @@ impl WindowStore {
             }
             // avoid re-spamming the event
             window.closed = false;
+        }
+    }
+
+    pub fn for_each_redraw_trigger<F>(&mut self, mut f: F)
+    where
+        F: FnMut(bool, bool, WindowId, Option<&mut SWindow<ConceptFrame>>),
+    {
+        for window in &mut self.windows {
+            let opt_arc = window.frame.upgrade();
+            let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
+            f(
+                replace(&mut *window.need_refresh.lock().unwrap(), false),
+                replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
+                make_wid(&window.surface),
+                opt_mutex_lock.as_mut().map(|m| &mut **m),
+            );
         }
     }
 }

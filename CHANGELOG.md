@@ -2,11 +2,21 @@
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
-- On macOS, fix application not to terminate on `run_return`.
-- On macOS, fix issue where unbundled applications would sometimes open without being focused.
+- On all platforms except mobile and WASM, implement `Window::set_minimized`.
+- On X11, fix `CursorEntered` event being generated for non-winit windows.
 - On macOS, fix crash when starting maximized without decorations.
+- On macOS, fix application not terminating on `run_return`.
+- On macOS, fix crash when starting maximized without decorations.
+- On macOS, fix issue where unbundled applications would sometimes open without being focused.
 - On Wayland, fix cursor icon updates on window borders when using CSD.
 - On Wayland, under mutter(GNOME Wayland), fix CSD being behind the status bar, when starting window in maximized mode.
+- On Windows, theme the title bar according to whether the system theme is "Light" or "Dark".
+- Added `WindowEvent::ThemeChanged` variant to handle changes to the system theme. Currently only implemented on Windows.
+- Changes to the `RedrawRequested` event (#1041):
+  - `RedrawRequested` has been moved from `WindowEvent` to `Event`.
+  - `EventsCleared` has been renamed to `MainEventsCleared`.
+  - `RedrawRequested` is now issued only after `MainEventsCleared`.
+  - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
@@ -52,6 +62,7 @@
 - On X11, return dummy monitor data to avoid panicking when no monitors exist.
 - On X11, prevent stealing input focus when creating a new window.
   Only steal input focus when entering fullscreen mode.
+- On Wayland, fixed DeviceEvents for relative mouse movement is not always produced
 - On Wayland, add support for set_cursor_visible and set_cursor_grab.
 - On Wayland, fixed DeviceEvents for relative mouse movement is not always produced.
 - Removed `derivative` crate dependency.
