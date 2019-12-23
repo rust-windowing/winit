@@ -4,7 +4,6 @@
 - On X11, fix `CursorEntered` event being generated for non-winit windows.
 - On macOS, fix crash when starting maximized without decorations.
 - On macOS, fix application not terminating on `run_return`.
-- On macOS, fix crash when starting maximized without decorations.
 - On macOS, fix issue where unbundled applications would sometimes open without being focused.
 - On Wayland, fix cursor icon updates on window borders when using CSD.
 - On Wayland, under mutter(GNOME Wayland), fix CSD being behind the status bar, when starting window in maximized mode.
