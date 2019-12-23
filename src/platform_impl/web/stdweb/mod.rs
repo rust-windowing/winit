@@ -41,6 +41,14 @@ pub fn window_size() -> LogicalSize<f64> {
     LogicalSize { width, height }
 }
 
+// https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
+// TODO: Use media queries to register changes in dpi: https://jsfiddle.net/b6zcg24u/
+// TODO: Where does winit handle DPI changes? we can resize the "backbuffer" (canvas element), but isn't that usually handled by e.g. gfx?
+pub fn hidpi_factor() -> f64 {
+    let window = window();
+    window.device_pixel_ratio()
+}
+
 pub fn is_fullscreen(canvas: &CanvasElement) -> bool {
     match document().fullscreen_element() {
         Some(elem) => {

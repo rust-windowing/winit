@@ -86,17 +86,22 @@ impl Canvas {
         (bounds.x(), bounds.y())
     }
 
-    pub fn width(&self) -> f64 {
-        self.raw.width() as f64
-    }
-
-    pub fn height(&self) -> f64 {
-        self.raw.height() as f64
+    pub fn size(&self) -> LogicalSize {
+        LogicalSize {
+            width: self.raw.width() as f64,
+            height: self.raw.height() as f64,
+        }
     }
 
     pub fn set_size(&self, size: LogicalSize<f64>) {
-        self.raw.set_width(size.width as u32);
-        self.raw.set_height(size.height as u32);
+        let physical_size = size.to_physical(super::hidpi_factor());
+
+        self.raw.set_width(physical_size.width as u32);
+        self.raw.set_height(physical_size.height as u32);
+
+        let style = self.raw.style();
+        let _todo = style.set_property("width", &format!("{}px", size.width));
+        let _todo = style.set_property("height", &format!("{}px", size.height));
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {

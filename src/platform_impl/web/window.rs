@@ -92,18 +92,12 @@ impl Window {
 
     #[inline]
     pub fn inner_size(&self) -> LogicalSize<f64> {
-        LogicalSize {
-            width: self.canvas.width() as f64,
-            height: self.canvas.height() as f64,
-        }
+        self.canvas.size()
     }
 
     #[inline]
     pub fn outer_size(&self) -> LogicalSize<f64> {
-        LogicalSize {
-            width: self.canvas.width() as f64,
-            height: self.canvas.height() as f64,
-        }
+        self.canvas.size()
     }
 
     #[inline]
@@ -128,7 +122,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
-        1.0
+        super::backend::hidpi_factor()
     }
 
     #[inline]
