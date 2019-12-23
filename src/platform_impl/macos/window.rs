@@ -281,7 +281,10 @@ pub struct SharedState {
     is_simple_fullscreen: bool,
     pub saved_style: Option<NSWindowStyleMask>,
     /// Presentation options saved before entering `set_simple_fullscreen`, and
-    /// restored upon exiting it
+    /// restored upon exiting it. Also used when transitioning from Borderless to
+    /// Exclusive fullscreen in `set_fullscreen` because we need to disable the menu
+    /// bar in exclusive fullscreen but want to restore the original options when
+    /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
     pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
 }
@@ -783,6 +786,14 @@ impl UnownedWindow {
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
             unsafe {
+                let app = NSApp();
+                trace!("Locked shared state in `set_fullscreen`");
+
+                let mut shared_state_lock = self.shared_state.lock().unwrap();
+                shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
+            }
+
+            unsafe {
                 // Fade to black (and wait for the fade to complete) to hide the
                 // flicker from capturing the display and switching display mode
                 if ffi::CGAcquireDisplayFadeReservation(5.0, &mut fade_token)
@@ -832,7 +843,6 @@ impl UnownedWindow {
         trace!("Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen = fullscreen.clone();
-        trace!("Unlocked shared state in `set_fullscreen`");
 
         INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
 
@@ -873,16 +883,33 @@ impl UnownedWindow {
                 // of the menu bar, and this looks broken, so we must make sure
                 // that the menu bar is disabled. This is done in the window
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
+                let app = NSApp();
+                trace!("Locked shared state in `set_fullscreen`");
+                shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
+
+                let presentation_options =
+                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                app.setPresentationOptions_(presentation_options);
+
                 let () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
             },
             (
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
                 &Some(Fullscreen::Borderless(_)),
             ) => unsafe {
+                let presentation_options = shared_state_lock.save_presentation_opts;
+                if presentation_options.is_some() {
+                    let app = NSApp();
+                    app.setPresentationOptions_(presentation_options.unwrap());
+                }
+
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
             },
             _ => INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst),
-        }
+        };
+        trace!("Unlocked shared state in `set_fullscreen`");
     }
 
     #[inline]
