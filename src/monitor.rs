@@ -154,7 +154,7 @@ impl MonitorHandle {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **X11:** Can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     /// - **Web:** Always returns 1.0
     #[inline]

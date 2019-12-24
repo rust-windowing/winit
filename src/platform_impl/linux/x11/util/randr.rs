@@ -10,9 +10,16 @@ pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
     (width_mm, height_mm): (u64, u64),
 ) -> f64 {
-    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
-    let dpi_override = env::var("WINIT_HIDPI_FACTOR")
+    // Override DPI if `WINIT_X11_SCALE_FACTOR` variable is set
+    let deprecated_dpi_override = env::var("WINIT_HIDPI_FACTOR").ok();
+    if deprecated_dpi_override.is_some() {
+        warn!(
+            "The WINIT_HIDPI_FACTOR environment variable is deprecated; use WINIT_X11_SCALE_FACTOR"
+        )
+    }
+    let dpi_override = env::var("WINIT_X11_SCALE_FACTOR")
         .ok()
+        .or(deprecated_dpi_override)
         .and_then(|var| f64::from_str(&var).ok());
     if let Some(dpi_override) = dpi_override {
         if !validate_scale_factor(dpi_override) {

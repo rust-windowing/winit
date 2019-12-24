@@ -51,7 +51,7 @@
 //! display to use that 2.0 DPI factor, given the use of the command line.
 //! - **X11:** On X11, we calcuate the DPI factor based on the millimeter dimensions provided by XRandR. This can
 //! result in a wide range of possible values, including some interesting ones like 1.0833333333333333. This can be
-//! overridden using the `WINIT_HIDPI_FACTOR` environment variable, though that's not recommended.
+//! overridden using the `WINIT_X11_SCALE_FACTOR` environment variable, though that's not recommended.
 //! - **Wayland:** On Wayland, DPI factors are set per-screen by the server, and are always integers (most often 1 or 2).
 //! - **iOS:** DPI factors are both constant and device-specific on iOS.
 //! - **Android:** This feature isn't yet implemented on Android, so the DPI factor will always be returned as 1.0.
