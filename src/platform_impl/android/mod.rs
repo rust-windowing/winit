@@ -82,6 +82,7 @@ impl<T: 'static> EventLoop<T> {
         let looper = ThreadLooper::for_thread().unwrap();
 
         let mut prev_size = MonitorHandle.size();
+        let mut running = false;
 
         loop {
             event_handler(
@@ -114,6 +115,12 @@ impl<T: 'static> EventLoop<T> {
                                 (*cb)(true);
                             }
                             event_handler(event::Event::Suspended, self.window_target(), &mut cf);
+                        }
+                        Cmd::Resume => {
+                            running = true;
+                        }
+                        Cmd::Pause => {
+                            running = false;
                         }
                         cmd => println!("{:?}", cmd),
                     });
@@ -193,7 +200,7 @@ impl<T: 'static> EventLoop<T> {
                 &mut cf,
             );
 
-            if redraw {
+            if redraw && running {
                 let event = event::Event::RedrawRequested(window::WindowId(WindowId));
                 event_handler(event, self.window_target(), &mut cf);
             }
@@ -204,7 +211,7 @@ impl<T: 'static> EventLoop<T> {
                 &mut cf,
             );
 
-            if cf == ControlFlow::Wait {
+            if cf == ControlFlow::Wait && running {
                 cf = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(1));
             }
 
