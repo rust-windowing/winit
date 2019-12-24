@@ -81,8 +81,9 @@ impl<T: 'static> EventLoop<T> {
         let mut android_app = unsafe { AndroidApp::from_ptr(android_glue::get_android_app()) };
         let looper = ThreadLooper::for_thread().unwrap();
 
-        let mut prev_size = MonitorHandle.size();
         let mut running = false;
+        let mut prev_size = MonitorHandle.size();
+        let mut redraw = 0;
 
         loop {
             event_handler(
@@ -90,8 +91,6 @@ impl<T: 'static> EventLoop<T> {
                 self.window_target(),
                 &mut cf,
             );
-
-            let mut redraw = false;
 
             match first_event.take() {
                 Some(Event::Cmd) => {
@@ -107,7 +106,7 @@ impl<T: 'static> EventLoop<T> {
                             if let Some(cb) = self.suspend_callback.borrow().as_ref() {
                                 (*cb)(false);
                             }
-                            redraw = true;
+                            redraw += 1;
                             event_handler(event::Event::Resumed, self.window_target(), &mut cf);
                         }
                         Cmd::TermWindow => {
@@ -116,11 +115,14 @@ impl<T: 'static> EventLoop<T> {
                             }
                             event_handler(event::Event::Suspended, self.window_target(), &mut cf);
                         }
-                        Cmd::Resume => {
-                            running = true;
+                        Cmd::ConfigChanged => {
+                            redraw += 10;
                         }
                         Cmd::Pause => {
                             running = false;
+                        }
+                        Cmd::Resume => {
+                            running = true;
                         }
                         cmd => println!("{:?}", cmd),
                     });
@@ -173,18 +175,6 @@ impl<T: 'static> EventLoop<T> {
                 _ => {}
             }
 
-            let new_size = MonitorHandle.size();
-            if prev_size != new_size {
-                let size = LogicalSize::from_physical(new_size, MonitorHandle.hidpi_factor());
-                redraw = true;
-                let event = event::Event::WindowEvent {
-                    window_id: window::WindowId(WindowId),
-                    event: event::WindowEvent::Resized(size),
-                };
-                event_handler(event, self.window_target(), &mut cf);
-                prev_size = new_size;
-            }
-
             let mut user_queue = self.user_queue.lock().unwrap();
             while let Some(event) = user_queue.pop_front() {
                 event_handler(
@@ -194,15 +184,27 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
+            let new_size = MonitorHandle.size();
+            if prev_size != new_size {
+                let size = LogicalSize::from_physical(new_size, MonitorHandle.hidpi_factor());
+                let event = event::Event::WindowEvent {
+                    window_id: window::WindowId(WindowId),
+                    event: event::WindowEvent::Resized(size),
+                };
+                event_handler(event, self.window_target(), &mut cf);
+                prev_size = new_size;
+            }
+
             event_handler(
                 event::Event::MainEventsCleared,
                 self.window_target(),
                 &mut cf,
             );
 
-            if redraw && running {
+            if running && redraw > 0 {
                 let event = event::Event::RedrawRequested(window::WindowId(WindowId));
                 event_handler(event, self.window_target(), &mut cf);
+                redraw -= 1;
             }
 
             event_handler(
@@ -211,8 +213,11 @@ impl<T: 'static> EventLoop<T> {
                 &mut cf,
             );
 
-            if cf == ControlFlow::Wait && running {
-                cf = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(1));
+            if redraw > 0 {
+                if cf == ControlFlow::Wait {
+                    let until = Instant::now() + Duration::from_millis(10);
+                    cf = ControlFlow::WaitUntil(until);
+                }
             }
 
             match cf {
