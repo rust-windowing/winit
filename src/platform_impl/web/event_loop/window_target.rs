@@ -183,7 +183,7 @@ impl<T> WindowTarget<T> {
                     height: raw.height() as u32,
                 };
 
-                backend::window_size().to_physical(backend::hidpi_factor())
+                backend::window_size().to_physical(backend::scale_factor())
             } else {
                 intended_size
             };

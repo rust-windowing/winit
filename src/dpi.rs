@@ -32,10 +32,10 @@
 //!   windows. This event is sent any time the DPI factor changes, either because the window moved to another monitor,
 //!   or because the user changed the configuration of their screen.
 //! - You can also retrieve the DPI factor of a monitor by calling
-//!   [`MonitorHandle::hidpi_factor`](../monitor/struct.MonitorHandle.html#method.hidpi_factor), or the
+//!   [`MonitorHandle::scale_factor`](../monitor/struct.MonitorHandle.html#method.scale_factor), or the
 //!   current DPI factor applied to a window by calling
-//!   [`Window::hidpi_factor`](../window/struct.Window.html#method.hidpi_factor), which is roughly equivalent
-//!   to `window.current_monitor().hidpi_factor()`.
+//!   [`Window::scale_factor`](../window/struct.Window.html#method.scale_factor), which is roughly equivalent
+//!   to `window.current_monitor().scale_factor()`.
 //!
 //! Depending on the platform, the window's actual DPI factor may only be known after
 //! the event loop has started and your window has been drawn once. To properly handle these cases,
@@ -130,7 +130,7 @@ impl Pixel for f64 {
 /// anywhere other than winit, it's recommended to validate them using this function before passing them to winit;
 /// otherwise, you risk panics.
 #[inline]
-pub fn validate_hidpi_factor(dpi_factor: f64) -> bool {
+pub fn validate_scale_factor(dpi_factor: f64) -> bool {
     dpi_factor.is_sign_positive() && dpi_factor.is_normal()
 }
 
@@ -164,7 +164,7 @@ impl<P: Pixel> LogicalPosition<P> {
 
     #[inline]
     pub fn to_physical<X: Pixel>(&self, dpi_factor: f64) -> PhysicalPosition<X> {
-        assert!(validate_hidpi_factor(dpi_factor));
+        assert!(validate_scale_factor(dpi_factor));
         let x = self.x.into() * dpi_factor;
         let y = self.y.into() * dpi_factor;
         PhysicalPosition::new(x, y).cast()
@@ -233,7 +233,7 @@ impl<P: Pixel> PhysicalPosition<P> {
 
     #[inline]
     pub fn to_logical<X: Pixel>(&self, dpi_factor: f64) -> LogicalPosition<X> {
-        assert!(validate_hidpi_factor(dpi_factor));
+        assert!(validate_scale_factor(dpi_factor));
         let x = self.x.into() / dpi_factor;
         let y = self.y.into() / dpi_factor;
         LogicalPosition::new(x, y).cast()
@@ -299,7 +299,7 @@ impl<P: Pixel> LogicalSize<P> {
 
     #[inline]
     pub fn to_physical<X: Pixel>(&self, dpi_factor: f64) -> PhysicalSize<X> {
-        assert!(validate_hidpi_factor(dpi_factor));
+        assert!(validate_scale_factor(dpi_factor));
         let width = self.width.into() * dpi_factor;
         let height = self.height.into() * dpi_factor;
         PhysicalSize::new(width, height).cast()
@@ -361,7 +361,7 @@ impl<P: Pixel> PhysicalSize<P> {
 
     #[inline]
     pub fn to_logical<X: Pixel>(&self, dpi_factor: f64) -> LogicalSize<X> {
-        assert!(validate_hidpi_factor(dpi_factor));
+        assert!(validate_scale_factor(dpi_factor));
         let width = self.width.into() / dpi_factor;
         let height = self.height.into() / dpi_factor;
         LogicalSize::new(width, height).cast()

@@ -158,14 +158,14 @@ impl fmt::Debug for MonitorHandle {
             name: Option<String>,
             size: PhysicalSize<u32>,
             position: PhysicalPosition<i32>,
-            hidpi_factor: f64,
+            scale_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
             size: self.size(),
             position: self.position(),
-            hidpi_factor: self.hidpi_factor(),
+            scale_factor: self.scale_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -215,7 +215,7 @@ impl Inner {
         }
     }
 
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         unsafe {
             let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
             scale as f64

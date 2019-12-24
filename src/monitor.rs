@@ -158,8 +158,8 @@ impl MonitorHandle {
     /// - **Android:** Always returns 1.0.
     /// - **Web:** Always returns 1.0
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.inner.hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        self.inner.scale_factor()
     }
 
     /// Returns all fullscreen video modes supported by this monitor.

@@ -1,6 +1,7 @@
 # Unreleased
 
 - On macOS, fix application termination on `ControlFlow::Exit`
+- Rename `hidpi_factor` to `scale_factor`
 
 # 0.20.0 Alpha 4 (2019-10-18)
 

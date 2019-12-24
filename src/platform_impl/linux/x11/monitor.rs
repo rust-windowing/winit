@@ -73,7 +73,7 @@ pub struct MonitorHandle {
     /// If the monitor is the primary one
     primary: bool,
     /// The DPI scale factor
-    pub(crate) hidpi_factor: f64,
+    pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
@@ -114,14 +114,14 @@ impl MonitorHandle {
         crtc: *mut XRRCrtcInfo,
         primary: bool,
     ) -> Option<Self> {
-        let (name, hidpi_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
+        let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
         let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
         let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
         let rect = util::AaRect::new(position, dimensions);
         Some(MonitorHandle {
             id,
             name,
-            hidpi_factor,
+            scale_factor,
             dimensions,
             position,
             primary,
@@ -134,7 +134,7 @@ impl MonitorHandle {
         MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),
-            hidpi_factor: 1.0,
+            scale_factor: 1.0,
             dimensions: (1, 1),
             position: (0, 0),
             primary: true,
@@ -161,8 +161,8 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.hidpi_factor
+    pub fn scale_factor(&self) -> f64 {
+        self.scale_factor
     }
 
     #[inline]

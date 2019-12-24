@@ -228,7 +228,7 @@ pub enum WindowEvent<'a> {
     ///
     /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
     HiDpiFactorChanged {
-        hidpi_factor: f64,
+        scale_factor: f64,
         new_inner_size: &'a mut Option<PhysicalSize<u32>>,
     },
 }

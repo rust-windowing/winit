@@ -40,7 +40,7 @@ pub enum EventProxy {
     HiDpiFactorChangedProxy {
         window_id: id,
         suggested_size: LogicalSize<f64>,
-        hidpi_factor: f64,
+        scale_factor: f64,
     },
 }
 

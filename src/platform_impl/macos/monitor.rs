@@ -168,7 +168,7 @@ impl fmt::Debug for MonitorHandle {
             native_identifier: u32,
             size: PhysicalSize<u32>,
             position: PhysicalPosition<i32>,
-            hidpi_factor: f64,
+            scale_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
@@ -176,7 +176,7 @@ impl fmt::Debug for MonitorHandle {
             native_identifier: self.native_identifier(),
             size: self.size(),
             position: self.position(),
-            hidpi_factor: self.hidpi_factor(),
+            scale_factor: self.scale_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -204,7 +204,7 @@ impl MonitorHandle {
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
         let width = display.pixels_wide();
-        PhysicalSize::from_logical::<_, f64>((width as f64, height as f64), self.hidpi_factor())
+        PhysicalSize::from_logical::<_, f64>((width as f64, height as f64), self.scale_factor())
     }
 
     #[inline]
@@ -212,11 +212,11 @@ impl MonitorHandle {
         let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
         PhysicalPosition::from_logical::<_, f64>(
             (bounds.origin.x as f64, bounds.origin.y as f64),
-            self.hidpi_factor(),
+            self.scale_factor(),
         )
     }
 
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         let screen = match self.ns_screen() {
             Some(screen) => screen,
             None => return 1.0, // default to 1.0 when we can't find the screen

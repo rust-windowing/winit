@@ -1934,7 +1934,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let _ = subclass_input.send_event_unbuffered(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: HiDpiFactorChanged {
-                    hidpi_factor: new_dpi_factor,
+                    scale_factor: new_dpi_factor,
                     new_inner_size: &mut new_inner_size_opt,
                 },
             });

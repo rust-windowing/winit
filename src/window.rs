@@ -383,8 +383,8 @@ impl Window {
     ///
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.window.hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        self.window.scale_factor()
     }
 
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS

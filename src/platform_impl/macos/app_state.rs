@@ -180,19 +180,19 @@ impl Handler {
         }
     }
 
-    fn handle_hidpi_factor_changed_event(
+    fn handle_scale_factor_changed_event(
         &self,
         callback: &mut Box<dyn EventHandler + 'static>,
         ns_window: IdRef,
         suggested_size: LogicalSize<f64>,
-        hidpi_factor: f64,
+        scale_factor: f64,
     ) {
-        let size = suggested_size.to_physical(hidpi_factor);
+        let size = suggested_size.to_physical(scale_factor);
         let new_inner_size = &mut Some(size);
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*ns_window)),
             event: WindowEvent::HiDpiFactorChanged {
-                hidpi_factor,
+                scale_factor,
                 new_inner_size,
             },
         };
@@ -200,7 +200,7 @@ impl Handler {
         callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
 
         let physical_size = new_inner_size.unwrap_or(size);
-        let logical_size = physical_size.to_logical(hidpi_factor);
+        let logical_size = physical_size.to_logical(scale_factor);
         let size = NSSize::new(logical_size.width, logical_size.height);
         unsafe { NSWindow::setContentSize_(*ns_window, size) };
     }
@@ -210,12 +210,12 @@ impl Handler {
             EventProxy::HiDpiFactorChangedProxy {
                 ns_window,
                 suggested_size,
-                hidpi_factor,
-            } => self.handle_hidpi_factor_changed_event(
+                scale_factor,
+            } => self.handle_scale_factor_changed_event(
                 callback,
                 ns_window,
                 suggested_size,
-                hidpi_factor,
+                scale_factor,
             ),
         }
     }

@@ -4,7 +4,7 @@ use super::{
     ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
     *,
 };
-use crate::{dpi::validate_hidpi_factor, platform_impl::platform::x11::VideoMode};
+use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
 
 pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
@@ -15,7 +15,7 @@ pub fn calc_dpi_factor(
         .ok()
         .and_then(|var| f64::from_str(&var).ok());
     if let Some(dpi_override) = dpi_override {
-        if !validate_hidpi_factor(dpi_override) {
+        if !validate_scale_factor(dpi_override) {
             panic!(
                 "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater than 0. Got `{}`",
                 dpi_override,
@@ -33,7 +33,7 @@ pub fn calc_dpi_factor(
     let ppmm = ((width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)).sqrt();
     // Quantize 1/12 step size
     let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
-    assert!(validate_hidpi_factor(dpi_factor));
+    assert!(validate_scale_factor(dpi_factor));
     dpi_factor
 }
 
@@ -107,7 +107,7 @@ impl XConnection {
             (*output_info).nameLen as usize,
         );
         let name = String::from_utf8_lossy(name_slice).into();
-        let hidpi_factor = if let Some(dpi) = self.get_xft_dpi() {
+        let scale_factor = if let Some(dpi) = self.get_xft_dpi() {
             dpi / 96.
         } else {
             calc_dpi_factor(
@@ -120,7 +120,7 @@ impl XConnection {
         };
 
         (self.xrandr.XRRFreeOutputInfo)(output_info);
-        Some((name, hidpi_factor, modes))
+        Some((name, scale_factor, modes))
     }
     pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
         unsafe {
