@@ -178,7 +178,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 };
                 app_state::handle_nonuser_events(
                     std::iter::once(EventWrapper::EventProxy(
-                        EventProxy::HiDpiFactorChangedProxy {
+                        EventProxy::DpiChangedProxy {
                             window_id: window,
                             scale_factor,
                             suggested_size: size,

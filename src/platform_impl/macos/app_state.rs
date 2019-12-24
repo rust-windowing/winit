@@ -191,7 +191,7 @@ impl Handler {
         let new_inner_size = &mut Some(size);
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*ns_window)),
-            event: WindowEvent::HiDpiFactorChanged {
+            event: WindowEvent::DpiChanged {
                 scale_factor,
                 new_inner_size,
             },
@@ -207,7 +207,7 @@ impl Handler {
 
     fn handle_proxy(&self, proxy: EventProxy, callback: &mut Box<dyn EventHandler + 'static>) {
         match proxy {
-            EventProxy::HiDpiFactorChangedProxy {
+            EventProxy::DpiChangedProxy {
                 ns_window,
                 suggested_size,
                 scale_factor,

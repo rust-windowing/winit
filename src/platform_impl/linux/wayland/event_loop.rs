@@ -690,7 +690,7 @@ impl<T> EventLoop<T> {
 
                         callback(Event::WindowEvent {
                             window_id,
-                            event: WindowEvent::HiDpiFactorChanged {
+                            event: WindowEvent::DpiChanged {
                                 scale_factor: dpi,
                                 new_inner_size: &mut new_inner_size,
                             },

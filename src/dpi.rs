@@ -19,62 +19,62 @@
 //!
 //! That's a description of what happens when the button is 100x100 *physical* pixels. Instead, let's try using 100x100
 //! *logical* pixels. To map logical pixels to physical pixels, we simply multiply by the DPI (dots per inch) factor.
-//! On a "typical" desktop display, the DPI factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical
-//! pixels. However, a 1440p display may have a DPI factor of 1.25, so the button is rendered as 125x125 physical pixels.
+//! On a "typical" desktop display, the scale factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical
+//! pixels. However, a 1440p display may have a scale factor of 1.25, so the button is rendered as 125x125 physical pixels.
 //! Ideally, the button now has approximately the same perceived size across varying displays.
 //!
-//! Failure to account for the DPI factor can create a badly degraded user experience. Most notably, it can make users
+//! Failure to account for the scale factor can create a badly degraded user experience. Most notably, it can make users
 //! feel like they have bad eyesight, which will potentially cause them to think about growing elderly, resulting in
 //! them entering an existential panic. Once users enter that state, they will no longer be focused on your application.
 //!
-//! There are two ways to get the DPI factor:
-//! - You can track the [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) event of your
-//!   windows. This event is sent any time the DPI factor changes, either because the window moved to another monitor,
+//! There are two ways to get the scale factor:
+//! - You can track the [`DpiChanged`](../enum.WindowEvent.html#variant.DpiChanged) event of your
+//!   windows. This event is sent any time the scale factor changes, either because the window moved to another monitor,
 //!   or because the user changed the configuration of their screen.
-//! - You can also retrieve the DPI factor of a monitor by calling
+//! - You can also retrieve the scale factor of a monitor by calling
 //!   [`MonitorHandle::scale_factor`](../monitor/struct.MonitorHandle.html#method.scale_factor), or the
-//!   current DPI factor applied to a window by calling
+//!   current scale factor applied to a window by calling
 //!   [`Window::scale_factor`](../window/struct.Window.html#method.scale_factor), which is roughly equivalent
 //!   to `window.current_monitor().scale_factor()`.
 //!
-//! Depending on the platform, the window's actual DPI factor may only be known after
+//! Depending on the platform, the window's actual scale factor may only be known after
 //! the event loop has started and your window has been drawn once. To properly handle these cases,
-//! the most robust way is to monitor the [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged)
-//! event and dynamically adapt your drawing logic to follow the DPI factor.
+//! the most robust way is to monitor the [`DpiChanged`](../enum.WindowEvent.html#variant.DpiChanged)
+//! event and dynamically adapt your drawing logic to follow the scale factor.
 //!
-//! Here's an overview of what sort of DPI factors you can expect, and where they come from:
+//! Here's an overview of what sort of scale factors you can expect, and where they come from:
 //! - **Windows:** On Windows 8 and 10, per-monitor scaling is readily configured by users from the display settings.
-//! While users are free to select any option they want, they're only given a selection of "nice" DPI factors, i.e.
-//! 1.0, 1.25, 1.5... on Windows 7, the DPI factor is global and changing it requires logging out.
-//! - **macOS:** The buzzword is "retina displays", which have a DPI factor of 2.0. Otherwise, the DPI factor is 1.0.
-//! Intermediate DPI factors are never used, thus 1440p displays/etc. aren't properly supported. It's possible for any
-//! display to use that 2.0 DPI factor, given the use of the command line.
-//! - **X11:** On X11, we calcuate the DPI factor based on the millimeter dimensions provided by XRandR. This can
+//! While users are free to select any option they want, they're only given a selection of "nice" scale factors, i.e.
+//! 1.0, 1.25, 1.5... on Windows 7, the scale factor is global and changing it requires logging out.
+//! - **macOS:** The buzzword is "retina displays", which have a scale factor of 2.0. Otherwise, the scale factor is 1.0.
+//! Intermediate scale factors are never used, thus 1440p displays/etc. aren't properly supported. It's possible for any
+//! display to use that 2.0 scale factor, given the use of the command line.
+//! - **X11:** On X11, we calcuate the scale factor based on the millimeter dimensions provided by XRandR. This can
 //! result in a wide range of possible values, including some interesting ones like 1.0833333333333333. This can be
 //! overridden using the `WINIT_X11_SCALE_FACTOR` environment variable, though that's not recommended.
-//! - **Wayland:** On Wayland, DPI factors are set per-screen by the server, and are always integers (most often 1 or 2).
-//! - **iOS:** DPI factors are both constant and device-specific on iOS.
-//! - **Android:** This feature isn't yet implemented on Android, so the DPI factor will always be returned as 1.0.
-//! - **Web:** DPI factors are handled by the browser and will always be 1.0 for your application.
+//! - **Wayland:** On Wayland, scale factors are set per-screen by the server, and are always integers (most often 1 or 2).
+//! - **iOS:** scale factors are both constant and device-specific on iOS.
+//! - **Android:** This feature isn't yet implemented on Android, so the scale factor will always be returned as 1.0.
+//! - **Web:** scale factors are handled by the browser and will always be 1.0 for your application.
 //!
 //! The window's logical size is conserved across DPI changes, resulting in the physical size changing instead. This
 //! may be surprising on X11, but is quite standard elsewhere. Physical size changes always produce a
 //! [`Resized`](../event/enum.WindowEvent.html#variant.Resized) event, even on platforms where no resize actually occurs,
 //! such as macOS and Wayland. As a result, it's not necessary to separately handle
-//! [`HiDpiFactorChanged`](../event/enum.WindowEvent.html#variant.HiDpiFactorChanged) if you're only listening for size.
+//! [`DpiChanged`](../event/enum.WindowEvent.html#variant.DpiChanged) if you're only listening for size.
 //!
 //! Your GPU has no awareness of the concept of logical pixels, and unless you like wasting pixel density, your
 //! framebuffer's size should be in physical pixels.
 //!
 //! `winit` will send [`Resized`](../enum.WindowEvent.html#variant.Resized) events whenever a window's logical size
-//! changes, and [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) events
-//! whenever the DPI factor changes. Receiving either of these events means that the physical size of your window has
+//! changes, and [`DpiChanged`](../enum.WindowEvent.html#variant.DpiChanged) events
+//! whenever the scale factor changes. Receiving either of these events means that the physical size of your window has
 //! changed, and you should recompute it using the latest values you received for each. If the logical size and the
-//! DPI factor change simultaneously, `winit` will send both events together; thus, it's recommended to buffer
+//! scale factor change simultaneously, `winit` will send both events together; thus, it's recommended to buffer
 //! these events and process them at the end of the queue.
 //!
-//! If you never received any [`HiDpiFactorChanged`](../enum.WindowEvent.html#variant.HiDpiFactorChanged) events,
-//! then your window's DPI factor is 1.
+//! If you never received any [`DpiChanged`](../enum.WindowEvent.html#variant.DpiChanged) events,
+//! then your window's scale factor is 1.
 
 pub trait Pixel: Copy + Into<f64> {
     fn from_f64(f: f64) -> Self;
@@ -124,9 +124,9 @@ impl Pixel for f64 {
     }
 }
 
-/// Checks that the DPI factor is a normal positive `f64`.
+/// Checks that the scale factor is a normal positive `f64`.
 ///
-/// All functions that take a DPI factor assert that this will return `true`. If you're sourcing DPI factors from
+/// All functions that take a scale factor assert that this will return `true`. If you're sourcing scale factors from
 /// anywhere other than winit, it's recommended to validate them using this function before passing them to winit;
 /// otherwise, you risk panics.
 #[inline]

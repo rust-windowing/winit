@@ -148,7 +148,7 @@ impl MonitorHandle {
         self.inner.position()
     }
 
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
     /// See the [`dpi`](../dpi/index.html) module for more information.
     ///

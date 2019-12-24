@@ -842,7 +842,7 @@ fn handle_event_proxy(
     proxy: EventProxy,
 ) {
     match proxy {
-        EventProxy::HiDpiFactorChangedProxy {
+        EventProxy::DpiChangedProxy {
             suggested_size,
             scale_factor,
             window_id,
@@ -867,7 +867,7 @@ fn handle_hidpi_proxy(
     let new_inner_size = &mut Some(size);
     let event = Event::WindowEvent {
         window_id: RootWindowId(window_id.into()),
-        event: WindowEvent::HiDpiFactorChanged {
+        event: WindowEvent::DpiChanged {
             scale_factor,
             new_inner_size,
         },

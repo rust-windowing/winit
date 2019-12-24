@@ -122,7 +122,7 @@ impl UnownedWindow {
             1.0
         };
 
-        info!("Guessed window DPI factor: {}", dpi_factor);
+        info!("Guessed window scale factor: {}", dpi_factor);
 
         let max_inner_size: Option<(u32, u32)> = window_attrs
             .max_inner_size

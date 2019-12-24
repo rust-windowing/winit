@@ -366,12 +366,12 @@ impl Window {
         WindowId(self.window.id())
     }
 
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
     /// See the [`dpi`](../dpi/index.html) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
+    /// moved to another screen); as such, tracking `WindowEvent::DpiChanged` events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
     /// ## Platform-specific

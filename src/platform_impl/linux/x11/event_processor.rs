@@ -409,7 +409,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             callback(Event::WindowEvent {
                                 window_id,
-                                event: WindowEvent::HiDpiFactorChanged {
+                                event: WindowEvent::DpiChanged {
                                     scale_factor: new_scale_factor,
                                     new_inner_size: &mut new_inner_size,
                                 },
@@ -1138,7 +1138,7 @@ impl<T: 'static> EventProcessor<T> {
 
                                                     callback(Event::WindowEvent {
                                                         window_id,
-                                                        event: WindowEvent::HiDpiFactorChanged {
+                                                        event: WindowEvent::DpiChanged {
                                                             scale_factor: new_monitor.scale_factor,
                                                             new_inner_size: &mut new_inner_size,
                                                         },

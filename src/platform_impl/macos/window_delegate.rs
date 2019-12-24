@@ -87,7 +87,7 @@ impl WindowDelegateState {
         };
 
         self.previous_dpi_factor = scale_factor;
-        let wrapper = EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
+        let wrapper = EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
             ns_window: IdRef::retain(*self.ns_window),
             suggested_size: self.view_size(),
             scale_factor,
