@@ -187,15 +187,22 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
+            event_handler(
+                event::Event::MainEventsCleared,
+                self.window_target(),
+                &mut cf,
+            );
+
             if redraw {
-                let event = event::Event::WindowEvent {
-                    window_id: window::WindowId(WindowId),
-                    event: event::WindowEvent::RedrawRequested,
-                };
+                let event = event::Event::RedrawRequested(window::WindowId(WindowId));
                 event_handler(event, self.window_target(), &mut cf);
             }
 
-            event_handler(event::Event::EventsCleared, self.window_target(), &mut cf);
+            event_handler(
+                event::Event::RedrawEventsCleared,
+                self.window_target(),
+                &mut cf,
+            );
 
             if cf == ControlFlow::Wait {
                 cf = ControlFlow::WaitUntil(Instant::now() + Duration::from_millis(1));
@@ -215,7 +222,11 @@ impl<T: 'static> EventLoop<T> {
                 }
                 ControlFlow::WaitUntil(instant) => {
                     let start = Instant::now();
-                    let duration = if instant <= start { Duration::default() } else { instant - start };
+                    let duration = if instant <= start {
+                        Duration::default()
+                    } else {
+                        instant - start
+                    };
                     first_event = convert(looper.poll_all_timeout(duration).unwrap());
                     start_cause = if first_event.is_some() {
                         event::StartCause::WaitCancelled {
@@ -445,6 +456,10 @@ impl Window {
     pub fn set_resizable(&self, _resizeable: bool) {
         // no effect
         // Should probably have an effect with multi-windows though
+    }
+
+    pub fn set_minimized(&self, _minimized: bool) {
+        // no effect
     }
 
     pub fn set_maximized(&self, _maximized: bool) {
