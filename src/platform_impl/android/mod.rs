@@ -83,7 +83,8 @@ impl<T: 'static> EventLoop<T> {
 
         let mut running = false;
         let mut prev_size = MonitorHandle.size();
-        let mut redraw = 0;
+        let mut frame = 0u64;
+        let mut redraw_queue = VecDeque::with_capacity(5);
 
         loop {
             event_handler(
@@ -92,6 +93,7 @@ impl<T: 'static> EventLoop<T> {
                 &mut cf,
             );
 
+            let mut redraw = false;
             match first_event.take() {
                 Some(Event::Cmd) => {
                     android_app.handle_cmd(|_, cmd| match cmd {
@@ -106,7 +108,7 @@ impl<T: 'static> EventLoop<T> {
                             if let Some(cb) = self.suspend_callback.borrow().as_ref() {
                                 (*cb)(false);
                             }
-                            redraw += 1;
+                            redraw = true;
                             event_handler(event::Event::Resumed, self.window_target(), &mut cf);
                         }
                         Cmd::TermWindow => {
@@ -116,7 +118,15 @@ impl<T: 'static> EventLoop<T> {
                             event_handler(event::Event::Suspended, self.window_target(), &mut cf);
                         }
                         Cmd::ConfigChanged => {
-                            redraw += 10;
+                            let new_size = MonitorHandle.size();
+                            if prev_size != new_size {
+                                let size = LogicalSize::from_physical(
+                                    new_size,
+                                    MonitorHandle.hidpi_factor(),
+                                );
+                                prev_size = new_size;
+                                redraw_queue.push_back((frame + 5, size));
+                            }
                         }
                         Cmd::Pause => {
                             running = false;
@@ -124,7 +134,7 @@ impl<T: 'static> EventLoop<T> {
                         Cmd::Resume => {
                             running = true;
                         }
-                        cmd => println!("{:?}", cmd),
+                        _ => {}
                     });
                 }
                 Some(Event::Input) => {
@@ -184,15 +194,17 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
-            let new_size = MonitorHandle.size();
-            if prev_size != new_size {
-                let size = LogicalSize::from_physical(new_size, MonitorHandle.hidpi_factor());
-                let event = event::Event::WindowEvent {
-                    window_id: window::WindowId(WindowId),
-                    event: event::WindowEvent::Resized(size),
-                };
-                event_handler(event, self.window_target(), &mut cf);
-                prev_size = new_size;
+            if let Some((rframe, size)) = redraw_queue.pop_front() {
+                redraw = true;
+                if frame >= rframe {
+                    let event = event::Event::WindowEvent {
+                        window_id: window::WindowId(WindowId),
+                        event: event::WindowEvent::Resized(size),
+                    };
+                    event_handler(event, self.window_target(), &mut cf);
+                } else {
+                    redraw_queue.push_front((rframe, size));
+                }
             }
 
             event_handler(
@@ -201,11 +213,11 @@ impl<T: 'static> EventLoop<T> {
                 &mut cf,
             );
 
-            if running && redraw > 0 {
+            if running && redraw {
                 let event = event::Event::RedrawRequested(window::WindowId(WindowId));
                 event_handler(event, self.window_target(), &mut cf);
-                redraw -= 1;
             }
+            frame += 1;
 
             event_handler(
                 event::Event::RedrawEventsCleared,
@@ -213,7 +225,7 @@ impl<T: 'static> EventLoop<T> {
                 &mut cf,
             );
 
-            if redraw > 0 {
+            if redraw_queue.len() > 0 {
                 if cf == ControlFlow::Wait {
                     let until = Instant::now() + Duration::from_millis(10);
                     cf = ControlFlow::WaitUntil(until);
