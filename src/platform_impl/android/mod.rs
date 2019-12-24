@@ -215,7 +215,8 @@ impl<T: 'static> EventLoop<T> {
                 }
                 ControlFlow::WaitUntil(instant) => {
                     let start = Instant::now();
-                    first_event = convert(looper.poll_all_timeout(instant - start).unwrap());
+                    let duration = if instant <= start { Duration::default() } else { instant - start };
+                    first_event = convert(looper.poll_all_timeout(duration).unwrap());
                     start_cause = if first_event.is_some() {
                         event::StartCause::WaitCancelled {
                             start,
