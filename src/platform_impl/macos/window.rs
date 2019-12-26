@@ -244,6 +244,13 @@ lazy_static! {
 pub struct SharedState {
     pub resizable: bool,
     pub fullscreen: Option<Fullscreen>,
+    // This is true between windowWillEnterFullScreen and windowDidEnterFullScreen
+    // or windowWillExitFullScreen and windowDidExitFullScreen.
+    // We must not toggle fullscreen when this is true.
+    pub in_fullscreen_transition: bool,
+    // If it is attempted to toggle fullscreen when in_fullscreen_transition is true,
+    // Set target_fullscreen and do after fullscreen transition is end.
+    pub target_fullscreen: Option<Option<Fullscreen>>,
     pub maximized: bool,
     pub standard_frame: Option<NSRect>,
     is_simple_fullscreen: bool,
@@ -491,10 +498,10 @@ impl UnownedWindow {
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         let fullscreen = {
-            trace!("Locked shared state in `set_resizable`");
+            trace!("[winit] Locked shared state in `set_resizable`");
             let mut shared_state_lock = self.shared_state.lock().unwrap();
             shared_state_lock.resizable = resizable;
-            trace!("Unlocked shared state in `set_resizable`");
+            trace!("[winit] Unlocked shared state in `set_resizable`");
             shared_state_lock.fullscreen.is_some()
         };
         if !fullscreen {
@@ -616,6 +623,25 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        let is_minimized: BOOL = unsafe { msg_send![*self.ns_window, isMiniaturized] };
+        let is_minimized: bool = is_minimized == YES;
+        if is_minimized == minimized {
+            return;
+        }
+
+        if minimized {
+            unsafe {
+                NSWindow::miniaturize_(*self.ns_window, *self.ns_window);
+            }
+        } else {
+            unsafe {
+                NSWindow::deminiaturize_(*self.ns_window, *self.ns_window);
+            }
+        }
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let is_zoomed = self.is_zoomed();
         if is_zoomed == maximized {
@@ -639,10 +665,17 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        trace!("Locked shared state in `set_fullscreen`");
-        let shared_state_lock = self.shared_state.lock().unwrap();
+        trace!("[winit] Locked shared state in `set_fullscreen`");
+        let mut shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {
             trace!("Unlocked shared state in `set_fullscreen`");
+            return;
+        }
+        if shared_state_lock.in_fullscreen_transition {
+            // We can't set fullscreen here.
+            // Set fullscreen after transition.
+            shared_state_lock.target_fullscreen = Some(fullscreen);
+            trace!("[winit] Unlocked shared state in `set_fullscreen`");
             return;
         }
         let old_fullscreen = shared_state_lock.fullscreen.clone();
@@ -650,7 +683,7 @@ impl UnownedWindow {
             trace!("Unlocked shared state in `set_fullscreen`");
             return;
         }
-        trace!("Unlocked shared state in `set_fullscreen`");
+        trace!("[winit] Unlocked shared state in `set_fullscreen`");
         drop(shared_state_lock);
 
         // If the fullscreen is on a different monitor, we must move the window
@@ -745,10 +778,10 @@ impl UnownedWindow {
             }
         }
 
-        trace!("Locked shared state in `set_fullscreen`");
+        trace!("[winit] Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen = fullscreen.clone();
-        trace!("Unlocked shared state in `set_fullscreen`");
+        trace!("[winit] Unlocked shared state in `set_fullscreen`");
 
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
@@ -805,9 +838,9 @@ impl UnownedWindow {
             self.decorations.store(decorations, Ordering::Release);
 
             let (fullscreen, resizable) = {
-                trace!("Locked shared state in `set_decorations`");
+                trace!("[winit] Locked shared state in `set_decorations`");
                 let shared_state_lock = self.shared_state.lock().unwrap();
-                trace!("Unlocked shared state in `set_decorations`");
+                trace!("[winit] Unlocked shared state in `set_decorations`");
                 (
                     shared_state_lock.fullscreen.is_some(),
                     shared_state_lock.resizable,
@@ -1019,7 +1052,7 @@ impl WindowExtMacOS for UnownedWindow {
 
 impl Drop for UnownedWindow {
     fn drop(&mut self) {
-        trace!("Dropping `UnownedWindow` ({:?})", self as *mut _);
+        trace!("[winit] Dropping `UnownedWindow` ({:?})", self as *mut _);
         // Close the window if it has not yet been closed.
         if *self.ns_window != nil {
             unsafe { util::close_async(*self.ns_window) };

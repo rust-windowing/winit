@@ -80,6 +80,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Window maximization**: The windows created by winit can be maximized upon creation.
 - **Window maximization toggle**: The windows created by winit can be maximized and unmaximized after
   creation.
+- **Window minimization**: The windows created by winit can be minimized after creation.
 - **Fullscreen**: The windows created by winit can be put into fullscreen mode.
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
@@ -116,6 +117,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the taskbar icon
 * Setting the parent window
 * `WS_EX_NOREDIRECTIONBITMAP` support
+* Theme the title bar according to Windows 10 Dark Mode setting
 
 ### macOS
 * Window activation policy
@@ -173,6 +175,7 @@ Legend:
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
+|Window minimization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |**N/A**|

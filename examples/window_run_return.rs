@@ -40,7 +40,7 @@ fn main() {
                     quit = true;
                     *control_flow = ControlFlow::Exit;
                 }
-                Event::EventsCleared => {
+                Event::MainEventsCleared => {
                     *control_flow = ControlFlow::Exit;
                 }
                 _ => *control_flow = ControlFlow::Wait,

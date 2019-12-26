@@ -35,12 +35,10 @@ use crate::{
     dpi::{LogicalPosition, LogicalSize, PhysicalSize},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
+        dark_mode::try_dark_mode,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{
-            self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID,
-            REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID,
-        },
+        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID},
         icon::{self, IconType, WinIcon},
         monitor,
         raw_input::register_all_mice_and_keyboards_for_raw_input,
@@ -143,20 +141,12 @@ impl Window {
     #[inline]
     pub fn request_redraw(&self) {
         unsafe {
-            if self.thread_executor.trigger_newevents_on_redraw() {
-                winuser::RedrawWindow(
-                    self.window.0,
-                    ptr::null(),
-                    ptr::null_mut(),
-                    winuser::RDW_INTERNALPAINT,
-                );
-            } else {
-                let mut window_state = self.window_state.lock();
-                if !window_state.queued_out_of_band_redraw {
-                    window_state.queued_out_of_band_redraw = true;
-                    winuser::PostMessageW(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
-                }
-            }
+            winuser::RedrawWindow(
+                self.window.0,
+                ptr::null(),
+                ptr::null_mut(),
+                winuser::RDW_INTERNALPAINT,
+            );
         }
     }
 
@@ -450,6 +440,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::MINIMIZED, minimized)
+            });
+        });
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
@@ -692,6 +694,11 @@ impl Window {
     pub fn set_ime_position(&self, _logical_spot: LogicalPosition) {
         unimplemented!();
     }
+
+    #[inline]
+    pub fn is_dark_mode(&self) -> bool {
+        self.window_state.lock().is_dark_mode
+    }
 }
 
 impl Drop for Window {
@@ -794,7 +801,7 @@ unsafe fn init<T: 'static>(
                 .unwrap_or(1.0)
         })
     };
-    info!("Guessed window DPI factor: {}", guessed_dpi_factor);
+    info!("[winit] Guessed window DPI factor: {}", guessed_dpi_factor);
 
     let dimensions = attributes.inner_size.unwrap_or_else(|| (1024, 768).into());
 
@@ -899,8 +906,19 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::VISIBLE, attributes.visible);
     window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
 
+    // If the system theme is dark, we need to set the window theme now
+    // before we update the window flags (and possibly show the
+    // window for the first time).
+    let dark_mode = try_dark_mode(real_window.0);
+
     let window_state = {
-        let window_state = WindowState::new(&attributes, window_icon, taskbar_icon, dpi_factor);
+        let window_state = WindowState::new(
+            &attributes,
+            window_icon,
+            taskbar_icon,
+            dpi_factor,
+            dark_mode,
+        );
         let window_state = Arc::new(Mutex::new(window_state));
         WindowState::set_window_flags(window_state.lock(), real_window.0, |f| *f = window_flags);
         window_state

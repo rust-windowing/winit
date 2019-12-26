@@ -43,7 +43,7 @@ impl Drop for Inner {
 
 impl Inner {
     pub fn set_title(&self, _title: &str) {
-        debug!("`Window::set_title` is ignored on iOS")
+        debug!("[winit] `Window::set_title` is ignored on iOS")
     }
 
     pub fn set_visible(&self, visible: bool) {
@@ -135,15 +135,15 @@ impl Inner {
     }
 
     pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
-        warn!("`Window::set_min_inner_size` is ignored on iOS")
+        warn!("[winit] `Window::set_min_inner_size` is ignored on iOS")
     }
 
     pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
-        warn!("`Window::set_max_inner_size` is ignored on iOS")
+        warn!("[winit] `Window::set_max_inner_size` is ignored on iOS")
     }
 
     pub fn set_resizable(&self, _resizable: bool) {
-        warn!("`Window::set_resizable` is ignored on iOS")
+        warn!("[winit] `Window::set_resizable` is ignored on iOS")
     }
 
     pub fn hidpi_factor(&self) -> f64 {
@@ -154,7 +154,7 @@ impl Inner {
     }
 
     pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
-        debug!("`Window::set_cursor_icon` ignored on iOS")
+        debug!("[winit] `Window::set_cursor_icon` ignored on iOS")
     }
 
     pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), Error> {
@@ -170,11 +170,15 @@ impl Inner {
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
-        debug!("`Window::set_cursor_visible` is ignored on iOS")
+        debug!("[winit] `Window::set_cursor_visible` is ignored on iOS")
+    }
+
+    pub fn set_minimized(&self, _minimized: bool) {
+        warn!("[winit] `Window::set_minimized` is ignored on iOS")
     }
 
     pub fn set_maximized(&self, _maximized: bool) {
-        warn!("`Window::set_maximized` is ignored on iOS")
+        warn!("[winit] `Window::set_maximized` is ignored on iOS")
     }
 
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
@@ -187,7 +191,7 @@ impl Inner {
                 }
                 Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
                 None => {
-                    warn!("`Window::set_fullscreen(None)` ignored on iOS");
+                    warn!("[winit] `Window::set_fullscreen(None)` ignored on iOS");
                     return;
                 }
             };
@@ -232,19 +236,19 @@ impl Inner {
     }
 
     pub fn set_decorations(&self, _decorations: bool) {
-        warn!("`Window::set_decorations` is ignored on iOS")
+        warn!("[winit] `Window::set_decorations` is ignored on iOS")
     }
 
     pub fn set_always_on_top(&self, _always_on_top: bool) {
-        warn!("`Window::set_always_on_top` is ignored on iOS")
+        warn!("[winit] `Window::set_always_on_top` is ignored on iOS")
     }
 
     pub fn set_window_icon(&self, _icon: Option<Icon>) {
-        warn!("`Window::set_window_icon` is ignored on iOS")
+        warn!("[winit] `Window::set_window_icon` is ignored on iOS")
     }
 
     pub fn set_ime_position(&self, _position: LogicalPosition) {
-        warn!("`Window::set_ime_position` is ignored on iOS")
+        warn!("[winit] `Window::set_ime_position` is ignored on iOS")
     }
 
     pub fn current_monitor(&self) -> RootMonitorHandle {
@@ -325,13 +329,13 @@ impl Window {
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, Error> {
         if let Some(_) = window_attributes.min_inner_size {
-            warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
+            warn!("[winit] `WindowAttributes::min_inner_size` is ignored on iOS");
         }
         if let Some(_) = window_attributes.max_inner_size {
-            warn!("`WindowAttributes::max_inner_size` is ignored on iOS");
+            warn!("[winit] `WindowAttributes::max_inner_size` is ignored on iOS");
         }
         if window_attributes.always_on_top {
-            warn!("`WindowAttributes::always_on_top` is unsupported on iOS");
+            warn!("[winit] `WindowAttributes::always_on_top` is unsupported on iOS");
         }
         // TODO: transparency, visible
 

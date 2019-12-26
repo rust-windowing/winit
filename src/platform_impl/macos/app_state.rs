@@ -11,14 +11,15 @@ use std::{
     time::Instant,
 };
 
-use cocoa::{appkit::NSApp, base::nil};
+use cocoa::{appkit::NSApp, base::nil, foundation::NSString};
 
 use crate::{
-    event::{Event, StartCause, WindowEvent},
+    event::{Event, StartCause},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{observer::EventLoopWaker, util::Never},
     window::WindowId,
 };
+use objc::runtime::Object;
 
 lazy_static! {
     static ref HANDLER: Handler = Default::default();
@@ -265,18 +266,33 @@ impl AppState {
             for event in HANDLER.take_events() {
                 HANDLER.handle_nonuser_event(event);
             }
+            HANDLER.handle_nonuser_event(Event::MainEventsCleared);
             for window_id in HANDLER.should_redraw() {
-                HANDLER.handle_nonuser_event(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::RedrawRequested,
-                });
+                HANDLER.handle_nonuser_event(Event::RedrawRequested(window_id));
             }
-            HANDLER.handle_nonuser_event(Event::EventsCleared);
+            HANDLER.handle_nonuser_event(Event::RedrawEventsCleared);
             HANDLER.set_in_callback(false);
         }
         if HANDLER.should_exit() {
-            let _: () = unsafe { msg_send![NSApp(), terminate: nil] };
-            return;
+            unsafe {
+                let _: () = msg_send![NSApp(), stop: nil];
+
+                let windows: *const Object = msg_send![NSApp(), windows];
+                let window: *const Object = msg_send![windows, objectAtIndex:0];
+                assert_ne!(window, nil);
+
+                let title: *const Object = msg_send![window, title];
+                assert_ne!(title, nil);
+                let postfix = NSString::alloc(nil).init_str("*");
+                let some_unique_title: *const Object =
+                    msg_send![title, stringByAppendingString: postfix];
+                assert_ne!(some_unique_title, nil);
+
+                // To stop event loop immediately, we need to send some UI event here.
+                let _: () = msg_send![window, setTitle: some_unique_title];
+                // And restore it.
+                let _: () = msg_send![window, setTitle: title];
+            };
         }
         HANDLER.update_start_time();
         match HANDLER.get_old_and_new_control_flow() {

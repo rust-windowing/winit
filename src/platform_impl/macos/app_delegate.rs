@@ -45,40 +45,40 @@ lazy_static! {
 }
 
 extern "C" fn did_finish_launching(_: &Object, _: Sel, _: id) -> BOOL {
-    trace!("Triggered `didFinishLaunching`");
+    trace!("[winit] Triggered `didFinishLaunching`");
     AppState::launched();
-    trace!("Completed `didFinishLaunching`");
+    trace!("[winit] Completed `didFinishLaunching`");
     YES
 }
 
 extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `didBecomeActive`");
+    trace!("[winit] Triggered `didBecomeActive`");
     /*unsafe {
         HANDLER.lock().unwrap().handle_nonuser_event(Event::Resumed)
     }*/
-    trace!("Completed `didBecomeActive`");
+    trace!("[winit] Completed `didBecomeActive`");
 }
 
 extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `willResignActive`");
+    trace!("[winit] Triggered `willResignActive`");
     /*unsafe {
         HANDLER.lock().unwrap().handle_nonuser_event(Event::Suspended)
     }*/
-    trace!("Completed `willResignActive`");
+    trace!("[winit] Completed `willResignActive`");
 }
 
 extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `willEnterForeground`");
-    trace!("Completed `willEnterForeground`");
+    trace!("[winit] Triggered `willEnterForeground`");
+    trace!("[winit] Completed `willEnterForeground`");
 }
 
 extern "C" fn did_enter_background(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `didEnterBackground`");
-    trace!("Completed `didEnterBackground`");
+    trace!("[winit] Triggered `didEnterBackground`");
+    trace!("[winit] Completed `didEnterBackground`");
 }
 
 extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `willTerminate`");
+    trace!("[winit] Triggered `willTerminate`");
     /*unsafe {
         let app: id = msg_send![class!(UIApplication), sharedApplication];
         let windows: id = msg_send![app, windows];
@@ -100,5 +100,5 @@ extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
         HANDLER.lock().unwrap().handle_nonuser_events(events);
         HANDLER.lock().unwrap().terminated();
     }*/
-    trace!("Completed `willTerminate`");
+    trace!("[winit] Completed `willTerminate`");
 }

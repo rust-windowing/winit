@@ -137,7 +137,7 @@ impl UnownedWindow {
         };
         let dpi_factor = guessed_monitor.hidpi_factor();
 
-        info!("Guessed window DPI factor: {}", dpi_factor);
+        info!("[winit] Guessed window DPI factor: {}", dpi_factor);
 
         let max_inner_size: Option<(u32, u32)> = window_attrs
             .max_inner_size
@@ -164,7 +164,7 @@ impl UnownedWindow {
                 dimensions.1 = cmp::max(dimensions.1, min.1);
             }
             debug!(
-                "Calculated physical dimensions: {}x{}",
+                "[winit] Calculated physical dimensions: {}x{}",
                 dimensions.0, dimensions.1
             );
             dimensions
@@ -329,7 +329,7 @@ impl UnownedWindow {
                     .map(|size| size.to_physical(dpi_factor));
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
-                        warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
+                        warn!("[winit] To avoid a WM bug, disabling resizing has no effect on Xfwm4");
                     } else {
                         max_inner_size = Some(dimensions.into());
                         min_inner_size = Some(dimensions.into());
@@ -746,6 +746,36 @@ impl UnownedWindow {
         self.xconn.primary_monitor()
     }
 
+    fn set_minimized_inner(&self, minimized: bool) -> util::Flusher<'_> {
+        let xlib = syms!(XLIB);
+        unsafe {
+            if minimized {
+                let screen = (xlib.XDefaultScreen)(**self.xconn.display);
+
+                (xlib.XIconifyWindow)(**self.xconn.display, self.xwindow, screen);
+
+                util::Flusher::new(&self.xconn)
+            } else {
+                let atom = self.xconn.get_atom_unchecked(b"_NET_ACTIVE_WINDOW\0");
+
+                self.xconn.send_client_msg(
+                    self.xwindow,
+                    self.root,
+                    atom,
+                    Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                    [1, ffi::CurrentTime as c_long, 0, 0, 0],
+                )
+            }
+        }
+    }
+
+    #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        self.set_minimized_inner(minimized)
+            .flush()
+            .expect("Failed to change window minimization");
+    }
+
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn
@@ -1105,7 +1135,7 @@ impl UnownedWindow {
             // Making the window unresizable on Xfwm prevents further changes to `WM_NORMAL_HINTS` from being detected.
             // This makes it impossible for resizing to be re-enabled, and also breaks DPI scaling. As such, we choose
             // the lesser of two evils and do nothing.
-            warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
+            warn!("[winit] To avoid a WM bug, disabling resizing has no effect on Xfwm4");
             return;
         }
 

@@ -20,7 +20,10 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 window_id,
             } if window_id == window.id() => *control_flow = ControlFlow::Exit,
-            _ => *control_flow = ControlFlow::Wait,
+            Event::MainEventsCleared => {
+                window.request_redraw();
+            }
+            _ => *control_flow = ControlFlow::Poll,
         }
     });
 }

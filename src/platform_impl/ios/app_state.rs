@@ -12,7 +12,7 @@ use std::{
 use objc::runtime::{BOOL, YES};
 
 use crate::{
-    event::{Event, StartCause, WindowEvent},
+    event::{Event, StartCause},
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, Never},
@@ -51,11 +51,7 @@ enum UserCallbackTransitionResult<'a> {
 
 impl Event<Never> {
     fn is_redraw(&self) -> bool {
-        if let Event::WindowEvent {
-            window_id: _,
-            event: WindowEvent::RedrawRequested,
-        } = self
-        {
+        if let Event::RedrawRequested(_) = self {
             true
         } else {
             false
@@ -454,7 +450,7 @@ impl AppState {
             (_, ControlFlow::Exit) => {
                 // https://developer.apple.com/library/archive/qa/qa1561/_index.html
                 // it is not possible to quit an iOS app gracefully and programatically
-                warn!("`ControlFlow::Exit` ignored on iOS");
+                warn!("[winit] `ControlFlow::Exit` ignored on iOS");
                 self.control_flow = old
             }
         }
@@ -644,10 +640,10 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<Never>>>(events
 
     for event in events {
         if !processing_redraws && event.is_redraw() {
-            log::info!("processing `RedrawRequested` during the main event loop");
+            log::info!("[winit] processing `RedrawRequested` during the main event loop");
         } else if processing_redraws && !event.is_redraw() {
             log::warn!(
-                "processing non `RedrawRequested` event after the main event loop: {:#?}",
+                "[winit] processing non `RedrawRequested` event after the main event loop: {:#?}",
                 event
             );
         }
@@ -694,10 +690,10 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<Never>>>(events
 
         for event in queued_events {
             if !processing_redraws && event.is_redraw() {
-                log::info!("processing `RedrawRequested` during the main event loop");
+                log::info!("[winit] processing `RedrawRequested` during the main event loop");
             } else if processing_redraws && !event.is_redraw() {
                 log::warn!(
-                    "processing non-`RedrawRequested` event after the main event loop: {:#?}",
+                    "[winit] processing non-`RedrawRequested` event after the main event loop: {:#?}",
                     event
                 );
             }
@@ -776,16 +772,18 @@ pub unsafe fn handle_main_events_cleared() {
 
     // User events are always sent out at the end of the "MainEventLoop"
     handle_user_events();
-    handle_nonuser_event(Event::EventsCleared);
+    handle_nonuser_event(Event::MainEventsCleared);
 
     let mut this = AppState::get_mut();
-    let redraw_events = this
+    let mut redraw_events: Vec<Event<Never>> = this
         .main_events_cleared_transition()
         .into_iter()
-        .map(|window| Event::WindowEvent {
-            window_id: RootWindowId(window.into()),
-            event: WindowEvent::RedrawRequested,
-        });
+        .map(|window| Event::RedrawRequested(RootWindowId(window.into())))
+        .collect();
+
+    if !redraw_events.is_empty() {
+        redraw_events.push(Event::RedrawEventsCleared);
+    }
     drop(this);
 
     handle_nonuser_events(redraw_events);
@@ -894,7 +892,7 @@ macro_rules! os_capabilities {
             $(#[$attr])*
             pub fn $error_name(&self, extra_msg: &str) {
                 log::warn!(
-                    concat!("`", $objc_call, "` requires iOS {}.{}+. This device is running iOS {}.{}.{}. {}"),
+                    concat!("[winit] `", $objc_call, "` requires iOS {}.{}+. This device is running iOS {}.{}.{}. {}"),
                     $major, $minor, self.os_version.major, self.os_version.minor, self.os_version.patch,
                     extra_msg
                 )
