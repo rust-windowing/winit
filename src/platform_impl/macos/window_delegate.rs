@@ -196,6 +196,10 @@ lazy_static! {
             window_did_exit_fullscreen as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
+            sel!(windowWillExitFullScreen:),
+            window_will_exit_fullscreen as extern "C" fn(&Object, Sel, id),
+        );
+        decl.add_method(
             sel!(windowDidFailToEnterFullScreen:),
             window_did_fail_to_enter_fullscreen as extern "C" fn(&Object, Sel, id),
         );
@@ -419,11 +423,25 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
                     shared_state.fullscreen = Some(Fullscreen::Borderless(window.current_monitor()))
                 }
             }
-
+            shared_state.in_fullscreen_transition = true;
             trace!("Unlocked shared state in `window_will_enter_fullscreen`");
         })
     });
     trace!("Completed `windowWillEnterFullscreen:`");
+}
+
+/// Invoked when before exit fullscreen
+extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
+    trace!("Triggered `windowWillExitFullScreen:`");
+    with_state(this, |state| {
+        state.with_window(|window| {
+            trace!("Locked shared state in `window_will_exit_fullscreen`");
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.in_fullscreen_transition = true;
+            trace!("Unlocked shared state in `window_will_exit_fullscreen`");
+        });
+    });
+    trace!("Completed `windowWillExitFullScreen:`");
 }
 
 extern "C" fn window_will_use_fullscreen_presentation_options(
@@ -451,6 +469,17 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
         state.initial_fullscreen = false;
+        state.with_window(|window| {
+            trace!("Locked shared state in `window_did_enter_fullscreen`");
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.in_fullscreen_transition = false;
+            let target_fullscreen = shared_state.target_fullscreen.take();
+            trace!("Unlocked shared state in `window_did_enter_fullscreen`");
+            drop(shared_state);
+            if let Some(target_fullscreen) = target_fullscreen {
+                window.set_fullscreen(target_fullscreen);
+            }
+        });
     });
     trace!("Completed `windowDidEnterFullscreen:`");
 }
@@ -461,6 +490,15 @@ extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
     with_state(this, |state| {
         state.with_window(|window| {
             window.restore_state_from_fullscreen();
+            trace!("Locked shared state in `window_did_exit_fullscreen`");
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.in_fullscreen_transition = false;
+            let target_fullscreen = shared_state.target_fullscreen.take();
+            trace!("Unlocked shared state in `window_did_exit_fullscreen`");
+            drop(shared_state);
+            if let Some(target_fullscreen) = target_fullscreen {
+                window.set_fullscreen(target_fullscreen);
+            }
         })
     });
     trace!("Completed `windowDidExitFullscreen:`");
@@ -485,6 +523,13 @@ extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidFailToEnterFullscreen:`");
     with_state(this, |state| {
+        state.with_window(|window| {
+            trace!("Locked shared state in `window_did_fail_to_enter_fullscreen`");
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.in_fullscreen_transition = false;
+            shared_state.target_fullscreen = None;
+            trace!("Unlocked shared state in `window_did_fail_to_enter_fullscreen`");
+        });
         if state.initial_fullscreen {
             let _: () = unsafe {
                 msg_send![*state.ns_window,
