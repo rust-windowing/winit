@@ -18,7 +18,11 @@ use crate::{
     dpi::{LogicalPosition, LogicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
-        x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
+        x11::{
+            ime::ImeContextCreationError,
+            MonitorHandle as X11MonitorHandle,
+            monitor::MonitorExt,
+        },
         MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
@@ -27,7 +31,7 @@ use crate::{
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection};
 
-use winit_types::error::Error;
+use winit_types::error::{Error, ErrorType};
 use winit_types::platform::OsError;
 
 #[derive(Debug)]
@@ -421,7 +425,7 @@ impl UnownedWindow {
             }
             if window_attrs.fullscreen.is_some() {
                 window
-                    .set_fullscreen_inner(window_attrs.fullscreen.clone())
+                    .set_fullscreen_inner(window_attrs.fullscreen.clone())?
                     .map(|flusher| flusher.queue());
             }
             if window_attrs.always_on_top {
@@ -574,22 +578,38 @@ impl UnownedWindow {
         flusher
     }
 
-    fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Option<util::Flusher<'_>> {
+    fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Result<Option<util::Flusher<'_>>, Error> {
+        match &fullscreen {
+            &Some(Fullscreen::Exclusive(_)) => {
+                if self.xconn.monitor_ext != MonitorExt::XRandR {
+                    return Err(make_error!(ErrorType::NotSupported(
+                        "X Servers that don't support the RandR extention cannot have exclusive fullscreen windows".to_string()
+                    )));
+                }
+            }
+            _ => (),
+        }
+
         let mut shared_state_lock = self.shared_state.lock();
 
         match shared_state_lock.visibility {
             // Setting fullscreen on a window that is not visible will generate an error.
             Visibility::No | Visibility::YesWait => {
                 shared_state_lock.desired_fullscreen = Some(fullscreen);
-                return None;
+                return Ok(None);
             }
             Visibility::Yes => (),
         }
 
         let old_fullscreen = shared_state_lock.fullscreen.clone();
-        if old_fullscreen == fullscreen {
-            return None;
+        match &old_fullscreen {
+            &Some(Fullscreen::Exclusive(_)) => {
+                assert_eq!(self.xconn.monitor_ext, MonitorExt::XRandR, "[winit] Somehow we got into exclusive fullscreen mode while not using XRandR, but this should be unreachable.");
+            }
+            _ if old_fullscreen == fullscreen => return Ok(None),
+            _ => (),
         }
+
         shared_state_lock.fullscreen = fullscreen.clone();
 
         match (&old_fullscreen, &fullscreen) {
@@ -611,7 +631,7 @@ impl UnownedWindow {
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
                 shared_state_lock.desktop_video_mode =
-                    Some((monitor.id, self.xconn.get_crtc_mode(monitor.id)));
+                    Some((monitor.id.unwrap(), self.xconn.get_crtc_mode(monitor.id.unwrap())));
             }
             // Restore desktop video mode upon exiting exclusive fullscreen
             (&Some(Fullscreen::Exclusive(_)), &None)
@@ -633,7 +653,7 @@ impl UnownedWindow {
                 if let Some(position) = shared_state_lock.restore_position.take() {
                     self.set_position_inner(position.0, position.1).queue();
                 }
-                Some(flusher)
+                Ok(Some(flusher))
             }
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
@@ -648,7 +668,7 @@ impl UnownedWindow {
 
                 // Don't set fullscreen on an invalid dummy monitor handle
                 if monitor.is_dummy() {
-                    return None;
+                    return Ok(None);
                 }
 
                 if let Some(video_mode) = video_mode {
@@ -678,7 +698,7 @@ impl UnownedWindow {
                     // this will make someone unhappy, but it's very unusual for
                     // games to want to do this anyway).
                     self.xconn
-                        .set_crtc_config(monitor.id, video_mode.native_mode)
+                        .set_crtc_config(monitor.id.unwrap(), video_mode.native_mode.unwrap())
                         .expect("failed to set video mode");
                 }
 
@@ -687,7 +707,7 @@ impl UnownedWindow {
                 let monitor_origin: (i32, i32) = monitor.position().into();
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .queue();
-                Some(self.set_fullscreen_hint(true))
+                Ok(Some(self.set_fullscreen_hint(true)))
             }
         }
     }
@@ -703,13 +723,15 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
+        if let Some(flusher) = self.set_fullscreen_inner(fullscreen)? {
             flusher
                 .sync()
                 .expect("Failed to change window fullscreen state");
             self.invalidate_cached_frame_extents();
         }
+
+        Ok(())
     }
 
     // Called by EventProcessor when a VisibilityNotify event is received
@@ -727,7 +749,7 @@ impl UnownedWindow {
 
                 if let Some(fullscreen) = shared_state.desired_fullscreen.take() {
                     drop(shared_state);
-                    self.set_fullscreen(fullscreen);
+                    self.set_fullscreen(fullscreen).unwrap();
                 }
             }
         }

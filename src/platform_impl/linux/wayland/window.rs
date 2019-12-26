@@ -289,10 +289,12 @@ impl Window {
         }
     }
 
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
         match fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
-                panic!("[winit] Wayland doesn't support exclusive fullscreen")
+                return Err(make_error!(ErrorType::NotSupported(
+                    "Wayland doesn't support exclusive fullscreen".to_string()
+                )));
             }
             Some(Fullscreen::Borderless(RootMonitorHandle {
                 inner: PlatformMonitorHandle::Wayland(ref monitor_id),
@@ -305,6 +307,8 @@ impl Window {
             Some(Fullscreen::Borderless(_)) => unreachable!(),
             None => self.frame.lock().unwrap().unset_fullscreen(),
         }
+
+        Ok(())
     }
 
     pub fn set_theme<T: Theme>(&self, theme: T) {

@@ -960,7 +960,7 @@ pub struct MonitorHandle {
 
 impl PartialEq for MonitorHandle {
     fn eq(&self, other: &Self) -> bool {
-        self.native_identifier() == other.native_identifier()
+        self.native_id() == other.native_id()
     }
 }
 
@@ -974,13 +974,13 @@ impl PartialOrd for MonitorHandle {
 
 impl Ord for MonitorHandle {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.native_identifier().cmp(&other.native_identifier())
+        self.native_id().cmp(&other.native_id())
     }
 }
 
 impl std::hash::Hash for MonitorHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.native_identifier().hash(state);
+        self.native_id().hash(state);
     }
 }
 
@@ -989,7 +989,7 @@ impl fmt::Debug for MonitorHandle {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            native_identifier: u32,
+            native_id: u32,
             size: PhysicalSize,
             position: PhysicalPosition,
             hidpi_factor: i32,
@@ -997,7 +997,7 @@ impl fmt::Debug for MonitorHandle {
 
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
-            native_identifier: self.native_identifier(),
+            native_id: self.native_id(),
             size: self.size(),
             position: self.position(),
             hidpi_factor: self.hidpi_factor(),
@@ -1015,7 +1015,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
+    pub fn native_id(&self) -> u32 {
         self.mgr.with_info(&self.proxy, |id, _| id).unwrap_or(0)
     }
 

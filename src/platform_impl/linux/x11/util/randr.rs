@@ -1,10 +1,22 @@
+use std::os::raw::*;
 use std::{env, slice, str::FromStr};
 
+use winit_types::error::Error;
 use super::{
-    ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
+    ffi::{
+        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
+        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
+        CurrentTime, Success
+    },
     *,
 };
-use crate::{dpi::validate_hidpi_factor, platform_impl::platform::x11::VideoMode};
+use crate::{
+    dpi::validate_hidpi_factor,
+    platform_impl::platform::x11::{
+        VideoMode,
+        monitor::{MonitorHandle, MonitorExt},
+    }
+};
 
 pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
@@ -38,6 +50,96 @@ pub fn calc_dpi_factor(
 }
 
 impl XConnection {
+    pub fn query_monitor_list_xrandr(&self) -> Vec<MonitorHandle> {
+        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
+        let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
+        unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
+
+            let screen = (xlib.XDefaultScreen)(**self.display);
+            let root = (xlib.XRootWindow)(**self.display, screen);
+            let resources = if (major == 1 && minor >= 3) || major > 1 {
+                (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
+            } else {
+                // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
+                // Upon failure, `resources` will be null.
+                (xrandr.XRRGetScreenResources)(**self.display, root)
+            };
+
+            if resources.is_null() {
+                panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
+            }
+
+            let mut available;
+            let mut has_primary = false;
+
+            let primary = (xrandr.XRRGetOutputPrimary)(**self.display, root);
+            available = Vec::with_capacity((*resources).ncrtc as usize);
+            for crtc_index in 0..(*resources).ncrtc {
+                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
+                let crtc = (xrandr.XRRGetCrtcInfo)(**self.display, resources, crtc_id);
+                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
+                if is_active {
+                    let primary = *(*crtc).outputs.offset(0) == primary;
+                    has_primary |= primary;
+
+                    let (name, hidpi_factor, video_modes) = self.get_output_info(resources, crtc).unwrap();
+                    let dimensions =((*crtc).width as u32, (*crtc).height as u32);
+                    let position = ((*crtc).x as i32, (*crtc).y as i32);
+                    let rect = AaRect::new(position, dimensions);
+                    available.push(
+                        MonitorHandle {
+                            id: Some(crtc_id),
+                            name,
+                            hidpi_factor,
+                            dimensions,
+                            position,
+                            primary,
+                            rect,
+                            video_modes,
+                            screen: Some(screen),
+                        }
+                    );
+                }
+                (xrandr.XRRFreeCrtcInfo)(crtc);
+            }
+
+            // If no monitors were detected as being primary, we just pick one ourselves!
+            if !has_primary {
+                if let Some(ref mut fallback) = available.first_mut() {
+                    // Setting this here will come in handy if we ever add an `is_primary` method.
+                    fallback.primary = true;
+                }
+            }
+
+            (xrandr.XRRFreeScreenResources)(resources);
+            available
+        }
+    }
+
+    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, Error> {
+        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
+        let xrandr = syms!(XRANDR_2_2_0);
+
+        let mut event_offset = 0;
+        let mut error_offset = 0;
+        let status = unsafe {
+            (xrandr.XRRQueryExtension)(**self.display, &mut event_offset, &mut error_offset)
+        };
+
+        if status != True {
+            self.display.check_errors()?;
+            unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
+        }
+
+        let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
+        unsafe { (xrandr.XRRSelectInput)(**self.display, root, mask) };
+
+        Ok(event_offset)
+    }
+
     // Retrieve DPI from Xft.dpi property
     pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
         let xlib = syms!(XLIB);
@@ -57,11 +159,13 @@ impl XConnection {
         }
         None
     }
+
     pub unsafe fn get_output_info(
         &self,
         resources: *mut XRRScreenResources,
         crtc: *mut XRRCrtcInfo,
     ) -> Option<(String, f64, Vec<VideoMode>)> {
+        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
         let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         let output_info =
             (xrandr.XRRGetOutputInfo)(**self.display, resources, *(*crtc).outputs.offset(0));
@@ -96,7 +200,7 @@ impl XConnection {
                     size: (x.width, x.height),
                     refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
                     bit_depth: bit_depth as u16,
-                    native_mode: x.id,
+                    native_mode: Some(x.id),
                     // This is populated in `MonitorHandle::video_modes` as the
                     // video mode is returned to the user
                     monitor: None,
@@ -124,7 +228,9 @@ impl XConnection {
         (xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, hidpi_factor, modes))
     }
+
     pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
+        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
         let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         unsafe {
             let mut major = 0;
@@ -162,7 +268,9 @@ impl XConnection {
             }
         }
     }
+
     pub fn get_crtc_mode(&self, crtc_id: RRCrtc) -> RRMode {
+        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
         let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         unsafe {
             let mut major = 0;

@@ -664,7 +664,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
         trace!("[winit] Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {

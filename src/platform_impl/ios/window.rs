@@ -181,7 +181,7 @@ impl Inner {
         warn!("[winit] `Window::set_maximized` is ignored on iOS")
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) -> Result<(), Error> {
         unsafe {
             let uiscreen = match monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
@@ -191,8 +191,9 @@ impl Inner {
                 }
                 Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
                 None => {
-                    warn!("[winit] `Window::set_fullscreen(None)` ignored on iOS");
-                    return;
+                    return Err(make_error!(ErrorType::NotSupported(
+                        "`Window::set_fullscreen(None) is not supported on iOS.".to_string()
+                    )));
                 }
             };
 

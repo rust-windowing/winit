@@ -1,6 +1,6 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{collections::VecDeque, env, sync::Arc};
+use std::{collections::VecDeque, env, sync::Arc, os::raw};
 
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
@@ -107,10 +107,18 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
+    pub fn native_id(&self) -> Option<u32> {
         match self {
-            &MonitorHandle::X(ref m) => m.native_identifier(),
-            &MonitorHandle::Wayland(ref m) => m.native_identifier(),
+            &MonitorHandle::X(ref m) => m.native_id(),
+            &MonitorHandle::Wayland(ref m) => Some(m.native_id()),
+        }
+    }
+
+    #[inline]
+    pub fn x11_screen(&self) -> Option<raw::c_int> {
+        match self {
+            &MonitorHandle::X(ref m) => m.x11_screen(),
+            &MonitorHandle::Wayland(ref m) => None,
         }
     }
 
@@ -365,7 +373,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) -> Result<(), Error> {
         match self {
             &Window::X(ref w) => w.set_fullscreen(monitor),
             &Window::Wayland(ref w) => w.set_fullscreen(monitor),

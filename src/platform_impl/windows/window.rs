@@ -470,7 +470,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 

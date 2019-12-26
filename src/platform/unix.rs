@@ -424,12 +424,23 @@ impl WindowBuilderExtUnix for WindowBuilder {
 /// Additional methods on `MonitorHandle` that are specific to Linux.
 pub trait MonitorHandleExtUnix {
     /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
+    ///
+    /// On X11, `None` if RandR extension not in use.
+    fn native_id(&self) -> Option<u32>;
+
+    /// Returns the X11 screen of the monitor. None if using Wayland or is a
+    /// dummy window.
+    fn x11_screen(&self) -> Option<raw::c_int>;
 }
 
 impl MonitorHandleExtUnix for MonitorHandle {
     #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
+    fn native_id(&self) -> Option<u32> {
+        self.inner.native_id()
+    }
+
+    #[inline]
+    fn x11_screen(&self) -> Option<raw::c_int> {
+        self.inner.x11_screen()
     }
 }

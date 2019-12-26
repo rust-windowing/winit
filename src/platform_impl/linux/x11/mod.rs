@@ -43,6 +43,7 @@ use self::{
     event_processor::EventProcessor,
     ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
     util::modifiers::ModifierKeymap,
+    monitor::MonitorExt,
 };
 use crate::{
     event::{Event, StartCause},
@@ -117,9 +118,12 @@ impl<T: 'static> EventLoop<T> {
             }
         });
 
-        let randr_event_offset = xconn
-            .select_xrandr_input(root)
-            .expect("Failed to query XRandR extension");
+        let randr_event_offset = match xconn.monitor_ext {
+            MonitorExt::XRandR => Some(xconn
+                .select_xrandr_input(root)
+                .expect("Failed to query XRandR extension")),
+            _ => None,
+        };
 
         let xi2ext = unsafe {
             let mut ext = XExtension::default();

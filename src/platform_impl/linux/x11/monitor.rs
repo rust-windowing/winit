@@ -1,14 +1,9 @@
-use std::os::raw::*;
+use std::os::raw;
 
 use parking_lot::Mutex;
-use winit_types::error::Error;
-
+use x11_dl::xrandr::{RRMode, RRCrtc};
 use super::{
-    ffi::{
-        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
-        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
-    },
-    util, XConnection,
+    util, XConnection
 };
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -33,8 +28,19 @@ pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
-    pub(crate) native_mode: RRMode,
+    /// RandR only. None otherwise.
+    pub(crate) native_mode: Option<RRMode>,
     pub(crate) monitor: Option<MonitorHandle>,
+}
+
+/// Which monitor extention we are going to try to use. XRandR is best of
+/// course, but if we can't find it we will try to use Xinerama. And if that is
+/// not present, we use nothing.
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum MonitorExt {
+    XRandR,
+    Xinerama,
+    None,
 }
 
 impl VideoMode {
@@ -63,22 +69,24 @@ impl VideoMode {
 
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
-    /// The actual id
-    pub(crate) id: RRCrtc,
+    /// The actual id, RandR only.
+    pub(crate) id: Option<RRCrtc>,
+    /// X11 screen. None if dummy.
+    pub(crate) screen: Option<raw::c_int>,
     /// The name of the monitor
     pub(crate) name: String,
     /// The size of the monitor
-    dimensions: (u32, u32),
+    pub(crate) dimensions: (u32, u32),
     /// The position of the monitor in the X screen
-    position: (i32, i32),
+    pub(crate) position: (i32, i32),
     /// If the monitor is the primary one
-    primary: bool,
+    pub(crate) primary: bool,
     /// The DPI scale factor
     pub(crate) hidpi_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
-    video_modes: Vec<VideoMode>,
+    pub(crate) video_modes: Vec<VideoMode>,
 }
 
 impl PartialEq for MonitorHandle {
@@ -108,32 +116,9 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 impl MonitorHandle {
-    fn new(
-        xconn: &XConnection,
-        resources: *mut XRRScreenResources,
-        id: RRCrtc,
-        crtc: *mut XRRCrtcInfo,
-        primary: bool,
-    ) -> Option<Self> {
-        let (name, hidpi_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
-        let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
-        let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
-        let rect = util::AaRect::new(position, dimensions);
-        Some(MonitorHandle {
-            id,
-            name,
-            hidpi_factor,
-            dimensions,
-            position,
-            primary,
-            rect,
-            video_modes,
-        })
-    }
-
     pub fn dummy() -> Self {
         MonitorHandle {
-            id: 0,
+            id: Some(0),
             name: "<dummy monitor>".into(),
             hidpi_factor: 1.0,
             dimensions: (1, 1),
@@ -141,12 +126,13 @@ impl MonitorHandle {
             primary: true,
             rect: util::AaRect::new((0, 0), (1, 1)),
             video_modes: Vec::new(),
+            screen: None,
         }
     }
 
     pub(crate) fn is_dummy(&self) -> bool {
         // Zero is an invalid XID value; no real monitor will have it
-        self.id == 0
+        self.id == Some(0)
     }
 
     pub fn name(&self) -> Option<String> {
@@ -154,8 +140,13 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        self.id as u32
+    pub fn native_id(&self) -> Option<u32> {
+        self.id.map(|id| id as u32)
+    }
+
+    #[inline]
+    pub fn x11_screen(&self) -> Option<raw::c_int> {
+        self.screen
     }
 
     pub fn size(&self) -> PhysicalSize {
@@ -213,53 +204,10 @@ impl XConnection {
     }
 
     fn query_monitor_list(&self) -> Vec<MonitorHandle> {
-        let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
-        unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
-
-            let root = (xlib.XDefaultRootWindow)(**self.display);
-            let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
-            } else {
-                // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
-                // Upon failure, `resources` will be null.
-                (xrandr.XRRGetScreenResources)(**self.display, root)
-            };
-
-            if resources.is_null() {
-                panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
-            }
-
-            let mut available;
-            let mut has_primary = false;
-
-            let primary = (xrandr.XRRGetOutputPrimary)(**self.display, root);
-            available = Vec::with_capacity((*resources).ncrtc as usize);
-            for crtc_index in 0..(*resources).ncrtc {
-                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
-                let crtc = (xrandr.XRRGetCrtcInfo)(**self.display, resources, crtc_id);
-                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
-                if is_active {
-                    let is_primary = *(*crtc).outputs.offset(0) == primary;
-                    has_primary |= is_primary;
-                    MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
-                        .map(|monitor_id| available.push(monitor_id));
-                }
-                (xrandr.XRRFreeCrtcInfo)(crtc);
-            }
-
-            // If no monitors were detected as being primary, we just pick one ourselves!
-            if !has_primary {
-                if let Some(ref mut fallback) = available.first_mut() {
-                    // Setting this here will come in handy if we ever add an `is_primary` method.
-                    fallback.primary = true;
-                }
-            }
-
-            (xrandr.XRRFreeScreenResources)(resources);
-            available
+        match self.monitor_ext {
+            MonitorExt::XRandR => self.query_monitor_list_xrandr(),
+            MonitorExt::Xinerama => self.query_monitor_list_xinerama(),
+            MonitorExt::None => self.query_monitor_list_none(),
         }
     }
 
@@ -284,34 +232,5 @@ impl XConnection {
             .into_iter()
             .find(|monitor| monitor.primary)
             .unwrap_or_else(MonitorHandle::dummy)
-    }
-
-    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, Error> {
-        let xrandr = syms!(XRANDR_2_2_0);
-        let has_xrandr = unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor)
-        };
-        assert!(
-            has_xrandr == True,
-            "[winit] XRandR extension not available."
-        );
-
-        let mut event_offset = 0;
-        let mut error_offset = 0;
-        let status = unsafe {
-            (xrandr.XRRQueryExtension)(**self.display, &mut event_offset, &mut error_offset)
-        };
-
-        if status != True {
-            self.display.check_errors()?;
-            unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
-        }
-
-        let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
-        unsafe { (xrandr.XRRSelectInput)(**self.display, root, mask) };
-
-        Ok(event_offset)
     }
 }
