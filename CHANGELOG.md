@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.20.0 Alpha 6 (2019-12-25)
+
 - On macOS, fix error when `set_fullscreen` is called during fullscreen transition.
 - On all platforms except mobile and WASM, implement `Window::set_minimized`.
 - On X11, fix `CursorEntered` event being generated for non-winit windows.
