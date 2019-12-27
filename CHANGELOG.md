@@ -14,8 +14,10 @@
   - `EventsCleared` has been renamed to `MainEventsCleared`.
   - `RedrawRequested` is now issued only after `MainEventsCleared`.
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
-- **Breaking** On X11, the function `xlib_screen_id` was renamed to `xlib_screen`. Also added `x11_screen` to `MonitorHandle`. `MonitorHandle`'s `native_id` now returns an `Option`.
-- **Breaking** Unified all functions to return the same error type, `winit_types::error::Error`.
+- **Breaking:** On X11, the function `xlib_screen_id` was renamed to `xlib_screen`. Also added `x11_screen` to `MonitorHandle`. `MonitorHandle`'s `native_id` now returns an `Option`.
+- **Breaking:** The types in `winit::dpi` and `winit::error` have been moved to the new `winit_types` crate.
+- **Breaking:** Unified all functions to return the same error type, `winit_types::error::Error`.
+- **Breaking:** `Window::set_fullscreen` now returns an `Result<(), Error>` instead of panicking or doing nothing silently.
 - On X11, if the RandR extension is not present, winit will no longer panic. Instead it will return the list of X11 screens, augmenting it with information from Xinerama if present.
 
 # 0.20.0 Alpha 5 (2019-12-09)
