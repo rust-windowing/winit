@@ -9,7 +9,7 @@ use crate::dpi::LogicalSize;
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{window, BeforeUnloadEvent, HtmlCanvasElement};
+use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
@@ -65,10 +65,11 @@ pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
     let window = window().expect("Failed to obtain window");
     let document = window.document().expect("Failed to obtain document");
 
-    canvas.is_same_node(
-        document
-            .fullscreen_element()
-            .as_ref()
-            .map(std::ops::Deref::deref),
-    )
+    match document.fullscreen_element() {
+        Some(elem) => {
+            let raw: Element = canvas.clone().into();
+            raw == elem
+        }
+        None => false,
+    }
 }

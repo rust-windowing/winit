@@ -168,7 +168,8 @@ impl<T> WindowTarget<T> {
 
         let runner = self.runner.clone();
         let raw = canvas.raw().clone();
-        // todo
+
+        // The size to restore to after exiting fullscreen.
         let mut intended_size = PhysicalSize {
             width: raw.width() as u32,
             height: raw.height() as u32,
@@ -177,7 +178,6 @@ impl<T> WindowTarget<T> {
             // If the canvas is marked as fullscreen, it is moving *into* fullscreen
             // If it is not, it is moving *out of* fullscreen
             let new_size = if backend::is_fullscreen(&raw) {
-                // todo
                 intended_size = PhysicalSize {
                     width: raw.width() as u32,
                     height: raw.height() as u32,
@@ -187,6 +187,8 @@ impl<T> WindowTarget<T> {
             } else {
                 intended_size
             };
+
+            // TODO set css size as well, need `&'static Canvas` (or `Rc`)?
             raw.set_width(new_size.width as u32);
             raw.set_height(new_size.height as u32);
             runner.send_event(Event::WindowEvent {

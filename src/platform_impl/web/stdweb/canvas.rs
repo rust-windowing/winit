@@ -202,7 +202,7 @@ impl Canvas {
         self.on_mouse_release = Some(self.add_user_event(move |event: PointerUpEvent| {
             handler(
                 event.pointer_id(),
-                event::mouse_button(&event), // todo convert to physical
+                event::mouse_button(&event),
                 event::mouse_modifiers(&event),
             );
         }));
