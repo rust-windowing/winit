@@ -3,24 +3,21 @@ use crate::window::CursorIcon;
 use super::*;
 
 impl XConnection {
-    pub fn set_cursor_icon(&self, window: ffi::Window, cursor: Option<CursorIcon>) {
+    pub fn set_cursor_icon(&self, window: ffi::Window, root: ffi::Window, cursor: Option<CursorIcon>) {
         let cursor = *self
             .cursor_cache
             .lock()
             .entry(cursor)
-            .or_insert_with(|| self.get_cursor(cursor));
+            .or_insert_with(|| self.get_cursor(cursor, root));
 
         self.update_cursor(window, cursor);
     }
 
-    fn create_empty_cursor(&self) -> ffi::Cursor {
+    fn create_empty_cursor(&self, root: ffi::Window) -> ffi::Cursor {
         let xlib = syms!(XLIB);
         let data = 0;
         let pixmap = unsafe {
-            // FIXME: Audit
-            let screen = (xlib.XDefaultScreen)(**self.display);
-            let window = (xlib.XRootWindow)(**self.display, screen);
-            (xlib.XCreateBitmapFromData)(**self.display, window, &data, 1, 1)
+            (xlib.XCreateBitmapFromData)(**self.display, root, &data, 1, 1)
         };
 
         if pixmap == 0 {
@@ -63,10 +60,10 @@ impl XConnection {
         0
     }
 
-    fn get_cursor(&self, cursor: Option<CursorIcon>) -> ffi::Cursor {
+    fn get_cursor(&self, cursor: Option<CursorIcon>, root: ffi::Window) -> ffi::Cursor {
         let cursor = match cursor {
             Some(cursor) => cursor,
-            None => return self.create_empty_cursor(),
+            None => return self.create_empty_cursor(root),
         };
 
         let load = |name: &[u8]| self.load_cursor(name);

@@ -97,7 +97,7 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
     let xlib = syms!(XLIB);
     let servers_atom = xconn.get_atom_unchecked(b"XIM_SERVERS\0");
 
-    // FIXME: Audit
+    // TODO: Default root probably works with multihead setups, right?
     let root = (xlib.XDefaultRootWindow)(**xconn.display);
 
     let mut atoms: Vec<ffi::Atom> = xconn

@@ -1236,7 +1236,7 @@ impl UnownedWindow {
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let old_cursor = replace(&mut *self.cursor.lock(), cursor);
         if cursor != old_cursor && *self.cursor_visible.lock() {
-            self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
+            self.xconn.set_cursor_icon(self.xwindow, self.root, Some(cursor));
         }
     }
 
@@ -1314,7 +1314,7 @@ impl UnownedWindow {
         };
         *visible_lock = visible;
         drop(visible_lock);
-        self.xconn.set_cursor_icon(self.xwindow, cursor);
+        self.xconn.set_cursor_icon(self.xwindow, self.root, cursor);
     }
 
     #[inline]

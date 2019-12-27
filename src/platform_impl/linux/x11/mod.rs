@@ -660,7 +660,14 @@ impl Device {
                 | ffi::XI_RawKeyReleaseMask;
             // The request buffer is flushed when we poll for events
             {
-                // FIXME: Audit
+                // The raw motions events appear to still happen even when the
+                // focus is on a different screen on multihead systems.
+                //
+                // I (Freya) haven't tested if it breaks on multihead systems
+                // with two different window managers, but we can't support
+                // everything, can we? That just strikes me as a painful setup
+                // that would have bigger problems than some missing device
+                // events.
                 let xlib = syms!(XLIB);
                 let root = unsafe { (xlib.XDefaultRootWindow)(**wt.xconn.display) };
                 wt.xconn
