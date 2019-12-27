@@ -1,4 +1,4 @@
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
@@ -44,10 +44,10 @@ impl Window {
             register_redraw_request,
         };
 
-        window.set_inner_size(attr.inner_size.unwrap_or(LogicalSize {
+        window.set_inner_size(attr.inner_size.unwrap_or(Size::Logical(LogicalSize {
             width: 1024.0,
             height: 768.0,
-        }));
+        })));
         window.set_title(&attr.title);
         window.set_maximized(attr.maximized);
         window.set_visible(attr.visible);
@@ -72,17 +72,21 @@ impl Window {
         (self.register_redraw_request)();
     }
 
-    pub fn outer_position(&self) -> Result<LogicalPosition<f64>, NotSupportedError> {
-        let (x, y) = self.canvas.position();
-
-        Ok(LogicalPosition { x, y })
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        // todo: not supported?
+        // Ok(self.canvas.position().to_physical(self.hidpi_factor))
+        Err(NotSupportedError::new())
     }
 
-    pub fn inner_position(&self) -> Result<LogicalPosition<f64>, NotSupportedError> {
-        Ok(*self.position.borrow())
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        // todo: not supported?
+        // Ok(*self.position.borrow())
+        Err(NotSupportedError::new())
     }
 
-    pub fn set_outer_position(&self, position: LogicalPosition<f64>) {
+    pub fn set_outer_position(&self, position: Position) {
+        let position = position.to_logical(self.hidpi_factor());
+
         *self.position.borrow_mut() = position;
 
         self.canvas.set_attribute("position", "fixed");
@@ -91,27 +95,29 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize<f64> {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        // TODO
         self.canvas.size()
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize<f64> {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
+        // TODO
         self.canvas.size()
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize<f64>) {
+    pub fn set_inner_size(&self, size: Size) {
         self.canvas.set_size(size);
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
@@ -172,10 +178,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(
-        &self,
-        _position: LogicalPosition<f64>,
-    ) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
         // Intentionally a no-op, as the web does not support setting cursor positions
         Ok(())
     }
@@ -235,7 +238,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _position: LogicalPosition<f64>) {
+    pub fn set_ime_position(&self, _position: Position) {
         // Currently a no-op as it does not seem there is good support for this on web
     }
 

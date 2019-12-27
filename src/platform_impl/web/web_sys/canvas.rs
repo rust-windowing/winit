@@ -1,5 +1,5 @@
 use super::event;
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize, Size};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 use crate::platform_impl::OsError;
@@ -80,28 +80,38 @@ impl Canvas {
             .expect(&format!("Set attribute: {}", attribute));
     }
 
-    pub fn position(&self) -> (f64, f64) {
+    pub fn position(&self) -> LogicalPosition<f64> {
         let bounds = self.raw.get_bounding_client_rect();
 
-        (bounds.x(), bounds.y())
-    }
-
-    pub fn size(&self) -> LogicalSize {
-        LogicalSize {
-            width: self.raw.width() as f64,
-            height: self.raw.height() as f64,
+        LogicalPosition {
+            x: bounds.x(),
+            y: bounds.y(),
         }
     }
 
-    pub fn set_size(&self, size: LogicalSize<f64>) {
-        let physical_size = size.to_physical(super::hidpi_factor());
+    pub fn size(&self) -> PhysicalSize<u32> {
+        PhysicalSize {
+            width: self.raw.width(),
+            height: self.raw.height(),
+        }
+    }
 
-        self.raw.set_width(physical_size.width as u32);
-        self.raw.set_height(physical_size.height as u32);
+    pub fn set_size(&self, size: Size) {
+        let dpi_factor = super::hidpi_factor();
+
+        let physical_size = size.to_physical::<u32>(dpi_factor);
+        let logical_size = size.to_logical::<f64>(dpi_factor);
+
+        self.raw.set_width(physical_size.width);
+        self.raw.set_height(physical_size.height);
 
         let style = self.raw.style();
-        let _todo = style.set_property("width", &format!("{}px", size.width));
-        let _todo = style.set_property("height", &format!("{}px", size.height));
+        style
+            .set_property("width", &format!("{}px", logical_size.width))
+            .unwrap();
+        style
+            .set_property("height", &format!("{}px", logical_size.height))
+            .unwrap();
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
@@ -223,12 +233,12 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, LogicalPosition, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<i32>, ModifiersState),
     {
         self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
             handler(
                 event.pointer_id(),
-                event::mouse_position(&event),
+                event::mouse_position(&event).to_physical(super::hidpi_factor()),
                 event::mouse_modifiers(&event),
             );
         }));

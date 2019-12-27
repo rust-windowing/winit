@@ -440,6 +440,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window in the screen space coordinate system.
+    /// - **Web:** Returns the top-left coordinates relative to the viewport. or, TODO: not supported?
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.outer_position()
@@ -454,6 +455,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
+    /// - **Web:** Sets the top-left coordinates relative to the viewport. or, TODO: not supported?
     #[inline]
     pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
         self.window.set_outer_position(position.into())

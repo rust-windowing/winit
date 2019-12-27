@@ -1,5 +1,5 @@
 use super::event;
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize, Size};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 use crate::platform_impl::OsError;
@@ -82,30 +82,36 @@ impl Canvas {
             .expect(&format!("Set attribute: {}", attribute));
     }
 
-    pub fn position(&self) -> (f64, f64) {
+    pub fn position(&self) -> LogicalPosition<f64> {
         let bounds = self.raw.get_bounding_client_rect();
 
-        (bounds.get_x(), bounds.get_y())
-    }
-
-    pub fn size(&self) -> LogicalSize<f64> {
-        LogicalSize {
-            width: self.raw.width() as f64,
-            height: self.raw.height() as f64,
+        LogicalPosition {
+            x: bounds.get_x(),
+            y: bounds.get_y(),
         }
     }
 
-    pub fn set_size(&self, size: LogicalSize<f64>) {
+    pub fn size(&self) -> PhysicalSize<u32> {
+        PhysicalSize {
+            width: self.raw.width() as u32,
+            height: self.raw.height() as u32,
+        }
+    }
+
+    pub fn set_size(&self, size: Size) {
         use stdweb::*;
 
-        let physical_size = size.to_physical(super::hidpi_factor());
+        let dpi_factor = super::hidpi_factor();
 
-        self.raw.set_width(physical_size.width as u32);
-        self.raw.set_height(physical_size.height as u32);
+        let physical_size = size.to_physical::<u32>(dpi_factor);
+        let logical_size = size.to_logical::<f64>(dpi_factor);
+
+        self.raw.set_width(physical_size.width);
+        self.raw.set_height(physical_size.height);
 
         js! {
-            @{self.raw.as_ref()}.style.width = @{size.width} + "px";
-            @{self.raw.as_ref()}.style.height = @{size.height} + "px";
+            @{self.raw.as_ref()}.style.width = @{logical_size.width} + "px";
+            @{self.raw.as_ref()}.style.height = @{logical_size.height} + "px";
         }
     }
 
@@ -196,7 +202,7 @@ impl Canvas {
         self.on_mouse_release = Some(self.add_user_event(move |event: PointerUpEvent| {
             handler(
                 event.pointer_id(),
-                event::mouse_button(&event),
+                event::mouse_button(&event), // todo convert to physical
                 event::mouse_modifiers(&event),
             );
         }));
@@ -217,12 +223,13 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, LogicalPosition, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<i32>, ModifiersState),
     {
+        // todo
         self.on_cursor_move = Some(self.add_event(move |event: PointerMoveEvent| {
             handler(
                 event.pointer_id(),
-                event::mouse_position(&event),
+                event::mouse_position(&event).to_physical(super::hidpi_factor()),
                 event::mouse_modifiers(&event),
             );
         }));
