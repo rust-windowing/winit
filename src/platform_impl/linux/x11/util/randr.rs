@@ -143,7 +143,6 @@ impl XConnection {
             return None;
         }
 
-
         // With RandR, there will only ever be one screen, so using default
         // here is OK.
         let screen = (xlib.XDefaultScreen)(**self.display);

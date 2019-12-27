@@ -3,7 +3,12 @@ use crate::window::CursorIcon;
 use super::*;
 
 impl XConnection {
-    pub fn set_cursor_icon(&self, window: ffi::Window, root: ffi::Window, cursor: Option<CursorIcon>) {
+    pub fn set_cursor_icon(
+        &self,
+        window: ffi::Window,
+        root: ffi::Window,
+        cursor: Option<CursorIcon>,
+    ) {
         let cursor = *self
             .cursor_cache
             .lock()
@@ -16,9 +21,7 @@ impl XConnection {
     fn create_empty_cursor(&self, root: ffi::Window) -> ffi::Cursor {
         let xlib = syms!(XLIB);
         let data = 0;
-        let pixmap = unsafe {
-            (xlib.XCreateBitmapFromData)(**self.display, root, &data, 1, 1)
-        };
+        let pixmap = unsafe { (xlib.XCreateBitmapFromData)(**self.display, root, &data, 1, 1) };
 
         if pixmap == 0 {
             panic!("[winit] failed to allocate pixmap for cursor");

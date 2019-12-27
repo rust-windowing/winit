@@ -121,10 +121,12 @@ impl<T: 'static> EventLoop<T> {
                 // With RandR there is only ever one screen, therefore only one
                 // root, so using the default is okay here.
                 let root = unsafe { (xlib.XDefaultRootWindow)(**xconn.display) };
-                Some(xconn
-                    .select_xrandr_input(root)
-                    .expect("Failed to query XRandR extension"))
-            },
+                Some(
+                    xconn
+                        .select_xrandr_input(root)
+                        .expect("Failed to query XRandR extension"),
+                )
+            }
             _ => None,
         };
 

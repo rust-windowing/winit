@@ -465,7 +465,9 @@ impl<T: 'static> EventProcessor<T> {
                             adjusted_size.0.round() as u32,
                             adjusted_size.1.round() as u32,
                         );
-                        if new_inner_size == rounded_size || !util::wm_name_is_one_of(&["Xfwm4"], window.screen) {
+                        if new_inner_size == rounded_size
+                            || !util::wm_name_is_one_of(&["Xfwm4"], window.screen)
+                        {
                             // When this finally happens, the event will not be synthetic.
                             shared_state_lock.dpi_adjusted = None;
                         } else {
