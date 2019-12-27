@@ -17,6 +17,7 @@ impl XConnection {
         let xlib = syms!(XLIB);
         let data = 0;
         let pixmap = unsafe {
+            // FIXME: Audit
             let screen = (xlib.XDefaultScreen)(**self.display);
             let window = (xlib.XRootWindow)(**self.display, screen);
             (xlib.XCreateBitmapFromData)(**self.display, window, &data, 1, 1)

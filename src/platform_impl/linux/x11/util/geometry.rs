@@ -1,4 +1,5 @@
 use std::cmp;
+use std::os::raw;
 
 use winit_types::error::Error;
 
@@ -228,10 +229,10 @@ impl XConnection {
         Ok(geometry)
     }
 
-    fn get_frame_extents(&self, window: ffi::Window) -> Option<FrameExtents> {
+    fn get_frame_extents(&self, window: ffi::Window, screen: raw::c_int) -> Option<FrameExtents> {
         let extents_atom = unsafe { self.get_atom_unchecked(b"_NET_FRAME_EXTENTS\0") };
 
-        if !hint_is_supported(extents_atom) {
+        if !hint_is_supported(extents_atom, screen) {
             return None;
         }
 
@@ -256,13 +257,15 @@ impl XConnection {
         })
     }
 
-    pub fn is_top_level(&self, window: ffi::Window, root: ffi::Window) -> Option<bool> {
+    pub fn is_top_level(&self, window: ffi::Window, screen: raw::c_int) -> Option<bool> {
+        let xlib = syms!(XLIB);
         let client_list_atom = unsafe { self.get_atom_unchecked(b"_NET_CLIENT_LIST\0") };
 
-        if !hint_is_supported(client_list_atom) {
+        if !hint_is_supported(client_list_atom, screen) {
             return None;
         }
 
+        let root = unsafe { (xlib.XRootWindow)(**self.display, screen) };
         let client_list: Option<Vec<ffi::Window>> = self
             .get_property(root, client_list_atom, ffi::XA_WINDOW)
             .ok();
@@ -317,14 +320,16 @@ impl XConnection {
     pub fn get_frame_extents_heuristic(
         &self,
         window: ffi::Window,
-        root: ffi::Window,
+        screen: raw::c_int,
     ) -> FrameExtentsHeuristic {
         use self::FrameExtentsHeuristicPath::*;
+        let xlib = syms!(XLIB);
 
         // Position relative to root window.
         // With rare exceptions, this is the position of a nested window. Cases where the window
         // isn't nested are outlined in the comments throghout this function, but in addition to
         // that, fullscreen windows often aren't nested.
+        let root = unsafe { (xlib.XRootWindow)(**self.display, screen) };
         let (inner_y_rel_root, child) = {
             let coords = self
                 .translate_coords(window, root)
@@ -348,10 +353,10 @@ impl XConnection {
         // when y is on the range [0, 2] and if the window has been unfocused since being
         // undecorated (or was undecorated upon construction), the first condition is true,
         // requiring us to rely on the second condition.
-        let nested = !(window == child || self.is_top_level(child, root) == Some(true));
+        let nested = !(window == child || self.is_top_level(child, screen) == Some(true));
 
         // Hopefully the WM supports EWMH, allowing us to get exact info on the window frames.
-        if let Some(mut frame_extents) = self.get_frame_extents(window) {
+        if let Some(mut frame_extents) = self.get_frame_extents(window, screen) {
             // Mutter/Muffin/Budgie and Marco preserve their decorated frame extents when
             // decorations are disabled, but since the window becomes un-nested, it's easy to
             // catch.

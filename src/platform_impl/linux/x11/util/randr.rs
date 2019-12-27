@@ -23,6 +23,8 @@ impl XConnection {
             let mut minor = 0;
             (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
 
+            // With RandR, there will only ever be one screen, so using default
+            // here is OK.
             let screen = (xlib.XDefaultScreen)(**self.display);
             let root = (xlib.XRootWindow)(**self.display, screen);
             let resources = if (major == 1 && minor >= 3) || major > 1 {
@@ -141,6 +143,9 @@ impl XConnection {
             return None;
         }
 
+
+        // With RandR, there will only ever be one screen, so using default
+        // here is OK.
         let screen = (xlib.XDefaultScreen)(**self.display);
         let bit_depth = (xlib.XDefaultDepth)(**self.display, screen);
 
@@ -201,6 +206,8 @@ impl XConnection {
             let mut minor = 0;
             (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
 
+            // With RandR, there will only ever be one screen, so using default
+            // here is OK.
             let root = (xlib.XDefaultRootWindow)(**self.display);
             let resources = if (major == 1 && minor >= 3) || major > 1 {
                 (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
@@ -241,6 +248,8 @@ impl XConnection {
             let mut minor = 0;
             (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
 
+            // With RandR, there will only ever be one screen, so using default
+            // here is OK.
             let root = (xlib.XDefaultRootWindow)(**self.display);
             let resources = if (major == 1 && minor >= 3) || major > 1 {
                 (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)

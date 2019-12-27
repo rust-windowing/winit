@@ -57,7 +57,6 @@ pub struct EventLoopWindowTarget<T> {
     wm_delete_window: ffi::Atom,
     net_wm_ping: ffi::Atom,
     ime_sender: ImeSender,
-    root: ffi::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     pending_redraws: Arc<Mutex<HashSet<WindowId>>>,
@@ -90,7 +89,6 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 impl<T: 'static> EventLoop<T> {
     pub fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
         let (xlib, xinput2) = syms!(XLIB, XINPUT2);
-        let root = unsafe { (xlib.XDefaultRootWindow)(**xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
 
@@ -119,11 +117,14 @@ impl<T: 'static> EventLoop<T> {
         });
 
         let randr_event_offset = match xconn.monitor_ext {
-            MonitorExt::XRandR => Some(
-                xconn
+            MonitorExt::XRandR => {
+                // With RandR there is only ever one screen, therefore only one
+                // root, so using the default is okay here.
+                let root = unsafe { (xlib.XDefaultRootWindow)(**xconn.display) };
+                Some(xconn
                     .select_xrandr_input(root)
-                    .expect("Failed to query XRandR extension"),
-            ),
+                    .expect("Failed to query XRandR extension"))
+            },
             _ => None,
         };
 
@@ -161,7 +162,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        xconn.update_cached_wm_info(root);
+        xconn.update_cached_wm_info();
 
         let pending_redraws: Arc<Mutex<HashSet<WindowId>>> = Default::default();
 
@@ -171,7 +172,6 @@ impl<T: 'static> EventLoop<T> {
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
                 ime,
-                root,
                 windows: Default::default(),
                 _marker: ::std::marker::PhantomData,
                 ime_sender,
@@ -219,10 +219,16 @@ impl<T: 'static> EventLoop<T> {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        get_xtarget(&target)
-            .xconn
-            .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
-            .queue();
+        //
+        // Hierarchy changed events should arrive to all roots, so using default
+        // is okay here.
+        {
+            let root = unsafe { (xlib.XDefaultRootWindow)(**get_xtarget(&target).xconn.display) };
+            get_xtarget(&target)
+                .xconn
+                .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
+                .queue();
+        }
 
         processor.init_device(ffi::XIAllDevices);
 
@@ -653,9 +659,14 @@ impl Device {
                 | ffi::XI_RawKeyPressMask
                 | ffi::XI_RawKeyReleaseMask;
             // The request buffer is flushed when we poll for events
-            wt.xconn
-                .select_xinput_events(wt.root, info.deviceid, mask)
-                .queue();
+            {
+                // FIXME: Audit
+                let xlib = syms!(XLIB);
+                let root = unsafe { (xlib.XDefaultRootWindow)(**wt.xconn.display) };
+                wt.xconn
+                    .select_xinput_events(root, info.deviceid, mask)
+                    .queue();
+            }
 
             // Identify scroll axes
             for class_ptr in Device::classes(info) {

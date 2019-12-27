@@ -43,9 +43,9 @@ impl<T: 'static> EventProcessor<T> {
         }
     }
 
-    fn with_window<F, Ret>(&self, window_id: ffi::Window, callback: F) -> Option<Ret>
+    fn with_window<F, Ret>(&self, window_id: ffi::Window, mut callback: F) -> Option<Ret>
     where
-        F: Fn(&UnownedWindow) -> Ret,
+        F: FnMut(&UnownedWindow) -> Ret,
     {
         let mut deleted = false;
         let window_id = WindowId(window_id);
@@ -182,14 +182,20 @@ impl<T: 'static> EventProcessor<T> {
                     });
                 } else if client_msg.data.get_long(0) as ffi::Atom == wt.net_wm_ping {
                     let response_msg: &mut ffi::XClientMessageEvent = xev.as_mut();
-                    response_msg.window = wt.root;
-                    wt.xconn
-                        .send_event(
-                            wt.root,
-                            Some(ffi::SubstructureNotifyMask | ffi::SubstructureRedirectMask),
-                            *response_msg,
-                        )
-                        .queue();
+                    // We should send the message back to the window's root, not
+                    // the default, as that's what makes the most sense, especially
+                    // given that different window managers can be controlling
+                    // different screens.
+                    self.with_window(response_msg.window, |window| {
+                        response_msg.window = window.root;
+                        wt.xconn
+                            .send_event(
+                                window.root,
+                                Some(ffi::SubstructureNotifyMask | ffi::SubstructureRedirectMask),
+                                *response_msg,
+                            )
+                            .queue();
+                    });
                 } else if client_msg.message_type == self.dnd.atoms.enter {
                     let source_window = client_msg.data.get_long(0) as c_ulong;
                     let flags = client_msg.data.get_long(1);
@@ -387,8 +393,13 @@ impl<T: 'static> EventProcessor<T> {
                             .as_ref()
                             .cloned()
                             .unwrap_or_else(|| {
+                                // We must use the window's root, not the default screen's
+                                // root else we will sometimes (but not always) get a bad
+                                // match error.
+                                //
+                                // It appears to be very timing specific.
                                 let frame_extents =
-                                    wt.xconn.get_frame_extents_heuristic(xwindow, wt.root);
+                                    wt.xconn.get_frame_extents_heuristic(xwindow, window.screen);
                                 shared_state_lock.frame_extents = Some(frame_extents.clone());
                                 frame_extents
                             });
@@ -454,7 +465,7 @@ impl<T: 'static> EventProcessor<T> {
                             adjusted_size.0.round() as u32,
                             adjusted_size.1.round() as u32,
                         );
-                        if new_inner_size == rounded_size || !util::wm_name_is_one_of(&["Xfwm4"]) {
+                        if new_inner_size == rounded_size || !util::wm_name_is_one_of(&["Xfwm4"], window.screen) {
                             // When this finally happens, the event will not be synthetic.
                             shared_state_lock.dpi_adjusted = None;
                         } else {
@@ -500,7 +511,7 @@ impl<T: 'static> EventProcessor<T> {
                 // (which is almost all of them). Failing to correctly update WM info doesn't
                 // really have much impact, since on the WMs affected (xmonad, dwm, etc.) the only
                 // effect is that we waste some time trying to query unsupported properties.
-                wt.xconn.update_cached_wm_info(wt.root);
+                wt.xconn.update_cached_wm_info();
 
                 self.with_window(xev.window, |window| {
                     window.invalidate_cached_frame_extents();

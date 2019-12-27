@@ -98,7 +98,7 @@ unsafe impl Sync for UnownedWindow {}
 pub struct UnownedWindow {
     pub xconn: Arc<XConnection>, // never changes
     xwindow: ffi::Window,        // never changes
-    root: ffi::Window,           // never changes
+    pub root: ffi::Window,       // never changes
     pub screen: c_int,           // never changes
     cursor: Mutex<CursorIcon>,
     cursor_grabbed: Mutex<bool>,
@@ -333,7 +333,7 @@ impl UnownedWindow {
                     .max_inner_size
                     .map(|size| size.to_physical(dpi_factor));
                 if !window_attrs.resizable {
-                    if util::wm_name_is_one_of(&["Xfwm4"]) {
+                    if util::wm_name_is_one_of(&["Xfwm4"], window.screen) {
                         warn!(
                             "[winit] To avoid a WM bug, disabling resizing has no effect on Xfwm4"
                         );
@@ -795,9 +795,9 @@ impl UnownedWindow {
         let xlib = syms!(XLIB);
         unsafe {
             if minimized {
-                let screen = (xlib.XDefaultScreen)(**self.xconn.display);
-
-                (xlib.XIconifyWindow)(**self.xconn.display, self.xwindow, screen);
+                // We must iconify to the same screen the window is on, not the
+                // default, else the x server will just do nothing.
+                (xlib.XIconifyWindow)(**self.xconn.display, self.xwindow, self.screen);
 
                 util::Flusher::new(&self.xconn)
             } else {
@@ -976,7 +976,7 @@ impl UnownedWindow {
     fn update_cached_frame_extents(&self) {
         let extents = self
             .xconn
-            .get_frame_extents_heuristic(self.xwindow, self.root);
+            .get_frame_extents_heuristic(self.xwindow, self.screen);
         (*self.shared_state.lock()).frame_extents = Some(extents);
     }
 
@@ -1025,7 +1025,7 @@ impl UnownedWindow {
         let xlib = syms!(XLIB);
         // There are a few WMs that set client area position rather than window position, so
         // we'll translate for consistency.
-        if util::wm_name_is_one_of(&["Enlightenment", "FVWM"]) {
+        if util::wm_name_is_one_of(&["Enlightenment", "FVWM"], self.screen) {
             let extents = (*self.shared_state.lock()).frame_extents.clone();
             if let Some(extents) = extents {
                 x += extents.frame_extents.left as i32;
@@ -1176,7 +1176,7 @@ impl UnownedWindow {
     }
 
     pub fn set_resizable(&self, resizable: bool) {
-        if util::wm_name_is_one_of(&["Xfwm4"]) {
+        if util::wm_name_is_one_of(&["Xfwm4"], self.screen) {
             // Making the window unresizable on Xfwm prevents further changes to `WM_NORMAL_HINTS` from being detected.
             // This makes it impossible for resizing to be re-enabled, and also breaks DPI scaling. As such, we choose
             // the lesser of two evils and do nothing.
