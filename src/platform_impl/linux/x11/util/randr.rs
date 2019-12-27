@@ -1,21 +1,18 @@
 use std::os::raw::*;
 use std::{slice, str::FromStr};
 
-use winit_types::error::Error;
 use super::{
     ffi::{
-        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
-        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
-        CurrentTime, Success
+        CurrentTime, RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
+        RRScreenChangeNotifyMask, Success, True, Window, XRRCrtcInfo, XRRScreenResources,
     },
     *,
 };
-use crate::{
-    platform_impl::platform::x11::{
-        VideoMode,
-        monitor::{self, MonitorHandle, MonitorExt},
-    }
+use crate::platform_impl::platform::x11::{
+    monitor::{self, MonitorExt, MonitorHandle},
+    VideoMode,
 };
+use winit_types::error::Error;
 
 impl XConnection {
     pub fn query_monitor_list_xrandr(&self) -> Vec<MonitorHandle> {
@@ -53,23 +50,22 @@ impl XConnection {
                     let primary = *(*crtc).outputs.offset(0) == primary;
                     has_primary |= primary;
 
-                    let (name, hidpi_factor, video_modes) = self.get_output_info(resources, crtc).unwrap();
-                    let dimensions =((*crtc).width as u32, (*crtc).height as u32);
+                    let (name, hidpi_factor, video_modes) =
+                        self.get_output_info(resources, crtc).unwrap();
+                    let dimensions = ((*crtc).width as u32, (*crtc).height as u32);
                     let position = ((*crtc).x as i32, (*crtc).y as i32);
                     let rect = AaRect::new(position, dimensions);
-                    available.push(
-                        MonitorHandle {
-                            id: Some(crtc_id),
-                            name,
-                            hidpi_factor,
-                            dimensions,
-                            position,
-                            primary,
-                            rect,
-                            video_modes,
-                            screen: Some(screen),
-                        }
-                    );
+                    available.push(MonitorHandle {
+                        id: Some(crtc_id),
+                        name,
+                        hidpi_factor,
+                        dimensions,
+                        position,
+                        primary,
+                        rect,
+                        video_modes,
+                        screen: Some(screen),
+                    });
                 }
                 (xrandr.XRRFreeCrtcInfo)(crtc);
             }

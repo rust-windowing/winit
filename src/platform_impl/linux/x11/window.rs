@@ -15,14 +15,12 @@ use libc;
 use parking_lot::Mutex;
 
 use crate::{
-    platform::unix::MonitorHandleExtUnix,
     dpi::{LogicalPosition, LogicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform::unix::MonitorHandleExtUnix,
     platform_impl::{
         x11::{
-            ime::ImeContextCreationError,
-            MonitorHandle as X11MonitorHandle,
-            monitor::MonitorExt,
+            ime::ImeContextCreationError, monitor::MonitorExt, MonitorHandle as X11MonitorHandle,
         },
         MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
@@ -98,10 +96,10 @@ unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
 pub struct UnownedWindow {
-    pub xconn: Arc<XConnection>,    // never changes
-    xwindow: ffi::Window,           // never changes
-    root: ffi::Window,              // never changes
-    pub screen: c_int,              // never changes
+    pub xconn: Arc<XConnection>, // never changes
+    xwindow: ffi::Window,        // never changes
+    root: ffi::Window,           // never changes
+    pub screen: c_int,           // never changes
     cursor: Mutex<CursorIcon>,
     cursor_grabbed: Mutex<bool>,
     cursor_visible: Mutex<bool>,
@@ -136,7 +134,9 @@ impl UnownedWindow {
                     let (x, y) = (pointer_state.root_x as i64, pointer_state.root_y as i64);
 
                     for i in 0..monitors.len() {
-                        if monitors[i].screen == Some(screen) && monitors[i].rect.contains_point(x, y) {
+                        if monitors[i].screen == Some(screen)
+                            && monitors[i].rect.contains_point(x, y)
+                        {
                             return Some(monitors.swap_remove(i));
                         }
                     }
@@ -334,7 +334,9 @@ impl UnownedWindow {
                     .map(|size| size.to_physical(dpi_factor));
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
-                        warn!("[winit] To avoid a WM bug, disabling resizing has no effect on Xfwm4");
+                        warn!(
+                            "[winit] To avoid a WM bug, disabling resizing has no effect on Xfwm4"
+                        );
                     } else {
                         max_inner_size = Some(dimensions.into());
                         min_inner_size = Some(dimensions.into());
@@ -579,7 +581,10 @@ impl UnownedWindow {
         flusher
     }
 
-    fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Result<Option<util::Flusher<'_>>, Error> {
+    fn set_fullscreen_inner(
+        &self,
+        fullscreen: Option<Fullscreen>,
+    ) -> Result<Option<util::Flusher<'_>>, Error> {
         match &fullscreen {
             &Some(Fullscreen::Exclusive(_)) => {
                 if self.xconn.monitor_ext != MonitorExt::XRandR {
@@ -592,14 +597,17 @@ impl UnownedWindow {
         }
 
         let on_wrong_screen = match &fullscreen {
-            &Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor().x11_screen() != Some(self.screen),
+            &Some(Fullscreen::Exclusive(ref video_mode)) => {
+                video_mode.monitor().x11_screen() != Some(self.screen)
+            }
             &Some(Fullscreen::Borderless(ref monitor)) => monitor.x11_screen() != Some(self.screen),
             _ => false,
         };
 
         if on_wrong_screen {
             return Err(make_error!(ErrorType::BadApiUsage(
-                "Cannot fullscreen window onto monitor that is on a different X11 screen".to_string()
+                "Cannot fullscreen window onto monitor that is on a different X11 screen"
+                    .to_string()
             )));
         }
 
@@ -643,8 +651,10 @@ impl UnownedWindow {
                 })),
             ) => {
                 let monitor = video_mode.monitor.as_ref().unwrap();
-                shared_state_lock.desktop_video_mode =
-                    Some((monitor.id.unwrap(), self.xconn.get_crtc_mode(monitor.id.unwrap())));
+                shared_state_lock.desktop_video_mode = Some((
+                    monitor.id.unwrap(),
+                    self.xconn.get_crtc_mode(monitor.id.unwrap()),
+                ));
             }
             // Restore desktop video mode upon exiting exclusive fullscreen
             (&Some(Fullscreen::Exclusive(_)), &None)

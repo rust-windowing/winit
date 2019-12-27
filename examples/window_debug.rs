@@ -78,7 +78,9 @@ fn main() {
                                 .partial_cmp(&area(b.size()))
                                 .expect("NaN in video mode size")
                         }) {
-                            window.set_fullscreen(Some(Fullscreen::Exclusive(mode))).unwrap();
+                            window
+                                .set_fullscreen(Some(Fullscreen::Exclusive(mode)))
+                                .unwrap();
                         } else {
                             eprintln!("no video modes available");
                         }
@@ -88,7 +90,9 @@ fn main() {
                             window.set_fullscreen(None).unwrap();
                         } else {
                             let monitor = window.current_monitor();
-                            window.set_fullscreen(Some(Fullscreen::Borderless(monitor))).unwrap();
+                            window
+                                .set_fullscreen(Some(Fullscreen::Borderless(monitor)))
+                                .unwrap();
                         }
                     }
                     #[cfg(waiting_for_set_minimized)]

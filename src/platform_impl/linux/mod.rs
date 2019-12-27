@@ -1,6 +1,6 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{collections::VecDeque, env, sync::Arc, os::raw};
+use std::{collections::VecDeque, env, os::raw, sync::Arc};
 
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;

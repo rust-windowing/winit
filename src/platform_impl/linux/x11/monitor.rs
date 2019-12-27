@@ -1,16 +1,14 @@
 use std::os::raw;
 use std::{env, str::FromStr};
 
-use parking_lot::Mutex;
-use x11_dl::xrandr::{RRMode, RRCrtc};
-use super::{
-    util, XConnection
-};
+use super::{util, XConnection};
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, validate_hidpi_factor},
+    dpi::{validate_hidpi_factor, PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
+use parking_lot::Mutex;
+use x11_dl::xrandr::{RRCrtc, RRMode};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
@@ -176,7 +174,11 @@ impl MonitorHandle {
 }
 
 impl XConnection {
-    pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>, window_screen: raw::c_int) -> MonitorHandle {
+    pub fn get_monitor_for_window(
+        &self,
+        window_rect: Option<util::AaRect>,
+        window_screen: raw::c_int,
+    ) -> MonitorHandle {
         let monitors = self.available_monitors();
 
         if monitors.is_empty() {
@@ -194,7 +196,9 @@ impl XConnection {
         let mut largest_overlap = 0;
         let mut matched_monitor = default;
         for monitor in &monitors {
-            if monitor.screen != Some(window_screen) { continue };
+            if monitor.screen != Some(window_screen) {
+                continue;
+            };
             let overlapping_area = window_rect.get_overlapping_area(&monitor.rect);
             if overlapping_area > largest_overlap {
                 largest_overlap = overlapping_area;

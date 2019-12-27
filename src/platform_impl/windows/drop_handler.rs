@@ -217,7 +217,9 @@ impl FileDropHandler {
         } else if get_data_result == DV_E_FORMATETC {
             // If the dropped item is not a file this error will occur.
             // In this case it is OK to return without taking further action.
-            debug!("[winit] Error occured while processing dropped/hovered item: item is not a file.");
+            debug!(
+                "[winit] Error occured while processing dropped/hovered item: item is not a file."
+            );
             return None;
         } else {
             debug!("[winit] Unexpected error occured while processing dropped/hovered item.");
