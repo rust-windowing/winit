@@ -116,12 +116,12 @@ impl UnownedWindow {
     ) -> Result<UnownedWindow, Error> {
         let xconn = &event_loop.xconn;
         let xlib = syms!(XLIB);
-        let root = event_loop.root;
 
         let screen = match pl_attribs.screen {
             Some(id) => id,
             None => unsafe { (xlib.XDefaultScreen)(**xconn.display) },
         };
+        let root = unsafe { (xlib.XRootWindow)(**xconn.display, screen) };
 
         let mut monitors = xconn.available_monitors();
         let guessed_monitor = if monitors.is_empty() {
