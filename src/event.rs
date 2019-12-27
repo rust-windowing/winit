@@ -700,16 +700,24 @@ bitflags! {
     /// Each flag represents a modifier and is set if this modifier is active.
     #[derive(Default)]
     pub struct ModifiersState: u32 {
-        // We're using every other bit here so that, when we distinguish between left and right
-        // modifiers, the left and right bits can be adjacent to eachother.
+        // left and right modifiers are currently commented out, but we should be able to support
+        // them in a future release
         /// The "shift" key.
-        const SHIFT = 0b01 << 0;
+        const SHIFT = 0b100 << 0;
+        // const LSHIFT = 0b010 << 0;
+        // const RSHIFT = 0b001 << 0;
         /// The "control" key.
-        const CTRL  = 0b01 << 2;
+        const CTRL = 0b100 << 3;
+        // const LCTRL = 0b010 << 3;
+        // const RCTRL = 0b001 << 3;
         /// The "alt" key.
-        const ALT   = 0b01 << 4;
+        const ALT = 0b100 << 6;
+        // const LALT = 0b010 << 6;
+        // const RALT = 0b001 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
-        const LOGO  = 0b01 << 6;
+        const LOGO = 0b100 << 9;
+        // const LLOGO = 0b010 << 9;
+        // const RLOGO = 0b001 << 9;
     }
 }
 
