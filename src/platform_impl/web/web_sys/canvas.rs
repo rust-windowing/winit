@@ -11,6 +11,7 @@ use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
 
 pub struct Canvas {
+    /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: HtmlCanvasElement,
     on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
@@ -94,24 +95,6 @@ impl Canvas {
             width: self.raw.width(),
             height: self.raw.height(),
         }
-    }
-
-    pub fn set_size(&self, size: Size) {
-        let dpi_factor = super::hidpi_factor();
-
-        let physical_size = size.to_physical::<u32>(dpi_factor);
-        let logical_size = size.to_logical::<f64>(dpi_factor);
-
-        self.raw.set_width(physical_size.width);
-        self.raw.set_height(physical_size.height);
-
-        let style = self.raw.style();
-        style
-            .set_property("width", &format!("{}px", logical_size.width))
-            .unwrap();
-        style
-            .set_property("height", &format!("{}px", logical_size.height))
-            .unwrap();
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {

@@ -1,5 +1,5 @@
 use super::{backend, device, proxy::Proxy, runner, window};
-use crate::dpi::PhysicalSize;
+use crate::dpi::{PhysicalSize, Size};
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
@@ -188,9 +188,7 @@ impl<T> WindowTarget<T> {
                 intended_size
             };
 
-            // TODO set css size as well, need `&'static Canvas` (or `Rc`)?
-            raw.set_width(new_size.width as u32);
-            raw.set_height(new_size.height as u32);
+            backend::set_canvas_size(&raw, Size::Physical(new_size));
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::Resized(new_size),

@@ -19,6 +19,7 @@ use stdweb::web::{
 };
 
 pub struct Canvas {
+    /// Note: resizing the CanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: CanvasElement,
     on_focus: Option<EventListenerHandle>,
     on_blur: Option<EventListenerHandle>,
@@ -95,23 +96,6 @@ impl Canvas {
         PhysicalSize {
             width: self.raw.width() as u32,
             height: self.raw.height() as u32,
-        }
-    }
-
-    pub fn set_size(&self, size: Size) {
-        use stdweb::*;
-
-        let dpi_factor = super::hidpi_factor();
-
-        let physical_size = size.to_physical::<u32>(dpi_factor);
-        let logical_size = size.to_logical::<f64>(dpi_factor);
-
-        self.raw.set_width(physical_size.width);
-        self.raw.set_height(physical_size.height);
-
-        js! {
-            @{self.raw.as_ref()}.style.width = @{logical_size.width} + "px";
-            @{self.raw.as_ref()}.style.height = @{logical_size.height} + "px";
         }
     }
 

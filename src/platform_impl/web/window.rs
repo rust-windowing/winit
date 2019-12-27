@@ -108,7 +108,7 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        self.canvas.set_size(size);
+        backend::set_canvas_size(self.canvas.raw(), size);
     }
 
     #[inline]
