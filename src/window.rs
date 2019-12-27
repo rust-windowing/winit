@@ -52,7 +52,7 @@ impl Drop for Window {
         // closing the window doesn't necessarily always mean application exit,
         // such as when there are multiple windows)
         if let Some(Fullscreen::Exclusive(_)) = self.fullscreen() {
-            self.set_fullscreen(None);
+            self.set_fullscreen(None).unwrap();
         }
     }
 }

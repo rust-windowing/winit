@@ -229,7 +229,7 @@ pub trait WindowExtUnix {
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     fn xlib_display(&self) -> Option<*mut raw::c_void>;
 
-    fn xlib_screen_id(&self) -> Option<raw::c_int>;
+    fn xlib_screen(&self) -> Option<raw::c_int>;
 
     /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
     fn set_urgent(&self, is_urgent: bool);
@@ -286,9 +286,9 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
-    fn xlib_screen_id(&self) -> Option<raw::c_int> {
+    fn xlib_screen(&self) -> Option<raw::c_int> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
+            LinuxWindow::X(ref w) => Some(w.xlib_screen()),
             _ => None,
         }
     }
@@ -341,7 +341,7 @@ impl WindowExtUnix for Window {
 /// Additional methods on `WindowBuilder` that are specific to Unix.
 pub trait WindowBuilderExtUnix {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
-    fn with_x11_screen(self, screen_id: i32) -> Self;
+    fn with_x11_screen(self, screen: raw::c_int) -> Self;
 
     /// Build window with `WM_CLASS` hint; defaults to the name of the binary. Only relevant on X11.
     fn with_class(self, class: String, instance: String) -> Self;
@@ -373,8 +373,8 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
-    fn with_x11_screen(mut self, screen_id: i32) -> Self {
-        self.platform_specific.screen_id = Some(screen_id);
+    fn with_x11_screen(mut self, screen: raw::c_int) -> Self {
+        self.platform_specific.screen = Some(screen);
         self
     }
 

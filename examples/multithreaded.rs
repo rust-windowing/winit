@@ -89,7 +89,7 @@ fn main() {
                                     video_modes.iter().nth(video_mode_id).unwrap().clone(),
                                 )),
                                 (false, _) => None,
-                            }),
+                            }).unwrap(),
                             G => window.set_cursor_grab(state).unwrap(),
                             H => window.set_cursor_visible(!state),
                             I => {

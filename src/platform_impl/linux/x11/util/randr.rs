@@ -1,5 +1,5 @@
 use std::os::raw::*;
-use std::{env, slice, str::FromStr};
+use std::{slice, str::FromStr};
 
 use winit_types::error::Error;
 use super::{
@@ -11,43 +11,11 @@ use super::{
     *,
 };
 use crate::{
-    dpi::validate_hidpi_factor,
     platform_impl::platform::x11::{
         VideoMode,
-        monitor::{MonitorHandle, MonitorExt},
+        monitor::{self, MonitorHandle, MonitorExt},
     }
 };
-
-pub fn calc_dpi_factor(
-    (width_px, height_px): (u32, u32),
-    (width_mm, height_mm): (u64, u64),
-) -> f64 {
-    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
-    let dpi_override = env::var("WINIT_HIDPI_FACTOR")
-        .ok()
-        .and_then(|var| f64::from_str(&var).ok());
-    if let Some(dpi_override) = dpi_override {
-        if !validate_hidpi_factor(dpi_override) {
-            panic!(
-                "[winit] `WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater than 0. Got `{}`",
-                dpi_override,
-            );
-        }
-        return dpi_override;
-    }
-
-    // See http://xpra.org/trac/ticket/728 for more information.
-    if width_mm == 0 || height_mm == 0 {
-        warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
-        return 1.0;
-    }
-
-    let ppmm = ((width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)).sqrt();
-    // Quantize 1/12 step size
-    let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
-    assert!(validate_hidpi_factor(dpi_factor));
-    dpi_factor
-}
 
 impl XConnection {
     pub fn query_monitor_list_xrandr(&self) -> Vec<MonitorHandle> {
@@ -216,7 +184,7 @@ impl XConnection {
         let hidpi_factor = if let Some(dpi) = self.get_xft_dpi() {
             dpi / 96.
         } else {
-            calc_dpi_factor(
+            monitor::calc_dpi_factor(
                 ((*crtc).width as u32, (*crtc).height as u32),
                 (
                     (*output_info).mm_width as u64,

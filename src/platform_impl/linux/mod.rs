@@ -31,7 +31,7 @@ const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
-    pub screen_id: Option<i32>,
+    pub screen: Option<raw::c_int>,
     pub resize_increments: Option<(u32, u32)>,
     pub base_size: Option<(u32, u32)>,
     pub class: Option<(String, String)>,
@@ -45,7 +45,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
             visual_infos: None,
-            screen_id: None,
+            screen: None,
             resize_increments: None,
             base_size: None,
             class: None,
@@ -118,7 +118,7 @@ impl MonitorHandle {
     pub fn x11_screen(&self) -> Option<raw::c_int> {
         match self {
             &MonitorHandle::X(ref m) => m.x11_screen(),
-            &MonitorHandle::Wayland(ref m) => None,
+            &MonitorHandle::Wayland(_) => None,
         }
     }
 

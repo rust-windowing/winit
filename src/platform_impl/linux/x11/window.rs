@@ -15,6 +15,7 @@ use libc;
 use parking_lot::Mutex;
 
 use crate::{
+    platform::unix::MonitorHandleExtUnix,
     dpi::{LogicalPosition, LogicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
@@ -97,10 +98,10 @@ unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
 pub struct UnownedWindow {
-    pub xconn: Arc<XConnection>, // never changes
-    xwindow: ffi::Window,        // never changes
-    root: ffi::Window,           // never changes
-    screen_id: i32,              // never changes
+    pub xconn: Arc<XConnection>,    // never changes
+    xwindow: ffi::Window,           // never changes
+    root: ffi::Window,              // never changes
+    pub screen: c_int,              // never changes
     cursor: Mutex<CursorIcon>,
     cursor_grabbed: Mutex<bool>,
     cursor_visible: Mutex<bool>,
@@ -119,6 +120,11 @@ impl UnownedWindow {
         let xlib = syms!(XLIB);
         let root = event_loop.root;
 
+        let screen = match pl_attribs.screen {
+            Some(id) => id,
+            None => unsafe { (xlib.XDefaultScreen)(**xconn.display) },
+        };
+
         let mut monitors = xconn.available_monitors();
         let guessed_monitor = if monitors.is_empty() {
             X11MonitorHandle::dummy()
@@ -130,7 +136,7 @@ impl UnownedWindow {
                     let (x, y) = (pointer_state.root_x as i64, pointer_state.root_y as i64);
 
                     for i in 0..monitors.len() {
-                        if monitors[i].rect.contains_point(x, y) {
+                        if monitors[i].screen == Some(screen) && monitors[i].rect.contains_point(x, y) {
                             return Some(monitors.swap_remove(i));
                         }
                     }
@@ -172,11 +178,6 @@ impl UnownedWindow {
                 dimensions.0, dimensions.1
             );
             dimensions
-        };
-
-        let screen_id = match pl_attribs.screen_id {
-            Some(id) => id,
-            None => unsafe { (xlib.XDefaultScreen)(**xconn.display) },
         };
 
         // creating
@@ -246,7 +247,7 @@ impl UnownedWindow {
             xconn: Arc::clone(xconn),
             xwindow,
             root,
-            screen_id,
+            screen,
             cursor: Default::default(),
             cursor_grabbed: Mutex::new(false),
             cursor_visible: Mutex::new(true),
@@ -588,6 +589,18 @@ impl UnownedWindow {
                 }
             }
             _ => (),
+        }
+
+        let on_wrong_screen = match &fullscreen {
+            &Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor().x11_screen() != Some(self.screen),
+            &Some(Fullscreen::Borderless(ref monitor)) => monitor.x11_screen() != Some(self.screen),
+            _ => false,
+        };
+
+        if on_wrong_screen {
+            return Err(make_error!(ErrorType::BadApiUsage(
+                "Cannot fullscreen window onto monitor that is on a different X11 screen".to_string()
+            )));
         }
 
         let mut shared_state_lock = self.shared_state.lock();
@@ -1194,8 +1207,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn xlib_screen_id(&self) -> c_int {
-        self.screen_id
+    pub fn xlib_screen(&self) -> c_int {
+        self.screen
     }
 
     #[inline]

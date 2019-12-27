@@ -1,4 +1,5 @@
 use std::os::raw;
+use std::{env, str::FromStr};
 
 use parking_lot::Mutex;
 use x11_dl::xrandr::{RRMode, RRCrtc};
@@ -6,7 +7,7 @@ use super::{
     util, XConnection
 };
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, validate_hidpi_factor},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
@@ -28,9 +29,9 @@ pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
+    pub(crate) monitor: Option<MonitorHandle>,
     /// RandR only. None otherwise.
     pub(crate) native_mode: Option<RRMode>,
-    pub(crate) monitor: Option<MonitorHandle>,
 }
 
 /// Which monitor extention we are going to try to use. XRandR is best of
@@ -175,7 +176,7 @@ impl MonitorHandle {
 }
 
 impl XConnection {
-    pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> MonitorHandle {
+    pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>, window_screen: raw::c_int) -> MonitorHandle {
         let monitors = self.available_monitors();
 
         if monitors.is_empty() {
@@ -193,6 +194,7 @@ impl XConnection {
         let mut largest_overlap = 0;
         let mut matched_monitor = default;
         for monitor in &monitors {
+            if monitor.screen != Some(window_screen) { continue };
             let overlapping_area = window_rect.get_overlapping_area(&monitor.rect);
             if overlapping_area > largest_overlap {
                 largest_overlap = overlapping_area;
@@ -233,4 +235,35 @@ impl XConnection {
             .find(|monitor| monitor.primary)
             .unwrap_or_else(MonitorHandle::dummy)
     }
+}
+
+pub fn calc_dpi_factor(
+    (width_px, height_px): (u32, u32),
+    (width_mm, height_mm): (u64, u64),
+) -> f64 {
+    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
+    let dpi_override = env::var("WINIT_HIDPI_FACTOR")
+        .ok()
+        .and_then(|var| f64::from_str(&var).ok());
+    if let Some(dpi_override) = dpi_override {
+        if !validate_hidpi_factor(dpi_override) {
+            panic!(
+                "[winit] `WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater than 0. Got `{}`",
+                dpi_override,
+            );
+        }
+        return dpi_override;
+    }
+
+    // See http://xpra.org/trac/ticket/728 for more information.
+    if width_mm == 0 || height_mm == 0 {
+        warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
+        return 1.0;
+    }
+
+    let ppmm = ((width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)).sqrt();
+    // Quantize 1/12 step size
+    let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
+    assert!(validate_hidpi_factor(dpi_factor));
+    dpi_factor
 }

@@ -415,7 +415,7 @@ impl<T: 'static> EventProcessor<T> {
                         let last_hidpi_factor = shared_state_lock.last_monitor.hidpi_factor;
                         let new_hidpi_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            let new_monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
+                            let new_monitor = wt.xconn.get_monitor_for_window(Some(window_rect), window.screen);
 
                             if new_monitor.is_dummy() {
                                 // Avoid updating monitor using a dummy monitor handle
