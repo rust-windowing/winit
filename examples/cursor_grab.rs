@@ -28,7 +28,6 @@ fn main() {
                     ..
                 } => {
                     use winit::event::VirtualKeyCode::*;
-                    println!("{:?}", modifiers);
                     match key {
                         Escape => *control_flow = ControlFlow::Exit,
                         G => window.set_cursor_grab(!modifiers.shift()).unwrap(),
