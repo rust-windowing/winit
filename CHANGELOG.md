@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix error when `set_fullscreen` is called during fullscreen transition.
 - On all platforms except mobile and WASM, implement `Window::set_minimized`.
 - On X11, fix `CursorEntered` event being generated for non-winit windows.
 - On macOS, fix crash when starting maximized without decorations.
@@ -14,6 +15,7 @@
   - `RedrawRequested` is now issued only after `MainEventsCleared`.
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 - On Android, minimal platform support.
+- Implement synthetic window focus key events on Windows.
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
