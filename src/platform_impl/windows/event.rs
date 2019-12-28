@@ -36,6 +36,34 @@ pub fn get_key_mods() -> ModifiersState {
     mods
 }
 
+bitflags!{
+    #[derive(Default)]
+    pub struct ModifiersStateSide: u32 {
+        const LSHIFT = 0b010 << 0;
+        const RSHIFT = 0b001 << 0;
+
+        const LCTRL = 0b010 << 3;
+        const RCTRL = 0b001 << 3;
+
+        const LALT = 0b010 << 6;
+        const RALT = 0b001 << 6;
+
+        const LLOGO = 0b010 << 9;
+        const RLOGO = 0b001 << 9;
+    }
+}
+
+impl From<ModifiersStateSide> for ModifiersState {
+    fn from(side: ModifiersStateSide) -> Self {
+        let mut state = ModifiersState::default();
+        state.set(Self::SHIFT, side.intersects(ModifiersStateSide::LSHIFT | ModifiersStateSide::RSHIFT));
+        state.set(Self::CTRL, side.intersects(ModifiersStateSide::LCTRL | ModifiersStateSide::RCTRL));
+        state.set(Self::ALT, side.intersects(ModifiersStateSide::LALT | ModifiersStateSide::RALT));
+        state.set(Self::LOGO, side.intersects(ModifiersStateSide::LLOGO | ModifiersStateSide::RLOGO));
+        state
+    }
+}
+
 pub fn get_pressed_keys() -> impl Iterator<Item = c_int> {
     let mut keyboard_state = vec![0u8; 256];
     unsafe { winuser::GetKeyboardState(keyboard_state.as_mut_ptr()) };

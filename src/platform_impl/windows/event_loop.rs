@@ -53,7 +53,7 @@ use crate::{
             become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_scale_factor,
         },
         drop_handler::FileDropHandler,
-        event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+        event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey, ModifiersStateSide},
         monitor,
         raw_input,
         util,
@@ -112,6 +112,7 @@ impl<T> SubclassInput<T> {
 struct ThreadMsgTargetSubclassInput<T> {
     event_loop_runner: EventLoopRunnerShared<T>,
     user_event_receiver: Receiver<T>,
+    modifiers_state: ModifiersStateSide,
 }
 
 impl<T> ThreadMsgTargetSubclassInput<T> {
@@ -536,6 +537,7 @@ fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) ->
         let subclass_input = ThreadMsgTargetSubclassInput {
             event_loop_runner,
             user_event_receiver: rx,
+            modifiers_state: ModifiersStateSide::default(),
         };
         let input_ptr = Box::into_raw(Box::new(subclass_input));
         let subclass_result = commctrl::SetWindowSubclass(
@@ -1636,9 +1638,10 @@ unsafe extern "system" fn thread_event_target_callback<T>(
 
         winuser::WM_INPUT => {
             use crate::event::{
-                DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
+                DeviceEvent::{Button, Key, ModifiersChanged, Motion, MouseMotion, MouseWheel},
                 ElementState::{Pressed, Released},
                 MouseScrollDelta::LineDelta,
+                VirtualKeyCode,
             };
 
             if let Some(data) = raw_input::get_raw_input_data(lparam as _) {
@@ -1711,10 +1714,36 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                         let scancode = keyboard.MakeCode as _;
                         let extended = util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _)
                             | util::has_flag(keyboard.Flags, winuser::RI_KEY_E1 as _);
+
                         if let Some((vkey, scancode)) =
                             handle_extended_keys(keyboard.VKey as _, scancode, extended)
                         {
                             let virtual_keycode = vkey_to_winit_vkey(vkey);
+
+                            // If we ever change the DeviceEvent API to only emit events when a
+                            // window is focused, we'll need to emit synthetic `ModifiersChanged`
+                            // events when Winit windows lose focus so that these don't drift out
+                            // of sync with the actual modifier state.
+                            let old_modifiers = subclass_input.modifiers_state;
+                            match virtual_keycode {
+                                Some(VirtualKeyCode::LShift) => subclass_input.modifiers_state.set(ModifiersStateSide::LSHIFT, pressed),
+                                Some(VirtualKeyCode::RShift) => subclass_input.modifiers_state.set(ModifiersStateSide::RSHIFT, pressed),
+                                Some(VirtualKeyCode::LControl) => subclass_input.modifiers_state.set(ModifiersStateSide::LCTRL, pressed),
+                                Some(VirtualKeyCode::RControl) => subclass_input.modifiers_state.set(ModifiersStateSide::RCTRL, pressed),
+                                Some(VirtualKeyCode::LAlt) => subclass_input.modifiers_state.set(ModifiersStateSide::LALT, pressed),
+                                Some(VirtualKeyCode::RAlt) => subclass_input.modifiers_state.set(ModifiersStateSide::RALT, pressed),
+                                Some(VirtualKeyCode::LWin) => subclass_input.modifiers_state.set(ModifiersStateSide::LLOGO, pressed),
+                                Some(VirtualKeyCode::RWin) => subclass_input.modifiers_state.set(ModifiersStateSide::RLOGO, pressed),
+                                _ => (),
+                            }
+                            if subclass_input.modifiers_state != old_modifiers {
+                                subclass_input.send_event(Event::DeviceEvent {
+                                    device_id,
+                                    event: ModifiersChanged {
+                                        modifiers: subclass_input.modifiers_state.into()
+                                    },
+                                });
+                            }
 
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
@@ -1722,7 +1751,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                     scancode,
                                     state,
                                     virtual_keycode,
-                                    modifiers: event::get_key_mods(),
+                                    modifiers: subclass_input.modifiers_state.into()
                                 }),
                             });
                         }
