@@ -16,6 +16,8 @@
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 - Implement synthetic window focus key events on Windows.
 - **Breaking**: Change `ModifiersState` to a `bitflags` struct.
+- On Windows, implement `VirtualKeyCode` translation for `LWin` and `RWin`.
+- On Windows, fix closing certain windows causing `DeviceEvent`s to stop getting emitted.
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
