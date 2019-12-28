@@ -36,7 +36,7 @@ pub fn get_key_mods() -> ModifiersState {
     mods
 }
 
-bitflags!{
+bitflags! {
     #[derive(Default)]
     pub struct ModifiersStateSide: u32 {
         const LSHIFT = 0b010 << 0;
@@ -56,10 +56,22 @@ bitflags!{
 impl From<ModifiersStateSide> for ModifiersState {
     fn from(side: ModifiersStateSide) -> Self {
         let mut state = ModifiersState::default();
-        state.set(Self::SHIFT, side.intersects(ModifiersStateSide::LSHIFT | ModifiersStateSide::RSHIFT));
-        state.set(Self::CTRL, side.intersects(ModifiersStateSide::LCTRL | ModifiersStateSide::RCTRL));
-        state.set(Self::ALT, side.intersects(ModifiersStateSide::LALT | ModifiersStateSide::RALT));
-        state.set(Self::LOGO, side.intersects(ModifiersStateSide::LLOGO | ModifiersStateSide::RLOGO));
+        state.set(
+            Self::SHIFT,
+            side.intersects(ModifiersStateSide::LSHIFT | ModifiersStateSide::RSHIFT),
+        );
+        state.set(
+            Self::CTRL,
+            side.intersects(ModifiersStateSide::LCTRL | ModifiersStateSide::RCTRL),
+        );
+        state.set(
+            Self::ALT,
+            side.intersects(ModifiersStateSide::LALT | ModifiersStateSide::RALT),
+        );
+        state.set(
+            Self::LOGO,
+            side.intersects(ModifiersStateSide::LLOGO | ModifiersStateSide::RLOGO),
+        );
         state
     }
 }

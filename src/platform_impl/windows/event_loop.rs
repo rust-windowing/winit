@@ -53,10 +53,10 @@ use crate::{
             become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_scale_factor,
         },
         drop_handler::FileDropHandler,
-        event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey, ModifiersStateSide},
-        monitor,
-        raw_input,
-        util,
+        event::{
+            self, handle_extended_keys, process_key_params, vkey_to_winit_vkey, ModifiersStateSide,
+        },
+        monitor, raw_input, util,
         window::adjust_size,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
@@ -1726,14 +1726,30 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             // of sync with the actual modifier state.
                             let old_modifiers = subclass_input.modifiers_state;
                             match virtual_keycode {
-                                Some(VirtualKeyCode::LShift) => subclass_input.modifiers_state.set(ModifiersStateSide::LSHIFT, pressed),
-                                Some(VirtualKeyCode::RShift) => subclass_input.modifiers_state.set(ModifiersStateSide::RSHIFT, pressed),
-                                Some(VirtualKeyCode::LControl) => subclass_input.modifiers_state.set(ModifiersStateSide::LCTRL, pressed),
-                                Some(VirtualKeyCode::RControl) => subclass_input.modifiers_state.set(ModifiersStateSide::RCTRL, pressed),
-                                Some(VirtualKeyCode::LAlt) => subclass_input.modifiers_state.set(ModifiersStateSide::LALT, pressed),
-                                Some(VirtualKeyCode::RAlt) => subclass_input.modifiers_state.set(ModifiersStateSide::RALT, pressed),
-                                Some(VirtualKeyCode::LWin) => subclass_input.modifiers_state.set(ModifiersStateSide::LLOGO, pressed),
-                                Some(VirtualKeyCode::RWin) => subclass_input.modifiers_state.set(ModifiersStateSide::RLOGO, pressed),
+                                Some(VirtualKeyCode::LShift) => subclass_input
+                                    .modifiers_state
+                                    .set(ModifiersStateSide::LSHIFT, pressed),
+                                Some(VirtualKeyCode::RShift) => subclass_input
+                                    .modifiers_state
+                                    .set(ModifiersStateSide::RSHIFT, pressed),
+                                Some(VirtualKeyCode::LControl) => subclass_input
+                                    .modifiers_state
+                                    .set(ModifiersStateSide::LCTRL, pressed),
+                                Some(VirtualKeyCode::RControl) => subclass_input
+                                    .modifiers_state
+                                    .set(ModifiersStateSide::RCTRL, pressed),
+                                Some(VirtualKeyCode::LAlt) => subclass_input
+                                    .modifiers_state
+                                    .set(ModifiersStateSide::LALT, pressed),
+                                Some(VirtualKeyCode::RAlt) => subclass_input
+                                    .modifiers_state
+                                    .set(ModifiersStateSide::RALT, pressed),
+                                Some(VirtualKeyCode::LWin) => subclass_input
+                                    .modifiers_state
+                                    .set(ModifiersStateSide::LLOGO, pressed),
+                                Some(VirtualKeyCode::RWin) => subclass_input
+                                    .modifiers_state
+                                    .set(ModifiersStateSide::RLOGO, pressed),
                                 _ => (),
                             }
                             if subclass_input.modifiers_state != old_modifiers {
@@ -1749,7 +1765,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                     scancode,
                                     state,
                                     virtual_keycode,
-                                    modifiers: subclass_input.modifiers_state.into()
+                                    modifiers: subclass_input.modifiers_state.into(),
                                 }),
                             });
                         }
