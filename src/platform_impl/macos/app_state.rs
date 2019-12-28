@@ -14,7 +14,7 @@ use std::{
 use cocoa::{appkit::NSApp, base::nil, foundation::NSString};
 
 use crate::{
-    event::{Event, StartCause, WindowEvent},
+    event::{Event, StartCause},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{observer::EventLoopWaker, util::Never},
     window::WindowId,

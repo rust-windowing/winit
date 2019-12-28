@@ -646,36 +646,36 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSShiftKeyMask,
-            state.modifiers.shift,
+            state.modifiers.shift(),
         ) {
-            state.modifiers.shift = !state.modifiers.shift;
+            state.modifiers.toggle(ModifiersState::SHIFT);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSControlKeyMask,
-            state.modifiers.ctrl,
+            state.modifiers.ctrl(),
         ) {
-            state.modifiers.ctrl = !state.modifiers.ctrl;
+            state.modifiers.toggle(ModifiersState::CTRL);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSCommandKeyMask,
-            state.modifiers.logo,
+            state.modifiers.logo(),
         ) {
-            state.modifiers.logo = !state.modifiers.logo;
+            state.modifiers.toggle(ModifiersState::LOGO);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSAlternateKeyMask,
-            state.modifiers.alt,
+            state.modifiers.alt(),
         ) {
-            state.modifiers.alt = !state.modifiers.alt;
+            state.modifiers.toggle(ModifiersState::ALT);
             events.push_back(window_event);
         }
 
