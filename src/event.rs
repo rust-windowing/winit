@@ -297,9 +297,7 @@ pub enum DeviceEvent {
 
     /// Keyboard modifiers have changed
     #[doc(hidden)]
-    ModifiersChanged {
-        modifiers: ModifiersState,
-    },
+    ModifiersChanged(ModifiersState),
 
     Text {
         codepoint: char,

@@ -1739,9 +1739,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             if subclass_input.modifiers_state != old_modifiers {
                                 subclass_input.send_event(Event::DeviceEvent {
                                     device_id,
-                                    event: ModifiersChanged {
-                                        modifiers: subclass_input.modifiers_state.into()
-                                    },
+                                    event: ModifiersChanged(subclass_input.modifiers_state.into()),
                                 });
                             }
 

@@ -688,9 +688,7 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
 
         AppState::queue_event(Event::DeviceEvent {
             device_id: DEVICE_ID,
-            event: DeviceEvent::ModifiersChanged {
-                modifiers: state.modifiers,
-            },
+            event: DeviceEvent::ModifiersChanged(state.modifiers),
         });
     }
     trace!("Completed `flagsChanged`");
