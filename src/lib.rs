@@ -119,7 +119,6 @@ extern crate log;
 #[macro_use]
 extern crate serde;
 #[macro_use]
-#[cfg(any(target_os = "ios", target_os = "windows"))]
 extern crate bitflags;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]

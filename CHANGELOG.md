@@ -15,6 +15,7 @@
   - `RedrawRequested` is now issued only after `MainEventsCleared`.
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 - Implement synthetic window focus key events on Windows.
+- **Breaking**: Change `ModifiersState` to a `bitflags` struct.
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
