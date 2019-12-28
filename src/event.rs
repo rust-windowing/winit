@@ -742,10 +742,10 @@ mod modifiers_serde {
             S: Serializer,
         {
             let s = ModifiersStateSerialize {
-                shift: self.contains(ModifiersState::SHIFT),
-                ctrl: self.contains(ModifiersState::CTRL),
-                alt: self.contains(ModifiersState::ALT),
-                logo: self.contains(ModifiersState::LOGO),
+                shift: self.shift(),
+                ctrl: self.ctrl(),
+                alt: self.alt(),
+                logo: self.logo(),
             };
             s.serialize(serializer)
         }
