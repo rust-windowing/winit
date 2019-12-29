@@ -1724,7 +1724,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                             // window is focused, we'll need to emit synthetic `ModifiersChanged`
                             // events when Winit windows lose focus so that these don't drift out
                             // of sync with the actual modifier state.
-                            let old_modifiers = subclass_input.modifiers_state;
+                            let old_modifiers_state = subclass_input.modifiers_state.filter_out_altgr().into();
                             match virtual_keycode {
                                 Some(VirtualKeyCode::LShift) => subclass_input
                                     .modifiers_state
@@ -1752,10 +1752,11 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                     .set(ModifiersStateSide::RLOGO, pressed),
                                 _ => (),
                             }
-                            if subclass_input.modifiers_state != old_modifiers {
+                            let new_modifiers_state = subclass_input.modifiers_state.filter_out_altgr().into();
+                            if new_modifiers_state != old_modifiers_state {
                                 subclass_input.send_event(Event::DeviceEvent {
                                     device_id,
-                                    event: ModifiersChanged(subclass_input.modifiers_state.into()),
+                                    event: ModifiersChanged(new_modifiers_state),
                                 });
                             }
 
@@ -1765,7 +1766,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                     scancode,
                                     state,
                                     virtual_keycode,
-                                    modifiers: subclass_input.modifiers_state.into(),
+                                    modifiers: new_modifiers_state,
                                 }),
                             });
                         }

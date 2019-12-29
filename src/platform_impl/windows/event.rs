@@ -53,6 +53,15 @@ bitflags! {
     }
 }
 
+impl ModifiersStateSide {
+    pub fn filter_out_altgr(&self) -> ModifiersStateSide {
+        match layout_uses_altgr() && self.contains(Self::RALT) {
+            false => *self,
+            true => *self & !(Self::LCTRL | Self::RCTRL | Self::LALT | Self::RALT),
+        }
+    }
+}
+
 impl From<ModifiersStateSide> for ModifiersState {
     fn from(side: ModifiersStateSide) -> Self {
         let mut state = ModifiersState::default();
