@@ -95,12 +95,13 @@ impl<T> EventLoop<T> {
         F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
-            let _pool = NSAutoreleasePool::new(nil);
+            let pool = NSAutoreleasePool::new(nil);
             let app = NSApp();
             assert_ne!(app, nil);
             AppState::set_callback(callback, Rc::clone(&self.window_target));
             let _: () = msg_send![app, run];
             AppState::exit();
+            pool.drain();
         }
     }
 
