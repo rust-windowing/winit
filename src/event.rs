@@ -150,9 +150,10 @@ pub enum WindowEvent {
         /// If `true`, the event was generated synthetically by winit
         /// in one of the following circumstances:
         ///
-        /// * **X11**: Synthetic key press events are generated for all keys pressed
+        /// * Synthetic key press events are generated for all keys pressed
         ///   when a window gains focus. Likewise, synthetic key release events
         ///   are generated for all keys pressed when a window goes out of focus.
+        ///   ***Currently, this is only functional on X11 and Windows***
         ///
         /// Otherwise, this value is always `false`.
         is_synthetic: bool,
@@ -166,6 +167,7 @@ pub enum WindowEvent {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: LogicalPosition,
+        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -180,6 +182,7 @@ pub enum WindowEvent {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
+        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -188,6 +191,7 @@ pub enum WindowEvent {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
+        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -294,11 +298,15 @@ pub enum DeviceEvent {
 
     Key(KeyboardInput),
 
-    /// Keyboard modifiers have changed
-    #[doc(hidden)]
-    ModifiersChanged {
-        modifiers: ModifiersState,
-    },
+    /// The keyboard modifiers have changed.
+    ///
+    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
+    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    ///   issue, and it should get fixed - but it's the current state of the API.
+    ModifiersChanged(ModifiersState),
 
     Text {
         codepoint: char,
@@ -328,6 +336,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
+    #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
 }
 
@@ -674,21 +683,99 @@ pub enum VirtualKeyCode {
     Cut,
 }
 
-/// Represents the current state of the keyboard modifiers
-///
-/// Each field of this struct represents a modifier and is `true` if this modifier is active.
-#[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(default))]
-pub struct ModifiersState {
-    /// The "shift" key
-    pub shift: bool,
-    /// The "control" key
-    pub ctrl: bool,
-    /// The "alt" key
-    pub alt: bool,
-    /// The "logo" key
+impl ModifiersState {
+    /// Returns `true` if the shift key is pressed.
+    pub fn shift(&self) -> bool {
+        self.intersects(Self::SHIFT)
+    }
+    /// Returns `true` if the control key is pressed.
+    pub fn ctrl(&self) -> bool {
+        self.intersects(Self::CTRL)
+    }
+    /// Returns `true` if the alt key is pressed.
+    pub fn alt(&self) -> bool {
+        self.intersects(Self::ALT)
+    }
+    /// Returns `true` if the logo key is pressed.
+    pub fn logo(&self) -> bool {
+        self.intersects(Self::LOGO)
+    }
+}
+
+bitflags! {
+    /// Represents the current state of the keyboard modifiers
     ///
-    /// This is the "windows" key on PC and "command" key on Mac.
-    pub logo: bool,
+    /// Each flag represents a modifier and is set if this modifier is active.
+    #[derive(Default)]
+    pub struct ModifiersState: u32 {
+        // left and right modifiers are currently commented out, but we should be able to support
+        // them in a future release
+        /// The "shift" key.
+        const SHIFT = 0b100 << 0;
+        // const LSHIFT = 0b010 << 0;
+        // const RSHIFT = 0b001 << 0;
+        /// The "control" key.
+        const CTRL = 0b100 << 3;
+        // const LCTRL = 0b010 << 3;
+        // const RCTRL = 0b001 << 3;
+        /// The "alt" key.
+        const ALT = 0b100 << 6;
+        // const LALT = 0b010 << 6;
+        // const RALT = 0b001 << 6;
+        /// This is the "windows" key on PC and "command" key on Mac.
+        const LOGO = 0b100 << 9;
+        // const LLOGO = 0b010 << 9;
+        // const RLOGO = 0b001 << 9;
+    }
+}
+
+#[cfg(feature = "serde")]
+mod modifiers_serde {
+    use super::ModifiersState;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Default, Serialize, Deserialize)]
+    #[serde(default)]
+    #[serde(rename = "ModifiersState")]
+    pub struct ModifiersStateSerialize {
+        pub shift: bool,
+        pub ctrl: bool,
+        pub alt: bool,
+        pub logo: bool,
+    }
+
+    impl Serialize for ModifiersState {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let s = ModifiersStateSerialize {
+                shift: self.shift(),
+                ctrl: self.ctrl(),
+                alt: self.alt(),
+                logo: self.logo(),
+            };
+            s.serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for ModifiersState {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let ModifiersStateSerialize {
+                shift,
+                ctrl,
+                alt,
+                logo,
+            } = ModifiersStateSerialize::deserialize(deserializer)?;
+            let mut m = ModifiersState::empty();
+            m.set(ModifiersState::SHIFT, shift);
+            m.set(ModifiersState::CTRL, ctrl);
+            m.set(ModifiersState::ALT, alt);
+            m.set(ModifiersState::LOGO, logo);
+            Ok(m)
+        }
+    }
 }

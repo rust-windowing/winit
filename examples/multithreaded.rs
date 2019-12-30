@@ -60,7 +60,7 @@ fn main() {
                         ..
                     } => {
                         window.set_title(&format!("{:?}", key));
-                        let state = !modifiers.shift;
+                        let state = !modifiers.shift();
                         use VirtualKeyCode::*;
                         match key {
                             A => window.set_always_on_top(state),
@@ -81,7 +81,7 @@ fn main() {
                                     video_modes.iter().nth(video_mode_id).unwrap()
                                 );
                             }
-                            F => window.set_fullscreen(match (state, modifiers.alt) {
+                            F => window.set_fullscreen(match (state, modifiers.alt()) {
                                 (true, false) => {
                                     Some(Fullscreen::Borderless(window.current_monitor()))
                                 }

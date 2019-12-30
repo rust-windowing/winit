@@ -9,7 +9,7 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSEvent, NSEventModifierFlags, NSEventPhase, NSView, NSWindow},
     base::{id, nil},
-    foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger},
+    foundation::{NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger},
 };
 use objc::{
     declare::ClassDecl,
@@ -42,6 +42,7 @@ struct ViewState {
     raw_characters: Option<String>,
     is_key_down: bool,
     modifiers: ModifiersState,
+    tracking_rect: Option<NSInteger>,
 }
 
 pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
@@ -54,6 +55,7 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
         raw_characters: None,
         is_key_down: false,
         modifiers: Default::default(),
+        tracking_rect: None,
     };
     unsafe {
         // This is free'd in `dealloc`
@@ -228,6 +230,10 @@ lazy_static! {
             sel!(cancelOperation:),
             cancel_operation as extern "C" fn(&Object, Sel, id),
         );
+        decl.add_method(
+            sel!(frameDidChange:),
+            frame_did_change as extern "C" fn(&Object, Sel, id),
+        );
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -253,6 +259,19 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
             let marked_text =
                 <id as NSMutableAttributedString>::init(NSMutableAttributedString::alloc(nil));
             (*this).set_ivar("markedText", marked_text);
+            let _: () = msg_send![this, setPostsFrameChangedNotifications: YES];
+
+            let notification_center: &Object =
+                msg_send![class!(NSNotificationCenter), defaultCenter];
+            let notification_name =
+                NSString::alloc(nil).init_str("NSViewFrameDidChangeNotification");
+            let _: () = msg_send![
+                notification_center,
+                addObserver: this
+                selector: sel!(frameDidChange:)
+                name: notification_name
+                object: this
+            ];
         }
         this
     }
@@ -261,15 +280,44 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
     trace!("Triggered `viewDidMoveToWindow`");
     unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        if let Some(tracking_rect) = state.tracking_rect.take() {
+            let _: () = msg_send![this, removeTrackingRect: tracking_rect];
+        }
+
         let rect: NSRect = msg_send![this, visibleRect];
-        let _: () = msg_send![this,
+        let tracking_rect: NSInteger = msg_send![this,
             addTrackingRect:rect
             owner:this
             userData:nil
             assumeInside:NO
         ];
+        state.tracking_rect = Some(tracking_rect);
     }
     trace!("Completed `viewDidMoveToWindow`");
+}
+
+extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        if let Some(tracking_rect) = state.tracking_rect.take() {
+            let _: () = msg_send![this, removeTrackingRect: tracking_rect];
+        }
+
+        let rect: NSRect = msg_send![this, visibleRect];
+        let tracking_rect: NSInteger = msg_send![this,
+            addTrackingRect:rect
+            owner:this
+            userData:nil
+            assumeInside:NO
+        ];
+
+        state.tracking_rect = Some(tracking_rect);
+    }
 }
 
 extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
@@ -646,36 +694,36 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSShiftKeyMask,
-            state.modifiers.shift,
+            state.modifiers.shift(),
         ) {
-            state.modifiers.shift = !state.modifiers.shift;
+            state.modifiers.toggle(ModifiersState::SHIFT);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSControlKeyMask,
-            state.modifiers.ctrl,
+            state.modifiers.ctrl(),
         ) {
-            state.modifiers.ctrl = !state.modifiers.ctrl;
+            state.modifiers.toggle(ModifiersState::CTRL);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSCommandKeyMask,
-            state.modifiers.logo,
+            state.modifiers.logo(),
         ) {
-            state.modifiers.logo = !state.modifiers.logo;
+            state.modifiers.toggle(ModifiersState::LOGO);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSAlternateKeyMask,
-            state.modifiers.alt,
+            state.modifiers.alt(),
         ) {
-            state.modifiers.alt = !state.modifiers.alt;
+            state.modifiers.toggle(ModifiersState::ALT);
             events.push_back(window_event);
         }
 
@@ -688,9 +736,7 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
 
         AppState::queue_event(Event::DeviceEvent {
             device_id: DEVICE_ID,
-            event: DeviceEvent::ModifiersChanged {
-                modifiers: state.modifiers,
-            },
+            event: DeviceEvent::ModifiersChanged(state.modifiers),
         });
     }
     trace!("Completed `flagsChanged`");

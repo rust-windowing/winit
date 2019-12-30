@@ -39,9 +39,7 @@ use crate::{
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID},
         icon::{self, IconType, WinIcon},
-        monitor,
-        raw_input::register_all_mice_and_keyboards_for_raw_input,
-        util,
+        monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
@@ -127,14 +125,13 @@ impl Window {
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
-        match visible {
-            true => unsafe {
-                winuser::ShowWindow(self.window.0, winuser::SW_SHOW);
-            },
-            false => unsafe {
-                winuser::ShowWindow(self.window.0, winuser::SW_HIDE);
-            },
-        }
+        let window_state = Arc::clone(&self.window_state);
+        let window = self.window.clone();
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::VISIBLE, visible)
+            });
+        });
     }
 
     #[inline]
@@ -845,9 +842,6 @@ unsafe fn init<T: 'static>(
 
         WindowWrapper(handle)
     };
-
-    // Set up raw input
-    register_all_mice_and_keyboards_for_raw_input(real_window.0);
 
     // Register for touch events if applicable
     {

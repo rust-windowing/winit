@@ -105,7 +105,7 @@ pub fn init_keyboard(
                     my_sink
                         .send(Event::DeviceEvent {
                             device_id: device_id(),
-                            event: DeviceEvent::ModifiersChanged { modifiers },
+                            event: DeviceEvent::ModifiersChanged(modifiers),
                         })
                         .unwrap();
                 }
@@ -404,12 +404,12 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
 
 impl ModifiersState {
     pub(crate) fn from_wayland(mods: keyboard::ModifiersState) -> ModifiersState {
-        ModifiersState {
-            shift: mods.shift,
-            ctrl: mods.ctrl,
-            alt: mods.alt,
-            logo: mods.logo,
-        }
+        let mut m = ModifiersState::empty();
+        m.set(ModifiersState::SHIFT, mods.shift);
+        m.set(ModifiersState::CTRL, mods.ctrl);
+        m.set(ModifiersState::ALT, mods.alt);
+        m.set(ModifiersState::LOGO, mods.logo);
+        m
     }
 }
 

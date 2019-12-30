@@ -3,7 +3,7 @@ use stdweb::web::{window, IWindowOrWorker, TimeoutHandle};
 
 #[derive(Debug)]
 pub struct Timeout {
-    handle: TimeoutHandle,
+    handle: Option<TimeoutHandle>,
 }
 
 impl Timeout {
@@ -12,14 +12,14 @@ impl Timeout {
         F: 'static + FnMut(),
     {
         Timeout {
-            handle: window().set_clearable_timeout(f, duration.as_millis() as u32),
+            handle: Some(window().set_clearable_timeout(f, duration.as_millis() as u32)),
         }
     }
 }
 
 impl Drop for Timeout {
     fn drop(&mut self) {
-        let handle = std::mem::replace(&mut self.handle, unsafe { std::mem::uninitialized() });
+        let handle = self.handle.take().unwrap();
         handle.clear();
     }
 }

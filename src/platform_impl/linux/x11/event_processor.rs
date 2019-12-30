@@ -137,7 +137,7 @@ impl<T: 'static> EventProcessor<T> {
                             let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
                             callback(Event::DeviceEvent {
                                 device_id,
-                                event: DeviceEvent::ModifiersChanged { modifiers },
+                                event: DeviceEvent::ModifiersChanged(modifiers),
                             });
                         }
                     }
@@ -1114,9 +1114,7 @@ impl<T: 'static> EventProcessor<T> {
                             if modifiers != new_modifiers {
                                 callback(Event::DeviceEvent {
                                     device_id,
-                                    event: DeviceEvent::ModifiersChanged {
-                                        modifiers: new_modifiers,
-                                    },
+                                    event: DeviceEvent::ModifiersChanged(new_modifiers),
                                 });
                             }
                         }

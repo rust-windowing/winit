@@ -25,6 +25,7 @@ libc = "0.2.64"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 raw-window-handle = "0.3"
+bitflags = "1"
 
 [dev-dependencies]
 image = "0.21"
@@ -47,9 +48,6 @@ objc = "0.2.3"
 version = "0.1.3"
 default_features = false
 features = ["display_link"]
-
-[target.'cfg(any(target_os = "ios", target_os = "windows"))'.dependencies]
-bitflags = "1"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3.6"
