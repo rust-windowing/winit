@@ -19,6 +19,8 @@
 - On Windows, implement `VirtualKeyCode` translation for `LWin` and `RWin`.
 - On Windows, fix closing the last opened window causing `DeviceEvent`s to stop getting emitted.
 - On Windows, fix `Window::set_visible` not setting internal flags correctly. This resulted in some weird behavior.
+- Add `DeviceEvent::ModifiersChanged`.
+  - Deprecate `modifiers` fields in other events in favor of `ModifiersChanged`.
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
