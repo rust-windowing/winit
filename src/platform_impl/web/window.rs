@@ -1,4 +1,4 @@
-use crate::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
@@ -15,7 +15,6 @@ use std::collections::VecDeque;
 pub struct Window {
     canvas: backend::Canvas,
     previous_pointer: RefCell<&'static str>,
-    position: RefCell<LogicalPosition<f64>>,
     id: Id,
     register_redraw_request: Box<dyn Fn()>,
 }
@@ -39,7 +38,6 @@ impl Window {
         let window = Window {
             canvas,
             previous_pointer: RefCell::new("auto"),
-            position: RefCell::new(LogicalPosition { x: 0.0, y: 0.0 }),
             id,
             register_redraw_request,
         };
@@ -73,21 +71,16 @@ impl Window {
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        // todo: not supported?
-        // Ok(self.canvas.position().to_physical(self.hidpi_factor))
-        Err(NotSupportedError::new())
+        Ok(self.canvas.position().to_physical(self.hidpi_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        // todo: not supported?
-        // Ok(*self.position.borrow())
-        Err(NotSupportedError::new())
+        // Note: the canvas element has no window decorations, so this is equal to `outer_position`.
+        self.outer_position()
     }
 
     pub fn set_outer_position(&self, position: Position) {
-        let position = position.to_logical(self.hidpi_factor());
-
-        *self.position.borrow_mut() = position;
+        let position = position.to_logical::<f64>(self.hidpi_factor());
 
         self.canvas.set_attribute("position", "fixed");
         self.canvas.set_attribute("left", &position.x.to_string());
@@ -96,14 +89,13 @@ impl Window {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        // TODO
         self.canvas.size()
     }
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        // TODO
-        self.canvas.size()
+        // Note: the canvas element has no window decorations, so this is equal to `inner_size`.
+        self.inner_size()
     }
 
     #[inline]

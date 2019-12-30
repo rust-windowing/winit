@@ -1,5 +1,5 @@
 use super::event;
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize, Size};
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 use crate::platform_impl::OsError;
