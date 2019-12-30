@@ -105,7 +105,7 @@ pub fn init_keyboard(
                     my_sink
                         .send(Event::DeviceEvent {
                             device_id: device_id(),
-                            event: DeviceEvent::ModifiersChanged { modifiers },
+                            event: DeviceEvent::ModifiersChanged(modifiers),
                         })
                         .unwrap();
                 }

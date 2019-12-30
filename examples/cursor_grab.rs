@@ -1,5 +1,5 @@
 use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -12,6 +12,8 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
+    let mut modifiers = ModifiersState::default();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
@@ -22,7 +24,6 @@ fn main() {
                         KeyboardInput {
                             state: ElementState::Released,
                             virtual_keycode: Some(key),
-                            modifiers,
                             ..
                         },
                     ..
@@ -43,6 +44,7 @@ fn main() {
                     ElementState::Pressed => println!("mouse button {} pressed", button),
                     ElementState::Released => println!("mouse button {} released", button),
                 },
+                DeviceEvent::ModifiersChanged(m) => modifiers = m,
                 _ => (),
             },
             _ => (),

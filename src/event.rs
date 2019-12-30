@@ -167,6 +167,7 @@ pub enum WindowEvent {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: LogicalPosition,
+        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -181,6 +182,7 @@ pub enum WindowEvent {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
+        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -189,6 +191,7 @@ pub enum WindowEvent {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
+        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -295,11 +298,15 @@ pub enum DeviceEvent {
 
     Key(KeyboardInput),
 
-    /// Keyboard modifiers have changed
-    #[doc(hidden)]
-    ModifiersChanged {
-        modifiers: ModifiersState,
-    },
+    /// The keyboard modifiers have changed.
+    ///
+    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
+    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    ///   issue, and it should get fixed - but it's the current state of the API.
+    ModifiersChanged(ModifiersState),
 
     Text {
         codepoint: char,
@@ -329,6 +336,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
+    #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
 }
 

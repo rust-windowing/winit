@@ -39,9 +39,7 @@ use crate::{
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID},
         icon::{self, IconType, WinIcon},
-        monitor,
-        raw_input::register_all_mice_and_keyboards_for_raw_input,
-        util,
+        monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
@@ -844,9 +842,6 @@ unsafe fn init<T: 'static>(
 
         WindowWrapper(handle)
     };
-
-    // Set up raw input
-    register_all_mice_and_keyboards_for_raw_input(real_window.0);
 
     // Register for touch events if applicable
     {
