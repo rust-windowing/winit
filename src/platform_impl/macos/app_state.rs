@@ -11,7 +11,11 @@ use std::{
     time::Instant,
 };
 
-use cocoa::{appkit::NSApp, base::nil, foundation::NSString};
+use cocoa::{
+    appkit::NSApp,
+    base::nil,
+    foundation::{NSAutoreleasePool, NSString},
+};
 
 use crate::{
     event::{Event, StartCause},
@@ -277,6 +281,8 @@ impl AppState {
             unsafe {
                 let _: () = msg_send![NSApp(), stop: nil];
 
+                let pool = NSAutoreleasePool::new(nil);
+
                 let windows: *const Object = msg_send![NSApp(), windows];
                 let window: *const Object = msg_send![windows, objectAtIndex:0];
                 assert_ne!(window, nil);
@@ -292,6 +298,8 @@ impl AppState {
                 let _: () = msg_send![window, setTitle: some_unique_title];
                 // And restore it.
                 let _: () = msg_send![window, setTitle: title];
+
+                pool.drain();
             };
         }
         HANDLER.update_start_time();
