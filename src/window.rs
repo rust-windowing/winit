@@ -419,6 +419,8 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window's [safe area] in the screen space coordinate system.
+    /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns the
+    ///    same value as `outer_position`._
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
@@ -440,6 +442,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window in the screen space coordinate system.
+    /// - **Web:** Returns the top-left coordinates relative to the viewport.
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.outer_position()
@@ -454,6 +457,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
+    /// - **Web:** Sets the top-left coordinates relative to the viewport.
     #[inline]
     pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
         self.window.set_outer_position(position.into())
@@ -467,6 +471,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window's
     ///   [safe area] in screen space coordinates.
+    /// - **Web:** Returns the size of the canvas element.
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
@@ -483,6 +488,7 @@ impl Window {
     ///
     /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
     ///   would mean for iOS.
+    /// - **Web:** Sets the size of the canvas element.
     #[inline]
     pub fn set_inner_size<S: Into<Size>>(&self, size: S) {
         self.window.set_inner_size(size.into())
@@ -497,6 +503,8 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window in
     ///   screen space coordinates.
+    /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
+    ///   `inner_size`._
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         self.window.outer_size()

@@ -5,7 +5,7 @@ mod timeout;
 pub use self::canvas::Canvas;
 pub use self::timeout::Timeout;
 
-use crate::dpi::LogicalSize;
+use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -54,6 +54,29 @@ pub fn window_size() -> LogicalSize<f64> {
         .expect("Failed to get height as f64");
 
     LogicalSize { width, height }
+}
+
+pub fn hidpi_factor() -> f64 {
+    let window = web_sys::window().expect("Failed to obtain window");
+    window.device_pixel_ratio()
+}
+
+pub fn set_canvas_size(raw: &HtmlCanvasElement, size: Size) {
+    let hidpi_factor = hidpi_factor();
+
+    let physical_size = size.to_physical::<u32>(hidpi_factor);
+    let logical_size = size.to_logical::<f64>(hidpi_factor);
+
+    raw.set_width(physical_size.width);
+    raw.set_height(physical_size.height);
+
+    let style = raw.style();
+    style
+        .set_property("width", &format!("{}px", logical_size.width))
+        .expect("Failed to set canvas width");
+    style
+        .set_property("height", &format!("{}px", logical_size.height))
+        .expect("Failed to set canvas height");
 }
 
 pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
