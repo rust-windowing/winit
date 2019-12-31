@@ -144,7 +144,5 @@ mod icon;
 pub mod monitor;
 mod platform_impl;
 pub mod window;
-pub use winit_types::dpi;
-pub use winit_types::error;
 
 pub mod platform;

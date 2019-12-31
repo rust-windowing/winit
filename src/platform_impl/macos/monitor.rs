@@ -2,10 +2,10 @@ use std::{collections::VecDeque, fmt};
 
 use super::ffi;
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::util::IdRef,
 };
+
 use cocoa::{
     appkit::NSScreen,
     base::{id, nil},
@@ -21,6 +21,7 @@ use core_video_sys::{
     kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
     CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
 #[derive(Clone)]
 pub struct VideoMode {

@@ -1,9 +1,9 @@
 use super::event;
-use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
 use winit_types::error::Error;
 use winit_types::platform::OsError;
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 
 use std::cell::RefCell;
 use std::rc::Rc;

@@ -1,10 +1,10 @@
-use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWI};
 
 use raw_window_handle::web::WebHandle;
 
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 use winit_types::error::Error;
 
 use super::{backend, monitor, EventLoopWindowTarget};
@@ -220,12 +220,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) -> Result<(), Error> {
         if monitor.is_some() {
             self.canvas.request_fullscreen();
         } else if self.canvas.is_fullscreen() {
             backend::exit_fullscreen();
         }
+        Ok(())
     }
 
     #[inline]

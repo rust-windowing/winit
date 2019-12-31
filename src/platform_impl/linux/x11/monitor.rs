@@ -3,12 +3,13 @@ use std::{env, str::FromStr};
 
 use super::{util, XConnection};
 use crate::{
-    dpi::{validate_hidpi_factor, PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
+
 use parking_lot::Mutex;
 use x11_dl::xrandr::{RRCrtc, RRMode};
+use winit_types::dpi::{validate_hidpi_factor, PhysicalPosition, PhysicalSize};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;

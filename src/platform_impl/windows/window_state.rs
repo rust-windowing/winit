@@ -1,5 +1,4 @@
 use crate::{
-    dpi::LogicalSize,
     platform_impl::platform::{event_loop, icon::WinIcon, util},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
@@ -13,6 +12,7 @@ use winapi::{
     um::winuser,
 };
 
+use winit_types::dpi::LogicalSize;
 use winit_types::error::Error;
 
 /// Contains information about states and the window that the callback is going to use.

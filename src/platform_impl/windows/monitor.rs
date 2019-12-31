@@ -13,10 +13,10 @@ use std::{
 };
 
 use winit_types::error::Error;
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
 use super::{util, EventLoop};
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, get_monitor_dpi},

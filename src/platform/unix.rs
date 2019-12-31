@@ -4,9 +4,9 @@ use std::{os::raw, ptr};
 
 use smithay_client_toolkit::window::{ButtonState, Theme};
 use winit_types::error::Error;
+use winit_types::dpi::LogicalSize;
 
 use crate::{
-    dpi::LogicalSize,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},

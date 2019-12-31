@@ -1,9 +1,11 @@
 use super::{backend, device, proxy::Proxy, runner, window};
-use crate::dpi::LogicalSize;
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
+
 use std::clone::Clone;
+
+use winit_types::dpi::LogicalSize;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,

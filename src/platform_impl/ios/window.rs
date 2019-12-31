@@ -7,7 +7,6 @@ use std::{
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 
 use crate::{
-    dpi::{self, LogicalPosition, LogicalSize},
     event::{Event, WindowEvent},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -23,6 +22,7 @@ use crate::{
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
 use winit_types::error::{Error, ErrorType};
+use winit_types::dpi::{self, LogicalPosition, LogicalSize};
 
 pub struct Inner {
     pub window: id,
@@ -401,7 +401,7 @@ impl Window {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![view, convertRect:bounds toCoordinateSpace:screen_space];
-                let size = crate::dpi::LogicalSize {
+                let size = winit_types::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 };

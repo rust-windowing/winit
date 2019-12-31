@@ -1,6 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc, slice};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 
 use super::{
     events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
@@ -11,7 +12,6 @@ use super::{
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
     event::{
         DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, TouchPhase, WindowEvent,
     },

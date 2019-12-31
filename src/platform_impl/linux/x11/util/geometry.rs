@@ -2,9 +2,9 @@ use std::cmp;
 use std::os::raw;
 
 use winit_types::error::Error;
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 
 use super::*;
-use crate::dpi::{LogicalPosition, LogicalSize};
 
 // Friendly neighborhood axis-aligned rectangle
 #[derive(Debug, Clone, PartialEq, Eq)]

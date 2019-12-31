@@ -9,9 +9,9 @@ use cocoa::{
     foundation::{NSAutoreleasePool, NSPoint, NSSize, NSString},
 };
 use dispatch::ffi::{dispatch_async_f, dispatch_get_main_queue, dispatch_sync_f};
+use winit_types::dpi::LogicalSize;
 
 use crate::{
-    dpi::LogicalSize,
     platform_impl::platform::{ffi, util::IdRef, window::SharedState},
 };
 

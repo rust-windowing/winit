@@ -1,9 +1,9 @@
 //! The `Window` struct and associated types.
 use std::fmt;
 use winit_types::error::Error;
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoMode},
     platform_impl,
@@ -368,7 +368,7 @@ impl Window {
 
     /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](crate::dpi) module for more information.
+    /// See the [`dpi`](winit_types::dpi) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
     /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is

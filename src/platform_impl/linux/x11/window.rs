@@ -13,9 +13,9 @@ use std::{
 
 use libc;
 use parking_lot::Mutex;
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::unix::MonitorHandleExtUnix,
     platform_impl::{

@@ -3,6 +3,7 @@
 use parking_lot::Mutex;
 use raw_window_handle::{windows::WindowsHandle, RawWindowHandle};
 use winit_types::error::Error;
+use winit_types::dpi::{LogicalPosition, LogicalSize, PhysicalSize};
 
 use std::{
     cell::Cell,
@@ -32,7 +33,6 @@ use winapi::{
 };
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalSize},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_dark_mode,
@@ -477,7 +477,7 @@ impl Window {
         let mut window_state_lock = window_state.lock();
         let old_fullscreen = window_state_lock.fullscreen.clone();
         if window_state_lock.fullscreen == fullscreen {
-            return;
+            return Ok(());
         }
         window_state_lock.fullscreen = fullscreen.clone();
         drop(window_state_lock);
@@ -631,6 +631,8 @@ impl Window {
                 taskbar_mark_fullscreen(window.0, fullscreen.is_some());
             }
         });
+
+        Ok(())
     }
 
     #[inline]
@@ -931,7 +933,7 @@ unsafe fn init<T: 'static>(
     };
 
     if let Some(_) = attributes.fullscreen {
-        win.set_fullscreen(attributes.fullscreen);
+        win.set_fullscreen(attributes.fullscreen)?;
         force_window_active(win.window.0);
     }
 

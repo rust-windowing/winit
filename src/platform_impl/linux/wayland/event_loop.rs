@@ -19,9 +19,9 @@ use smithay_client_toolkit::pointer::{AutoPointer, AutoThemer};
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_compositor::WlCompositor, wl_shm::WlShm, wl_surface::WlSurface,
 };
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
     event::ModifiersState,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
@@ -721,7 +721,7 @@ impl<T> EventLoop<T> {
                     // Don't send resize event downstream if the new size is identical to the
                     // current one.
                     if newsize != *window.size {
-                        let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
+                        let logical_size = winit_types::dpi::LogicalSize::new(w as f64, h as f64);
                         sink.send_window_event(
                             crate::event::WindowEvent::Resized(logical_size),
                             window.wid,

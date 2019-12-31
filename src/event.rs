@@ -6,9 +6,9 @@
 //! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
 use std::path::PathBuf;
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -220,7 +220,7 @@ pub enum WindowEvent {
     /// * Changing the display's DPI factor (e.g. in Control Panel on Windows).
     /// * Moving the window to a display with a different DPI factor.
     ///
-    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
+    /// For more information about DPI in general, see the [`dpi`](winit_types::dpi) module.
     HiDpiFactorChanged(f64),
 
     /// The system window theme has changed.

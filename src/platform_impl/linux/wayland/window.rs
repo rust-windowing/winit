@@ -6,7 +6,6 @@ use std::{
 };
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
         platform::wayland::event_loop::{available_monitors, primary_monitor},
@@ -27,6 +26,7 @@ use smithay_client_toolkit::{
 };
 
 use winit_types::error::{Error, ErrorType};
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 
 use super::{event_loop::CursorManager, make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 
