@@ -10,7 +10,7 @@ impl Handle {
     }
 
     pub fn position(&self) -> PhysicalPosition<i32> {
-        PhysicalPosition { x: 0.0, y: 0.0 }
+        PhysicalPosition { x: 0, y: 0 }
     }
 
     pub fn name(&self) -> Option<String> {
@@ -19,8 +19,8 @@ impl Handle {
 
     pub fn size(&self) -> PhysicalSize<u32> {
         PhysicalSize {
-            width: 0.0,
-            height: 0.0,
+            width: 0,
+            height: 0,
         }
     }
 

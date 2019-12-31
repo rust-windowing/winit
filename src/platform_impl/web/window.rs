@@ -1,4 +1,4 @@
-use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
@@ -15,7 +15,6 @@ use std::collections::VecDeque;
 pub struct Window {
     canvas: backend::Canvas,
     previous_pointer: RefCell<&'static str>,
-    position: RefCell<LogicalPosition<f64>>,
     id: Id,
     register_redraw_request: Box<dyn Fn()>,
 }
@@ -39,15 +38,14 @@ impl Window {
         let window = Window {
             canvas,
             previous_pointer: RefCell::new("auto"),
-            position: RefCell::new(LogicalPosition { x: 0.0, y: 0.0 }),
             id,
             register_redraw_request,
         };
 
-        window.set_inner_size(attr.inner_size.unwrap_or(LogicalSize {
+        window.set_inner_size(attr.inner_size.unwrap_or(Size::Logical(LogicalSize {
             width: 1024.0,
             height: 768.0,
-        }));
+        })));
         window.set_title(&attr.title);
         window.set_maximized(attr.maximized);
         window.set_visible(attr.visible);
@@ -72,18 +70,17 @@ impl Window {
         (self.register_redraw_request)();
     }
 
-    pub fn outer_position(&self) -> Result<LogicalPosition<f64>, NotSupportedError> {
-        let (x, y) = self.canvas.position();
-
-        Ok(LogicalPosition { x, y })
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        Ok(self.canvas.position().to_physical(self.hidpi_factor()))
     }
 
-    pub fn inner_position(&self) -> Result<LogicalPosition<f64>, NotSupportedError> {
-        Ok(*self.position.borrow())
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        // Note: the canvas element has no window decorations, so this is equal to `outer_position`.
+        self.outer_position()
     }
 
-    pub fn set_outer_position(&self, position: LogicalPosition<f64>) {
-        *self.position.borrow_mut() = position;
+    pub fn set_outer_position(&self, position: Position) {
+        let position = position.to_logical::<f64>(self.hidpi_factor());
 
         self.canvas.set_attribute("position", "fixed");
         self.canvas.set_attribute("left", &position.x.to_string());
@@ -91,33 +88,28 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize<f64> {
-        LogicalSize {
-            width: self.canvas.width() as f64,
-            height: self.canvas.height() as f64,
-        }
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        self.canvas.size()
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize<f64> {
-        LogicalSize {
-            width: self.canvas.width() as f64,
-            height: self.canvas.height() as f64,
-        }
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
+        // Note: the canvas element has no window decorations, so this is equal to `inner_size`.
+        self.inner_size()
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize<f64>) {
-        self.canvas.set_size(size);
+    pub fn set_inner_size(&self, size: Size) {
+        backend::set_canvas_size(self.canvas.raw(), size);
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
@@ -128,7 +120,7 @@ impl Window {
 
     #[inline]
     pub fn hidpi_factor(&self) -> f64 {
-        1.0
+        super::backend::hidpi_factor()
     }
 
     #[inline]
@@ -178,10 +170,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(
-        &self,
-        _position: LogicalPosition<f64>,
-    ) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
         // Intentionally a no-op, as the web does not support setting cursor positions
         Ok(())
     }
@@ -241,7 +230,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _position: LogicalPosition<f64>) {
+    pub fn set_ime_position(&self, _position: Position) {
         // Currently a no-op as it does not seem there is good support for this on web
     }
 
