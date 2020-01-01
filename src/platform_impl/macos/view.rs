@@ -35,9 +35,23 @@ use crate::{
     window::WindowId,
 };
 
+pub struct CursorState {
+    pub visible: bool,
+    pub cursor: util::Cursor,
+}
+
+impl Default for CursorState {
+    fn default() -> Self {
+        Self {
+            visible: true,
+            cursor: Default::default(),
+        }
+    }
+}
+
 struct ViewState {
     ns_window: id,
-    pub cursor: Arc<Mutex<util::Cursor>>,
+    pub cursor_state: Arc<Mutex<CursorState>>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
     is_key_down: bool,
@@ -45,12 +59,12 @@ struct ViewState {
     tracking_rect: Option<NSInteger>,
 }
 
-pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
-    let cursor = Default::default();
-    let cursor_access = Arc::downgrade(&cursor);
+pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
+    let cursor_state = Default::default();
+    let cursor_access = Arc::downgrade(&cursor_state);
     let state = ViewState {
         ns_window,
-        cursor,
+        cursor_state,
         ime_spot: None,
         raw_characters: None,
         is_key_down: false,
@@ -349,7 +363,12 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
         let state = &mut *(state_ptr as *mut ViewState);
 
         let bounds: NSRect = msg_send![this, bounds];
-        let cursor = state.cursor.lock().unwrap().load();
+        let cursor = state.cursor_state.lock().unwrap();
+        let cursor = if cursor.visible {
+            cursor.cursor.load()
+        } else {
+            util::invisible_cursor()
+        };
         let _: () = msg_send![this,
             addCursorRect:bounds
             cursor:cursor
