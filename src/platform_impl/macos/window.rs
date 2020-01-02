@@ -535,10 +535,10 @@ impl UnownedWindow {
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         if let Some(cursor_access) = self.cursor_state.upgrade() {
-            let mut cursor = cursor_access.lock().unwrap();
-            if visible != cursor.visible {
-                cursor.visible = visible;
-                drop(cursor);
+            let mut cursor_state = cursor_access.lock().unwrap();
+            if visible != cursor_state.visible {
+                cursor_state.visible = visible;
+                drop(cursor_state);
                 unsafe {
                     let _: () = msg_send![*self.ns_window,
                         invalidateCursorRectsForView:*self.ns_view

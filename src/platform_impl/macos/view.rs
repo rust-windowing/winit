@@ -363,9 +363,9 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
         let state = &mut *(state_ptr as *mut ViewState);
 
         let bounds: NSRect = msg_send![this, bounds];
-        let cursor = state.cursor_state.lock().unwrap();
-        let cursor = if cursor.visible {
-            cursor.cursor.load()
+        let cursor_state = state.cursor_state.lock().unwrap();
+        let cursor = if cursor_state.visible {
+            cursor_state.cursor.load()
         } else {
             util::invisible_cursor()
         };
