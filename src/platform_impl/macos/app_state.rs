@@ -187,7 +187,7 @@ impl Handler {
         suggested_size: LogicalSize<f64>,
         hidpi_factor: f64,
     ) {
-        let size = suggested_size.to_physical(hidpi_factor);
+        let mut size = suggested_size.to_physical(hidpi_factor);
         let new_inner_size = &mut size;
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*ns_window)),

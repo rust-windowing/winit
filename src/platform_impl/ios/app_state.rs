@@ -863,7 +863,7 @@ fn handle_hidpi_proxy(
     hidpi_factor: f64,
     window_id: id,
 ) {
-    let size = suggested_size.to_physical(hidpi_factor);
+    let mut size = suggested_size.to_physical(hidpi_factor);
     let new_inner_size = &mut size;
     let event = Event::WindowEvent {
         window_id: RootWindowId(window_id.into()),
