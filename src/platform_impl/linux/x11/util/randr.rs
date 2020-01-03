@@ -108,6 +108,8 @@ impl XConnection {
                     EnvVarDPI::Randr
                 } else if let Ok(dpi) = f64::from_str(&var) {
                     EnvVarDPI::Scale(dpi)
+                } else if var.is_empty() {
+                    EnvVarDPI::NotSet
                 } else {
                     panic!(
                         "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
