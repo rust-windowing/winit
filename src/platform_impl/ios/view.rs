@@ -177,13 +177,11 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     height: screen_frame.size.height as _,
                 };
                 app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(
-                        EventProxy::DpiChangedProxy {
-                            window_id: window,
-                            scale_factor,
-                            suggested_size: size,
-                        },
-                    ))
+                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
+                        window_id: window,
+                        scale_factor,
+                        suggested_size: size,
+                    }))
                     .chain(std::iter::once(EventWrapper::StaticEvent(
                         Event::WindowEvent {
                             window_id: RootWindowId(window.into()),
