@@ -15,6 +15,7 @@ use crate::{
 
 /// Describes a generic event.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Event<T> {
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
@@ -104,6 +105,7 @@ pub enum StartCause {
 
 /// Describes an event from a `Window`.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(LogicalSize),
@@ -264,6 +266,7 @@ impl DeviceId {
 ///
 /// Note that these events are delivered regardless of input focus.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum DeviceEvent {
     Added,
     Removed,
@@ -488,6 +491,7 @@ pub enum MouseScrollDelta {
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
 pub enum VirtualKeyCode {
     /// The '1' key over the letters.
     Key1,
