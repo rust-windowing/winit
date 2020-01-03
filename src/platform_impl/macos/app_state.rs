@@ -189,7 +189,7 @@ impl Handler {
     ) {
         let size = suggested_size.to_physical(scale_factor);
         let new_inner_size = &mut Some(size);
-        let mut size = suggested_size.to_physical(hidpi_factor);
+        let mut size = suggested_size.to_physical(scale_factor);
         let new_inner_size = &mut size;
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*ns_window)),
@@ -202,7 +202,7 @@ impl Handler {
         callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
 
         let physical_size = *new_inner_size;
-        let logical_size = physical_size.to_logical(hidpi_factor);
+        let logical_size = physical_size.to_logical(scale_factor);
         let size = NSSize::new(logical_size.width, logical_size.height);
         unsafe { NSWindow::setContentSize_(*ns_window, size) };
     }

@@ -863,7 +863,7 @@ fn handle_hidpi_proxy(
     scale_factor: f64,
     window_id: id,
 ) {
-    let mut size = suggested_size.to_physical(hidpi_factor);
+    let mut size = suggested_size.to_physical(scale_factor);
     let new_inner_size = &mut size;
     let event = Event::WindowEvent {
         window_id: RootWindowId(window_id.into()),
@@ -875,7 +875,7 @@ fn handle_hidpi_proxy(
     event_handler.handle_nonuser_event(event, &mut control_flow);
     let (view, screen_frame) = get_view_and_screen_frame(window_id);
     let physical_size = *new_inner_size;
-    let logical_size = physical_size.to_logical(hidpi_factor);
+    let logical_size = physical_size.to_logical(scale_factor);
     let size = CGSize::new(logical_size);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
     unsafe {
