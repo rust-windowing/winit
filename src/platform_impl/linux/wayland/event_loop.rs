@@ -730,7 +730,7 @@ impl<T> EventLoop<T> {
                 if let Some(dpi) = window.new_dpi {
                     let dpi = dpi as f64;
                     let logical_size = LogicalSize::<f64>::from(*window.size);
-                    let mut new_inner_size = Some(logical_size.to_physical(dpi));
+                    let mut new_inner_size = logical_size.to_physical(dpi);
 
                     callback(Event::WindowEvent {
                         window_id,
@@ -740,11 +740,9 @@ impl<T> EventLoop<T> {
                         },
                     });
 
-                    if let Some(new_size) = new_inner_size {
-                        let (w, h) = new_size.to_logical::<u32>(dpi).into();
-                        frame.resize(w, h);
-                        *window.size = (w, h);
-                    }
+                    let (w, h) = new_inner_size.to_logical::<u32>(dpi).into();
+                    frame.resize(w, h);
+                    *window.size = (w, h);
                 }
             }
             if window.closed {
