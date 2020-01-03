@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.20.0 (2020-01-05)
+
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
 - **Breaking**: Overhaul how Winit handles DPI:
   + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
@@ -8,7 +10,7 @@
   + `HiDpiFactorChanged` has been renamed to `ScaleFactorChanged`, and lets you control how the OS
     resizes the window in response to the change.
   + On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`.
-  + `Size` and `Position` types are generic over their exact pixel type.
+  + `Size` and `Position` types are now generic over their exact pixel type.
 
 # 0.20.0 Alpha 6 (2020-01-03)
 
