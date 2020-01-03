@@ -83,7 +83,7 @@ impl Inner {
                 x: safe_area.origin.x as f64,
                 y: safe_area.origin.y as f64,
             };
-            let dpi_factor = self.hidpi_factor();
+            let dpi_factor = self.scale_factor();
             Ok(position.to_physical(dpi_factor))
         }
     }
@@ -95,14 +95,14 @@ impl Inner {
                 x: screen_frame.origin.x as f64,
                 y: screen_frame.origin.y as f64,
             };
-            let dpi_factor = self.hidpi_factor();
+            let dpi_factor = self.scale_factor();
             Ok(position.to_physical(dpi_factor))
         }
     }
 
     pub fn set_outer_position(&self, physical_position: Position) {
         unsafe {
-            let dpi_factor = self.hidpi_factor();
+            let dpi_factor = self.scale_factor();
             let position = physical_position.to_logical::<f64>(dpi_factor);
             let screen_frame = self.screen_frame();
             let new_screen_frame = CGRect {
@@ -119,7 +119,7 @@ impl Inner {
 
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         unsafe {
-            let dpi_factor = self.hidpi_factor();
+            let dpi_factor = self.scale_factor();
             let safe_area = self.safe_area_screen_space();
             let size = LogicalSize {
                 width: safe_area.size.width as f64,
@@ -131,7 +131,7 @@ impl Inner {
 
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         unsafe {
-            let dpi_factor = self.hidpi_factor();
+            let dpi_factor = self.scale_factor();
             let screen_frame = self.screen_frame();
             let size = LogicalSize {
                 width: screen_frame.size.width as f64,
@@ -157,7 +157,7 @@ impl Inner {
         warn!("`Window::set_resizable` is ignored on iOS")
     }
 
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         unsafe {
             let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
             hidpi as _
@@ -398,11 +398,11 @@ impl Window {
             };
             app_state::set_key_window(window);
 
-            // Like the Windows and macOS backends, we send a `HiDpiFactorChanged` and `Resized`
+            // Like the Windows and macOS backends, we send a `DpiChanged` and `Resized`
             // event on window creation if the DPI factor != 1.0
             let dpi_factor: CGFloat = msg_send![view, contentScaleFactor];
-            let hidpi_factor: f64 = dpi_factor.into();
-            if hidpi_factor != 1.0 {
+            let scale_factor: f64 = dpi_factor.into();
+            if scale_factor != 1.0 {
                 let bounds: CGRect = msg_send![view, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
@@ -413,17 +413,15 @@ impl Window {
                     height: screen_frame.size.height as _,
                 };
                 app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(
-                        EventProxy::HiDpiFactorChangedProxy {
-                            window_id: window,
-                            hidpi_factor,
-                            suggested_size: size,
-                        },
-                    ))
+                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
+                        window_id: window,
+                        scale_factor,
+                        suggested_size: size,
+                    }))
                     .chain(std::iter::once(EventWrapper::StaticEvent(
                         Event::WindowEvent {
                             window_id: RootWindowId(window.into()),
-                            event: WindowEvent::Resized(size.to_physical(hidpi_factor)),
+                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
                         },
                     ))),
                 );
@@ -446,14 +444,14 @@ impl Inner {
         self.view
     }
 
-    pub fn set_hidpi_factor(&self, hidpi_factor: f64) {
+    pub fn set_scale_factor(&self, scale_factor: f64) {
         unsafe {
             assert!(
-                dpi::validate_hidpi_factor(hidpi_factor),
-                "`WindowExtIOS::set_hidpi_factor` received an invalid hidpi factor"
+                dpi::validate_scale_factor(scale_factor),
+                "`WindowExtIOS::set_scale_factor` received an invalid hidpi factor"
             );
-            let hidpi_factor = hidpi_factor as CGFloat;
-            let () = msg_send![self.view, setContentScaleFactor: hidpi_factor];
+            let scale_factor = scale_factor as CGFloat;
+            let () = msg_send![self.view, setContentScaleFactor: scale_factor];
         }
     }
 
@@ -619,7 +617,7 @@ impl From<id> for WindowId {
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub root_view_class: &'static Class,
-    pub hidpi_factor: Option<f64>,
+    pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
     pub prefers_status_bar_hidden: bool,
@@ -630,7 +628,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> PlatformSpecificWindowBuilderAttributes {
         PlatformSpecificWindowBuilderAttributes {
             root_view_class: class!(UIView),
-            hidpi_factor: None,
+            scale_factor: None,
             valid_orientations: Default::default(),
             prefers_home_indicator_hidden: false,
             prefers_status_bar_hidden: false,

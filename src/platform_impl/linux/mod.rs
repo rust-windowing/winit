@@ -148,10 +148,10 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         match self {
-            &MonitorHandle::X(ref m) => m.hidpi_factor(),
-            &MonitorHandle::Wayland(ref m) => m.hidpi_factor() as f64,
+            &MonitorHandle::X(ref m) => m.scale_factor(),
+            &MonitorHandle::Wayland(ref m) => m.scale_factor() as f64,
         }
     }
 
@@ -342,10 +342,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         match self {
-            &Window::X(ref w) => w.hidpi_factor(),
-            &Window::Wayland(ref w) => w.hidpi_factor() as f64,
+            &Window::X(ref w) => w.scale_factor(),
+            &Window::Wayland(ref w) => w.scale_factor() as f64,
         }
     }
 
