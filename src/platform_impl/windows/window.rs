@@ -176,7 +176,7 @@ impl Window {
 
     #[inline]
     pub fn set_outer_position(&self, position: Position) {
-        let (x, y): (i32, i32) = position.to_physical::<i32>(self.hidpi_factor()).into();
+        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
@@ -258,7 +258,7 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        let dpi_factor = self.hidpi_factor();
+        let dpi_factor = self.scale_factor();
         let (width, height) = size.to_physical::<u32>(dpi_factor).into();
 
         let window_state = Arc::clone(&self.window_state);
@@ -365,13 +365,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         self.window_state.lock().dpi_factor
     }
 
     #[inline]
     pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
-        let dpi_factor = self.hidpi_factor();
+        let dpi_factor = self.scale_factor();
         let (x, y) = position.to_physical::<i32>(dpi_factor).into();
 
         let mut point = POINT { x, y };

@@ -213,7 +213,7 @@ impl Canvas {
         self.on_cursor_move = Some(self.add_event(move |event: PointerMoveEvent| {
             handler(
                 event.pointer_id(),
-                event::mouse_position(&event).to_physical(super::hidpi_factor()),
+                event::mouse_position(&event).to_physical(super::scale_factor()),
                 event::mouse_modifiers(&event),
             );
         }));

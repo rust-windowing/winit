@@ -48,18 +48,18 @@ pub struct WindowDelegateState {
 
 impl WindowDelegateState {
     pub fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
-        let hidpi_factor = window.hidpi_factor();
+        let scale_factor = window.scale_factor();
         let mut delegate_state = WindowDelegateState {
             ns_window: window.ns_window.clone(),
             ns_view: window.ns_view.clone(),
             window: Arc::downgrade(&window),
             initial_fullscreen,
             previous_position: None,
-            previous_dpi_factor: hidpi_factor,
+            previous_dpi_factor: scale_factor,
         };
 
-        if hidpi_factor != 1.0 {
-            delegate_state.emit_static_hidpi_factor_changed_event();
+        if scale_factor != 1.0 {
+            delegate_state.emit_static_scale_factor_changed_event();
         }
 
         delegate_state
@@ -80,26 +80,26 @@ impl WindowDelegateState {
         AppState::queue_event(EventWrapper::StaticEvent(event));
     }
 
-    pub fn emit_static_hidpi_factor_changed_event(&mut self) {
-        let hidpi_factor = self.get_hidpi_factor();
-        if hidpi_factor == self.previous_dpi_factor {
+    pub fn emit_static_scale_factor_changed_event(&mut self) {
+        let scale_factor = self.get_scale_factor();
+        if scale_factor == self.previous_dpi_factor {
             return ();
         };
 
-        self.previous_dpi_factor = hidpi_factor;
-        let wrapper = EventWrapper::EventProxy(EventProxy::HiDpiFactorChangedProxy {
+        self.previous_dpi_factor = scale_factor;
+        let wrapper = EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
             ns_window: IdRef::retain(*self.ns_window),
             suggested_size: self.view_size(),
-            hidpi_factor,
+            scale_factor,
         });
         AppState::queue_event(wrapper);
     }
 
     pub fn emit_resize_event(&mut self) {
         let rect = unsafe { NSView::frame(*self.ns_view) };
-        let hidpi_factor = self.get_hidpi_factor();
+        let scale_factor = self.get_scale_factor();
         let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
-        let size = logical_size.to_physical(hidpi_factor);
+        let size = logical_size.to_physical(scale_factor);
         self.emit_event(WindowEvent::Resized(size));
     }
 
@@ -114,7 +114,7 @@ impl WindowDelegateState {
         }
     }
 
-    fn get_hidpi_factor(&self) -> f64 {
+    fn get_scale_factor(&self) -> f64 {
         (unsafe { NSWindow::backingScaleFactor(*self.ns_window) }) as f64
     }
 
@@ -297,7 +297,7 @@ extern "C" fn window_did_move(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidChangeBackingProperties:`");
     with_state(this, |state| {
-        state.emit_static_hidpi_factor_changed_event();
+        state.emit_static_scale_factor_changed_event();
     });
     trace!("Completed `windowDidChangeBackingProperties:`");
 }

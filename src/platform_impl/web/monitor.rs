@@ -5,7 +5,7 @@ use crate::monitor::{MonitorHandle, VideoMode};
 pub struct Handle;
 
 impl Handle {
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         1.0
     }
 

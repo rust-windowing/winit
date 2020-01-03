@@ -366,25 +366,25 @@ impl Window {
         WindowId(self.window.id())
     }
 
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
     /// See the [`dpi`](../dpi/index.html) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
+    /// moved to another screen); as such, tracking `WindowEvent::DpiChanged` events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
     ///
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.window.hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        self.window.scale_factor()
     }
 
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS

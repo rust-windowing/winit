@@ -690,8 +690,8 @@ impl<T> EventLoop<T> {
 
                         callback(Event::WindowEvent {
                             window_id,
-                            event: WindowEvent::HiDpiFactorChanged {
-                                hidpi_factor: dpi,
+                            event: WindowEvent::DpiChanged {
+                                scale_factor: dpi,
                                 new_inner_size: &mut new_inner_size,
                             },
                         });
@@ -966,7 +966,7 @@ impl fmt::Debug for MonitorHandle {
             native_identifier: u32,
             size: PhysicalSize<u32>,
             position: PhysicalPosition<i32>,
-            hidpi_factor: i32,
+            scale_factor: i32,
         }
 
         let monitor_id_proxy = MonitorHandle {
@@ -974,7 +974,7 @@ impl fmt::Debug for MonitorHandle {
             native_identifier: self.native_identifier(),
             size: self.size(),
             position: self.position(),
-            hidpi_factor: self.hidpi_factor(),
+            scale_factor: self.scale_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -1014,7 +1014,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> i32 {
+    pub fn scale_factor(&self) -> i32 {
         self.mgr
             .with_info(&self.proxy, |_, info| info.scale_factor)
             .unwrap_or(1)

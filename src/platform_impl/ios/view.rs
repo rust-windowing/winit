@@ -139,13 +139,13 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         extern "C" fn set_content_scale_factor(
             object: &mut Object,
             _: Sel,
-            untrusted_hidpi_factor: CGFloat,
+            untrusted_scale_factor: CGFloat,
         ) {
             unsafe {
                 let superclass: &'static Class = msg_send![object, superclass];
                 let () = msg_send![
                     super(object, superclass),
-                    setContentScaleFactor: untrusted_hidpi_factor
+                    setContentScaleFactor: untrusted_scale_factor
                 ];
 
                 let window: id = msg_send![object, window];
@@ -164,9 +164,9 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                         && dpi_factor.is_finite()
                         && dpi_factor.is_sign_positive()
                         && dpi_factor > 0.0,
-                    "invalid hidpi_factor set on UIView",
+                    "invalid scale_factor set on UIView",
                 );
-                let hidpi_factor: f64 = dpi_factor.into();
+                let scale_factor: f64 = dpi_factor.into();
                 let bounds: CGRect = msg_send![object, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
@@ -177,17 +177,15 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     height: screen_frame.size.height as _,
                 };
                 app_state::handle_nonuser_events(
-                    std::iter::once(EventWrapper::EventProxy(
-                        EventProxy::HiDpiFactorChangedProxy {
-                            window_id: window,
-                            hidpi_factor,
-                            suggested_size: size,
-                        },
-                    ))
+                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
+                        window_id: window,
+                        scale_factor,
+                        suggested_size: size,
+                    }))
                     .chain(std::iter::once(EventWrapper::StaticEvent(
                         Event::WindowEvent {
                             window_id: RootWindowId(window.into()),
-                            event: WindowEvent::Resized(size.to_physical(hidpi_factor)),
+                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
                         },
                     ))),
                 );
@@ -422,8 +420,8 @@ pub unsafe fn create_view(
     let view: id = msg_send![view, initWithFrame: frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
     let () = msg_send![view, setMultipleTouchEnabled: YES];
-    if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
-        let () = msg_send![view, setContentScaleFactor: hidpi_factor as CGFloat];
+    if let Some(scale_factor) = platform_attributes.scale_factor {
+        let () = msg_send![view, setContentScaleFactor: scale_factor as CGFloat];
     }
 
     view
