@@ -444,7 +444,7 @@ impl<P: Pixel> From<LogicalSize<P>> for Size {
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Position {
-    Physical(PhysicalPosition<u32>),
+    Physical(PhysicalPosition<i32>),
     Logical(LogicalPosition<f64>),
 }
 
