@@ -23,6 +23,8 @@
 - On Windows, fix `Window::set_visible` not setting internal flags correctly. This resulted in some weird behavior.
 - Add `DeviceEvent::ModifiersChanged`.
   - Deprecate `modifiers` fields in other events in favor of `ModifiersChanged`.
+- On X11, `WINIT_HIDPI_FACTOR` now dominates `Xft.dpi` when picking DPI factor for output.
+- On X11, add special value `randr` for `WINIT_HIDPI_FACTOR` to make winit use self computed DPI factor instead of the one from `Xft.dpi`.
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
