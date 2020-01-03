@@ -1486,26 +1486,24 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
             );
 
-            // We calculate our own size because the default suggested rect doesn't do a great job
-            // of preserving the window's logical size.
-            let suggested_physical_inner_size = old_physical_inner_size
-                .to_logical::<f64>(old_dpi_factor)
-                .to_physical::<u32>(new_dpi_factor);
-
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let mut new_inner_size_opt =
-                Some(suggested_physical_inner_size).filter(|_| allow_resize);
+            let mut new_physical_inner_size = match allow_resize {
+                // We calculate our own size because the default suggested rect doesn't do a great job
+                // of preserving the window's logical size.
+                true => old_physical_inner_size
+                    .to_logical::<f64>(old_dpi_factor)
+                    .to_physical::<u32>(new_dpi_factor),
+                false => old_physical_inner_size,
+            };
 
             let _ = subclass_input.send_event_unbuffered(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: HiDpiFactorChanged {
                     hidpi_factor: new_dpi_factor,
-                    new_inner_size: &mut new_inner_size_opt,
+                    new_inner_size: &mut new_physical_inner_size,
                 },
             });
-
-            let new_physical_inner_size = new_inner_size_opt.unwrap_or(old_physical_inner_size);
 
             // Unset maximized if we're changing the window's size.
             if new_physical_inner_size != old_physical_inner_size {
