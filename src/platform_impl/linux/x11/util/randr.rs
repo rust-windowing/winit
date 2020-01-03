@@ -6,6 +6,13 @@ use super::{
 };
 use crate::{dpi::validate_hidpi_factor, platform_impl::platform::x11::VideoMode};
 
+/// Represents values of `WINIT_HIDPI_FACTOR`.
+pub enum EnvVarDPI {
+    Randr,
+    Scale(f64),
+    NotSet,
+}
+
 pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
     (width_mm, height_mm): (u64, u64),
@@ -94,38 +101,49 @@ impl XConnection {
         );
         let name = String::from_utf8_lossy(name_slice).into();
         // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
-        let dpi_override = env::var("WINIT_HIDPI_FACTOR")
-            .ok()
-            .and_then(|var| f64::from_str(&var).ok());
-        let hidpi_factor = if let Some(dpi_override) = dpi_override {
-            // `0` makes winit use its auto dpi calculation mechanism bypassing Xft.dpi
-            if dpi_override == 0. {
-                calc_dpi_factor(
-                    ((*crtc).width as u32, (*crtc).height as u32),
-                    (
-                        (*output_info).mm_width as u64,
-                        (*output_info).mm_height as u64,
-                    ),
-                )
-            } else {
-                if !validate_hidpi_factor(dpi_override) {
-                    panic!(
-                        "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater or equal to 0. Got `{}`",
-                        dpi_override,
-                    );
+        let dpi_env = env::var("WINIT_HIDPI_FACTOR").ok().map_or_else(
+            || EnvVarDPI::NotSet,
+            |var| {
+                if var.to_lowercase() == "randr" {
+                    EnvVarDPI::Randr
+                } else if let Ok(dpi) = f64::from_str(&var) {
+                    EnvVarDPI::Scale(dpi)
+                } else {
+                    EnvVarDPI::NotSet
                 }
-                dpi_override
-            }
-        } else if let Some(dpi) = self.get_xft_dpi() {
-            dpi / 96.
-        } else {
-            calc_dpi_factor(
+            },
+        );
+
+        let hidpi_factor = match dpi_env {
+            EnvVarDPI::Randr => calc_dpi_factor(
                 ((*crtc).width as u32, (*crtc).height as u32),
                 (
                     (*output_info).mm_width as u64,
                     (*output_info).mm_height as u64,
                 ),
-            )
+            ),
+            EnvVarDPI::Scale(dpi_override) => {
+                if !validate_hidpi_factor(dpi_override) {
+                    panic!(
+                        "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be either normal floats greater then 0 or `randr` string. Got `{}`",
+                        dpi_override,
+                    );
+                }
+                dpi_override
+            }
+            EnvVarDPI::NotSet => {
+                if let Some(dpi) = self.get_xft_dpi() {
+                    dpi / 96.
+                } else {
+                    calc_dpi_factor(
+                        ((*crtc).width as u32, (*crtc).height as u32),
+                        (
+                            (*output_info).mm_width as u64,
+                            (*output_info).mm_height as u64,
+                        ),
+                    )
+                }
+            }
         };
 
         (self.xrandr.XRRFreeOutputInfo)(output_info);
