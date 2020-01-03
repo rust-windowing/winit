@@ -6,7 +6,7 @@
 //! 1920x1080 is a common resolution for both desktop and mobile screens, despite mobile screens
 //! normally being less than a quarter the size of their desktop counterparts. What's more, neither
 //! desktop nor mobile screens are consistent resolutions within their own size classes - common
-//! mobile screens range from below 720p to above 1440p, and desktop screens range from 1080p to 5K
+//! mobile screens range from below 720p to above 1440p, and desktop screens range from 720p to 5K
 //! and beyond.
 //!
 //! Given that, it's naive for 2D content to assume that it'll only be displayed on screens with a
