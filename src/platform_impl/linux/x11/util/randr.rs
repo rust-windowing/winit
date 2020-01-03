@@ -10,20 +10,6 @@ pub fn calc_dpi_factor(
     (width_px, height_px): (u32, u32),
     (width_mm, height_mm): (u64, u64),
 ) -> f64 {
-    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
-    let dpi_override = env::var("WINIT_HIDPI_FACTOR")
-        .ok()
-        .and_then(|var| f64::from_str(&var).ok());
-    if let Some(dpi_override) = dpi_override {
-        if !validate_hidpi_factor(dpi_override) {
-            panic!(
-                "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater than 0. Got `{}`",
-                dpi_override,
-            );
-        }
-        return dpi_override;
-    }
-
     // See http://xpra.org/trac/ticket/728 for more information.
     if width_mm == 0 || height_mm == 0 {
         warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
@@ -107,7 +93,30 @@ impl XConnection {
             (*output_info).nameLen as usize,
         );
         let name = String::from_utf8_lossy(name_slice).into();
-        let hidpi_factor = if let Some(dpi) = self.get_xft_dpi() {
+        // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
+        let dpi_override = env::var("WINIT_HIDPI_FACTOR")
+            .ok()
+            .and_then(|var| f64::from_str(&var).ok());
+        let hidpi_factor = if let Some(dpi_override) = dpi_override {
+            // `0` makes winit use its auto dpi calculation mechanism bypassing Xft.dpi
+            if dpi_override == 0. {
+                calc_dpi_factor(
+                    ((*crtc).width as u32, (*crtc).height as u32),
+                    (
+                        (*output_info).mm_width as u64,
+                        (*output_info).mm_height as u64,
+                    ),
+                )
+            } else {
+                if !validate_hidpi_factor(dpi_override) {
+                    panic!(
+                        "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater or equal to 0. Got `{}`",
+                        dpi_override,
+                    );
+                }
+                dpi_override
+            }
+        } else if let Some(dpi) = self.get_xft_dpi() {
             dpi / 96.
         } else {
             calc_dpi_factor(
