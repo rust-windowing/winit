@@ -1,4 +1,4 @@
-//! Pixel types and UI scaling information.
+//! UI scaling is important, so read the docs for this module if you don't want to be confused.
 //!
 //! ## Why should I care about UI scaling?
 //!
@@ -44,11 +44,12 @@
 //! particular application.
 //!
 //! Winit will dispatch a [`DpiChanged`](crate::event::WindowEvent::DpiChanged)
-//! event whenever a window's scale factor has changed. This gives you a chance to rescale your
-//! application's UI elements and adjust how the platform changes the window's size to reflect the
-//! new scale factor. If a window hasn't received a
-//! [`DpiChanged`](crate::event::WindowEvent::DpiChanged) event, then its
-//! scale factor is `1.0`.
+//! event whenever a window's scale factor has changed. This can happen if the user drags their
+//! window from a standard-resolution monitor to a high-DPI monitor, or if the user changes their
+//! DPI settings. This gives you a chance to rescale your application's UI elements and adjust how
+//! the platform changes the window's size to reflect the new scale factor. If a window hasn't
+//! received a [`DpiChanged`](crate::event::WindowEvent::DpiChanged) event,
+//! then its scale factor is `1.0`.
 //!
 //! ## How is the scale factor calculated?
 //!
@@ -67,10 +68,11 @@
 //!   to figure out how to do it better and X11 provides no easy answer.
 //! - **Wayland:** On Wayland, scale factors are set per-screen by the server, and are always
 //!   integers (most often 1 or 2).
-//! - **iOS:** Scale factors are set by Apple to the value that best suits the device. See [this
-//!   article][apple_1] and [this article][apple_2] for more information.
+//! - **iOS:** Scale factors are set by Apple to the value that best suits the device, and range
+//!   from `1.0` to `3.0`. See [this article][apple_1] and [this article][apple_2] for more
+//!   information.
 //! - **Android:** Scale factors are set by the manufacturer to the value that best suits the
-//!   device. See [this article][android_1] for more information.
+//!   device, and range from `1.0` to `4.0`. See [this article][android_1] for more information.
 //! - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
 //!
 //! [microsoft_dpi]: https://blogs.msdn.microsoft.com/fontblog/2005/11/08/where-does-96-dpi-come-from-in-windows/
