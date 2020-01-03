@@ -126,7 +126,10 @@ fn main() {
                                 if let Size::Physical(size) = WINDOW_SIZE.into() {
                                     window
                                         .set_cursor_position(Position::Physical(
-                                            PhysicalPosition::new(size.width / 2, size.height / 2),
+                                            PhysicalPosition::new(
+                                                size.width as i32 / 2,
+                                                size.height as i32 / 2,
+                                            ),
                                         ))
                                         .unwrap()
                                 }
