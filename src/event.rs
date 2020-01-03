@@ -292,21 +292,21 @@ pub enum WindowEvent<'a> {
     /// Touch event has been received
     Touch(Touch),
 
-    /// The DPI factor of the window has changed.
+    /// The window's scale factor has changed.
     ///
     /// The following user actions can cause DPI changes:
     ///
     /// * Changing the display's resolution.
-    /// * Changing the display's DPI factor (e.g. in Control Panel on Windows).
-    /// * Moving the window to a display with a different DPI factor.
+    /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
+    /// * Moving the window to a display with a different scale factor.
     ///
     /// After this event callback has been processed, the window will be resized to whatever value
     /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
     /// by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
-    HiDpiFactorChanged {
-        hidpi_factor: f64,
+    DpiChanged {
+        scale_factor: f64,
         new_inner_size: &'a mut PhysicalSize<u32>,
     },
 
@@ -394,7 +394,7 @@ impl<'a> WindowEvent<'a> {
             }),
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
-            HiDpiFactorChanged { .. } => None,
+            DpiChanged { .. } => None,
         }
     }
 }

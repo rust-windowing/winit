@@ -401,23 +401,23 @@ impl<T: 'static> EventProcessor<T> {
                             .dpi_adjusted
                             .unwrap_or_else(|| (xev.width as u32, xev.height as u32));
 
-                        let last_hidpi_factor = shared_state_lock.last_monitor.hidpi_factor;
-                        let new_hidpi_factor = {
+                        let last_scale_factor = shared_state_lock.last_monitor.scale_factor;
+                        let new_scale_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
                             let monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
 
                             if monitor.is_dummy() {
                                 // Avoid updating monitor using a dummy monitor handle
-                                last_hidpi_factor
+                                last_scale_factor
                             } else {
                                 shared_state_lock.last_monitor = monitor.clone();
-                                monitor.hidpi_factor
+                                monitor.scale_factor
                             }
                         };
-                        if last_hidpi_factor != new_hidpi_factor {
+                        if last_scale_factor != new_scale_factor {
                             let (new_width, new_height) = window.adjust_for_dpi(
-                                last_hidpi_factor,
-                                new_hidpi_factor,
+                                last_scale_factor,
+                                new_scale_factor,
                                 width,
                                 height,
                             );
@@ -427,8 +427,8 @@ impl<T: 'static> EventProcessor<T> {
 
                             callback(Event::WindowEvent {
                                 window_id,
-                                event: WindowEvent::HiDpiFactorChanged {
-                                    hidpi_factor: new_hidpi_factor,
+                                event: WindowEvent::DpiChanged {
+                                    scale_factor: new_scale_factor,
                                     new_inner_size: &mut new_inner_size,
                                 },
                             });
@@ -1118,7 +1118,7 @@ impl<T: 'static> EventProcessor<T> {
                                 .iter()
                                 .find(|prev_monitor| prev_monitor.name == new_monitor.name)
                                 .map(|prev_monitor| {
-                                    if new_monitor.hidpi_factor != prev_monitor.hidpi_factor {
+                                    if new_monitor.scale_factor != prev_monitor.scale_factor {
                                         for (window_id, window) in wt.windows.borrow().iter() {
                                             if let Some(window) = window.upgrade() {
                                                 // Check if the window is on this monitor
@@ -1128,8 +1128,8 @@ impl<T: 'static> EventProcessor<T> {
                                                         window.inner_size_physical();
                                                     let (new_width, new_height) = window
                                                         .adjust_for_dpi(
-                                                            prev_monitor.hidpi_factor,
-                                                            new_monitor.hidpi_factor,
+                                                            prev_monitor.scale_factor,
+                                                            new_monitor.scale_factor,
                                                             width,
                                                             height,
                                                         );
@@ -1146,8 +1146,8 @@ impl<T: 'static> EventProcessor<T> {
 
                                                     callback(Event::WindowEvent {
                                                         window_id,
-                                                        event: WindowEvent::HiDpiFactorChanged {
-                                                            hidpi_factor: new_monitor.hidpi_factor,
+                                                        event: WindowEvent::DpiChanged {
+                                                            scale_factor: new_monitor.scale_factor,
                                                             new_inner_size: &mut new_inner_size,
                                                         },
                                                     });

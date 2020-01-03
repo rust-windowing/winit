@@ -71,7 +71,7 @@ impl Window {
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Ok(self.canvas.position().to_physical(self.hidpi_factor()))
+        Ok(self.canvas.position().to_physical(self.scale_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
@@ -80,7 +80,7 @@ impl Window {
     }
 
     pub fn set_outer_position(&self, position: Position) {
-        let position = position.to_logical::<f64>(self.hidpi_factor());
+        let position = position.to_logical::<f64>(self.scale_factor());
 
         self.canvas.set_attribute("position", "fixed");
         self.canvas.set_attribute("left", &position.x.to_string());
@@ -119,8 +119,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        super::backend::hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        super::backend::scale_factor()
     }
 
     #[inline]

@@ -41,7 +41,7 @@ pub fn window_size() -> LogicalSize<f64> {
     LogicalSize { width, height }
 }
 
-pub fn hidpi_factor() -> f64 {
+pub fn scale_factor() -> f64 {
     let window = window();
     window.device_pixel_ratio()
 }
@@ -49,10 +49,10 @@ pub fn hidpi_factor() -> f64 {
 pub fn set_canvas_size(raw: &CanvasElement, size: Size) {
     use stdweb::*;
 
-    let hidpi_factor = hidpi_factor();
+    let scale_factor = scale_factor();
 
-    let physical_size = size.to_physical::<u32>(hidpi_factor);
-    let logical_size = size.to_logical::<f64>(hidpi_factor);
+    let physical_size = size.to_physical::<u32>(scale_factor);
+    let logical_size = size.to_logical::<f64>(scale_factor);
 
     raw.set_width(physical_size.width);
     raw.set_height(physical_size.height);

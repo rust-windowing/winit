@@ -61,7 +61,7 @@ impl EventLoop {
         while let Ok(event) = self.event_rx.try_recv() {
             let e = match event {
                 android_glue::Event::EventMotion(motion) => {
-                    let dpi_factor = MonitorHandle.hidpi_factor();
+                    let dpi_factor = MonitorHandle.scale_factor();
                     let location = LogicalPosition::from_physical(
                         (motion.x as f64, motion.y as f64),
                         dpi_factor,
@@ -102,7 +102,7 @@ impl EventLoop {
                     if native_window.is_null() {
                         None
                     } else {
-                        let dpi_factor = MonitorHandle.hidpi_factor();
+                        let dpi_factor = MonitorHandle.scale_factor();
                         let physical_size = MonitorHandle.size();
                         let size = LogicalSize::from_physical(physical_size, dpi_factor);
                         Some(Event::WindowEvent {
@@ -195,14 +195,14 @@ impl fmt::Debug for MonitorHandle {
             name: Option<String>,
             dimensions: PhysicalSize<u32>,
             position: PhysicalPosition<i32>,
-            hidpi_factor: f64,
+            scale_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
             dimensions: self.size(),
             position: self.outer_position(),
-            hidpi_factor: self.hidpi_factor(),
+            scale_factor: self.scale_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -234,7 +234,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         1.0
     }
 }
@@ -319,7 +319,7 @@ impl Window {
         if self.native_window.is_null() {
             None
         } else {
-            let dpi_factor = self.hidpi_factor();
+            let dpi_factor = self.scale_factor();
             let physical_size = self.current_monitor().size();
             Some(LogicalSize::from_physical(physical_size, dpi_factor))
         }
@@ -336,8 +336,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.current_monitor().hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        self.current_monitor().scale_factor()
     }
 
     #[inline]

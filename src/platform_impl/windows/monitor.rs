@@ -203,7 +203,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
     }
 

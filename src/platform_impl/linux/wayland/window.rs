@@ -221,7 +221,7 @@ impl Window {
     }
 
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let dpi = self.hidpi_factor() as f64;
+        let dpi = self.scale_factor() as f64;
         let size = LogicalSize::<f64>::from(*self.size.lock().unwrap());
         size.to_physical(dpi)
     }
@@ -232,7 +232,7 @@ impl Window {
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        let dpi = self.hidpi_factor() as f64;
+        let dpi = self.scale_factor() as f64;
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
         let size = LogicalSize::<f64>::from((w, h));
@@ -242,7 +242,7 @@ impl Window {
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, size: Size) {
-        let dpi = self.hidpi_factor() as f64;
+        let dpi = self.scale_factor() as f64;
         let (w, h) = size.to_logical::<u32>(dpi).into();
         self.frame.lock().unwrap().resize(w, h);
         *(self.size.lock().unwrap()) = (w, h);
@@ -250,7 +250,7 @@ impl Window {
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
-        let dpi = self.hidpi_factor() as f64;
+        let dpi = self.scale_factor() as f64;
         self.frame
             .lock()
             .unwrap()
@@ -259,7 +259,7 @@ impl Window {
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
-        let dpi = self.hidpi_factor() as f64;
+        let dpi = self.scale_factor() as f64;
         self.frame
             .lock()
             .unwrap()
@@ -272,7 +272,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> i32 {
+    pub fn scale_factor(&self) -> i32 {
         get_dpi_factor(&self.surface)
     }
 

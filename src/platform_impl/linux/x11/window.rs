@@ -132,9 +132,9 @@ impl UnownedWindow {
                 })
                 .unwrap_or_else(|| monitors.swap_remove(0))
         };
-        let dpi_factor = guessed_monitor.hidpi_factor();
+        let dpi_factor = guessed_monitor.scale_factor();
 
-        info!("Guessed window DPI factor: {}", dpi_factor);
+        info!("Guessed window scale factor: {}", dpi_factor);
 
         let max_inner_size: Option<(u32, u32)> = window_attrs
             .max_inner_size
@@ -993,7 +993,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_outer_position(&self, position: Position) {
-        let (x, y) = position.to_physical::<i32>(self.hidpi_factor()).into();
+        let (x, y) = position.to_physical::<i32>(self.scale_factor()).into();
         self.set_position_physical(x, y);
     }
 
@@ -1038,7 +1038,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        let dpi_factor = self.hidpi_factor();
+        let dpi_factor = self.scale_factor();
         let (width, height) = size.to_physical::<u32>(dpi_factor).into();
         self.set_inner_size_physical(width, height);
     }
@@ -1063,7 +1063,7 @@ impl UnownedWindow {
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         self.shared_state.lock().min_inner_size = dimensions;
         let physical_dimensions =
-            dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.hidpi_factor()).into());
+            dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.scale_factor()).into());
         self.set_min_inner_size_physical(physical_dimensions);
     }
 
@@ -1076,7 +1076,7 @@ impl UnownedWindow {
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         self.shared_state.lock().max_inner_size = dimensions;
         let physical_dimensions =
-            dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.hidpi_factor()).into());
+            dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.scale_factor()).into());
         self.set_max_inner_size_physical(physical_dimensions);
     }
 
@@ -1133,7 +1133,7 @@ impl UnownedWindow {
 
         self.set_maximizable_inner(resizable).queue();
 
-        let dpi_factor = self.hidpi_factor();
+        let dpi_factor = self.scale_factor();
         let min_inner_size = min_size
             .map(|size| size.to_physical::<u32>(dpi_factor))
             .map(Into::into);
@@ -1259,8 +1259,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.current_monitor().hidpi_factor
+    pub fn scale_factor(&self) -> f64 {
+        self.current_monitor().scale_factor
     }
 
     pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {
@@ -1274,7 +1274,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
-        let (x, y) = position.to_physical::<i32>(self.hidpi_factor()).into();
+        let (x, y) = position.to_physical::<i32>(self.scale_factor()).into();
         self.set_cursor_position_physical(x, y)
     }
 
@@ -1287,7 +1287,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_ime_position(&self, spot: Position) {
-        let (x, y) = spot.to_physical::<i32>(self.hidpi_factor()).into();
+        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
         self.set_ime_position_physical(x, y);
     }
 
