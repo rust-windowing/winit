@@ -405,7 +405,8 @@ impl<T: 'static> EventProcessor<T> {
                                 height,
                             );
 
-                            let mut new_inner_size = Some(PhysicalSize::new(new_width, new_height));
+                            let old_inner_size = PhysicalSize::new(width, height);
+                            let mut new_inner_size = PhysicalSize::new(new_width, new_height);
 
                             callback(Event::WindowEvent {
                                 window_id,
@@ -415,9 +416,12 @@ impl<T: 'static> EventProcessor<T> {
                                 },
                             });
 
-                            if let Some(new_size) = new_inner_size {
-                                window.set_inner_size_physical(new_size.width, new_size.height);
-                                shared_state_lock.dpi_adjusted = Some(new_size.into());
+                            if new_inner_size != old_inner_size {
+                                window.set_inner_size_physical(
+                                    new_inner_size.width,
+                                    new_inner_size.height,
+                                );
+                                shared_state_lock.dpi_adjusted = Some(new_inner_size.into());
                                 // if the DPI factor changed, force a resize event to ensure the logical
                                 // size is computed with the right DPI factor
                                 resized = true;
@@ -1132,9 +1136,10 @@ impl<T: 'static> EventProcessor<T> {
                                                             *window_id,
                                                         ),
                                                     );
-                                                    let mut new_inner_size = Some(
-                                                        PhysicalSize::new(new_width, new_height),
-                                                    );
+                                                    let old_inner_size =
+                                                        PhysicalSize::new(width, height);
+                                                    let mut new_inner_size =
+                                                        PhysicalSize::new(new_width, new_height);
 
                                                     callback(Event::WindowEvent {
                                                         window_id,
@@ -1144,9 +1149,9 @@ impl<T: 'static> EventProcessor<T> {
                                                         },
                                                     });
 
-                                                    if let Some(new_size) = new_inner_size {
+                                                    if new_inner_size != old_inner_size {
                                                         let (new_width, new_height) =
-                                                            new_size.into();
+                                                            new_inner_size.into();
                                                         window.set_inner_size_physical(
                                                             new_width, new_height,
                                                         );

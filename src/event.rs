@@ -223,13 +223,12 @@ pub enum WindowEvent<'a> {
     ///
     /// After this event callback has been processed, the window will be resized to whatever value
     /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
-    /// by the OS, but it can be changed to any value. If `new_inner_size` is set to `None`, no resizing
-    /// will occur.
+    /// by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
     DpiChanged {
         scale_factor: f64,
-        new_inner_size: &'a mut Option<PhysicalSize<u32>>,
+        new_inner_size: &'a mut PhysicalSize<u32>,
     },
 }
 
