@@ -248,7 +248,7 @@ pub enum WindowEvent<'a> {
     /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
     /// by the OS, but it can be changed to any value.
     ///
-    /// For more information about DPI in general, see the [`dpi`](dpi/index.html) module.
+    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     DpiChanged {
         scale_factor: f64,
         new_inner_size: &'a mut PhysicalSize<u32>,
