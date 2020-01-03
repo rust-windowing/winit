@@ -33,9 +33,9 @@
 //! approximate DPI (at the time, 72 pixels per inch), but [Microsoft decided to report that the DPI
 //! was roughly 1/3 bigger than the screen's actual DPI (so, 96 pixels per inch) in order to make
 //! text more legible][microsoft_dpi]. As a result, the exact DPI as defined by the OS doesn't carry
-//! a whole lot of weight when designing cross-platform UIs. However, if you're in a situation where
-//! having an exact DPI value matters it should be safe to use `96 * scale_factor` on desktops and
-//! the web and `160 * scale_factor` on mobile platforms.
+//! a whole lot of weight when designing cross-platform UIs. Scaled pixels should generally be used
+//! as the base unit for on-screen UI measurement, instead of DPI-dependent units such as
+//! [points][points] or [picas][picas].
 //!
 //! ### Position and Size types
 //!
@@ -91,6 +91,8 @@
 //! - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
 //!
 //! [microsoft_dpi]: https://blogs.msdn.microsoft.com/fontblog/2005/11/08/where-does-96-dpi-come-from-in-windows/
+//! [points]: https://en.wikipedia.org/wiki/Point_(typography)
+//! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
 //! [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
 //! [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
 //! [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
