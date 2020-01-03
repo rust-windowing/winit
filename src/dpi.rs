@@ -1,80 +1,83 @@
-//! DPI is important, so read the docs for this module if you don't want to be confused.
+//! Pixel types and UI scaling information.
 //!
-//! Originally, `winit` dealt entirely in physical pixels (excluding unintentional inconsistencies), but now all
-//! window-related functions both produce and consume logical pixels. Monitor-related functions still use physical
-//! pixels, as do any context-related functions in `glutin`.
+//! ## Why should I care about UI scaling?
 //!
-//! If you've never heard of these terms before, then you're not alone, and this documentation will explain the
-//! concepts.
+//! Modern computer screens don't have a consistent relationship between resolution and size.
+//! 1920x1080 is a common resolution for both desktop and mobile screens, despite mobile screens
+//! normally being less than a quarter the size of their desktop counterparts. What's more, neither
+//! desktop nor mobile screens are consistent resolutions within their own size classes - common
+//! mobile screens range from below 720p to above 1440p, and desktop screens range from 1080p to 5K
+//! and beyond.
 //!
-//! Modern screens have a defined physical resolution, most commonly 1920x1080. Indepedent of that is the amount of
-//! space the screen occupies, which is to say, the height and width in millimeters. The relationship between these two
-//! measurements is the *pixel density*. Mobile screens require a high pixel density, as they're held close to the
-//! eyes. Larger displays also require a higher pixel density, hence the growing presence of 1440p and 4K displays.
+//! Given that, it's naive for 2D content to assume that it'll only be displayed on screens with a
+//! consistent pixel density. If you were to render a 96-pixel-square image on a 1080p screen, then
+//! render the same image on a similarly-sized 4K screen, the 4K rendition would only take up about
+//! a quarter of the physical space as it did on the 1080p screen. That issue is especially
+//! problematic with text rendering, where quarter-sized text becomes a significant legibility
+//! problem.
 //!
-//! So, this presents a problem. Let's say we want to render a square 100px button. It will occupy 100x100 of the
-//! screen's pixels, which in many cases, seems perfectly fine. However, because this size doesn't account for the
-//! screen's dimensions or pixel density, the button's size can vary quite a bit. On a 4K display, it would be unusably
-//! small.
+//! Failure to account for the scale factor can create a significantly degraded user experience.
+//! Most notably, it can make users feel like they have bad eyesight, which will potentially cause
+//! them to think about growing elderly, resulting in them having an existential crisis. Once users
+//! enter that state, they will no longer be focused on your application.
 //!
-//! That's a description of what happens when the button is 100x100 *physical* pixels. Instead, let's try using 100x100
-//! *logical* pixels. To map logical pixels to physical pixels, we simply multiply by the DPI (dots per inch) factor.
-//! On a "typical" desktop display, the scale factor will be 1.0, so 100x100 logical pixels equates to 100x100 physical
-//! pixels. However, a 1440p display may have a scale factor of 1.25, so the button is rendered as 125x125 physical pixels.
-//! Ideally, the button now has approximately the same perceived size across varying displays.
+//! ## How should I handle it?
 //!
-//! Failure to account for the scale factor can create a badly degraded user experience. Most notably, it can make users
-//! feel like they have bad eyesight, which will potentially cause them to think about growing elderly, resulting in
-//! them entering an existential panic. Once users enter that state, they will no longer be focused on your application.
+//! The solution to this problem is to account for the device's *scale factor*. The scale factor is
+//! the factor UI elements should be scaled by to be consistent with the rest of the user's system -
+//! for example, a button that's normally 50 pixels across would be 100 pixels across on a device
+//! with a scale factor of `2.0`, or 75 pixels across with a scale factor of `1.5`.
 //!
-//! There are two ways to get the scale factor:
-//! - You can track the [`DpiChanged`](crate::event::WindowEvent::DpiChanged) event of your
-//!   windows. This event is sent any time the scale factor changes, either because the window moved to another monitor,
-//!   or because the user changed the configuration of their screen.
-//! - You can also retrieve the scale factor of a monitor by calling
-//!   [`MonitorHandle::scale_factor`](crate::monitor::MonitorHandle::scale_factor), or the
-//!   current scale factor applied to a window by calling
-//!   [`Window::scale_factor`](crate::window::Window::scale_factor), which is roughly equivalent
-//!   to `window.current_monitor().scale_factor()`.
+//! The scale factor correlates with, but no direct relationship to, the screen's actual DPI (dots
+//! per inch). Operating systems used to define the scale factor in terms of the screen's
+//! approximate DPI (at the time, 72 pixels per inch), but [Microsoft decided to report that the DPI
+//! was roughly 1/3 bigger than the screen's actual DPI (so, 96 pixels per inch) in order to make
+//! text more legible][microsoft_dpi]. As a result, the exact DPI as defined by the OS doesn't carry
+//! a whole lot of weight when designing cross-platform UIs. However, if you're in a situation where
+//! having an exact DPI value matters it should be safe to use `96 * scale_factor` on desktops and
+//! the web and `160 * scale_factor` on mobile platforms.
 //!
-//! Depending on the platform, the window's actual scale factor may only be known after
-//! the event loop has started and your window has been drawn once. To properly handle these cases,
-//! the most robust way is to monitor the [`DpiChanged`](crate::event::WindowEvent::DpiChanged)
-//! event and dynamically adapt your drawing logic to follow the scale factor.
+//! Winit's `Physical(Position|Size)` types correspond with the actual pixels on the device, and the
+//! `Logical(Position|Size)` types correspond to the physical pixels divided by the scale factor.
+//! All of Winit's functions return physical types, but can take either logical or physical
+//! coordinates as input, allowing you to use the most convenient coordinate system for your
+//! particular application.
 //!
-//! Here's an overview of what sort of scale factors you can expect, and where they come from:
-//! - **Windows:** On Windows 8 and 10, per-monitor scaling is readily configured by users from the display settings.
-//! While users are free to select any option they want, they're only given a selection of "nice" scale factors, i.e.
-//! 1.0, 1.25, 1.5... on Windows 7, the scale factor is global and changing it requires logging out.
-//! - **macOS:** The buzzword is "retina displays", which have a scale factor of 2.0. Otherwise, the scale factor is 1.0.
-//! Intermediate scale factors are never used, thus 1440p displays/etc. aren't properly supported. It's possible for any
-//! display to use that 2.0 scale factor, given the use of the command line.
-//! - **X11:** On X11, we calcuate the scale factor based on the millimeter dimensions provided by XRandR. This can
-//! result in a wide range of possible values, including some interesting ones like 1.0833333333333333. This can be
-//! overridden using the `WINIT_X11_SCALE_FACTOR` environment variable, though that's not recommended.
-//! - **Wayland:** On Wayland, scale factors are set per-screen by the server, and are always integers (most often 1 or 2).
-//! - **iOS:** scale factors are both constant and device-specific on iOS.
-//! - **Android:** This feature isn't yet implemented on Android, so the scale factor will always be returned as 1.0.
-//! - **Web:** scale factors are handled by the browser and will always be 1.0 for your application.
+//! Winit will dispatch a [`DpiChanged`](crate::event::WindowEvent::DpiChanged)
+//! event whenever a window's scale factor has changed. This gives you a chance to rescale your
+//! application's UI elements and adjust how the platform changes the window's size to reflect the
+//! new scale factor. If a window hasn't received a
+//! [`DpiChanged`](crate::event::WindowEvent::DpiChanged) event, then its
+//! scale factor is `1.0`.
 //!
-//! The window's logical size is conserved across DPI changes, resulting in the physical size changing instead. This
-//! may be surprising on X11, but is quite standard elsewhere. Physical size changes always produce a
-//! [`Resized`](crate::event::WindowEvent::Resized) event, even on platforms where no resize actually occurs,
-//! such as macOS and Wayland. As a result, it's not necessary to separately handle
-//! [`DpiChanged`](crate::event::WindowEvent::DpiChanged) if you're only listening for size.
+//! ## How is the scale factor calculated?
 //!
-//! Your GPU has no awareness of the concept of logical pixels, and unless you like wasting pixel density, your
-//! framebuffer's size should be in physical pixels.
+//! Scale factor is calculated differently on different platforms:
 //!
-//! `winit` will send [`Resized`](crate::event::WindowEvent::Resized) events whenever a window's logical size
-//! changes, and [`DpiChanged`](crate::event::WindowEvent::DpiChanged) events
-//! whenever the scale factor changes. Receiving either of these events means that the physical size of your window has
-//! changed, and you should recompute it using the latest values you received for each. If the logical size and the
-//! scale factor change simultaneously, `winit` will send both events together; thus, it's recommended to buffer
-//! these events and process them at the end of the queue.
+//! - **Windows:** On Windows 8 and 10, per-monitor scaling is readily configured by users from the
+//!   display settings. While users are free to select any option they want, they're only given a
+//!   selection of "nice" scale factors, i.e. 1.0, 1.25, 1.5... on Windows 7, the scale factor is
+//!   global and changing it requires logging out. See [this article][windows_1] for technical
+//!   details.
+//! - **macOS:** "retina displays" have a scale factor of 2.0. Otherwise, the scale factor is 1.0.
+//!   Intermediate scale factors are never used. It's possible for any display to use that 2.0 scale
+//!   factor, given the use of the command line.
+//! - **X11:** On X11, we calcuate the scale factor based on the millimeter dimensions provided by
+//!   XRandR. This is almost certainly the wrong approach, but many man-hours have been spent trying
+//!   to figure out how to do it better and X11 provides no easy answer.
+//! - **Wayland:** On Wayland, scale factors are set per-screen by the server, and are always
+//!   integers (most often 1 or 2).
+//! - **iOS:** Scale factors are set by Apple to the value that best suits the device. See [this
+//!   article][apple_1] and [this article][apple_2] for more information.
+//! - **Android:** Scale factors are set by the manufacturer to the value that best suits the
+//!   device. See [this article][android_1] for more information.
+//! - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
 //!
-//! If you never received any [`DpiChanged`](crate::event::WindowEvent::DpiChanged) events,
-//! then your window's scale factor is 1.
+//! [microsoft_dpi]: https://blogs.msdn.microsoft.com/fontblog/2005/11/08/where-does-96-dpi-come-from-in-windows/
+//! [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
+//! [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
+//! [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
+//! [android_1]: https://developer.android.com/training/multiscreen/screendensities
 
 pub trait Pixel: Copy + Into<f64> {
     fn from_f64(f: f64) -> Self;
@@ -136,9 +139,9 @@ pub fn validate_scale_factor(dpi_factor: f64) -> bool {
 
 /// A position represented in logical pixels.
 ///
-/// The position is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
-/// which can cause noticable issues. To help with that, an `Into<(i32, i32)>` implementation is provided which
-/// does the rounding for you.
+/// The position is stored as floats, so please be careful. Casting floats to integers truncates the
+/// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
+/// implementation is provided which does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalPosition<P> {
@@ -205,9 +208,9 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalPosition<P> {
 
 /// A position represented in physical pixels.
 ///
-/// The position is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
-/// which can cause noticable issues. To help with that, an `Into<(i32, i32)>` implementation is provided which
-/// does the rounding for you.
+/// The position is stored as floats, so please be careful. Casting floats to integers truncates the
+/// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
+/// implementation is provided which does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalPosition<P> {
@@ -274,9 +277,9 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalPosition<P> {
 
 /// A size represented in logical pixels.
 ///
-/// The size is stored as floats, so please be careful. Casting floats to integers truncates the fractional part,
-/// which can cause noticable issues. To help with that, an `Into<(u32, u32)>` implementation is provided which
-/// does the rounding for you.
+/// The size is stored as floats, so please be careful. Casting floats to integers truncates the
+/// fractional part, which can cause noticable issues. To help with that, an `Into<(u32, u32)>`
+/// implementation is provided which does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalSize<P> {
