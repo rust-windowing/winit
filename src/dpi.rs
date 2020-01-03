@@ -63,9 +63,11 @@
 //! - **macOS:** "retina displays" have a scale factor of 2.0. Otherwise, the scale factor is 1.0.
 //!   Intermediate scale factors are never used. It's possible for any display to use that 2.0 scale
 //!   factor, given the use of the command line.
-//! - **X11:** On X11, we calcuate the scale factor based on the millimeter dimensions provided by
-//!   XRandR. This is almost certainly the wrong approach, but many man-hours have been spent trying
-//!   to figure out how to do it better and X11 provides no easy answer.
+//! - **X11:** Many man-hours have been spent trying to figure out how to handle DPI in X11. Winit
+//!   currently uses a three-pronged approach.
+//!   + Calcuate the scale factor based on the millimeter monitor dimensions provided by XRandR.
+//!   + Use the value set in `Xft.dpi` in Xresources. Overrides XRandR's monitor size.
+//!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable. Overrides `Xft.dpi` and XRandR.
 //! - **Wayland:** On Wayland, scale factors are set per-screen by the server, and are always
 //!   integers (most often 1 or 2).
 //! - **iOS:** Scale factors are set by Apple to the value that best suits the device, and range
