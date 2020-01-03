@@ -1,6 +1,6 @@
 # Unreleased
 
-# 0.20.0 Alpha 6 (2019-12-25)
+# 0.20.0 Alpha 6 (2020-01-03)
 
 - On macOS, fix `set_cursor_visible` hides cursor outside of window.
 - On macOS, fix `CursorEntered` and `CursorLeft` events fired at old window size.
