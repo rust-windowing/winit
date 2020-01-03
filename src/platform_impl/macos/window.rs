@@ -20,6 +20,7 @@ use crate::{
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
+        view::CursorState,
         view::{self, new_view},
         window_delegate::new_delegate,
         OsError,
@@ -90,8 +91,8 @@ fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
 unsafe fn create_view(
     ns_window: id,
     pl_attribs: &PlatformSpecificWindowBuilderAttributes,
-) -> Option<(IdRef, Weak<Mutex<util::Cursor>>)> {
-    let (ns_view, cursor) = new_view(ns_window);
+) -> Option<(IdRef, Weak<Mutex<CursorState>>)> {
+    let (ns_view, cursor_state) = new_view(ns_window);
     ns_view.non_nil().map(|ns_view| {
         if !pl_attribs.disallow_hidpi {
             ns_view.setWantsBestResolutionOpenGLSurface_(YES);
@@ -108,7 +109,7 @@ unsafe fn create_view(
 
         ns_window.setContentView_(*ns_view);
         ns_window.makeFirstResponder_(*ns_view);
-        (ns_view, cursor)
+        (ns_view, cursor_state)
     })
 }
 
@@ -290,8 +291,7 @@ pub struct UnownedWindow {
     input_context: IdRef, // never changes
     pub shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
-    cursor: Weak<Mutex<util::Cursor>>,
-    cursor_visible: AtomicBool,
+    cursor_state: Weak<Mutex<CursorState>>,
 }
 
 unsafe impl Send for UnownedWindow {}
@@ -320,7 +320,7 @@ impl UnownedWindow {
             os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
         })?;
 
-        let (ns_view, cursor) =
+        let (ns_view, cursor_state) =
             unsafe { create_view(*ns_window, &pl_attribs) }.ok_or_else(|| {
                 unsafe { pool.drain() };
                 os_error!(OsError::CreationError("Couldn't create `NSView`"))
@@ -368,8 +368,7 @@ impl UnownedWindow {
             input_context,
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
-            cursor,
-            cursor_visible: AtomicBool::new(true),
+            cursor_state,
         });
 
         let delegate = new_delegate(&window, fullscreen.is_some());
@@ -516,8 +515,8 @@ impl UnownedWindow {
 
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let cursor = util::Cursor::from(cursor);
-        if let Some(cursor_access) = self.cursor.upgrade() {
-            *cursor_access.lock().unwrap() = cursor;
+        if let Some(cursor_access) = self.cursor_state.upgrade() {
+            cursor_access.lock().unwrap().cursor = cursor;
         }
         unsafe {
             let _: () = msg_send![*self.ns_window,
@@ -535,16 +534,17 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        let cursor_class = class!(NSCursor);
-        // macOS uses a "hide counter" like Windows does, so we avoid incrementing it more than once.
-        // (otherwise, `hide_cursor(false)` would need to be called n times!)
-        if visible != self.cursor_visible.load(Ordering::Acquire) {
-            if visible {
-                let _: () = unsafe { msg_send![cursor_class, unhide] };
-            } else {
-                let _: () = unsafe { msg_send![cursor_class, hide] };
+        if let Some(cursor_access) = self.cursor_state.upgrade() {
+            let mut cursor_state = cursor_access.lock().unwrap();
+            if visible != cursor_state.visible {
+                cursor_state.visible = visible;
+                drop(cursor_state);
+                unsafe {
+                    let _: () = msg_send![*self.ns_window,
+                        invalidateCursorRectsForView:*self.ns_view
+                    ];
+                }
             }
-            self.cursor_visible.store(visible, Ordering::Release);
         }
     }
 
