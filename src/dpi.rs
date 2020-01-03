@@ -37,11 +37,24 @@
 //! having an exact DPI value matters it should be safe to use `96 * scale_factor` on desktops and
 //! the web and `160 * scale_factor` on mobile platforms.
 //!
+//! ### Position and Size types
+//!
 //! Winit's `Physical(Position|Size)` types correspond with the actual pixels on the device, and the
 //! `Logical(Position|Size)` types correspond to the physical pixels divided by the scale factor.
 //! All of Winit's functions return physical types, but can take either logical or physical
 //! coordinates as input, allowing you to use the most convenient coordinate system for your
 //! particular application.
+//!
+//! Winit's position and size types types are generic over their exact pixel type, `P`, to allow the
+//! API to have integer precision where appropriate (e.g. most window manipulation functions) and
+//! floating precision when necessary (e.g. logical sizes for fractional scale factors and touch
+//! input). If `P` is a floating-point type, please do not cast the values with `as {int}`. Doing so
+//! will truncate the fractional part of the float, rather than round to the nearest integer - the
+//! proper behavior. Use the provided `cast` function or `From`/`Into` conversions, which handle the
+//! rounding properly. Note that precision loss will still occur when rounding from a float to an
+//! int, although rounding lessens the problem.
+//!
+//! ### Events
 //!
 //! Winit will dispatch a [`DpiChanged`](crate::event::WindowEvent::DpiChanged)
 //! event whenever a window's scale factor has changed. This can happen if the user drags their
@@ -211,10 +224,6 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalPosition<P> {
 }
 
 /// A position represented in physical pixels.
-///
-/// The position is stored as floats, so please be careful. Casting floats to integers truncates the
-/// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
-/// implementation is provided which does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalPosition<P> {
@@ -280,10 +289,6 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalPosition<P> {
 }
 
 /// A size represented in logical pixels.
-///
-/// The size is stored as floats, so please be careful. Casting floats to integers truncates the
-/// fractional part, which can cause noticable issues. To help with that, an `Into<(u32, u32)>`
-/// implementation is provided which does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalSize<P> {
@@ -407,6 +412,7 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalSize<P> {
     }
 }
 
+/// A size that's either physical or logical.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Size {
@@ -448,6 +454,7 @@ impl<P: Pixel> From<LogicalSize<P>> for Size {
     }
 }
 
+/// A position that's either physical or logical.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Position {
