@@ -403,6 +403,7 @@ impl<T: 'static> EventProcessor<T> {
                                 new_scale_factor,
                                 width,
                                 height,
+                                &shared_state_lock,
                             );
 
                             let old_inner_size = PhysicalSize::new(width, height);
@@ -1129,6 +1130,7 @@ impl<T: 'static> EventProcessor<T> {
                                                             new_monitor.scale_factor,
                                                             width,
                                                             height,
+                                                            &*window.shared_state.lock(),
                                                         );
 
                                                     let window_id = crate::window::WindowId(
