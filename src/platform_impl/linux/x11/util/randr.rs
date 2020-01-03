@@ -109,7 +109,10 @@ impl XConnection {
                 } else if let Ok(dpi) = f64::from_str(&var) {
                     EnvVarDPI::Scale(dpi)
                 } else {
-                    EnvVarDPI::NotSet
+                    panic!(
+                        "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                        var
+                    );
                 }
             },
         );
@@ -125,7 +128,7 @@ impl XConnection {
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_hidpi_factor(dpi_override) {
                     panic!(
-                        "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be either normal floats greater then 0 or `randr` string. Got `{}`",
+                        "`WINIT_HIDPI_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
                         dpi_override,
                     );
                 }
