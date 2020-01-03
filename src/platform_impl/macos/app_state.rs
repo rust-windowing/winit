@@ -187,8 +187,6 @@ impl Handler {
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     ) {
-        let size = suggested_size.to_physical(scale_factor);
-        let new_inner_size = &mut Some(size);
         let mut size = suggested_size.to_physical(scale_factor);
         let new_inner_size = &mut size;
         let event = Event::WindowEvent {
