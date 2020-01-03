@@ -2,6 +2,7 @@
 
 # 0.20.0 Alpha 6 (2019-12-25)
 
+- On macOS, fix `set_cursor_visible` hides cursor outside of window.
 - On macOS, fix `CursorEntered` and `CursorLeft` events fired at old window size.
 - On macOS, fix error when `set_fullscreen` is called during fullscreen transition.
 - On all platforms except mobile and WASM, implement `Window::set_minimized`.
