@@ -377,8 +377,6 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
 }
 
 extern "C" fn has_marked_text(_this: &Object, _sel: Sel) -> BOOL {
-    trace!("Triggered `hasMarkedText`");
-    trace!("Completed `hasMarkedText`");
     YES
 }
 
