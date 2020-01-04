@@ -561,6 +561,7 @@ impl<T: 'static> EventProcessor<T> {
 
                     let modifiers = self.device_mod_state.modifiers();
 
+                    #[allow(deprecated)]
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::KeyboardInput {
@@ -1051,6 +1052,7 @@ impl<T: 'static> EventProcessor<T> {
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
 
+                        #[allow(deprecated)]
                         callback(Event::DeviceEvent {
                             device_id,
                             event: DeviceEvent::Key(KeyboardInput {
@@ -1203,6 +1205,7 @@ impl<T: 'static> EventProcessor<T> {
             let keysym = wt.xconn.keycode_to_keysym(keycode);
             let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
+            #[allow(deprecated)]
             callback(Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput {

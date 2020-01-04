@@ -54,6 +54,7 @@ pub fn init_keyboard(
                         };
                         let vkcode = key_to_vkey(rawkey, keysym);
                         my_sink.send_window_event(
+                            #[allow(deprecated)]
                             WindowEvent::KeyboardInput {
                                 device_id: crate::event::DeviceId(
                                     crate::platform_impl::DeviceId::Wayland(DeviceId),
@@ -96,6 +97,7 @@ pub fn init_keyboard(
                 let state = ElementState::Pressed;
                 let vkcode = key_to_vkey(repeat_event.rawkey, repeat_event.keysym);
                 repeat_sink.send_window_event(
+                    #[allow(deprecated)]
                     WindowEvent::KeyboardInput {
                         device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
                             DeviceId,
@@ -155,6 +157,7 @@ pub fn init_keyboard(
                                     _ => unreachable!(),
                                 };
                                 my_sink.send_window_event(
+                                    #[allow(deprecated)]
                                     WindowEvent::KeyboardInput {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Wayland(DeviceId),

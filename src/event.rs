@@ -341,6 +341,7 @@ impl<'a> WindowEvent<'a> {
                 input,
                 is_synthetic,
             }),
+            #[allow(deprecated)]
             CursorMoved {
                 device_id,
                 position,
@@ -352,6 +353,7 @@ impl<'a> WindowEvent<'a> {
             }),
             CursorEntered { device_id } => Some(CursorEntered { device_id }),
             CursorLeft { device_id } => Some(CursorLeft { device_id }),
+            #[allow(deprecated)]
             MouseWheel {
                 device_id,
                 delta,
@@ -363,6 +365,7 @@ impl<'a> WindowEvent<'a> {
                 phase,
                 modifiers,
             }),
+            #[allow(deprecated)]
             MouseInput {
                 device_id,
                 state,
