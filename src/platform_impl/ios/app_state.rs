@@ -803,7 +803,7 @@ pub unsafe fn handle_main_events_cleared() {
     handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
 
     let mut this = AppState::get_mut();
-    let mut redraw_events: Vec<Event<Never>> = this
+    let mut redraw_events: Vec<EventWrapper> = this
         .main_events_cleared_transition()
         .into_iter()
         .map(|window| {
@@ -812,7 +812,7 @@ pub unsafe fn handle_main_events_cleared() {
         .collect();
 
     if !redraw_events.is_empty() {
-        redraw_events.push(Event::RedrawEventsCleared);
+        redraw_events.push(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
     }
     drop(this);
 
