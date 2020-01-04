@@ -806,7 +806,9 @@ pub unsafe fn handle_main_events_cleared() {
     let mut redraw_events: Vec<Event<Never>> = this
         .main_events_cleared_transition()
         .into_iter()
-        .map(|window| EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.into()))))
+        .map(|window| {
+            EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.into())))
+        })
         .collect();
 
     if !redraw_events.is_empty() {
@@ -855,7 +857,7 @@ fn handle_event_proxy(
 fn handle_hidpi_proxy(
     event_handler: &mut Box<dyn EventHandler>,
     mut control_flow: ControlFlow,
-    suggested_size: LogicalSize,
+    suggested_size: LogicalSize<f64>,
     hidpi_factor: f64,
     window_id: id,
 ) {

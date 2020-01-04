@@ -9,7 +9,7 @@ impl Handle {
         1.0
     }
 
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         PhysicalPosition { x: 0.0, y: 0.0 }
     }
 
@@ -17,7 +17,7 @@ impl Handle {
         None
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         PhysicalSize {
             width: 0.0,
             height: 0.0,
@@ -33,7 +33,7 @@ impl Handle {
 pub struct Mode;
 
 impl Mode {
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         unimplemented!();
     }
 

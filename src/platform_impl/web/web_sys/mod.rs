@@ -40,7 +40,7 @@ impl WindowExtWebSys for Window {
     }
 }
 
-pub fn window_size() -> LogicalSize {
+pub fn window_size() -> LogicalSize<f64> {
     let window = web_sys::window().expect("Failed to obtain window");
     let width = window
         .inner_width()

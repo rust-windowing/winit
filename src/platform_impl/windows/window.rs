@@ -147,24 +147,24 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         util::get_window_rect(self.window.0)
-            .map(|rect| Ok(PhysicalPosition::new(rect.left as f64, rect.top as f64)))
+            .map(|rect| Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32)))
             .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let mut position: POINT = unsafe { mem::zeroed() };
         if unsafe { winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
             panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        Ok(PhysicalPosition::new(position.x as f64, position.y as f64))
+        Ok(PhysicalPosition::new(position.x as i32, position.y as i32))
     }
 
     #[inline]
     pub fn set_outer_position(&self, position: Position) {
-        let (x, y): (i32, i32) = position.to_physical(self.hidpi_factor()).into();
+        let (x, y): (i32, i32) = position.to_physical::<i32>(self.hidpi_factor()).into();
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
@@ -192,7 +192,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> PhysicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         let mut rect: RECT = unsafe { mem::zeroed() };
         if unsafe { winuser::GetClientRect(self.window.0, &mut rect) } == 0 {
             panic!("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
@@ -204,7 +204,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> PhysicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         util::get_window_rect(self.window.0)
             .map(|rect| {
                 PhysicalSize::new(
@@ -250,7 +250,7 @@ impl Window {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let dpi_factor = self.hidpi_factor();
-        let (width, height) = size.to_physical(dpi_factor).into();
+        let (width, height) = size.to_physical::<u32>(dpi_factor).into();
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
@@ -363,7 +363,7 @@ impl Window {
     #[inline]
     pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
         let dpi_factor = self.hidpi_factor();
-        let (x, y) = position.to_physical(dpi_factor).into();
+        let (x, y) = position.to_physical::<i32>(dpi_factor).into();
 
         let mut point = POINT { x, y };
         unsafe {

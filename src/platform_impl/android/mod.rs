@@ -193,8 +193,8 @@ impl fmt::Debug for MonitorHandle {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            dimensions: PhysicalSize,
-            position: PhysicalPosition,
+            dimensions: PhysicalSize<u32>,
+            position: PhysicalPosition<i32>,
             hidpi_factor: f64,
         }
 
@@ -216,7 +216,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         unsafe {
             let window = android_glue::native_window();
             (
@@ -228,7 +228,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> PhysicalPosition {
+    pub fn outer_position(&self) -> PhysicalPosition<i32> {
         // Android assumes single screen
         (0, 0).into()
     }
@@ -283,29 +283,29 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Option<LogicalPosition<f64>> {
         // N/A
         None
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Option<LogicalPosition<f64>> {
         // N/A
         None
     }
 
     #[inline]
-    pub fn set_outer_position(&self, _position: LogicalPosition) {
+    pub fn set_outer_position(&self, _position: LogicalPosition<f64>) {
         // N/A
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // N/A
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // N/A
     }
 
@@ -315,7 +315,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> Option<LogicalSize<f64>> {
         if self.native_window.is_null() {
             None
         } else {
@@ -326,12 +326,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> Option<LogicalSize<f64>> {
         self.inner_size()
     }
 
     #[inline]
-    pub fn set_inner_size(&self, _size: LogicalSize) {
+    pub fn set_inner_size(&self, _size: LogicalSize<f64>) {
         // N/A
     }
 
@@ -356,7 +356,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(
+        &self,
+        _position: LogicalPosition<f64>,
+    ) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -400,7 +403,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _spot: LogicalPosition) {
+    pub fn set_ime_position(&self, _spot: LogicalPosition<f64>) {
         // N/A
     }
 
