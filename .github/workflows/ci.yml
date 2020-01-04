@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust_version: [stable]
+        rust_version: [stable, beta, nightly]
         platform:
           - { os: windows-latest, target: x86_64-pc-windows-msvc,   features: ',' }
           - { os: windows-latest, target: i686-pc-windows-msvc,     features: ',' }
