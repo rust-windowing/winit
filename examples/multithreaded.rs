@@ -5,7 +5,7 @@ fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
     use winit::{
-    	dpi::{PhysicalPosition, PhysicalSize},
+        dpi::{PhysicalPosition, PhysicalSize},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},

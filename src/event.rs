@@ -333,7 +333,15 @@ impl<'a> WindowEvent<'a> {
             HoveredFileCancelled => Some(HoveredFileCancelled),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),
-            KeyboardInput { device_id, input, is_synthetic } => Some(KeyboardInput { device_id, input, is_synthetic }),
+            KeyboardInput {
+                device_id,
+                input,
+                is_synthetic,
+            } => Some(KeyboardInput {
+                device_id,
+                input,
+                is_synthetic,
+            }),
             CursorMoved {
                 device_id,
                 position,
