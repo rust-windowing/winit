@@ -62,7 +62,7 @@ impl std::fmt::Debug for VideoMode {
 }
 
 impl VideoMode {
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -185,7 +185,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         let monitor_info = get_monitor_info(self.0).unwrap();
         PhysicalSize {
             width: (monitor_info.rcMonitor.right - monitor_info.rcMonitor.left) as u32,
@@ -194,11 +194,11 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         let monitor_info = get_monitor_info(self.0).unwrap();
         PhysicalPosition {
-            x: monitor_info.rcMonitor.left as f64,
-            y: monitor_info.rcMonitor.top as f64,
+            x: monitor_info.rcMonitor.left,
+            y: monitor_info.rcMonitor.top,
         }
     }
 

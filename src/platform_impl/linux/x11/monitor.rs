@@ -38,7 +38,7 @@ pub struct VideoMode {
 
 impl VideoMode {
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -157,11 +157,11 @@ impl MonitorHandle {
         self.id as u32
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.dimensions.into()
     }
 
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         self.position.into()
     }
 

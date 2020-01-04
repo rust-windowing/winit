@@ -15,7 +15,7 @@ use std::collections::VecDeque;
 pub struct Window {
     canvas: backend::Canvas,
     previous_pointer: RefCell<&'static str>,
-    position: RefCell<LogicalPosition>,
+    position: RefCell<LogicalPosition<f64>>,
     id: Id,
     register_redraw_request: Box<dyn Fn()>,
 }
@@ -72,17 +72,17 @@ impl Window {
         (self.register_redraw_request)();
     }
 
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<LogicalPosition<f64>, NotSupportedError> {
         let (x, y) = self.canvas.position();
 
         Ok(LogicalPosition { x, y })
     }
 
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<LogicalPosition<f64>, NotSupportedError> {
         Ok(*self.position.borrow())
     }
 
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: LogicalPosition<f64>) {
         *self.position.borrow_mut() = position;
 
         self.canvas.set_attribute("position", "fixed");
@@ -91,7 +91,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> LogicalSize<f64> {
         LogicalSize {
             width: self.canvas.width() as f64,
             height: self.canvas.height() as f64,
@@ -99,7 +99,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> LogicalSize<f64> {
         LogicalSize {
             width: self.canvas.width() as f64,
             height: self.canvas.height() as f64,
@@ -107,17 +107,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
+    pub fn set_inner_size(&self, size: LogicalSize<f64>) {
         self.canvas.set_size(size);
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
@@ -178,7 +178,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(
+        &self,
+        _position: LogicalPosition<f64>,
+    ) -> Result<(), ExternalError> {
         // Intentionally a no-op, as the web does not support setting cursor positions
         Ok(())
     }
@@ -243,7 +246,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _position: LogicalPosition) {
+    pub fn set_ime_position(&self, _position: LogicalPosition<f64>) {
         // Currently a no-op as it does not seem there is good support for this on web
     }
 

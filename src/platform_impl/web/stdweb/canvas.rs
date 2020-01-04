@@ -96,7 +96,7 @@ impl Canvas {
         self.raw.height() as f64
     }
 
-    pub fn set_size(&self, size: LogicalSize) {
+    pub fn set_size(&self, size: LogicalSize<f64>) {
         self.raw.set_width(size.width as u32);
         self.raw.set_height(size.height as u32);
     }

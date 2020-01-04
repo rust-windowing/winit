@@ -76,6 +76,54 @@
 //! If you never received any [`HiDpiFactorChanged`](crate::event::WindowEvent::HiDpiFactorChanged) events,
 //! then your window's DPI factor is 1.
 
+pub trait Pixel: Copy + Into<f64> {
+    fn from_f64(f: f64) -> Self;
+    fn cast<P: Pixel>(self) -> P {
+        P::from_f64(self.into())
+    }
+}
+
+impl Pixel for u8 {
+    fn from_f64(f: f64) -> Self {
+        f.round() as u8
+    }
+}
+impl Pixel for u16 {
+    fn from_f64(f: f64) -> Self {
+        f.round() as u16
+    }
+}
+impl Pixel for u32 {
+    fn from_f64(f: f64) -> Self {
+        f.round() as u32
+    }
+}
+impl Pixel for i8 {
+    fn from_f64(f: f64) -> Self {
+        f.round() as i8
+    }
+}
+impl Pixel for i16 {
+    fn from_f64(f: f64) -> Self {
+        f.round() as i16
+    }
+}
+impl Pixel for i32 {
+    fn from_f64(f: f64) -> Self {
+        f.round() as i32
+    }
+}
+impl Pixel for f32 {
+    fn from_f64(f: f64) -> Self {
+        f as f32
+    }
+}
+impl Pixel for f64 {
+    fn from_f64(f: f64) -> Self {
+        f
+    }
+}
+
 /// Checks that the DPI factor is a normal positive `f64`.
 ///
 /// All functions that take a DPI factor assert that this will return `true`. If you're sourcing DPI factors from
@@ -93,57 +141,53 @@ pub fn validate_hidpi_factor(dpi_factor: f64) -> bool {
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LogicalPosition {
-    pub x: f64,
-    pub y: f64,
+pub struct LogicalPosition<P> {
+    pub x: P,
+    pub y: P,
 }
 
-impl LogicalPosition {
+impl<P> LogicalPosition<P> {
     #[inline]
-    pub const fn new(x: f64, y: f64) -> Self {
+    pub const fn new(x: P, y: P) -> Self {
         LogicalPosition { x, y }
     }
+}
 
+impl<P: Pixel> LogicalPosition<P> {
     #[inline]
-    pub fn from_physical<T: Into<PhysicalPosition>>(physical: T, dpi_factor: f64) -> Self {
+    pub fn from_physical<T: Into<PhysicalPosition<X>>, X: Pixel>(
+        physical: T,
+        dpi_factor: f64,
+    ) -> Self {
         physical.into().to_logical(dpi_factor)
     }
 
     #[inline]
-    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalPosition {
+    pub fn to_physical<X: Pixel>(&self, dpi_factor: f64) -> PhysicalPosition<X> {
         assert!(validate_hidpi_factor(dpi_factor));
-        let x = self.x * dpi_factor;
-        let y = self.y * dpi_factor;
-        PhysicalPosition::new(x, y)
+        let x = self.x.into() * dpi_factor;
+        let y = self.y.into() * dpi_factor;
+        PhysicalPosition::new(x, y).cast()
+    }
+
+    #[inline]
+    pub fn cast<X: Pixel>(&self) -> LogicalPosition<X> {
+        LogicalPosition {
+            x: self.x.cast(),
+            y: self.y.cast(),
+        }
     }
 }
 
-impl From<(f64, f64)> for LogicalPosition {
-    #[inline]
-    fn from((x, y): (f64, f64)) -> Self {
-        Self::new(x, y)
+impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalPosition<P> {
+    fn from((x, y): (X, X)) -> LogicalPosition<P> {
+        LogicalPosition::new(x.cast(), y.cast())
     }
 }
 
-impl From<(i32, i32)> for LogicalPosition {
-    #[inline]
-    fn from((x, y): (i32, i32)) -> Self {
-        Self::new(x as f64, y as f64)
-    }
-}
-
-impl Into<(f64, f64)> for LogicalPosition {
-    #[inline]
-    fn into(self) -> (f64, f64) {
-        (self.x, self.y)
-    }
-}
-
-impl Into<(i32, i32)> for LogicalPosition {
-    /// Note that this rounds instead of truncating.
-    #[inline]
-    fn into(self) -> (i32, i32) {
-        (self.x.round() as _, self.y.round() as _)
+impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalPosition<P> {
+    fn into(self: Self) -> (X, X) {
+        (self.x.cast(), self.y.cast())
     }
 }
 
@@ -154,57 +198,53 @@ impl Into<(i32, i32)> for LogicalPosition {
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PhysicalPosition {
-    pub x: f64,
-    pub y: f64,
+pub struct PhysicalPosition<P> {
+    pub x: P,
+    pub y: P,
 }
 
-impl PhysicalPosition {
+impl<P> PhysicalPosition<P> {
     #[inline]
-    pub const fn new(x: f64, y: f64) -> Self {
+    pub const fn new(x: P, y: P) -> Self {
         PhysicalPosition { x, y }
     }
+}
 
+impl<P: Pixel> PhysicalPosition<P> {
     #[inline]
-    pub fn from_logical<T: Into<LogicalPosition>>(logical: T, dpi_factor: f64) -> Self {
+    pub fn from_logical<T: Into<LogicalPosition<X>>, X: Pixel>(
+        logical: T,
+        dpi_factor: f64,
+    ) -> Self {
         logical.into().to_physical(dpi_factor)
     }
 
     #[inline]
-    pub fn to_logical(&self, dpi_factor: f64) -> LogicalPosition {
+    pub fn to_logical<X: Pixel>(&self, dpi_factor: f64) -> LogicalPosition<X> {
         assert!(validate_hidpi_factor(dpi_factor));
-        let x = self.x / dpi_factor;
-        let y = self.y / dpi_factor;
-        LogicalPosition::new(x, y)
+        let x = self.x.into() / dpi_factor;
+        let y = self.y.into() / dpi_factor;
+        LogicalPosition::new(x, y).cast()
+    }
+
+    #[inline]
+    pub fn cast<X: Pixel>(&self) -> PhysicalPosition<X> {
+        PhysicalPosition {
+            x: self.x.cast(),
+            y: self.y.cast(),
+        }
     }
 }
 
-impl From<(f64, f64)> for PhysicalPosition {
-    #[inline]
-    fn from((x, y): (f64, f64)) -> Self {
-        Self::new(x, y)
+impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalPosition<P> {
+    fn from((x, y): (X, X)) -> PhysicalPosition<P> {
+        PhysicalPosition::new(x.cast(), y.cast())
     }
 }
 
-impl From<(i32, i32)> for PhysicalPosition {
-    #[inline]
-    fn from((x, y): (i32, i32)) -> Self {
-        Self::new(x as f64, y as f64)
-    }
-}
-
-impl Into<(f64, f64)> for PhysicalPosition {
-    #[inline]
-    fn into(self) -> (f64, f64) {
-        (self.x, self.y)
-    }
-}
-
-impl Into<(i32, i32)> for PhysicalPosition {
-    /// Note that this rounds instead of truncating.
-    #[inline]
-    fn into(self) -> (i32, i32) {
-        (self.x.round() as _, self.y.round() as _)
+impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalPosition<P> {
+    fn into(self: Self) -> (X, X) {
+        (self.x.cast(), self.y.cast())
     }
 }
 
@@ -215,108 +255,108 @@ impl Into<(i32, i32)> for PhysicalPosition {
 /// does the rounding for you.
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LogicalSize {
-    pub width: f64,
-    pub height: f64,
+pub struct LogicalSize<P> {
+    pub width: P,
+    pub height: P,
 }
 
-impl LogicalSize {
+impl<P> LogicalSize<P> {
     #[inline]
-    pub const fn new(width: f64, height: f64) -> Self {
+    pub const fn new(width: P, height: P) -> Self {
         LogicalSize { width, height }
     }
+}
 
+impl<P: Pixel> LogicalSize<P> {
     #[inline]
-    pub fn from_physical<T: Into<PhysicalSize>>(physical: T, dpi_factor: f64) -> Self {
+    pub fn from_physical<T: Into<PhysicalSize<X>>, X: Pixel>(physical: T, dpi_factor: f64) -> Self {
         physical.into().to_logical(dpi_factor)
     }
 
     #[inline]
-    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalSize {
+    pub fn to_physical<X: Pixel>(&self, dpi_factor: f64) -> PhysicalSize<X> {
         assert!(validate_hidpi_factor(dpi_factor));
-        let width = self.width * dpi_factor;
-        let height = self.height * dpi_factor;
-        PhysicalSize::new(width.round() as _, height.round() as _)
+        let width = self.width.into() * dpi_factor;
+        let height = self.height.into() * dpi_factor;
+        PhysicalSize::new(width, height).cast()
+    }
+
+    #[inline]
+    pub fn cast<X: Pixel>(&self) -> LogicalSize<X> {
+        LogicalSize {
+            width: self.width.cast(),
+            height: self.height.cast(),
+        }
     }
 }
 
-impl From<(f64, f64)> for LogicalSize {
-    #[inline]
-    fn from((width, height): (f64, f64)) -> Self {
-        Self::new(width, height)
+impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalSize<P> {
+    fn from((x, y): (X, X)) -> LogicalSize<P> {
+        LogicalSize::new(x.cast(), y.cast())
     }
 }
 
-impl From<(u32, u32)> for LogicalSize {
-    #[inline]
-    fn from((width, height): (u32, u32)) -> Self {
-        Self::new(width as f64, height as f64)
-    }
-}
-
-impl Into<(f64, f64)> for LogicalSize {
-    #[inline]
-    fn into(self) -> (f64, f64) {
-        (self.width, self.height)
-    }
-}
-
-impl Into<(u32, u32)> for LogicalSize {
-    /// Note that this rounds instead of truncating.
-    #[inline]
-    fn into(self) -> (u32, u32) {
-        (self.width.round() as _, self.height.round() as _)
+impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalSize<P> {
+    fn into(self: LogicalSize<P>) -> (X, X) {
+        (self.width.cast(), self.height.cast())
     }
 }
 
 /// A size represented in physical pixels.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct PhysicalSize {
-    pub width: u32,
-    pub height: u32,
+pub struct PhysicalSize<P> {
+    pub width: P,
+    pub height: P,
 }
 
-impl PhysicalSize {
+impl<P> PhysicalSize<P> {
     #[inline]
-    pub const fn new(width: u32, height: u32) -> Self {
+    pub const fn new(width: P, height: P) -> Self {
         PhysicalSize { width, height }
     }
+}
 
+impl<P: Pixel> PhysicalSize<P> {
     #[inline]
-    pub fn from_logical<T: Into<LogicalSize>>(logical: T, dpi_factor: f64) -> Self {
+    pub fn from_logical<T: Into<LogicalSize<X>>, X: Pixel>(logical: T, dpi_factor: f64) -> Self {
         logical.into().to_physical(dpi_factor)
     }
 
     #[inline]
-    pub fn to_logical(&self, dpi_factor: f64) -> LogicalSize {
+    pub fn to_logical<X: Pixel>(&self, dpi_factor: f64) -> LogicalSize<X> {
         assert!(validate_hidpi_factor(dpi_factor));
-        let width = self.width as f64 / dpi_factor;
-        let height = self.height as f64 / dpi_factor;
-        LogicalSize::new(width, height)
+        let width = self.width.into() / dpi_factor;
+        let height = self.height.into() / dpi_factor;
+        LogicalSize::new(width, height).cast()
+    }
+
+    #[inline]
+    pub fn cast<X: Pixel>(&self) -> PhysicalSize<X> {
+        PhysicalSize {
+            width: self.width.cast(),
+            height: self.height.cast(),
+        }
     }
 }
 
-impl From<(u32, u32)> for PhysicalSize {
-    #[inline]
-    fn from((width, height): (u32, u32)) -> Self {
-        Self::new(width, height)
+impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalSize<P> {
+    fn from((x, y): (X, X)) -> PhysicalSize<P> {
+        PhysicalSize::new(x.cast(), y.cast())
     }
 }
 
-impl Into<(u32, u32)> for PhysicalSize {
-    /// Note that this rounds instead of truncating.
-    #[inline]
-    fn into(self) -> (u32, u32) {
-        (self.width, self.height)
+impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalSize<P> {
+    fn into(self: Self) -> (X, X) {
+        (self.width.cast(), self.height.cast())
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Size {
-    Physical(PhysicalSize),
-    Logical(LogicalSize),
+    Physical(PhysicalSize<u32>),
+    Logical(LogicalSize<f64>),
 }
 
 impl Size {
@@ -324,40 +364,40 @@ impl Size {
         size.into()
     }
 
-    pub fn to_logical(&self, dpi_factor: f64) -> LogicalSize {
+    pub fn to_logical<P: Pixel>(&self, dpi_factor: f64) -> LogicalSize<P> {
         match *self {
             Size::Physical(size) => size.to_logical(dpi_factor),
-            Size::Logical(size) => size,
+            Size::Logical(size) => size.cast(),
         }
     }
 
-    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalSize {
+    pub fn to_physical<P: Pixel>(&self, dpi_factor: f64) -> PhysicalSize<P> {
         match *self {
-            Size::Physical(size) => size,
+            Size::Physical(size) => size.cast(),
             Size::Logical(size) => size.to_physical(dpi_factor),
         }
     }
 }
 
-impl From<PhysicalSize> for Size {
+impl<P: Pixel> From<PhysicalSize<P>> for Size {
     #[inline]
-    fn from(size: PhysicalSize) -> Size {
-        Size::Physical(size)
+    fn from(size: PhysicalSize<P>) -> Size {
+        Size::Physical(size.cast())
     }
 }
 
-impl From<LogicalSize> for Size {
+impl<P: Pixel> From<LogicalSize<P>> for Size {
     #[inline]
-    fn from(size: LogicalSize) -> Size {
-        Size::Logical(size)
+    fn from(size: LogicalSize<P>) -> Size {
+        Size::Logical(size.cast())
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Position {
-    Physical(PhysicalPosition),
-    Logical(LogicalPosition),
+    Physical(PhysicalPosition<u32>),
+    Logical(LogicalPosition<f64>),
 }
 
 impl Position {
@@ -365,31 +405,31 @@ impl Position {
         position.into()
     }
 
-    pub fn to_logical(&self, dpi_factor: f64) -> LogicalPosition {
+    pub fn to_logical<P: Pixel>(&self, dpi_factor: f64) -> LogicalPosition<P> {
         match *self {
             Position::Physical(position) => position.to_logical(dpi_factor),
-            Position::Logical(position) => position,
+            Position::Logical(position) => position.cast(),
         }
     }
 
-    pub fn to_physical(&self, dpi_factor: f64) -> PhysicalPosition {
+    pub fn to_physical<P: Pixel>(&self, dpi_factor: f64) -> PhysicalPosition<P> {
         match *self {
-            Position::Physical(position) => position,
+            Position::Physical(position) => position.cast(),
             Position::Logical(position) => position.to_physical(dpi_factor),
         }
     }
 }
 
-impl From<PhysicalPosition> for Position {
+impl<P: Pixel> From<PhysicalPosition<P>> for Position {
     #[inline]
-    fn from(position: PhysicalPosition) -> Position {
-        Position::Physical(position)
+    fn from(position: PhysicalPosition<P>) -> Position {
+        Position::Physical(position.cast())
     }
 }
 
-impl From<LogicalPosition> for Position {
+impl<P: Pixel> From<LogicalPosition<P>> for Position {
     #[inline]
-    fn from(position: LogicalPosition) -> Position {
-        Position::Logical(position)
+    fn from(position: LogicalPosition<P>) -> Position {
+        Position::Logical(position.cast())
     }
 }

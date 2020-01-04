@@ -707,7 +707,7 @@ impl<T: 'static> EventProcessor<T> {
                         });
                         if cursor_moved == Some(true) {
                             let position =
-                                PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
+                                PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
 
                             callback(Event::WindowEvent {
                                 window_id,
@@ -814,7 +814,7 @@ impl<T: 'static> EventProcessor<T> {
                             });
 
                             let position =
-                                PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
+                                PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
 
                             // The mods field on this event isn't actually populated, so query the
                             // pointer device. In the future, we can likely remove this round-trip by
@@ -883,7 +883,7 @@ impl<T: 'static> EventProcessor<T> {
                             .unwrap_or(2);
 
                         let position =
-                            PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
+                            PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
 
                         callback(Event::WindowEvent {
                             window_id,
@@ -941,7 +941,7 @@ impl<T: 'static> EventProcessor<T> {
                                     window_id,
                                     event: WindowEvent::CursorMoved {
                                         device_id: mkdid(util::VIRTUAL_CORE_POINTER),
-                                        position: location,
+                                        position: location.cast(),
                                         modifiers,
                                     },
                                 });

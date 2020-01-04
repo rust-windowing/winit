@@ -24,7 +24,7 @@ pub enum EventWrapper {
 pub enum EventProxy {
     HiDpiFactorChangedProxy {
         ns_window: IdRef,
-        suggested_size: LogicalSize,
+        suggested_size: LogicalSize<f64>,
         hidpi_factor: f64,
     },
 }

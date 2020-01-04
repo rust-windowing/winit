@@ -23,7 +23,7 @@ pub fn mouse_modifiers(event: &impl IMouseEvent) -> ModifiersState {
     m
 }
 
-pub fn mouse_position(event: &impl IMouseEvent) -> LogicalPosition {
+pub fn mouse_position(event: &impl IMouseEvent) -> LogicalPosition<f64> {
     LogicalPosition {
         x: event.offset_x() as f64,
         y: event.offset_y() as f64,

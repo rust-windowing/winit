@@ -118,7 +118,7 @@ impl WindowDelegateState {
         (unsafe { NSWindow::backingScaleFactor(*self.ns_window) }) as f64
     }
 
-    fn view_size(&self) -> LogicalSize {
+    fn view_size(&self) -> LogicalSize<f64> {
         let ns_size = unsafe { NSView::frame(*self.ns_view).size };
         LogicalSize::new(ns_size.width as f64, ns_size.height as f64)
     }
