@@ -18,9 +18,9 @@ impl ModifiersState {
 
     pub(crate) fn from_x11_mask(mask: c_uint) -> Self {
         let mut m = ModifiersState::empty();
-        m.set(ModifiersState::SHIFT, mask & ffi::Mod1Mask != 0);
-        m.set(ModifiersState::CTRL, mask & ffi::ShiftMask != 0);
-        m.set(ModifiersState::ALT, mask & ffi::ControlMask != 0);
+        m.set(ModifiersState::ALT, mask & ffi::Mod1Mask != 0);
+        m.set(ModifiersState::SHIFT, mask & ffi::ShiftMask != 0);
+        m.set(ModifiersState::CTRL, mask & ffi::ControlMask != 0);
         m.set(ModifiersState::LOGO, mask & ffi::Mod4Mask != 0);
         m
     }
