@@ -5,7 +5,7 @@ use std::{os::raw, ptr, sync::Arc};
 use smithay_client_toolkit::window::{ButtonState, Theme};
 
 use crate::{
-    dpi::LogicalSize,
+    dpi::Size,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
@@ -380,9 +380,9 @@ pub trait WindowBuilderExtUnix {
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> Self;
     /// Build window with resize increment hint. Only implemented on X11.
-    fn with_resize_increments(self, increments: LogicalSize<f64>) -> Self;
+    fn with_resize_increments<S: Into<Size>>(self, increments: S) -> Self;
     /// Build window with base size hint. Only implemented on X11.
-    fn with_base_size(self, base_size: LogicalSize<f64>) -> Self;
+    fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
 
     /// Build window with a given application ID. It should match the `.desktop` file distributed with
     /// your program. Only relevant on Wayland.
@@ -431,13 +431,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize<f64>) -> Self {
+    fn with_resize_increments<S: Into<Size>>(mut self, increments: S) -> Self {
         self.platform_specific.resize_increments = Some(increments.into());
         self
     }
 
     #[inline]
-    fn with_base_size(mut self, base_size: LogicalSize<f64>) -> Self {
+    fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
         self.platform_specific.base_size = Some(base_size.into());
         self
     }

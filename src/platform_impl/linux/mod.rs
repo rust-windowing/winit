@@ -34,8 +34,8 @@ const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
     pub screen_id: Option<i32>,
-    pub resize_increments: Option<(u32, u32)>,
-    pub base_size: Option<(u32, u32)>,
+    pub resize_increments: Option<Size>,
+    pub base_size: Option<Size>,
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
     pub x11_window_types: Vec<XWindowType>,

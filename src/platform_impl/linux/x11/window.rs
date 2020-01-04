@@ -47,6 +47,8 @@ pub struct SharedState {
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
     pub min_inner_size: Option<Size>,
     pub max_inner_size: Option<Size>,
+    pub resize_increments: Option<Size>,
+    pub base_size: Option<Size>,
     pub visibility: Visibility,
 }
 
@@ -83,6 +85,8 @@ impl SharedState {
             frame_extents: None,
             min_inner_size: None,
             max_inner_size: None,
+            resize_increments: None,
+            base_size: None,
         })
     }
 }
@@ -235,7 +239,7 @@ impl UnownedWindow {
             )
         };
 
-        let window = UnownedWindow {
+        let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),
             xwindow,
             root,
@@ -324,6 +328,7 @@ impl UnownedWindow {
                 let mut max_inner_size = window_attrs
                     .max_inner_size
                     .map(|size| size.to_physical::<u32>(dpi_factor));
+
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
                         warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
@@ -331,9 +336,11 @@ impl UnownedWindow {
                         max_inner_size = Some(dimensions.into());
                         min_inner_size = Some(dimensions.into());
 
-                        let mut shared_state_lock = window.shared_state.lock();
-                        shared_state_lock.min_inner_size = window_attrs.min_inner_size;
-                        shared_state_lock.max_inner_size = window_attrs.max_inner_size;
+                        let mut shared_state = window.shared_state.get_mut();
+                        shared_state.min_inner_size = window_attrs.min_inner_size;
+                        shared_state.max_inner_size = window_attrs.max_inner_size;
+                        shared_state.resize_increments = pl_attribs.resize_increments;
+                        shared_state.base_size = pl_attribs.base_size;
                     }
                 }
 
@@ -341,8 +348,16 @@ impl UnownedWindow {
                 normal_hints.set_size(Some(dimensions));
                 normal_hints.set_min_size(min_inner_size.map(Into::into));
                 normal_hints.set_max_size(max_inner_size.map(Into::into));
-                normal_hints.set_resize_increments(pl_attribs.resize_increments);
-                normal_hints.set_base_size(pl_attribs.base_size);
+                normal_hints.set_resize_increments(
+                    pl_attribs
+                        .resize_increments
+                        .map(|size| size.to_physical::<u32>(dpi_factor).into()),
+                );
+                normal_hints.set_base_size(
+                    pl_attribs
+                        .base_size
+                        .map(|size| size.to_physical::<u32>(dpi_factor).into()),
+                );
                 xconn.set_normal_hints(window.xwindow, normal_hints).queue();
             }
 
@@ -1086,18 +1101,16 @@ impl UnownedWindow {
         new_dpi_factor: f64,
         width: u32,
         height: u32,
+        shared_state: &SharedState,
     ) -> (u32, u32) {
         let scale_factor = new_dpi_factor / old_dpi_factor;
         self.update_normal_hints(|normal_hints| {
-            let dpi_adjuster = |(width, height): (u32, u32)| -> (u32, u32) {
-                let new_width = width as f64 * scale_factor;
-                let new_height = height as f64 * scale_factor;
-                (new_width.round() as u32, new_height.round() as u32)
-            };
-            let max_size = normal_hints.get_max_size().map(&dpi_adjuster);
-            let min_size = normal_hints.get_min_size().map(&dpi_adjuster);
-            let resize_increments = normal_hints.get_resize_increments().map(&dpi_adjuster);
-            let base_size = normal_hints.get_base_size().map(&dpi_adjuster);
+            let dpi_adjuster =
+                |size: Size| -> (u32, u32) { size.to_physical::<u32>(new_dpi_factor).into() };
+            let max_size = shared_state.max_inner_size.map(&dpi_adjuster);
+            let min_size = shared_state.min_inner_size.map(&dpi_adjuster);
+            let resize_increments = shared_state.resize_increments.map(&dpi_adjuster);
+            let base_size = shared_state.base_size.map(&dpi_adjuster);
             normal_hints.set_max_size(max_size);
             normal_hints.set_min_size(min_size);
             normal_hints.set_resize_increments(resize_increments);
