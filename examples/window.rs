@@ -24,7 +24,7 @@ fn main() {
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
-            _ => *control_flow = ControlFlow::Poll,
+            _ => *control_flow = ControlFlow::Wait,
         }
     });
 }

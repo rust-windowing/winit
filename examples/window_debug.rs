@@ -12,20 +12,18 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
-        .with_inner_size(LogicalSize::from((100, 100)))
+        .with_inner_size(LogicalSize::new(100.0, 100.0))
         .build(&event_loop)
         .unwrap();
 
     eprintln!("debugging keys:");
     eprintln!("  (E) Enter exclusive fullscreen");
     eprintln!("  (F) Toggle borderless fullscreen");
-    #[cfg(waiting_for_set_minimized)]
     eprintln!("  (M) Toggle minimized");
     eprintln!("  (Q) Quit event loop");
     eprintln!("  (V) Toggle visibility");
     eprintln!("  (X) Toggle maximized");
 
-    #[cfg(waiting_for_set_minimized)]
     let mut minimized = false;
     let mut maximized = false;
     let mut visible = true;
@@ -43,7 +41,6 @@ fn main() {
                     }),
                 ..
             } => match key {
-                #[cfg(waiting_for_set_minimized)]
                 VirtualKeyCode::M => {
                     if minimized {
                         minimized = !minimized;
@@ -68,16 +65,15 @@ fn main() {
                     ..
                 } => match key {
                     VirtualKeyCode::E => {
-                        fn area(size: PhysicalSize) -> f64 {
+                        fn area(size: PhysicalSize<u32>) -> u32 {
                             size.width * size.height
                         }
 
                         let monitor = window.current_monitor();
-                        if let Some(mode) = monitor.video_modes().max_by(|a, b| {
-                            area(a.size())
-                                .partial_cmp(&area(b.size()))
-                                .expect("NaN in video mode size")
-                        }) {
+                        if let Some(mode) = monitor
+                            .video_modes()
+                            .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
+                        {
                             window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
                         } else {
                             eprintln!("no video modes available");
@@ -91,7 +87,6 @@ fn main() {
                             window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
                         }
                     }
-                    #[cfg(waiting_for_set_minimized)]
                     VirtualKeyCode::M => {
                         minimized = !minimized;
                         window.set_minimized(minimized);
