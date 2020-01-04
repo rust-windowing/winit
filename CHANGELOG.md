@@ -1,5 +1,7 @@
 # Unreleased
 
+- On X11, fix `ModifiersChanged` emitting incorrect modifier change events
+
 # 0.20.0 Alpha 6 (2020-01-03)
 
 - On macOS, fix `set_cursor_visible` hides cursor outside of window.
