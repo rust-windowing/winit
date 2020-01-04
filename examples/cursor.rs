@@ -12,35 +12,39 @@ fn main() {
 
     let mut cursor_idx = 0;
 
-    event_loop.run(move |event, _, control_flow| match event {
-        Event::WindowEvent {
-            event:
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Pressed,
-                            ..
-                        },
-                    ..
-                },
-            ..
-        } => {
-            println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
-            window.set_cursor_icon(CURSORS[cursor_idx]);
-            if cursor_idx < CURSORS.len() - 1 {
-                cursor_idx += 1;
-            } else {
-                cursor_idx = 0;
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        match event {
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } => {
+                println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
+                window.set_cursor_icon(CURSORS[cursor_idx]);
+                if cursor_idx < CURSORS.len() - 1 {
+                    cursor_idx += 1;
+                } else {
+                    cursor_idx = 0;
+                }
             }
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                *control_flow = ControlFlow::Exit;
+                return;
+            }
+            _ => (),
         }
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => {
-            *control_flow = ControlFlow::Exit;
-            return;
-        }
-        _ => (),
     });
 }
 

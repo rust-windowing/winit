@@ -12,24 +12,28 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |event, _, control_flow| match event {
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => *control_flow = ControlFlow::Exit,
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
 
-        // Keyboard input event to handle minimize via a hotkey
-        Event::WindowEvent {
-            event: WindowEvent::KeyboardInput { input, .. },
-            window_id,
-        } => {
-            if window_id == window.id() {
-                // Pressing the 'M' key will minimize the window
-                if input.virtual_keycode == Some(VirtualKeyCode::M) {
-                    window.set_minimized(true);
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+
+            // Keyboard input event to handle minimize via a hotkey
+            Event::WindowEvent {
+                event: WindowEvent::KeyboardInput { input, .. },
+                window_id,
+            } => {
+                if window_id == window.id() {
+                    // Pressing the 'M' key will minimize the window
+                    if input.virtual_keycode == Some(VirtualKeyCode::M) {
+                        window.set_minimized(true);
+                    }
                 }
             }
+            _ => (),
         }
-        _ => *control_flow = ControlFlow::Wait,
     });
 }
