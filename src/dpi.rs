@@ -77,10 +77,14 @@
 //!   Intermediate scale factors are never used. It's possible for any display to use that 2.0 scale
 //!   factor, given the use of the command line.
 //! - **X11:** Many man-hours have been spent trying to figure out how to handle DPI in X11. Winit
-//!   currently uses a three-pronged approach.
-//!   + Calcuate the scale factor based on the millimeter monitor dimensions provided by XRandR.
-//!   + Use the value set in `Xft.dpi` in Xresources. Overrides XRandR's monitor size.
-//!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable. Overrides `Xft.dpi` and XRandR.
+//!   currently uses a three-pronged approach:
+//!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable, if present.
+//!   + If not present, use the value set in `Xft.dpi` in Xresources.
+//!   + Otherwise, calcuate the scale factor based on the millimeter monitor dimensions provided by XRandR.
+//!
+//!   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use the
+//!   XRandR scaling method. Generally speaking, you should try to configure the standard system
+//!   variables to do what you want before resorting to `WINIT_X11_SCALE_FACTOR`.
 //! - **Wayland:** On Wayland, scale factors are set per-screen by the server, and are always
 //!   integers (most often 1 or 2).
 //! - **iOS:** Scale factors are set by Apple to the value that best suits the device, and range
