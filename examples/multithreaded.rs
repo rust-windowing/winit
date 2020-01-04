@@ -5,7 +5,7 @@ fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
     use winit::{
-        dpi::{PhysicalPosition, PhysicalSize},
+        dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
@@ -122,12 +122,18 @@ fn main() {
                                 ),
                                 false => WINDOW_SIZE,
                             }),
-                            W => window
-                                .set_cursor_position(PhysicalPosition::new(
-                                    WINDOW_SIZE.width as f64 / 2.0,
-                                    WINDOW_SIZE.height as f64 / 2.0,
-                                ))
-                                .unwrap(),
+                            W => {
+                                if let Size::Physical(size) = WINDOW_SIZE.into() {
+                                    window
+                                        .set_cursor_position(Position::Physical(
+                                            PhysicalPosition::new(
+                                                size.width as f64 / 2.0,
+                                                size.height as f64 / 2.0,
+                                            ),
+                                        ))
+                                        .unwrap()
+                                }
+                            }
                             Z => {
                                 window.set_visible(false);
                                 thread::sleep(Duration::from_secs(1));
