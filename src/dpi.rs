@@ -9,7 +9,7 @@
 //! mobile screens range from below 720p to above 1440p, and desktop screens range from 720p to 5K
 //! and beyond.
 //!
-//! Given that, it's a mistake for 2D content to assume that it'll only be displayed on screens with
+//! Given that, it's a mistake to assume that 2D content will only be displayed on screens with
 //! a consistent pixel density. If you were to render a 96-pixel-square image on a 1080p screen,
 //! then render the same image on a similarly-sized 4K screen, the 4K rendition would only take up
 //! about a quarter of the physical space as it did on the 1080p screen. That issue is especially
