@@ -9,10 +9,10 @@
 //! mobile screens range from below 720p to above 1440p, and desktop screens range from 720p to 5K
 //! and beyond.
 //!
-//! Given that, it's naive for 2D content to assume that it'll only be displayed on screens with a
-//! consistent pixel density. If you were to render a 96-pixel-square image on a 1080p screen, then
-//! render the same image on a similarly-sized 4K screen, the 4K rendition would only take up about
-//! a quarter of the physical space as it did on the 1080p screen. That issue is especially
+//! Given that, it's a mistake for 2D content to assume that it'll only be displayed on screens with
+//! a consistent pixel density. If you were to render a 96-pixel-square image on a 1080p screen,
+//! then render the same image on a similarly-sized 4K screen, the 4K rendition would only take up
+//! about a quarter of the physical space as it did on the 1080p screen. That issue is especially
 //! problematic with text rendering, where quarter-sized text becomes a significant legibility
 //! problem.
 //!
@@ -28,8 +28,8 @@
 //! for example, a button that's normally 50 pixels across would be 100 pixels across on a device
 //! with a scale factor of `2.0`, or 75 pixels across with a scale factor of `1.5`.
 //!
-//! The scale factor correlates with, but no direct relationship to, the screen's actual DPI (dots
-//! per inch). Operating systems used to define the scale factor in terms of the screen's
+//! The scale factor correlates with, but no has direct relationship to, the screen's actual DPI
+//! (dots per inch). Operating systems used to define the scale factor in terms of the screen's
 //! approximate DPI (at the time, 72 pixels per inch), but [Microsoft decided to report that the DPI
 //! was roughly 1/3 bigger than the screen's actual DPI (so, 96 pixels per inch) in order to make
 //! text more legible][microsoft_dpi]. As a result, the exact DPI as defined by the OS doesn't carry
@@ -49,8 +49,8 @@
 //! API to have integer precision where appropriate (e.g. most window manipulation functions) and
 //! floating precision when necessary (e.g. logical sizes for fractional scale factors and touch
 //! input). If `P` is a floating-point type, please do not cast the values with `as {int}`. Doing so
-//! will truncate the fractional part of the float, rather than round to the nearest integer - the
-//! proper behavior. Use the provided `cast` function or `From`/`Into` conversions, which handle the
+//! will truncate the fractional part of the float, rather than properly round to the nearest
+//! integer. Use the provided `cast` function or `From`/`Into` conversions, which handle the
 //! rounding properly. Note that precision loss will still occur when rounding from a float to an
 //! int, although rounding lessens the problem.
 //!
