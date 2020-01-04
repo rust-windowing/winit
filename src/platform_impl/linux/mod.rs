@@ -7,11 +7,9 @@ use raw_window_handle::RawWindowHandle;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
-use self::x11::{
-    ffi::XVisualInfo, get_xtarget, util::WindowType as XWindowType, XConnection, XError,
-};
+use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
 use crate::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
@@ -248,7 +246,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         match self {
             &Window::X(ref w) => w.outer_position(),
             &Window::Wayland(ref w) => w.outer_position(),
@@ -256,7 +254,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         match self {
             &Window::X(ref m) => m.inner_position(),
             &Window::Wayland(ref m) => m.inner_position(),
@@ -264,7 +262,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: Position) {
         match self {
             &Window::X(ref w) => w.set_outer_position(position),
             &Window::Wayland(ref w) => w.set_outer_position(position),
@@ -272,7 +270,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize {
         match self {
             &Window::X(ref w) => w.inner_size(),
             &Window::Wayland(ref w) => w.inner_size(),
@@ -280,7 +278,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize {
         match self {
             &Window::X(ref w) => w.outer_size(),
             &Window::Wayland(ref w) => w.outer_size(),
@@ -288,7 +286,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
+    pub fn set_inner_size(&self, size: Size) {
         match self {
             &Window::X(ref w) => w.set_inner_size(size),
             &Window::Wayland(ref w) => w.set_inner_size(size),
@@ -296,7 +294,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         match self {
             &Window::X(ref w) => w.set_min_inner_size(dimensions),
             &Window::Wayland(ref w) => w.set_min_inner_size(dimensions),
@@ -304,7 +302,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         match self {
             &Window::X(ref w) => w.set_max_inner_size(dimensions),
             &Window::Wayland(ref w) => w.set_max_inner_size(dimensions),
@@ -352,7 +350,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(position),
             &Window::Wayland(ref w) => w.set_cursor_position(position),
@@ -416,7 +414,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, position: LogicalPosition) {
+    pub fn set_ime_position(&self, position: Position) {
         match self {
             &Window::X(ref w) => w.set_ime_position(position),
             &Window::Wayland(_) => (),
@@ -603,7 +601,7 @@ impl<T: 'static> EventLoop<T> {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            EventLoop::X(ref evlp) => get_xtarget(&evlp.target)
+            EventLoop::X(ref evlp) => evlp
                 .x_connection()
                 .available_monitors()
                 .into_iter()
@@ -616,9 +614,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn primary_monitor(&self) -> MonitorHandle {
         match *self {
             EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
-            EventLoop::X(ref evlp) => {
-                MonitorHandle::X(get_xtarget(&evlp.target).x_connection().primary_monitor())
-            }
+            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
         }
     }
 
@@ -631,7 +627,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, callback: F)
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         match *self {
             EventLoop::Wayland(ref mut evlp) => evlp.run_return(callback),
@@ -641,7 +637,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, callback: F) -> !
     where
-        F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         match self {
             EventLoop::Wayland(evlp) => evlp.run(callback),
@@ -682,12 +678,12 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 fn sticky_exit_callback<T, F>(
-    evt: Event<T>,
+    evt: Event<'_, T>,
     target: &RootELW<T>,
     control_flow: &mut ControlFlow,
     callback: &mut F,
 ) where
-    F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+    F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
 {
     // make ControlFlow::Exit sticky by providing a dummy
     // control flow reference if it is already Exit.
