@@ -24,7 +24,7 @@ pub use self::{
 
 use std::{
     cell::RefCell,
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     ffi::CStr,
     mem::{self, MaybeUninit},
     ops::Deref,
@@ -36,6 +36,10 @@ use std::{
 };
 
 use libc::{self, setlocale, LC_CTYPE};
+
+use mio::{unix::EventedFd, Events, Poll, PollOpt, Ready, Token};
+
+use mio_extras::channel::{channel, Receiver, SendError, Sender};
 
 use self::{
     dnd::{Dnd, DndState},
@@ -51,6 +55,9 @@ use crate::{
     window::WindowAttributes,
 };
 
+const X_TOKEN: Token = Token(0);
+const USER_TOKEN: Token = Token(1);
+
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
@@ -64,18 +71,15 @@ pub struct EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
-    inner_loop: ::calloop::EventLoop<()>,
-    _x11_source: ::calloop::Source<::calloop::generic::Generic<::calloop::generic::EventedRawFd>>,
-    _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
-    pending_user_events: Rc<RefCell<VecDeque<T>>>,
-    event_processor: Rc<RefCell<EventProcessor<T>>>,
-    user_sender: ::calloop::channel::Sender<T>,
-    pending_events: Rc<RefCell<VecDeque<Event<T>>>>,
-    pub(crate) target: Rc<RootELW<T>>,
+    poll: Poll,
+    event_processor: EventProcessor<T>,
+    user_channel: Receiver<T>,
+    user_sender: Sender<T>,
+    target: Rc<RootELW<T>>,
 }
 
 pub struct EventLoopProxy<T: 'static> {
-    user_sender: ::calloop::channel::Sender<T>,
+    user_sender: Sender<T>,
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
@@ -171,28 +175,27 @@ impl<T: 'static> EventLoop<T> {
             _marker: ::std::marker::PhantomData,
         });
 
-        // A calloop event loop to drive us
-        let inner_loop = ::calloop::EventLoop::new().unwrap();
+        let poll = Poll::new().unwrap();
 
-        // Handle user events
-        let pending_user_events = Rc::new(RefCell::new(VecDeque::new()));
-        let pending_user_events2 = pending_user_events.clone();
+        let (user_sender, user_channel) = channel();
 
-        let (user_sender, user_channel) = ::calloop::channel::channel();
+        poll.register(
+            &EventedFd(&get_xtarget(&target).xconn.x11_fd),
+            X_TOKEN,
+            Ready::readable(),
+            PollOpt::level(),
+        )
+        .unwrap();
 
-        let _user_source = inner_loop
-            .handle()
-            .insert_source(user_channel, move |evt, &mut ()| {
-                if let ::calloop::channel::Event::Msg(msg) = evt {
-                    pending_user_events2.borrow_mut().push_back(msg);
-                }
-            })
-            .unwrap();
+        poll.register(
+            &user_channel,
+            USER_TOKEN,
+            Ready::readable(),
+            PollOpt::level(),
+        )
+        .unwrap();
 
-        // Handle X11 events
-        let pending_events: Rc<RefCell<VecDeque<_>>> = Default::default();
-
-        let processor = EventProcessor {
+        let event_processor = EventProcessor {
             target: target.clone(),
             dnd,
             devices: Default::default(),
@@ -212,38 +215,12 @@ impl<T: 'static> EventLoop<T> {
             .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
             .queue();
 
-        processor.init_device(ffi::XIAllDevices);
-
-        let processor = Rc::new(RefCell::new(processor));
-        let event_processor = processor.clone();
-
-        // Setup the X11 event source
-        let mut x11_events =
-            ::calloop::generic::Generic::from_raw_fd(get_xtarget(&target).xconn.x11_fd);
-        x11_events.set_interest(::calloop::mio::Ready::readable());
-        let _x11_source = inner_loop
-            .handle()
-            .insert_source(x11_events, {
-                let pending_events = pending_events.clone();
-                move |evt, &mut ()| {
-                    if evt.readiness.is_readable() {
-                        let mut processor = processor.borrow_mut();
-                        let mut pending_events = pending_events.borrow_mut();
-                        let mut pending_redraws = pending_redraws.lock().unwrap();
-
-                        drain_events(&mut processor, &mut pending_events, &mut pending_redraws);
-                    }
-                }
-            })
-            .unwrap();
+        event_processor.init_device(ffi::XIAllDevices);
 
         let result = EventLoop {
-            inner_loop,
-            pending_events,
-            _x11_source,
-            _user_source,
+            poll,
+            user_channel,
             user_sender,
-            pending_user_events,
             event_processor,
             target,
         };
@@ -261,12 +238,16 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
+    pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
+        get_xtarget(&self.target).x_connection()
+    }
+
     pub fn run_return<F>(&mut self, mut callback: F)
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::default();
-        let wt = get_xtarget(&self.target);
+        let mut events = Events::with_capacity(8);
 
         callback(
             crate::event::Event::NewEvents(crate::event::StartCause::Init),
@@ -275,22 +256,16 @@ impl<T: 'static> EventLoop<T> {
         );
 
         loop {
-            self.drain_events();
+            // Process all pending events
+            self.drain_events(&mut callback, &mut control_flow);
 
-            // Empty the event buffer
-            {
-                let mut guard = self.pending_events.borrow_mut();
-                for evt in guard.drain(..) {
-                    sticky_exit_callback(evt, &self.target, &mut control_flow, &mut callback);
-                }
-            }
+            let wt = get_xtarget(&self.target);
 
             // Empty the user event buffer
             {
-                let mut guard = self.pending_user_events.borrow_mut();
-                for evt in guard.drain(..) {
+                while let Ok(event) = self.user_channel.try_recv() {
                     sticky_exit_callback(
-                        crate::event::Event::UserEvent(evt),
+                        crate::event::Event::UserEvent(event),
                         &self.target,
                         &mut control_flow,
                         &mut callback,
@@ -331,7 +306,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             let start = Instant::now();
-            let (mut cause, deadline, mut timeout);
+            let (mut cause, deadline, timeout);
 
             match control_flow {
                 ControlFlow::Exit => break,
@@ -362,26 +337,39 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
 
-            if self.events_waiting() {
-                timeout = Some(Duration::from_millis(0));
-            }
+            if self.event_processor.poll() {
+                // If the XConnection already contains buffered events, we don't
+                // need to wait for data on the socket.
+                // However, we still need to check for user events.
+                self.poll
+                    .poll(&mut events, Some(Duration::from_millis(0)))
+                    .unwrap();
+                events.clear();
 
-            self.inner_loop.dispatch(timeout, &mut ()).unwrap();
+                callback(
+                    crate::event::Event::NewEvents(cause),
+                    &self.target,
+                    &mut control_flow,
+                );
+            } else {
+                self.poll.poll(&mut events, timeout).unwrap();
+                events.clear();
 
-            if let Some(deadline) = deadline {
-                if deadline > Instant::now() {
+                let wait_cancelled = deadline.map_or(false, |deadline| Instant::now() < deadline);
+
+                if wait_cancelled {
                     cause = StartCause::WaitCancelled {
                         start,
-                        requested_resume: Some(deadline),
+                        requested_resume: deadline,
                     };
                 }
-            }
 
-            callback(
-                crate::event::Event::NewEvents(cause),
-                &self.target,
-                &mut control_flow,
-            );
+                callback(
+                    crate::event::Event::NewEvents(cause),
+                    &self.target,
+                    &mut control_flow,
+                );
+            }
         }
 
         callback(
@@ -393,44 +381,42 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
         ::std::process::exit(0);
     }
 
-    fn drain_events(&self) {
-        let mut processor = self.event_processor.borrow_mut();
-        let mut pending_events = self.pending_events.borrow_mut();
+    fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)
+    where
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        let target = &self.target;
+        let mut xev = MaybeUninit::uninit();
+
         let wt = get_xtarget(&self.target);
         let mut pending_redraws = wt.pending_redraws.lock().unwrap();
 
-        drain_events(&mut processor, &mut pending_events, &mut pending_redraws);
-    }
-
-    fn events_waiting(&self) -> bool {
-        !self.pending_events.borrow().is_empty() || self.event_processor.borrow().poll()
-    }
-}
-
-fn drain_events<T: 'static>(
-    processor: &mut EventProcessor<T>,
-    pending_events: &mut VecDeque<Event<T>>,
-    pending_redraws: &mut HashSet<WindowId>,
-) {
-    let mut callback = |event| {
-        if let Event::RedrawRequested(crate::window::WindowId(super::WindowId::X(wid))) = event {
-            pending_redraws.insert(wid);
-        } else {
-            pending_events.push_back(event);
+        while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
+            let mut xev = unsafe { xev.assume_init() };
+            self.event_processor.process_event(&mut xev, |event| {
+                sticky_exit_callback(
+                    event,
+                    target,
+                    control_flow,
+                    &mut |event, window_target, control_flow| {
+                        if let Event::RedrawRequested(crate::window::WindowId(
+                            super::WindowId::X(wid),
+                        )) = event
+                        {
+                            pending_redraws.insert(wid);
+                        } else {
+                            callback(event, window_target, control_flow);
+                        }
+                    },
+                );
+            });
         }
-    };
-
-    // process all pending events
-    let mut xev = MaybeUninit::uninit();
-    while unsafe { processor.poll_one_event(xev.as_mut_ptr()) } {
-        let mut xev = unsafe { xev.assume_init() };
-        processor.process_event(&mut xev, &mut callback);
     }
 }
 
@@ -452,7 +438,7 @@ impl<T> EventLoopWindowTarget<T> {
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.user_sender.send(event).map_err(|e| {
-            EventLoopClosed(if let ::calloop::channel::SendError::Disconnected(x) = e {
+            EventLoopClosed(if let SendError::Disconnected(x) = e {
                 x
             } else {
                 unreachable!()

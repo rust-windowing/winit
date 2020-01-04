@@ -6,7 +6,7 @@ use std::{
 };
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
@@ -49,11 +49,7 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlAttributes,
     ) -> Result<Window, RootOsError> {
-        let (width, height) = attributes.inner_size.map(Into::into).unwrap_or((800, 600));
-        // Create the window
-        let size = Arc::new(Mutex::new((width, height)));
-        let fullscreen = Arc::new(Mutex::new(false));
-
+        // Create the surface first to get initial DPI
         let window_store = evlp.store.clone();
         let cursor_manager = evlp.cursor_manager.clone();
         let surface = evlp.env.create_surface(move |dpi, surface| {
@@ -61,7 +57,18 @@ impl Window {
             surface.set_buffer_scale(dpi);
         });
 
+        let dpi = get_dpi_factor(&surface) as f64;
+        let (width, height) = attributes
+            .inner_size
+            .map(|size| size.to_logical(dpi).into())
+            .unwrap_or((800, 600));
+
+        // Create the window
+        let size = Arc::new(Mutex::new((width, height)));
+        let fullscreen = Arc::new(Mutex::new(false));
+
         let window_store = evlp.store.clone();
+
         let my_surface = surface.clone();
         let mut frame = SWindow::<ConceptFrame>::init_from_env(
             &evlp.env,
@@ -137,8 +144,16 @@ impl Window {
         frame.set_title(attributes.title);
 
         // min-max dimensions
-        frame.set_min_size(attributes.min_inner_size.map(Into::into));
-        frame.set_max_size(attributes.max_inner_size.map(Into::into));
+        frame.set_min_size(
+            attributes
+                .min_inner_size
+                .map(|size| size.to_logical(dpi).into()),
+        );
+        frame.set_max_size(
+            attributes
+                .max_inner_size
+                .map(|size| size.to_logical(dpi).into()),
+        );
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
@@ -191,22 +206,24 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         Err(NotSupportedError::new())
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition, NotSupportedError> {
         Err(NotSupportedError::new())
     }
 
     #[inline]
-    pub fn set_outer_position(&self, _pos: LogicalPosition) {
+    pub fn set_outer_position(&self, _pos: Position) {
         // Not possible with wayland
     }
 
-    pub fn inner_size(&self) -> LogicalSize {
-        self.size.lock().unwrap().clone().into()
+    pub fn inner_size(&self) -> PhysicalSize {
+        let dpi = self.hidpi_factor() as f64;
+        let size = LogicalSize::from(*self.size.lock().unwrap());
+        size.to_physical(dpi)
     }
 
     pub fn request_redraw(&self) {
@@ -214,34 +231,39 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize {
+        let dpi = self.hidpi_factor() as f64;
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
-        (w, h).into()
+        let size = LogicalSize::from((w, h));
+        size.to_physical(dpi)
     }
 
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
-    pub fn set_inner_size(&self, size: LogicalSize) {
-        let (w, h) = size.into();
+    pub fn set_inner_size(&self, size: Size) {
+        let dpi = self.hidpi_factor() as f64;
+        let (w, h) = size.to_logical(dpi).into();
         self.frame.lock().unwrap().resize(w, h);
         *(self.size.lock().unwrap()) = (w, h);
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
+        let dpi = self.hidpi_factor() as f64;
         self.frame
             .lock()
             .unwrap()
-            .set_min_size(dimensions.map(Into::into));
+            .set_min_size(dimensions.map(|dim| dim.to_logical(dpi).into()));
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
+        let dpi = self.hidpi_factor() as f64;
         self.frame
             .lock()
             .unwrap()
-            .set_max_size(dimensions.map(Into::into));
+            .set_max_size(dimensions.map(|dim| dim.to_logical(dpi).into()));
     }
 
     #[inline]
@@ -325,7 +347,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, _pos: Position) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -375,6 +397,7 @@ impl Drop for Window {
 
 struct InternalWindow {
     surface: wl_surface::WlSurface,
+    // TODO: CONVERT TO LogicalSize<u32>s
     newsize: Option<(u32, u32)>,
     size: Arc<Mutex<(u32, u32)>>,
     need_refresh: Arc<Mutex<bool>>,
@@ -395,6 +418,7 @@ pub struct WindowStore {
 pub struct WindowStoreForEach<'a> {
     pub newsize: Option<(u32, u32)>,
     pub size: &'a mut (u32, u32),
+    pub prev_dpi: i32,
     pub new_dpi: Option<i32>,
     pub closed: bool,
     pub grab_cursor: Option<bool>,
@@ -460,6 +484,7 @@ impl WindowStore {
             f(WindowStoreForEach {
                 newsize: window.newsize.take(),
                 size: &mut *(window.size.lock().unwrap()),
+                prev_dpi: window.current_dpi,
                 new_dpi: window.new_dpi,
                 closed: window.closed,
                 grab_cursor: window.cursor_grab_changed.lock().unwrap().take(),
