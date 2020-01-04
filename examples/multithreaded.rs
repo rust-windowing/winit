@@ -50,6 +50,7 @@ fn main() {
                             );
                         }
                     }
+                    #[allow(deprecated)]
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
