@@ -4,19 +4,29 @@
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
 //! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
+//! approximate the basic ordering loop of [`EventLoop::run(...)`][event_loop_run] like this:
 //!
-//! ```rust,no_run
-//! let control_flow = &mut ControlFlow::Poll;
-//! event_handler(NewEvents(StartCause::Init), ..., control_flow);
-//! while *control_flow != ControlFlow::Exit {
-//!     event_handler(NewEvents(StartCause::Something), ..., control_flow);
+//! ```rust,ignore
+//! let mut control_flow = ControlFlow::Poll;
+//! let mut start_cause = StartCause::Init;
+//!
+//! while control_flow != ControlFlow::Exit {
+//!     event_handler(NewEvents(start_cause), ..., &mut control_flow);
+//!
 //!     for e in (window events, user events, device events) {
-//!         event_handler(e, ..., control_flow);
+//!         event_handler(e, ..., &mut control_flow);
 //!     }
-//!     event_handler(EventsCleared, ..., control_flow);
+//!     event_handler(MainEventsCleared, ..., &mut control_flow);
+//!
+//!     for w in (redraw windows) {
+//!         event_handler(RedrawRequested(w), ..., &mut control_flow);
+//!     }
+//!     event_handler(RedrawEventsCleared, ..., &mut control_flow);
+//!
+//!     start_cause = wait_if_necessary(control_flow);
 //! }
-//! event_handler(LoopDestroyed, ..., control_flow);
+//!
+//! event_handler(LoopDestroyed, ..., &mut control_flow);
 //! ```
 //!
 //! This leaves out timing details like `ControlFlow::WaitUntil` but hopefully
@@ -33,8 +43,18 @@ use crate::{
 };
 
 /// Describes a generic event.
+///
+/// See the module-level docs for more information on the event loop manages each event.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event<T> {
+    /// Emitted when new events arrive from the OS to be processed.
+    ///
+    /// This event type is useful as a place to put code that should be done before you start
+    /// processing events, such as updating frame timing information for benchmarking or checking
+    /// the [`StartCause`][crate::event::StartCause] to see if a timer set by
+    /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
+    NewEvents(StartCause),
+
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
         window_id: WindowId,
@@ -50,40 +70,48 @@ pub enum Event<T> {
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
 
-    /// Emitted when new events arrive from the OS to be processed.  This event type is useful as a place
-    /// to put code that should be done before you start processing events, such as updating frame timing
-    /// information for benchmarking.
-    NewEvents(StartCause),
-
-    /// Emitted when all of the event loop's events have been processed and control flow is about
-    /// to be taken away from the program.  This event type is useful as a place to put your code that
-    /// should be run after all events have been handled from the event queue and you want to do
-    /// stuff (updating state, performing calculations, etc) that happens as the "main body"
-    /// of an event-handling loop.  If your program is doing drawing, it's usually better to do it
-    /// in response to [`WindowEvent::RedrawRequested`](../event/enum.WindowEvent.html#variant.RedrawRequested).
-    MainEventsCleared,
-
-    /// The OS or application has requested that a window be redrawn.
-    ///
-    /// Emitted only after `MainEventsCleared`.
-    RedrawRequested(WindowId),
-
-    /// Emitted after any `RedrawRequested` events.
-    ///
-    /// If there are no `RedrawRequested` events, it is reported immediately after
-    /// `MainEventsCleared`.
-    RedrawEventsCleared,
-
-    /// Emitted when the event loop is being shut down. This is irreversable - if this event is
-    /// emitted, it is guaranteed to be the last event emitted.  You generally want to treat
-    /// this as an "do on quit" event.
-    LoopDestroyed,
-
     /// Emitted when the application has been suspended.
     Suspended,
 
     /// Emitted when the application has been resumed.
     Resumed,
+
+    /// Emitted when all of the event loop's input events have been processed and redraw processing
+    /// is about to begin.
+    ///
+    /// This event is useful as a place to put your code that should be run after all
+    /// state-changing events have been handled and you want to do stuff (updating state, performing
+    /// calculations, etc) that happens as the "main body" of your event loop. If your program draws
+    /// graphics, it's usually better to do it in response to
+    /// [`Event::RedrawRequested`](crate::event::Event::RedrawRequested), which gets emitted
+    /// immediately after this event.
+    MainEventsCleared,
+
+    /// Emitted after `MainEventsCleared` when a window should be redrawn.
+    ///
+    /// This gets triggered in two scenarios:
+    /// - The OS has performed an operation that's invalidated the window's contents (such as
+    ///   resizing the window).
+    /// - The application has explicitly requested a redraw via
+    ///   [`Window::request_redraw`](crate::window::Window::request_redraw).
+    ///
+    /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
+    /// into a single event, to help avoid duplicating rendering work.
+    RedrawRequested(WindowId),
+
+    /// Emitted after all `RedrawRequested` events have been processed and control flow is about to
+    /// be taken away from the program. If there are no `RedrawRequested` events, it is emitted
+    /// immediately after `MainEventsCleared`.
+    ///
+    /// This event is useful for doing any cleanup or bookkeeping work after all the rendering
+    /// tasks have been completed.
+    RedrawEventsCleared,
+
+    /// Emitted when the event loop is being shut down.
+    ///
+    /// This is irreversable - if this event is emitted, it is guaranteed to be the last event that
+    /// gets emitted. You generally want to treat this as an "do on quit" event.
+    LoopDestroyed,
 }
 
 impl<T> Event<T> {
