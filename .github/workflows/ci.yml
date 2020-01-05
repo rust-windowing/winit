@@ -1,9 +1,12 @@
-name: Rust
+name: CI Testing
 
-on: [push, pull_request]
+on:
+  pull_request:
+  push:
+    branches: [master]
 
 jobs:
-  formatting:
+  Check Formatting:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
@@ -14,7 +17,7 @@ jobs:
     - name: Check Formatting
       run: cargo +stable fmt --all -- --check
 
-  test:
+  Test:
     strategy:
       fail-fast: false
       matrix:
@@ -77,9 +80,16 @@ jobs:
 
     - name: Build with serde enabled
       run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
-      
+
     - name: Build tests with serde enabled
       run: cargo ${{ matrix.platform.web }} test --no-run --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
     - name: Run tests with serde enabled
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
       run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
+  Publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: hecrj/setup-rust-action@v1
+        with:
+          rust-version: stable
