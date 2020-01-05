@@ -47,10 +47,10 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     # Used to cache cargo-web
-    - name: Cache cargo binaries
+    - name: Cache cargo folder
       uses: actions/cache@v1
       with:
-        path: ~/.cargo/bin
+        path: ~/.cargo
         key: ${{ runner.os }}-cargo-bin-${{ matrix.rust_version }}
 
     - uses: hecrj/setup-rust-action@v1
