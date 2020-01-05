@@ -50,7 +50,7 @@ jobs:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
       RUSTFLAGS: "-C debuginfo=0"
-      FEATURES: ${{ matrix.platform.features }}
+      FEATURES: (join(',', ${{ matrix.platform.features }}))
       WEB: ${{ matrix.platform.web }}
 
     runs-on: ${{ matrix.platform.os }}
@@ -77,23 +77,23 @@ jobs:
       run: cargo install cargo-web
     - name: Check documentation
       if: matrix.platform.target != 'wasm32-unknown-unknown'
-      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features $FEATURES
+      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features '$FEATURES'
 
     - name: Build
-      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features $FEATURES
+      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features '$FEATURES'
 
     - name: Build tests
-      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features $FEATURES
+      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features '$FEATURES'
     - name: Run tests
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
-      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features $FEATURES
+      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features '$FEATURES'
 
 
     - name: Build with serde enabled
-      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features 'serde,$FEATURES'
 
     - name: Build tests with serde enabled
-      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features 'serde,$FEATURES'
     - name: Run tests with serde enabled
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
-      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features 'serde,$FEATURES'
