@@ -41,7 +41,7 @@ jobs:
           - { target: x86_64-apple-ios,         features: ',',     os: macos-latest,    }
           - { target: armv7-apple-ios,          features: ',',     os: macos-latest,    }
           - { target: aarch64-apple-ios,        features: ',',     os: macos-latest,    }
-          # We're using Windows rather than Ubuntu to run the web tests because caching cargo-web
+          # We're using Windows rather than Ubuntu to run the wasm tests because caching cargo-web
           # doesn't currently work on Linux.
           - { target: wasm32-unknown-unknown,   features: stdweb,  os: windows-latest, web: web }
           - { target: wasm32-unknown-unknown,   features: web-sys, os: windows-latest, web: web }
