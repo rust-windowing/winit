@@ -35,9 +35,12 @@
 //! You do this by calling [`event_loop.run(...)`][event_loop_run]. This function will run forever
 //! unless the `control_flow` argument given to the closure is set to [`ControlFlow`]`::`[`Exit`],
 //! at which point [`Event`]`::`[`LoopDestroyed`] is emitted and the entire program terminates.
-//! It is no longer possible to use a method like previous versions' `EventLoop::poll_events()` to
-//! handle events individually outside of `winit`'s event loop, because this is not possible to do
-//! well on web and mobile platforms. For more details on how and why, see [`EventLoopExtDesktop`].
+//!
+//! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
+//! model, since that can't be implemented properly on web and mobile platforms and works poorly on
+//! most desktop platforms. However, this model can be re-implemented to an extent on desktops with
+//! [`EventLoopExtDesktop::run_return`]. See that method's documentation for more reasons about why
+//! it's discouraged, beyond mobile/web compatibility reasons.
 //!
 //!
 //! ```no_run
@@ -94,7 +97,7 @@
 //! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that will draw on the [`Window`].
 //!
 //! [`EventLoop`]: event_loop::EventLoop
-//! [`EventLoopExtDesktop`]: ./platform/desktop/trait.EventLoopExtDesktop.html
+//! [`EventLoopExtDesktop::run_return`]: ./platform/desktop/trait.EventLoopExtDesktop.html#tymethod.run_return
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [event_loop_run]: event_loop::EventLoop::run
 //! [`ControlFlow`]: event_loop::ControlFlow
