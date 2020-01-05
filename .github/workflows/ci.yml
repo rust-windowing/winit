@@ -1,4 +1,4 @@
-name: CI Testing
+name: CI
 
 on:
   pull_request:
@@ -86,10 +86,3 @@ jobs:
     - name: Run tests with serde enabled
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
       run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
-  Publish:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v1
-      - uses: hecrj/setup-rust-action@v1
-        with:
-          rust-version: stable
