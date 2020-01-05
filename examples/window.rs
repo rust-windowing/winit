@@ -13,6 +13,7 @@ fn main() {
         .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
         println!("{:?}", event);
 
         match event {
@@ -23,7 +24,7 @@ fn main() {
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
-            _ => *control_flow = ControlFlow::Poll,
+            _ => (),
         }
     });
 }

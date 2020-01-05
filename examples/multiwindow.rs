@@ -16,6 +16,7 @@ fn main() {
 
     event_loop.run(move |event, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
+
         match event {
             Event::WindowEvent { event, window_id } => {
                 match event {
