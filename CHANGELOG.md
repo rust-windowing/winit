@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
+- On macOS, add `hide_application` to `EventLoopWindowTarget` via a new `EventLoopWindowTargetExtMacOS` trait. `hide_application` will hide the entire application by calling `-[NSApplication hide: nil]`.
 
 # 0.20.0 Alpha 6 (2020-01-03)
 
