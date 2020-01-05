@@ -7,7 +7,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - uses: Osspial/setup-rust-action@windows-uninstall-default-stable
+    - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: stable
         components: rustfmt
@@ -18,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust_version: [stable, beta, nightly]
+        rust_version: [stable, nightly]
         platform:
           - { os: windows-latest, target: x86_64-pc-windows-msvc,   features: ',' }
           - { os: windows-latest, target: i686-pc-windows-msvc,     features: ',' }
@@ -36,7 +36,7 @@ jobs:
     runs-on: ${{ matrix.platform.os }}
     steps:
     - uses: actions/checkout@v1
-    - uses: Osspial/setup-rust-action@windows-uninstall-default-stable
+    - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
@@ -51,7 +51,17 @@ jobs:
       run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
     - name: Build
       run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
+    - name: Build tests
+      if: (!contains(matrix.platform.target, 'ios'))
+      run: cargo ${{ matrix.platform.web }} test --no-run --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
     - name: Run tests
+      if: (!contains(matrix.platform.target, 'ios'))
       run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
+    - name: Build with serde enabled
+      run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
+    - name: Build tests with serde enabled
+      if: (!contains(matrix.platform.target, 'ios'))
+      run: cargo ${{ matrix.platform.web }} test --no-run --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
     - name: Run tests with serde enabled
+      if: (!contains(matrix.platform.target, 'ios'))
       run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
