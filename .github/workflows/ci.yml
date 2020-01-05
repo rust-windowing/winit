@@ -75,25 +75,33 @@ jobs:
       continue-on-error: true
       if: contains(matrix.platform.target, 'wasm32')
       run: cargo install cargo-web
+
     - name: Check documentation
+      shell: bash
       if: matrix.platform.target != 'wasm32-unknown-unknown'
       run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features $FEATURES
 
     - name: Build
+      shell: bash
       run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features $FEATURES
 
     - name: Build tests
+      shell: bash
       run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features $FEATURES
     - name: Run tests
+      shell: bash
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
       run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features $FEATURES
 
 
     - name: Build with serde enabled
+      shell: bash
       run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
 
     - name: Build tests with serde enabled
+      shell: bash
       run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
     - name: Run tests with serde enabled
+      shell: bash
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
       run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
