@@ -25,7 +25,7 @@ jobs:
     - name: Check Formatting
       run: cargo +stable fmt --all -- --check
 
-  Test:
+  Tests:
     strategy:
       fail-fast: false
       matrix:
