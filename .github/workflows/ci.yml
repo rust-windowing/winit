@@ -52,7 +52,6 @@ jobs:
     - name: Build
       run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
     - name: Build tests
-      if: (!contains(matrix.platform.target, 'ios'))
       run: cargo ${{ matrix.platform.web }} test --no-run --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
     - name: Run tests
       if: (!contains(matrix.platform.target, 'ios'))
@@ -60,7 +59,6 @@ jobs:
     - name: Build with serde enabled
       run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
     - name: Build tests with serde enabled
-      if: (!contains(matrix.platform.target, 'ios'))
       run: cargo ${{ matrix.platform.web }} test --no-run --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
     - name: Run tests with serde enabled
       if: (!contains(matrix.platform.target, 'ios'))
