@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
+- On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
 
 # 0.20.0 Alpha 6 (2020-01-03)
 
