@@ -71,7 +71,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install gcc-multilib
     - name: Install cargo-web
       if: contains(matrix.platform.target, 'wasm32')
-      run: cargo install -f cargo-web
+      run: cargo install cargo-web
     - name: Check documentation
       if: matrix.platform.target != 'wasm32-unknown-unknown'
       run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
