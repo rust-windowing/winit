@@ -28,14 +28,10 @@
 //! for example, a button that's normally 50 pixels across would be 100 pixels across on a device
 //! with a scale factor of `2.0`, or 75 pixels across with a scale factor of `1.5`.
 //!
-//! The scale factor correlates with, but no has direct relationship to, the screen's actual DPI
-//! (dots per inch). Operating systems used to define the scale factor in terms of the screen's
-//! approximate DPI (at the time, 72 pixels per inch), but [Microsoft decided to report that the DPI
-//! was roughly 1/3 bigger than the screen's actual DPI (so, 96 pixels per inch) in order to make
-//! text more legible][microsoft_dpi]. As a result, the exact DPI as defined by the OS doesn't carry
-//! a whole lot of weight when designing cross-platform UIs. Scaled pixels should generally be used
-//! as the base unit for on-screen UI measurement, instead of DPI-dependent units such as
-//! [points][points] or [picas][picas].
+//! Many UI systems, such as CSS, expose DPI-dependent units like [points] or [picas]. That's
+//! usually a mistake, since there's no consistent mapping between the scale factor and the screen's
+//! actual DPI. Unless you're printing to a physical medium, you should work in scaled pixels rather
+//! than any DPI-dependent units.
 //!
 //! ### Position and Size types
 //!
@@ -94,7 +90,6 @@
 //!   device, and range from `1.0` to `4.0`. See [this article][android_1] for more information.
 //! - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
 //!
-//! [microsoft_dpi]: https://blogs.msdn.microsoft.com/fontblog/2005/11/08/where-does-96-dpi-come-from-in-windows/
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
 //! [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
