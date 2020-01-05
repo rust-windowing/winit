@@ -51,7 +51,7 @@ jobs:
       uses: actions/cache@v1
       with:
         path: ~/.cargo
-        key: ${{ matrix.target }}-cargo-${{ matrix.rust_version }}
+        key: ${{ matrix.platform.target }}-cargo-${{ matrix.rust_version }}
 
     - uses: hecrj/setup-rust-action@v1
       with:
