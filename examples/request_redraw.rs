@@ -18,14 +18,14 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent {
-                event,
-                ..
-            } => match event {
+            Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::MouseInput{ state: ElementState::Released, .. } => {
+                WindowEvent::MouseInput {
+                    state: ElementState::Released,
+                    ..
+                } => {
                     window.request_redraw();
-                },
+                }
                 _ => (),
             },
             Event::RedrawRequested(_) => {
