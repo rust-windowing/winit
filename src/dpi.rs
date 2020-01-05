@@ -52,12 +52,12 @@
 //!
 //! ### Events
 //!
-//! Winit will dispatch a [`DpiChanged`](crate::event::WindowEvent::DpiChanged)
+//! Winit will dispatch a [`ScaleFactorChanged`](crate::event::WindowEvent::ScaleFactorChanged)
 //! event whenever a window's scale factor has changed. This can happen if the user drags their
 //! window from a standard-resolution monitor to a high-DPI monitor, or if the user changes their
 //! DPI settings. This gives you a chance to rescale your application's UI elements and adjust how
 //! the platform changes the window's size to reflect the new scale factor. If a window hasn't
-//! received a [`DpiChanged`](crate::event::WindowEvent::DpiChanged) event,
+//! received a [`ScaleFactorChanged`](crate::event::WindowEvent::ScaleFactorChanged) event,
 //! then its scale factor is `1.0`.
 //!
 //! ## How is the scale factor calculated?

@@ -371,7 +371,7 @@ impl Window {
     /// See the [`dpi`](crate::dpi) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking `WindowEvent::DpiChanged` events is
+    /// moved to another screen); as such, tracking `WindowEvent::ScaleFactorChanged` events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
     /// ## Platform-specific

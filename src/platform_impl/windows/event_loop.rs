@@ -1415,7 +1415,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change
         // DPI, therefore all applications are closed while DPI is changing.
         winuser::WM_DPICHANGED => {
-            use crate::event::WindowEvent::DpiChanged;
+            use crate::event::WindowEvent::ScaleFactorChanged;
 
             // This message actually provides two DPI values - x and y. However MSDN says that
             // "you only need to use either the X-axis or the Y-axis value when scaling your
@@ -1499,7 +1499,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             let _ = subclass_input.send_event_unbuffered(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: DpiChanged {
+                event: ScaleFactorChanged {
                     scale_factor: new_dpi_factor,
                     new_inner_size: &mut new_physical_inner_size,
                 },

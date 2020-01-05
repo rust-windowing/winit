@@ -305,7 +305,7 @@ pub enum WindowEvent<'a> {
     /// by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
-    DpiChanged {
+    ScaleFactorChanged {
         scale_factor: f64,
         new_inner_size: &'a mut PhysicalSize<u32>,
     },
@@ -397,7 +397,7 @@ impl<'a> WindowEvent<'a> {
             }),
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
-            DpiChanged { .. } => None,
+            ScaleFactorChanged { .. } => None,
         }
     }
 }

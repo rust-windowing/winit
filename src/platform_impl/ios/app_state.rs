@@ -865,7 +865,7 @@ fn handle_hidpi_proxy(
     let new_inner_size = &mut size;
     let event = Event::WindowEvent {
         window_id: RootWindowId(window_id.into()),
-        event: WindowEvent::DpiChanged {
+        event: WindowEvent::ScaleFactorChanged {
             scale_factor,
             new_inner_size,
         },

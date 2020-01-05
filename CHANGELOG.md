@@ -1,6 +1,14 @@
 # Unreleased
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
+- **Breaking**: Overhaul how Winit handles DPI:
+  + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
+  + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
+  + `hidpi_factor` has been renamed to `scale_factor`.
+  + `HiDpiFactorChanged` has been renamed to `ScaleFactorChanged`, and lets you control how the OS
+    resizes the window in response to the change.
+  + On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`.
+  + `Size` and `Position` types are generic over their exact pixel type.
 
 # 0.20.0 Alpha 6 (2020-01-03)
 
@@ -47,8 +55,6 @@
 - On X11, generate synthetic key events for keys held when a window gains or loses focus.
 - On X11, issue a `CursorMoved` event when a `Touch` event occurs,
   as X11 implicitly moves the cursor for such events.
-- Rename `hidpi_factor` to `scale_factor`
-- On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`
 
 # 0.20.0 Alpha 4 (2019-10-18)
 

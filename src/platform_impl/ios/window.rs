@@ -398,7 +398,7 @@ impl Window {
             };
             app_state::set_key_window(window);
 
-            // Like the Windows and macOS backends, we send a `DpiChanged` and `Resized`
+            // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
             // event on window creation if the DPI factor != 1.0
             let dpi_factor: CGFloat = msg_send![view, contentScaleFactor];
             let scale_factor: f64 = dpi_factor.into();
