@@ -33,6 +33,11 @@ jobs:
           - { target: wasm32-unknown-unknown,   features: stdweb,  os: ubuntu-latest, web: web }
           - { target: wasm32-unknown-unknown,   features: web-sys, os: ubuntu-latest, web: web }
 
+    env:
+      RUST_BACKTRACE: 1
+      CARGO_INCREMENTAL: 0
+      RUSTFLAGS: "-C debuginfo=0"
+
     runs-on: ${{ matrix.platform.os }}
     steps:
     - uses: actions/checkout@v1
@@ -40,6 +45,14 @@ jobs:
       with:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
+
+    # Used to cache cargo-web
+    - name: Cache cargo binaries
+      uses: actions/cache@v1
+      with:
+        path: ~/.cargo/bin
+        key: ${{ runner.os }}-cargo-bin-${{ matrix.rust_version }}
+
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
@@ -52,13 +65,13 @@ jobs:
 
     - name: Build
       run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
-  
+
     - name: Build tests
       run: cargo ${{ matrix.platform.web }} test --no-run --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
     - name: Run tests
       if: (!contains(matrix.platform.target, 'ios'))
       run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
-  
+
     - name: Build with serde enabled
       run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
     - name: Build tests with serde enabled
