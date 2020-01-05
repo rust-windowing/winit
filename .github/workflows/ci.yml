@@ -31,25 +31,27 @@ jobs:
       matrix:
         rust_version: [stable, nightly]
         platform:
-          - { target: x86_64-pc-windows-msvc,   features: ',',     os: windows-latest,  }
-          - { target: i686-pc-windows-msvc,     features: ',',     os: windows-latest,  }
-          - { target: x86_64-pc-windows-gnu,    features: ',',     os: windows-latest, host: -x86_64-pc-windows-gnu }
-          - { target: i686-pc-windows-gnu,      features: ',',     os: windows-latest, host: -i686-pc-windows-gnu }
-          - { target: i686-unknown-linux-gnu,   features: ',',     os: ubuntu-latest,   }
-          - { target: x86_64-unknown-linux-gnu, features: ',',     os: ubuntu-latest,   }
-          - { target: x86_64-apple-darwin,      features: ',',     os: macos-latest,    }
-          - { target: x86_64-apple-ios,         features: ',',     os: macos-latest,    }
-          - { target: armv7-apple-ios,          features: ',',     os: macos-latest,    }
-          - { target: aarch64-apple-ios,        features: ',',     os: macos-latest,    }
+          - { target: x86_64-pc-windows-msvc,   os: windows-latest,  }
+          - { target: i686-pc-windows-msvc,     os: windows-latest,  }
+          - { target: x86_64-pc-windows-gnu,    os: windows-latest, host: -x86_64-pc-windows-gnu }
+          - { target: i686-pc-windows-gnu,      os: windows-latest, host: -i686-pc-windows-gnu }
+          - { target: i686-unknown-linux-gnu,   os: ubuntu-latest,   }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
+          - { target: x86_64-apple-darwin,      os: macos-latest,    }
+          - { target: x86_64-apple-ios,         os: macos-latest,    }
+          - { target: armv7-apple-ios,          os: macos-latest,    }
+          - { target: aarch64-apple-ios,        os: macos-latest,    }
           # We're using Windows rather than Ubuntu to run the wasm tests because caching cargo-web
           # doesn't currently work on Linux.
-          - { target: wasm32-unknown-unknown,   features: stdweb,  os: windows-latest, web: web }
-          - { target: wasm32-unknown-unknown,   features: web-sys, os: windows-latest, web: web }
+          - { target: wasm32-unknown-unknown,   os: windows-latest, features: stdweb,  web: web }
+          - { target: wasm32-unknown-unknown,   os: windows-latest, features: web-sys, web: web }
 
     env:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
       RUSTFLAGS: "-C debuginfo=0"
+      FEATURES: ${{ matrix.platform.features }}
+      WEB: ${{ matrix.platform.web }}
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -75,23 +77,23 @@ jobs:
       run: cargo install cargo-web
     - name: Check documentation
       if: matrix.platform.target != 'wasm32-unknown-unknown'
-      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
+      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features $FEATURES
 
     - name: Build
-      run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
+      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features $FEATURES
 
     - name: Build tests
-      run: cargo ${{ matrix.platform.web }} test --no-run --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
+      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features $FEATURES
     - name: Run tests
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
-      run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features '${{ matrix.platform.features }}'
+      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features $FEATURES
 
 
     - name: Build with serde enabled
-      run: cargo ${{ matrix.platform.web }} build --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
+      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
 
     - name: Build tests with serde enabled
-      run: cargo ${{ matrix.platform.web }} test --no-run --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
+      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
     - name: Run tests with serde enabled
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
-      run: cargo ${{ matrix.platform.web }} test --verbose --target ${{ matrix.platform.target }} --features 'serde,${{ matrix.platform.features }}'
+      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
