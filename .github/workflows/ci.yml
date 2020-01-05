@@ -50,7 +50,7 @@ jobs:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
       RUSTFLAGS: "-C debuginfo=0"
-      FEATURES: ${{ join(',', matrix.platform.features ) }}
+      FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
       WEB: ${{ matrix.platform.web }}
 
     runs-on: ${{ matrix.platform.os }}
