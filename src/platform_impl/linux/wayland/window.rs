@@ -25,8 +25,8 @@ use smithay_client_toolkit::{
     window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
 };
 
-use winit_types::error::{Error, ErrorType};
 use winit_types::dpi::{LogicalPosition, LogicalSize};
+use winit_types::error::{Error, ErrorType};
 
 use super::{event_loop::CursorManager, make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 

@@ -12,8 +12,8 @@ use std::{
     sync::Arc,
 };
 
-use winit_types::error::Error;
 use winit_types::dpi::{PhysicalPosition, PhysicalSize};
+use winit_types::error::Error;
 
 use super::{util, EventLoop};
 use crate::{

@@ -21,8 +21,8 @@ use crate::{
     },
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
-use winit_types::error::{Error, ErrorType};
 use winit_types::dpi::{self, LogicalPosition, LogicalSize};
+use winit_types::error::{Error, ErrorType};
 
 pub struct Inner {
     pub window: id,

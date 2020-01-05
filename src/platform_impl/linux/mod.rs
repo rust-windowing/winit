@@ -4,8 +4,8 @@ use std::{collections::VecDeque, env, os::raw, sync::Arc};
 
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
-use winit_types::error::Error;
 use winit_types::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use winit_types::error::Error;
 
 use self::x11::{ffi::XVisualInfo, get_xtarget, util::WindowType as XWindowType, XConnection};
 use crate::{

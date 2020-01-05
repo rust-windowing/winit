@@ -2,8 +2,8 @@
 
 use parking_lot::Mutex;
 use raw_window_handle::{windows::WindowsHandle, RawWindowHandle};
-use winit_types::error::Error;
 use winit_types::dpi::{LogicalPosition, LogicalSize, PhysicalSize};
+use winit_types::error::Error;
 
 use std::{
     cell::Cell,

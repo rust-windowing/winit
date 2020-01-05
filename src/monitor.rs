@@ -9,10 +9,8 @@
 //! [monitor_handle]: crate::monitor::MonitorHandle
 //! [loop_get]: crate::event_loop::EventLoop::available_monitors
 //! [window_get]: crate::window::Window::available_monitors
+use crate::platform_impl;
 use winit_types::dpi::{PhysicalPosition, PhysicalSize};
-use crate::{
-    platform_impl,
-};
 
 /// Describes a fullscreen video mode of a monitor.
 ///

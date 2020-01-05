@@ -26,6 +26,7 @@ log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 raw-window-handle = "0.3"
 winit_types = { version = "0.1.0", path = "../winit_types" }
+glutin_interface = { version = "0.1.0", path = "../glutin_interface" }
 
 [dev-dependencies]
 image = "0.21"

@@ -38,9 +38,9 @@ use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
+use winit_types::dpi::{LogicalPosition, LogicalSize};
 use winit_types::error::Error;
 use winit_types::platform::OsError;
-use winit_types::dpi::{LogicalPosition, LogicalSize};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);

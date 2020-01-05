@@ -8,8 +8,8 @@ use crate::{
 };
 
 use parking_lot::Mutex;
-use x11_dl::xrandr::{RRCrtc, RRMode};
 use winit_types::dpi::{validate_hidpi_factor, PhysicalPosition, PhysicalSize};
+use x11_dl::xrandr::{RRCrtc, RRMode};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;

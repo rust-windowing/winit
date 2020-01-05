@@ -1,7 +1,7 @@
 //! The `Window` struct and associated types.
 use std::fmt;
-use winit_types::error::Error;
 use winit_types::dpi::{LogicalPosition, LogicalSize};
+use winit_types::error::Error;
 
 use crate::{
     event_loop::EventLoopWindowTarget,
