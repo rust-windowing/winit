@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
+
 # 0.20.0 (2020-01-05)
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
