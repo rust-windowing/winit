@@ -24,7 +24,7 @@ use winapi::{
         oleidl::LPDROPTARGET,
         shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
         wingdi::{CreateRectRgn, DeleteObject},
-        winnt::{LONG, LPCWSTR},
+        winnt::LPCWSTR,
         winuser,
     },
 };
@@ -215,38 +215,6 @@ impl Window {
             .unwrap()
     }
 
-    pub(crate) fn set_inner_size_physical(&self, x: u32, y: u32) {
-        unsafe {
-            let rect = util::adjust_window_rect(
-                self.window.0,
-                RECT {
-                    top: 0,
-                    left: 0,
-                    bottom: y as LONG,
-                    right: x as LONG,
-                },
-            )
-            .expect("adjust_window_rect failed");
-
-            let outer_x = (rect.right - rect.left).abs() as c_int;
-            let outer_y = (rect.top - rect.bottom).abs() as c_int;
-            winuser::SetWindowPos(
-                self.window.0,
-                ptr::null_mut(),
-                0,
-                0,
-                outer_x,
-                outer_y,
-                winuser::SWP_ASYNCWINDOWPOS
-                    | winuser::SWP_NOZORDER
-                    | winuser::SWP_NOREPOSITION
-                    | winuser::SWP_NOMOVE
-                    | winuser::SWP_NOACTIVATE,
-            );
-            winuser::UpdateWindow(self.window.0);
-        }
-    }
-
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let dpi_factor = self.scale_factor();
@@ -260,7 +228,7 @@ impl Window {
             });
         });
 
-        self.set_inner_size_physical(width, height);
+        util::set_inner_size_physical(self.window.0, width, height);
     }
 
     #[inline]

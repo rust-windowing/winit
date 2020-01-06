@@ -7,6 +7,8 @@ use winit::{
 };
 
 fn main() {
+    simple_logger::init().unwrap();
+
     // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
     // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
     // since it seems to work well enough in most cases. Be careful about going too high, or

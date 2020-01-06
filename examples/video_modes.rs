@@ -1,6 +1,7 @@
 use winit::event_loop::EventLoop;
 
 fn main() {
+    simple_logger::init().unwrap();
     let event_loop = EventLoop::new();
     let monitor = event_loop.primary_monitor();
 
