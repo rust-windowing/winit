@@ -239,7 +239,13 @@ impl<T: 'static> EventLoop<T> {
                 runner.main_events_cleared();
                 loop {
                     if !unread_message_exists {
-                        if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), winuser::WM_PAINT, winuser::WM_PAINT, 1) {
+                        if 0 == winuser::PeekMessageW(
+                            &mut msg,
+                            ptr::null_mut(),
+                            winuser::WM_PAINT,
+                            winuser::WM_PAINT,
+                            1,
+                        ) {
                             break;
                         }
                     }
@@ -1725,7 +1731,13 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
 
                     subclass_input.event_loop_runner.main_events_cleared();
                     loop {
-                        if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), winuser::WM_PAINT, winuser::WM_PAINT, 1) {
+                        if 0 == winuser::PeekMessageW(
+                            &mut msg,
+                            ptr::null_mut(),
+                            winuser::WM_PAINT,
+                            winuser::WM_PAINT,
+                            1,
+                        ) {
                             break;
                         }
 

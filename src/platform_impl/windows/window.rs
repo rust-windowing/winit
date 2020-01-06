@@ -24,7 +24,7 @@ use winapi::{
         oleidl::LPDROPTARGET,
         shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
         wingdi::{CreateRectRgn, DeleteObject},
-        winnt::{LPCWSTR},
+        winnt::LPCWSTR,
         winuser,
     },
 };

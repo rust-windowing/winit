@@ -6,7 +6,7 @@ use crate::{
     dpi::PhysicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
-    platform_impl::platform::{util, event_loop::EventLoop},
+    platform_impl::platform::{event_loop::EventLoop, util},
     window::WindowId,
 };
 
@@ -43,7 +43,7 @@ impl AreEventsBuffered {
     pub fn events_buffered(&self) -> bool {
         match self {
             Self::EventsBuffered => true,
-            Self::ReadyToSleep => false
+            Self::ReadyToSleep => false,
         }
     }
 }
@@ -52,7 +52,11 @@ impl<T> BufferedEvent<T> {
     pub fn from_event(event: Event<'_, T>) -> BufferedEvent<T> {
         match event {
             Event::WindowEvent {
-                event: WindowEvent::ScaleFactorChanged{ scale_factor, new_inner_size },
+                event:
+                    WindowEvent::ScaleFactorChanged {
+                        scale_factor,
+                        new_inner_size,
+                    },
                 window_id,
             } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
             event => BufferedEvent::Event(event.to_static().unwrap()),
@@ -68,9 +72,13 @@ impl<T> BufferedEvent<T> {
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
                         new_inner_size: &mut new_inner_size,
-                    }
+                    },
                 });
-                util::set_inner_size_physical((window_id.0).0, new_inner_size.width as _, new_inner_size.height as _);
+                util::set_inner_size_physical(
+                    (window_id.0).0,
+                    new_inner_size.width as _,
+                    new_inner_size.height as _,
+                );
             }
         }
     }
@@ -122,7 +130,9 @@ impl<T> ELRShared<T> {
     }
 
     pub(crate) unsafe fn send_event(&self, event: Event<'_, T>) {
-        let handling_redraw = self.runner.borrow()
+        let handling_redraw = self
+            .runner
+            .borrow()
             .as_ref()
             .map(|r| RunnerState::HandlingRedraw == r.runner_state)
             .unwrap_or(false);
@@ -145,10 +155,7 @@ impl<T> ELRShared<T> {
         }
     }
 
-    unsafe fn send_event_unbuffered<'e>(
-        &self,
-        event: Event<'e, T>,
-    ) -> Result<(), Event<'e, T>> {
+    unsafe fn send_event_unbuffered<'e>(&self, event: Event<'e, T>) -> Result<(), Event<'e, T>> {
         if let Ok(mut runner_ref) = self.runner.try_borrow_mut() {
             if let Some(ref mut runner) = *runner_ref {
                 runner.process_event(event);
@@ -247,7 +254,10 @@ impl<T> ELRShared<T> {
             Event::RedrawRequested(window_id) => {
                 self.redraw_buffer.borrow_mut().push_back(window_id)
             }
-            _ => self.buffer.borrow_mut().push_back(BufferedEvent::from_event(event)),
+            _ => self
+                .buffer
+                .borrow_mut()
+                .push_back(BufferedEvent::from_event(event)),
         }
     }
 }
@@ -407,8 +417,8 @@ impl<T> EventLoopRunner<T> {
             (RunnerState::HandlingRedraw, Event::RedrawRequested(_)) => {
                 self.call_event_handler(event)
             }
-            (RunnerState::New, Event::RedrawRequested(_)) |
-            (RunnerState::Idle(..), Event::RedrawRequested(_)) => {
+            (RunnerState::New, Event::RedrawRequested(_))
+            | (RunnerState::Idle(..), Event::RedrawRequested(_)) => {
                 self.new_events();
                 self.main_events_cleared();
                 self.call_event_handler(event);
@@ -417,7 +427,10 @@ impl<T> EventLoopRunner<T> {
                 panic!("redraw event in non-redraw phase");
             }
             (RunnerState::HandlingRedraw, _) => {
-                panic!("Non-redraw event dispatched durning redraw phase: {:?}", event.map_nonuser_event::<()>().ok());
+                panic!(
+                    "Non-redraw event dispatched durning redraw phase: {:?}",
+                    event.map_nonuser_event::<()>().ok()
+                );
             }
             (_, _) => {
                 self.runner_state = RunnerState::HandlingEvents;
