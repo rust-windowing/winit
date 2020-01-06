@@ -25,7 +25,7 @@ use crate::{
         app_state::AppState,
         event::{
             char_to_keycode, check_function_keys, event_mods, get_scancode, modifier_event,
-            scancode_to_keycode,
+            scancode_to_keycode, EventWrapper,
         },
         ffi::*,
         util::{self, IdRef},
@@ -512,10 +512,10 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
 
         let mut events = VecDeque::with_capacity(characters.len());
         for character in string.chars().filter(|c| !is_corporate_character(*c)) {
-            events.push_back(Event::WindowEvent {
+            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::ReceivedCharacter(character),
-            });
+            }));
         }
 
         AppState::queue_events(events);
@@ -536,10 +536,10 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
             // The `else` condition would emit the same character, but I'm keeping this here both...
             // 1) as a reminder for how `doCommandBySelector` works
             // 2) to make our use of carriage return explicit
-            events.push_back(Event::WindowEvent {
+            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::ReceivedCharacter('\r'),
-            });
+            }));
         } else {
             let raw_characters = state.raw_characters.take();
             if let Some(raw_characters) = raw_characters {
@@ -547,10 +547,10 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
                     .chars()
                     .filter(|c| !is_corporate_character(*c))
                 {
-                    events.push_back(Event::WindowEvent {
+                    events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: WindowId(get_window_id(state.ns_window)),
                         event: WindowEvent::ReceivedCharacter(character),
-                    });
+                    }));
                 }
             }
         };
@@ -646,14 +646,14 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         };
 
         let pass_along = {
-            AppState::queue_event(window_event);
+            AppState::queue_event(EventWrapper::StaticEvent(window_event));
             // Emit `ReceivedCharacter` for key repeats
             if is_repeat && state.is_key_down {
                 for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
-                    AppState::queue_event(Event::WindowEvent {
+                    AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ReceivedCharacter(character),
-                    });
+                    }));
                 }
                 false
             } else {
@@ -697,7 +697,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `keyUp`");
 }
@@ -747,16 +747,16 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
         }
 
         for event in events {
-            AppState::queue_event(Event::WindowEvent {
+            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event,
-            });
+            }));
         }
 
-        AppState::queue_event(Event::DeviceEvent {
+        AppState::queue_event(EventWrapper::StaticEvent(Event::DeviceEvent {
             device_id: DEVICE_ID,
             event: DeviceEvent::ModifiersChanged(state.modifiers),
-        });
+        }));
     }
     trace!("Completed `flagsChanged`");
 }
@@ -811,7 +811,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `cancelOperation`");
 }
@@ -831,7 +831,7 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
 }
 
@@ -892,7 +892,7 @@ fn mouse_motion(this: &Object, event: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
 }
 
@@ -944,8 +944,8 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
             }
         };
 
-        AppState::queue_event(enter_event);
-        AppState::queue_event(move_event);
+        AppState::queue_event(EventWrapper::StaticEvent(enter_event));
+        AppState::queue_event(EventWrapper::StaticEvent(move_event));
     }
     trace!("Completed `mouseEntered`");
 }
@@ -963,7 +963,7 @@ extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `mouseExited`");
 }
@@ -1005,8 +1005,8 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
             },
         };
 
-        AppState::queue_event(device_event);
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(device_event));
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `scrollWheel`");
 }
@@ -1029,7 +1029,7 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `pressureChangeWithEvent`");
 }

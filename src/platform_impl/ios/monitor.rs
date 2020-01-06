@@ -88,7 +88,7 @@ impl VideoMode {
         }
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -171,16 +171,16 @@ impl fmt::Debug for MonitorHandle {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            size: PhysicalSize,
-            position: PhysicalPosition,
-            hidpi_factor: f64,
+            size: PhysicalSize<u32>,
+            position: PhysicalPosition<i32>,
+            scale_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
             size: self.size(),
             position: self.position(),
-            hidpi_factor: self.hidpi_factor(),
+            scale_factor: self.scale_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -216,21 +216,21 @@ impl Inner {
         }
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
-            (bounds.size.width as f64, bounds.size.height as f64).into()
+            PhysicalSize::new(bounds.size.width as u32, bounds.size.height as u32)
         }
     }
 
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         unsafe {
             let bounds: CGRect = msg_send![self.ui_screen(), nativeBounds];
             (bounds.origin.x as f64, bounds.origin.y as f64).into()
         }
     }
 
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         unsafe {
             let scale: CGFloat = msg_send![self.ui_screen(), nativeScale];
             scale as f64

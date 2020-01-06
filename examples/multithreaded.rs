@@ -5,20 +5,21 @@ fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
     use winit::{
+        dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
 
     const WINDOW_COUNT: usize = 3;
-    const WINDOW_SIZE: (u32, u32) = (600, 400);
+    const WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize::new(600, 400);
 
     env_logger::init();
     let event_loop = EventLoop::new();
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
         let window = WindowBuilder::new()
-            .with_inner_size(WINDOW_SIZE.into())
+            .with_inner_size(WINDOW_SIZE)
             .build(&event_loop)
             .unwrap();
 
@@ -49,6 +50,7 @@ fn main() {
                             );
                         }
                     }
+                    #[allow(deprecated)]
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
@@ -101,31 +103,38 @@ fn main() {
                                 println!("-> fullscreen     : {:?}", window.fullscreen());
                             }
                             L => window.set_min_inner_size(match state {
-                                true => Some(WINDOW_SIZE.into()),
+                                true => Some(WINDOW_SIZE),
                                 false => None,
                             }),
                             M => window.set_maximized(state),
                             P => window.set_outer_position({
                                 let mut position = window.outer_position().unwrap();
-                                let sign = if state { 1.0 } else { -1.0 };
-                                position.x += 10.0 * sign;
-                                position.y += 10.0 * sign;
+                                let sign = if state { 1 } else { -1 };
+                                position.x += 10 * sign;
+                                position.y += 10 * sign;
                                 position
                             }),
                             Q => window.request_redraw(),
                             R => window.set_resizable(state),
-                            S => window.set_inner_size(
-                                match state {
-                                    true => (WINDOW_SIZE.0 + 100, WINDOW_SIZE.1 + 100),
-                                    false => WINDOW_SIZE,
+                            S => window.set_inner_size(match state {
+                                true => PhysicalSize::new(
+                                    WINDOW_SIZE.width + 100,
+                                    WINDOW_SIZE.height + 100,
+                                ),
+                                false => WINDOW_SIZE,
+                            }),
+                            W => {
+                                if let Size::Physical(size) = WINDOW_SIZE.into() {
+                                    window
+                                        .set_cursor_position(Position::Physical(
+                                            PhysicalPosition::new(
+                                                size.width as i32 / 2,
+                                                size.height as i32 / 2,
+                                            ),
+                                        ))
+                                        .unwrap()
                                 }
-                                .into(),
-                            ),
-                            W => window
-                                .set_cursor_position(
-                                    (WINDOW_SIZE.0 as i32 / 2, WINDOW_SIZE.1 as i32 / 2).into(),
-                                )
-                                .unwrap(),
+                            }
                             Z => {
                                 window.set_visible(false);
                                 thread::sleep(Duration::from_secs(1));
@@ -161,7 +170,9 @@ fn main() {
                 }
                 _ => {
                     if let Some(tx) = window_senders.get(&window_id) {
-                        tx.send(event).unwrap();
+                        if let Some(event) = event.to_static() {
+                            tx.send(event).unwrap();
+                        }
                     }
                 }
             },
