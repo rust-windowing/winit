@@ -34,10 +34,13 @@
 //!
 //! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    fmt,
+};
 
 use crate::{
-    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -56,16 +59,11 @@ pub enum Event<'a, T: 'static> {
     NewEvents(StartCause),
 
     /// Emitted when the OS sends an event to a winit window.
-    WindowEvent {
-        window_id: WindowId,
-        event: WindowEvent<'a>,
-    },
+    WindowEvent(WindowId, WindowEvent),
+    WindowEventImmediate(WindowId, WindowEventImmediate<'a>),
 
-    /// Emitted when the OS sends an event to a device.
-    DeviceEvent {
-        device_id: DeviceId,
-        event: DeviceEvent,
-    },
+    RawPointerEvent(PointerDeviceId, RawPointerEvent),
+    RawKeyboardEvent(KeyboardDeviceId, RawKeyboardEvent),
 
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
@@ -147,8 +145,10 @@ impl<'a, T> Event<'a, T> {
         use self::Event::*;
         match self {
             UserEvent(_) => Err(self),
-            WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
-            DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
+            WindowEvent(window_id, event) => Ok(WindowEvent(window_id, event)),
+            WindowEventImmediate(window_id, event) => Ok(WindowEventImmediate(window_id, event)),
+            RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
+            RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             MainEventsCleared => Ok(MainEventsCleared),
             RedrawRequested(wid) => Ok(RedrawRequested(wid)),
@@ -161,21 +161,21 @@ impl<'a, T> Event<'a, T> {
 
     /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
     /// Otherwise, return `None`.
-    pub fn to_static(self) -> Option<Event<'static, T>> {
+    pub fn to_static(self) -> Result<Event<'static, T>, Event<'a, T>> {
         use self::Event::*;
         match self {
-            WindowEvent { window_id, event } => event
-                .to_static()
-                .map(|event| WindowEvent { window_id, event }),
-            UserEvent(event) => Some(UserEvent(event)),
-            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Some(NewEvents(cause)),
-            MainEventsCleared => Some(MainEventsCleared),
-            RedrawRequested(wid) => Some(RedrawRequested(wid)),
-            RedrawEventsCleared => Some(RedrawEventsCleared),
-            LoopDestroyed => Some(LoopDestroyed),
-            Suspended => Some(Suspended),
-            Resumed => Some(Resumed),
+            NewEvents(cause) => Ok(NewEvents(cause)),
+            WindowEvent(window_id, event) => Ok(WindowEvent(window_id, event)),
+            WindowEventImmediate(window_id, event) => Err(WindowEventImmediate(window_id, event)),
+            RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
+            RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
+            Suspended => Ok(Suspended),
+            Resumed => Ok(Resumed),
+            UserEvent(e) => Ok(UserEvent(e)),
+            MainEventsCleared => Ok(MainEventsCleared),
+            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
+            RedrawEventsCleared => Ok(RedrawEventsCleared),
+            LoopDestroyed => Ok(LoopDestroyed),
         }
     }
 }
@@ -207,8 +207,9 @@ pub enum StartCause {
 }
 
 /// Describes an event from a `Window`.
-#[derive(Debug, PartialEq)]
-pub enum WindowEvent<'a> {
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
 
@@ -239,111 +240,41 @@ pub enum WindowEvent<'a> {
     /// hovered.
     HoveredFileCancelled,
 
+    /// The window gained focus.
+    FocusedGained,
+
+    /// The window lost focus.
+    FocustLost,
+
     /// The window received a unicode character.
-    ReceivedCharacter(char),
+    Char(char),
 
-    /// The window gained or lost focus.
-    ///
-    /// The parameter is true if the window has gained focus, and false if it has lost focus.
-    Focused(bool),
-
-    /// An event from the keyboard has been received.
-    KeyboardInput {
-        device_id: DeviceId,
-        input: KeyboardInput,
-        /// If `true`, the event was generated synthetically by winit
-        /// in one of the following circumstances:
-        ///
-        /// * Synthetic key press events are generated for all keys pressed
-        ///   when a window gains focus. Likewise, synthetic key release events
-        ///   are generated for all keys pressed when a window goes out of focus.
-        ///   ***Currently, this is only functional on X11 and Windows***
-        ///
-        /// Otherwise, this value is always `false`.
-        is_synthetic: bool,
-    },
+    KeyPress(Key, ScanCode, KeyFlags),
 
     /// The keyboard modifiers have changed.
+    ///
+    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
+    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
     ///
     /// Platform-specific behavior:
     /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
-    /// The cursor has moved on the window.
-    CursorMoved {
-        device_id: DeviceId,
+    PointerCreated(PointerId),
+    PointerDestroyed(PointerId),
 
-        /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
-        /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
-        /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: PhysicalPosition<f64>,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
-    },
+    PointerMoved(PointerId, PhysicalPosition<f64>),
 
-    /// The cursor has entered the window.
-    CursorEntered { device_id: DeviceId },
+    PointerEntered(PointerId),
+    PointerLeft(PointerId),
 
-    /// The cursor has left the window.
-    CursorLeft { device_id: DeviceId },
+    PointerForce(PointerId, Force),
 
-    /// A mouse wheel movement or touchpad scroll occurred.
-    MouseWheel {
-        device_id: DeviceId,
-        delta: MouseScrollDelta,
-        phase: TouchPhase,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
-    },
+    PointerPress(PointerId, PointerButton, PointerFlags),
 
-    /// An mouse button press has been received.
-    MouseInput {
-        device_id: DeviceId,
-        state: ElementState,
-        button: MouseButton,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
-    },
-
-    /// Touchpad pressure event.
-    ///
-    /// At the moment, only supported on Apple forcetouch-capable macbooks.
-    /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
-    /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure {
-        device_id: DeviceId,
-        pressure: f32,
-        stage: i64,
-    },
-
-    /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion {
-        device_id: DeviceId,
-        axis: AxisId,
-        value: f64,
-    },
-
-    /// Touch event has been received
-    Touch(Touch),
-
-    /// The window's scale factor has changed.
-    ///
-    /// The following user actions can cause DPI changes:
-    ///
-    /// * Changing the display's resolution.
-    /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
-    /// * Moving the window to a display with a different scale factor.
-    ///
-    /// After this event callback has been processed, the window will be resized to whatever value
-    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
-    /// by the OS, but it can be changed to any value.
-    ///
-    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
-    ScaleFactorChanged {
-        scale_factor: f64,
-        new_inner_size: &'a mut PhysicalSize<u32>,
-    },
+    ScrollDiscrete(Vector<i32>),
+    ScrollSmooth(Vector<f64>),
 
     /// The system window theme has changed.
     ///
@@ -354,315 +285,176 @@ pub enum WindowEvent<'a> {
     ThemeChanged(Theme),
 }
 
-impl Clone for WindowEvent<'static> {
-    fn clone(&self) -> Self {
-        use self::WindowEvent::*;
-        return match self {
-            Resized(size) => Resized(size.clone()),
-            Moved(pos) => Moved(pos.clone()),
-            CloseRequested => CloseRequested,
-            Destroyed => Destroyed,
-            DroppedFile(file) => DroppedFile(file.clone()),
-            HoveredFile(file) => HoveredFile(file.clone()),
-            HoveredFileCancelled => HoveredFileCancelled,
-            ReceivedCharacter(c) => ReceivedCharacter(*c),
-            Focused(f) => Focused(*f),
-            KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            } => KeyboardInput {
-                device_id: *device_id,
-                input: *input,
-                is_synthetic: *is_synthetic,
-            },
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct Vector<T> {
+    pub x: T,
+    pub y: T,
+}
 
-            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
-            #[allow(deprecated)]
-            CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            } => CursorMoved {
-                device_id: *device_id,
-                position: *position,
-                modifiers: *modifiers,
-            },
-            CursorEntered { device_id } => CursorEntered {
-                device_id: *device_id,
-            },
-            CursorLeft { device_id } => CursorLeft {
-                device_id: *device_id,
-            },
-            #[allow(deprecated)]
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            } => MouseWheel {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-                modifiers: *modifiers,
-            },
-            #[allow(deprecated)]
-            MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            } => MouseInput {
-                device_id: *device_id,
-                state: *state,
-                button: *button,
-                modifiers: *modifiers,
-            },
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => TouchpadPressure {
-                device_id: *device_id,
-                pressure: *pressure,
-                stage: *stage,
-            },
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => AxisMotion {
-                device_id: *device_id,
-                axis: *axis,
-                value: *value,
-            },
-            Touch(touch) => Touch(*touch),
-            ThemeChanged(theme) => ThemeChanged(theme.clone()),
-            ScaleFactorChanged { .. } => {
-                unreachable!("Static event can't be about scale factor changing")
-            }
-        };
+bitflags!{
+    pub struct KeyFlags: u16 {
+        const IS_DOWN = 1 << 0;
+        const IS_SYNTHETIC = 1 << 0;
+        const IS_REPEAT = 1 << 1;
     }
 }
 
-impl<'a> WindowEvent<'a> {
-    pub fn to_static(self) -> Option<WindowEvent<'static>> {
-        use self::WindowEvent::*;
-        match self {
-            Resized(size) => Some(Resized(size)),
-            Moved(position) => Some(Moved(position)),
-            CloseRequested => Some(CloseRequested),
-            Destroyed => Some(Destroyed),
-            DroppedFile(file) => Some(DroppedFile(file)),
-            HoveredFile(file) => Some(HoveredFile(file)),
-            HoveredFileCancelled => Some(HoveredFileCancelled),
-            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
-            Focused(focused) => Some(Focused(focused)),
-            KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            } => Some(KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            }),
-            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
-            #[allow(deprecated)]
-            CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            } => Some(CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            }),
-            CursorEntered { device_id } => Some(CursorEntered { device_id }),
-            CursorLeft { device_id } => Some(CursorLeft { device_id }),
-            #[allow(deprecated)]
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            } => Some(MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            }),
-            #[allow(deprecated)]
-            MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            } => Some(MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            }),
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => Some(TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            }),
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => Some(AxisMotion {
-                device_id,
-                axis,
-                value,
-            }),
-            Touch(touch) => Some(Touch(touch)),
-            ThemeChanged(theme) => Some(ThemeChanged(theme)),
-            ScaleFactorChanged { .. } => None,
-        }
+impl KeyFlags {
+    pub fn is_down(&self) -> bool {
+        self.contains(Self::IS_DOWN)
+    }
+    pub fn is_synthetic(&self) -> bool {
+        self.contains(Self::IS_SYNTHETIC)
+    }
+    pub fn is_repeat(&self) -> bool {
+        self.contains(Self::IS_REPEAT)
     }
 }
 
-/// Identifier of an input device.
-///
-/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
-/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
-/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(pub(crate) platform_impl::DeviceId);
+bitflags!{
+    pub struct PointerFlags: u16 {
+        const IS_DOWN = 1 << 0;
+    }
+}
 
-impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
+impl PointerFlags {
+    pub fn is_down(&self) -> bool {
+        self.contains(Self::IS_DOWN)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum WindowEventImmediate<'a> {
+    /// The window's scale factor has changed.
+    ///
+    /// The following user actions can cause DPI changes:
+    ///
+    /// * Changing the display's resolution.
+    /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
+    /// * Moving the window to a display with a different scale factor.
+    ///
+    /// After this event callback has been processed, the window will be resized to whatever value
+    /// is pointed to by the `PhysicalSize` reference. By default, this will contain the size suggested
+    /// by the OS, but it can be changed to any value.
+    ///
+    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
+    ScaleFactorChanged(f64, &'a mut PhysicalSize<u32>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PointerId {
+    MouseId(MouseId),
+    TouchId(TouchId),
+    // PenId(PenId),
+}
+
+/// Hardware-dependent keyboard scan code.
+pub type ScanCode = u32;
+pub type PointerButton = u8;
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum RawPointerEvent {
+    /// A device has been added.
+    Added,
+    /// A device has been removed.
+    Removed,
+    Pressed(PointerButton),
+    Released(PointerButton),
+    /// Relative change in physical position of a pointing device.
+    ///
+    /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
+    /// the values provided here are the change in position of the mouse since the previous
+    /// `MovedRelative` event.
+    MovedRelative(Vector<f64>),
+    /// Change in absolute position of a pointing device.
+    ///
+    /// The `PhysicalPosition` value is the new position of the cursor relative to the desktop. This
+    /// generally doesn't get output by standard mouse devices, but can get output from tablet devices.
+    MovedAbsolute(PhysicalPosition<f64>),
+    /// Change in rotation of mouse wheel.
+    Wheel(Vector<f64>),
+}
+
+/// Raw keyboard events.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum RawKeyboardEvent {
+    /// A keyboard device has been added.
+    Added,
+    /// A keyboard device has been removed.
+    Removed,
+    Pressed(Option<Key>, ScanCode),
+    Released(Option<Key>, ScanCode),
+}
+
+/// A typed identifier for a mouse device.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MouseId(pub(crate) platform_impl::MouseId);
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TouchId(pub(crate) platform_impl::TouchId);
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PointerDeviceId(pub(crate) platform_impl::PointerDeviceId);
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct KeyboardDeviceId(pub(crate) platform_impl::KeyboardDeviceId);
+
+impl MouseId {
+    /// Returns a dummy `MouseId`, useful for unit testing. The only guarantee made about the return
     /// value of this function is that it will always be equal to itself and to future values returned
-    /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.
+    /// by this function.  No other guarantees are made. This may be equal to a real `MouseId`.
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
     pub unsafe fn dummy() -> Self {
-        DeviceId(platform_impl::DeviceId::dummy())
+        MouseId(platform_impl::MouseId::dummy())
     }
 }
 
-/// Represents raw hardware events that are not associated with any particular window.
-///
-/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
-/// game controls. Many physical actions, such as mouse movement, can produce both device and window events. Because
-/// window events typically arise from virtual devices (corresponding to GUI cursors and keyboard focus) the device IDs
-/// may not match.
-///
-/// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug, PartialEq)]
-pub enum DeviceEvent {
-    Added,
-    Removed,
-
-    /// Change in physical position of a pointing device.
+impl PointerDeviceId {
+    /// Returns a dummy `PointerDeviceId`, useful for unit testing. The only guarantee made about the return
+    /// value of this function is that it will always be equal to itself and to future values returned
+    /// by this function.  No other guarantees are made. This may be equal to a real `PointerDeviceId`.
     ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
-    MouseMotion {
-        /// (x, y) change in position in unspecified units.
-        ///
-        /// Different devices may use different units.
-        delta: (f64, f64),
-    },
-
-    /// Physical scroll event
-    MouseWheel {
-        delta: MouseScrollDelta,
-    },
-
-    /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
-    /// that winit supports on this platform, including mouse devices.  If the device is a mouse
-    /// device then this will be reported alongside the MouseMotion event.
-    Motion {
-        axis: AxisId,
-        value: f64,
-    },
-
-    Button {
-        button: ButtonId,
-        state: ElementState,
-    },
-
-    Key(KeyboardInput),
-
-    Text {
-        codepoint: char,
-    },
+    /// **Passing this into a winit function will result in undefined behavior.**
+    pub unsafe fn dummy() -> Self {
+        PointerDeviceId(platform_impl::PointerDeviceId::dummy())
+    }
 }
 
-/// Describes a keyboard input event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct KeyboardInput {
-    /// Identifies the physical key pressed
+impl KeyboardDeviceId {
+    /// Returns a dummy `KeyboardDeviceId`, useful for unit testing. The only guarantee made about the return
+    /// value of this function is that it will always be equal to itself and to future values returned
+    /// by this function.  No other guarantees are made. This may be equal to a real `KeyboardDeviceId`.
     ///
-    /// This should not change if the user adjusts the host's keyboard map. Use when the physical location of the
-    /// key is more important than the key's host GUI semantics, such as for movement controls in a first-person
-    /// game.
-    pub scancode: ScanCode,
-
-    pub state: ElementState,
-
-    /// Identifies the semantic meaning of the key
-    ///
-    /// Use when the semantics of the key are more important than the physical location of the key, such as when
-    /// implementing appropriate behavior for "page up."
-    pub virtual_keycode: Option<VirtualKeyCode>,
-
-    /// Modifier keys active at the time of this input.
-    ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-    pub modifiers: ModifiersState,
+    /// **Passing this into a winit function will result in undefined behavior.**
+    pub unsafe fn dummy() -> Self {
+        KeyboardDeviceId(platform_impl::KeyboardDeviceId::dummy())
+    }
 }
 
-/// Describes touch-screen input state.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum TouchPhase {
-    Started,
-    Moved,
-    Ended,
-    Cancelled,
+impl fmt::Debug for MouseId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
 }
 
-/// Represents a touch event
-///
-/// Every time the user touches the screen, a new `Start` event with an unique
-/// identifier for the finger is generated. When the finger is lifted, an `End`
-/// event is generated with the same finger id.
-///
-/// After a `Start` event has been emitted, there may be zero or more `Move`
-/// events when the finger is moved or the touch pressure changes.
-///
-/// The finger id may be reused by the system after an `End` event. The user
-/// should assume that a new `Start` event received with the same id has nothing
-/// to do with the old finger and is a new finger.
-///
-/// A `Cancelled` event is emitted when the system has canceled tracking this
-/// touch, such as when the window loses focus, or on iOS if the user moves the
-/// device against their face.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Touch {
-    pub device_id: DeviceId,
-    pub phase: TouchPhase,
-    pub location: PhysicalPosition<f64>,
-    /// Describes how hard the screen was pressed. May be `None` if the platform
-    /// does not support pressure sensitivity.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - Only available on **iOS** 9.0+ and **Windows** 8+.
-    pub force: Option<Force>,
-    /// Unique identifier of a finger.
-    pub id: u64,
+impl fmt::Debug for PointerDeviceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for KeyboardDeviceId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Debug for TouchId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
 }
 
 /// Describes the force of a touch event
@@ -721,57 +513,11 @@ impl Force {
     }
 }
 
-/// Hardware-dependent keyboard scan code.
-pub type ScanCode = u32;
-
-/// Identifier for a specific analog axis on some device.
-pub type AxisId = u32;
-
-/// Identifier for a specific button on some device.
-pub type ButtonId = u32;
-
-/// Describes the input state of a key.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ElementState {
-    Pressed,
-    Released,
-}
-
-/// Describes a button of a mouse controller.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum MouseButton {
-    Left,
-    Right,
-    Middle,
-    Other(u8),
-}
-
-/// Describes a difference in the mouse scroll wheel state.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum MouseScrollDelta {
-    /// Amount in lines or rows to scroll in the horizontal
-    /// and vertical directions.
-    ///
-    /// Positive values indicate movement forward
-    /// (away from the user) or rightwards.
-    LineDelta(f32, f32),
-    /// Amount in pixels to scroll in the horizontal and
-    /// vertical direction.
-    ///
-    /// Scroll events are expressed as a PixelDelta if
-    /// supported by the device (eg. a touchpad) and
-    /// platform.
-    PixelDelta(LogicalPosition<f64>),
-}
-
 /// Symbolic name for a keyboard key.
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum VirtualKeyCode {
+pub enum Key {
     /// The '1' key over the letters.
     Key1,
     /// The '2' key over the letters.
