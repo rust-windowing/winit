@@ -249,7 +249,7 @@ pub enum WindowEvent {
     /// The window received a unicode character.
     Char(char),
 
-    KeyPress(Key, ScanCode, KeyFlags),
+    KeyPress(Key, ScanCode, KeyPressFlags),
 
     /// The keyboard modifiers have changed.
     ///
@@ -271,7 +271,7 @@ pub enum WindowEvent {
 
     PointerForce(PointerId, Force),
 
-    PointerPress(PointerId, PointerButton, PointerFlags),
+    PointerPress(PointerId, PointerButton, PointerPressFlags),
 
     ScrollDiscrete(Vector<i32>),
     ScrollSmooth(Vector<f64>),
@@ -293,14 +293,27 @@ pub struct Vector<T> {
 }
 
 bitflags!{
-    pub struct KeyFlags: u16 {
+    pub struct KeyPressFlags: u8 {
         const IS_DOWN = 1 << 0;
         const IS_SYNTHETIC = 1 << 0;
         const IS_REPEAT = 1 << 1;
     }
 }
 
-impl KeyFlags {
+bitflags!{
+    pub struct PointerPressFlags: u8 {
+        const IS_DOWN = 1 << 0;
+        const IS_DOUBLE = 1 << 1;
+    }
+}
+
+bitflags!{
+    pub struct RawPressFlags: u8 {
+        const IS_DOWN = 1 << 0;
+    }
+}
+
+impl KeyPressFlags {
     pub fn is_down(&self) -> bool {
         self.contains(Self::IS_DOWN)
     }
@@ -312,13 +325,16 @@ impl KeyFlags {
     }
 }
 
-bitflags!{
-    pub struct PointerFlags: u16 {
-        const IS_DOWN = 1 << 0;
+impl PointerPressFlags {
+    pub fn is_down(&self) -> bool {
+        self.contains(Self::IS_DOWN)
+    }
+    pub fn is_double(&self) -> bool {
+        self.contains(Self::IS_DOUBLE)
     }
 }
 
-impl PointerFlags {
+impl RawPressFlags {
     pub fn is_down(&self) -> bool {
         self.contains(Self::IS_DOWN)
     }
@@ -359,8 +375,7 @@ pub enum RawPointerEvent {
     Added,
     /// A device has been removed.
     Removed,
-    Pressed(PointerButton),
-    Released(PointerButton),
+    Press(PointerButton, RawPressFlags),
     /// Relative change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
@@ -383,8 +398,7 @@ pub enum RawKeyboardEvent {
     Added,
     /// A keyboard device has been removed.
     Removed,
-    Pressed(Option<Key>, ScanCode),
-    Released(Option<Key>, ScanCode),
+    Press(Option<Key>, ScanCode, RawPressFlags),
 }
 
 /// A typed identifier for a mouse device.
