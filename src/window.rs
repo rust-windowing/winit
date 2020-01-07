@@ -78,7 +78,7 @@ impl WindowId {
 }
 
 /// Object that allows you to build windows.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
@@ -185,10 +185,7 @@ impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
     pub fn new() -> Self {
-        WindowBuilder {
-            window: Default::default(),
-            platform_specific: Default::default(),
-        }
+        Default::default()
     }
 
     /// Requests the window to be of specific dimensions.
