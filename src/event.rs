@@ -249,7 +249,7 @@ pub enum WindowEvent {
     /// The window received a unicode character.
     Char(char),
 
-    KeyPress(Key, ScanCode, KeyPressFlags),
+    KeyPress(Key, ScanCode, PressFlags),
 
     /// The keyboard modifiers have changed.
     ///
@@ -271,7 +271,7 @@ pub enum WindowEvent {
 
     PointerForce(PointerId, Force),
 
-    PointerPress(PointerId, PointerButton, PointerPressFlags),
+    PointerPress(PointerId, PointerButton, PressFlags),
 
     ScrollDiscrete(Vector<i32>),
     ScrollSmooth(Vector<f64>),
@@ -293,44 +293,48 @@ pub struct Vector<T> {
 }
 
 bitflags!{
-    pub struct KeyPressFlags: u8 {
+    pub struct PressFlags: u8 {
+        /// Whether or not the button is currently pressed down.
         const IS_DOWN = 1 << 0;
-        const IS_SYNTHETIC = 1 << 0;
+        /// Whether or not this is a repeat press.
+        ///
+        /// This has different semantics for key and pointer events:
+        /// - If true in key event, the user has held down the key long enough to send duplicate
+        ///   events.
+        /// - If true in pointer event, the user has pressed and released multiple times in a short
+        ///   interval.
+        ///
+        /// TODO: SHOULD THIS BE SPLIT INTO TWO SEPARATE FLAGS?
         const IS_REPEAT = 1 << 1;
-    }
-}
-
-bitflags!{
-    pub struct PointerPressFlags: u8 {
-        const IS_DOWN = 1 << 0;
-        const IS_DOUBLE = 1 << 1;
+        /// If set, the event was generated synthetically by winit
+        /// in one of the following circumstances:
+        ///
+        /// * Synthetic key press events are generated for all keys pressed
+        ///   when a window gains focus. Likewise, synthetic key release events
+        ///   are generated for all keys pressed when a window goes out of focus.
+        ///   ***Currently, this is only functional on X11 and Windows***
+        ///
+        /// Otherwise, this value is always `false`.
+        const IS_SYNTHETIC = 1 << 2;
     }
 }
 
 bitflags!{
     pub struct RawPressFlags: u8 {
+        /// Whether or not the button is currently pressed down.
         const IS_DOWN = 1 << 0;
     }
 }
 
-impl KeyPressFlags {
+impl PressFlags {
     pub fn is_down(&self) -> bool {
         self.contains(Self::IS_DOWN)
-    }
-    pub fn is_synthetic(&self) -> bool {
-        self.contains(Self::IS_SYNTHETIC)
     }
     pub fn is_repeat(&self) -> bool {
         self.contains(Self::IS_REPEAT)
     }
-}
-
-impl PointerPressFlags {
-    pub fn is_down(&self) -> bool {
-        self.contains(Self::IS_DOWN)
-    }
-    pub fn is_double(&self) -> bool {
-        self.contains(Self::IS_DOUBLE)
+    pub fn is_synthetic(&self) -> bool {
+        self.contains(Self::IS_SYNTHETIC)
     }
 }
 
