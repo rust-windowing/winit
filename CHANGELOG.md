@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
+- On X11, fix deadlock on window state when handling certain window events.
 
 # 0.20.0 (2020-01-05)
 
