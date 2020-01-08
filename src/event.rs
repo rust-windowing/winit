@@ -230,7 +230,7 @@ pub enum WindowEvent {
     /// The window received a unicode character.
     Char(char),
 
-    KeyPress(Key, ScanCode, PressFlags),
+    KeyPress(LogicalKey, ScanCode, PressFlags),
 
     /// The keyboard modifiers have changed.
     ///
@@ -385,7 +385,7 @@ pub enum RawKeyboardEvent {
     Added,
     /// A keyboard device has been removed.
     Removed,
-    Press(Option<Key>, ScanCode, RawPressFlags),
+    Press(Option<LogicalKey>, ScanCode, RawPressFlags),
 }
 
 /// A typed identifier for a mouse device.
@@ -518,7 +518,7 @@ impl Force {
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum Key {
+pub enum LogicalKey {
     /// The '1' key over the letters.
     Key1,
     /// The '2' key over the letters.
