@@ -26,12 +26,14 @@ pub use crate::icon::*;
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
+///     *control_flow = ControlFlow::Wait;
+///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
 ///         } => *control_flow = ControlFlow::Exit,
-///         _ => *control_flow = ControlFlow::Wait,
+///         _ => (),
 ///     }
 /// });
 /// ```
