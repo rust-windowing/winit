@@ -58,6 +58,8 @@ pub enum Event<'a, T: 'static> {
     /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
     NewEvents(StartCause),
 
+    AppEvent(AppEvent),
+
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent(WindowId, WindowEvent),
     WindowEventImmediate(WindowId, WindowEventImmediate<'a>),
@@ -67,12 +69,6 @@ pub enum Event<'a, T: 'static> {
 
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
-
-    /// Emitted when the application has been suspended.
-    Suspended,
-
-    /// Emitted when the application has been resumed.
-    Resumed,
 
     /// Emitted when all of the event loop's input events have been processed and redraw processing
     /// is about to begin.
@@ -116,28 +112,13 @@ pub enum Event<'a, T: 'static> {
     LoopDestroyed,
 }
 
-impl<T: Clone> Clone for Event<'static, T> {
-    fn clone(&self) -> Self {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => WindowEvent {
-                window_id: *window_id,
-                event: event.clone(),
-            },
-            UserEvent(event) => UserEvent(event.clone()),
-            DeviceEvent { device_id, event } => DeviceEvent {
-                device_id: *device_id,
-                event: event.clone(),
-            },
-            NewEvents(cause) => NewEvents(cause.clone()),
-            MainEventsCleared => MainEventsCleared,
-            RedrawRequested(wid) => RedrawRequested(*wid),
-            RedrawEventsCleared => RedrawEventsCleared,
-            LoopDestroyed => LoopDestroyed,
-            Suspended => Suspended,
-            Resumed => Resumed,
-        }
-    }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AppEvent {
+    /// Emitted when the application has been suspended.
+    Suspended,
+
+    /// Emitted when the application has been resumed.
+    Resumed,
 }
 
 impl<'a, T> Event<'a, T> {
@@ -273,8 +254,10 @@ pub enum WindowEvent {
 
     PointerPress(PointerId, PointerButton, PressFlags),
 
+    ScrollStarted,
     ScrollDiscrete(Vector<i32>),
     ScrollSmooth(Vector<f64>),
+    ScrollEnded,
 
     /// The system window theme has changed.
     ///
