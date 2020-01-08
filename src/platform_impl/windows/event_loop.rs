@@ -855,8 +855,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 });
             }
 
-            let x = windowsx::GET_X_LPARAM(lparam) as i32;
-            let y = windowsx::GET_Y_LPARAM(lparam) as i32;
+            let x = windowsx::GET_X_LPARAM(lparam) as f64;
+            let y = windowsx::GET_Y_LPARAM(lparam) as f64;
             let position = PhysicalPosition::new(x, y);
 
             subclass_input.send_event(Event::WindowEvent {
