@@ -26,12 +26,14 @@ pub use crate::icon::*;
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
+///     *control_flow = ControlFlow::Wait;
+///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
 ///         } => *control_flow = ControlFlow::Exit,
-///         _ => *control_flow = ControlFlow::Wait,
+///         _ => (),
 ///     }
 /// });
 /// ```
@@ -78,7 +80,7 @@ impl WindowId {
 }
 
 /// Object that allows you to build windows.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
@@ -185,10 +187,7 @@ impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
     pub fn new() -> Self {
-        WindowBuilder {
-            window: Default::default(),
-            platform_specific: Default::default(),
-        }
+        Default::default()
     }
 
     /// Requests the window to be of specific dimensions.

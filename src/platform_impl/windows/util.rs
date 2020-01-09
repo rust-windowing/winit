@@ -88,6 +88,38 @@ pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
     PhysicalSize::new((rect.right - rect.left) as _, (rect.bottom - rect.top) as _)
 }
 
+pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
+    unsafe {
+        let rect = adjust_window_rect(
+            window,
+            RECT {
+                top: 0,
+                left: 0,
+                bottom: y as LONG,
+                right: x as LONG,
+            },
+        )
+        .expect("adjust_window_rect failed");
+
+        let outer_x = (rect.right - rect.left).abs() as _;
+        let outer_y = (rect.top - rect.bottom).abs() as _;
+        winuser::SetWindowPos(
+            window,
+            ptr::null_mut(),
+            0,
+            0,
+            outer_x,
+            outer_y,
+            winuser::SWP_ASYNCWINDOWPOS
+                | winuser::SWP_NOZORDER
+                | winuser::SWP_NOREPOSITION
+                | winuser::SWP_NOMOVE
+                | winuser::SWP_NOACTIVATE,
+        );
+        winuser::UpdateWindow(window);
+    }
+}
+
 pub fn adjust_window_rect(hwnd: HWND, rect: RECT) -> Option<RECT> {
     unsafe {
         let style = winuser::GetWindowLongW(hwnd, winuser::GWL_STYLE);

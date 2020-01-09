@@ -1,6 +1,9 @@
 # Unreleased
 
 - On macOS, add `hide_application` to `EventLoopWindowTarget` via a new `EventLoopWindowTargetExtMacOS` trait. `hide_application` will hide the entire application by calling `-[NSApplication hide: nil]`.
+- On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
+- On X11, fix deadlock on window state when handling certain window events.
+- `WindowBuilder` now implements `Default`.
 
 # 0.20.0 (2020-01-05)
 

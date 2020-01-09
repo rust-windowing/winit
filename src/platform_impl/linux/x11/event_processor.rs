@@ -2,6 +2,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, slice, sync::Arc};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 
+use parking_lot::MutexGuard;
+
 use super::{
     events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
     DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
@@ -384,9 +386,12 @@ impl<T: 'static> EventProcessor<T> {
                             .inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
                         shared_state_lock.position = Some(outer);
                         if moved {
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::Moved(outer.into()),
+                            // Temporarily unlock shared state to prevent deadlock
+                            MutexGuard::unlocked(&mut shared_state_lock, || {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::Moved(outer.into()),
+                                });
                             });
                         }
                         outer
@@ -426,12 +431,15 @@ impl<T: 'static> EventProcessor<T> {
                             let old_inner_size = PhysicalSize::new(width, height);
                             let mut new_inner_size = PhysicalSize::new(new_width, new_height);
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ScaleFactorChanged {
-                                    scale_factor: new_scale_factor,
-                                    new_inner_size: &mut new_inner_size,
-                                },
+                            // Temporarily unlock shared state to prevent deadlock
+                            MutexGuard::unlocked(&mut shared_state_lock, || {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::ScaleFactorChanged {
+                                        scale_factor: new_scale_factor,
+                                        new_inner_size: &mut new_inner_size,
+                                    },
+                                });
                             });
 
                             if new_inner_size != old_inner_size {
@@ -461,6 +469,9 @@ impl<T: 'static> EventProcessor<T> {
                     }
 
                     if resized {
+                        // Drop the shared state lock to prevent deadlock
+                        drop(shared_state_lock);
+
                         callback(Event::WindowEvent {
                             window_id,
                             event: WindowEvent::Resized(new_inner_size.into()),
