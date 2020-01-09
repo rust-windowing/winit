@@ -12,10 +12,12 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{NSApp, NSWindow},
-    base::nil,
-    foundation::{NSAutoreleasePool, NSSize, NSString},
+    appkit::{NSApp, NSEventType::NSApplicationDefined, NSWindow},
+    base::{id, nil},
+    foundation::{NSAutoreleasePool, NSPoint, NSSize},
 };
+
+use objc::runtime::YES;
 
 use crate::{
     dpi::LogicalSize,
@@ -29,7 +31,6 @@ use crate::{
     },
     window::WindowId,
 };
-use objc::runtime::Object;
 
 lazy_static! {
     static ref HANDLER: Handler = Default::default();
@@ -339,21 +340,23 @@ impl AppState {
 
                 let pool = NSAutoreleasePool::new(nil);
 
-                let windows: *const Object = msg_send![NSApp(), windows];
-                let window: *const Object = msg_send![windows, objectAtIndex:0];
+                let windows: id = msg_send![NSApp(), windows];
+                let window: id = msg_send![windows, objectAtIndex:0];
                 assert_ne!(window, nil);
 
-                let title: *const Object = msg_send![window, title];
-                assert_ne!(title, nil);
-                let postfix = NSString::alloc(nil).init_str("*");
-                let some_unique_title: *const Object =
-                    msg_send![title, stringByAppendingString: postfix];
-                assert_ne!(some_unique_title, nil);
-
-                // To stop event loop immediately, we need to send some UI event here.
-                let _: () = msg_send![window, setTitle: some_unique_title];
-                // And restore it.
-                let _: () = msg_send![window, setTitle: title];
+                let dummy_event: id = msg_send![class!(NSEvent),
+                    otherEventWithType: NSApplicationDefined
+                    location: NSPoint::new(0.0, 0.0)
+                    modifierFlags: 0
+                    timestamp: 0
+                    windowNumber: 0
+                    context: nil
+                    subtype: 0
+                    data1: 0
+                    data2: 0
+                ];
+                // To stop event loop immediately, we need to post some event here.
+                let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
 
                 pool.drain();
             };
