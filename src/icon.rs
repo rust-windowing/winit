@@ -49,11 +49,7 @@ impl fmt::Display for BadIcon {
 }
 
 impl Error for BadIcon {
-    fn description(&self) -> &str {
-        "A valid icon cannot be created from these arguments"
-    }
-
-    fn cause(&self) -> Option<&dyn Error> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         Some(self)
     }
 }
