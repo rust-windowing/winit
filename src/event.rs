@@ -235,6 +235,13 @@ pub enum WindowEvent<'a> {
         is_synthetic: bool,
     },
 
+    /// The keyboard modifiers have changed.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    ///   issue, and it should get fixed - but it's the current state of the API.
+    ModifiersChanged(ModifiersState),
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -243,7 +250,7 @@ pub enum WindowEvent<'a> {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<i32>,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -258,7 +265,7 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -267,7 +274,7 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -341,6 +348,7 @@ impl<'a> WindowEvent<'a> {
                 input,
                 is_synthetic,
             }),
+            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -464,16 +472,6 @@ pub enum DeviceEvent {
 
     Key(KeyboardInput),
 
-    /// The keyboard modifiers have changed.
-    ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
-    ///   issue, and it should get fixed - but it's the current state of the API.
-    ModifiersChanged(ModifiersState),
-
     Text {
         codepoint: char,
     },
@@ -502,7 +500,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
 }
 
