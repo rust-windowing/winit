@@ -3,7 +3,7 @@
 - On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
 - On X11, fix deadlock on window state when handling certain window events.
 - `WindowBuilder` now implements `Default`.
-- `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
+- **Breaking:** `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
 
 # 0.20.0 (2020-01-05)
 
