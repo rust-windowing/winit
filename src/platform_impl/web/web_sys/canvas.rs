@@ -216,7 +216,7 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<i32>, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
     {
         self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
             handler(
