@@ -7,6 +7,7 @@ use crate::event::{
 
 use super::{
     event_loop::{CursorManager, EventsSink},
+    make_wid,
     window::WindowStore,
     DeviceId,
 };
@@ -38,10 +39,10 @@ pub fn implement_pointer(
     cursor_manager: Arc<Mutex<CursorManager>>,
 ) -> WlPointer {
     seat.get_pointer(|pointer| {
+        // Currently focused winit surface
         let mut mouse_focus = None;
         let mut axis_buffer = None;
         let mut axis_discrete_buffer = None;
-        let mut current_surface = None;
         let mut axis_state = TouchPhase::Ended;
 
         pointer.implement_closure(
@@ -58,10 +59,8 @@ pub fn implement_pointer(
                         let wid = store.find_wid(&surface);
 
                         if let Some(wid) = wid {
-                            mouse_focus = Some(wid);
                             let scale_factor = surface::get_dpi_factor(&surface) as f64;
-
-                            current_surface = Some(surface);
+                            mouse_focus = Some(surface);
 
                             // Reload cursor style only when we enter winit's surface. Calling
                             // this function every time on `PtrEvent::Enter` could interfere with
@@ -94,7 +93,6 @@ pub fn implement_pointer(
                         mouse_focus = None;
                         let wid = store.find_wid(&surface);
                         if let Some(wid) = wid {
-                            current_surface = None;
                             sink.send_window_event(
                                 WindowEvent::CursorLeft {
                                     device_id: crate::event::DeviceId(
@@ -110,9 +108,9 @@ pub fn implement_pointer(
                         surface_y,
                         ..
                     } => {
-                        if let (Some(wid), Some(surface)) = (mouse_focus, current_surface.as_ref())
-                        {
+                        if let Some(surface) = mouse_focus.as_ref() {
                             let scale_factor = surface::get_dpi_factor(&surface) as f64;
+                            let wid = make_wid(surface);
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
@@ -127,7 +125,7 @@ pub fn implement_pointer(
                         }
                     }
                     PtrEvent::Button { button, state, .. } => {
-                        if let Some(wid) = mouse_focus {
+                        if let Some(surface) = mouse_focus.as_ref() {
                             let state = match state {
                                 wl_pointer::ButtonState::Pressed => ElementState::Pressed,
                                 wl_pointer::ButtonState::Released => ElementState::Released,
@@ -149,12 +147,13 @@ pub fn implement_pointer(
                                     button,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
-                                wid,
+                                make_wid(surface),
                             );
                         }
                     }
                     PtrEvent::Axis { axis, value, .. } => {
-                        if let Some(wid) = mouse_focus {
+                        if let Some(surface) = mouse_focus.as_ref() {
+                            let wid = make_wid(surface);
                             if pointer.as_ref().version() < 5 {
                                 let (mut x, mut y) = (0.0, 0.0);
                                 // old seat compatibility
@@ -196,7 +195,8 @@ pub fn implement_pointer(
                     PtrEvent::Frame => {
                         let axis_buffer = axis_buffer.take();
                         let axis_discrete_buffer = axis_discrete_buffer.take();
-                        if let Some(wid) = mouse_focus {
+                        if let Some(surface) = mouse_focus.as_ref() {
+                            let wid = make_wid(surface);
                             if let Some((x, y)) = axis_discrete_buffer {
                                 sink.send_window_event(
                                     WindowEvent::MouseWheel {
