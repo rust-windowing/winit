@@ -29,22 +29,21 @@ pub enum BadIcon {
 
 impl fmt::Display for BadIcon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let msg = match self {
-            &BadIcon::ByteCountNotDivisibleBy4 { byte_count } => format!(
+        match self {
+            BadIcon::ByteCountNotDivisibleBy4 { byte_count } => write!(f,
                 "The length of the `rgba` argument ({:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
                 byte_count,
             ),
-            &BadIcon::DimensionsVsPixelCount {
+            BadIcon::DimensionsVsPixelCount {
                 width,
                 height,
                 width_x_height,
                 pixel_count,
-            } => format!(
+            } => write!(f,
                 "The specified dimensions ({:?}x{:?}) don't match the number of pixels supplied by the `rgba` argument ({:?}). For those dimensions, the expected pixel count is {:?}.",
                 width, height, pixel_count, width_x_height,
             ),
-        };
-        write!(f, "{}", msg)
+        }
     }
 }
 
