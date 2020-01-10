@@ -45,6 +45,7 @@ pub fn implement_pointer(
             move |evt, pointer| {
                 let store = store.lock().unwrap();
                 let mut cursor_manager = cursor_manager.lock().unwrap();
+                let mut cursor_pos = (0.0, 0.0).into();
                 match evt {
                     PtrEvent::Enter {
                         surface,
@@ -52,6 +53,7 @@ pub fn implement_pointer(
                         surface_y,
                         ..
                     } => {
+                        cursor_pos = (surface_x, surface_y).into();
                         let wid = store.find_wid(&surface);
                         if let Some(wid) = wid {
                             mouse_focus = Some(wid);
@@ -75,7 +77,7 @@ pub fn implement_pointer(
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x, surface_y).into(),
+                                    position: cursor_pos,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
@@ -101,13 +103,14 @@ pub fn implement_pointer(
                         surface_y,
                         ..
                     } => {
+                        cursor_pos = (surface_x, surface_y).into();
                         if let Some(wid) = mouse_focus {
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x, surface_y).into(),
+                                    position: cursor_pos,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
@@ -135,6 +138,7 @@ pub fn implement_pointer(
                                     ),
                                     state,
                                     button,
+                                    position: cursor_pos,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,

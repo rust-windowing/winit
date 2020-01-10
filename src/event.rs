@@ -269,6 +269,7 @@ pub enum WindowEvent<'a> {
         button: MouseButton,
         #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
+        position: LogicalPosition,
     },
 
     /// Touchpad pressure event.

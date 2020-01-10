@@ -608,6 +608,13 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
     }
 }
 
+fn event_position(window: HWND, lparam: LPARAM) -> LogicalPosition {
+    let x = windowsx::GET_X_LPARAM(lparam) as f64;
+    let y = windowsx::GET_Y_LPARAM(lparam) as f64;
+    let dpi_factor = hwnd_scale_factor(window);
+    LogicalPosition::from_physical((x, y), dpi_factor)
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 //
@@ -988,6 +995,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             use crate::event::{ElementState::Pressed, MouseButton::Left, WindowEvent::MouseInput};
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
+            let position = event_position(window, lparam);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -996,6 +1004,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     state: Pressed,
                     button: Left,
                     modifiers: event::get_key_mods(),
+                    position,
                 },
             });
             0
@@ -1007,6 +1016,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
 
             release_mouse(&mut *subclass_input.window_state.lock());
+            let position = event_position(window, lparam);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1015,6 +1025,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     state: Released,
                     button: Left,
                     modifiers: event::get_key_mods(),
+                    position,
                 },
             });
             0
@@ -1026,6 +1037,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
+            let position = event_position(window, lparam);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1034,6 +1046,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     state: Pressed,
                     button: Right,
                     modifiers: event::get_key_mods(),
+                    position,
                 },
             });
             0
@@ -1045,6 +1058,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
 
             release_mouse(&mut *subclass_input.window_state.lock());
+            let position = event_position(window, lparam);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1053,6 +1067,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     state: Released,
                     button: Right,
                     modifiers: event::get_key_mods(),
+                    position,
                 },
             });
             0
@@ -1064,6 +1079,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
+            let position = event_position(window, lparam);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1072,6 +1088,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     state: Pressed,
                     button: Middle,
                     modifiers: event::get_key_mods(),
+                    position,
                 },
             });
             0
@@ -1083,6 +1100,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
 
             release_mouse(&mut *subclass_input.window_state.lock());
+            let position = event_position(window, lparam);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1091,6 +1109,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     state: Released,
                     button: Middle,
                     modifiers: event::get_key_mods(),
+                    position,
                 },
             });
             0
@@ -1103,6 +1122,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
+            let position = event_position(window, lparam);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1111,6 +1131,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     state: Pressed,
                     button: Other(xbutton as u8),
                     modifiers: event::get_key_mods(),
+                    position,
                 },
             });
             0
@@ -1123,6 +1144,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
             release_mouse(&mut *subclass_input.window_state.lock());
+            let position = event_position(window, lparam);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1131,6 +1153,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     state: Released,
                     button: Other(xbutton as u8),
                     modifiers: event::get_key_mods(),
+                    position,
                 },
             });
             0
