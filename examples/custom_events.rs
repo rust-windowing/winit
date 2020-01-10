@@ -11,6 +11,7 @@ fn main() {
         Timer,
     }
 
+    simple_logger::init().unwrap();
     let event_loop = EventLoop::<CustomEvent>::with_user_event();
 
     let _window = WindowBuilder::new()
@@ -31,13 +32,17 @@ fn main() {
         }
     });
 
-    event_loop.run(move |event, _, control_flow| match event {
-        Event::UserEvent(event) => println!("user event: {:?}", event),
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => *control_flow = ControlFlow::Exit,
-        _ => *control_flow = ControlFlow::Wait,
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        match event {
+            Event::UserEvent(event) => println!("user event: {:?}", event),
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+            _ => (),
+        }
     });
 }
 

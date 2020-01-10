@@ -17,12 +17,12 @@ impl ModifiersState {
     }
 
     pub(crate) fn from_x11_mask(mask: c_uint) -> Self {
-        ModifiersState {
-            alt: mask & ffi::Mod1Mask != 0,
-            shift: mask & ffi::ShiftMask != 0,
-            ctrl: mask & ffi::ControlMask != 0,
-            logo: mask & ffi::Mod4Mask != 0,
-        }
+        let mut m = ModifiersState::empty();
+        m.set(ModifiersState::ALT, mask & ffi::Mod1Mask != 0);
+        m.set(ModifiersState::SHIFT, mask & ffi::ShiftMask != 0);
+        m.set(ModifiersState::CTRL, mask & ffi::ControlMask != 0);
+        m.set(ModifiersState::LOGO, mask & ffi::Mod4Mask != 0);
+        m
     }
 }
 

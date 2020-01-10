@@ -15,7 +15,7 @@ use libc;
 use parking_lot::Mutex;
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
@@ -36,7 +36,7 @@ pub struct SharedState {
     pub inner_position: Option<(i32, i32)>,
     pub inner_position_rel_parent: Option<(i32, i32)>,
     pub last_monitor: X11MonitorHandle,
-    pub dpi_adjusted: Option<(f64, f64)>,
+    pub dpi_adjusted: Option<(u32, u32)>,
     pub fullscreen: Option<Fullscreen>,
     // Set when application calls `set_fullscreen` when window is not visible
     pub desired_fullscreen: Option<Option<Fullscreen>>,
@@ -45,8 +45,10 @@ pub struct SharedState {
     // Used to restore video mode after exiting fullscreen
     pub desktop_video_mode: Option<(ffi::RRCrtc, ffi::RRMode)>,
     pub frame_extents: Option<util::FrameExtentsHeuristic>,
-    pub min_inner_size: Option<LogicalSize>,
-    pub max_inner_size: Option<LogicalSize>,
+    pub min_inner_size: Option<Size>,
+    pub max_inner_size: Option<Size>,
+    pub resize_increments: Option<Size>,
+    pub base_size: Option<Size>,
     pub visibility: Visibility,
 }
 
@@ -83,6 +85,8 @@ impl SharedState {
             frame_extents: None,
             min_inner_size: None,
             max_inner_size: None,
+            resize_increments: None,
+            base_size: None,
         })
     }
 }
@@ -132,24 +136,24 @@ impl UnownedWindow {
                 })
                 .unwrap_or_else(|| monitors.swap_remove(0))
         };
-        let dpi_factor = guessed_monitor.hidpi_factor();
+        let dpi_factor = guessed_monitor.scale_factor();
 
-        info!("Guessed window DPI factor: {}", dpi_factor);
+        info!("Guessed window scale factor: {}", dpi_factor);
 
         let max_inner_size: Option<(u32, u32)> = window_attrs
             .max_inner_size
-            .map(|size| size.to_physical(dpi_factor).into());
+            .map(|size| size.to_physical::<u32>(dpi_factor).into());
         let min_inner_size: Option<(u32, u32)> = window_attrs
             .min_inner_size
-            .map(|size| size.to_physical(dpi_factor).into());
+            .map(|size| size.to_physical::<u32>(dpi_factor).into());
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
             // by the user, so we have to manually apply the initial constraints
             let mut dimensions: (u32, u32) = window_attrs
                 .inner_size
+                .map(|size| size.to_physical::<u32>(dpi_factor))
                 .or_else(|| Some((800, 600).into()))
-                .map(|size| size.to_physical(dpi_factor))
                 .map(Into::into)
                 .unwrap();
             if let Some(max) = max_inner_size {
@@ -235,7 +239,7 @@ impl UnownedWindow {
             )
         };
 
-        let window = UnownedWindow {
+        let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),
             xwindow,
             root,
@@ -320,10 +324,11 @@ impl UnownedWindow {
             {
                 let mut min_inner_size = window_attrs
                     .min_inner_size
-                    .map(|size| size.to_physical(dpi_factor));
+                    .map(|size| size.to_physical::<u32>(dpi_factor));
                 let mut max_inner_size = window_attrs
                     .max_inner_size
-                    .map(|size| size.to_physical(dpi_factor));
+                    .map(|size| size.to_physical::<u32>(dpi_factor));
+
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
                         warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
@@ -331,9 +336,11 @@ impl UnownedWindow {
                         max_inner_size = Some(dimensions.into());
                         min_inner_size = Some(dimensions.into());
 
-                        let mut shared_state_lock = window.shared_state.lock();
-                        shared_state_lock.min_inner_size = window_attrs.min_inner_size;
-                        shared_state_lock.max_inner_size = window_attrs.max_inner_size;
+                        let mut shared_state = window.shared_state.get_mut();
+                        shared_state.min_inner_size = window_attrs.min_inner_size;
+                        shared_state.max_inner_size = window_attrs.max_inner_size;
+                        shared_state.resize_increments = pl_attribs.resize_increments;
+                        shared_state.base_size = pl_attribs.base_size;
                     }
                 }
 
@@ -341,8 +348,16 @@ impl UnownedWindow {
                 normal_hints.set_size(Some(dimensions));
                 normal_hints.set_min_size(min_inner_size.map(Into::into));
                 normal_hints.set_max_size(max_inner_size.map(Into::into));
-                normal_hints.set_resize_increments(pl_attribs.resize_increments);
-                normal_hints.set_base_size(pl_attribs.base_size);
+                normal_hints.set_resize_increments(
+                    pl_attribs
+                        .resize_increments
+                        .map(|size| size.to_physical::<u32>(dpi_factor).into()),
+                );
+                normal_hints.set_base_size(
+                    pl_attribs
+                        .base_size
+                        .map(|size| size.to_physical::<u32>(dpi_factor).into()),
+                );
                 xconn.set_normal_hints(window.xwindow, normal_hints).queue();
             }
 
@@ -438,16 +453,6 @@ impl UnownedWindow {
             .sync_with_server()
             .map(|_| window)
             .map_err(|x_err| os_error!(OsError::XError(x_err)))
-    }
-
-    fn logicalize_coords(&self, (x, y): (i32, i32)) -> LogicalPosition {
-        let dpi = self.hidpi_factor();
-        LogicalPosition::from_physical((x, y), dpi)
-    }
-
-    fn logicalize_size(&self, (width, height): (u32, u32)) -> LogicalSize {
-        let dpi = self.hidpi_factor();
-        LogicalSize::from_physical((width, height), dpi)
     }
 
     fn set_pid(&self) -> Option<util::Flusher<'_>> {
@@ -951,11 +956,11 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let extents = (*self.shared_state.lock()).frame_extents.clone();
         if let Some(extents) = extents {
-            let logical = self.inner_position().unwrap();
-            Ok(extents.inner_pos_to_outer_logical(logical, self.hidpi_factor()))
+            let (x, y) = self.inner_position_physical();
+            Ok(extents.inner_pos_to_outer(x, y).into())
         } else {
             self.update_cached_frame_extents();
             self.outer_position()
@@ -972,8 +977,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        Ok(self.logicalize_coords(self.inner_position_physical()))
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        Ok(self.inner_position_physical().into())
     }
 
     pub(crate) fn set_position_inner(&self, mut x: i32, mut y: i32) -> util::Flusher<'_> {
@@ -1002,8 +1007,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_outer_position(&self, logical_position: LogicalPosition) {
-        let (x, y) = logical_position.to_physical(self.hidpi_factor()).into();
+    pub fn set_outer_position(&self, position: Position) {
+        let (x, y) = position.to_physical::<i32>(self.scale_factor()).into();
         self.set_position_physical(x, y);
     }
 
@@ -1017,16 +1022,16 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
-        self.logicalize_size(self.inner_size_physical())
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        self.inner_size_physical().into()
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         let extents = self.shared_state.lock().frame_extents.clone();
         if let Some(extents) = extents {
-            let logical = self.inner_size();
-            extents.inner_size_to_outer_logical(logical, self.hidpi_factor())
+            let (width, height) = self.inner_size_physical();
+            extents.inner_size_to_outer(width, height).into()
         } else {
             self.update_cached_frame_extents();
             self.outer_size()
@@ -1047,9 +1052,9 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, logical_size: LogicalSize) {
-        let dpi_factor = self.hidpi_factor();
-        let (width, height) = logical_size.to_physical(dpi_factor).into();
+    pub fn set_inner_size(&self, size: Size) {
+        let dpi_factor = self.scale_factor();
+        let (width, height) = size.to_physical::<u32>(dpi_factor).into();
         self.set_inner_size_physical(width, height);
     }
 
@@ -1070,10 +1075,10 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, logical_dimensions: Option<LogicalSize>) {
-        self.shared_state.lock().min_inner_size = logical_dimensions;
-        let physical_dimensions = logical_dimensions
-            .map(|logical_dimensions| logical_dimensions.to_physical(self.hidpi_factor()).into());
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
+        self.shared_state.lock().min_inner_size = dimensions;
+        let physical_dimensions =
+            dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.scale_factor()).into());
         self.set_min_inner_size_physical(physical_dimensions);
     }
 
@@ -1083,10 +1088,10 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, logical_dimensions: Option<LogicalSize>) {
-        self.shared_state.lock().max_inner_size = logical_dimensions;
-        let physical_dimensions = logical_dimensions
-            .map(|logical_dimensions| logical_dimensions.to_physical(self.hidpi_factor()).into());
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
+        self.shared_state.lock().max_inner_size = dimensions;
+        let physical_dimensions =
+            dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.scale_factor()).into());
         self.set_max_inner_size_physical(physical_dimensions);
     }
 
@@ -1094,37 +1099,29 @@ impl UnownedWindow {
         &self,
         old_dpi_factor: f64,
         new_dpi_factor: f64,
-        width: f64,
-        height: f64,
-    ) -> (f64, f64, util::Flusher<'_>) {
+        width: u32,
+        height: u32,
+        shared_state: &SharedState,
+    ) -> (u32, u32) {
         let scale_factor = new_dpi_factor / old_dpi_factor;
-        let new_width = width * scale_factor;
-        let new_height = height * scale_factor;
         self.update_normal_hints(|normal_hints| {
-            let dpi_adjuster = |(width, height): (u32, u32)| -> (u32, u32) {
-                let new_width = width as f64 * scale_factor;
-                let new_height = height as f64 * scale_factor;
-                (new_width.round() as u32, new_height.round() as u32)
-            };
-            let max_size = normal_hints.get_max_size().map(&dpi_adjuster);
-            let min_size = normal_hints.get_min_size().map(&dpi_adjuster);
-            let resize_increments = normal_hints.get_resize_increments().map(&dpi_adjuster);
-            let base_size = normal_hints.get_base_size().map(&dpi_adjuster);
+            let dpi_adjuster =
+                |size: Size| -> (u32, u32) { size.to_physical::<u32>(new_dpi_factor).into() };
+            let max_size = shared_state.max_inner_size.map(&dpi_adjuster);
+            let min_size = shared_state.min_inner_size.map(&dpi_adjuster);
+            let resize_increments = shared_state.resize_increments.map(&dpi_adjuster);
+            let base_size = shared_state.base_size.map(&dpi_adjuster);
             normal_hints.set_max_size(max_size);
             normal_hints.set_min_size(min_size);
             normal_hints.set_resize_increments(resize_increments);
             normal_hints.set_base_size(base_size);
         })
         .expect("Failed to update normal hints");
-        unsafe {
-            (self.xconn.xlib.XResizeWindow)(
-                self.xconn.display,
-                self.xwindow,
-                new_width.round() as c_uint,
-                new_height.round() as c_uint,
-            );
-        }
-        (new_width, new_height, util::Flusher::new(&self.xconn))
+
+        let new_width = (width as f64 * scale_factor).round() as u32;
+        let new_height = (height as f64 * scale_factor).round() as u32;
+
+        (new_width, new_height)
     }
 
     pub fn set_resizable(&self, resizable: bool) {
@@ -1136,25 +1133,25 @@ impl UnownedWindow {
             return;
         }
 
-        let (logical_min, logical_max) = if resizable {
+        let (min_size, max_size) = if resizable {
             let shared_state_lock = self.shared_state.lock();
             (
                 shared_state_lock.min_inner_size,
                 shared_state_lock.max_inner_size,
             )
         } else {
-            let window_size = Some(self.inner_size());
+            let window_size = Some(Size::from(self.inner_size()));
             (window_size.clone(), window_size)
         };
 
         self.set_maximizable_inner(resizable).queue();
 
-        let dpi_factor = self.hidpi_factor();
-        let min_inner_size = logical_min
-            .map(|logical_size| logical_size.to_physical(dpi_factor))
+        let dpi_factor = self.scale_factor();
+        let min_inner_size = min_size
+            .map(|size| size.to_physical::<u32>(dpi_factor))
             .map(Into::into);
-        let max_inner_size = logical_max
-            .map(|logical_size| logical_size.to_physical(dpi_factor))
+        let max_inner_size = max_size
+            .map(|size| size.to_physical::<u32>(dpi_factor))
             .map(Into::into);
         self.update_normal_hints(|normal_hints| {
             normal_hints.set_min_size(min_inner_size);
@@ -1275,8 +1272,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.current_monitor().hidpi_factor
+    pub fn scale_factor(&self) -> f64 {
+        self.current_monitor().scale_factor
     }
 
     pub fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {
@@ -1289,11 +1286,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_position(
-        &self,
-        logical_position: LogicalPosition,
-    ) -> Result<(), ExternalError> {
-        let (x, y) = logical_position.to_physical(self.hidpi_factor()).into();
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        let (x, y) = position.to_physical::<i32>(self.scale_factor()).into();
         self.set_cursor_position_physical(x, y)
     }
 
@@ -1305,8 +1299,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, logical_spot: LogicalPosition) {
-        let (x, y) = logical_spot.to_physical(self.hidpi_factor()).into();
+    pub fn set_ime_position(&self, spot: Position) {
+        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
         self.set_ime_position_physical(x, y);
     }
 

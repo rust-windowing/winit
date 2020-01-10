@@ -9,7 +9,7 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSEvent, NSEventModifierFlags, NSEventPhase, NSView, NSWindow},
     base::{id, nil},
-    foundation::{NSPoint, NSRect, NSSize, NSString, NSUInteger},
+    foundation::{NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger},
 };
 use objc::{
     declare::ClassDecl,
@@ -25,7 +25,7 @@ use crate::{
         app_state::AppState,
         event::{
             char_to_keycode, check_function_keys, event_mods, get_scancode, modifier_event,
-            scancode_to_keycode,
+            scancode_to_keycode, EventWrapper,
         },
         ffi::*,
         util::{self, IdRef},
@@ -35,25 +35,41 @@ use crate::{
     window::WindowId,
 };
 
+pub struct CursorState {
+    pub visible: bool,
+    pub cursor: util::Cursor,
+}
+
+impl Default for CursorState {
+    fn default() -> Self {
+        Self {
+            visible: true,
+            cursor: Default::default(),
+        }
+    }
+}
+
 struct ViewState {
     ns_window: id,
-    pub cursor: Arc<Mutex<util::Cursor>>,
+    pub cursor_state: Arc<Mutex<CursorState>>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
     is_key_down: bool,
     modifiers: ModifiersState,
+    tracking_rect: Option<NSInteger>,
 }
 
-pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<util::Cursor>>) {
-    let cursor = Default::default();
-    let cursor_access = Arc::downgrade(&cursor);
+pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
+    let cursor_state = Default::default();
+    let cursor_access = Arc::downgrade(&cursor_state);
     let state = ViewState {
         ns_window,
-        cursor,
+        cursor_state,
         ime_spot: None,
         raw_characters: None,
         is_key_down: false,
         modifiers: Default::default(),
+        tracking_rect: None,
     };
     unsafe {
         // This is free'd in `dealloc`
@@ -228,6 +244,10 @@ lazy_static! {
             sel!(cancelOperation:),
             cancel_operation as extern "C" fn(&Object, Sel, id),
         );
+        decl.add_method(
+            sel!(frameDidChange:),
+            frame_did_change as extern "C" fn(&Object, Sel, id),
+        );
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -253,6 +273,19 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
             let marked_text =
                 <id as NSMutableAttributedString>::init(NSMutableAttributedString::alloc(nil));
             (*this).set_ivar("markedText", marked_text);
+            let _: () = msg_send![this, setPostsFrameChangedNotifications: YES];
+
+            let notification_center: &Object =
+                msg_send![class!(NSNotificationCenter), defaultCenter];
+            let notification_name =
+                NSString::alloc(nil).init_str("NSViewFrameDidChangeNotification");
+            let _: () = msg_send![
+                notification_center,
+                addObserver: this
+                selector: sel!(frameDidChange:)
+                name: notification_name
+                object: this
+            ];
         }
         this
     }
@@ -261,15 +294,44 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
     trace!("Triggered `viewDidMoveToWindow`");
     unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        if let Some(tracking_rect) = state.tracking_rect.take() {
+            let _: () = msg_send![this, removeTrackingRect: tracking_rect];
+        }
+
         let rect: NSRect = msg_send![this, visibleRect];
-        let _: () = msg_send![this,
+        let tracking_rect: NSInteger = msg_send![this,
             addTrackingRect:rect
             owner:this
             userData:nil
             assumeInside:NO
         ];
+        state.tracking_rect = Some(tracking_rect);
     }
     trace!("Completed `viewDidMoveToWindow`");
+}
+
+extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        if let Some(tracking_rect) = state.tracking_rect.take() {
+            let _: () = msg_send![this, removeTrackingRect: tracking_rect];
+        }
+
+        let rect: NSRect = msg_send![this, visibleRect];
+        let tracking_rect: NSInteger = msg_send![this,
+            addTrackingRect:rect
+            owner:this
+            userData:nil
+            assumeInside:NO
+        ];
+
+        state.tracking_rect = Some(tracking_rect);
+    }
 }
 
 extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
@@ -301,7 +363,12 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
         let state = &mut *(state_ptr as *mut ViewState);
 
         let bounds: NSRect = msg_send![this, bounds];
-        let cursor = state.cursor.lock().unwrap().load();
+        let cursor_state = state.cursor_state.lock().unwrap();
+        let cursor = if cursor_state.visible {
+            cursor_state.cursor.load()
+        } else {
+            util::invisible_cursor()
+        };
         let _: () = msg_send![this,
             addCursorRect:bounds
             cursor:cursor
@@ -445,10 +512,10 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
 
         let mut events = VecDeque::with_capacity(characters.len());
         for character in string.chars().filter(|c| !is_corporate_character(*c)) {
-            events.push_back(Event::WindowEvent {
+            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::ReceivedCharacter(character),
-            });
+            }));
         }
 
         AppState::queue_events(events);
@@ -469,10 +536,10 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
             // The `else` condition would emit the same character, but I'm keeping this here both...
             // 1) as a reminder for how `doCommandBySelector` works
             // 2) to make our use of carriage return explicit
-            events.push_back(Event::WindowEvent {
+            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::ReceivedCharacter('\r'),
-            });
+            }));
         } else {
             let raw_characters = state.raw_characters.take();
             if let Some(raw_characters) = raw_characters {
@@ -480,10 +547,10 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
                     .chars()
                     .filter(|c| !is_corporate_character(*c))
                 {
-                    events.push_back(Event::WindowEvent {
+                    events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: WindowId(get_window_id(state.ns_window)),
                         event: WindowEvent::ReceivedCharacter(character),
-                    });
+                    }));
                 }
             }
         };
@@ -564,6 +631,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         let is_repeat = msg_send![event, isARepeat];
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id,
             event: WindowEvent::KeyboardInput {
@@ -579,14 +647,14 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         };
 
         let pass_along = {
-            AppState::queue_event(window_event);
+            AppState::queue_event(EventWrapper::StaticEvent(window_event));
             // Emit `ReceivedCharacter` for key repeats
             if is_repeat && state.is_key_down {
                 for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
-                    AppState::queue_event(Event::WindowEvent {
+                    AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ReceivedCharacter(character),
-                    });
+                    }));
                 }
                 false
             } else {
@@ -616,6 +684,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
@@ -630,7 +699,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `keyUp`");
 }
@@ -646,52 +715,50 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSShiftKeyMask,
-            state.modifiers.shift,
+            state.modifiers.shift(),
         ) {
-            state.modifiers.shift = !state.modifiers.shift;
+            state.modifiers.toggle(ModifiersState::SHIFT);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSControlKeyMask,
-            state.modifiers.ctrl,
+            state.modifiers.ctrl(),
         ) {
-            state.modifiers.ctrl = !state.modifiers.ctrl;
+            state.modifiers.toggle(ModifiersState::CTRL);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSCommandKeyMask,
-            state.modifiers.logo,
+            state.modifiers.logo(),
         ) {
-            state.modifiers.logo = !state.modifiers.logo;
+            state.modifiers.toggle(ModifiersState::LOGO);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSAlternateKeyMask,
-            state.modifiers.alt,
+            state.modifiers.alt(),
         ) {
-            state.modifiers.alt = !state.modifiers.alt;
+            state.modifiers.toggle(ModifiersState::ALT);
             events.push_back(window_event);
         }
 
         for event in events {
-            AppState::queue_event(Event::WindowEvent {
+            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event,
-            });
+            }));
         }
 
-        AppState::queue_event(Event::DeviceEvent {
+        AppState::queue_event(EventWrapper::StaticEvent(Event::DeviceEvent {
             device_id: DEVICE_ID,
-            event: DeviceEvent::ModifiersChanged {
-                modifiers: state.modifiers,
-            },
-        });
+            event: DeviceEvent::ModifiersChanged(state.modifiers),
+        }));
     }
     trace!("Completed `flagsChanged`");
 }
@@ -732,6 +799,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
 
         let event: id = msg_send![NSApp(), currentEvent];
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
@@ -746,7 +814,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `cancelOperation`");
 }
@@ -766,7 +834,7 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
 }
 
@@ -827,7 +895,7 @@ fn mouse_motion(this: &Object, event: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
 }
 
@@ -879,8 +947,8 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
             }
         };
 
-        AppState::queue_event(enter_event);
-        AppState::queue_event(move_event);
+        AppState::queue_event(EventWrapper::StaticEvent(enter_event));
+        AppState::queue_event(EventWrapper::StaticEvent(move_event));
     }
     trace!("Completed `mouseEntered`");
 }
@@ -898,7 +966,7 @@ extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `mouseExited`");
 }
@@ -940,8 +1008,8 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
             },
         };
 
-        AppState::queue_event(device_event);
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(device_event));
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `scrollWheel`");
 }
@@ -964,7 +1032,7 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
             },
         };
 
-        AppState::queue_event(window_event);
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `pressureChangeWithEvent`");
 }
