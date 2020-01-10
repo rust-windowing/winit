@@ -2,7 +2,7 @@
 use std::fmt;
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoMode},
@@ -26,12 +26,14 @@ pub use crate::icon::*;
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
+///     *control_flow = ControlFlow::Wait;
+///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
 ///         } => *control_flow = ControlFlow::Exit,
-///         _ => *control_flow = ControlFlow::Wait,
+///         _ => (),
 ///     }
 /// });
 /// ```
@@ -78,7 +80,7 @@ impl WindowId {
 }
 
 /// Object that allows you to build windows.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
@@ -102,17 +104,17 @@ pub struct WindowAttributes {
     /// used.
     ///
     /// The default is `None`.
-    pub inner_size: Option<LogicalSize>,
+    pub inner_size: Option<Size>,
 
     /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
     ///
     /// The default is `None`.
-    pub min_inner_size: Option<LogicalSize>,
+    pub min_inner_size: Option<Size>,
 
     /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
     ///
     /// The default is `None`.
-    pub max_inner_size: Option<LogicalSize>,
+    pub max_inner_size: Option<Size>,
 
     /// Whether the window is resizable or not.
     ///
@@ -185,10 +187,7 @@ impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
     pub fn new() -> Self {
-        WindowBuilder {
-            window: Default::default(),
-            platform_specific: Default::default(),
-        }
+        Default::default()
     }
 
     /// Requests the window to be of specific dimensions.
@@ -197,8 +196,8 @@ impl WindowBuilder {
     ///
     /// [`Window::set_inner_size`]: crate::window::Window::set_inner_size
     #[inline]
-    pub fn with_inner_size(mut self, size: LogicalSize) -> Self {
-        self.window.inner_size = Some(size);
+    pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> Self {
+        self.window.inner_size = Some(size.into());
         self
     }
 
@@ -208,8 +207,8 @@ impl WindowBuilder {
     ///
     /// [`Window::set_min_inner_size`]: crate::window::Window::set_min_inner_size
     #[inline]
-    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> Self {
-        self.window.min_inner_size = Some(min_size);
+    pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> Self {
+        self.window.min_inner_size = Some(min_size.into());
         self
     }
 
@@ -219,8 +218,8 @@ impl WindowBuilder {
     ///
     /// [`Window::set_max_inner_size`]: crate::window::Window::set_max_inner_size
     #[inline]
-    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> Self {
-        self.window.max_inner_size = Some(max_size);
+    pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
+        self.window.max_inner_size = Some(max_size.into());
         self
     }
 
@@ -366,25 +365,25 @@ impl Window {
         WindowId(self.window.id())
     }
 
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
     /// See the [`dpi`](crate::dpi) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
+    /// moved to another screen); as such, tracking `WindowEvent::ScaleFactorChanged` events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
     ///
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.window.hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        self.window.scale_factor()
     }
 
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
@@ -419,10 +418,12 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window's [safe area] in the screen space coordinate system.
+    /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns the
+    ///    same value as `outer_position`._
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.inner_position()
     }
 
@@ -440,8 +441,9 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window in the screen space coordinate system.
+    /// - **Web:** Returns the top-left coordinates relative to the viewport.
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.outer_position()
     }
 
@@ -454,25 +456,25 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
+    /// - **Web:** Sets the top-left coordinates relative to the viewport.
     #[inline]
-    pub fn set_outer_position(&self, position: LogicalPosition) {
-        self.window.set_outer_position(position)
+    pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
+        self.window.set_outer_position(position.into())
     }
 
-    /// Returns the logical size of the window's client area.
+    /// Returns the physical size of the window's client area.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
     ///
-    /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
-    ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window's
+    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window's
     ///   [safe area] in screen space coordinates.
+    /// - **Web:** Returns the size of the canvas element.
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.window.inner_size()
     }
 
@@ -485,22 +487,25 @@ impl Window {
     ///
     /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
     ///   would mean for iOS.
+    /// - **Web:** Sets the size of the canvas element.
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
-        self.window.set_inner_size(size)
+    pub fn set_inner_size<S: Into<Size>>(&self, size: S) {
+        self.window.set_inner_size(size.into())
     }
 
-    /// Returns the logical size of the entire window.
+    /// Returns the physical size of the entire window.
     ///
     /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
     /// use `inner_size` instead.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window in
+    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window in
     ///   screen space coordinates.
+    /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
+    ///   `inner_size`._
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         self.window.outer_size()
     }
 
@@ -511,8 +516,8 @@ impl Window {
     /// - **iOS:** Has no effect.
     /// - **Web:** Has no effect.
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_min_inner_size(dimensions)
+    pub fn set_min_inner_size<S: Into<Size>>(&self, min_size: Option<S>) {
+        self.window.set_min_inner_size(min_size.map(|s| s.into()))
     }
 
     /// Sets a maximum dimension size for the window.
@@ -522,8 +527,8 @@ impl Window {
     /// - **iOS:** Has no effect.
     /// - **Web:** Has no effect.
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_max_inner_size(dimensions)
+    pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
+        self.window.set_max_inner_size(max_size.map(|s| s.into()))
     }
 }
 
@@ -675,8 +680,8 @@ impl Window {
     /// **iOS:** Has no effect.
     /// - **Web:** Has no effect.
     #[inline]
-    pub fn set_ime_position(&self, position: LogicalPosition) {
-        self.window.set_ime_position(position)
+    pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
+        self.window.set_ime_position(position.into())
     }
 }
 
@@ -700,8 +705,8 @@ impl Window {
     /// - **iOS:** Always returns an `Err`.
     /// - **Web:** Has no effect.
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
-        self.window.set_cursor_position(position)
+    pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
+        self.window.set_cursor_position(position.into())
     }
 
     /// Grabs the cursor, preventing it from leaving the window.

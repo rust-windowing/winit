@@ -137,9 +137,9 @@ impl FrameExtentsHeuristic {
 
     pub fn inner_pos_to_outer_logical(
         &self,
-        mut logical: LogicalPosition,
+        mut logical: LogicalPosition<f64>,
         factor: f64,
-    ) -> LogicalPosition {
+    ) -> LogicalPosition<f64> {
         use self::FrameExtentsHeuristicPath::*;
         if self.heuristic_path != UnsupportedBordered {
             let frame_extents = self.frame_extents.as_logical(factor);
@@ -166,9 +166,9 @@ impl FrameExtentsHeuristic {
 
     pub fn inner_size_to_outer_logical(
         &self,
-        mut logical: LogicalSize,
+        mut logical: LogicalSize<f64>,
         factor: f64,
-    ) -> LogicalSize {
+    ) -> LogicalSize<f64> {
         let frame_extents = self.frame_extents.as_logical(factor);
         logical.width += frame_extents.left + frame_extents.right;
         logical.height += frame_extents.top + frame_extents.bottom;

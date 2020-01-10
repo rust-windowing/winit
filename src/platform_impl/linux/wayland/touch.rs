@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::event::{TouchPhase, WindowEvent};
 
-use super::{event_loop::WindowEventsSink, window::WindowStore, DeviceId, WindowId};
+use super::{event_loop::EventsSink, window::WindowStore, DeviceId, WindowId};
 
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_seat,
@@ -15,16 +15,15 @@ struct TouchPoint {
     id: i32,
 }
 
-pub(crate) fn implement_touch<T: 'static>(
+pub(crate) fn implement_touch(
     seat: &wl_seat::WlSeat,
-    sink: Arc<Mutex<WindowEventsSink<T>>>,
+    sink: EventsSink,
     store: Arc<Mutex<WindowStore>>,
 ) -> WlTouch {
     let mut pending_ids = Vec::new();
     seat.get_touch(|touch| {
         touch.implement_closure(
             move |evt, _| {
-                let mut sink = sink.lock().unwrap();
                 let store = store.lock().unwrap();
                 match evt {
                     TouchEvent::Down {

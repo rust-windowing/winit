@@ -14,15 +14,15 @@ pub fn mouse_button(event: &MouseEvent) -> MouseButton {
 }
 
 pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
-    ModifiersState {
-        shift: event.shift_key(),
-        ctrl: event.ctrl_key(),
-        alt: event.alt_key(),
-        logo: event.meta_key(),
-    }
+    let mut m = ModifiersState::empty();
+    m.set(ModifiersState::SHIFT, event.shift_key());
+    m.set(ModifiersState::CTRL, event.ctrl_key());
+    m.set(ModifiersState::ALT, event.alt_key());
+    m.set(ModifiersState::LOGO, event.meta_key());
+    m
 }
 
-pub fn mouse_position(event: &MouseEvent) -> LogicalPosition {
+pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     LogicalPosition {
         x: event.offset_x() as f64,
         y: event.offset_y() as f64,
@@ -211,12 +211,12 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
 }
 
 pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
-    ModifiersState {
-        shift: event.shift_key(),
-        ctrl: event.ctrl_key(),
-        alt: event.alt_key(),
-        logo: event.meta_key(),
-    }
+    let mut m = ModifiersState::empty();
+    m.set(ModifiersState::SHIFT, event.shift_key());
+    m.set(ModifiersState::CTRL, event.ctrl_key());
+    m.set(ModifiersState::ALT, event.alt_key());
+    m.set(ModifiersState::LOGO, event.meta_key());
+    m
 }
 
 pub fn codepoint(event: &KeyboardEvent) -> char {

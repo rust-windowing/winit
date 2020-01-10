@@ -6,6 +6,7 @@ use winit::{
 };
 
 fn main() {
+    simple_logger::init().unwrap();
     let event_loop = EventLoop::new();
 
     let mut windows = HashMap::new();
@@ -16,6 +17,7 @@ fn main() {
 
     event_loop.run(move |event, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
+
         match event {
             Event::WindowEvent { event, window_id } => {
                 match event {
