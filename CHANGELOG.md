@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix `run_return` does not return unless it receives a message.
 - On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
 - On X11, fix deadlock on window state when handling certain window events.
 - `WindowBuilder` now implements `Default`.
