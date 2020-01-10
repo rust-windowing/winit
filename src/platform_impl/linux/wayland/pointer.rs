@@ -11,6 +11,8 @@ use super::{
     DeviceId,
 };
 
+use smithay_client_toolkit::surface;
+
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_pointer::{self, Event as PtrEvent, WlPointer},
     wl_seat,
@@ -39,6 +41,7 @@ pub fn implement_pointer(
         let mut mouse_focus = None;
         let mut axis_buffer = None;
         let mut axis_discrete_buffer = None;
+        let mut current_surface = None;
         let mut axis_state = TouchPhase::Ended;
 
         pointer.implement_closure(
@@ -53,8 +56,12 @@ pub fn implement_pointer(
                         ..
                     } => {
                         let wid = store.find_wid(&surface);
+
                         if let Some(wid) = wid {
                             mouse_focus = Some(wid);
+                            let scale_factor = surface::get_dpi_factor(&surface) as f64;
+
+                            current_surface = Some(surface);
 
                             // Reload cursor style only when we enter winit's surface. Calling
                             // this function every time on `PtrEvent::Enter` could interfere with
@@ -75,7 +82,8 @@ pub fn implement_pointer(
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x, surface_y).into(),
+                                    position: (surface_x * scale_factor, surface_y * scale_factor)
+                                        .into(),
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
@@ -86,6 +94,7 @@ pub fn implement_pointer(
                         mouse_focus = None;
                         let wid = store.find_wid(&surface);
                         if let Some(wid) = wid {
+                            current_surface = None;
                             sink.send_window_event(
                                 WindowEvent::CursorLeft {
                                     device_id: crate::event::DeviceId(
@@ -101,13 +110,16 @@ pub fn implement_pointer(
                         surface_y,
                         ..
                     } => {
-                        if let Some(wid) = mouse_focus {
+                        if let (Some(wid), Some(surface)) = (mouse_focus, current_surface.as_ref())
+                        {
+                            let scale_factor = surface::get_dpi_factor(&surface) as f64;
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x, surface_y).into(),
+                                    position: (surface_x * scale_factor, surface_y * scale_factor)
+                                        .into(),
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
