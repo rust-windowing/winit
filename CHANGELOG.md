@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix issue where unbundled applications would sometimes open without being focused.
 - On macOS, fix `run_return` does not return unless it receives a message.
 - On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
 - On X11, fix deadlock on window state when handling certain window events.
@@ -26,7 +27,7 @@
 - On all platforms except mobile and WASM, implement `Window::set_minimized`.
 - On X11, fix `CursorEntered` event being generated for non-winit windows.
 - On macOS, fix crash when starting maximized without decorations.
-- On macOS, fix application not to terminate on `run_return`.
+- On macOS, fix application not terminating on `run_return`.
 - On Wayland, fix cursor icon updates on window borders when using CSD.
 - On Wayland, under mutter(GNOME Wayland), fix CSD being behind the status bar, when starting window in maximized mode.
 - On Windows, theme the title bar according to whether the system theme is "Light" or "Dark".
