@@ -6,6 +6,7 @@
 - On X11, fix deadlock on window state when handling certain window events.
 - `WindowBuilder` now implements `Default`.
 - **Breaking:** `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
+- On Wayland, fix coordinates in mouse events when scale factor isn't 1
 
 # 0.20.0 (2020-01-05)
 
