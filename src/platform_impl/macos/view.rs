@@ -638,6 +638,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         let is_repeat = msg_send![event, isARepeat];
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id,
             event: WindowEvent::KeyboardInput {
@@ -690,6 +691,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
@@ -804,6 +806,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
 
         let event: id = msg_send![NSApp(), currentEvent];
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
