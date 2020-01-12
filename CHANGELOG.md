@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix `CursorMoved` event reporting the cursor position using logical coordinates.
 - On macOS, fix issue where unbundled applications would sometimes open without being focused.
 - On macOS, fix `run_return` does not return unless it receives a message.
 - On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
