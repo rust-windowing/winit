@@ -30,7 +30,7 @@ pub struct WindowState {
 
     pub fullscreen: Option<Fullscreen>,
     /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
-    /// times in `EventsCleared`.
+    /// times in `MainEventsCleared`.
     pub queued_out_of_band_redraw: bool,
     pub is_dark_mode: bool,
     pub high_surrogate: Option<u16>,
