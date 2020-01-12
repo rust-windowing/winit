@@ -1,14 +1,14 @@
 use std::os::raw;
-use std::{env, str::FromStr};
+use std::{ptr, env, str::FromStr};
 
-use super::{util, XConnection};
+use super::{util, XConnection, ffi::{XRRCrtcInfo, XRROutputInfo}};
 use crate::{
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
 
 use parking_lot::Mutex;
-use winit_types::dpi::{validate_hidpi_factor, PhysicalPosition, PhysicalSize};
+use winit_types::dpi::{self, PhysicalPosition, PhysicalSize};
 use x11_dl::xrandr::{RRCrtc, RRMode};
 
 // Used for testing. This should always be committed as false.
@@ -33,19 +33,84 @@ pub struct VideoMode {
     pub(crate) native_mode: Option<RRMode>,
 }
 
-/// Which monitor extention we are going to try to use. XRandR is best of
-/// course, but if we can't find it we will try to use Xinerama. And if that is
-/// not present, we use nothing.
+/// How we are going to get the scale factor.
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum ScaleFactorSource {
+    Scale(f64),
+    Xft,
+    XRandR,
+    Xlib,
+}
+
+impl From<MonitorInfoSource> for ScaleFactorSource {
+    fn from(mis: MonitorInfoSource) -> Self {
+        match mis {
+            MonitorInfoSource::XRandR => ScaleFactorSource::XRandR,
+            MonitorInfoSource::Xinerama => ScaleFactorSource::Xlib,
+            MonitorInfoSource::Xlib => ScaleFactorSource::Xlib,
+        }
+    }
+}
+
+impl From<MonitorInfoSource> for Vec<ScaleFactorSource> {
+    fn from(mis: MonitorInfoSource) -> Self {
+        // Override DPI if `WINIT_X11_SCALE_FACTOR` variable is set
+        let deprecated_scale_override = env::var("WINIT_HIDPI_FACTOR").ok();
+        if deprecated_scale_override.is_some() {
+            warn!(
+                "[winit] The WINIT_HIDPI_FACTOR environment variable is deprecated; use WINIT_X11_SCALE_FACTOR"
+            )
+        }
+
+        let sfc: ScaleFactorSource = mis.into();
+        let default = vec![ ScaleFactorSource::Xft, sfc ];
+        env::var("WINIT_X11_SCALE_FACTOR").ok().map_or_else(
+            || default.clone(),
+            |var| match var.trim() {
+                "" => default.clone(),
+                var => {
+                    var
+                        .to_lowercase()
+                        .split(",")
+                        .map(|var| match var {
+                            "randr" => ScaleFactorSource::XRandR,
+                            "xlib" => ScaleFactorSource::Xlib,
+                            "xft" => ScaleFactorSource::Xft,
+                            _ => {
+                                if let Ok(scale) = f64::from_str(&var) {
+                                    if !dpi::validate_scale_factor(scale) {
+                                        panic!(
+                                            "[winit] `WINIT_X11_SCALE_FACTOR` invalid; Scale factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                                            scale,
+                                        );
+                                    }
+                                    ScaleFactorSource::Scale(scale)
+                                } else {
+                                    panic!(
+                                        "[winit] `WINIT_X11_SCALE_FACTOR` invalid; Scale factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                                        var
+                                    );
+                                }
+                            }
+                        })
+                        .collect()
+                }
+            },
+        )
+    }
+}
+
+/// How we are going to get monitor info.
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
-pub enum MonitorExt {
+pub enum MonitorInfoSource {
     XRandR,
     Xinerama,
-    None,
+    Xlib,
 }
 
 impl VideoMode {
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -82,7 +147,7 @@ pub struct MonitorHandle {
     /// If the monitor is the primary one
     pub(crate) primary: bool,
     /// The DPI scale factor
-    pub(crate) hidpi_factor: f64,
+    pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
@@ -120,7 +185,7 @@ impl MonitorHandle {
         MonitorHandle {
             id: Some(0),
             name: "<dummy monitor>".into(),
-            hidpi_factor: 1.0,
+            scale_factor: 1.0,
             dimensions: (1, 1),
             position: (0, 0),
             primary: true,
@@ -149,17 +214,17 @@ impl MonitorHandle {
         self.screen
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.dimensions.into()
     }
 
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         self.position.into()
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.hidpi_factor
+    pub fn scale_factor(&self) -> f64 {
+        self.scale_factor
     }
 
     #[inline]
@@ -211,10 +276,10 @@ impl XConnection {
     }
 
     fn query_monitor_list(&self) -> Vec<MonitorHandle> {
-        match self.monitor_ext {
-            MonitorExt::XRandR => self.query_monitor_list_xrandr(),
-            MonitorExt::Xinerama => self.query_monitor_list_xinerama(),
-            MonitorExt::None => self.query_monitor_list_none(),
+        match self.monitor_info_source {
+            MonitorInfoSource::XRandR => self.query_monitor_list_xrandr(),
+            MonitorInfoSource::Xinerama => self.query_monitor_list_xinerama(),
+            MonitorInfoSource::Xlib => self.query_monitor_list_none(),
         }
     }
 
@@ -242,33 +307,97 @@ impl XConnection {
     }
 }
 
-pub fn calc_dpi_factor(
+pub fn calc_scale_factor(
     (width_px, height_px): (u32, u32),
     (width_mm, height_mm): (u64, u64),
 ) -> f64 {
-    // Override DPI if `WINIT_HIDPI_FACTOR` variable is set
-    let dpi_override = env::var("WINIT_HIDPI_FACTOR")
-        .ok()
-        .and_then(|var| f64::from_str(&var).ok());
-    if let Some(dpi_override) = dpi_override {
-        if !validate_hidpi_factor(dpi_override) {
-            panic!(
-                "[winit] `WINIT_HIDPI_FACTOR` invalid; DPI factors must be normal floats greater than 0. Got `{}`",
-                dpi_override,
-            );
-        }
-        return dpi_override;
-    }
-
     // See http://xpra.org/trac/ticket/728 for more information.
     if width_mm == 0 || height_mm == 0 {
-        warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
+        warn!(
+            "[winit] XRandR reported that the display's 0mm in size, which is certifiably insane"
+        );
         return 1.0;
     }
 
     let ppmm = ((width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)).sqrt();
     // Quantize 1/12 step size
-    let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
-    assert!(validate_hidpi_factor(dpi_factor));
-    dpi_factor
+    let scale_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
+    assert!(dpi::validate_scale_factor(scale_factor));
+    scale_factor
+}
+
+impl XConnection {
+    // Retrieve DPI from Xft.dpi property
+    pub fn get_xft_scale(&self) -> Option<f64> {
+        unsafe {
+            let xlib = syms!(XLIB);
+            (xlib.XrmInitialize)();
+            let resource_manager_str = (xlib.XResourceManagerString)(**self.display);
+            if resource_manager_str == ptr::null_mut() {
+                return None;
+            }
+            if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
+                let name: &str = "Xft.dpi:\t";
+                for pair in res.split("\n") {
+                    if pair.starts_with(&name) {
+                        let res = &pair[name.len()..];
+                        return f64::from_str(&res).ok();
+                    }
+                }
+            }
+            None
+        }
+    }
+
+    pub fn get_xlib_dims(&self, screen: raw::c_int) -> ((u32, u32), (u64, u64)) {
+        unsafe {
+            let xlib = syms!(XLIB);
+            let screen_ptr = (xlib.XScreenOfDisplay)(**self.display, screen);
+            let dimensions = (
+                (xlib.XWidthOfScreen)(screen_ptr) as u32,
+                (xlib.XHeightOfScreen)(screen_ptr) as u32,
+            );
+            let dimensions_mm = (
+                (xlib.XWidthMMOfScreen)(screen_ptr) as u64,
+                (xlib.XHeightMMOfScreen)(screen_ptr) as u64,
+            );
+            (dimensions, dimensions_mm)
+        }
+    }
+
+    pub fn acquire_scale_factor(
+        &self,
+        xrandr_parts: Option<(*mut XRROutputInfo, *mut XRRCrtcInfo)>,
+        screen: raw::c_int,
+    ) -> Option<f64> {
+        let scale_factor_sources: Vec<ScaleFactorSource> = self.monitor_info_source.into();
+
+        for sfc in scale_factor_sources {
+            match sfc {
+                ScaleFactorSource::Scale(s) => return Some(s),
+                ScaleFactorSource::Xft => if let Some(s) = self.get_xft_scale() { return Some(s / 96.0) },
+                ScaleFactorSource::Xlib => {
+                    let (dimensions, dimensions_mm) = self.get_xlib_dims(screen);
+                    return Some(calc_scale_factor(dimensions, dimensions_mm));
+                }
+                ScaleFactorSource::XRandR => unsafe {
+                    if let Some((output_info, crtc)) = xrandr_parts {
+                        return Some(calc_scale_factor(
+                            ((*crtc).width as u32, (*crtc).height as u32),
+                            (
+                                (*output_info).mm_width as u64,
+                                (*output_info).mm_height as u64,
+                            ),
+                        ));
+                    } else {
+                        panic!(
+                            "[winit] `WINIT_X11_SCALE_FACTOR` had `randr`, but system does not have RANDR ext.",
+                        );
+                    }
+                }
+            }
+        }
+
+        None
+    }
 }

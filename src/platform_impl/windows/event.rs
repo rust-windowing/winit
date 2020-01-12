@@ -17,14 +17,82 @@ fn key_pressed(vkey: c_int) -> bool {
 }
 
 pub fn get_key_mods() -> ModifiersState {
-    let mut mods = ModifiersState::default();
     let filter_out_altgr = layout_uses_altgr() && key_pressed(winuser::VK_RMENU);
 
-    mods.shift = key_pressed(winuser::VK_SHIFT);
-    mods.ctrl = key_pressed(winuser::VK_CONTROL) && !filter_out_altgr;
-    mods.alt = key_pressed(winuser::VK_MENU) && !filter_out_altgr;
-    mods.logo = key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN);
+    let mut mods = ModifiersState::empty();
+    mods.set(ModifiersState::SHIFT, key_pressed(winuser::VK_SHIFT));
+    mods.set(
+        ModifiersState::CTRL,
+        key_pressed(winuser::VK_CONTROL) && !filter_out_altgr,
+    );
+    mods.set(
+        ModifiersState::ALT,
+        key_pressed(winuser::VK_MENU) && !filter_out_altgr,
+    );
+    mods.set(
+        ModifiersState::LOGO,
+        key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN),
+    );
     mods
+}
+
+bitflags! {
+    #[derive(Default)]
+    pub struct ModifiersStateSide: u32 {
+        const LSHIFT = 0b010 << 0;
+        const RSHIFT = 0b001 << 0;
+
+        const LCTRL = 0b010 << 3;
+        const RCTRL = 0b001 << 3;
+
+        const LALT = 0b010 << 6;
+        const RALT = 0b001 << 6;
+
+        const LLOGO = 0b010 << 9;
+        const RLOGO = 0b001 << 9;
+    }
+}
+
+impl ModifiersStateSide {
+    pub fn filter_out_altgr(&self) -> ModifiersStateSide {
+        match layout_uses_altgr() && self.contains(Self::RALT) {
+            false => *self,
+            true => *self & !(Self::LCTRL | Self::RCTRL | Self::LALT | Self::RALT),
+        }
+    }
+}
+
+impl From<ModifiersStateSide> for ModifiersState {
+    fn from(side: ModifiersStateSide) -> Self {
+        let mut state = ModifiersState::default();
+        state.set(
+            Self::SHIFT,
+            side.intersects(ModifiersStateSide::LSHIFT | ModifiersStateSide::RSHIFT),
+        );
+        state.set(
+            Self::CTRL,
+            side.intersects(ModifiersStateSide::LCTRL | ModifiersStateSide::RCTRL),
+        );
+        state.set(
+            Self::ALT,
+            side.intersects(ModifiersStateSide::LALT | ModifiersStateSide::RALT),
+        );
+        state.set(
+            Self::LOGO,
+            side.intersects(ModifiersStateSide::LLOGO | ModifiersStateSide::RLOGO),
+        );
+        state
+    }
+}
+
+pub fn get_pressed_keys() -> impl Iterator<Item = c_int> {
+    let mut keyboard_state = vec![0u8; 256];
+    unsafe { winuser::GetKeyboardState(keyboard_state.as_mut_ptr()) };
+    keyboard_state
+        .into_iter()
+        .enumerate()
+        .filter(|(_, p)| (*p & (1 << 7)) != 0) // whether or not a key is pressed is communicated via the high-order bit
+        .map(|(i, _)| i as c_int)
 }
 
 unsafe fn get_char(keyboard_state: &[u8; 256], v_key: u32, hkl: HKL) -> Option<char> {
@@ -177,8 +245,8 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
         0x58 => Some(VirtualKeyCode::X),
         0x59 => Some(VirtualKeyCode::Y),
         0x5A => Some(VirtualKeyCode::Z),
-        //winuser::VK_LWIN => Some(VirtualKeyCode::Lwin),
-        //winuser::VK_RWIN => Some(VirtualKeyCode::Rwin),
+        winuser::VK_LWIN => Some(VirtualKeyCode::LWin),
+        winuser::VK_RWIN => Some(VirtualKeyCode::RWin),
         winuser::VK_APPS => Some(VirtualKeyCode::Apps),
         winuser::VK_SLEEP => Some(VirtualKeyCode::Sleep),
         winuser::VK_NUMPAD0 => Some(VirtualKeyCode::Numpad0),

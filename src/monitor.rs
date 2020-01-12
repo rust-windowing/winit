@@ -56,7 +56,7 @@ impl Ord for VideoMode {
 impl VideoMode {
     /// Returns the resolution of this video mode.
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.video_mode.size()
     }
 
@@ -131,7 +131,7 @@ impl MonitorHandle {
     ///
     /// - **Web:** Always returns (0,0)
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.inner.size()
     }
 
@@ -142,22 +142,22 @@ impl MonitorHandle {
     ///
     /// - **Web:** Always returns (0,0)
     #[inline]
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         self.inner.position()
     }
 
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
     /// See the [`dpi`](winit_types::dpi) module for more information.
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** Can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **X11:** Can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     /// - **Web:** Always returns 1.0
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.inner.hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        self.inner.scale_factor()
     }
 
     /// Returns all fullscreen video modes supported by this monitor.

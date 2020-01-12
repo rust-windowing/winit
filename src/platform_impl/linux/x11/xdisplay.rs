@@ -7,14 +7,14 @@ use winit_types::error::Error;
 use crate::window::CursorIcon;
 
 use super::ffi;
-use super::monitor::MonitorExt;
+use super::monitor::MonitorInfoSource;
 
 /// A connection to an X server.
 pub struct XConnection {
     pub display: Arc<Display>,
     pub x11_fd: c_int,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
-    pub monitor_ext: MonitorExt,
+    pub monitor_info_source: MonitorInfoSource,
 }
 
 impl XConnection {
@@ -42,7 +42,7 @@ impl XConnection {
         // Get X11 socket file descriptor
         let x11_fd = unsafe { (syms!(XLIB).XConnectionNumber)(**display) };
 
-        let mut monitor_ext = MonitorExt::None;
+        let mut monitor_info_source = MonitorInfoSource::Xlib;
 
         match (*ffi::XRANDR_2_2_0).as_ref() {
             Ok(_) => {
@@ -55,7 +55,7 @@ impl XConnection {
 
                 match has_xrandr {
                     0 => debug!("[winit] Queried for RANDR version but failed with {:?}, falling back to Xinerama.", has_xrandr),
-                    _ => monitor_ext = MonitorExt::XRandR,
+                    _ => monitor_info_source = MonitorInfoSource::XRandR,
                 }
             }
             Err(err) => {
@@ -63,7 +63,7 @@ impl XConnection {
             }
         }
 
-        if monitor_ext == MonitorExt::None {
+        if monitor_info_source == MonitorInfoSource::Xlib {
             match (*ffi::XINERAMA).as_ref() {
                 Ok(_) => {
                     let xinerama = syms!(XINERAMA);
@@ -77,7 +77,7 @@ impl XConnection {
                         0 => debug!("[winit] Queried for Xinerama version but failed with {:?}, falling back to nothing.", has_xinerama),
                         _ => unsafe {
                             match (xinerama.XineramaIsActive)(**display) {
-                                ffi::True => monitor_ext = MonitorExt::Xinerama,
+                                ffi::True => monitor_info_source = MonitorInfoSource::Xinerama,
                                 is_active => debug!("[winit] Queried Xinerama if it was active and it said {:?}, falling back to nothing.", is_active),
                             }
                         }
@@ -93,7 +93,7 @@ impl XConnection {
             display,
             x11_fd,
             cursor_cache: Default::default(),
-            monitor_ext,
+            monitor_info_source,
         })
     }
 }

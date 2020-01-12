@@ -1,5 +1,5 @@
 use std::os::raw::*;
-use std::{slice, str::FromStr};
+use std::slice;
 
 use super::{
     ffi::{
@@ -9,14 +9,17 @@ use super::{
     *,
 };
 use crate::platform_impl::platform::x11::{
-    monitor::{self, MonitorExt, MonitorHandle},
+    monitor::{MonitorInfoSource, MonitorHandle},
     VideoMode,
 };
+
 use winit_types::error::Error;
+
+/// Represents values of `WINIT_HIDPI_FACTOR`.
 
 impl XConnection {
     pub fn query_monitor_list_xrandr(&self) -> Vec<MonitorHandle> {
-        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
         let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         unsafe {
             let mut major = 0;
@@ -52,7 +55,7 @@ impl XConnection {
                     let primary = *(*crtc).outputs.offset(0) == primary;
                     has_primary |= primary;
 
-                    let (name, hidpi_factor, video_modes) =
+                    let (name, scale_factor, video_modes) =
                         self.get_output_info(resources, crtc).unwrap();
                     let dimensions = ((*crtc).width as u32, (*crtc).height as u32);
                     let position = ((*crtc).x as i32, (*crtc).y as i32);
@@ -60,7 +63,7 @@ impl XConnection {
                     available.push(MonitorHandle {
                         id: Some(crtc_id),
                         name,
-                        hidpi_factor,
+                        scale_factor,
                         dimensions,
                         position,
                         primary,
@@ -86,7 +89,7 @@ impl XConnection {
     }
 
     pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, Error> {
-        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
         let xrandr = syms!(XRANDR_2_2_0);
 
         let mut event_offset = 0;
@@ -106,32 +109,12 @@ impl XConnection {
         Ok(event_offset)
     }
 
-    // Retrieve DPI from Xft.dpi property
-    pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
-        let xlib = syms!(XLIB);
-        (xlib.XrmInitialize)();
-        let resource_manager_str = (xlib.XResourceManagerString)(**self.display);
-        if resource_manager_str == ptr::null_mut() {
-            return None;
-        }
-        if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
-            let name: &str = "Xft.dpi:\t";
-            for pair in res.split("\n") {
-                if pair.starts_with(&name) {
-                    let res = &pair[name.len()..];
-                    return f64::from_str(&res).ok();
-                }
-            }
-        }
-        None
-    }
-
     pub unsafe fn get_output_info(
         &self,
         resources: *mut XRRScreenResources,
         crtc: *mut XRRCrtcInfo,
     ) -> Option<(String, f64, Vec<VideoMode>)> {
-        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
         let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         let output_info =
             (xrandr.XRRGetOutputInfo)(**self.display, resources, *(*crtc).outputs.offset(0));
@@ -181,24 +164,14 @@ impl XConnection {
             (*output_info).nameLen as usize,
         );
         let name = String::from_utf8_lossy(name_slice).into();
-        let hidpi_factor = if let Some(dpi) = self.get_xft_dpi() {
-            dpi / 96.
-        } else {
-            monitor::calc_dpi_factor(
-                ((*crtc).width as u32, (*crtc).height as u32),
-                (
-                    (*output_info).mm_width as u64,
-                    (*output_info).mm_height as u64,
-                ),
-            )
-        };
+        let scale_factor = self.acquire_scale_factor(Some((output_info, crtc)), screen).unwrap();
 
         (xrandr.XRRFreeOutputInfo)(output_info);
-        Some((name, hidpi_factor, modes))
+        Some((name, scale_factor, modes))
     }
 
     pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
-        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
         let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         unsafe {
             let mut major = 0;
@@ -240,7 +213,7 @@ impl XConnection {
     }
 
     pub fn get_crtc_mode(&self, crtc_id: RRCrtc) -> RRMode {
-        assert_eq!(self.monitor_ext, MonitorExt::XRandR);
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
         let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         unsafe {
             let mut major = 0;

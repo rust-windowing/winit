@@ -12,7 +12,7 @@ use winapi::{
     um::winuser,
 };
 
-use winit_types::dpi::LogicalSize;
+use winit_types::dpi::Size;
 use winit_types::error::Error;
 
 /// Contains information about states and the window that the callback is going to use.
@@ -21,8 +21,8 @@ pub struct WindowState {
     pub mouse: MouseProperties,
 
     /// Used by `WM_GETMINMAXINFO`.
-    pub min_size: Option<LogicalSize>,
-    pub max_size: Option<LogicalSize>,
+    pub min_size: Option<Size>,
+    pub max_size: Option<Size>,
 
     pub window_icon: Option<WinIcon>,
     pub taskbar_icon: Option<WinIcon>,

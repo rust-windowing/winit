@@ -16,6 +16,7 @@ fn main() {
     window.set_title("A fantastic window!");
 
     event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
         println!("{:?}", event);
 
         match event {
@@ -23,7 +24,7 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 ..
             } => *control_flow = ControlFlow::Exit,
-            _ => *control_flow = ControlFlow::Wait,
+            _ => (),
         }
     });
 }

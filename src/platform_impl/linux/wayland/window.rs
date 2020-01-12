@@ -25,7 +25,7 @@ use smithay_client_toolkit::{
     window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
 };
 
-use winit_types::dpi::{LogicalPosition, LogicalSize};
+use winit_types::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use winit_types::error::{Error, ErrorType};
 
 use super::{event_loop::CursorManager, make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
@@ -50,11 +50,7 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlAttributes,
     ) -> Result<Window, Error> {
-        let (width, height) = attributes.inner_size.map(Into::into).unwrap_or((800, 600));
-        // Create the window
-        let size = Arc::new(Mutex::new((width, height)));
-        let fullscreen = Arc::new(Mutex::new(false));
-
+        // Create the surface first to get initial DPI
         let window_store = evlp.store.clone();
         let cursor_manager = evlp.cursor_manager.clone();
         let surface = evlp.env.create_surface(move |dpi, surface| {
@@ -62,7 +58,18 @@ impl Window {
             surface.set_buffer_scale(dpi);
         });
 
+        let dpi = get_dpi_factor(&surface) as f64;
+        let (width, height) = attributes
+            .inner_size
+            .map(|size| size.to_logical::<f64>(dpi).into())
+            .unwrap_or((800, 600));
+
+        // Create the window
+        let size = Arc::new(Mutex::new((width, height)));
+        let fullscreen = Arc::new(Mutex::new(false));
+
         let window_store = evlp.store.clone();
+
         let my_surface = surface.clone();
         let mut frame = SWindow::<ConceptFrame>::init_from_env(
             &evlp.env,
@@ -138,8 +145,16 @@ impl Window {
         frame.set_title(attributes.title);
 
         // min-max dimensions
-        frame.set_min_size(attributes.min_inner_size.map(Into::into));
-        frame.set_max_size(attributes.max_inner_size.map(Into::into));
+        frame.set_min_size(
+            attributes
+                .min_inner_size
+                .map(|size| size.to_logical::<f64>(dpi).into()),
+        );
+        frame.set_max_size(
+            attributes
+                .max_inner_size
+                .map(|size| size.to_logical::<f64>(dpi).into()),
+        );
 
         let kill_switch = Arc::new(Mutex::new(false));
         let need_frame_refresh = Arc::new(Mutex::new(true));
@@ -192,26 +207,28 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, Error> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         Err(make_error!(ErrorType::NotSupported(
             "Getting the outer position is not supported on Wayland.".to_string()
         )))
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, Error> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         Err(make_error!(ErrorType::NotSupported(
             "Getting the inner position is not supported on Wayland.".to_string()
         )))
     }
 
     #[inline]
-    pub fn set_outer_position(&self, _pos: LogicalPosition) {
+    pub fn set_outer_position(&self, _pos: Position) {
         // Not possible with wayland
     }
 
-    pub fn inner_size(&self) -> LogicalSize {
-        self.size.lock().unwrap().clone().into()
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        let dpi = self.scale_factor() as f64;
+        let size = LogicalSize::<f64>::from(*self.size.lock().unwrap());
+        size.to_physical(dpi)
     }
 
     pub fn request_redraw(&self) {
@@ -219,34 +236,39 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
+        let dpi = self.scale_factor() as f64;
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
-        (w, h).into()
+        let size = LogicalSize::<f64>::from((w, h));
+        size.to_physical(dpi)
     }
 
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
-    pub fn set_inner_size(&self, size: LogicalSize) {
-        let (w, h) = size.into();
+    pub fn set_inner_size(&self, size: Size) {
+        let dpi = self.scale_factor() as f64;
+        let (w, h) = size.to_logical::<u32>(dpi).into();
         self.frame.lock().unwrap().resize(w, h);
         *(self.size.lock().unwrap()) = (w, h);
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
+        let dpi = self.scale_factor() as f64;
         self.frame
             .lock()
             .unwrap()
-            .set_min_size(dimensions.map(Into::into));
+            .set_min_size(dimensions.map(|dim| dim.to_logical::<f64>(dpi).into()));
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
+        let dpi = self.scale_factor() as f64;
         self.frame
             .lock()
             .unwrap()
-            .set_max_size(dimensions.map(Into::into));
+            .set_max_size(dimensions.map(|dim| dim.to_logical::<f64>(dpi).into()));
     }
 
     #[inline]
@@ -255,7 +277,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> i32 {
+    pub fn scale_factor(&self) -> i32 {
         get_dpi_factor(&self.surface)
     }
 
@@ -334,7 +356,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _pos: LogicalPosition) -> Result<(), Error> {
+    pub fn set_cursor_position(&self, _pos: Position) -> Result<(), Error> {
         Err(make_error!(ErrorType::NotSupported(
             "Setting the cursor position is not supported on Wayland.".to_string()
         )))
@@ -386,6 +408,7 @@ impl Drop for Window {
 
 struct InternalWindow {
     surface: wl_surface::WlSurface,
+    // TODO: CONVERT TO LogicalSize<u32>s
     newsize: Option<(u32, u32)>,
     size: Arc<Mutex<(u32, u32)>>,
     need_refresh: Arc<Mutex<bool>>,
@@ -406,6 +429,7 @@ pub struct WindowStore {
 pub struct WindowStoreForEach<'a> {
     pub newsize: Option<(u32, u32)>,
     pub size: &'a mut (u32, u32),
+    pub prev_dpi: i32,
     pub new_dpi: Option<i32>,
     pub closed: bool,
     pub grab_cursor: Option<bool>,
@@ -471,6 +495,7 @@ impl WindowStore {
             f(WindowStoreForEach {
                 newsize: window.newsize.take(),
                 size: &mut *(window.size.lock().unwrap()),
+                prev_dpi: window.current_dpi,
                 new_dpi: window.new_dpi,
                 closed: window.closed,
                 grab_cursor: window.cursor_grab_changed.lock().unwrap().take(),

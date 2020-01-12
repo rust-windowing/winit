@@ -27,6 +27,7 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
+
         if let Event::WindowEvent { event, .. } = event {
             use winit::event::WindowEvent::*;
             match event {

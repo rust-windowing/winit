@@ -2,54 +2,30 @@
 
 use std::sync::Once;
 
+use crate::platform_impl::platform::util::{
+    ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE,
+    SET_PROCESS_DPI_AWARENESS, SET_PROCESS_DPI_AWARENESS_CONTEXT,
+};
 use winapi::{
     shared::{
-        minwindef::{BOOL, FALSE, UINT},
+        minwindef::FALSE,
         windef::{DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, HMONITOR, HWND},
         winerror::S_OK,
     },
     um::{
-        shellscalingapi::{
-            MDT_EFFECTIVE_DPI, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
-            PROCESS_PER_MONITOR_DPI_AWARE,
-        },
+        shellscalingapi::{MDT_EFFECTIVE_DPI, PROCESS_PER_MONITOR_DPI_AWARE},
         wingdi::{GetDeviceCaps, LOGPIXELSX},
-        winnt::HRESULT,
         winuser::{self, MONITOR_DEFAULTTONEAREST},
     },
 };
 
 const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DPI_AWARENESS_CONTEXT = -4isize as _;
 
-type SetProcessDPIAware = unsafe extern "system" fn() -> BOOL;
-type SetProcessDpiAwareness = unsafe extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
-type SetProcessDpiAwarenessContext =
-    unsafe extern "system" fn(value: DPI_AWARENESS_CONTEXT) -> BOOL;
-type GetDpiForWindow = unsafe extern "system" fn(hwnd: HWND) -> UINT;
-type GetDpiForMonitor = unsafe extern "system" fn(
-    hmonitor: HMONITOR,
-    dpi_type: MONITOR_DPI_TYPE,
-    dpi_x: *mut UINT,
-    dpi_y: *mut UINT,
-) -> HRESULT;
-type EnableNonClientDpiScaling = unsafe extern "system" fn(hwnd: HWND) -> BOOL;
-
-lazy_static! {
-    static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> =
-        get_function!("user32.dll", GetDpiForWindow);
-    static ref GET_DPI_FOR_MONITOR: Option<GetDpiForMonitor> =
-        get_function!("shcore.dll", GetDpiForMonitor);
-    static ref ENABLE_NON_CLIENT_DPI_SCALING: Option<EnableNonClientDpiScaling> =
-        get_function!("user32.dll", EnableNonClientDpiScaling);
-}
-
 pub fn become_dpi_aware() {
     static ENABLE_DPI_AWARENESS: Once = Once::new();
     ENABLE_DPI_AWARENESS.call_once(|| {
         unsafe {
-            if let Some(SetProcessDpiAwarenessContext) =
-                get_function!("user32.dll", SetProcessDpiAwarenessContext)
-            {
+            if let Some(SetProcessDpiAwarenessContext) = *SET_PROCESS_DPI_AWARENESS_CONTEXT {
                 // We are on Windows 10 Anniversary Update (1607) or later.
                 if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
                     == FALSE
@@ -58,13 +34,10 @@ pub fn become_dpi_aware() {
                     // V1 if we can't set V2.
                     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE);
                 }
-            } else if let Some(SetProcessDpiAwareness) =
-                get_function!("shcore.dll", SetProcessDpiAwareness)
-            {
+            } else if let Some(SetProcessDpiAwareness) = *SET_PROCESS_DPI_AWARENESS {
                 // We are on Windows 8.1 or later.
                 SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE);
-            } else if let Some(SetProcessDPIAware) = get_function!("user32.dll", SetProcessDPIAware)
-            {
+            } else if let Some(SetProcessDPIAware) = *SET_PROCESS_DPI_AWARE {
                 // We are on Vista or later.
                 SetProcessDPIAware();
             }
@@ -140,8 +113,4 @@ pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
             BASE_DPI
         }
     }
-}
-
-pub fn hwnd_scale_factor(hwnd: HWND) -> f64 {
-    dpi_to_scale_factor(unsafe { hwnd_dpi(hwnd) })
 }

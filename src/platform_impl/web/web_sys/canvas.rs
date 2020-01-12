@@ -1,7 +1,7 @@
 use super::event;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
-use winit_types::dpi::{LogicalPosition, LogicalSize};
+use winit_types::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use winit_types::error::Error;
 use winit_types::platform::OsError;
 
@@ -12,6 +12,7 @@ use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
 
 pub struct Canvas {
+    /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: HtmlCanvasElement,
     on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
@@ -36,11 +37,12 @@ impl Drop for Canvas {
 
 impl Canvas {
     pub fn create() -> Result<Self, Error> {
-        let window = web_sys::window()
-            .ok_or(make_oserror!(OsError("Failed to obtain window".to_owned())))?;
+        let window = web_sys::window().ok_or(make_oserror!(OsError(
+            "[winit] Failed to obtain window".to_owned()
+        )))?;
 
         let document = window.document().ok_or(make_oserror!(OsError(
-            "Failed to obtain document".to_owned()
+            "[winit] Failed to obtain document".to_owned()
         )))?;
 
         let canvas: HtmlCanvasElement = document
@@ -78,26 +80,23 @@ impl Canvas {
     pub fn set_attribute(&self, attribute: &str, value: &str) {
         self.raw
             .set_attribute(attribute, value)
-            .expect(&format!("Set attribute: {}", attribute));
+            .expect(&format!("[winit] Set attribute: {}", attribute));
     }
 
-    pub fn position(&self) -> (f64, f64) {
+    pub fn position(&self) -> LogicalPosition<f64> {
         let bounds = self.raw.get_bounding_client_rect();
 
-        (bounds.x(), bounds.y())
+        LogicalPosition {
+            x: bounds.x(),
+            y: bounds.y(),
+        }
     }
 
-    pub fn width(&self) -> f64 {
-        self.raw.width() as f64
-    }
-
-    pub fn height(&self) -> f64 {
-        self.raw.height() as f64
-    }
-
-    pub fn set_size(&self, size: LogicalSize) {
-        self.raw.set_width(size.width as u32);
-        self.raw.set_height(size.height as u32);
+    pub fn size(&self) -> PhysicalSize<u32> {
+        PhysicalSize {
+            width: self.raw.width(),
+            height: self.raw.height(),
+        }
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
@@ -219,12 +218,12 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, LogicalPosition, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<i32>, ModifiersState),
     {
         self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
             handler(
                 event.pointer_id(),
-                event::mouse_position(&event),
+                event::mouse_position(&event).to_physical(super::scale_factor()),
                 event::mouse_modifiers(&event),
             );
         }));

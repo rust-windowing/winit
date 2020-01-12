@@ -38,7 +38,6 @@ fn main() {
                     ..
                 } => {
                     quit = true;
-                    *control_flow = ControlFlow::Exit;
                 }
                 Event::MainEventsCleared => {
                     *control_flow = ControlFlow::Exit;
@@ -48,6 +47,7 @@ fn main() {
         });
 
         // Sleep for 1/60 second to simulate rendering
+        println!("rendering");
         sleep(Duration::from_millis(16));
     }
 }

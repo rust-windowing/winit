@@ -31,8 +31,9 @@ fn events_serde() {
 
 #[test]
 fn dpi_serde() {
-    needs_serde::<LogicalPosition>();
-    needs_serde::<PhysicalPosition>();
-    needs_serde::<LogicalSize>();
-    needs_serde::<PhysicalSize>();
+    needs_serde::<LogicalPosition<f64>>();
+    needs_serde::<PhysicalPosition<i32>>();
+    needs_serde::<PhysicalPosition<f64>>();
+    needs_serde::<LogicalSize<f64>>();
+    needs_serde::<PhysicalSize<u32>>();
 }

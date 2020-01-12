@@ -7,7 +7,7 @@ use glutin_interface::{
     WaylandWindowParts, X11WindowParts,
 };
 use smithay_client_toolkit::window::{ButtonState, Theme};
-use winit_types::dpi::{LogicalSize, PhysicalSize};
+use winit_types::dpi::{PhysicalSize, Size};
 use winit_types::error::{Error, ErrorType};
 
 use crate::{
@@ -161,11 +161,12 @@ impl NativeWindow for Window {
             })
     }
 
-    fn size(&self) -> PhysicalSize {
-        self.inner_size().to_physical(self.hidpi_factor())
+    fn size(&self) -> PhysicalSize<u32> {
+        self.inner_size()
     }
-    fn hidpi_factor(&self) -> f64 {
-        self.hidpi_factor()
+
+    fn scale_factor(&self) -> f64 {
+        self.scale_factor()
     }
 }
 
@@ -445,9 +446,9 @@ pub trait WindowBuilderExtUnix {
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> Self;
     /// Build window with resize increment hint. Only implemented on X11.
-    fn with_resize_increments(self, increments: LogicalSize) -> Self;
+    fn with_resize_increments<S: Into<Size>>(self, increments: S) -> Self;
     /// Build window with base size hint. Only implemented on X11.
-    fn with_base_size(self, base_size: LogicalSize) -> Self;
+    fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
 
     /// Build window with a given application ID. It should match the `.desktop` file distributed with
     /// your program. Only relevant on Wayland.
@@ -496,13 +497,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize) -> Self {
+    fn with_resize_increments<S: Into<Size>>(mut self, increments: S) -> Self {
         self.platform_specific.resize_increments = Some(increments.into());
         self
     }
 
     #[inline]
-    fn with_base_size(mut self, base_size: LogicalSize) -> Self {
+    fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
         self.platform_specific.base_size = Some(base_size.into());
         self
     }

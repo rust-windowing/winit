@@ -40,6 +40,8 @@ pub fn main() {
     }
 
     event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
         #[cfg(feature = "web-sys")]
         log::debug!("{:?}", event);
 
@@ -54,7 +56,7 @@ pub fn main() {
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
-            _ => *control_flow = ControlFlow::Wait,
+            _ => (),
         }
     });
 }

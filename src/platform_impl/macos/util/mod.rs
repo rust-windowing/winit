@@ -31,6 +31,7 @@ pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
     length: 0,
 };
 
+#[derive(Debug, PartialEq)]
 pub struct IdRef(id);
 
 impl IdRef {

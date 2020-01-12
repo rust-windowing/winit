@@ -1,7 +1,7 @@
 use super::event;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
-use winit_types::dpi::{LogicalPosition, LogicalSize};
+use winit_types::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use winit_types::error::Error;
 use winit_types::platform::OsError;
 
@@ -20,6 +20,7 @@ use stdweb::web::{
 };
 
 pub struct Canvas {
+    /// Note: resizing the CanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: CanvasElement,
     on_focus: Option<EventListenerHandle>,
     on_blur: Option<EventListenerHandle>,
@@ -80,26 +81,23 @@ impl Canvas {
     pub fn set_attribute(&self, attribute: &str, value: &str) {
         self.raw
             .set_attribute(attribute, value)
-            .expect(&format!("Set attribute: {}", attribute));
+            .expect(&format!("[winit] Set attribute: {}", attribute));
     }
 
-    pub fn position(&self) -> (f64, f64) {
+    pub fn position(&self) -> LogicalPosition<f64> {
         let bounds = self.raw.get_bounding_client_rect();
 
-        (bounds.get_x(), bounds.get_y())
+        LogicalPosition {
+            x: bounds.get_x(),
+            y: bounds.get_y(),
+        }
     }
 
-    pub fn width(&self) -> f64 {
-        self.raw.width() as f64
-    }
-
-    pub fn height(&self) -> f64 {
-        self.raw.height() as f64
-    }
-
-    pub fn set_size(&self, size: LogicalSize) {
-        self.raw.set_width(size.width as u32);
-        self.raw.set_height(size.height as u32);
+    pub fn size(&self) -> PhysicalSize<u32> {
+        PhysicalSize {
+            width: self.raw.width() as u32,
+            height: self.raw.height() as u32,
+        }
     }
 
     pub fn raw(&self) -> &CanvasElement {
@@ -210,12 +208,13 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, LogicalPosition, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<i32>, ModifiersState),
     {
+        // todo
         self.on_cursor_move = Some(self.add_event(move |event: PointerMoveEvent| {
             handler(
                 event.pointer_id(),
-                event::mouse_position(&event),
+                event::mouse_position(&event).to_physical(super::scale_factor()),
                 event::mouse_modifiers(&event),
             );
         }));

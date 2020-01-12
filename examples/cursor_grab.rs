@@ -1,5 +1,5 @@
 use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, WindowEvent},
+    event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -12,8 +12,11 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
+    let mut modifiers = ModifiersState::default();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
+
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
@@ -22,7 +25,6 @@ fn main() {
                         KeyboardInput {
                             state: ElementState::Released,
                             virtual_keycode: Some(key),
-                            modifiers,
                             ..
                         },
                     ..
@@ -30,8 +32,8 @@ fn main() {
                     use winit::event::VirtualKeyCode::*;
                     match key {
                         Escape => *control_flow = ControlFlow::Exit,
-                        G => window.set_cursor_grab(!modifiers.shift).unwrap(),
-                        H => window.set_cursor_visible(modifiers.shift),
+                        G => window.set_cursor_grab(!modifiers.shift()).unwrap(),
+                        H => window.set_cursor_visible(modifiers.shift()),
                         _ => (),
                     }
                 }
@@ -43,6 +45,7 @@ fn main() {
                     ElementState::Pressed => println!("mouse button {} pressed", button),
                     ElementState::Released => println!("mouse button {} released", button),
                 },
+                DeviceEvent::ModifiersChanged(m) => modifiers = m,
                 _ => (),
             },
             _ => (),

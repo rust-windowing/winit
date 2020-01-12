@@ -4,10 +4,10 @@ use std::{collections::VecDeque, env, os::raw, sync::Arc};
 
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
-use winit_types::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use winit_types::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 use winit_types::error::Error;
 
-use self::x11::{ffi::XVisualInfo, get_xtarget, util::WindowType as XWindowType, XConnection};
+use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection};
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
@@ -32,8 +32,8 @@ const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
     pub screen: Option<raw::c_int>,
-    pub resize_increments: Option<(u32, u32)>,
-    pub base_size: Option<(u32, u32)>,
+    pub resize_increments: Option<Size>,
+    pub base_size: Option<Size>,
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
     pub x11_window_types: Vec<XWindowType>,
@@ -123,7 +123,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         match self {
             &MonitorHandle::X(ref m) => m.size(),
             &MonitorHandle::Wayland(ref m) => m.size(),
@@ -131,7 +131,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         match self {
             &MonitorHandle::X(ref m) => m.position(),
             &MonitorHandle::Wayland(ref m) => m.position(),
@@ -139,10 +139,10 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         match self {
-            &MonitorHandle::X(ref m) => m.hidpi_factor(),
-            &MonitorHandle::Wayland(ref m) => m.hidpi_factor() as f64,
+            &MonitorHandle::X(ref m) => m.scale_factor(),
+            &MonitorHandle::Wayland(ref m) => m.scale_factor() as f64,
         }
     }
 
@@ -163,7 +163,7 @@ pub enum VideoMode {
 
 impl VideoMode {
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         match self {
             &VideoMode::X(ref m) => m.size(),
             &VideoMode::Wayland(ref m) => m.size(),
@@ -237,7 +237,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, Error> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         match self {
             &Window::X(ref w) => w.outer_position(),
             &Window::Wayland(ref w) => w.outer_position(),
@@ -245,7 +245,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, Error> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         match self {
             &Window::X(ref m) => m.inner_position(),
             &Window::Wayland(ref m) => m.inner_position(),
@@ -253,7 +253,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: Position) {
         match self {
             &Window::X(ref w) => w.set_outer_position(position),
             &Window::Wayland(ref w) => w.set_outer_position(position),
@@ -261,7 +261,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         match self {
             &Window::X(ref w) => w.inner_size(),
             &Window::Wayland(ref w) => w.inner_size(),
@@ -269,7 +269,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         match self {
             &Window::X(ref w) => w.outer_size(),
             &Window::Wayland(ref w) => w.outer_size(),
@@ -277,7 +277,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
+    pub fn set_inner_size(&self, size: Size) {
         match self {
             &Window::X(ref w) => w.set_inner_size(size),
             &Window::Wayland(ref w) => w.set_inner_size(size),
@@ -285,7 +285,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         match self {
             &Window::X(ref w) => w.set_min_inner_size(dimensions),
             &Window::Wayland(ref w) => w.set_min_inner_size(dimensions),
@@ -293,7 +293,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         match self {
             &Window::X(ref w) => w.set_max_inner_size(dimensions),
             &Window::Wayland(ref w) => w.set_max_inner_size(dimensions),
@@ -333,15 +333,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         match self {
-            &Window::X(ref w) => w.hidpi_factor(),
-            &Window::Wayland(ref w) => w.hidpi_factor() as f64,
+            &Window::X(ref w) => w.scale_factor(),
+            &Window::Wayland(ref w) => w.scale_factor() as f64,
         }
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), Error> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), Error> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(position),
             &Window::Wayland(ref w) => w.set_cursor_position(position),
@@ -405,7 +405,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, position: LogicalPosition) {
+    pub fn set_ime_position(&self, position: Position) {
         match self {
             &Window::X(ref w) => w.set_ime_position(position),
             &Window::Wayland(_) => (),
@@ -559,7 +559,7 @@ impl<T: 'static> EventLoop<T> {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            EventLoop::X(ref evlp) => get_xtarget(&evlp.target)
+            EventLoop::X(ref evlp) => evlp
                 .x_connection()
                 .available_monitors()
                 .into_iter()
@@ -572,9 +572,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn primary_monitor(&self) -> MonitorHandle {
         match *self {
             EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
-            EventLoop::X(ref evlp) => {
-                MonitorHandle::X(get_xtarget(&evlp.target).x_connection().primary_monitor())
-            }
+            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
         }
     }
 
@@ -587,7 +585,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, callback: F)
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         match *self {
             EventLoop::Wayland(ref mut evlp) => evlp.run_return(callback),
@@ -597,7 +595,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, callback: F) -> !
     where
-        F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         match self {
             EventLoop::Wayland(evlp) => evlp.run(callback),
@@ -638,12 +636,12 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 fn sticky_exit_callback<T, F>(
-    evt: Event<T>,
+    evt: Event<'_, T>,
     target: &RootELW<T>,
     control_flow: &mut ControlFlow,
     callback: &mut F,
 ) where
-    F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+    F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
 {
     // make ControlFlow::Exit sticky by providing a dummy
     // control flow reference if it is already Exit.
