@@ -1,15 +1,14 @@
 use std::{collections::VecDeque, fmt};
 
-use super::ffi;
+use super::{ffi, util};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::platform::util::IdRef,
 };
 use cocoa::{
     appkit::NSScreen,
     base::{id, nil},
-    foundation::{NSString, NSUInteger},
+    foundation::NSUInteger,
 };
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex},
@@ -84,7 +83,7 @@ impl Clone for NativeDisplayMode {
 }
 
 impl VideoMode {
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -166,9 +165,9 @@ impl fmt::Debug for MonitorHandle {
         struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
-            size: PhysicalSize,
-            position: PhysicalPosition,
-            hidpi_factor: f64,
+            size: PhysicalSize<u32>,
+            position: PhysicalPosition<i32>,
+            scale_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
@@ -176,7 +175,7 @@ impl fmt::Debug for MonitorHandle {
             native_identifier: self.native_identifier(),
             size: self.size(),
             position: self.position(),
-            hidpi_factor: self.hidpi_factor(),
+            scale_factor: self.scale_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -199,24 +198,24 @@ impl MonitorHandle {
         self.0
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         let MonitorHandle(display_id) = *self;
         let display = CGDisplay::new(display_id);
         let height = display.pixels_high();
         let width = display.pixels_wide();
-        PhysicalSize::from_logical((width as f64, height as f64), self.hidpi_factor())
+        PhysicalSize::from_logical::<_, f64>((width as f64, height as f64), self.scale_factor())
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         let bounds = unsafe { CGDisplayBounds(self.native_identifier()) };
-        PhysicalPosition::from_logical(
+        PhysicalPosition::from_logical::<_, f64>(
             (bounds.origin.x as f64, bounds.origin.y as f64),
-            self.hidpi_factor(),
+            self.scale_factor(),
         )
     }
 
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         let screen = match self.ns_screen() {
             Some(screen) => screen,
             None => return 1.0, // default to 1.0 when we can't find the screen
@@ -303,7 +302,7 @@ impl MonitorHandle {
             let uuid = ffi::CGDisplayCreateUUIDFromDisplayID(self.0);
             let screens = NSScreen::screens(nil);
             let count: NSUInteger = msg_send![screens, count];
-            let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
+            let key = util::ns_string_id_ref("NSScreenNumber");
             for i in 0..count {
                 let screen = msg_send![screens, objectAtIndex: i as NSUInteger];
                 let device_description = NSScreen::deviceDescription(screen);

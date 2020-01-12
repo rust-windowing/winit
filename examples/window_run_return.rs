@@ -18,6 +18,7 @@ fn main() {
     };
     let mut event_loop = EventLoop::new();
 
+    simple_logger::init().unwrap();
     let _window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
@@ -27,6 +28,8 @@ fn main() {
 
     while !quit {
         event_loop.run_return(|event, _, control_flow| {
+            *control_flow = ControlFlow::Wait;
+
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
                 println!("{:?}", event);
@@ -42,7 +45,7 @@ fn main() {
                 Event::MainEventsCleared => {
                     *control_flow = ControlFlow::Exit;
                 }
-                _ => *control_flow = ControlFlow::Wait,
+                _ => (),
             }
         });
 

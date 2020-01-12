@@ -37,7 +37,7 @@ use instant::Instant;
 use std::path::PathBuf;
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -45,8 +45,8 @@ use crate::{
 /// Describes a generic event.
 ///
 /// See the module-level docs for more information on the event loop manages each event.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Event<T> {
+#[derive(Debug, PartialEq)]
+pub enum Event<'a, T: 'static> {
     /// Emitted when new events arrive from the OS to be processed.
     ///
     /// This event type is useful as a place to put code that should be done before you start
@@ -58,7 +58,7 @@ pub enum Event<T> {
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
         window_id: WindowId,
-        event: WindowEvent,
+        event: WindowEvent<'a>,
     },
 
     /// Emitted when the OS sends an event to a device.
@@ -114,8 +114,8 @@ pub enum Event<T> {
     LoopDestroyed,
 }
 
-impl<T> Event<T> {
-    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
+impl<'a, T> Event<'a, T> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
         use self::Event::*;
         match self {
             UserEvent(_) => Err(self),
@@ -128,6 +128,26 @@ impl<T> Event<T> {
             LoopDestroyed => Ok(LoopDestroyed),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
+        }
+    }
+
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
+    pub fn to_static(self) -> Option<Event<'static, T>> {
+        use self::Event::*;
+        match self {
+            WindowEvent { window_id, event } => event
+                .to_static()
+                .map(|event| WindowEvent { window_id, event }),
+            UserEvent(_) => None,
+            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
+            NewEvents(cause) => Some(NewEvents(cause)),
+            MainEventsCleared => Some(MainEventsCleared),
+            RedrawRequested(wid) => Some(RedrawRequested(wid)),
+            RedrawEventsCleared => Some(RedrawEventsCleared),
+            LoopDestroyed => Some(LoopDestroyed),
+            Suspended => Some(Suspended),
+            Resumed => Some(Resumed),
         }
     }
 }
@@ -159,13 +179,13 @@ pub enum StartCause {
 }
 
 /// Describes an event from a `Window`.
-#[derive(Clone, Debug, PartialEq)]
-pub enum WindowEvent {
+#[derive(Debug, PartialEq)]
+pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(LogicalSize),
+    Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(LogicalPosition),
+    Moved(PhysicalPosition<u32>),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -222,7 +242,7 @@ pub enum WindowEvent {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: LogicalPosition,
+        position: PhysicalPosition<f64>,
         #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
@@ -272,16 +292,23 @@ pub enum WindowEvent {
     /// Touch event has been received
     Touch(Touch),
 
-    /// The DPI factor of the window has changed.
+    /// The window's scale factor has changed.
     ///
     /// The following user actions can cause DPI changes:
     ///
     /// * Changing the display's resolution.
-    /// * Changing the display's DPI factor (e.g. in Control Panel on Windows).
-    /// * Moving the window to a display with a different DPI factor.
+    /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
+    /// * Moving the window to a display with a different scale factor.
+    ///
+    /// After this event callback has been processed, the window will be resized to whatever value
+    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
+    /// by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
-    HiDpiFactorChanged(f64),
+    ScaleFactorChanged {
+        scale_factor: f64,
+        new_inner_size: &'a mut PhysicalSize<u32>,
+    },
 
     /// The system window theme has changed.
     ///
@@ -290,6 +317,89 @@ pub enum WindowEvent {
     ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
+}
+
+impl<'a> WindowEvent<'a> {
+    pub fn to_static(self) -> Option<WindowEvent<'static>> {
+        use self::WindowEvent::*;
+        match self {
+            Resized(size) => Some(Resized(size)),
+            Moved(position) => Some(Moved(position)),
+            CloseRequested => Some(CloseRequested),
+            Destroyed => Some(Destroyed),
+            DroppedFile(file) => Some(DroppedFile(file)),
+            HoveredFile(file) => Some(HoveredFile(file)),
+            HoveredFileCancelled => Some(HoveredFileCancelled),
+            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
+            Focused(focused) => Some(Focused(focused)),
+            KeyboardInput {
+                device_id,
+                input,
+                is_synthetic,
+            } => Some(KeyboardInput {
+                device_id,
+                input,
+                is_synthetic,
+            }),
+            #[allow(deprecated)]
+            CursorMoved {
+                device_id,
+                position,
+                modifiers,
+            } => Some(CursorMoved {
+                device_id,
+                position,
+                modifiers,
+            }),
+            CursorEntered { device_id } => Some(CursorEntered { device_id }),
+            CursorLeft { device_id } => Some(CursorLeft { device_id }),
+            #[allow(deprecated)]
+            MouseWheel {
+                device_id,
+                delta,
+                phase,
+                modifiers,
+            } => Some(MouseWheel {
+                device_id,
+                delta,
+                phase,
+                modifiers,
+            }),
+            #[allow(deprecated)]
+            MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            } => Some(MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            }),
+            TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            } => Some(TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            }),
+            AxisMotion {
+                device_id,
+                axis,
+                value,
+            } => Some(AxisMotion {
+                device_id,
+                axis,
+                value,
+            }),
+            Touch(touch) => Some(Touch(touch)),
+            ThemeChanged(theme) => Some(ThemeChanged(theme)),
+            ScaleFactorChanged { .. } => None,
+        }
+    }
 }
 
 /// Identifier of an input device.
@@ -426,7 +536,7 @@ pub enum TouchPhase {
 pub struct Touch {
     pub device_id: DeviceId,
     pub phase: TouchPhase,
-    pub location: LogicalPosition,
+    pub location: PhysicalPosition<f64>,
     /// Describes how hard the screen was pressed. May be `None` if the platform
     /// does not support pressure sensitivity.
     ///
@@ -537,7 +647,7 @@ pub enum MouseScrollDelta {
     /// Scroll events are expressed as a PixelDelta if
     /// supported by the device (eg. a touchpad) and
     /// platform.
-    PixelDelta(LogicalPosition),
+    PixelDelta(LogicalPosition<f64>),
 }
 
 /// Symbolic name for a keyboard key.

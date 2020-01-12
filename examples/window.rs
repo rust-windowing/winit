@@ -5,10 +5,12 @@ use winit::{
 };
 
 fn main() {
+    simple_logger::init().unwrap();
     let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
+        .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
         .build(&event_loop)
         .unwrap();
 

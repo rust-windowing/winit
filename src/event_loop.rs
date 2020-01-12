@@ -143,7 +143,7 @@ impl<T> EventLoop<T> {
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.event_loop.run(event_handler)
     }
@@ -215,14 +215,10 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EventLoopClosed<T>(pub T);
 
-impl<T: fmt::Debug> fmt::Display for EventLoopClosed<T> {
+impl<T> fmt::Display for EventLoopClosed<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", error::Error::description(self))
+        f.write_str("Tried to wake up a closed `EventLoop`")
     }
 }
 
-impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {
-    fn description(&self) -> &str {
-        "Tried to wake up a closed `EventLoop`"
-    }
-}
+impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}

@@ -29,7 +29,6 @@ use std::{
 use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
 
 use winapi::{
-    ctypes::c_int,
     shared::{
         minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WPARAM},
         windef::{HWND, POINT, RECT},
@@ -44,20 +43,17 @@ use winapi::{
 
 use self::runner::{ELRShared, EventLoopRunnerShared};
 use crate::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
         dark_mode::try_dark_mode,
-        dpi::{
-            become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_scale_factor,
-        },
+        dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{
             self, handle_extended_keys, process_key_params, vkey_to_winit_vkey, ModifiersStateSide,
         },
         monitor, raw_input, util,
-        window::adjust_size,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
@@ -97,26 +93,26 @@ lazy_static! {
         get_function!("user32.dll", GetPointerPenInfo);
 }
 
-pub(crate) struct SubclassInput<T> {
+pub(crate) struct SubclassInput<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
     pub file_drop_handler: FileDropHandler,
 }
 
 impl<T> SubclassInput<T> {
-    unsafe fn send_event(&self, event: Event<T>) {
+    unsafe fn send_event(&self, event: Event<'_, T>) {
         self.event_loop_runner.send_event(event);
     }
 }
 
-struct ThreadMsgTargetSubclassInput<T> {
+struct ThreadMsgTargetSubclassInput<T: 'static> {
     event_loop_runner: EventLoopRunnerShared<T>,
     user_event_receiver: Receiver<T>,
     modifiers_state: ModifiersStateSide,
 }
 
 impl<T> ThreadMsgTargetSubclassInput<T> {
-    unsafe fn send_event(&self, event: Event<T>) {
+    unsafe fn send_event(&self, event: Event<'_, T>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -126,7 +122,7 @@ pub struct EventLoop<T: 'static> {
     window_target: RootELW<T>,
 }
 
-pub struct EventLoopWindowTarget<T> {
+pub struct EventLoopWindowTarget<T: 'static> {
     thread_id: DWORD,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
@@ -191,7 +187,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(event_handler);
         ::std::process::exit(0);
@@ -199,7 +195,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut event_handler: F)
     where
-        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let event_loop_windows_ref = &self.window_target;
 
@@ -216,28 +212,57 @@ impl<T: 'static> EventLoop<T> {
 
         unsafe {
             let mut msg = mem::zeroed();
-            let mut msg_unprocessed = false;
+            let mut unread_message_exists = false;
 
             'main: loop {
-                runner.new_events();
-                loop {
-                    if !msg_unprocessed {
-                        if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
-                            break;
-                        }
-                    }
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
-
-                    msg_unprocessed = false;
-                }
-                runner.events_cleared();
                 if let Err(payload) = runner.take_panic_error() {
                     runner.destroy_runner();
                     panic::resume_unwind(payload);
                 }
 
-                if !msg_unprocessed {
+                runner.new_events();
+                loop {
+                    if !unread_message_exists {
+                        if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1) {
+                            break;
+                        }
+                    }
+                    if msg.message == winuser::WM_PAINT {
+                        unread_message_exists = true;
+                        break;
+                    }
+                    winuser::TranslateMessage(&mut msg);
+                    winuser::DispatchMessageW(&mut msg);
+
+                    unread_message_exists = false;
+                }
+                runner.main_events_cleared();
+                loop {
+                    if !unread_message_exists {
+                        if 0 == winuser::PeekMessageW(
+                            &mut msg,
+                            ptr::null_mut(),
+                            winuser::WM_PAINT,
+                            winuser::WM_PAINT,
+                            1,
+                        ) {
+                            break;
+                        }
+                    }
+
+                    winuser::TranslateMessage(&mut msg);
+                    winuser::DispatchMessageW(&mut msg);
+
+                    unread_message_exists = false;
+                }
+                if runner.redraw_events_cleared().events_buffered() {
+                    if runner.control_flow() == ControlFlow::Exit {
+                        break 'main;
+                    }
+                    continue;
+                }
+
+                if !unread_message_exists {
                     let control_flow = runner.control_flow();
                     match control_flow {
                         ControlFlow::Exit => break 'main,
@@ -245,7 +270,7 @@ impl<T: 'static> EventLoop<T> {
                             if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                                 break 'main;
                             }
-                            msg_unprocessed = true;
+                            unread_message_exists = true;
                         }
                         ControlFlow::WaitUntil(resume_time) => {
                             wait_until_time_or_msg(resume_time);
@@ -465,13 +490,6 @@ lazy_static! {
             winuser::RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr() as LPCSTR)
         }
     };
-    // Message sent by a `Window` after creation if it has a DPI != 96.
-    // WPARAM is the the DPI (u32). LOWORD of LPARAM is width, and HIWORD is height.
-    pub static ref INITIAL_DPI_MSG_ID: u32 = {
-        unsafe {
-            winuser::RegisterWindowMessageA("Winit::InitialDpiMsg\0".as_ptr() as LPCSTR)
-        }
-    };
     // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
     // documentation in the `window_state` module for more information.
     pub static ref SET_RETAIN_STATE_ON_SIZE_MSG_ID: u32 = unsafe {
@@ -597,7 +615,7 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
 //
 // Returning 0 tells the Win32 API that the message has been processed.
 // FIXME: detect WM_DWMCOMPOSITIONCHANGED and call DwmEnableBlurBehindWindow if necessary
-unsafe extern "system" fn public_window_callback<T>(
+unsafe extern "system" fn public_window_callback<T: 'static>(
     window: HWND,
     msg: UINT,
     wparam: WPARAM,
@@ -658,6 +676,7 @@ unsafe extern "system" fn public_window_callback<T>(
         }
 
         winuser::WM_PAINT => {
+            subclass_input.event_loop_runner.main_events_cleared();
             subclass_input.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
@@ -713,12 +732,11 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
-                let dpi_factor = hwnd_scale_factor(window);
-                let logical_position =
-                    LogicalPosition::from_physical(((*windowpos).x, (*windowpos).y), dpi_factor);
+                let physical_position =
+                    PhysicalPosition::new((*windowpos).x as u32, (*windowpos).y as u32);
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: Moved(logical_position),
+                    event: Moved(physical_position),
                 });
             }
 
@@ -731,11 +749,10 @@ unsafe extern "system" fn public_window_callback<T>(
             let w = LOWORD(lparam as DWORD) as u32;
             let h = HIWORD(lparam as DWORD) as u32;
 
-            let dpi_factor = hwnd_scale_factor(window);
-            let logical_size = LogicalSize::from_physical((w, h), dpi_factor);
+            let physical_size = PhysicalSize::new(w, h);
             let event = Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: Resized(logical_size),
+                event: Resized(physical_size),
             };
 
             {
@@ -840,8 +857,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
-            let dpi_factor = hwnd_scale_factor(window);
-            let position = LogicalPosition::from_physical((x, y), dpi_factor);
+            let position = PhysicalPosition::new(x, y);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -920,6 +936,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
                 if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
+                    #[allow(deprecated)]
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: WindowEvent::KeyboardInput {
@@ -949,6 +966,7 @@ unsafe extern "system" fn public_window_callback<T>(
         winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
             use crate::event::ElementState::Released;
             if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
+                #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1130,7 +1148,6 @@ unsafe extern "system" fn public_window_callback<T>(
                 mem::size_of::<winuser::TOUCHINPUT>() as INT,
             ) > 0
             {
-                let dpi_factor = hwnd_scale_factor(window);
                 for input in &inputs {
                     let mut location = POINT {
                         x: input.x / 100,
@@ -1143,7 +1160,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
                     let x = location.x as f64 + (input.x % 100) as f64 / 100f64;
                     let y = location.y as f64 + (input.y % 100) as f64 / 100f64;
-                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                    let location = PhysicalPosition::new(x, y);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
@@ -1204,7 +1221,6 @@ unsafe extern "system" fn public_window_callback<T>(
                     return 0;
                 }
 
-                let dpi_factor = hwnd_scale_factor(window);
                 // https://docs.microsoft.com/en-us/windows/desktop/api/winuser/nf-winuser-getpointerframeinfohistory
                 // The information retrieved appears in reverse chronological order, with the most recent entry in the first
                 // row of the returned array
@@ -1282,7 +1298,7 @@ unsafe extern "system" fn public_window_callback<T>(
 
                     let x = location.x as f64 + x.fract();
                     let y = location.y as f64 + y.fract();
-                    let location = LogicalPosition::from_physical((x, y), dpi_factor);
+                    let location = PhysicalPosition::new(x, y);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: WindowEvent::Touch(Touch {
@@ -1316,6 +1332,7 @@ unsafe extern "system" fn public_window_callback<T>(
                     winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
                 let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
 
+                #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1346,6 +1363,7 @@ unsafe extern "system" fn public_window_callback<T>(
                     winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
                 let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
 
+                #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1403,11 +1421,9 @@ unsafe extern "system" fn public_window_callback<T>(
             let window_state = subclass_input.window_state.lock();
 
             if window_state.min_size.is_some() || window_state.max_size.is_some() {
-                let style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
-                let ex_style = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
                 if let Some(min_size) = window_state.min_size {
                     let min_size = min_size.to_physical(window_state.dpi_factor);
-                    let (width, height) = adjust_size(min_size, style, ex_style);
+                    let (width, height): (u32, u32) = util::adjust_size(window, min_size).into();
                     (*mmi).ptMinTrackSize = POINT {
                         x: width as i32,
                         y: height as i32,
@@ -1415,7 +1431,7 @@ unsafe extern "system" fn public_window_callback<T>(
                 }
                 if let Some(max_size) = window_state.max_size {
                     let max_size = max_size.to_physical(window_state.dpi_factor);
-                    let (width, height) = adjust_size(max_size, style, ex_style);
+                    let (width, height): (u32, u32) = util::adjust_size(window, max_size).into();
                     (*mmi).ptMaxTrackSize = POINT {
                         x: width as i32,
                         y: height as i32,
@@ -1429,7 +1445,7 @@ unsafe extern "system" fn public_window_callback<T>(
         // Only sent on Windows 8.1 or newer. On Windows 7 and older user has to log out to change
         // DPI, therefore all applications are closed while DPI is changing.
         winuser::WM_DPICHANGED => {
-            use crate::event::WindowEvent::HiDpiFactorChanged;
+            use crate::event::WindowEvent::ScaleFactorChanged;
 
             // This message actually provides two DPI values - x and y. However MSDN says that
             // "you only need to use either the X-axis or the Y-axis value when scaling your
@@ -1437,35 +1453,207 @@ unsafe extern "system" fn public_window_callback<T>(
             // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
             let new_dpi_x = u32::from(LOWORD(wparam as DWORD));
             let new_dpi_factor = dpi_to_scale_factor(new_dpi_x);
+            let old_dpi_factor: f64;
 
             let allow_resize = {
                 let mut window_state = subclass_input.window_state.lock();
-                let old_dpi_factor = window_state.dpi_factor;
+                old_dpi_factor = window_state.dpi_factor;
                 window_state.dpi_factor = new_dpi_factor;
 
-                new_dpi_factor != old_dpi_factor && window_state.fullscreen.is_none()
+                if new_dpi_factor == old_dpi_factor {
+                    return 0;
+                }
+
+                window_state.fullscreen.is_none()
+                    && !window_state.window_flags().contains(WindowFlags::MAXIMIZED)
             };
 
-            // This prevents us from re-applying DPI adjustment to the restored size after exiting
-            // fullscreen (the restored size is already DPI adjusted).
-            if allow_resize {
-                // Resize window to the size suggested by Windows.
-                let rect = &*(lparam as *const RECT);
-                winuser::SetWindowPos(
-                    window,
-                    ptr::null_mut(),
-                    rect.left,
-                    rect.top,
-                    rect.right - rect.left,
-                    rect.bottom - rect.top,
-                    winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE,
+            let style = winuser::GetWindowLongW(window, winuser::GWL_STYLE) as _;
+            let style_ex = winuser::GetWindowLongW(window, winuser::GWL_EXSTYLE) as _;
+            let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
+
+            // New size as suggested by Windows.
+            let suggested_rect = *(lparam as *const RECT);
+
+            // The window rect provided is the window's outer size, not it's inner size. However,
+            // win32 doesn't provide an `UnadjustWindowRectEx` function to get the client rect from
+            // the outer rect, so we instead adjust the window rect to get the decoration margins
+            // and remove them from the outer size.
+            let margin_left: i32;
+            let margin_top: i32;
+            // let margin_right: i32;
+            // let margin_bottom: i32;
+            {
+                let mut adjusted_rect = suggested_rect;
+                winuser::AdjustWindowRectExForDpi(
+                    &mut adjusted_rect,
+                    style,
+                    b_menu,
+                    style_ex,
+                    new_dpi_x,
                 );
+                margin_left = suggested_rect.left - adjusted_rect.left;
+                margin_top = suggested_rect.top - adjusted_rect.top;
+                // margin_right = adjusted_rect.right - suggested_rect.right;
+                // margin_bottom = adjusted_rect.bottom - suggested_rect.bottom;
             }
 
-            subclass_input.send_event(Event::WindowEvent {
+            let old_physical_inner_rect = {
+                let mut old_physical_inner_rect = mem::zeroed();
+                winuser::GetClientRect(window, &mut old_physical_inner_rect);
+                let mut origin = mem::zeroed();
+                winuser::ClientToScreen(window, &mut origin);
+
+                old_physical_inner_rect.left += origin.x;
+                old_physical_inner_rect.right += origin.x;
+                old_physical_inner_rect.top += origin.y;
+                old_physical_inner_rect.bottom += origin.y;
+
+                old_physical_inner_rect
+            };
+            let old_physical_inner_size = PhysicalSize::new(
+                (old_physical_inner_rect.right - old_physical_inner_rect.left) as u32,
+                (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
+            );
+
+            // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
+            // exiting fullscreen (the restored size is already DPI adjusted).
+            let mut new_physical_inner_size = match allow_resize {
+                // We calculate our own size because the default suggested rect doesn't do a great job
+                // of preserving the window's logical size.
+                true => old_physical_inner_size
+                    .to_logical::<f64>(old_dpi_factor)
+                    .to_physical::<u32>(new_dpi_factor),
+                false => old_physical_inner_size,
+            };
+
+            let _ = subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
-                event: HiDpiFactorChanged(new_dpi_factor),
+                event: ScaleFactorChanged {
+                    scale_factor: new_dpi_factor,
+                    new_inner_size: &mut new_physical_inner_size,
+                },
             });
+
+            // Unset maximized if we're changing the window's size.
+            if new_physical_inner_size != old_physical_inner_size {
+                WindowState::set_window_flags(subclass_input.window_state.lock(), window, |f| {
+                    f.set(WindowFlags::MAXIMIZED, false)
+                });
+            }
+
+            let new_outer_rect: RECT;
+            {
+                let suggested_ul = (
+                    suggested_rect.left + margin_left,
+                    suggested_rect.top + margin_top,
+                );
+
+                let mut conservative_rect = RECT {
+                    left: suggested_ul.0,
+                    top: suggested_ul.1,
+                    right: suggested_ul.0 + new_physical_inner_size.width as LONG,
+                    bottom: suggested_ul.1 + new_physical_inner_size.height as LONG,
+                };
+
+                winuser::AdjustWindowRectExForDpi(
+                    &mut conservative_rect,
+                    style,
+                    b_menu,
+                    style_ex,
+                    new_dpi_x,
+                );
+
+                // If we're not dragging the window, offset the window so that the cursor's
+                // relative horizontal position in the title bar is preserved.
+                let dragging_window = subclass_input.event_loop_runner.in_modal_loop();
+                if dragging_window {
+                    let bias = {
+                        let cursor_pos = {
+                            let mut pos = mem::zeroed();
+                            winuser::GetCursorPos(&mut pos);
+                            pos
+                        };
+                        let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left)
+                            as f64
+                            / (suggested_rect.right - suggested_rect.left) as f64;
+
+                        (cursor_pos.x
+                            - (suggested_cursor_horizontal_ratio
+                                * (conservative_rect.right - conservative_rect.left) as f64)
+                                as LONG)
+                            - conservative_rect.left
+                    };
+                    conservative_rect.left += bias;
+                    conservative_rect.right += bias;
+                }
+
+                // Check to see if the new window rect is on the monitor with the new DPI factor.
+                // If it isn't, offset the window so that it is.
+                let new_dpi_monitor = winuser::MonitorFromWindow(window, 0);
+                let conservative_rect_monitor = winuser::MonitorFromRect(&conservative_rect, 0);
+                new_outer_rect = if conservative_rect_monitor == new_dpi_monitor {
+                    conservative_rect
+                } else {
+                    let get_monitor_rect = |monitor| {
+                        let mut monitor_info = winuser::MONITORINFO {
+                            cbSize: mem::size_of::<winuser::MONITORINFO>() as _,
+                            ..mem::zeroed()
+                        };
+                        winuser::GetMonitorInfoW(monitor, &mut monitor_info);
+                        monitor_info.rcMonitor
+                    };
+                    let wrong_monitor = conservative_rect_monitor;
+                    let wrong_monitor_rect = get_monitor_rect(wrong_monitor);
+                    let new_monitor_rect = get_monitor_rect(new_dpi_monitor);
+
+                    // The direction to nudge the window in to get the window onto the monitor with
+                    // the new DPI factor. We calculate this by seeing which monitor edges are
+                    // shared and nudging away from the wrong monitor based on those.
+                    let delta_nudge_to_dpi_monitor = (
+                        if wrong_monitor_rect.left == new_monitor_rect.right {
+                            -1
+                        } else if wrong_monitor_rect.right == new_monitor_rect.left {
+                            1
+                        } else {
+                            0
+                        },
+                        if wrong_monitor_rect.bottom == new_monitor_rect.top {
+                            1
+                        } else if wrong_monitor_rect.top == new_monitor_rect.bottom {
+                            -1
+                        } else {
+                            0
+                        },
+                    );
+
+                    let abort_after_iterations = new_monitor_rect.right - new_monitor_rect.left
+                        + new_monitor_rect.bottom
+                        - new_monitor_rect.top;
+                    for _ in 0..abort_after_iterations {
+                        conservative_rect.left += delta_nudge_to_dpi_monitor.0;
+                        conservative_rect.right += delta_nudge_to_dpi_monitor.0;
+                        conservative_rect.top += delta_nudge_to_dpi_monitor.1;
+                        conservative_rect.bottom += delta_nudge_to_dpi_monitor.1;
+
+                        if winuser::MonitorFromRect(&conservative_rect, 0) == new_dpi_monitor {
+                            break;
+                        }
+                    }
+
+                    conservative_rect
+                };
+            }
+
+            winuser::SetWindowPos(
+                window,
+                ptr::null_mut(),
+                new_outer_rect.left,
+                new_outer_rect.top,
+                new_outer_rect.right - new_outer_rect.left,
+                new_outer_rect.bottom - new_outer_rect.top,
+                winuser::SWP_NOZORDER | winuser::SWP_NOACTIVATE,
+            );
 
             0
         }
@@ -1502,44 +1690,6 @@ unsafe extern "system" fn public_window_callback<T>(
                     f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0)
                 });
                 0
-            } else if msg == *INITIAL_DPI_MSG_ID {
-                use crate::event::WindowEvent::HiDpiFactorChanged;
-                let scale_factor = dpi_to_scale_factor(wparam as u32);
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: HiDpiFactorChanged(scale_factor),
-                });
-                // Automatically resize for actual DPI
-                let width = LOWORD(lparam as DWORD) as u32;
-                let height = HIWORD(lparam as DWORD) as u32;
-                let (adjusted_width, adjusted_height): (u32, u32) =
-                    PhysicalSize::from_logical((width, height), scale_factor).into();
-                // We're not done yet! `SetWindowPos` needs the window size, not the client area size.
-                let mut rect = RECT {
-                    top: 0,
-                    left: 0,
-                    bottom: adjusted_height as LONG,
-                    right: adjusted_width as LONG,
-                };
-                let dw_style = winuser::GetWindowLongA(window, winuser::GWL_STYLE) as DWORD;
-                let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
-                let dw_style_ex = winuser::GetWindowLongA(window, winuser::GWL_EXSTYLE) as DWORD;
-                winuser::AdjustWindowRectEx(&mut rect, dw_style, b_menu, dw_style_ex);
-                let outer_x = (rect.right - rect.left).abs() as c_int;
-                let outer_y = (rect.top - rect.bottom).abs() as c_int;
-                winuser::SetWindowPos(
-                    window,
-                    ptr::null_mut(),
-                    0,
-                    0,
-                    outer_x,
-                    outer_y,
-                    winuser::SWP_NOMOVE
-                        | winuser::SWP_NOREPOSITION
-                        | winuser::SWP_NOZORDER
-                        | winuser::SWP_NOACTIVATE,
-                );
-                0
             } else {
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
@@ -1547,7 +1697,7 @@ unsafe extern "system" fn public_window_callback<T>(
     }
 }
 
-unsafe extern "system" fn thread_event_target_callback<T>(
+unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     window: HWND,
     msg: UINT,
     wparam: WPARAM,
@@ -1577,44 +1727,49 @@ unsafe extern "system" fn thread_event_target_callback<T>(
             let in_modal_loop = subclass_input.event_loop_runner.in_modal_loop();
             if in_modal_loop {
                 let mut msg = mem::zeroed();
-                loop {
-                    if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
-                        break;
+                if 0 == winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
+                    if msg.message != 0 && msg.message != winuser::WM_PAINT {
+                        queue_call_again();
+                        return 0;
                     }
-                    // Clear all paint/timer messages from the queue before sending the events cleared message.
-                    match msg.message {
-                        // Flush the event queue of WM_PAINT messages.
-                        winuser::WM_PAINT | winuser::WM_TIMER => {
-                            // Remove the message from the message queue.
-                            winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 1);
 
-                            if msg.hwnd != window {
-                                winuser::TranslateMessage(&mut msg);
-                                winuser::DispatchMessageW(&mut msg);
-                            }
+                    subclass_input.event_loop_runner.main_events_cleared();
+                    loop {
+                        if 0 == winuser::PeekMessageW(
+                            &mut msg,
+                            ptr::null_mut(),
+                            winuser::WM_PAINT,
+                            winuser::WM_PAINT,
+                            1,
+                        ) {
+                            break;
                         }
-                        // If the message isn't one of those three, it may be handled by the modal
-                        // loop so we should return control flow to it.
-                        _ => {
-                            queue_call_again();
-                            return 0;
+
+                        if msg.hwnd != window {
+                            winuser::TranslateMessage(&mut msg);
+                            winuser::DispatchMessageW(&mut msg);
                         }
                     }
                 }
 
+                // we don't borrow until here because TODO SAFETY
                 let runner = &subclass_input.event_loop_runner;
-                runner.events_cleared();
-                match runner.control_flow() {
-                    // Waiting is handled by the modal loop.
-                    ControlFlow::Exit | ControlFlow::Wait => runner.new_events(),
-                    ControlFlow::WaitUntil(resume_time) => {
-                        wait_until_time_or_msg(resume_time);
-                        runner.new_events();
-                        queue_call_again();
-                    }
-                    ControlFlow::Poll => {
-                        runner.new_events();
-                        queue_call_again();
+                if runner.redraw_events_cleared().events_buffered() {
+                    queue_call_again();
+                    runner.new_events();
+                } else {
+                    match runner.control_flow() {
+                        // Waiting is handled by the modal loop.
+                        ControlFlow::Exit | ControlFlow::Wait => runner.new_events(),
+                        ControlFlow::WaitUntil(resume_time) => {
+                            wait_until_time_or_msg(resume_time);
+                            runner.new_events();
+                            queue_call_again();
+                        }
+                        ControlFlow::Poll => {
+                            runner.new_events();
+                            queue_call_again();
+                        }
                     }
                 }
             }
@@ -1762,6 +1917,7 @@ unsafe extern "system" fn thread_event_target_callback<T>(
                                 });
                             }
 
+                            #[allow(deprecated)]
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
                                 event: Key(KeyboardInput {
