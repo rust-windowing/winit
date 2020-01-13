@@ -5,6 +5,8 @@
 //! `WindowExtWebSys` traits (depending on your web backend) to retrieve the canvas from the
 //! Window.
 
+use crate::window::WindowBuilder;
+
 #[cfg(feature = "stdweb")]
 use stdweb::web::html_element::CanvasElement;
 
@@ -19,4 +21,33 @@ use web_sys::HtmlCanvasElement;
 #[cfg(feature = "web-sys")]
 pub trait WindowExtWebSys {
     fn canvas(&self) -> HtmlCanvasElement;
+}
+
+#[cfg(feature = "stdweb")]
+pub trait WindowBuilderExtStdweb {
+    fn with_canvas(self, canvas: Option<CanvasElement>) -> Self;
+}
+
+#[cfg(feature = "stdweb")]
+impl WindowBuilderExtStdweb for WindowBuilder {
+    fn with_canvas(mut self, canvas: Option<CanvasElement>) -> Self {
+        self.platform_specific.canvas = canvas;
+
+        self
+    }
+}
+
+#[cfg(feature = "web-sys")]
+pub trait WindowBuilderExtWebSys {
+    fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
+}
+
+#[cfg(feature = "web-sys")]
+impl WindowBuilderExtWebSys for WindowBuilder {
+    fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
+        self.platform_specific.canvas = canvas;
+
+        self
+    }
+
 }
