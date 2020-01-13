@@ -273,7 +273,7 @@ enum RunnerState {
     /// to be marked as cleared to send `NewEvents`, depending on the current `ControlFlow`.
     DeferredNewEvents(Instant),
     /// The event loop is handling the OS's events and sending them to the user's callback.
-    /// `NewEvents` has been sent, and `EventsCleared` hasn't.
+    /// `NewEvents` has been sent, and `MainEventsCleared` hasn't.
     HandlingEvents,
     HandlingRedraw,
 }
@@ -408,7 +408,7 @@ impl<T> EventLoopRunner<T> {
                     self.call_event_handler(Event::NewEvents(start_cause));
                 }
                 // This can be reached if the control flow is changed to poll during a `RedrawRequested`
-                // that was sent after `EventsCleared`.
+                // that was sent after `MainEventsCleared`.
                 ControlFlow::Poll => self.call_event_handler(Event::NewEvents(StartCause::Poll)),
             }
         }
@@ -451,7 +451,7 @@ impl<T> EventLoopRunner<T> {
 
     fn main_events_cleared(&mut self) {
         match self.runner_state {
-            // If we were handling events, send the EventsCleared message.
+            // If we were handling events, send the MainEventsCleared message.
             RunnerState::HandlingEvents => {
                 self.call_event_handler(Event::MainEventsCleared);
                 self.runner_state = RunnerState::HandlingRedraw;
@@ -466,14 +466,14 @@ impl<T> EventLoopRunner<T> {
             // branch handles those.
             RunnerState::DeferredNewEvents(wait_start) => {
                 match self.control_flow {
-                    // If we had deferred a Poll, send the Poll NewEvents and EventsCleared.
+                    // If we had deferred a Poll, send the Poll NewEvents and MainEventsCleared.
                     ControlFlow::Poll => {
                         self.call_event_handler(Event::NewEvents(StartCause::Poll));
                         self.call_event_handler(Event::MainEventsCleared);
                         self.runner_state = RunnerState::HandlingRedraw;
                     }
                     // If we had deferred a WaitUntil and the resume time has since been reached,
-                    // send the resume notification and EventsCleared event.
+                    // send the resume notification and MainEventsCleared event.
                     ControlFlow::WaitUntil(resume_time) => {
                         if Instant::now() >= resume_time {
                             self.call_event_handler(Event::NewEvents(
@@ -496,7 +496,7 @@ impl<T> EventLoopRunner<T> {
 
     fn redraw_events_cleared(&mut self) {
         match self.runner_state {
-            // If we were handling events, send the EventsCleared message.
+            // If we were handling events, send the MainEventsCleared message.
             RunnerState::HandlingEvents => {
                 self.call_event_handler(Event::MainEventsCleared);
                 self.runner_state = RunnerState::HandlingRedraw;
@@ -518,7 +518,7 @@ impl<T> EventLoopRunner<T> {
             // branch handles those.
             RunnerState::DeferredNewEvents(wait_start) => {
                 match self.control_flow {
-                    // If we had deferred a Poll, send the Poll NewEvents and EventsCleared.
+                    // If we had deferred a Poll, send the Poll NewEvents and MainEventsCleared.
                     ControlFlow::Poll => {
                         self.call_event_handler(Event::NewEvents(StartCause::Poll));
                         self.call_event_handler(Event::MainEventsCleared);
@@ -526,7 +526,7 @@ impl<T> EventLoopRunner<T> {
                         self.call_event_handler(Event::RedrawEventsCleared);
                     }
                     // If we had deferred a WaitUntil and the resume time has since been reached,
-                    // send the resume notification and EventsCleared event.
+                    // send the resume notification and MainEventsCleared event.
                     ControlFlow::WaitUntil(resume_time) => {
                         if Instant::now() >= resume_time {
                             self.call_event_handler(Event::NewEvents(
