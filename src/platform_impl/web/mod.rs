@@ -1,7 +1,3 @@
-// TODO: close events (port from old stdweb branch)
-// TODO: pointer locking (stdweb PR required)
-// TODO: fullscreen API (stdweb PR required)
-
 mod device;
 mod error;
 mod event_loop;
