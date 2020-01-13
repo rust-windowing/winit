@@ -1,15 +1,14 @@
 use std::{collections::VecDeque, fmt};
 
-use super::ffi;
+use super::{ffi, util};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::platform::util::IdRef,
 };
 use cocoa::{
     appkit::NSScreen,
     base::{id, nil},
-    foundation::{NSString, NSUInteger},
+    foundation::NSUInteger,
 };
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex},
@@ -303,7 +302,7 @@ impl MonitorHandle {
             let uuid = ffi::CGDisplayCreateUUIDFromDisplayID(self.0);
             let screens = NSScreen::screens(nil);
             let count: NSUInteger = msg_send![screens, count];
-            let key = IdRef::new(NSString::alloc(nil).init_str("NSScreenNumber"));
+            let key = util::ns_string_id_ref("NSScreenNumber");
             for i in 0..count {
                 let screen = msg_send![screens, objectAtIndex: i as NSUInteger];
                 let device_description = NSScreen::deviceDescription(screen);

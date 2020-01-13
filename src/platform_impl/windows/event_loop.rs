@@ -855,8 +855,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 });
             }
 
-            let x = windowsx::GET_X_LPARAM(lparam) as i32;
-            let y = windowsx::GET_Y_LPARAM(lparam) as i32;
+            let x = windowsx::GET_X_LPARAM(lparam) as f64;
+            let y = windowsx::GET_Y_LPARAM(lparam) as f64;
             let position = PhysicalPosition::new(x, y);
 
             subclass_input.send_event(Event::WindowEvent {
@@ -936,6 +936,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
                 if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
+                    #[allow(deprecated)]
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: WindowEvent::KeyboardInput {
@@ -965,6 +966,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
             use crate::event::ElementState::Released;
             if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
+                #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1330,6 +1332,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
                 let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
 
+                #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1360,6 +1363,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
                 let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
 
+                #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1913,6 +1917,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                                 });
                             }
 
+                            #[allow(deprecated)]
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
                                 event: Key(KeyboardInput {

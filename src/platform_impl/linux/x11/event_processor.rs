@@ -726,8 +726,7 @@ impl<T: 'static> EventProcessor<T> {
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {
-                            let position =
-                                PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
+                            let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             callback(Event::WindowEvent {
                                 window_id,
@@ -833,8 +832,7 @@ impl<T: 'static> EventProcessor<T> {
                                 event: CursorEntered { device_id },
                             });
 
-                            let position =
-                                PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
+                            let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             // The mods field on this event isn't actually populated, so query the
                             // pointer device. In the future, we can likely remove this round-trip by
@@ -890,6 +888,7 @@ impl<T: 'static> EventProcessor<T> {
                             self.active_window = Some(xev.event);
 
                             let window_id = mkwid(xev.event);
+                            let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             callback(Event::WindowEvent {
                                 window_id,
@@ -911,9 +910,6 @@ impl<T: 'static> EventProcessor<T> {
                                 .get(&DeviceId(xev.deviceid))
                                 .map(|device| device.attachment)
                                 .unwrap_or(2);
-
-                            let position =
-                                PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
 
                             callback(Event::WindowEvent {
                                 window_id,
