@@ -39,8 +39,8 @@ impl Canvas {
         let canvas = match attr.canvas {
             Some(canvas) => canvas,
             None => {
-                let window =
-                    web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+                let window = web_sys::window()
+                    .ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
                 let document = window
                     .document()

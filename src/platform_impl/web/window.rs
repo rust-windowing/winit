@@ -283,5 +283,5 @@ impl Id {
 
 #[derive(Default, Clone)]
 pub struct PlatformSpecificBuilderAttributes {
-    pub(crate) canvas: Option<backend::RawCanvasType>
+    pub(crate) canvas: Option<backend::RawCanvasType>,
 }

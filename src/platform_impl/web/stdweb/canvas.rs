@@ -46,13 +46,11 @@ impl Canvas {
     pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
         let canvas = match attr.canvas {
             Some(canvas) => canvas,
-            None => {
-                document()
-                    .create_element("canvas")
-                    .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-                    .try_into()
-                    .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-            }
+            None => document()
+                .create_element("canvas")
+                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                .try_into()
+                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?,
         };
 
         // A tabindex is needed in order to capture local keyboard events.

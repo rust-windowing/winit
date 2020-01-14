@@ -49,5 +49,4 @@ impl WindowBuilderExtWebSys for WindowBuilder {
 
         self
     }
-
 }
