@@ -3,7 +3,8 @@
 //! The web target does not automatically insert the canvas element object into the web page, to
 //! allow end users to determine how the page should be laid out. Use the `WindowExtStdweb` or
 //! `WindowExtWebSys` traits (depending on your web backend) to retrieve the canvas from the
-//! Window.
+//! Window. Alternatively, use the `WindowBuilderExtStdweb` or `WindowBuilderExtWebSys` to provide
+//! your own canvas.
 
 use crate::window::WindowBuilder;
 
