@@ -2,7 +2,7 @@ use super::event;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
-use crate::platform_impl::OsError;
+use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -35,18 +35,23 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create() -> Result<Self, RootOE> {
-        let window =
-            web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
+        let canvas = match attr.canvas {
+            Some(canvas) => canvas,
+            None => {
+                let window = web_sys::window()
+                    .ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
-        let document = window
-            .document()
-            .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
+                let document = window
+                    .document()
+                    .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
 
-        let canvas: HtmlCanvasElement = document
-            .create_element("canvas")
-            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-            .unchecked_into();
+                document
+                    .create_element("canvas")
+                    .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                    .unchecked_into()
+            }
+        };
 
         // A tabindex is needed in order to capture local keyboard events.
         // A "0" value means that the element should be focusable in

@@ -9,6 +9,7 @@
 - `WindowBuilder` now implements `Default`.
 - **Breaking:** `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
 - On Wayland, fix coordinates in mouse events when scale factor isn't 1
+- On Web, add the ability to provide a custom canvas
 
 # 0.20.0 (2020-01-05)
 
