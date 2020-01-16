@@ -1483,8 +1483,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // let margin_right: i32;
             // let margin_bottom: i32;
             {
-                let adjusted_rect = util::adjust_window_rect_with_styles(window, style, style_ex, suggested_rect)
-                    .unwrap_or(suggested_rect);
+                let adjusted_rect =
+                    util::adjust_window_rect_with_styles(window, style, style_ex, suggested_rect)
+                        .unwrap_or(suggested_rect);
                 margin_left = suggested_rect.left - adjusted_rect.left;
                 margin_top = suggested_rect.top - adjusted_rect.top;
                 // margin_right = adjusted_rect.right - suggested_rect.right;
@@ -1549,8 +1550,13 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     bottom: suggested_ul.1 + new_physical_inner_size.height as LONG,
                 };
 
-                conservative_rect = util::adjust_window_rect_with_styles(window, style, style_ex, conservative_rect)
-                    .unwrap_or(conservative_rect);
+                conservative_rect = util::adjust_window_rect_with_styles(
+                    window,
+                    style,
+                    style_ex,
+                    conservative_rect,
+                )
+                .unwrap_or(conservative_rect);
 
                 // If we're not dragging the window, offset the window so that the cursor's
                 // relative horizontal position in the title bar is preserved.
