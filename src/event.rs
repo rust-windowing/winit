@@ -235,6 +235,11 @@ pub enum WindowEvent<'a> {
         is_synthetic: bool,
     },
 
+    /// An event from IME
+    Composition {
+        event: CompositionEvent,
+    },
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -504,6 +509,14 @@ pub struct KeyboardInput {
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
     #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CompositionEvent {
+    CompositionStart(String),
+    CompositionUpdate(String),
+    CompositionEnd(String),
 }
 
 /// Describes touch-screen input state.

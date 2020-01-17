@@ -19,10 +19,12 @@ use crate::{
     },
     event_loop::EventLoopWindowTarget as RootELW,
 };
+use crate::platform_impl::platform::x11::ime::ImeEventReceiver;
 
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
+    pub(super) ime_event_receiver: ImeEventReceiver,
     pub(super) randr_event_offset: c_int,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
@@ -1185,6 +1187,16 @@ impl<T: 'static> EventProcessor<T> {
         match self.ime_receiver.try_recv() {
             Ok((window_id, x, y)) => {
                 wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
+            }
+            Err(_) => (),
+        }
+        match self.ime_event_receiver.try_recv() {
+            Ok((window, event)) => {
+                debug!("get composition event");
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Composition { event },
+                });
             }
             Err(_) => (),
         }
