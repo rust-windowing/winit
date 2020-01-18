@@ -1,8 +1,8 @@
+use super::super::device::{KeyboardId, MouseId};
 use super::{backend, proxy::Proxy, runner, window};
 use crate::dpi::LogicalSize;
-use crate::event::{device, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
+use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
 use crate::event_loop::ControlFlow;
-use super::super::device::{KeyboardId, MouseId};
 use crate::window::WindowId;
 use std::clone::Clone;
 
@@ -123,8 +123,8 @@ impl<T> WindowTarget<T> {
                 device::MouseId(MouseId(pointer_id)),
                 device::MouseEvent::Button {
                     state: ElementState::Pressed,
-                    button
-                }
+                    button,
+                },
             ));
         });
 
@@ -134,8 +134,8 @@ impl<T> WindowTarget<T> {
                 device::MouseId(MouseId(pointer_id)),
                 device::MouseEvent::Button {
                     state: ElementState::Released,
-                    button
-                }
+                    button,
+                },
             ));
         });
 
@@ -143,7 +143,7 @@ impl<T> WindowTarget<T> {
         canvas.on_mouse_wheel(move |pointer_id, delta| {
             runner.send_event(Event::MouseEvent(
                 device::MouseId(MouseId(pointer_id)),
-                device::MouseEvent::Wheel(delta.0, delta.1)
+                device::MouseEvent::Wheel(delta.0, delta.1),
             ));
         });
 

@@ -6,7 +6,7 @@ mod window_target;
 pub use self::proxy::Proxy;
 pub use self::window_target::WindowTarget;
 
-use super::{backend, monitor, window, device::DeviceId};
+use super::{backend, monitor, window};
 use crate::event::Event;
 use crate::event_loop as root;
 
@@ -65,39 +65,19 @@ impl<T> EventLoop<T> {
         &self.elw
     }
 
-    fn devices<R: 'static>(
-        &self,
-        f: impl FnMut(&DeviceId) -> Option<R>,
-    ) -> impl '_ + Iterator<Item = R> {
-        let v = Vec::new();
-        v.into_iter()
-    }
-
     pub fn mouses(&self) -> impl '_ + Iterator<Item = crate::event::device::MouseId> {
-        self.devices(|d| match d {
-            DeviceId::Mouse(id) => Some(id.clone().into()),
-            _ => None,
-        })
+        Vec::new().into_iter()
     }
 
     pub fn keyboards(&self) -> impl '_ + Iterator<Item = crate::event::device::KeyboardId> {
-        self.devices(|d| match d {
-            DeviceId::Keyboard(id) => Some(id.clone().into()),
-            _ => None,
-        })
+        Vec::new().into_iter()
     }
 
     pub fn hids(&self) -> impl '_ + Iterator<Item = crate::event::device::HidId> {
-        self.devices(|d| match d {
-            DeviceId::Hid(id) => Some(id.clone().into()),
-            _ => None,
-        })
+        Vec::new().into_iter()
     }
 
     pub fn gamepads(&self) -> impl '_ + Iterator<Item = crate::event::device::GamepadHandle> {
-        self.devices(|d| match d {
-            // DeviceId::Gamepad(handle, _) => Some(handle.clone().into()),
-            _ => None,
-        })
+        Vec::new().into_iter()
     }
 }

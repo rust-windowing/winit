@@ -1,7 +1,7 @@
 use super::event;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
 use crate::platform_impl::OsError;
 
 use std::cell::RefCell;
@@ -166,24 +166,6 @@ impl Canvas {
         ));
     }
 
-    pub fn on_cursor_leave<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(),
-    {
-        self.on_cursor_leave = Some(self.add_event("pointerout", move |event: PointerEvent| {
-            handler();
-        }));
-    }
-
-    pub fn on_cursor_enter<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(),
-    {
-        self.on_cursor_enter = Some(self.add_event("pointerover", move |event: PointerEvent| {
-            handler();
-        }));
-    }
-
     pub fn on_mouse_release<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, MouseButton),
@@ -191,10 +173,7 @@ impl Canvas {
         self.on_mouse_release = Some(self.add_user_event(
             "pointerup",
             move |event: PointerEvent| {
-                handler(
-                    event.pointer_id(),
-                    event::mouse_button(&event),
-                );
+                handler(event.pointer_id(), event::mouse_button(&event));
             },
         ));
     }
@@ -206,12 +185,37 @@ impl Canvas {
         self.on_mouse_press = Some(self.add_user_event(
             "pointerdown",
             move |event: PointerEvent| {
-                handler(
-                    event.pointer_id(),
-                    event::mouse_button(&event),
-                );
+                handler(event.pointer_id(), event::mouse_button(&event));
             },
         ));
+    }
+
+    pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(i32, (f64, f64)),
+    {
+        self.on_mouse_wheel = Some(self.add_event("wheel", move |event: WheelEvent| {
+            let delta = event::mouse_scroll_delta(&event);
+            handler(0, delta);
+        }));
+    }
+
+    pub fn on_cursor_leave<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.on_cursor_leave = Some(self.add_event("pointerout", move |_event: PointerEvent| {
+            handler();
+        }));
+    }
+
+    pub fn on_cursor_enter<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.on_cursor_enter = Some(self.add_event("pointerover", move |_event: PointerEvent| {
+            handler();
+        }));
     }
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
@@ -223,16 +227,6 @@ impl Canvas {
                 event::mouse_position(&event),
                 event::mouse_modifiers(&event),
             );
-        }));
-    }
-
-    pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(i32, (f64, f64)),
-    {
-        self.on_mouse_wheel = Some(self.add_event("wheel", move |event: WheelEvent| {
-            let delta = event::mouse_scroll_delta(&event);
-            handler(0, delta);
         }));
     }
 
