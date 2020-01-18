@@ -1,6 +1,6 @@
-use super::{backend, device, proxy::Proxy, runner, window};
+use super::{backend, proxy::Proxy, runner, window};
 use crate::dpi::LogicalSize;
-use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
+use crate::event::{ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
 use std::clone::Clone;
@@ -59,15 +59,12 @@ impl<T> WindowTarget<T> {
         canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
-                    input: KeyboardInput {
-                        scancode,
-                        state: ElementState::Pressed,
-                        virtual_keycode,
-                        modifiers,
-                    },
-                },
+                event: WindowEvent::KeyboardInput(KeyboardInput {
+                    scancode,
+                    state: ElementState::Pressed,
+                    virtual_keycode,
+                    modifiers,
+                })
             });
         });
 
@@ -75,15 +72,12 @@ impl<T> WindowTarget<T> {
         canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
-                    input: KeyboardInput {
-                        scancode,
-                        state: ElementState::Released,
-                        virtual_keycode,
-                        modifiers,
-                    },
-                },
+                event: WindowEvent::KeyboardInput(KeyboardInput {
+                    scancode,
+                    state: ElementState::Released,
+                    virtual_keycode,
+                    modifiers,
+                }),
             });
         });
 
@@ -99,9 +93,7 @@ impl<T> WindowTarget<T> {
         canvas.on_cursor_leave(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
-                event: WindowEvent::CursorLeft {
-                    device_id: DeviceId(device::Id(pointer_id)),
-                },
+                event: WindowEvent::CursorLeft,
             });
         });
 
@@ -109,9 +101,7 @@ impl<T> WindowTarget<T> {
         canvas.on_cursor_enter(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
-                event: WindowEvent::CursorEntered {
-                    device_id: DeviceId(device::Id(pointer_id)),
-                },
+                event: WindowEvent::CursorEntered,
             });
         });
 
@@ -120,7 +110,6 @@ impl<T> WindowTarget<T> {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::CursorMoved {
-                    device_id: DeviceId(device::Id(pointer_id)),
                     position,
                     modifiers,
                 },
@@ -132,7 +121,6 @@ impl<T> WindowTarget<T> {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::MouseInput {
-                    device_id: DeviceId(device::Id(pointer_id)),
                     state: ElementState::Pressed,
                     button,
                     modifiers,
@@ -145,7 +133,6 @@ impl<T> WindowTarget<T> {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::MouseInput {
-                    device_id: DeviceId(device::Id(pointer_id)),
                     state: ElementState::Released,
                     button,
                     modifiers,
@@ -158,7 +145,6 @@ impl<T> WindowTarget<T> {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::MouseWheel {
-                    device_id: DeviceId(device::Id(pointer_id)),
                     delta,
                     phase: TouchPhase::Moved,
                     modifiers,
