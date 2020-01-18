@@ -456,7 +456,8 @@ impl<T: 'static> EventProcessor<T> {
                                     new_inner_size.width,
                                     new_inner_size.height,
                                 );
-                                shared_state_lock.scale_factor_adjusted = Some(new_inner_size.into());
+                                shared_state_lock.scale_factor_adjusted =
+                                    Some(new_inner_size.into());
                                 // if the DPI factor changed, force a resize event to ensure the logical
                                 // size is computed with the right DPI factor
                                 resized = true;

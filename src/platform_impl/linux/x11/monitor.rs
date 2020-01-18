@@ -1,7 +1,10 @@
 use std::os::raw;
-use std::{ptr, env, str::FromStr};
+use std::{env, ptr, str::FromStr};
 
-use super::{util, XConnection, ffi::{XRRCrtcInfo, XRROutputInfo}};
+use super::{
+    ffi::{XRRCrtcInfo, XRROutputInfo},
+    util, XConnection,
+};
 use crate::{
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
@@ -63,7 +66,7 @@ impl From<MonitorInfoSource> for Vec<ScaleFactorSource> {
         }
 
         let sfc: ScaleFactorSource = mis.into();
-        let default = vec![ ScaleFactorSource::Xft, sfc ];
+        let default = vec![ScaleFactorSource::Xft, sfc];
         env::var("WINIT_X11_SCALE_FACTOR").ok().map_or_else(
             || default.clone(),
             |var| match var.trim() {
@@ -375,7 +378,11 @@ impl XConnection {
         for sfc in scale_factor_sources {
             match sfc {
                 ScaleFactorSource::Scale(s) => return Some(s),
-                ScaleFactorSource::Xft => if let Some(s) = self.get_xft_scale() { return Some(s / 96.0) },
+                ScaleFactorSource::Xft => {
+                    if let Some(s) = self.get_xft_scale() {
+                        return Some(s / 96.0);
+                    }
+                }
                 ScaleFactorSource::Xlib => {
                     let (dimensions, dimensions_mm) = self.get_xlib_dims(screen);
                     return Some(calc_scale_factor(dimensions, dimensions_mm));
@@ -394,7 +401,7 @@ impl XConnection {
                             "[winit] `WINIT_X11_SCALE_FACTOR` had `randr`, but system does not have RANDR ext.",
                         );
                     }
-                }
+                },
             }
         }
 

@@ -19,7 +19,8 @@ use crate::{
     platform::unix::MonitorHandleExtUnix,
     platform_impl::{
         x11::{
-            ime::ImeContextCreationError, monitor::MonitorInfoSource, MonitorHandle as X11MonitorHandle,
+            ime::ImeContextCreationError, monitor::MonitorInfoSource,
+            MonitorHandle as X11MonitorHandle,
         },
         MonitorHandle as PlatformMonitorHandle, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,

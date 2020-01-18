@@ -9,7 +9,7 @@ use super::{
     *,
 };
 use crate::platform_impl::platform::x11::{
-    monitor::{MonitorInfoSource, MonitorHandle},
+    monitor::{MonitorHandle, MonitorInfoSource},
     VideoMode,
 };
 
@@ -164,7 +164,9 @@ impl XConnection {
             (*output_info).nameLen as usize,
         );
         let name = String::from_utf8_lossy(name_slice).into();
-        let scale_factor = self.acquire_scale_factor(Some((output_info, crtc)), screen).unwrap();
+        let scale_factor = self
+            .acquire_scale_factor(Some((output_info, crtc)), screen)
+            .unwrap();
 
         (xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, scale_factor, modes))
