@@ -108,7 +108,17 @@ features = [
     'Node',
     'PointerEvent',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
+    'Gamepad',
+    'GamepadAxisMoveEvent',
+    'GamepadAxisMoveEventInit',
+    'GamepadButton',
+    'GamepadButtonEvent',
+    'GamepadButtonEventInit',
+    'GamepadEvent',
+    'GamepadEventInit',
+    'GamepadHapticActuator',
+    'GamepadHapticActuatorType'
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]

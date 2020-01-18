@@ -1,8 +1,8 @@
-use super::super::device::{KeyboardId, MouseId};
 use super::{backend, proxy::Proxy, runner, window};
 use crate::dpi::LogicalSize;
 use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
 use crate::event_loop::ControlFlow;
+use crate::platform_impl::platform::device::{GamepadHandle, KeyboardId, MouseId};
 use crate::window::WindowId;
 use std::clone::Clone;
 
@@ -174,5 +174,29 @@ impl<T> WindowTarget<T> {
             });
             runner.request_redraw(WindowId(id));
         });
+
+        let runner = self.runner.clone();
+        canvas.on_gamepad_connected(move |index: u32, manager: backend::GamepadManagerShared| {
+            runner.send_event(Event::GamepadEvent(
+                device::GamepadHandle(GamepadHandle {
+                    index: index as i32,
+                    manager,
+                }),
+                device::GamepadEvent::Added,
+            ));
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_gamepad_disconnected(
+            move |index: u32, manager: backend::GamepadManagerShared| {
+                runner.send_event(Event::GamepadEvent(
+                    device::GamepadHandle(GamepadHandle {
+                        index: index as i32,
+                        manager,
+                    }),
+                    device::GamepadEvent::Removed,
+                ));
+            },
+        );
     }
 }

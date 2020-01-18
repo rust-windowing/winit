@@ -1,4 +1,5 @@
 use super::event;
+use super::gamepad::GamepadManagerShared;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
@@ -8,10 +9,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{
+    Event, FocusEvent, GamepadEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent,
+};
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
+    global: web_sys::Window,
+    gamepad: GamepadManagerShared,
     on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
@@ -24,6 +29,8 @@ pub struct Canvas {
     on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
+    on_gamepad_connected: Option<Closure<dyn FnMut(GamepadEvent)>>,
+    on_gamepad_disconnected: Option<Closure<dyn FnMut(GamepadEvent)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
@@ -56,8 +63,12 @@ impl Canvas {
             .set_attribute("tabindex", "0")
             .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
+        let gamepad = GamepadManagerShared::create();
+
         Ok(Canvas {
             raw: canvas,
+            global: window,
+            gamepad,
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -70,6 +81,8 @@ impl Canvas {
             on_mouse_press: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
+            on_gamepad_connected: None,
+            on_gamepad_disconnected: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
         })
     }
@@ -107,46 +120,60 @@ impl Canvas {
     where
         F: 'static + FnMut(),
     {
-        self.on_blur = Some(self.add_event("blur", move |_: FocusEvent| {
-            handler();
-        }));
+        self.on_blur = Some(self.add_event(
+            "blur",
+            move |_: FocusEvent| {
+                handler();
+            },
+            false,
+        ));
     }
 
     pub fn on_focus<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
-        self.on_focus = Some(self.add_event("focus", move |_: FocusEvent| {
-            handler();
-        }));
+        self.on_focus = Some(self.add_event(
+            "focus",
+            move |_: FocusEvent| {
+                handler();
+            },
+            false,
+        ));
     }
 
     pub fn on_keyboard_release<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
-        self.on_keyboard_release =
-            Some(self.add_user_event("keyup", move |event: KeyboardEvent| {
+        self.on_keyboard_release = Some(self.add_user_event(
+            "keyup",
+            move |event: KeyboardEvent| {
                 handler(
                     event::scan_code(&event),
                     event::virtual_key_code(&event),
                     event::keyboard_modifiers(&event),
                 );
-            }));
+            },
+            false,
+        ));
     }
 
     pub fn on_keyboard_press<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
-        self.on_keyboard_press =
-            Some(self.add_user_event("keydown", move |event: KeyboardEvent| {
+        self.on_keyboard_press = Some(self.add_user_event(
+            "keydown",
+            move |event: KeyboardEvent| {
                 handler(
                     event::scan_code(&event),
                     event::virtual_key_code(&event),
                     event::keyboard_modifiers(&event),
                 );
-            }));
+            },
+            false,
+        ));
     }
 
     pub fn on_received_character<F>(&mut self, mut handler: F)
@@ -158,11 +185,12 @@ impl Canvas {
         // The `keypress` event is deprecated, but there does not seem to be a
         // viable/compatible alternative as of now. `beforeinput` is still widely
         // unsupported.
-        self.on_received_character = Some(self.add_user_event(
+        self.on_received_character = Some(self.add_event(
             "keypress",
             move |event: KeyboardEvent| {
                 handler(event::codepoint(&event));
             },
+            false,
         ));
     }
 
@@ -170,11 +198,12 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, MouseButton),
     {
-        self.on_mouse_release = Some(self.add_user_event(
+        self.on_mouse_release = Some(self.add_event(
             "pointerup",
             move |event: PointerEvent| {
                 handler(event.pointer_id(), event::mouse_button(&event));
             },
+            false,
         ));
     }
 
@@ -182,11 +211,12 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, MouseButton),
     {
-        self.on_mouse_press = Some(self.add_user_event(
+        self.on_mouse_press = Some(self.add_event(
             "pointerdown",
             move |event: PointerEvent| {
                 handler(event.pointer_id(), event::mouse_button(&event));
             },
+            false,
         ));
     }
 
@@ -194,40 +224,56 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, (f64, f64)),
     {
-        self.on_mouse_wheel = Some(self.add_event("wheel", move |event: WheelEvent| {
-            let delta = event::mouse_scroll_delta(&event);
-            handler(0, delta);
-        }));
+        self.on_mouse_wheel = Some(self.add_event(
+            "wheel",
+            move |event: WheelEvent| {
+                let delta = event::mouse_scroll_delta(&event);
+                handler(0, delta);
+            },
+            false,
+        ));
     }
 
     pub fn on_cursor_leave<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
-        self.on_cursor_leave = Some(self.add_event("pointerout", move |_event: PointerEvent| {
-            handler();
-        }));
+        self.on_cursor_leave = Some(self.add_event(
+            "pointerout",
+            move |_event: PointerEvent| {
+                handler();
+            },
+            false,
+        ));
     }
 
     pub fn on_cursor_enter<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
-        self.on_cursor_enter = Some(self.add_event("pointerover", move |_event: PointerEvent| {
-            handler();
-        }));
+        self.on_cursor_enter = Some(self.add_event(
+            "pointerover",
+            move |_event: PointerEvent| {
+                handler();
+            },
+            false,
+        ));
     }
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(LogicalPosition, ModifiersState),
     {
-        self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
-            handler(
-                event::mouse_position(&event),
-                event::mouse_modifiers(&event),
-            );
-        }));
+        self.on_cursor_move = Some(self.add_event(
+            "pointermove",
+            move |event: PointerEvent| {
+                handler(
+                    event::mouse_position(&event),
+                    event::mouse_modifiers(&event),
+                );
+            },
+            false,
+        ));
     }
 
     pub fn on_fullscreen_change<F>(&mut self, mut handler: F)
@@ -235,10 +281,51 @@ impl Canvas {
         F: 'static + FnMut(),
     {
         self.on_fullscreen_change =
-            Some(self.add_event("fullscreenchange", move |_: Event| handler()));
+            Some(self.add_event("fullscreenchange", move |_: Event| handler(), false));
     }
 
-    fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
+    pub fn on_gamepad_connected<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(u32, GamepadManagerShared),
+    {
+        let m = self.gamepad.clone();
+        self.on_gamepad_connected = Some(self.add_event(
+            "gamepadconnected",
+            move |event: GamepadEvent| {
+                let gamepad = event
+                    .gamepad()
+                    .expect("[gamepadconnected] expected gamepad");
+                let index = m.register(gamepad);
+                handler(index, m.clone());
+            },
+            false,
+        ))
+    }
+
+    pub fn on_gamepad_disconnected<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(u32, GamepadManagerShared),
+    {
+        let m = self.gamepad.clone();
+        self.on_gamepad_disconnected = Some(self.add_event(
+            "gamepaddisconnected",
+            move |event: GamepadEvent| {
+                let gamepad = event
+                    .gamepad()
+                    .expect("[gamepaddisconnected] expected gamepad");
+                let index = m.register(gamepad);
+                handler(index, m.clone());
+            },
+            false,
+        ))
+    }
+
+    fn add_event<E, F>(
+        &self,
+        event_name: &str,
+        mut handler: F,
+        is_global: bool,
+    ) -> Closure<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
@@ -253,9 +340,15 @@ impl Canvas {
             handler(event);
         }) as Box<dyn FnMut(E)>);
 
-        self.raw
-            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
-            .expect("Failed to add event listener with callback");
+        if is_global {
+            self.global
+                .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
+                .expect("Failed to add event listener with callback");
+        } else {
+            self.raw
+                .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
+                .expect("Failed to add event listener with callback");
+        }
 
         closure
     }
@@ -263,7 +356,12 @@ impl Canvas {
     // The difference between add_event and add_user_event is that the latter has a special meaning
     // for browser security. A user event is a deliberate action by the user (like a mouse or key
     // press) and is the only time things like a fullscreen request may be successfully completed.)
-    fn add_user_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
+    fn add_user_event<E, F>(
+        &self,
+        event_name: &str,
+        mut handler: F,
+        is_global: bool,
+    ) -> Closure<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
@@ -271,16 +369,20 @@ impl Canvas {
         let wants_fullscreen = self.wants_fullscreen.clone();
         let canvas = self.raw.clone();
 
-        self.add_event(event_name, move |event: E| {
-            handler(event);
+        self.add_event(
+            event_name,
+            move |event: E| {
+                handler(event);
 
-            if *wants_fullscreen.borrow() {
-                canvas
-                    .request_fullscreen()
-                    .expect("Failed to enter fullscreen");
-                *wants_fullscreen.borrow_mut() = false;
-            }
-        })
+                if *wants_fullscreen.borrow() {
+                    canvas
+                        .request_fullscreen()
+                        .expect("Failed to enter fullscreen");
+                    *wants_fullscreen.borrow_mut() = false;
+                }
+            },
+            is_global,
+        )
     }
 
     pub fn request_fullscreen(&self) {
