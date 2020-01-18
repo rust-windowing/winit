@@ -1,5 +1,5 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
 
 use std::convert::TryInto;
 use web_sys::{KeyboardEvent, MouseEvent, WheelEvent};
@@ -29,15 +29,10 @@ pub fn mouse_position(event: &MouseEvent) -> LogicalPosition {
     }
 }
 
-pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
+pub fn mouse_scroll_delta(event: &WheelEvent) -> (f64, f64) {
     let x = event.delta_x();
     let y = event.delta_y();
-
-    match event.delta_mode() {
-        WheelEvent::DOM_DELTA_LINE => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
-        WheelEvent::DOM_DELTA_PIXEL => Some(MouseScrollDelta::PixelDelta(LogicalPosition { x, y })),
-        _ => None,
-    }
+    (x, y)
 }
 
 pub fn scan_code(event: &KeyboardEvent) -> ScanCode {

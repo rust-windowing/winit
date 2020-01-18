@@ -1,7 +1,8 @@
 use super::{backend, proxy::Proxy, runner, window};
 use crate::dpi::LogicalSize;
-use crate::event::{ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
+use crate::event::{device, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
+use super::super::device::{KeyboardId, MouseId};
 use crate::window::WindowId;
 use std::clone::Clone;
 
@@ -57,28 +58,28 @@ impl<T> WindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::KeyboardInput(KeyboardInput {
+            runner.send_event(Event::KeyboardEvent(
+                device::KeyboardId(unsafe { KeyboardId::dummy() }),
+                device::KeyboardEvent::Input(KeyboardInput {
                     scancode,
                     state: ElementState::Pressed,
                     virtual_keycode,
                     modifiers,
-                })
-            });
+                }),
+            ));
         });
 
         let runner = self.runner.clone();
         canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::KeyboardInput(KeyboardInput {
+            runner.send_event(Event::KeyboardEvent(
+                device::KeyboardId(unsafe { KeyboardId::dummy() }),
+                device::KeyboardEvent::Input(KeyboardInput {
                     scancode,
                     state: ElementState::Released,
                     virtual_keycode,
                     modifiers,
                 }),
-            });
+            ));
         });
 
         let runner = self.runner.clone();
@@ -90,7 +91,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_cursor_leave(move |pointer_id| {
+        canvas.on_cursor_leave(move || {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::CursorLeft,
@@ -98,7 +99,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_cursor_enter(move |pointer_id| {
+        canvas.on_cursor_enter(move || {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::CursorEntered,
@@ -106,7 +107,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_cursor_move(move |pointer_id, position, modifiers| {
+        canvas.on_cursor_move(move |position, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::CursorMoved {
@@ -117,39 +118,33 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_press(move |pointer_id, button, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::MouseInput {
+        canvas.on_mouse_press(move |pointer_id, button| {
+            runner.send_event(Event::MouseEvent(
+                device::MouseId(MouseId(pointer_id)),
+                device::MouseEvent::Button {
                     state: ElementState::Pressed,
-                    button,
-                    modifiers,
-                },
-            });
+                    button
+                }
+            ));
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_release(move |pointer_id, button, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::MouseInput {
+        canvas.on_mouse_release(move |pointer_id, button| {
+            runner.send_event(Event::MouseEvent(
+                device::MouseId(MouseId(pointer_id)),
+                device::MouseEvent::Button {
                     state: ElementState::Released,
-                    button,
-                    modifiers,
-                },
-            });
+                    button
+                }
+            ));
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_wheel(move |pointer_id, delta, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::MouseWheel {
-                    delta,
-                    phase: TouchPhase::Moved,
-                    modifiers,
-                },
-            });
+        canvas.on_mouse_wheel(move |pointer_id, delta| {
+            runner.send_event(Event::MouseEvent(
+                device::MouseId(MouseId(pointer_id)),
+                device::MouseEvent::Wheel(delta.0, delta.1)
+            ));
         });
 
         let runner = self.runner.clone();

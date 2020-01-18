@@ -168,25 +168,25 @@ impl Canvas {
 
     pub fn on_cursor_leave<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
         self.on_cursor_leave = Some(self.add_event("pointerout", move |event: PointerEvent| {
-            handler(event.pointer_id());
+            handler();
         }));
     }
 
     pub fn on_cursor_enter<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
         self.on_cursor_enter = Some(self.add_event("pointerover", move |event: PointerEvent| {
-            handler(event.pointer_id());
+            handler();
         }));
     }
 
     pub fn on_mouse_release<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         self.on_mouse_release = Some(self.add_user_event(
             "pointerup",
@@ -194,7 +194,6 @@ impl Canvas {
                 handler(
                     event.pointer_id(),
                     event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
                 );
             },
         ));
@@ -202,7 +201,7 @@ impl Canvas {
 
     pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         self.on_mouse_press = Some(self.add_user_event(
             "pointerdown",
@@ -210,7 +209,6 @@ impl Canvas {
                 handler(
                     event.pointer_id(),
                     event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
                 );
             },
         ));
@@ -218,11 +216,10 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, LogicalPosition, ModifiersState),
+        F: 'static + FnMut(LogicalPosition, ModifiersState),
     {
         self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
             handler(
-                event.pointer_id(),
                 event::mouse_position(&event),
                 event::mouse_modifiers(&event),
             );
@@ -231,12 +228,11 @@ impl Canvas {
 
     pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
+        F: 'static + FnMut(i32, (f64, f64)),
     {
         self.on_mouse_wheel = Some(self.add_event("wheel", move |event: WheelEvent| {
-            if let Some(delta) = event::mouse_scroll_delta(&event) {
-                handler(0, delta, event::mouse_modifiers(&event));
-            }
+            let delta = event::mouse_scroll_delta(&event);
+            handler(0, delta);
         }));
     }
 

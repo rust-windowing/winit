@@ -6,24 +6,18 @@ use std::{
     fmt,
 };
 
-#[derive(Clone)]
-pub(crate) struct GamepadHandle;
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct GamepadHandle(pub i32);
 
 unsafe impl Send for GamepadHandle {}
 unsafe impl Sync for GamepadHandle {}
 
 impl GamepadHandle {
     pub unsafe fn dummy() -> Self {
-        Self {}
-    }
-
-    pub fn persistent_identifier(&self) -> Option<String> {
-        // raw_input::get_raw_input_device_name(self.0)
-        None
+        Self(0)
     }
 
     pub fn is_connected(&self) -> bool {
-        // raw_input::get_raw_input_device_info(self.0).is_some()
         false
     }
 
@@ -49,40 +43,6 @@ impl GamepadHandle {
 impl From<GamepadHandle> for device::GamepadHandle {
     fn from(platform_id: GamepadHandle) -> Self {
         Self(platform_id)
-    }
-}
-
-impl fmt::Debug for GamepadHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        f.debug_tuple("GamepadHandle").finish()//.field(&self.handle).finish()
-    }
-}
-
-impl Eq for GamepadHandle {}
-impl PartialEq for GamepadHandle {
-    #[inline(always)]
-    fn eq(&self, other: &Self) -> bool {
-        false
-    }
-}
-
-impl Ord for GamepadHandle {
-    #[inline(always)]
-    fn cmp(&self, other: &Self) -> Ordering {
-        Ordering::Equal
-    }
-}
-impl PartialOrd for GamepadHandle {
-    #[inline(always)]
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        None
-    }
-}
-
-impl Hash for GamepadHandle {
-    #[inline(always)]
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        // self.handle.hash(state);
     }
 }
 
