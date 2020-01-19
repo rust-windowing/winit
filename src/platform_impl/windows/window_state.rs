@@ -1,7 +1,8 @@
 use crate::{
     dpi::{PhysicalPosition, Size},
     event::ModifiersState,
-    platform_impl::platform::{event_loop, icon::WinIcon, util},
+    icon::Icon,
+    platform_impl::platform::{event_loop, util},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 use parking_lot::MutexGuard;
@@ -15,7 +16,6 @@ use winapi::{
 };
 
 /// Contains information about states and the window that the callback is going to use.
-#[derive(Clone)]
 pub struct WindowState {
     pub mouse: MouseProperties,
 
@@ -23,8 +23,8 @@ pub struct WindowState {
     pub min_size: Option<Size>,
     pub max_size: Option<Size>,
 
-    pub window_icon: Option<WinIcon>,
-    pub taskbar_icon: Option<WinIcon>,
+    pub window_icon: Option<Icon>,
+    pub taskbar_icon: Option<Icon>,
 
     pub saved_window: Option<SavedWindow>,
     pub scale_factor: f64,
@@ -99,8 +99,7 @@ bitflags! {
 impl WindowState {
     pub fn new(
         attributes: &WindowAttributes,
-        window_icon: Option<WinIcon>,
-        taskbar_icon: Option<WinIcon>,
+        taskbar_icon: Option<Icon>,
         scale_factor: f64,
         is_dark_mode: bool,
     ) -> WindowState {
@@ -115,7 +114,7 @@ impl WindowState {
             min_size: attributes.min_inner_size,
             max_size: attributes.max_inner_size,
 
-            window_icon,
+            window_icon: attributes.window_icon.clone(),
             taskbar_icon,
 
             saved_window: None,
