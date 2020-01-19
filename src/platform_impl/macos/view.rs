@@ -17,6 +17,7 @@ use objc::{
 };
 
 use crate::{
+    dpi::LogicalPosition,
     event::{
         DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, MouseButton,
         MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
@@ -57,6 +58,12 @@ struct ViewState {
     is_key_down: bool,
     modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
+}
+
+impl ViewState {
+    fn get_scale_factor(&self) -> f64 {
+        (unsafe { NSWindow::backingScaleFactor(self.ns_window) }) as f64
+    }
 }
 
 pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
@@ -376,13 +383,8 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
     }
 }
 
-extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
-    unsafe {
-        trace!("Triggered `hasMarkedText`");
-        let marked_text: id = *this.get_ivar("markedText");
-        trace!("Completed `hasMarkedText`");
-        (marked_text.length() > 0) as i8
-    }
+extern "C" fn has_marked_text(_this: &Object, _sel: Sel) -> BOOL {
+    YES
 }
 
 extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
@@ -631,6 +633,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         let is_repeat = msg_send![event, isARepeat];
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id,
             event: WindowEvent::KeyboardInput {
@@ -683,6 +686,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
@@ -797,6 +801,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
 
         let event: id = msg_send![NSApp(), currentEvent];
 
+        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
@@ -882,12 +887,13 @@ fn mouse_motion(this: &Object, event: id) {
 
         let x = view_point.x as f64;
         let y = view_rect.size.height as f64 - view_point.y as f64;
+        let logical_position = LogicalPosition::new(x, y);
 
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::CursorMoved {
                 device_id: DEVICE_ID,
-                position: (x, y).into(),
+                position: logical_position.to_physical(state.get_scale_factor()),
                 modifiers: event_mods(event),
             },
         };
@@ -925,27 +931,8 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
             },
         };
 
-        let move_event = {
-            let window_point = event.locationInWindow();
-            let view_point: NSPoint = msg_send![this,
-                convertPoint:window_point
-                fromView:nil // convert from window coordinates
-            ];
-            let view_rect: NSRect = msg_send![this, frame];
-            let x = view_point.x as f64;
-            let y = (view_rect.size.height - view_point.y) as f64;
-            Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.ns_window)),
-                event: WindowEvent::CursorMoved {
-                    device_id: DEVICE_ID,
-                    position: (x, y).into(),
-                    modifiers: event_mods(event),
-                },
-            }
-        };
-
         AppState::queue_event(EventWrapper::StaticEvent(enter_event));
-        AppState::queue_event(EventWrapper::StaticEvent(move_event));
+        mouse_motion(this, event);
     }
     trace!("Completed `mouseEntered`");
 }

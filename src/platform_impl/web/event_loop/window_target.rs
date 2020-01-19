@@ -57,6 +57,7 @@ impl<T> WindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
+            #[allow(deprecated)]
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::KeyboardInput {
@@ -74,6 +75,7 @@ impl<T> WindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
+            #[allow(deprecated)]
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::KeyboardInput {
