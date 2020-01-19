@@ -6,9 +6,10 @@ use std::{
 use cocoa::{
     appkit::{CGFloat, NSScreen, NSWindow, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSPoint, NSSize, NSString},
+    foundation::{NSPoint, NSSize, NSString},
 };
 use dispatch::Queue;
+use objc::rc::autoreleasepool;
 
 use crate::{
     dpi::LogicalSize,
@@ -208,8 +209,8 @@ pub unsafe fn set_title_async(ns_window: id, title: String) {
 pub unsafe fn close_async(ns_window: id) {
     let ns_window = MainThreadSafe(ns_window);
     Queue::main().exec_async(move || {
-        let pool = NSAutoreleasePool::new(nil);
-        ns_window.close();
-        pool.drain();
+        autoreleasepool(move || {
+            ns_window.close();
+        });
     });
 }
