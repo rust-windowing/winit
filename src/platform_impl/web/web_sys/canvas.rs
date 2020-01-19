@@ -1,5 +1,6 @@
 use super::event;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::platform_impl::PlatformSpecificWindowBuilderAttributes;
 
 use winit_types::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use winit_types::error::Error;
@@ -36,19 +37,23 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create() -> Result<Self, Error> {
-        let window = web_sys::window().ok_or(make_oserror!(OsError(
-            "[winit] Failed to obtain window".to_owned()
-        )))?;
+    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, Error> {
+        let canvas = match attr.canvas {
+            Some(canvas) => canvas,
+            None => {
+                let window = web_sys::window()
+                    .ok_or(make_oserror!(OsError("Failed to obtain window".to_owned())))?;
 
-        let document = window.document().ok_or(make_oserror!(OsError(
-            "[winit] Failed to obtain document".to_owned()
-        )))?;
+                let document = window
+                    .document()
+                    .ok_or(make_oserror!(OsError("Failed to obtain document".to_owned())))?;
 
-        let canvas: HtmlCanvasElement = document
-            .create_element("canvas")
-            .map_err(|_| make_oserror!(OsError("Failed to create canvas element".to_owned())))?
-            .unchecked_into();
+                document
+                    .create_element("canvas")
+                    .map_err(|_| make_oserror!(OsError("Failed to create canvas element".to_owned())))?
+                    .unchecked_into()
+            }
+        };
 
         // A tabindex is needed in order to capture local keyboard events.
         // A "0" value means that the element should be focusable in
@@ -218,7 +223,7 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<i32>, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
     {
         self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
             handler(

@@ -287,6 +287,7 @@ pub unsafe fn modifier_event(
 
         let scancode = get_scancode(ns_event);
         let virtual_keycode = scancode_to_keycode(scancode);
+        #[allow(deprecated)]
         Some(WindowEvent::KeyboardInput {
             device_id: DEVICE_ID,
             input: KeyboardInput {

@@ -1,5 +1,6 @@
 #![cfg(target_os = "macos")]
 
+mod activation_hack;
 mod app;
 mod app_delegate;
 mod app_state;

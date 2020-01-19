@@ -415,7 +415,6 @@ impl<T: 'static> EventLoop<T> {
         let mut xev = MaybeUninit::uninit();
 
         let wt = get_xtarget(&self.target);
-        let mut pending_redraws = wt.pending_redraws.lock().unwrap();
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
@@ -429,7 +428,7 @@ impl<T: 'static> EventLoop<T> {
                             super::WindowId::X(wid),
                         )) = event
                         {
-                            pending_redraws.insert(wid);
+                            wt.pending_redraws.lock().unwrap().insert(wid);
                         } else {
                             callback(event, window_target, control_flow);
                         }

@@ -26,12 +26,14 @@ pub use crate::icon::*;
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
+///     *control_flow = ControlFlow::Wait;
+///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
 ///         } => *control_flow = ControlFlow::Exit,
-///         _ => *control_flow = ControlFlow::Wait,
+///         _ => (),
 ///     }
 /// });
 /// ```
@@ -78,7 +80,7 @@ impl WindowId {
 }
 
 /// Object that allows you to build windows.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
@@ -185,10 +187,7 @@ impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
     pub fn new() -> Self {
-        WindowBuilder {
-            window: Default::default(),
-            platform_specific: Default::default(),
-        }
+        Default::default()
     }
 
     /// Requests the window to be of specific dimensions.
@@ -393,10 +392,10 @@ impl Window {
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
-    /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`
+    /// This function can cause `RedrawRequested` events to be emitted after `Event::MainEventsCleared`
     /// but before `Event::NewEvents` if called in the following circumstances:
-    /// * While processing `EventsCleared`.
-    /// * While processing a `RedrawRequested` event that was sent during `EventsCleared` or any
+    /// * While processing `MainEventsCleared`.
+    /// * While processing a `RedrawRequested` event that was sent during `MainEventsCleared` or any
     ///   directly subsequent `RedrawRequested` event.
     ///
     /// ## Platform-specific

@@ -24,13 +24,13 @@ impl Window {
     pub fn new<T>(
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
-        _: PlatformSpecificBuilderAttributes,
+        platform_attr: PlatformSpecificBuilderAttributes,
     ) -> Result<Self, Error> {
         let runner = target.runner.clone();
 
         let id = target.generate_id();
 
-        let mut canvas = backend::Canvas::create()?;
+        let mut canvas = backend::Canvas::create(platform_attr)?;
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
@@ -283,5 +283,7 @@ impl Id {
     }
 }
 
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct PlatformSpecificBuilderAttributes;
+#[derive(Default, Clone)]
+pub struct PlatformSpecificBuilderAttributes {
+    pub(crate) canvas: Option<backend::RawCanvasType>,
+}

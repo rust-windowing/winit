@@ -96,3 +96,5 @@ pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
         None => false,
     }
 }
+
+pub type RawCanvasType = HtmlCanvasElement;

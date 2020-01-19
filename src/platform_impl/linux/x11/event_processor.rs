@@ -3,6 +3,8 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, slice, sync::Arc};
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
+use parking_lot::MutexGuard;
+
 use super::{
     events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
     DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
@@ -399,9 +401,12 @@ impl<T: 'static> EventProcessor<T> {
                             .inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
                         shared_state_lock.position = Some(outer);
                         if moved {
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::Moved(outer.into()),
+                            // Temporarily unlock shared state to prevent deadlock
+                            MutexGuard::unlocked(&mut shared_state_lock, || {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::Moved(outer.into()),
+                                });
                             });
                         }
                         outer
@@ -443,12 +448,15 @@ impl<T: 'static> EventProcessor<T> {
                             let old_inner_size = PhysicalSize::new(width, height);
                             let mut new_inner_size = PhysicalSize::new(new_width, new_height);
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ScaleFactorChanged {
-                                    scale_factor: new_scale_factor,
-                                    new_inner_size: &mut new_inner_size,
-                                },
+                            // Temporarily unlock shared state to prevent deadlock
+                            MutexGuard::unlocked(&mut shared_state_lock, || {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::ScaleFactorChanged {
+                                        scale_factor: new_scale_factor,
+                                        new_inner_size: &mut new_inner_size,
+                                    },
+                                });
                             });
 
                             if new_inner_size != old_inner_size {
@@ -481,6 +489,9 @@ impl<T: 'static> EventProcessor<T> {
                     }
 
                     if resized {
+                        // Drop the shared state lock to prevent deadlock
+                        drop(shared_state_lock);
+
                         callback(Event::WindowEvent {
                             window_id,
                             event: WindowEvent::Resized(new_inner_size.into()),
@@ -732,8 +743,7 @@ impl<T: 'static> EventProcessor<T> {
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {
-                            let position =
-                                PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
+                            let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             callback(Event::WindowEvent {
                                 window_id,
@@ -839,8 +849,7 @@ impl<T: 'static> EventProcessor<T> {
                                 event: CursorEntered { device_id },
                             });
 
-                            let position =
-                                PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
+                            let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                             // The mods field on this event isn't actually populated, so query the
                             // pointer device. In the future, we can likely remove this round-trip by
@@ -908,8 +917,7 @@ impl<T: 'static> EventProcessor<T> {
                             .map(|device| device.attachment)
                             .unwrap_or(2);
 
-                        let position =
-                            PhysicalPosition::new(xev.event_x as i32, xev.event_y as i32);
+                        let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
                         callback(Event::WindowEvent {
                             window_id,

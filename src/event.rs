@@ -242,7 +242,7 @@ pub enum WindowEvent<'a> {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: PhysicalPosition<i32>,
+        position: PhysicalPosition<f64>,
         #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
