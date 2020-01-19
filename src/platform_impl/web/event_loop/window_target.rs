@@ -2,7 +2,7 @@ use super::{backend, proxy::Proxy, runner, window};
 use crate::dpi::LogicalSize;
 use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::platform_impl::platform::device::{GamepadHandle, KeyboardId, MouseId};
+use crate::platform_impl::platform::device::{GamepadHandle, GamepadShared, KeyboardId, MouseId};
 use crate::window::WindowId;
 use std::clone::Clone;
 
@@ -176,27 +176,25 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_gamepad_connected(move |index: u32, manager: backend::GamepadManagerShared| {
+        canvas.on_gamepad_connected(move |gamepad: backend::GamepadShared| {
             runner.send_event(Event::GamepadEvent(
                 device::GamepadHandle(GamepadHandle {
-                    index: index as i32,
-                    manager,
+                    id: gamepad.index() as i32,
+                    gamepad: GamepadShared::Raw(gamepad),
                 }),
                 device::GamepadEvent::Added,
             ));
         });
 
         let runner = self.runner.clone();
-        canvas.on_gamepad_disconnected(
-            move |index: u32, manager: backend::GamepadManagerShared| {
-                runner.send_event(Event::GamepadEvent(
-                    device::GamepadHandle(GamepadHandle {
-                        index: index as i32,
-                        manager,
-                    }),
-                    device::GamepadEvent::Removed,
-                ));
-            },
-        );
+        canvas.on_gamepad_disconnected(move |gamepad: backend::GamepadShared| {
+            runner.send_event(Event::GamepadEvent(
+                device::GamepadHandle(GamepadHandle {
+                    id: gamepad.index() as i32,
+                    gamepad: GamepadShared::Raw(gamepad),
+                }),
+                device::GamepadEvent::Removed,
+            ));
+        });
     }
 }

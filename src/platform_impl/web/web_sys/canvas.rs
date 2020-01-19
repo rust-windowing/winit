@@ -1,5 +1,5 @@
 use super::event;
-use super::gamepad::GamepadManagerShared;
+use super::gamepad::{GamepadManagerShared, GamepadShared};
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
@@ -15,8 +15,8 @@ use web_sys::{
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
-    global: web_sys::Window,
-    gamepad: GamepadManagerShared,
+    window: web_sys::Window,
+    gamepad_manager: GamepadManagerShared,
     on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
@@ -63,12 +63,12 @@ impl Canvas {
             .set_attribute("tabindex", "0")
             .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
-        let gamepad = GamepadManagerShared::create();
+        let gamepad_manager = GamepadManagerShared::create();
 
         Ok(Canvas {
             raw: canvas,
-            global: window,
-            gamepad,
+            window,
+            gamepad_manager,
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -286,17 +286,17 @@ impl Canvas {
 
     pub fn on_gamepad_connected<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(u32, GamepadManagerShared),
+        F: 'static + FnMut(GamepadShared),
     {
-        let m = self.gamepad.clone();
+        let m = self.gamepad_manager.clone();
         self.on_gamepad_connected = Some(self.add_event(
             "gamepadconnected",
             move |event: GamepadEvent| {
                 let gamepad = event
                     .gamepad()
                     .expect("[gamepadconnected] expected gamepad");
-                let index = m.register(gamepad);
-                handler(index, m.clone());
+                let g = m.register(gamepad);
+                handler(g);
             },
             false,
         ))
@@ -304,17 +304,17 @@ impl Canvas {
 
     pub fn on_gamepad_disconnected<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(u32, GamepadManagerShared),
+        F: 'static + FnMut(GamepadShared),
     {
-        let m = self.gamepad.clone();
+        let m = self.gamepad_manager.clone();
         self.on_gamepad_disconnected = Some(self.add_event(
             "gamepaddisconnected",
             move |event: GamepadEvent| {
                 let gamepad = event
                     .gamepad()
                     .expect("[gamepaddisconnected] expected gamepad");
-                let index = m.register(gamepad);
-                handler(index, m.clone());
+                let g = m.register(gamepad);
+                handler(g);
             },
             false,
         ))
@@ -341,7 +341,7 @@ impl Canvas {
         }) as Box<dyn FnMut(E)>);
 
         if is_global {
-            self.global
+            self.window
                 .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
                 .expect("Failed to add event listener with callback");
         } else {

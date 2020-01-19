@@ -3,10 +3,10 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 pub struct GamepadManagerShared(Rc<GamepadManager>);
 
 pub struct GamepadManager {
-    gamepads: RefCell<HashMap<u32, Gamepad>>,
+    gamepads: RefCell<HashMap<u32, GamepadShared>>,
 }
 
-pub struct Gamepad(Option<Rc<web_sys::Gamepad>>);
+pub struct GamepadShared(Rc<web_sys::Gamepad>);
 
 impl GamepadManagerShared {
     pub fn create() -> GamepadManagerShared {
@@ -15,21 +15,17 @@ impl GamepadManagerShared {
         }))
     }
 
-    pub fn register(&self, gamepad: web_sys::Gamepad) -> u32 {
+    pub fn register(&self, gamepad: web_sys::Gamepad) -> GamepadShared {
         let index = gamepad.index();
         let mut gamepads = self.0.gamepads.borrow_mut();
         if gamepads.contains_key(&index) {
-            gamepads.insert(index, Gamepad(Some(Rc::new(gamepad))));
+            gamepads.insert(index, GamepadShared(Rc::new(gamepad)));
         }
-        index
+        self.get(&index).expect("[register] Gamepad expected")
     }
 
-    pub fn get(&self, index: &u32) -> Option<Gamepad> {
+    pub fn get(&self, index: &u32) -> Option<GamepadShared> {
         self.0.gamepads.borrow().get(index).map(|g| g.clone())
-    }
-
-    pub fn is_present(&self, index: &u32) -> bool {
-        self.0.gamepads.borrow().contains_key(index)
     }
 }
 
@@ -39,64 +35,45 @@ impl Clone for GamepadManagerShared {
     }
 }
 
-impl Default for GamepadManagerShared {
-    fn default() -> Self {
-        Self(Rc::new(GamepadManager {
-            gamepads: RefCell::new(HashMap::new()),
-        }))
+impl GamepadShared {
+    // An integer that is auto-incremented to be unique for each device
+    // currently connected to the system.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/index
+    pub fn index(&self) -> u32 {
+        self.0.index()
     }
-}
 
-impl Gamepad {
+    // A string containing some information about the controller.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/id
     pub fn id(&self) -> String {
-        match &self.0 {
-            Some(g) => g.id(),
-            None => String::new(),
-        }
+        self.0.id()
     }
 
-    pub fn index(&self) -> i32 {
-        match &self.0 {
-            Some(g) => g.index() as i32,
-            None => -1,
-        }
-    }
-
+    // A boolean indicating whether the gamepad is still connected to the system.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/connected
     pub fn connected(&self) -> bool {
-        match &self.0 {
-            Some(g) => g.connected(),
-            None => false,
-        }
+        self.0.connected()
     }
 
-    // pub fn vibrate(&self, value: f64, duration: f64) {
-    //     if let Some(g) = self.0.inner {
-    //         for actuator in g.haptic_actuators().values() {
-    //             actuator
-    //             .ok()
-    //             .and_then(|a| match a.type_ {
-    //                 web_sys::GamepadHapticActuatorType::Vibration => {
-    //                     a.pulse(value, duration);
-    //                     Some(())
-    //                 },
-    //                 _ => None,
-    //             });
-    //         }
+    // EXPERIMENTAL
+    #[allow(dead_code)]
+    pub fn vibrate(&self, _value: f64, _duration: f64) {
+    //     for actuator in self.0.haptic_actuators().values() {
+    //         actuator
+    //         .ok()
+    //         .and_then(|a| match a.type_ {
+    //             web_sys::GamepadHapticActuatorType::Vibration => {
+    //                 a.pulse(value, duration);
+    //                 Some(())
+    //             },
+    //             _ => None,
+    //         });
     //     }
-    // }
-}
-
-impl Clone for Gamepad {
-    fn clone(&self) -> Self {
-        match &self.0 {
-            Some(g) => Gamepad(Some(g.clone())),
-            None => Gamepad(None),
-        }
     }
 }
 
-impl Default for Gamepad {
-    fn default() -> Self {
-        Self(None)
+impl Clone for GamepadShared {
+    fn clone(&self) -> Self {
+        GamepadShared(self.0.clone())
     }
 }

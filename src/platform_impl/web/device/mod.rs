@@ -1,10 +1,10 @@
+mod gamepad;
+
 use super::event_loop::EventLoop;
 use crate::event::device;
-use crate::platform_impl::platform::backend;
-
+pub use gamepad::GamepadShared;
 use std::{
     cmp::{Eq, Ordering, PartialEq, PartialOrd},
-    fmt,
     hash::{Hash, Hasher},
 };
 
@@ -44,32 +44,25 @@ device_id!(MouseId, mouses);
 device_id!(KeyboardId, keyboards);
 device_id!(HidId, hids);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) struct GamepadHandle {
-    pub(crate) index: i32,
-    pub(crate) manager: backend::GamepadManagerShared,
+    pub(crate) id: i32,
+    pub(crate) gamepad: GamepadShared,
 }
+
+unsafe impl Send for GamepadHandle {}
+unsafe impl Sync for GamepadHandle {}
 
 impl GamepadHandle {
     pub unsafe fn dummy() -> Self {
         Self {
-            index: -1,
-            manager: backend::GamepadManagerShared::default(),
+            id: -1,
+            gamepad: GamepadShared::default(),
         }
     }
 
-    fn gamepad(&self) -> backend::Gamepad {
-        self.manager
-            .get(&(self.index as u32))
-            .unwrap_or(backend::Gamepad::default())
-    }
-
-    fn is_dummy(&self) -> bool {
-        self.manager.is_present(&(self.index as u32))
-    }
-
     pub fn is_connected(&self) -> bool {
-        self.gamepad().connected()
+        self.gamepad.connected()
     }
 
     pub fn enumerate<'a, T>(
@@ -78,16 +71,16 @@ impl GamepadHandle {
         event_loop.gamepads()
     }
 
-    pub fn rumble(&self, _left_speed: f64, _right_speed: f64) -> Result<(), device::RumbleError> {
-        Ok(())
+    pub fn rumble(&self, left_speed: f64, right_speed: f64) -> Result<(), device::RumbleError> {
+        self.gamepad.rumble(left_speed, right_speed)
     }
 
     pub fn port(&self) -> Option<u8> {
-        None
+        self.gamepad.port()
     }
 
     pub fn battery_level(&self) -> Option<device::BatteryLevel> {
-        None
+        self.gamepad.battery_level()
     }
 }
 
@@ -96,37 +89,26 @@ impl Eq for GamepadHandle {}
 impl PartialEq for GamepadHandle {
     #[inline(always)]
     fn eq(&self, othr: &Self) -> bool {
-        self.index == othr.index
+        self.id == othr.id
     }
 }
 
 impl Ord for GamepadHandle {
     #[inline(always)]
     fn cmp(&self, othr: &Self) -> Ordering {
-        self.index.cmp(&othr.index)
+        self.id.cmp(&othr.id)
     }
 }
 impl PartialOrd for GamepadHandle {
     #[inline(always)]
     fn partial_cmp(&self, othr: &Self) -> Option<Ordering> {
-        self.index.partial_cmp(&othr.index)
+        self.id.partial_cmp(&othr.id)
     }
 }
 
 impl Hash for GamepadHandle {
     #[inline(always)]
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.index.hash(state)
-    }
-}
-
-impl fmt::Debug for GamepadHandle {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        if self.is_dummy() {
-            write!(f, "GamepadHandle (Dummy)")
-        } else {
-            let gamepad = self.gamepad();
-            write!(f, "GamepadHandle ({}#{})", gamepad.id(), gamepad.index())
-        }
+        self.id.hash(state)
     }
 }
