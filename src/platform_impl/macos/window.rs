@@ -150,10 +150,14 @@ fn create_window(
         let mut masks = if !attrs.decorations && !screen.is_some() {
             // Resizable UnownedWindow without a titlebar or borders
             // if decorations is set to false, ignore pl_attrs
-            NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask
+            NSWindowStyleMask::NSBorderlessWindowMask
+                | NSWindowStyleMask::NSResizableWindowMask
+                | NSWindowStyleMask::NSMiniaturizableWindowMask
         } else if pl_attrs.titlebar_hidden {
             // if the titlebar is hidden, ignore other pl_attrs
-            NSWindowStyleMask::NSBorderlessWindowMask | NSWindowStyleMask::NSResizableWindowMask
+            NSWindowStyleMask::NSBorderlessWindowMask
+                | NSWindowStyleMask::NSResizableWindowMask
+                | NSWindowStyleMask::NSMiniaturizableWindowMask
         } else {
             // default case, resizable window with titlebar and titlebar buttons
             NSWindowStyleMask::NSClosableWindowMask
