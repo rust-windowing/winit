@@ -284,7 +284,10 @@ impl<T: 'static> EventLoop<T> {
             // Empty the redraw requests
             {
                 // Release the lock to prevent deadlock
-                let windows: Vec<_> = wt.pending_redraws.lock().unwrap().drain().collect();
+                let windows: Vec<_> = {
+                    let mut set = wt.pending_redraws.lock().unwrap();
+                    set.drain().collect()
+                };
 
                 for wid in windows {
                     sticky_exit_callback(
