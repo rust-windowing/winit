@@ -511,7 +511,7 @@ impl WindowId {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(c_int);
+pub struct DeviceId(pub c_int);
 
 impl DeviceId {
     pub unsafe fn dummy() -> Self {
