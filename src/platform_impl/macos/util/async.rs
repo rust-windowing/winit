@@ -8,9 +8,9 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSPoint, NSSize, NSString},
 };
-use winit_types::dpi::LogicalSize;
 use dispatch::Queue;
 use objc::rc::autoreleasepool;
+use winit_types::dpi::LogicalSize;
 
 use crate::platform_impl::platform::{ffi, util::IdRef, window::SharedState};
 

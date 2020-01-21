@@ -24,6 +24,7 @@ jobs:
         git clone https://github.com/rust-windowing/glutin_interface.git ../glutin_interface --depth 1
         git clone https://github.com/rust-windowing/glutin_x11_sym.git ../glutin_x11_sym --depth 1
         git clone https://github.com/rust-windowing/winit_types.git ../winit_types --depth 1
+        git clone https://github.com/rust-windowing/glutin_sys.git ../glutin_sys --depth 1
 
     - uses: actions/checkout@v1
     - uses: hecrj/setup-rust-action@v1
@@ -70,6 +71,7 @@ jobs:
         git clone https://github.com/rust-windowing/glutin_interface.git ../glutin_interface --depth 1
         git clone https://github.com/rust-windowing/glutin_x11_sym.git ../glutin_x11_sym --depth 1
         git clone https://github.com/rust-windowing/winit_types.git ../winit_types --depth 1
+        git clone https://github.com/rust-windowing/glutin_sys.git ../glutin_sys --depth 1
 
     - uses: actions/checkout@v1
     # Used to cache cargo-web
