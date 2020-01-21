@@ -242,6 +242,17 @@ pub enum WindowEvent {
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl DeviceId {
+    /// Returns the integer value of the DeviceId. This returns useful values for X11 DeviceIds and 0 for others.
+    pub fn get_index(self) -> i32 {
+        match self {
+            DeviceId(platform_id) => match platform_id {
+                crate::platform::unix::DeviceId::X(i) => match i {
+                    crate::platform::unix::x11::DeviceId(idx) => idx,
+                }
+                _ => 0,
+            }            
+        }
+    }
     /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
     /// value of this function is that it will always be equal to itself and to future values returned
     /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.

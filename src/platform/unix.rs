@@ -23,6 +23,8 @@ pub use crate::platform_impl::x11;
 
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
+pub use crate::platform_impl::DeviceId;
+
 /// Theme for wayland client side decorations
 ///
 /// Colors must be in ARGB8888 format
