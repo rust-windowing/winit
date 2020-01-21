@@ -16,6 +16,7 @@
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
 - On Android, minimal platform support.
 - Implement synthetic window focus key events on Windows.
+- Added getter for integer value for DeviceId on X11
 
 # 0.20.0 Alpha 5 (2019-12-09)
 
