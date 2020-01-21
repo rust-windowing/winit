@@ -3,11 +3,11 @@ fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
     use winit::{
-        dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
+    use winit_types::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 
     const WINDOW_COUNT: usize = 3;
     const WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize::new(600, 400);
