@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, add `hide_application` to `EventLoopWindowTarget` via a new `EventLoopWindowTargetExtMacOS` trait. `hide_application` will hide the entire application by calling `-[NSApplication hide: nil]`.
 - On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
 - On macOS, fix `CursorMoved` event reporting the cursor position using logical coordinates.
 - On macOS, fix issue where unbundled applications would sometimes open without being focused.
