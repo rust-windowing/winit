@@ -1,9 +1,7 @@
 use std::{collections::VecDeque, fmt};
 
 use super::{ffi, util};
-use crate::{
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
 
 use cocoa::{
     appkit::NSScreen,

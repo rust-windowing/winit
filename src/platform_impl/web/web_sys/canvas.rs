@@ -44,13 +44,15 @@ impl Canvas {
                 let window = web_sys::window()
                     .ok_or(make_oserror!(OsError("Failed to obtain window".to_owned())))?;
 
-                let document = window
-                    .document()
-                    .ok_or(make_oserror!(OsError("Failed to obtain document".to_owned())))?;
+                let document = window.document().ok_or(make_oserror!(OsError(
+                    "Failed to obtain document".to_owned()
+                )))?;
 
                 document
                     .create_element("canvas")
-                    .map_err(|_| make_oserror!(OsError("Failed to create canvas element".to_owned())))?
+                    .map_err(|_| {
+                        make_oserror!(OsError("Failed to create canvas element".to_owned()))
+                    })?
                     .unchecked_into()
             }
         };

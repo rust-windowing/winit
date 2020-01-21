@@ -52,7 +52,9 @@ impl Canvas {
                 .create_element("canvas")
                 .map_err(|_| make_oserror!(OsError("Failed to create canvas element".to_owned())))?
                 .try_into()
-                .map_err(|_| make_oserror!(OsError("Failed to create canvas element".to_owned())))?,
+                .map_err(|_| {
+                    make_oserror!(OsError("Failed to create canvas element".to_owned()))
+                })?,
         };
 
         // A tabindex is needed in order to capture local keyboard events.
