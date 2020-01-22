@@ -1357,7 +1357,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
 
         winuser::WM_KILLFOCUS => {
-            use crate::event::{ElementState::Released, WindowEvent::Focused};
+            use crate::event::{
+                ElementState::Released,
+                ModifiersState,
+                WindowEvent::{Focused, ModifiersChanged},
+            };
             for windows_keycode in event::get_pressed_keys() {
                 let scancode =
                     winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
@@ -1378,6 +1382,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     },
                 })
             }
+
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: ModifiersChanged(ModifiersState::empty()),
+            });
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
