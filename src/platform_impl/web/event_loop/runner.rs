@@ -84,7 +84,7 @@ impl<T: 'static> Shared<T> {
         let start_cause = Event::NewEvents(StartCause::Init);
         self.run_until_cleared(iter::once(start_cause));
     }
-    
+
     // Run the polling logic for the Poll ControlFlow, which involves clearing the queue
     pub fn poll(&self) {
         let start_cause = Event::NewEvents(StartCause::Poll);
@@ -96,7 +96,7 @@ impl<T: 'static> Shared<T> {
     pub fn resume_time_reached(&self, start: Instant, requested_resume: Instant) {
         let start_cause = Event::NewEvents(StartCause::ResumeTimeReached {
             start,
-            requested_resume
+            requested_resume,
         });
         self.run_until_cleared(iter::once(start_cause));
     }
@@ -107,7 +107,6 @@ impl<T: 'static> Shared<T> {
     pub fn send_event(&self, event: Event<'static, T>) {
         self.send_events(iter::once(event));
     }
-
 
     // Add a series of events to the event loop runner
     //
@@ -241,10 +240,7 @@ impl<T: 'static> Shared<T> {
             root::ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
-                    timeout: backend::Timeout::new(
-                        move || cloned.poll(),
-                        Duration::from_millis(0),
-                    ),
+                    timeout: backend::Timeout::new(move || cloned.poll(), Duration::from_millis(0)),
                 }
             }
             root::ControlFlow::Wait => State::Wait {
