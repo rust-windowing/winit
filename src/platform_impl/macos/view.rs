@@ -762,9 +762,12 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
             }));
         }
 
-        AppState::queue_event(EventWrapper::StaticEvent(Event::DeviceEvent {
-            device_id: DEVICE_ID,
-            event: DeviceEvent::ModifiersChanged(state.modifiers),
+        trace!("Queueing event with modifiers {:?}", state.modifiers);
+
+        AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            // TODO Maybe memoize get_window_id if it's safe to reuse?
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::ModifiersChanged(state.modifiers),
         }));
     }
     trace!("Completed `flagsChanged`");
