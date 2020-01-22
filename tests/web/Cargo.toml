@@ -1,0 +1,10 @@
+[package]
+name = "winit-web-tests"
+version = "0.0.1"
+authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+winit = { path = "../../", features = [ "web-sys" ] }
+wasm-bindgen = "0.2.45"
+wasm-bindgen-test = "0.3.8"
