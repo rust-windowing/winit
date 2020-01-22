@@ -4,6 +4,7 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
@@ -207,5 +208,19 @@ impl MonitorHandleExtMacOS for MonitorHandle {
 
     fn ns_screen(&self) -> Option<*mut c_void> {
         self.inner.ns_screen().map(|s| s as *mut c_void)
+    }
+}
+
+/// Additional methods on `EventLoopWindowTarget` that are specific to macOS.
+pub trait EventLoopWindowTargetExtMacOS {
+    /// Hide the entire application. In most applications this is typically triggered with Command-H.
+    fn hide_application(&self);
+}
+
+impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
+    fn hide_application(&self) {
+        let cls = objc::runtime::Class::get("NSApplication").unwrap();
+        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+        unsafe { msg_send![app, hide: 0] }
     }
 }

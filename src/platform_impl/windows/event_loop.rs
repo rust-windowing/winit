@@ -1470,7 +1470,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             let style = winuser::GetWindowLongW(window, winuser::GWL_STYLE) as _;
             let style_ex = winuser::GetWindowLongW(window, winuser::GWL_EXSTYLE) as _;
-            let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
 
             // New size as suggested by Windows.
             let suggested_rect = *(lparam as *const RECT);
@@ -1484,14 +1483,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // let margin_right: i32;
             // let margin_bottom: i32;
             {
-                let mut adjusted_rect = suggested_rect;
-                winuser::AdjustWindowRectExForDpi(
-                    &mut adjusted_rect,
-                    style,
-                    b_menu,
-                    style_ex,
-                    new_dpi_x,
-                );
+                let adjusted_rect =
+                    util::adjust_window_rect_with_styles(window, style, style_ex, suggested_rect)
+                        .unwrap_or(suggested_rect);
                 margin_left = suggested_rect.left - adjusted_rect.left;
                 margin_top = suggested_rect.top - adjusted_rect.top;
                 // margin_right = adjusted_rect.right - suggested_rect.right;
@@ -1556,13 +1550,13 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     bottom: suggested_ul.1 + new_physical_inner_size.height as LONG,
                 };
 
-                winuser::AdjustWindowRectExForDpi(
-                    &mut conservative_rect,
+                conservative_rect = util::adjust_window_rect_with_styles(
+                    window,
                     style,
-                    b_menu,
                     style_ex,
-                    new_dpi_x,
-                );
+                    conservative_rect,
+                )
+                .unwrap_or(conservative_rect);
 
                 // If we're not dragging the window, offset the window so that the cursor's
                 // relative horizontal position in the title bar is preserved.

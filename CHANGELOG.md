@@ -1,5 +1,7 @@
 # Unreleased
 
+- On macOS, add `hide_application` to `EventLoopWindowTarget` via a new `EventLoopWindowTargetExtMacOS` trait. `hide_application` will hide the entire application by calling `-[NSApplication hide: nil]`.
+- On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
 - On macOS, fix `CursorMoved` event reporting the cursor position using logical coordinates.
 - On macOS, fix issue where unbundled applications would sometimes open without being focused.
 - On macOS, fix `run_return` does not return unless it receives a message.
@@ -8,10 +10,12 @@
 - `WindowBuilder` now implements `Default`.
 - **Breaking:** `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
 - On Wayland, fix coordinates in mouse events when scale factor isn't 1
+- On Web, add the ability to provide a custom canvas
 
 # 0.20.0 (2020-01-05)
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
+
 - **Breaking**: Overhaul how Winit handles DPI:
   + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
   + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.

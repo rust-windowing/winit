@@ -383,13 +383,8 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
     }
 }
 
-extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
-    unsafe {
-        trace!("Triggered `hasMarkedText`");
-        let marked_text: id = *this.get_ivar("markedText");
-        trace!("Completed `hasMarkedText`");
-        (marked_text.length() > 0) as i8
-    }
+extern "C" fn has_marked_text(_this: &Object, _sel: Sel) -> BOOL {
+    YES
 }
 
 extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
