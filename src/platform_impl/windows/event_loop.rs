@@ -1793,10 +1793,11 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
 
         winuser::WM_INPUT => {
             use crate::event::{
-                DeviceEvent::{Button, Key, ModifiersChanged, Motion, MouseMotion, MouseWheel},
+                DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
                 ElementState::{Pressed, Released},
                 MouseScrollDelta::LineDelta,
                 VirtualKeyCode,
+                WindowEvent::ModifiersChanged,
             };
 
             if let Some(data) = raw_input::get_raw_input_data(lparam as _) {
@@ -1911,8 +1912,8 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                             let new_modifiers_state =
                                 subclass_input.modifiers_state.filter_out_altgr().into();
                             if new_modifiers_state != old_modifiers_state {
-                                subclass_input.send_event(Event::DeviceEvent {
-                                    device_id,
+                                subclass_input.send_event(Event::WindowEvent {
+                                    window_id: RootWindowId(WindowId(window)),
                                     event: ModifiersChanged(new_modifiers_state),
                                 });
                             }
