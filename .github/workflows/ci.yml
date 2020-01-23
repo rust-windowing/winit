@@ -22,7 +22,7 @@ jobs:
     - uses: actions/checkout@v1
       with:
         repository: rust-windowing/glutin_interface
-        path: /glutin_interface
+        path: glutin_interface
     - uses: actions/checkout@v1
       with:
         repository: rust-windowing/glutin_x11_sym
