@@ -21,16 +21,16 @@ jobs:
     # FIXME
     - uses: actions/checkout@v1
       with:
-        repository: https://github.com/rust-windowing/glutin_interface.git
+        repository: 'https://github.com/rust-windowing/glutin_interface.git'
     - uses: actions/checkout@v1
       with:
-        repository: https://github.com/rust-windowing/glutin_x11_sym.git
+        repository: 'https://github.com/rust-windowing/glutin_x11_sym.git'
     - uses: actions/checkout@v1
       with:
-        repository: https://github.com/rust-windowing/winit_types.git
+        repository: 'https://github.com/rust-windowing/winit_types.git'
     - uses: actions/checkout@v1
       with:
-        repository: https://github.com/rust-windowing/glutin_sys.git
+        repository: 'https://github.com/rust-windowing/glutin_sys.git'
 
     - uses: actions/checkout@v1
     - uses: hecrj/setup-rust-action@v1
