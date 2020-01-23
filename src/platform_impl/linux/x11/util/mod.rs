@@ -24,7 +24,6 @@ pub use self::{
 
 use std::{
     mem::{self, MaybeUninit},
-    ops::BitAnd,
     os::raw::*,
     ptr,
 };
@@ -32,11 +31,6 @@ use std::{
 use super::{ffi, XConnection};
 
 use winit_types::error::Error;
-
-pub fn reinterpret<'a, A, B>(a: &'a A) -> &'a B {
-    let b_ptr = a as *const _ as *const B;
-    unsafe { &*b_ptr }
-}
 
 pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     let wrapped = Some(value);
@@ -46,13 +40,6 @@ pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     } else {
         false
     }
-}
-
-pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where
-    T: Copy + PartialEq + BitAnd<T, Output = T>,
-{
-    bitset & flag == flag
 }
 
 #[must_use = "This request was made asynchronously, and is still in the output buffer. You must explicitly choose to either `.flush()` (empty the output buffer, sending the request now) or `.queue()` (wait to send the request, allowing you to continue to add more requests without additional round-trips). For more information, see the documentation for `util::flush_requests`."]

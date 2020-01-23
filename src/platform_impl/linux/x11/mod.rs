@@ -509,20 +509,8 @@ impl Deref for DeviceInfo {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(ffi::Window);
 
-impl WindowId {
-    pub unsafe fn dummy() -> Self {
-        WindowId(0)
-    }
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
-
-impl DeviceId {
-    pub unsafe fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
 
 pub struct Window(Arc<UnownedWindow>);
 
