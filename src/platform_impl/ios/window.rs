@@ -226,6 +226,8 @@ impl Inner {
                 uiscreen,
                 setOverscanCompensation: UIScreenOverscanCompensation::None
             ];
+
+            Ok(())
         }
     }
 
