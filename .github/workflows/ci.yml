@@ -23,18 +23,22 @@ jobs:
       with:
         repository: rust-windowing/glutin_interface
         path: glutin_interface
+        ref: master
     - uses: actions/checkout@v1
       with:
         repository: rust-windowing/glutin_x11_sym
         path: glutin_x11_sym
+        ref: master
     - uses: actions/checkout@v1
       with:
         repository: rust-windowing/winit_types
         path: winit_types
+        ref: master
     - uses: actions/checkout@v1
       with:
         repository: rust-windowing/glutin_sys
         path: glutin_sys
+        ref: master
 
     - uses: actions/checkout@v1
     - uses: hecrj/setup-rust-action@v1
