@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use winit::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
     event::{
         ElementState, KeyboardInput, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
         VirtualKeyCode,
@@ -27,13 +26,4 @@ fn events_serde() {
     needs_serde::<MouseScrollDelta>();
     needs_serde::<VirtualKeyCode>();
     needs_serde::<ModifiersState>();
-}
-
-#[test]
-fn dpi_serde() {
-    needs_serde::<LogicalPosition<f64>>();
-    needs_serde::<PhysicalPosition<i32>>();
-    needs_serde::<PhysicalPosition<f64>>();
-    needs_serde::<LogicalSize<f64>>();
-    needs_serde::<PhysicalSize<u32>>();
 }

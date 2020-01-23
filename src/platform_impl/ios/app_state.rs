@@ -10,9 +10,9 @@ use std::{
 };
 
 use objc::runtime::{BOOL, YES};
+use winit_types::dpi::LogicalSize;
 
 use crate::{
-    dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::{
