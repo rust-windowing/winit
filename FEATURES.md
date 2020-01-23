@@ -150,7 +150,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Getting the preferred video mode
 
 ## Usability
-* `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
+* `serde_feature`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
 
 ## Compatibility Matrix
 

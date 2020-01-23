@@ -12,11 +12,12 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [package.metadata.docs.rs]
-features = ["serde"]
+features = ["serde_feature"]
 
 [features]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
+serde_feature = ["winit_types/serde_feature", "serde"]
 
 [dependencies]
 instant = "0.1"
