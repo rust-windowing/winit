@@ -19,13 +19,14 @@ jobs:
     steps:
 
     # FIXME
-    - name: Git clone deps for now
-      shell: bash
-      run: |
-        git clone https://github.com/rust-windowing/glutin_interface.git "$GITHUB_WORKSPACE/glutin_interface" --depth 1
-        git clone https://github.com/rust-windowing/glutin_x11_sym.git "$GITHUB_WORKSPACE/glutin_x11_sym" --depth 1
-        git clone https://github.com/rust-windowing/winit_types.git "$GITHUB_WORKSPACE/winit_types" --depth 1
-        git clone https://github.com/rust-windowing/glutin_sys.git "$GITHUB_WORKSPACE/glutin_sys" --depth 1
+    - uses: actions/checkout@v1
+      repository: https://github.com/rust-windowing/glutin_interface.git
+    - uses: actions/checkout@v1
+      repository: https://github.com/rust-windowing/glutin_x11_sym.git
+    - uses: actions/checkout@v1
+      repository: https://github.com/rust-windowing/winit_types.git
+    - uses: actions/checkout@v1
+      repository: https://github.com/rust-windowing/glutin_sys.git
 
     - uses: actions/checkout@v1
     - uses: hecrj/setup-rust-action@v1
