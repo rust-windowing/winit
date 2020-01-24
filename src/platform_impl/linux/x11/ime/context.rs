@@ -11,6 +11,9 @@ use crate::event::CompositionEvent::{CompositionStart, CompositionEnd, Compositi
 use crate::window::WindowId;
 use crate::platform_impl::platform::x11::ime::ImeEventSender;
 use std::sync::Mutex;
+use x11_dl::xlib::{XIMPreeditDrawCallbackStruct, XIMPreeditCaretCallbackStruct};
+use std::ffi::CStr;
+use std::iter::FromIterator;
 
 #[derive(Debug)]
 pub enum ImeContextCreationError {
@@ -25,7 +28,10 @@ extern "C" fn preedit_start_callback(
 ) -> i32 {
     let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData ) };
 
-    client_data.event_sender.lock().map(|sender| sender.send((client_data.window, CompositionStart("".to_string()))));
+    client_data.text.clear();
+    client_data.cursor_pos = 0;
+    client_data.is_composing = true;
+    client_data.event_sender.send((client_data.window, CompositionStart()));
     debug!("preedit start callback");
     -1
 }
@@ -37,30 +43,63 @@ extern "C" fn preedit_done_callback(
 ) {
     let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData ) };
 
-    client_data.event_sender.lock().map(|sender| sender.send((client_data.window, CompositionEnd("".to_string()))));
-    debug!("preedit done callback");
+    if !client_data.text.is_empty() {
+        client_data.text.clear();
+        client_data.cursor_pos = 0;
+        client_data.event_sender
+            .send((client_data.window, CompositionUpdate(String::from_iter(client_data.text.clone()), client_data.cursor_pos)));
+    }
+    client_data.event_sender.send((client_data.window, CompositionEnd()));
+    client_data.is_composing = false;
 }
 
 extern "C" fn preedit_draw_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
-    _call_data: ffi::XPointer,
+    call_data: ffi::XPointer,
 ) {
     let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData ) };
+    let call_data = unsafe { &mut *(call_data as *mut XIMPreeditDrawCallbackStruct)};
+    client_data.cursor_pos = call_data.caret as usize;
 
-    client_data.event_sender.lock().map(|sender| sender.send((client_data.window, CompositionUpdate("".to_string()))));
-    debug!("preedit draw callback");
+    let chg_range = call_data.chg_first as usize..(call_data.chg_first + call_data.chg_length) as usize;
+    if chg_range.start > client_data.text.len() || chg_range.end > client_data.text.len() {
+        warn!("invalid chg range: buffer length={}, but chg_first={} chg_lengthg={}", client_data.text.len(), call_data.chg_first, call_data.chg_length);
+        return;
+    }
+
+    // NULL indicate text deletion
+    let mut new_chars = if call_data.text.is_null() {
+        Vec::new()
+    } else {
+        let xim_text = unsafe { &mut *(call_data.text) };
+        if xim_text.encoding_is_wchar > 0 {
+            return;
+        }
+        let new_text = unsafe { CStr::from_ptr(xim_text.string.multi_byte) };
+
+        String::from(new_text.to_str().expect("Invalid UTF-8 String from IME")).chars().collect()
+    };
+    let mut old_text_tail = client_data.text.split_off(chg_range.end);
+    client_data.text.split_off(chg_range.start);
+    client_data.text.append(&mut new_chars);
+    client_data.text.append(&mut old_text_tail);
+
+    client_data.event_sender
+        .send((client_data.window, CompositionUpdate(String::from_iter(client_data.text.clone()), client_data.cursor_pos)));
 }
 
 extern "C" fn preedit_caret_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
-    _call_data: ffi::XPointer,
+    call_data: ffi::XPointer,
 ) {
     let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData) };
+    let call_data = unsafe { &mut *(call_data as *mut XIMPreeditCaretCallbackStruct) };
+    client_data.cursor_pos = call_data.position as usize;
 
-    client_data.event_sender.lock().map(|sender| sender.send((client_data.window, CompositionUpdate("".to_string()))));
-    debug!("preedit caret callback");
+    client_data.event_sender
+        .send((client_data.window, CompositionUpdate(String::from_iter(client_data.text.clone()), client_data.cursor_pos)));
 }
 
 unsafe fn create_pre_edit_attr<'a>(
@@ -146,7 +185,10 @@ impl PreeditCallbacks {
 pub struct ImeContextClientData {
     pub window: ffi::Window,
     pub tag: u64,
-    pub event_sender: Mutex<ImeEventSender>,
+    pub event_sender: ImeEventSender,
+    pub text: Vec<char>,
+    pub cursor_pos: usize,
+    pub is_composing: bool,
 }
 
 // WARNING: this struct doesn't destroy its XIC resource when dropped.
@@ -171,7 +213,10 @@ impl ImeContext {
         let mut client_data = Box::new(ImeContextClientData {
             window,
             tag: 753,
-            event_sender: Mutex::new(event_sender),
+            event_sender: event_sender,
+            text: Vec::new(),
+            cursor_pos: 0,
+            is_composing: false,
         });
         let client_data_ptr = Box::into_raw(client_data);
         let preedit_callbacks = PreeditCallbacks::new(client_data_ptr as ffi::XPointer);
