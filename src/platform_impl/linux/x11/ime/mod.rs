@@ -41,7 +41,10 @@ pub struct Ime {
 }
 
 impl Ime {
-    pub fn new(xconn: Arc<XConnection>, event_sender: ImeEventSender) -> Result<Self, ImeCreationError> {
+    pub fn new(
+        xconn: Arc<XConnection>,
+        event_sender: ImeEventSender,
+    ) -> Result<Self, ImeCreationError> {
         let potential_input_methods = PotentialInputMethods::new(&xconn);
 
         let (mut inner, client_data) = {
@@ -97,7 +100,15 @@ impl Ime {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
-            Some(unsafe { ImeContext::new(&self.inner.xconn, self.inner.im, window, None, self.inner.event_sender.clone()) }?)
+            Some(unsafe {
+                ImeContext::new(
+                    &self.inner.xconn,
+                    self.inner.im,
+                    window,
+                    None,
+                    self.inner.event_sender.clone(),
+                )
+            }?)
         };
         self.inner.contexts.insert(window, context);
         Ok(!self.is_destroyed())

@@ -31,7 +31,11 @@ pub struct ImeInner {
 }
 
 impl ImeInner {
-    pub fn new(xconn: Arc<XConnection>, potential_input_methods: PotentialInputMethods, event_sender: ImeEventSender) -> Self {
+    pub fn new(
+        xconn: Arc<XConnection>,
+        potential_input_methods: PotentialInputMethods,
+        event_sender: ImeEventSender,
+    ) -> Self {
         ImeInner {
             xconn,
             im: ptr::null_mut(),

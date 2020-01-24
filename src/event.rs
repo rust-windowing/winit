@@ -236,9 +236,7 @@ pub enum WindowEvent<'a> {
     },
 
     /// An event from IME
-    Composition {
-        event: CompositionEvent,
-    },
+    Composition { event: CompositionEvent },
 
     /// The cursor has moved on the window.
     CursorMoved {

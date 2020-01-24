@@ -1,37 +1,39 @@
 use std::{
+    mem::{transmute, MaybeUninit},
     os::raw::{c_short, c_void},
     ptr,
     sync::Arc,
-    mem::{transmute, MaybeUninit},
 };
 
 use super::{ffi, util, XConnection, XError};
+use crate::event::CompositionEvent::{CompositionEnd, CompositionStart, CompositionUpdate};
 use crate::event::{Event, WindowEvent};
-use crate::event::CompositionEvent::{CompositionStart, CompositionEnd, CompositionUpdate};
-use crate::window::WindowId;
 use crate::platform_impl::platform::x11::ime::ImeEventSender;
-use std::sync::Mutex;
-use x11_dl::xlib::{XIMPreeditDrawCallbackStruct, XIMPreeditCaretCallbackStruct};
+use crate::window::WindowId;
 use std::ffi::CStr;
 use std::iter::FromIterator;
+use std::sync::Mutex;
+use x11_dl::xlib::{XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
 #[derive(Debug)]
 pub enum ImeContextCreationError {
     XError(XError),
     Null,
 }
-type XIMProcNonnull = unsafe extern "C" fn (ffi::XIM, ffi::XPointer, ffi::XPointer);
+type XIMProcNonnull = unsafe extern "C" fn(ffi::XIM, ffi::XPointer, ffi::XPointer);
 extern "C" fn preedit_start_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
     _call_data: ffi::XPointer,
 ) -> i32 {
-    let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData ) };
+    let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData) };
 
     client_data.text.clear();
     client_data.cursor_pos = 0;
     client_data.is_composing = true;
-    client_data.event_sender.send((client_data.window, CompositionStart()));
+    client_data
+        .event_sender
+        .send((client_data.window, CompositionStart()));
     debug!("preedit start callback");
     -1
 }
@@ -41,15 +43,22 @@ extern "C" fn preedit_done_callback(
     client_data: ffi::XPointer,
     _call_data: ffi::XPointer,
 ) {
-    let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData ) };
+    let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData) };
 
     if !client_data.text.is_empty() {
         client_data.text.clear();
         client_data.cursor_pos = 0;
-        client_data.event_sender
-            .send((client_data.window, CompositionUpdate(String::from_iter(client_data.text.clone()), client_data.cursor_pos)));
+        client_data.event_sender.send((
+            client_data.window,
+            CompositionUpdate(
+                String::from_iter(client_data.text.clone()),
+                client_data.cursor_pos,
+            ),
+        ));
     }
-    client_data.event_sender.send((client_data.window, CompositionEnd()));
+    client_data
+        .event_sender
+        .send((client_data.window, CompositionEnd()));
     client_data.is_composing = false;
 }
 
@@ -58,13 +67,19 @@ extern "C" fn preedit_draw_callback(
     client_data: ffi::XPointer,
     call_data: ffi::XPointer,
 ) {
-    let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData ) };
-    let call_data = unsafe { &mut *(call_data as *mut XIMPreeditDrawCallbackStruct)};
+    let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData) };
+    let call_data = unsafe { &mut *(call_data as *mut XIMPreeditDrawCallbackStruct) };
     client_data.cursor_pos = call_data.caret as usize;
 
-    let chg_range = call_data.chg_first as usize..(call_data.chg_first + call_data.chg_length) as usize;
+    let chg_range =
+        call_data.chg_first as usize..(call_data.chg_first + call_data.chg_length) as usize;
     if chg_range.start > client_data.text.len() || chg_range.end > client_data.text.len() {
-        warn!("invalid chg range: buffer length={}, but chg_first={} chg_lengthg={}", client_data.text.len(), call_data.chg_first, call_data.chg_length);
+        warn!(
+            "invalid chg range: buffer length={}, but chg_first={} chg_lengthg={}",
+            client_data.text.len(),
+            call_data.chg_first,
+            call_data.chg_length
+        );
         return;
     }
 
@@ -78,15 +93,22 @@ extern "C" fn preedit_draw_callback(
         }
         let new_text = unsafe { CStr::from_ptr(xim_text.string.multi_byte) };
 
-        String::from(new_text.to_str().expect("Invalid UTF-8 String from IME")).chars().collect()
+        String::from(new_text.to_str().expect("Invalid UTF-8 String from IME"))
+            .chars()
+            .collect()
     };
     let mut old_text_tail = client_data.text.split_off(chg_range.end);
     client_data.text.split_off(chg_range.start);
     client_data.text.append(&mut new_chars);
     client_data.text.append(&mut old_text_tail);
 
-    client_data.event_sender
-        .send((client_data.window, CompositionUpdate(String::from_iter(client_data.text.clone()), client_data.cursor_pos)));
+    client_data.event_sender.send((
+        client_data.window,
+        CompositionUpdate(
+            String::from_iter(client_data.text.clone()),
+            client_data.cursor_pos,
+        ),
+    ));
 }
 
 extern "C" fn preedit_caret_callback(
@@ -98,8 +120,13 @@ extern "C" fn preedit_caret_callback(
     let call_data = unsafe { &mut *(call_data as *mut XIMPreeditCaretCallbackStruct) };
     client_data.cursor_pos = call_data.position as usize;
 
-    client_data.event_sender
-        .send((client_data.window, CompositionUpdate(String::from_iter(client_data.text.clone()), client_data.cursor_pos)));
+    client_data.event_sender.send((
+        client_data.window,
+        CompositionUpdate(
+            String::from_iter(client_data.text.clone()),
+            client_data.cursor_pos,
+        ),
+    ));
 }
 
 unsafe fn create_pre_edit_attr<'a>(
@@ -110,14 +137,18 @@ unsafe fn create_pre_edit_attr<'a>(
         xconn,
         (xconn.xlib.XVaCreateNestedList)(
             0,
-            ffi::XNPreeditStartCallback_0.as_ptr() as *const _, &(preedit_callbacks.start_callback) as *const _,
-            ffi::XNPreeditDoneCallback_0.as_ptr() as *const _, &(preedit_callbacks.done_callback) as *const _,
-            ffi::XNPreeditCaretCallback_0.as_ptr() as *const _, &(preedit_callbacks.caret_callback) as *const _,
-            ffi::XNPreeditDrawCallback_0.as_ptr() as *const _, &(preedit_callbacks.draw_callback) as *const _,
+            ffi::XNPreeditStartCallback_0.as_ptr() as *const _,
+            &(preedit_callbacks.start_callback) as *const _,
+            ffi::XNPreeditDoneCallback_0.as_ptr() as *const _,
+            &(preedit_callbacks.done_callback) as *const _,
+            ffi::XNPreeditCaretCallback_0.as_ptr() as *const _,
+            &(preedit_callbacks.caret_callback) as *const _,
+            ffi::XNPreeditDrawCallback_0.as_ptr() as *const _,
+            &(preedit_callbacks.draw_callback) as *const _,
             ptr::null_mut::<()>(),
         ),
     )
-        .expect("XVaCreateNestedList returned NULL")
+    .expect("XVaCreateNestedList returned NULL")
 }
 
 unsafe fn create_pre_edit_attr_with_spot<'a>(
@@ -129,11 +160,16 @@ unsafe fn create_pre_edit_attr_with_spot<'a>(
         xconn,
         (xconn.xlib.XVaCreateNestedList)(
             0,
-            ffi::XNSpotLocation_0.as_ptr() as *const _, ic_spot,
-            ffi::XNPreeditStartCallback_0.as_ptr() as *const _, &preedit_callbacks.start_callback as *const _,
-            ffi::XNPreeditDoneCallback_0.as_ptr() as *const _, &preedit_callbacks.done_callback as *const _,
-            ffi::XNPreeditCaretCallback_0.as_ptr() as *const _, &preedit_callbacks.caret_callback as *const _,
-            ffi::XNPreeditDrawCallback_0.as_ptr() as *const _, &preedit_callbacks.draw_callback as *const _,
+            ffi::XNSpotLocation_0.as_ptr() as *const _,
+            ic_spot,
+            ffi::XNPreeditStartCallback_0.as_ptr() as *const _,
+            &preedit_callbacks.start_callback as *const _,
+            ffi::XNPreeditDoneCallback_0.as_ptr() as *const _,
+            &preedit_callbacks.done_callback as *const _,
+            ffi::XNPreeditCaretCallback_0.as_ptr() as *const _,
+            &preedit_callbacks.caret_callback as *const _,
+            ffi::XNPreeditDrawCallback_0.as_ptr() as *const _,
+            &preedit_callbacks.draw_callback as *const _,
             ptr::null_mut::<()>(),
         ),
     )
@@ -156,22 +192,12 @@ pub struct PreeditCallbacks {
 
 impl PreeditCallbacks {
     pub fn new(client_data: ffi::XPointer) -> PreeditCallbacks {
-        let start_callback = create_xim_callback(
-            client_data,
-            unsafe { transmute(preedit_start_callback as usize) },
-        );
-        let done_callback = create_xim_callback(
-            client_data,
-            preedit_done_callback,
-        );
-        let caret_callback = create_xim_callback(
-            client_data,
-            preedit_caret_callback,
-        );
-        let draw_callback = create_xim_callback(
-            client_data,
-            preedit_draw_callback,
-        );
+        let start_callback = create_xim_callback(client_data, unsafe {
+            transmute(preedit_start_callback as usize)
+        });
+        let done_callback = create_xim_callback(client_data, preedit_done_callback);
+        let caret_callback = create_xim_callback(client_data, preedit_caret_callback);
+        let draw_callback = create_xim_callback(client_data, preedit_draw_callback);
 
         PreeditCallbacks {
             start_callback,
@@ -213,7 +239,7 @@ impl ImeContext {
         let mut client_data = Box::new(ImeContextClientData {
             window,
             tag: 753,
-            event_sender: event_sender,
+            event_sender,
             text: Vec::new(),
             cursor_pos: 0,
             is_composing: false,
@@ -221,7 +247,7 @@ impl ImeContext {
         let client_data_ptr = Box::into_raw(client_data);
         let preedit_callbacks = PreeditCallbacks::new(client_data_ptr as ffi::XPointer);
         let ic = if let Some(ic_spot) = ic_spot {
-            ImeContext::create_ic_with_spot(xconn, im, window, ic_spot,&preedit_callbacks)
+            ImeContext::create_ic_with_spot(xconn, im, window, ic_spot, &preedit_callbacks)
         } else {
             ImeContext::create_ic(xconn, im, window, &preedit_callbacks)
         };
@@ -250,8 +276,10 @@ impl ImeContext {
             im,
             ffi::XNInputStyle_0.as_ptr() as *const _,
             ffi::XIMPreeditCallbacks | ffi::XIMStatusNothing,
-            ffi::XNClientWindow_0.as_ptr() as *const _, window,
-            ffi::XNPreeditAttributes_0.as_ptr(),  pre_edit_attr.ptr,
+            ffi::XNClientWindow_0.as_ptr() as *const _,
+            window,
+            ffi::XNPreeditAttributes_0.as_ptr(),
+            pre_edit_attr.ptr,
             ptr::null_mut::<()>(),
         );
         println!("set preedit call back");
@@ -309,7 +337,8 @@ impl ImeContext {
         self.ic_spot = ffi::XPoint { x, y };
 
         unsafe {
-            let pre_edit_attr = create_pre_edit_attr_with_spot(xconn, &self.ic_spot, &self.preedit_callbacks);
+            let pre_edit_attr =
+                create_pre_edit_attr_with_spot(xconn, &self.ic_spot, &self.preedit_callbacks);
             (xconn.xlib.XSetICValues)(
                 self.ic,
                 ffi::XNPreeditAttributes_0.as_ptr() as *const _,

@@ -12,6 +12,7 @@ use super::{
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
+use crate::platform_impl::platform::x11::ime::ImeEventReceiver;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{
@@ -19,7 +20,6 @@ use crate::{
     },
     event_loop::EventLoopWindowTarget as RootELW,
 };
-use crate::platform_impl::platform::x11::ime::ImeEventReceiver;
 
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,

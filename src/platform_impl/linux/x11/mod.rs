@@ -48,6 +48,7 @@ use self::{
     ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
     util::modifiers::ModifierKeymap,
 };
+use crate::platform_impl::platform::x11::ime::ImeEventSender;
 use crate::{
     error::OsError as RootOsError,
     event::{Event, StartCause},
@@ -55,7 +56,6 @@ use crate::{
     platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
     window::WindowAttributes,
 };
-use crate::platform_impl::platform::x11::ime::ImeEventSender;
 
 const X_TOKEN: Token = Token(0);
 const USER_TOKEN: Token = Token(1);
