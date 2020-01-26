@@ -1,7 +1,6 @@
 use std::cmp;
 use std::os::raw;
 
-use winit_types::dpi::{LogicalPosition, LogicalSize};
 use winit_types::error::Error;
 
 use super::*;
