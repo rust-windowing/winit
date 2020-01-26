@@ -909,6 +909,8 @@ fn mouse_motion(this: &Object, event: id) {
             return;
         }
 
+        update_potentially_stale_modifiers(state, event);
+
         let x = view_point.x as f64;
         let y = view_rect.size.height as f64 - view_point.y as f64;
         let logical_position = LogicalPosition::new(x, y);
