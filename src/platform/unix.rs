@@ -399,7 +399,8 @@ impl<T: Theme> SCTKTheme for WaylandTheme<T> {
     }
 
     fn get_maximize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.maximize_button_icon_color(ButtonState::from_sctk(status))
+        self.0
+            .maximize_button_icon_color(ButtonState::from_sctk(status))
     }
 
     fn get_minimize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
@@ -407,7 +408,8 @@ impl<T: Theme> SCTKTheme for WaylandTheme<T> {
     }
 
     fn get_minimize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.minimize_button_icon_color(ButtonState::from_sctk(status))
+        self.0
+            .minimize_button_icon_color(ButtonState::from_sctk(status))
     }
 }
 
