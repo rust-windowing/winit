@@ -214,7 +214,8 @@ impl<T> NativeWindowSource for EventLoopWindowTarget<T> {
             )));
         }
 
-        wb.with_x11_visual(xwp.x_visual_info)
+        wb
+            .with_x11_visual(xwp.x_visual_info)
             .with_x11_screen(xwp.screen)
             .build(self)
     }
@@ -461,8 +462,8 @@ pub trait WindowBuilderExtUnix {
 impl WindowBuilderExtUnix for WindowBuilder {
     #[inline]
     fn with_x11_visual<T>(mut self, visual_infos: *const T) -> Self {
-        self.platform_specific.visual_infos =
-            Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
+        let visual_infos: XVisualInfo = unsafe { ptr::read(visual_infos as *const XVisualInfo) };
+        self.platform_specific.visual_infos = Some(visual_infos);
         self
     }
 
