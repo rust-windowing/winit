@@ -2,7 +2,7 @@
 
 use std::{os::raw, ptr, sync::Arc};
 
-pub use smithay_client_toolkit::window::{ButtonState, Theme};
+use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
 
 use crate::{
     dpi::LogicalSize,
@@ -152,7 +152,7 @@ pub trait WindowExtUnix {
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
     /// Sets the color theme of the client side window decorations on wayland
-    fn set_wayland_theme<T: Theme>(&self, theme: T);
+    fn set_wayland_theme<T: Theme + Send + 'static>(&self, theme: T);
 
     /// Check if the window is ready for drawing
     ///
@@ -230,7 +230,8 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
-    fn set_wayland_theme<T: Theme>(&self, theme: T) {
+    fn set_wayland_theme<T: Theme + Send + 'static>(&self, theme: T) {
+        let theme: Box<dyn Theme + Send> = Box::new(theme);
         match self.window {
             LinuxWindow::Wayland(ref w) => w.set_theme(theme),
             _ => {}
@@ -336,5 +337,93 @@ impl MonitorHandleExtUnix for MonitorHandle {
     #[inline]
     fn native_id(&self) -> u32 {
         self.inner.native_identifier()
+    }
+}
+
+pub trait Theme {
+    /// Primary color of the scheme.
+    fn primary_color(&self, window_active: bool) -> [u8; 4];
+
+    /// Secondary color of the scheme.
+    fn secondary_color(&self, window_active: bool) -> [u8; 4];
+
+    /// Color for the close button.
+    fn close_button_color(&self, status: ButtonState) -> [u8; 4];
+
+    /// Icon color for the close button, defaults to the secondary color.
+    #[allow(unused_variables)]
+    fn close_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
+        self.secondary_color(true)
+    }
+
+    /// Background color for the maximize button.
+    fn maximize_button_color(&self, status: ButtonState) -> [u8; 4];
+
+    /// Icon color for the maximize button, defaults to the secondary color.
+    #[allow(unused_variables)]
+    fn maximize_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
+        self.secondary_color(true)
+    }
+
+    /// Background color for the minimize button.
+    fn minimize_button_color(&self, status: ButtonState) -> [u8; 4];
+
+    /// Icon color for the minimize button, defaults to the secondary color.
+    #[allow(unused_variables)]
+    fn minimize_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
+        self.secondary_color(true)
+    }
+}
+
+impl SCTKTheme for Box<dyn Theme + Send> {
+    fn get_primary_color(&self, active: bool) -> [u8; 4] {
+        self.primary_color(active)
+    }
+
+    fn get_secondary_color(&self, active: bool) -> [u8; 4] {
+        self.secondary_color(active)
+    }
+
+    fn get_close_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
+        self.close_button_color(status.into())
+    }
+
+    fn get_close_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
+        self.close_button_color(status.into())
+    }
+
+    fn get_maximize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
+        self.maximize_button_color(status.into())
+    }
+
+    fn get_maximize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
+        self.maximize_button_icon_color(status.into())
+    }
+
+    fn get_minimize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
+        self.minimize_button_color(status.into())
+    }
+
+    fn get_minimize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
+        self.minimize_button_icon_color(status.into())
+    }
+}
+
+pub enum ButtonState {
+    /// Button is being hovered over by pointer.
+    Hovered,
+    /// Button is not being hovered over by pointer.
+    Idle,
+    /// Button is disabled.
+    Disabled,
+}
+
+impl From<SCTKButtonState> for ButtonState {
+    fn from(button_state: SCTKButtonState) -> Self {
+        match button_state {
+            SCTKButtonState::Hovered => Self::Hovered,
+            SCTKButtonState::Idle => Self::Idle,
+            SCTKButtonState::Disabled => Self::Disabled,
+        }
     }
 }
