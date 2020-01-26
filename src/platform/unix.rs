@@ -214,8 +214,7 @@ impl<T> NativeWindowSource for EventLoopWindowTarget<T> {
             )));
         }
 
-        wb
-            .with_x11_visual(xwp.x_visual_info)
+        wb.with_x11_visual(xwp.x_visual_info)
             .with_x11_screen(xwp.screen)
             .build(self)
     }
