@@ -625,9 +625,10 @@ fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
 
 // Update `state.modifiers` if `event` has something different
 fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
-    if state.modifiers != event_mods(event) {
-        state.modifiers = event_mods(event);
-        trace!("Modifiers are stale; updating modifiers");
+    let event_modifiers = event_mods(event);
+    if state.modifiers != event_modifiers {
+        state.modifiers = event_modifiers;
+
         AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::ModifiersChanged(state.modifiers),
