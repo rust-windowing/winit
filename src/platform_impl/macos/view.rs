@@ -770,16 +770,17 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
             events.push_back(window_event);
         }
 
+        let window_id = WindowId(get_window_id(state.ns_window));
+
         for event in events {
             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.ns_window)),
+                window_id,
                 event,
             }));
         }
 
         AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-            // TODO Maybe memoize get_window_id if it's safe to reuse?
-            window_id: WindowId(get_window_id(state.ns_window)),
+            window_id,
             event: WindowEvent::ModifiersChanged(state.modifiers),
         }));
     }
