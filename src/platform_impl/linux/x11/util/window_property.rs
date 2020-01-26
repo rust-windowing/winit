@@ -1,11 +1,13 @@
 use super::*;
 
+use winit_types::error::Error;
+
 pub type Cardinal = c_long;
 pub const CARDINAL_SIZE: usize = mem::size_of::<c_long>();
 
 #[derive(Debug, Clone)]
 pub enum GetPropertyError {
-    XError(XError),
+    Error(Error),
     TypeMismatch(ffi::Atom),
     FormatMismatch(c_int),
     NothingAllocated,
@@ -40,6 +42,7 @@ impl XConnection {
         property: ffi::Atom,
         property_type: ffi::Atom,
     ) -> Result<Vec<T>, GetPropertyError> {
+        let xlib = syms!(XLIB);
         let mut data = Vec::new();
         let mut offset = 0;
 
@@ -52,8 +55,8 @@ impl XConnection {
 
         while !done {
             unsafe {
-                (self.xlib.XGetWindowProperty)(
-                    self.display,
+                (xlib.XGetWindowProperty)(
+                    **self.display,
                     window,
                     property,
                     // This offset is in terms of 32-bit chunks.
@@ -71,9 +74,9 @@ impl XConnection {
                     &mut buf,
                 );
 
-                if let Err(e) = self.check_errors() {
-                    return Err(GetPropertyError::XError(e));
-                }
+                self.display
+                    .check_errors()
+                    .map_err(GetPropertyError::Error)?;
 
                 if actual_type != property_type {
                     return Err(GetPropertyError::TypeMismatch(actual_type));
@@ -99,7 +102,7 @@ impl XConnection {
                     );*/
                     data.extend_from_slice(&new_data);
                     // Fun fact: XGetWindowProperty allocates one extra byte at the end.
-                    (self.xlib.XFree)(buf as _); // Don't try to access new_data after this.
+                    (xlib.XFree)(buf as _); // Don't try to access new_data after this.
                 } else {
                     return Err(GetPropertyError::NothingAllocated);
                 }
@@ -119,10 +122,11 @@ impl XConnection {
         mode: PropMode,
         new_value: &[T],
     ) -> Flusher<'a> {
+        let xlib = syms!(XLIB);
         debug_assert_eq!(mem::size_of::<T>(), T::FORMAT.get_actual_size());
         unsafe {
-            (self.xlib.XChangeProperty)(
-                self.display,
+            (xlib.XChangeProperty)(
+                **self.display,
                 window,
                 property,
                 property_type,

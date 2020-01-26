@@ -1,9 +1,9 @@
 use winit::{
-    dpi::LogicalSize,
     event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
+use winit_types::dpi::LogicalSize;
 
 fn main() {
     simple_logger::init().unwrap();

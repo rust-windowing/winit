@@ -1,165 +1,105 @@
-use std::{collections::HashMap, error::Error, fmt, os::raw::c_int, ptr};
+use std::{collections::HashMap, fmt, os::raw::c_int, sync::Arc};
 
-use libc;
+use glutin_x11_sym::{Display, X11_DISPLAY};
 use parking_lot::Mutex;
+use winit_types::error::Error;
 
 use crate::window::CursorIcon;
 
 use super::ffi;
+use super::monitor::MonitorInfoSource;
 
 /// A connection to an X server.
 pub struct XConnection {
-    pub xlib: ffi::Xlib,
-    /// Exposes XRandR functions from version < 1.5
-    pub xrandr: ffi::Xrandr_2_2_0,
-    /// Exposes XRandR functions from version = 1.5
-    pub xrandr_1_5: Option<ffi::Xrandr>,
-    pub xcursor: ffi::Xcursor,
-    pub xinput2: ffi::XInput2,
-    pub xlib_xcb: ffi::Xlib_xcb,
-    pub xrender: ffi::Xrender,
-    pub display: *mut ffi::Display,
+    pub display: Arc<Display>,
     pub x11_fd: c_int,
-    pub latest_error: Mutex<Option<XError>>,
     pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
+    pub monitor_info_source: MonitorInfoSource,
 }
 
-unsafe impl Send for XConnection {}
-unsafe impl Sync for XConnection {}
-
-pub type XErrorHandler =
-    Option<unsafe extern "C" fn(*mut ffi::Display, *mut ffi::XErrorEvent) -> libc::c_int>;
-
 impl XConnection {
-    pub fn new(error_handler: XErrorHandler) -> Result<XConnection, XNotSupported> {
+    pub fn new() -> Result<XConnection, Error> {
         // opening the libraries
-        let xlib = ffi::Xlib::open()?;
-        let xcursor = ffi::Xcursor::open()?;
-        let xrandr = ffi::Xrandr_2_2_0::open()?;
-        let xrandr_1_5 = ffi::Xrandr::open().ok();
-        let xinput2 = ffi::XInput2::open()?;
-        let xlib_xcb = ffi::Xlib_xcb::open()?;
-        let xrender = ffi::Xrender::open()?;
+        (*ffi::XLIB)
+            .as_ref()
+            .map_err(|err| make_oserror!(err.clone().into()))?;
+        (*ffi::XCURSOR)
+            .as_ref()
+            .map_err(|err| make_oserror!(err.clone().into()))?;
+        (*ffi::XINPUT2)
+            .as_ref()
+            .map_err(|err| make_oserror!(err.clone().into()))?;
+        (*ffi::XLIB_XCB)
+            .as_ref()
+            .map_err(|err| make_oserror!(err.clone().into()))?;
 
-        unsafe { (xlib.XInitThreads)() };
-        unsafe { (xlib.XSetErrorHandler)(error_handler) };
-
-        // calling XOpenDisplay
-        let display = unsafe {
-            let display = (xlib.XOpenDisplay)(ptr::null());
-            if display.is_null() {
-                return Err(XNotSupported::XOpenDisplayFailed);
-            }
-            display
-        };
+        let display = X11_DISPLAY
+            .lock()
+            .as_ref()
+            .map(Arc::clone)
+            .map_err(|err| err.clone())?;
 
         // Get X11 socket file descriptor
-        let fd = unsafe { (xlib.XConnectionNumber)(display) };
+        let x11_fd = unsafe { (syms!(XLIB).XConnectionNumber)(**display) };
+
+        let mut monitor_info_source = MonitorInfoSource::Xlib;
+
+        match (*ffi::XRANDR_2_2_0).as_ref() {
+            Ok(_) => {
+                let xrandr = syms!(XRANDR_2_2_0);
+                let has_xrandr = unsafe {
+                    let mut major = 0;
+                    let mut minor = 0;
+                    (xrandr.XRRQueryVersion)(**display, &mut major, &mut minor)
+                };
+
+                match has_xrandr {
+                    0 => debug!("[winit] Queried for RANDR version but failed with {:?}, falling back to Xinerama.", has_xrandr),
+                    _ => monitor_info_source = MonitorInfoSource::XRandR,
+                }
+            }
+            Err(err) => {
+                debug!("[winit] Tried to load RANDR ext symbols but failed with {:?}, falling back to Xinerama.", err);
+            }
+        }
+
+        if monitor_info_source == MonitorInfoSource::Xlib {
+            match (*ffi::XINERAMA).as_ref() {
+                Ok(_) => {
+                    let xinerama = syms!(XINERAMA);
+                    let has_xinerama = unsafe {
+                        let mut major = 0;
+                        let mut minor = 0;
+                        (xinerama.XineramaQueryVersion)(**display, &mut major, &mut minor)
+                    };
+
+                    match has_xinerama {
+                        0 => debug!("[winit] Queried for Xinerama version but failed with {:?}, falling back to nothing.", has_xinerama),
+                        _ => unsafe {
+                            match (xinerama.XineramaIsActive)(**display) {
+                                ffi::True => monitor_info_source = MonitorInfoSource::Xinerama,
+                                is_active => debug!("[winit] Queried Xinerama if it was active and it said {:?}, falling back to nothing.", is_active),
+                            }
+                        }
+                    }
+                }
+                Err(err) => {
+                    debug!("[winit] Tried to load Xinerama ext symbols but failed with {:?}, falling back to nothing.", err);
+                }
+            }
+        }
 
         Ok(XConnection {
-            xlib,
-            xrandr,
-            xrandr_1_5,
-            xcursor,
-            xinput2,
-            xlib_xcb,
-            xrender,
             display,
-            x11_fd: fd,
-            latest_error: Mutex::new(None),
+            x11_fd,
             cursor_cache: Default::default(),
+            monitor_info_source,
         })
-    }
-
-    /// Checks whether an error has been triggered by the previous function calls.
-    #[inline]
-    pub fn check_errors(&self) -> Result<(), XError> {
-        let error = self.latest_error.lock().take();
-        if let Some(error) = error {
-            Err(error)
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Ignores any previous error.
-    #[inline]
-    pub fn ignore_error(&self) {
-        *self.latest_error.lock() = None;
     }
 }
 
 impl fmt::Debug for XConnection {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.display.fmt(f)
-    }
-}
-
-impl Drop for XConnection {
-    #[inline]
-    fn drop(&mut self) {
-        unsafe { (self.xlib.XCloseDisplay)(self.display) };
-    }
-}
-
-/// Error triggered by xlib.
-#[derive(Debug, Clone)]
-pub struct XError {
-    pub description: String,
-    pub error_code: u8,
-    pub request_code: u8,
-    pub minor_code: u8,
-}
-
-impl Error for XError {}
-
-impl fmt::Display for XError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(
-            formatter,
-            "X error: {} (code: {}, request code: {}, minor code: {})",
-            self.description, self.error_code, self.request_code, self.minor_code
-        )
-    }
-}
-
-/// Error returned if this system doesn't have XLib or can't create an X connection.
-#[derive(Clone, Debug)]
-pub enum XNotSupported {
-    /// Failed to load one or several shared libraries.
-    LibraryOpenError(ffi::OpenError),
-    /// Connecting to the X server with `XOpenDisplay` failed.
-    XOpenDisplayFailed, // TODO: add better message
-}
-
-impl From<ffi::OpenError> for XNotSupported {
-    #[inline]
-    fn from(err: ffi::OpenError) -> XNotSupported {
-        XNotSupported::LibraryOpenError(err)
-    }
-}
-
-impl XNotSupported {
-    fn description(&self) -> &'static str {
-        match self {
-            XNotSupported::LibraryOpenError(_) => "Failed to load one of xlib's shared libraries",
-            XNotSupported::XOpenDisplayFailed => "Failed to open connection to X server",
-        }
-    }
-}
-
-impl Error for XNotSupported {
-    #[inline]
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        match *self {
-            XNotSupported::LibraryOpenError(ref err) => Some(err),
-            _ => None,
-        }
-    }
-}
-
-impl fmt::Display for XNotSupported {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        formatter.write_str(self.description())
     }
 }

@@ -12,37 +12,40 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [package.metadata.docs.rs]
-features = ["serde"]
+features = ["serde_feature"]
 
 [features]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
+serde_feature = ["winit_types/serde_feature", "serde"]
 
 [dependencies]
-instant = "0.1"
-lazy_static = "1"
-libc = "0.2.64"
-log = "0.4"
-serde = { version = "1", optional = true, features = ["serde_derive"] }
-raw-window-handle = "0.3"
-bitflags = "1"
+instant = "0.1.2"
+lazy_static = "1.4.0"
+libc = "0.2.66"
+log = "0.4.8"
+serde = { version = "1.0.104", optional = true, features = ["serde_derive"] }
+raw-window-handle = "0.3.3"
+winit_types = { version = "0.1.0", path = "../winit_types" }
+glutin_interface = { version = "0.1.0", path = "../glutin_interface" }
+bitflags = "1.2.1"
 
 [dev-dependencies]
-image = "0.21"
-simple_logger = "1"
+image = "0.22.4"
+simple_logger = "1.4.0"
 
-[target.'cfg(target_os = "android")'.dependencies.android_glue]
-version = "0.2"
+[target.'cfg(target_os = "android")'.dependencies]
+android_glue = "0.2.3"
 
 [target.'cfg(target_os = "ios")'.dependencies]
-objc = "0.2.3"
+objc = "0.2.7"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.19.1"
-core-foundation = "0.6"
-core-graphics = "0.17.3"
+cocoa = "0.20.0"
+core-foundation = "0.7.0"
+core-graphics = "0.19.0"
 dispatch = "0.2.0"
-objc = "0.2.6"
+objc = "0.2.7"
 
 [target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
 version = "0.1.3"
@@ -50,7 +53,7 @@ default_features = false
 features = ["display_link"]
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
-version = "0.3.6"
+version = "0.3.8"
 features = [
     "combaseapi",
     "commctrl",
@@ -75,14 +78,15 @@ features = [
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] }
-mio = "0.6"
-mio-extras = "2.0"
-smithay-client-toolkit = "0.6"
-x11-dl = "2.18.3"
-percent-encoding = "2.0"
+mio = "0.6.21"
+mio-extras = "2.0.6"
+smithay-client-toolkit = "0.6.4"
+glutin_x11_sym = { version = "0.1.0", path = "../glutin_x11_sym" }
+percent-encoding = "2.1.0"
+x11-dl = "2.18.4"
 
-[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
-version = "0.10"
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies]
+parking_lot = "0.10.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"
@@ -109,7 +113,7 @@ features = [
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
-version = "0.2.45"
+version = "0.2.58"
 optional = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.std_web]
@@ -119,4 +123,4 @@ optional = true
 features = ["experimental_features_which_may_break_on_minor_version_bumps"]
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-console_log = "0.1"
+console_log = "0.1.2"

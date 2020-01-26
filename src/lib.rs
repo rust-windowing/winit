@@ -126,7 +126,7 @@ extern crate lazy_static;
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_feature")]
 #[macro_use]
 extern crate serde;
 #[macro_use]
@@ -136,10 +136,18 @@ extern crate bitflags;
 extern crate objc;
 #[cfg(all(target_arch = "wasm32", feature = "std_web"))]
 extern crate std_web as stdweb;
-
-pub mod dpi;
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 #[macro_use]
-pub mod error;
+extern crate glutin_x11_sym;
+#[macro_use]
+extern crate winit_types;
+
 pub mod event;
 pub mod event_loop;
 mod icon;

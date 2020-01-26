@@ -3,11 +3,9 @@
 use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
 
 use objc::{runtime::Object, Encode, Encoding};
+use winit_types::dpi::LogicalSize;
 
-use crate::{
-    dpi::LogicalSize,
-    platform::ios::{Idiom, ScreenEdge, ValidOrientations},
-};
+use crate::platform::ios::{Idiom, ScreenEdge, ValidOrientations};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
@@ -224,7 +222,7 @@ impl From<ScreenEdge> for UIRectEdge {
         assert_eq!(
             screen_edge.bits() & !ScreenEdge::ALL.bits(),
             0,
-            "invalid `ScreenEdge`"
+            "[winit] invalid `ScreenEdge`"
         );
         UIRectEdge(screen_edge.bits().into())
     }

@@ -6,6 +6,7 @@ use std::{
 };
 
 use parking_lot::Mutex;
+use winit_types::error::Error;
 
 use super::*;
 
@@ -17,6 +18,7 @@ lazy_static! {
 
 impl XConnection {
     pub fn get_atom<T: AsRef<CStr> + Debug>(&self, name: T) -> ffi::Atom {
+        let xlib = syms!(XLIB);
         let name = name.as_ref();
         let mut atom_cache_lock = ATOM_CACHE.lock();
         let cached_atom = (*atom_cache_lock).get(name).cloned();
@@ -24,15 +26,14 @@ impl XConnection {
             atom
         } else {
             let atom = unsafe {
-                (self.xlib.XInternAtom)(self.display, name.as_ptr() as *const c_char, ffi::False)
+                (xlib.XInternAtom)(**self.display, name.as_ptr() as *const c_char, ffi::False)
             };
             if atom == 0 {
-                let msg = format!(
-                    "`XInternAtom` failed, which really shouldn't happen. Atom: {:?}, Error: {:#?}",
+                panic!(
+                    "[winit] `XInternAtom` failed, which really shouldn't happen. Atom: {:?}, Error: {:#?}",
                     name,
-                    self.check_errors(),
+                    self.display.check_errors(),
                 );
-                panic!(msg);
             }
             /*println!(
                 "XInternAtom name:{:?} atom:{:?}",
@@ -52,16 +53,17 @@ impl XConnection {
 
     // Note: this doesn't use caching, for the sake of simplicity.
     // If you're dealing with this many atoms, you'll usually want to cache them locally anyway.
-    pub unsafe fn get_atoms(&self, names: &[*mut c_char]) -> Result<Vec<ffi::Atom>, XError> {
+    pub unsafe fn get_atoms(&self, names: &[*mut c_char]) -> Result<Vec<ffi::Atom>, Error> {
+        let xlib = syms!(XLIB);
         let mut atoms = Vec::with_capacity(names.len());
-        (self.xlib.XInternAtoms)(
-            self.display,
+        (xlib.XInternAtoms)(
+            **self.display,
             names.as_ptr() as *mut _,
             names.len() as c_int,
             ffi::False,
             atoms.as_mut_ptr(),
         );
-        self.check_errors()?;
+        self.display.check_errors()?;
         atoms.set_len(names.len());
         /*println!(
             "XInternAtoms atoms:{:?}",

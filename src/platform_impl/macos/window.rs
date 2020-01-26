@@ -10,10 +10,6 @@ use std::{
 };
 
 use crate::{
-    dpi::{
-        LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
-    },
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
@@ -25,10 +21,10 @@ use crate::{
         view::CursorState,
         view::{self, new_view},
         window_delegate::new_delegate,
-        OsError,
     },
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
+
 use cocoa::{
     appkit::{
         self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
@@ -43,6 +39,11 @@ use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
+use winit_types::dpi::{
+    LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
+};
+use winit_types::error::Error;
+use winit_types::platform::OsError;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id(pub usize);
@@ -309,10 +310,10 @@ impl UnownedWindow {
     pub fn new(
         mut win_attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<(Arc<Self>, IdRef), RootOsError> {
+    ) -> Result<(Arc<Self>, IdRef), Error> {
         unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
-                panic!("Windows can only be created on the main thread on macOS");
+                panic!("[winit] Windows can only be created on the main thread on macOS");
             }
         }
 
@@ -320,18 +321,18 @@ impl UnownedWindow {
 
         let ns_app = create_app(pl_attribs.activation_policy).ok_or_else(|| {
             unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSApplication`"))
+            make_oserror!(OsError::CreationError("Couldn't create `NSApplication`"))
         })?;
 
         let ns_window = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
             unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
+            make_oserror!(OsError::CreationError("Couldn't create `NSWindow`"))
         })?;
 
         let (ns_view, cursor_state) =
             unsafe { create_view(*ns_window, &pl_attribs) }.ok_or_else(|| {
                 unsafe { pool.drain() };
-                os_error!(OsError::CreationError("Couldn't create `NSView`"))
+                make_oserror!(OsError::CreationError("Couldn't create `NSView`"))
             })?;
 
         let input_context = unsafe { util::create_input_context(*ns_view) };
@@ -389,7 +390,7 @@ impl UnownedWindow {
         let delegate = new_delegate(&window, fullscreen.is_some());
 
         // Set fullscreen mode after we setup everything
-        window.set_fullscreen(fullscreen);
+        window.set_fullscreen(fullscreen)?;
 
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
@@ -440,7 +441,7 @@ impl UnownedWindow {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         let frame_rect = unsafe { NSWindow::frame(*self.ns_window) };
         let position = LogicalPosition::new(
             frame_rect.origin.x as f64,
@@ -450,7 +451,7 @@ impl UnownedWindow {
         Ok(position.to_physical(dpi_factor))
     }
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         let content_rect = unsafe {
             NSWindow::contentRectForFrameRect_(*self.ns_window, NSWindow::frame(*self.ns_window))
         };
@@ -530,10 +531,10 @@ impl UnownedWindow {
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         let fullscreen = {
-            trace!("Locked shared state in `set_resizable`");
+            trace!("[winit] Locked shared state in `set_resizable`");
             let mut shared_state_lock = self.shared_state.lock().unwrap();
             shared_state_lock.resizable = resizable;
-            trace!("Unlocked shared state in `set_resizable`");
+            trace!("[winit] Unlocked shared state in `set_resizable`");
             shared_state_lock.fullscreen.is_some()
         };
         if !fullscreen {
@@ -560,10 +561,10 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), Error> {
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
         CGDisplay::associate_mouse_and_mouse_cursor_position(!grab)
-            .map_err(|status| ExternalError::Os(os_error!(OsError::CGError(status))))
+            .map_err(|status| make_oserror!(OsError::CGError(status)))
     }
 
     #[inline]
@@ -588,7 +589,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), Error> {
         let physical_window_position = self.inner_position().unwrap();
         let dpi_factor = self.scale_factor();
         let window_position = physical_window_position.to_logical::<CGFloat>(dpi_factor);
@@ -598,9 +599,9 @@ impl UnownedWindow {
             y: logical_cursor_position.y + window_position.y,
         };
         CGDisplay::warp_mouse_cursor_position(point)
-            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
+            .map_err(|e| make_oserror!(OsError::CGError(e)))?;
         CGDisplay::associate_mouse_and_mouse_cursor_position(true)
-            .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
+            .map_err(|e| make_oserror!(OsError::CGError(e)))?;
 
         Ok(())
     }
@@ -700,26 +701,26 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        trace!("Locked shared state in `set_fullscreen`");
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
+        trace!("[winit] Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {
             trace!("Unlocked shared state in `set_fullscreen`");
-            return;
+            return Ok(());
         }
         if shared_state_lock.in_fullscreen_transition {
             // We can't set fullscreen here.
             // Set fullscreen after transition.
             shared_state_lock.target_fullscreen = Some(fullscreen);
-            trace!("Unlocked shared state in `set_fullscreen`");
-            return;
+            trace!("[winit] Unlocked shared state in `set_fullscreen`");
+            return Ok(());
         }
         let old_fullscreen = shared_state_lock.fullscreen.clone();
         if fullscreen == old_fullscreen {
             trace!("Unlocked shared state in `set_fullscreen`");
-            return;
+            return Ok(());
         }
-        trace!("Unlocked shared state in `set_fullscreen`");
+        trace!("[winit] Unlocked shared state in `set_fullscreen`");
         drop(shared_state_lock);
 
         // If the fullscreen is on a different monitor, we must move the window
@@ -791,7 +792,10 @@ impl UnownedWindow {
                     video_mode.video_mode.native_mode.0,
                     std::ptr::null(),
                 );
-                assert!(result == ffi::kCGErrorSuccess, "failed to set video mode");
+                assert!(
+                    result == ffi::kCGErrorSuccess,
+                    "[winit] failed to set video mode"
+                );
 
                 // After the display has been configured, fade back in
                 // asynchronously
@@ -811,10 +815,10 @@ impl UnownedWindow {
             }
         }
 
-        trace!("Locked shared state in `set_fullscreen`");
+        trace!("[winit] Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen = fullscreen.clone();
-        trace!("Unlocked shared state in `set_fullscreen`");
+        trace!("[winit] Unlocked shared state in `set_fullscreen`");
 
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
@@ -863,6 +867,8 @@ impl UnownedWindow {
             },
             _ => (),
         }
+
+        Ok(())
     }
 
     #[inline]
@@ -871,9 +877,9 @@ impl UnownedWindow {
             self.decorations.store(decorations, Ordering::Release);
 
             let (fullscreen, resizable) = {
-                trace!("Locked shared state in `set_decorations`");
+                trace!("[winit] Locked shared state in `set_decorations`");
                 let shared_state_lock = self.shared_state.lock().unwrap();
-                trace!("Unlocked shared state in `set_decorations`");
+                trace!("[winit] Unlocked shared state in `set_decorations`");
                 (
                     shared_state_lock.fullscreen.is_some(),
                     shared_state_lock.resizable,
@@ -1087,7 +1093,7 @@ impl WindowExtMacOS for UnownedWindow {
 
 impl Drop for UnownedWindow {
     fn drop(&mut self) {
-        trace!("Dropping `UnownedWindow` ({:?})", self as *mut _);
+        trace!("[winit] Dropping `UnownedWindow` ({:?})", self as *mut _);
         // Close the window if it has not yet been closed.
         if *self.ns_window != nil {
             unsafe { util::close_async(*self.ns_window) };

@@ -24,9 +24,9 @@ use smithay_client_toolkit::pointer::{AutoPointer, AutoThemer};
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_compositor::WlCompositor, wl_shm::WlShm, wl_surface::WlSurface,
 };
+use winit_types::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 
 use crate::{
-    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{
         DeviceEvent, DeviceId as RootDeviceId, Event, ModifiersState, StartCause, WindowEvent,
     },
@@ -45,10 +45,13 @@ use smithay_client_toolkit::{
     output::OutputMgr,
     reexports::client::{
         protocol::{wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat, wl_touch},
-        ConnectError, Display, EventQueue, GlobalEvent,
+        Display, EventQueue, GlobalEvent,
     },
     Environment,
 };
+
+use winit_types::error::Error;
+use winit_types::platform::OsError;
 
 const KBD_TOKEN: Token = Token(0);
 const USER_TOKEN: Token = Token(1);
@@ -291,8 +294,9 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<EventLoop<T>, ConnectError> {
-        let (display, mut event_queue) = Display::connect_to_env()?;
+    pub fn new() -> Result<EventLoop<T>, Error> {
+        let (display, mut event_queue) = Display::connect_to_env()
+            .map_err(|err| make_oserror!(OsError::WaylandConnectError(Arc::new(err))))?;
 
         let display = Arc::new(display);
         let store = Arc::new(Mutex::new(WindowStore::new()));
@@ -468,17 +472,17 @@ impl<T: 'static> EventLoop<T> {
                 let mut evq = get_target(&self.window_target).evq.borrow_mut();
 
                 evq.dispatch_pending()
-                    .expect("failed to dispatch wayland events");
+                    .expect("[winit] failed to dispatch wayland events");
 
                 if let Some(read) = evq.prepare_read() {
                     if let Err(e) = read.read_events() {
                         if e.kind() != ErrorKind::WouldBlock {
-                            panic!("failed to read wayland events: {}", e);
+                            panic!("[winit] failed to read wayland events: {}", e);
                         }
                     }
 
                     evq.dispatch_pending()
-                        .expect("failed to dispatch wayland events");
+                        .expect("[winit] failed to dispatch wayland events");
                 }
             }
 
@@ -715,7 +719,7 @@ impl<T> EventLoop<T> {
                     // Don't send resize event downstream if the new size is identical to the
                     // current one.
                     if (w, h) != *window.size {
-                        let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
+                        let logical_size = winit_types::dpi::LogicalSize::new(w as f64, h as f64);
                         let physical_size = logical_size
                             .to_physical(window.new_dpi.unwrap_or(window.prev_dpi) as f64);
 
@@ -975,7 +979,7 @@ pub struct MonitorHandle {
 
 impl PartialEq for MonitorHandle {
     fn eq(&self, other: &Self) -> bool {
-        self.native_identifier() == other.native_identifier()
+        self.native_id() == other.native_id()
     }
 }
 
@@ -989,13 +993,13 @@ impl PartialOrd for MonitorHandle {
 
 impl Ord for MonitorHandle {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.native_identifier().cmp(&other.native_identifier())
+        self.native_id().cmp(&other.native_id())
     }
 }
 
 impl std::hash::Hash for MonitorHandle {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.native_identifier().hash(state);
+        self.native_id().hash(state);
     }
 }
 
@@ -1004,7 +1008,7 @@ impl fmt::Debug for MonitorHandle {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            native_identifier: u32,
+            native_id: u32,
             size: PhysicalSize<u32>,
             position: PhysicalPosition<i32>,
             scale_factor: i32,
@@ -1012,7 +1016,7 @@ impl fmt::Debug for MonitorHandle {
 
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
-            native_identifier: self.native_identifier(),
+            native_id: self.native_id(),
             size: self.size(),
             position: self.position(),
             scale_factor: self.scale_factor(),
@@ -1030,7 +1034,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
+    pub fn native_id(&self) -> u32 {
         self.mgr.with_info(&self.proxy, |id, _| id).unwrap_or(0)
     }
 
@@ -1088,7 +1092,7 @@ pub fn primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
                 mgr: outputs.clone(),
             }
         } else {
-            panic!("No monitor is available.")
+            panic!("[winit] No monitor is available.")
         }
     })
 }

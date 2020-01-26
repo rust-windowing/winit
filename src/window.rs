@@ -1,9 +1,9 @@
 //! The `Window` struct and associated types.
 use std::fmt;
+use winit_types::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use winit_types::error::Error;
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoMode},
     platform_impl,
@@ -54,7 +54,7 @@ impl Drop for Window {
         // closing the window doesn't necessarily always mean application exit,
         // such as when there are multiple windows)
         if let Some(Fullscreen::Exclusive(_)) = self.fullscreen() {
-            self.set_fullscreen(None);
+            self.set_fullscreen(None).unwrap();
         }
     }
 }
@@ -329,7 +329,7 @@ impl WindowBuilder {
     pub fn build<T: 'static>(
         self,
         window_target: &EventLoopWindowTarget<T>,
-    ) -> Result<Window, OsError> {
+    ) -> Result<Window, Error> {
         platform_impl::Window::new(&window_target.p, self.window, self.platform_specific).map(
             |window| {
                 window.request_redraw();
@@ -354,7 +354,7 @@ impl Window {
     ///
     /// [`WindowBuilder::new().build(event_loop)`]: crate::window::WindowBuilder::build
     #[inline]
-    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
+    pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, Error> {
         let builder = WindowBuilder::new();
         builder.build(event_loop)
     }
@@ -367,7 +367,7 @@ impl Window {
 
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](crate::dpi) module for more information.
+    /// See the [`dpi`](winit_types::dpi) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
     /// moved to another screen); as such, tracking `WindowEvent::ScaleFactorChanged` events is
@@ -423,7 +423,7 @@ impl Window {
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         self.window.inner_position()
     }
 
@@ -443,7 +443,7 @@ impl Window {
     ///   window in the screen space coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
     #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         self.window.outer_position()
     }
 
@@ -617,8 +617,10 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    /// - **X11:** Exclusive mode is only supported if the X Server supports
+    ///   RandR.
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
         self.window.set_fullscreen(fullscreen)
     }
 
@@ -705,7 +707,7 @@ impl Window {
     /// - **iOS:** Always returns an `Err`.
     /// - **Web:** Has no effect.
     #[inline]
-    pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
+    pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), Error> {
         self.window.set_cursor_position(position.into())
     }
 
@@ -721,7 +723,7 @@ impl Window {
     /// - **iOS:** Always returns an Err.
     /// - **Web:** Has no effect.
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), Error> {
         self.window.set_cursor_grab(grab)
     }
 
@@ -794,7 +796,7 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Window {
 
 /// Describes the appearance of the mouse cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_feature", derive(Serialize, Deserialize))]
 pub enum CursorIcon {
     /// The platform-dependent default cursor.
     Default,

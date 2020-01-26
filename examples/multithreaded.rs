@@ -3,11 +3,11 @@ fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
 
     use winit::{
-        dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
+    use winit_types::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
 
     const WINDOW_COUNT: usize = 3;
     const WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize::new(600, 400);
@@ -81,15 +81,17 @@ fn main() {
                                     video_modes.iter().nth(video_mode_id).unwrap()
                                 );
                             }
-                            F => window.set_fullscreen(match (state, modifiers.alt()) {
-                                (true, false) => {
-                                    Some(Fullscreen::Borderless(window.current_monitor()))
-                                }
-                                (true, true) => Some(Fullscreen::Exclusive(
-                                    video_modes.iter().nth(video_mode_id).unwrap().clone(),
-                                )),
-                                (false, _) => None,
-                            }),
+                            F => window
+                                .set_fullscreen(match (state, modifiers.alt()) {
+                                    (true, false) => {
+                                        Some(Fullscreen::Borderless(window.current_monitor()))
+                                    }
+                                    (true, true) => Some(Fullscreen::Exclusive(
+                                        video_modes.iter().nth(video_mode_id).unwrap().clone(),
+                                    )),
+                                    (false, _) => None,
+                                })
+                                .unwrap(),
                             G => window.set_cursor_grab(state).unwrap(),
                             H => window.set_cursor_visible(!state),
                             I => {
@@ -181,5 +183,5 @@ fn main() {
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
-    panic!("Example not supported on Wasm");
+    panic!("[winit] Example not supported on Wasm");
 }

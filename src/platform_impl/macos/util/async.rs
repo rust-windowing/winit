@@ -10,11 +10,9 @@ use cocoa::{
 };
 use dispatch::Queue;
 use objc::rc::autoreleasepool;
+use winit_types::dpi::LogicalSize;
 
-use crate::{
-    dpi::LogicalSize,
-    platform_impl::platform::{ffi, util::IdRef, window::SharedState},
-};
+use crate::platform_impl::platform::{ffi, util::IdRef, window::SharedState};
 
 // Unsafe wrapper type that allows us to dispatch things that aren't Send.
 // This should *only* be used to dispatch to the main queue.

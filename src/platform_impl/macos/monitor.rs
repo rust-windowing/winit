@@ -1,10 +1,8 @@
 use std::{collections::VecDeque, fmt};
 
 use super::{ffi, util};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+
 use cocoa::{
     appkit::NSScreen,
     base::{id, nil},
@@ -20,6 +18,7 @@ use core_video_sys::{
     kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
     CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
 #[derive(Clone)]
 pub struct VideoMode {
@@ -244,7 +243,10 @@ impl MonitorHandle {
         unsafe {
             let modes = {
                 let array = ffi::CGDisplayCopyAllDisplayModes(self.0, std::ptr::null());
-                assert!(!array.is_null(), "failed to get list of display modes");
+                assert!(
+                    !array.is_null(),
+                    "[winit] failed to get list of display modes"
+                );
                 let array_count = CFArrayGetCount(array);
                 let modes: Vec<_> = (0..array_count)
                     .map(move |i| {

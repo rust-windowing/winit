@@ -75,8 +75,6 @@ mod monitor;
 mod view;
 mod window;
 
-use std::fmt;
-
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
     monitor::{MonitorHandle, VideoMode},
@@ -98,14 +96,3 @@ impl DeviceId {
 
 unsafe impl Send for DeviceId {}
 unsafe impl Sync for DeviceId {}
-
-#[derive(Debug)]
-pub enum OsError {}
-
-impl fmt::Display for OsError {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            _ => unreachable!(),
-        }
-    }
-}

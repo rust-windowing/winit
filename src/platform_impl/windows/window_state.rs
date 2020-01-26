@@ -1,10 +1,9 @@
 use crate::{
-    dpi::Size,
     platform_impl::platform::{event_loop, icon::WinIcon, util},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 use parking_lot::MutexGuard;
-use std::{io, ptr};
+use std::ptr;
 use winapi::{
     shared::{
         minwindef::DWORD,
@@ -12,6 +11,9 @@ use winapi::{
     },
     um::winuser,
 };
+
+use winit_types::dpi::Size;
+use winit_types::error::Error;
 
 /// Contains information about states and the window that the callback is going to use.
 #[derive(Clone)]
@@ -154,7 +156,7 @@ impl MouseProperties {
         self.cursor_flags
     }
 
-    pub fn set_cursor_flags<F>(&mut self, window: HWND, f: F) -> Result<(), io::Error>
+    pub fn set_cursor_flags<F>(&mut self, window: HWND, f: F) -> Result<(), Error>
     where
         F: FnOnce(&mut CursorFlags),
     {
@@ -330,7 +332,7 @@ impl WindowFlags {
 }
 
 impl CursorFlags {
-    fn refresh_os_cursor(self, window: HWND) -> Result<(), io::Error> {
+    fn refresh_os_cursor(self, window: HWND) -> Result<(), Error> {
         let client_rect = util::get_client_rect(window)?;
 
         if util::is_focused(window) {

@@ -9,10 +9,11 @@ impl XConnection {
         event_mask: Option<c_long>,
         event: T,
     ) -> Flusher<'_> {
+        let xlib = syms!(XLIB);
         let event_mask = event_mask.unwrap_or(ffi::NoEventMask);
         unsafe {
-            (self.xlib.XSendEvent)(
-                self.display,
+            (xlib.XSendEvent)(
+                **self.display,
                 target_window,
                 ffi::False,
                 event_mask,
@@ -32,7 +33,7 @@ impl XConnection {
     ) -> Flusher<'_> {
         let event = ffi::XClientMessageEvent {
             type_: ffi::ClientMessage,
-            display: self.display,
+            display: **self.display,
             window,
             message_type,
             format: c_long::FORMAT as c_int,

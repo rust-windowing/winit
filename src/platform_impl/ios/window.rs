@@ -7,8 +7,6 @@ use std::{
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 
 use crate::{
-    dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -24,6 +22,10 @@ use crate::{
     },
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
+use winit_types::dpi::{
+    self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size,
+};
+use winit_types::error::{Error, ErrorType};
 
 pub struct Inner {
     pub window: id,
@@ -44,7 +46,7 @@ impl Drop for Inner {
 
 impl Inner {
     pub fn set_title(&self, _title: &str) {
-        debug!("`Window::set_title` is ignored on iOS")
+        debug!("[winit] `Window::set_title` is ignored on iOS")
     }
 
     pub fn set_visible(&self, visible: bool) {
@@ -76,7 +78,7 @@ impl Inner {
         }
     }
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             let position = LogicalPosition {
@@ -88,7 +90,7 @@ impl Inner {
         }
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         unsafe {
             let screen_frame = self.screen_frame();
             let position = LogicalPosition {
@@ -146,15 +148,15 @@ impl Inner {
     }
 
     pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
-        warn!("`Window::set_min_inner_size` is ignored on iOS")
+        warn!("[winit] `Window::set_min_inner_size` is ignored on iOS")
     }
 
     pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
-        warn!("`Window::set_max_inner_size` is ignored on iOS")
+        warn!("[winit] `Window::set_max_inner_size` is ignored on iOS")
     }
 
     pub fn set_resizable(&self, _resizable: bool) {
-        warn!("`Window::set_resizable` is ignored on iOS")
+        warn!("[winit] `Window::set_resizable` is ignored on iOS")
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -165,30 +167,34 @@ impl Inner {
     }
 
     pub fn set_cursor_icon(&self, _cursor: CursorIcon) {
-        debug!("`Window::set_cursor_icon` ignored on iOS")
+        debug!("[winit] `Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), Error> {
+        Err(make_error!(ErrorType::NotSupported(
+            "Setting the cursor position is not supported on iOS.".to_string()
+        )))
     }
 
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), Error> {
+        Err(make_error!(ErrorType::NotSupported(
+            "Setting the cursor grab is not supported on iOS.".to_string()
+        )))
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
-        debug!("`Window::set_cursor_visible` is ignored on iOS")
+        debug!("[winit] `Window::set_cursor_visible` is ignored on iOS")
     }
 
     pub fn set_minimized(&self, _minimized: bool) {
-        warn!("`Window::set_minimized` is ignored on iOS")
+        warn!("[winit] `Window::set_minimized` is ignored on iOS")
     }
 
     pub fn set_maximized(&self, _maximized: bool) {
-        warn!("`Window::set_maximized` is ignored on iOS")
+        warn!("[winit] `Window::set_maximized` is ignored on iOS")
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) -> Result<(), Error> {
         unsafe {
             let uiscreen = match monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
@@ -198,8 +204,9 @@ impl Inner {
                 }
                 Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
                 None => {
-                    warn!("`Window::set_fullscreen(None)` ignored on iOS");
-                    return;
+                    return Err(make_error!(ErrorType::NotSupported(
+                        "`Window::set_fullscreen(None) is not supported on iOS.".to_string()
+                    )));
                 }
             };
 
@@ -219,6 +226,8 @@ impl Inner {
                 uiscreen,
                 setOverscanCompensation: UIScreenOverscanCompensation::None
             ];
+
+            Ok(())
         }
     }
 
@@ -243,19 +252,19 @@ impl Inner {
     }
 
     pub fn set_decorations(&self, _decorations: bool) {
-        warn!("`Window::set_decorations` is ignored on iOS")
+        warn!("[winit] `Window::set_decorations` is ignored on iOS")
     }
 
     pub fn set_always_on_top(&self, _always_on_top: bool) {
-        warn!("`Window::set_always_on_top` is ignored on iOS")
+        warn!("[winit] `Window::set_always_on_top` is ignored on iOS")
     }
 
     pub fn set_window_icon(&self, _icon: Option<Icon>) {
-        warn!("`Window::set_window_icon` is ignored on iOS")
+        warn!("[winit] `Window::set_window_icon` is ignored on iOS")
     }
 
     pub fn set_ime_position(&self, _position: Position) {
-        warn!("`Window::set_ime_position` is ignored on iOS")
+        warn!("[winit] `Window::set_ime_position` is ignored on iOS")
     }
 
     pub fn current_monitor(&self) -> RootMonitorHandle {
@@ -297,7 +306,7 @@ pub struct Window {
 impl Drop for Window {
     fn drop(&mut self) {
         unsafe {
-            assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
+            assert_main_thread!("[winit] `Window::drop` can only be run on the main thread on iOS");
         }
     }
 }
@@ -310,7 +319,9 @@ impl Deref for Window {
 
     fn deref(&self) -> &Inner {
         unsafe {
-            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `Window` methods can only be run on the main thread on iOS"
+            );
         }
         &self.inner
     }
@@ -319,7 +330,9 @@ impl Deref for Window {
 impl DerefMut for Window {
     fn deref_mut(&mut self) -> &mut Inner {
         unsafe {
-            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `Window` methods can only be run on the main thread on iOS"
+            );
         }
         &mut self.inner
     }
@@ -330,15 +343,15 @@ impl Window {
         _event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window, RootOsError> {
+    ) -> Result<Window, Error> {
         if let Some(_) = window_attributes.min_inner_size {
-            warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
+            warn!("[winit] `WindowAttributes::min_inner_size` is ignored on iOS");
         }
         if let Some(_) = window_attributes.max_inner_size {
-            warn!("`WindowAttributes::max_inner_size` is ignored on iOS");
+            warn!("[winit] `WindowAttributes::max_inner_size` is ignored on iOS");
         }
         if window_attributes.always_on_top {
-            warn!("`WindowAttributes::always_on_top` is unsupported on iOS");
+            warn!("[winit] `WindowAttributes::always_on_top` is unsupported on iOS");
         }
         // TODO: transparency, visible
 
@@ -408,7 +421,7 @@ impl Window {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![view, convertRect:bounds toCoordinateSpace:screen_space];
-                let size = crate::dpi::LogicalSize {
+                let size = winit_types::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 };
@@ -448,7 +461,7 @@ impl Inner {
         unsafe {
             assert!(
                 dpi::validate_scale_factor(scale_factor),
-                "`WindowExtIOS::set_scale_factor` received an invalid hidpi factor"
+                "[winit] `WindowExtIOS::set_scale_factor` received an invalid hidpi factor"
             );
             let scale_factor = scale_factor as CGFloat;
             let () = msg_send![self.view, setContentScaleFactor: scale_factor];
@@ -550,7 +563,7 @@ impl Inner {
                 let app: id = msg_send![class!(UIApplication), sharedApplication];
                 assert!(
                     !app.is_null(),
-                    "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS"
+                    "[winit] `Window::get_inner_position` cannot be called before `EventLoop::run` on iOS"
                 );
                 msg_send![app, statusBarFrame]
             };

@@ -1,5 +1,6 @@
-use crate::dpi::LogicalPosition;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+
+use winit_types::dpi::LogicalPosition;
 
 use std::convert::TryInto;
 use web_sys::{KeyboardEvent, MouseEvent, WheelEvent};

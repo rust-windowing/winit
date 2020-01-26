@@ -4,8 +4,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
+
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
         app_state,
@@ -58,7 +59,7 @@ impl Clone for VideoMode {
 
 impl VideoMode {
     unsafe fn retained_new(uiscreen: id, screen_mode: id) -> VideoMode {
-        assert_main_thread!("`VideoMode` can only be created on the main thread on iOS");
+        assert_main_thread!("[winit] `VideoMode` can only be created on the main thread on iOS");
         let os_capabilities = app_state::os_capabilities();
         let refresh_rate: NSInteger = if os_capabilities.maximum_frames_per_second {
             msg_send![uiscreen, maximumFramesPerSecond]
@@ -131,7 +132,7 @@ impl Deref for MonitorHandle {
     fn deref(&self) -> &Inner {
         unsafe {
             assert_main_thread!(
-                "`MonitorHandle` methods can only be run on the main thread on iOS"
+                "[winit] `MonitorHandle` methods can only be run on the main thread on iOS"
             );
         }
         &self.inner
@@ -142,7 +143,7 @@ impl DerefMut for MonitorHandle {
     fn deref_mut(&mut self) -> &mut Inner {
         unsafe {
             assert_main_thread!(
-                "`MonitorHandle` methods can only be run on the main thread on iOS"
+                "[winit] `MonitorHandle` methods can only be run on the main thread on iOS"
             );
         }
         &mut self.inner
@@ -161,7 +162,9 @@ impl Clone for MonitorHandle {
 impl Drop for MonitorHandle {
     fn drop(&mut self) {
         unsafe {
-            assert_main_thread!("`MonitorHandle` can only be dropped on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `MonitorHandle` can only be dropped on the main thread on iOS"
+            );
         }
     }
 }
@@ -190,7 +193,9 @@ impl fmt::Debug for MonitorHandle {
 impl MonitorHandle {
     pub fn retained_new(uiscreen: id) -> MonitorHandle {
         unsafe {
-            assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `MonitorHandle` can only be cloned on the main thread on iOS"
+            );
             let () = msg_send![uiscreen, retain];
         }
         MonitorHandle {

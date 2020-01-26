@@ -11,6 +11,7 @@
 - **Breaking:** `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
 - On Wayland, fix coordinates in mouse events when scale factor isn't 1
 - On Web, add the ability to provide a custom canvas
+- **Breaking:** Renamed `serde` feature to `serde_feature`.
 
 # 0.20.0 (2020-01-05)
 
@@ -43,6 +44,11 @@
   - `EventsCleared` has been renamed to `MainEventsCleared`.
   - `RedrawRequested` is now issued only after `MainEventsCleared`.
   - `RedrawEventsCleared` is issued after each set of `RedrawRequested` events.
+- **Breaking:** On X11, the function `xlib_screen_id` was renamed to `xlib_screen`. Also added `x11_screen` to `MonitorHandle`. `MonitorHandle`'s `native_id` now returns an `Option`.
+- **Breaking:** The types in `winit::dpi` and `winit::error` have been moved to the new `winit_types` crate.
+- **Breaking:** Unified all functions to return the same error type, `winit_types::error::Error`.
+- **Breaking:** `Window::set_fullscreen` now returns an `Result<(), Error>` instead of panicking or doing nothing silently.
+- On X11, if the RandR extension is not present, winit will no longer panic. Instead it will return the list of X11 screens, augmenting it with information from Xinerama if present.
 - Implement synthetic window focus key events on Windows.
 - **Breaking**: Change `ModifiersState` to a `bitflags` struct.
 - On Windows, implement `VirtualKeyCode` translation for `LWin` and `RWin`.

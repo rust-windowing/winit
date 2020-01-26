@@ -43,7 +43,7 @@ impl<T> EventLoop<T> {
     pub fn new() -> Self {
         let delegate = unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
-                panic!("On macOS, `EventLoop` must be created on the main thread!");
+                panic!("[winit] On macOS, `EventLoop` must be created on the main thread!");
             }
 
             // This must be done before `NSApp()` (equivalent to sending

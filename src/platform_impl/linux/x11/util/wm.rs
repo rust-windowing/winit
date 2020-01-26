@@ -1,19 +1,31 @@
+use std::os::raw;
+
 use parking_lot::Mutex;
 
 use super::*;
 
 // This info is global to the window manager.
 lazy_static! {
-    static ref SUPPORTED_HINTS: Mutex<Vec<ffi::Atom>> = Mutex::new(Vec::with_capacity(0));
-    static ref WM_NAME: Mutex<Option<String>> = Mutex::new(None);
+    static ref SUPPORTED_HINTS: Mutex<Vec<Vec<ffi::Atom>>> = Mutex::new(Vec::with_capacity(0));
+    static ref WM_NAMES: Mutex<Vec<Option<String>>> = Mutex::new(Vec::with_capacity(0));
 }
 
-pub fn hint_is_supported(hint: ffi::Atom) -> bool {
-    (*SUPPORTED_HINTS.lock()).contains(&hint)
+pub fn hint_is_supported(hint: ffi::Atom, screen: raw::c_int) -> bool {
+    let supported_hints = SUPPORTED_HINTS.lock();
+    if supported_hints.len() <= screen as usize {
+        return false;
+    }
+
+    supported_hints[screen as usize].contains(&hint)
 }
 
-pub fn wm_name_is_one_of(names: &[&str]) -> bool {
-    if let Some(ref name) = *WM_NAME.lock() {
+pub fn wm_name_is_one_of(names: &[&str], screen: raw::c_int) -> bool {
+    let vm_names = WM_NAMES.lock();
+    if vm_names.len() <= screen as usize {
+        return false;
+    }
+
+    if let Some(ref name) = vm_names[screen as usize] {
         names.contains(&name.as_str())
     } else {
         false
@@ -21,9 +33,19 @@ pub fn wm_name_is_one_of(names: &[&str]) -> bool {
 }
 
 impl XConnection {
-    pub fn update_cached_wm_info(&self, root: ffi::Window) {
-        *SUPPORTED_HINTS.lock() = self.get_supported_hints(root);
-        *WM_NAME.lock() = self.get_wm_name(root);
+    pub fn update_cached_wm_info(&self) {
+        let xlib = syms!(XLIB);
+        let num_screens = unsafe { (xlib.XScreenCount)(**self.display) };
+
+        let mut supported_hints = SUPPORTED_HINTS.lock();
+        let mut wm_names = WM_NAMES.lock();
+        supported_hints.clear();
+        wm_names.clear();
+        for screen in 0..num_screens {
+            let root = unsafe { (xlib.XRootWindow)(**self.display, screen) };
+            supported_hints.push(self.get_supported_hints(root));
+            wm_names.push(self.get_wm_name(root));
+        }
     }
 
     fn get_supported_hints(&self, root: ffi::Window) -> Vec<ffi::Atom> {

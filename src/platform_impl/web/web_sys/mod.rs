@@ -5,25 +5,28 @@ mod timeout;
 pub use self::canvas::Canvas;
 pub use self::timeout::Timeout;
 
-use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
+
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement};
+use winit_types::dpi::{LogicalSize, Size};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);
 }
 
 pub fn exit_fullscreen() {
-    let window = web_sys::window().expect("Failed to obtain window");
-    let document = window.document().expect("Failed to obtain document");
+    let window = web_sys::window().expect("[winit] Failed to obtain window");
+    let document = window
+        .document()
+        .expect("[winit] Failed to obtain document");
 
     document.exit_fullscreen();
 }
 
 pub fn on_unload(mut handler: impl FnMut() + 'static) {
-    let window = web_sys::window().expect("Failed to obtain window");
+    let window = web_sys::window().expect("[winit] Failed to obtain window");
 
     let closure = Closure::wrap(
         Box::new(move |_: BeforeUnloadEvent| handler()) as Box<dyn FnMut(BeforeUnloadEvent)>
@@ -41,7 +44,7 @@ impl WindowExtWebSys for Window {
 }
 
 pub fn window_size() -> LogicalSize<f64> {
-    let window = web_sys::window().expect("Failed to obtain window");
+    let window = web_sys::window().expect("[winit] Failed to obtain window");
     let width = window
         .inner_width()
         .expect("Failed to get width")
@@ -57,7 +60,7 @@ pub fn window_size() -> LogicalSize<f64> {
 }
 
 pub fn scale_factor() -> f64 {
-    let window = web_sys::window().expect("Failed to obtain window");
+    let window = web_sys::window().expect("[winit] Failed to obtain window");
     window.device_pixel_ratio()
 }
 
@@ -80,8 +83,10 @@ pub fn set_canvas_size(raw: &HtmlCanvasElement, size: Size) {
 }
 
 pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
-    let window = window().expect("Failed to obtain window");
-    let document = window.document().expect("Failed to obtain document");
+    let window = window().expect("[winit] Failed to obtain window");
+    let document = window
+        .document()
+        .expect("[winit] Failed to obtain document");
 
     match document.fullscreen_element() {
         Some(elem) => {
