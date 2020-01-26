@@ -27,7 +27,11 @@ pub fn calc_dpi_factor(
     // Quantize 1/12 step size
     let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
     assert!(validate_scale_factor(dpi_factor));
-    dpi_factor
+    if dpi_factor <= 20. {
+        dpi_factor
+    } else {
+        1.
+    }
 }
 
 impl XConnection {

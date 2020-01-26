@@ -11,6 +11,7 @@
 - **Breaking:** `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
 - On Wayland, fix coordinates in mouse events when scale factor isn't 1
 - On Web, add the ability to provide a custom canvas
+- On X11, if RANDR based scale factor is higher than 20 reset it to 1
 
 # 0.20.0 (2020-01-05)
 
