@@ -152,7 +152,7 @@ pub trait WindowExtUnix {
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
     /// Sets the color theme of the client side window decorations on wayland
-    fn set_wayland_theme<T: Theme + Send + 'static>(&self, theme: T);
+    fn set_wayland_theme<T: Theme>(&self, theme: T);
 
     /// Check if the window is ready for drawing
     ///
@@ -230,10 +230,9 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
-    fn set_wayland_theme<T: Theme + Send + 'static>(&self, theme: T) {
-        let theme: Box<dyn Theme + Send> = Box::new(theme);
+    fn set_wayland_theme<T: Theme>(&self, theme: T) {
         match self.window {
-            LinuxWindow::Wayland(ref w) => w.set_theme(theme),
+            LinuxWindow::Wayland(ref w) => w.set_theme(WaylandTheme(theme)),
             _ => {}
         }
     }
@@ -340,7 +339,10 @@ impl MonitorHandleExtUnix for MonitorHandle {
     }
 }
 
-pub trait Theme {
+/// Wrapper for implementing SCTK's theme trait.
+pub struct WaylandTheme<T: Theme>(T);
+
+pub trait Theme: Send + 'static {
     /// Primary color of the scheme.
     fn primary_color(&self, window_active: bool) -> [u8; 4];
 
@@ -375,37 +377,37 @@ pub trait Theme {
     }
 }
 
-impl SCTKTheme for Box<dyn Theme + Send> {
+impl<T: Theme> SCTKTheme for WaylandTheme<T> {
     fn get_primary_color(&self, active: bool) -> [u8; 4] {
-        self.primary_color(active)
+        self.0.primary_color(active)
     }
 
     fn get_secondary_color(&self, active: bool) -> [u8; 4] {
-        self.secondary_color(active)
+        self.0.secondary_color(active)
     }
 
     fn get_close_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.close_button_color(status.into())
+        self.0.close_button_color(ButtonState::from_sctk(status))
     }
 
     fn get_close_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.close_button_color(status.into())
+        self.0.close_button_color(ButtonState::from_sctk(status))
     }
 
     fn get_maximize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.maximize_button_color(status.into())
+        self.0.maximize_button_color(ButtonState::from_sctk(status))
     }
 
     fn get_maximize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.maximize_button_icon_color(status.into())
+        self.0.maximize_button_icon_color(ButtonState::from_sctk(status))
     }
 
     fn get_minimize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.minimize_button_color(status.into())
+        self.0.minimize_button_color(ButtonState::from_sctk(status))
     }
 
     fn get_minimize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.minimize_button_icon_color(status.into())
+        self.0.minimize_button_icon_color(ButtonState::from_sctk(status))
     }
 }
 
@@ -418,8 +420,8 @@ pub enum ButtonState {
     Disabled,
 }
 
-impl From<SCTKButtonState> for ButtonState {
-    fn from(button_state: SCTKButtonState) -> Self {
+impl ButtonState {
+    fn from_sctk(button_state: SCTKButtonState) -> Self {
         match button_state {
             SCTKButtonState::Hovered => Self::Hovered,
             SCTKButtonState::Idle => Self::Idle,
