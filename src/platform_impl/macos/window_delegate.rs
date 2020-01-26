@@ -16,7 +16,7 @@ use objc::{
 
 use crate::{
     dpi::LogicalSize,
-    event::{Event, ModifiersState, WindowEvent},
+    event::{Event, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
@@ -319,7 +319,6 @@ extern "C" fn window_did_become_key(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidResignKey:`");
     with_state(this, |state| {
-        state.emit_event(WindowEvent::ModifiersChanged(ModifiersState::empty()));
         state.emit_event(WindowEvent::Focused(false));
     });
     trace!("Completed `windowDidResignKey:`");

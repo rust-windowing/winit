@@ -706,6 +706,8 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
 
+        update_potentially_stale_modifiers(state, event);
+
         #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
@@ -908,6 +910,8 @@ fn mouse_motion(this: &Object, event: id) {
             // Point is outside of the client area (view)
             return;
         }
+
+        update_potentially_stale_modifiers(state, event);
 
         let x = view_point.x as f64;
         let y = view_rect.size.height as f64 - view_point.y as f64;
