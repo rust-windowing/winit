@@ -340,7 +340,7 @@ impl MonitorHandleExtUnix for MonitorHandle {
 }
 
 /// Wrapper for implementing SCTK's theme trait.
-pub struct WaylandTheme<T: Theme>(T);
+struct WaylandTheme<T: Theme>(T);
 
 pub trait Theme: Send + 'static {
     /// Primary color of the scheme.
