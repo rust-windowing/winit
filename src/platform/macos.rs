@@ -4,7 +4,7 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::EventLoopWindowTarget,
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
