@@ -10,7 +10,7 @@ use crate::{
     platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
         app_state::{self, OSCapabilities},
-        event_loop,
+        event_loop::{self, EventProxy, EventWrapper},
         ffi::{
             id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
             UIRectEdge, UITouchPhase, UITouchType,
@@ -102,10 +102,14 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             unsafe {
                 let window: id = msg_send![object, window];
                 assert!(!window.is_null());
-                app_state::handle_nonuser_event(Event::WindowEvent {
-                    window_id: RootWindowId(window.into()),
-                    event: WindowEvent::RedrawRequested,
-                });
+                app_state::handle_nonuser_events(
+                    std::iter::once(EventWrapper::StaticEvent(Event::RedrawRequested(
+                        RootWindowId(window.into()),
+                    )))
+                    .chain(std::iter::once(EventWrapper::StaticEvent(
+                        Event::RedrawEventsCleared,
+                    ))),
+                );
                 let superclass: &'static Class = msg_send![object, superclass];
                 let () = msg_send![super(object, superclass), drawRect: rect];
             }
@@ -123,27 +127,29 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
+                let dpi_factor: CGFloat = msg_send![screen, scale];
                 let size = crate::dpi::LogicalSize {
-                    width: screen_frame.size.width as _,
-                    height: screen_frame.size.height as _,
-                };
-                app_state::handle_nonuser_event(Event::WindowEvent {
+                    width: screen_frame.size.width as f64,
+                    height: screen_frame.size.height as f64,
+                }
+                .to_physical(dpi_factor.into());
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
-                });
+                }));
             }
         }
 
         extern "C" fn set_content_scale_factor(
             object: &mut Object,
             _: Sel,
-            untrusted_hidpi_factor: CGFloat,
+            untrusted_scale_factor: CGFloat,
         ) {
             unsafe {
                 let superclass: &'static Class = msg_send![object, superclass];
                 let () = msg_send![
                     super(object, superclass),
-                    setContentScaleFactor: untrusted_hidpi_factor
+                    setContentScaleFactor: untrusted_scale_factor
                 ];
 
                 let window: id = msg_send![object, window];
@@ -156,14 +162,15 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 // `setContentScaleFactor` may be called with a value of 0, which means "reset the
                 // content scale factor to a device-specific default value", so we can't use the
                 // parameter here. We can query the actual factor using the getter
-                let hidpi_factor: CGFloat = msg_send![object, contentScaleFactor];
+                let dpi_factor: CGFloat = msg_send![object, contentScaleFactor];
                 assert!(
-                    !hidpi_factor.is_nan()
-                        && hidpi_factor.is_finite()
-                        && hidpi_factor.is_sign_positive()
-                        && hidpi_factor > 0.0,
-                    "invalid hidpi_factor set on UIView",
+                    !dpi_factor.is_nan()
+                        && dpi_factor.is_finite()
+                        && dpi_factor.is_sign_positive()
+                        && dpi_factor > 0.0,
+                    "invalid scale_factor set on UIView",
                 );
+                let scale_factor: f64 = dpi_factor.into();
                 let bounds: CGRect = msg_send![object, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
@@ -174,14 +181,17 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     height: screen_frame.size.height as _,
                 };
                 app_state::handle_nonuser_events(
-                    std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
-                    })
-                    .chain(std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::Resized(size),
-                    })),
+                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
+                        window_id: window,
+                        scale_factor,
+                        suggested_size: size,
+                    }))
+                    .chain(std::iter::once(EventWrapper::StaticEvent(
+                        Event::WindowEvent {
+                            window_id: RootWindowId(window.into()),
+                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                        },
+                    ))),
                 );
             }
         }
@@ -238,7 +248,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                         _ => panic!("unexpected touch phase: {:?}", phase as i32),
                     };
 
-                    touch_events.push(Event::WindowEvent {
+                    touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(window.into()),
                         event: WindowEvent::Touch(Touch {
                             device_id: RootDeviceId(DeviceId { uiscreen }),
@@ -247,7 +257,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                             force,
                             phase,
                         }),
-                    });
+                    }));
                 }
                 app_state::handle_nonuser_events(touch_events);
             }
@@ -367,20 +377,20 @@ unsafe fn get_window_class() -> &'static Class {
 
         extern "C" fn become_key_window(object: &Object, _: Sel) {
             unsafe {
-                app_state::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(true),
-                });
+                }));
                 let () = msg_send![super(object, class!(UIWindow)), becomeKeyWindow];
             }
         }
 
         extern "C" fn resign_key_window(object: &Object, _: Sel) {
             unsafe {
-                app_state::handle_nonuser_event(Event::WindowEvent {
+                app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(false),
-                });
+                }));
                 let () = msg_send![super(object, class!(UIWindow)), resignKeyWindow];
             }
         }
@@ -414,8 +424,8 @@ pub unsafe fn create_view(
     let view: id = msg_send![view, initWithFrame: frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
     let () = msg_send![view, setMultipleTouchEnabled: YES];
-    if let Some(hidpi_factor) = platform_attributes.hidpi_factor {
-        let () = msg_send![view, setContentScaleFactor: hidpi_factor as CGFloat];
+    if let Some(scale_factor) = platform_attributes.scale_factor {
+        let () = msg_send![view, setContentScaleFactor: scale_factor as CGFloat];
     }
 
     view
@@ -497,7 +507,7 @@ pub unsafe fn create_window(
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             let uiscreen = video_mode.monitor().ui_screen() as id;
-            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
         Some(Fullscreen::Borderless(ref monitor)) => {
@@ -518,11 +528,11 @@ pub fn create_delegate_class() {
     }
 
     extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(Event::Resumed) }
+        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
     }
 
     extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(Event::Suspended) }
+        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
     }
 
     extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {}
@@ -541,10 +551,10 @@ pub fn create_delegate_class() {
                 }
                 let is_winit_window: BOOL = msg_send![window, isKindOfClass: class!(WinitUIWindow)];
                 if is_winit_window == YES {
-                    events.push(Event::WindowEvent {
+                    events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(window.into()),
                         event: WindowEvent::Destroyed,
-                    });
+                    }));
                 }
             }
             app_state::handle_nonuser_events(events);

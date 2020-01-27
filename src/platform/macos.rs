@@ -4,6 +4,7 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
+    event_loop::EventLoopWindowTarget,
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
@@ -128,7 +129,7 @@ pub trait WindowBuilderExtMacOS {
     /// Makes the window content appear behind the titlebar.
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
     /// Build window with `resizeIncrements` property. Values must not be 0.
-    fn with_resize_increments(self, increments: LogicalSize) -> WindowBuilder;
+    fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
 }
 
@@ -179,7 +180,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize) -> WindowBuilder {
+    fn with_resize_increments(mut self, increments: LogicalSize<f64>) -> WindowBuilder {
         self.platform_specific.resize_increments = Some(increments.into());
         self
     }
@@ -207,5 +208,19 @@ impl MonitorHandleExtMacOS for MonitorHandle {
 
     fn ns_screen(&self) -> Option<*mut c_void> {
         self.inner.ns_screen().map(|s| s as *mut c_void)
+    }
+}
+
+/// Additional methods on `EventLoopWindowTarget` that are specific to macOS.
+pub trait EventLoopWindowTargetExtMacOS {
+    /// Hide the entire application. In most applications this is typically triggered with Command-H.
+    fn hide_application(&self);
+}
+
+impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
+    fn hide_application(&self) {
+        let cls = objc::runtime::Class::get("NSApplication").unwrap();
+        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+        unsafe { msg_send![app, hide: 0] }
     }
 }

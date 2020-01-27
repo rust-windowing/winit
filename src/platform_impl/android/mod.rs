@@ -61,7 +61,7 @@ impl EventLoop {
         while let Ok(event) = self.event_rx.try_recv() {
             let e = match event {
                 android_glue::Event::EventMotion(motion) => {
-                    let dpi_factor = MonitorHandle.hidpi_factor();
+                    let dpi_factor = MonitorHandle.scale_factor();
                     let location = LogicalPosition::from_physical(
                         (motion.x as f64, motion.y as f64),
                         dpi_factor,
@@ -102,7 +102,7 @@ impl EventLoop {
                     if native_window.is_null() {
                         None
                     } else {
-                        let dpi_factor = MonitorHandle.hidpi_factor();
+                        let dpi_factor = MonitorHandle.scale_factor();
                         let physical_size = MonitorHandle.size();
                         let size = LogicalSize::from_physical(physical_size, dpi_factor);
                         Some(Event::WindowEvent {
@@ -157,7 +157,7 @@ impl EventLoop {
 }
 
 impl EventLoopProxy {
-    pub fn wakeup(&self) -> Result<(), ::EventLoopClosed> {
+    pub fn wakeup(&self) -> Result<(), ::EventLoopClosed<()>> {
         android_glue::wake_event_loop();
         Ok(())
     }
@@ -193,16 +193,16 @@ impl fmt::Debug for MonitorHandle {
         #[derive(Debug)]
         struct MonitorHandle {
             name: Option<String>,
-            dimensions: PhysicalSize,
-            position: PhysicalPosition,
-            hidpi_factor: f64,
+            dimensions: PhysicalSize<u32>,
+            position: PhysicalPosition<i32>,
+            scale_factor: f64,
         }
 
         let monitor_id_proxy = MonitorHandle {
             name: self.name(),
             dimensions: self.size(),
             position: self.outer_position(),
-            hidpi_factor: self.hidpi_factor(),
+            scale_factor: self.scale_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -216,7 +216,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         unsafe {
             let window = android_glue::native_window();
             (
@@ -228,13 +228,13 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> PhysicalPosition {
+    pub fn outer_position(&self) -> PhysicalPosition<i32> {
         // Android assumes single screen
         (0, 0).into()
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         1.0
     }
 }
@@ -283,29 +283,29 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Option<LogicalPosition> {
+    pub fn outer_position(&self) -> Option<LogicalPosition<f64>> {
         // N/A
         None
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Option<LogicalPosition> {
+    pub fn inner_position(&self) -> Option<LogicalPosition<f64>> {
         // N/A
         None
     }
 
     #[inline]
-    pub fn set_outer_position(&self, _position: LogicalPosition) {
+    pub fn set_outer_position(&self, _position: LogicalPosition<f64>) {
         // N/A
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // N/A
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize<f64>>) {
         // N/A
     }
 
@@ -315,29 +315,29 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> Option<LogicalSize> {
+    pub fn inner_size(&self) -> Option<LogicalSize<f64>> {
         if self.native_window.is_null() {
             None
         } else {
-            let dpi_factor = self.hidpi_factor();
+            let dpi_factor = self.scale_factor();
             let physical_size = self.current_monitor().size();
             Some(LogicalSize::from_physical(physical_size, dpi_factor))
         }
     }
 
     #[inline]
-    pub fn outer_size(&self) -> Option<LogicalSize> {
+    pub fn outer_size(&self) -> Option<LogicalSize<f64>> {
         self.inner_size()
     }
 
     #[inline]
-    pub fn set_inner_size(&self, _size: LogicalSize) {
+    pub fn set_inner_size(&self, _size: LogicalSize<f64>) {
         // N/A
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.current_monitor().hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        self.current_monitor().scale_factor()
     }
 
     #[inline]
@@ -356,8 +356,16 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(
+        &self,
+        _position: LogicalPosition<f64>,
+    ) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
+    pub fn set_minimized(&self, _minimized: bool) {
+        unimplemented!()
     }
 
     #[inline]
@@ -395,7 +403,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _spot: LogicalPosition) {
+    pub fn set_ime_position(&self, _spot: LogicalPosition<f64>) {
         // N/A
     }
 

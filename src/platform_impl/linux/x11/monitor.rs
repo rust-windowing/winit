@@ -38,7 +38,7 @@ pub struct VideoMode {
 
 impl VideoMode {
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -73,7 +73,7 @@ pub struct MonitorHandle {
     /// If the monitor is the primary one
     primary: bool,
     /// The DPI scale factor
-    pub(crate) hidpi_factor: f64,
+    pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
@@ -114,14 +114,14 @@ impl MonitorHandle {
         crtc: *mut XRRCrtcInfo,
         primary: bool,
     ) -> Option<Self> {
-        let (name, hidpi_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
+        let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
         let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
         let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
         let rect = util::AaRect::new(position, dimensions);
         Some(MonitorHandle {
             id,
             name,
-            hidpi_factor,
+            scale_factor,
             dimensions,
             position,
             primary,
@@ -130,17 +130,22 @@ impl MonitorHandle {
         })
     }
 
-    fn dummy() -> Self {
+    pub fn dummy() -> Self {
         MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),
-            hidpi_factor: 1.0,
+            scale_factor: 1.0,
             dimensions: (1, 1),
             position: (0, 0),
             primary: true,
             rect: util::AaRect::new((0, 0), (1, 1)),
             video_modes: Vec::new(),
         }
+    }
+
+    pub(crate) fn is_dummy(&self) -> bool {
+        // Zero is an invalid XID value; no real monitor will have it
+        self.id == 0
     }
 
     pub fn name(&self) -> Option<String> {
@@ -152,17 +157,17 @@ impl MonitorHandle {
         self.id as u32
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.dimensions.into()
     }
 
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         self.position.into()
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.hidpi_factor
+    pub fn scale_factor(&self) -> f64 {
+        self.scale_factor
     }
 
     #[inline]

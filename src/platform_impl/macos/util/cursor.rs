@@ -3,7 +3,8 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSDictionary, NSPoint, NSString},
 };
-use objc::runtime::Sel;
+use objc::{runtime::Sel, runtime::NO};
+use std::cell::RefCell;
 
 use crate::window::CursorIcon;
 
@@ -125,4 +126,39 @@ pub unsafe fn load_webkit_cursor(cursor_name: &str) -> id {
         initWithImage:image
         hotSpot:point
     ]
+}
+
+pub unsafe fn invisible_cursor() -> id {
+    // 16x16 GIF data for invisible cursor
+    // You can reproduce this via ImageMagick.
+    // $ convert -size 16x16 xc:none cursor.gif
+    static CURSOR_BYTES: &[u8] = &[
+        0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x10, 0x00, 0x10, 0x00, 0xF0, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x21, 0xF9, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00, 0x2C, 0x00, 0x00,
+        0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00, 0x02, 0x0E, 0x84, 0x8F, 0xA9, 0xCB, 0xED, 0x0F,
+        0xA3, 0x9C, 0xB4, 0xDA, 0x8B, 0xB3, 0x3E, 0x05, 0x00, 0x3B,
+    ];
+
+    thread_local! {
+        // We can't initialize this at startup.
+        static CURSOR_OBJECT: RefCell<id> = RefCell::new(nil);
+    }
+
+    CURSOR_OBJECT.with(|cursor_obj| {
+        if *cursor_obj.borrow() == nil {
+            // Create a cursor from `CURSOR_BYTES`
+            let cursor_data: id = msg_send![class!(NSData),
+                dataWithBytesNoCopy:CURSOR_BYTES as *const [u8]
+                length:CURSOR_BYTES.len()
+                freeWhenDone:NO
+            ];
+
+            let ns_image: id = msg_send![class!(NSImage), alloc];
+            let _: id = msg_send![ns_image, initWithData: cursor_data];
+            let cursor: id = msg_send![class!(NSCursor), alloc];
+            *cursor_obj.borrow_mut() =
+                msg_send![cursor, initWithImage:ns_image hotSpot: NSPoint::new(0.0, 0.0)];
+        }
+        *cursor_obj.borrow()
+    })
 }

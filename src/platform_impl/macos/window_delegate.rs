@@ -19,6 +19,7 @@ use crate::{
     event::{Event, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
+        event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         window::{get_window_id, UnownedWindow},
     },
@@ -47,20 +48,18 @@ pub struct WindowDelegateState {
 
 impl WindowDelegateState {
     pub fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
-        let dpi_factor = window.hidpi_factor();
-
+        let scale_factor = window.scale_factor();
         let mut delegate_state = WindowDelegateState {
             ns_window: window.ns_window.clone(),
             ns_view: window.ns_view.clone(),
             window: Arc::downgrade(&window),
             initial_fullscreen,
             previous_position: None,
-            previous_dpi_factor: dpi_factor,
+            previous_dpi_factor: scale_factor,
         };
 
-        if dpi_factor != 1.0 {
-            delegate_state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
-            delegate_state.emit_resize_event();
+        if scale_factor != 1.0 {
+            delegate_state.emit_static_scale_factor_changed_event();
         }
 
         delegate_state
@@ -73,17 +72,34 @@ impl WindowDelegateState {
         self.window.upgrade().map(|ref window| callback(window))
     }
 
-    pub fn emit_event(&mut self, event: WindowEvent) {
+    pub fn emit_event(&mut self, event: WindowEvent<'static>) {
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event,
         };
-        AppState::queue_event(event);
+        AppState::queue_event(EventWrapper::StaticEvent(event));
+    }
+
+    pub fn emit_static_scale_factor_changed_event(&mut self) {
+        let scale_factor = self.get_scale_factor();
+        if scale_factor == self.previous_dpi_factor {
+            return ();
+        };
+
+        self.previous_dpi_factor = scale_factor;
+        let wrapper = EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
+            ns_window: IdRef::retain(*self.ns_window),
+            suggested_size: self.view_size(),
+            scale_factor,
+        });
+        AppState::queue_event(wrapper);
     }
 
     pub fn emit_resize_event(&mut self) {
         let rect = unsafe { NSView::frame(*self.ns_view) };
-        let size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+        let scale_factor = self.get_scale_factor();
+        let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+        let size = logical_size.to_physical(scale_factor);
         self.emit_event(WindowEvent::Resized(size));
     }
 
@@ -96,6 +112,15 @@ impl WindowDelegateState {
             self.previous_position = Some((x, y));
             self.emit_event(WindowEvent::Moved((x, y).into()));
         }
+    }
+
+    fn get_scale_factor(&self) -> f64 {
+        (unsafe { NSWindow::backingScaleFactor(*self.ns_window) }) as f64
+    }
+
+    fn view_size(&self) -> LogicalSize<f64> {
+        let ns_size = unsafe { NSView::frame(*self.ns_view).size };
+        LogicalSize::new(ns_size.width as f64, ns_size.height as f64)
     }
 }
 
@@ -139,10 +164,6 @@ lazy_static! {
         decl.add_method(
             sel!(windowDidMove:),
             window_did_move as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidChangeScreen:),
-            window_did_change_screen as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
             sel!(windowDidChangeBackingProperties:),
@@ -194,6 +215,10 @@ lazy_static! {
         decl.add_method(
             sel!(windowDidExitFullScreen:),
             window_did_exit_fullscreen as extern "C" fn(&Object, Sel, id),
+        );
+        decl.add_method(
+            sel!(windowWillExitFullScreen:),
+            window_will_exit_fullscreen as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
             sel!(windowDidFailToEnterFullScreen:),
@@ -273,29 +298,10 @@ extern "C" fn window_did_move(this: &Object, _: Sel, _: id) {
     trace!("Completed `windowDidMove:`");
 }
 
-extern "C" fn window_did_change_screen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidChangeScreen:`");
-    with_state(this, |state| {
-        let dpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
-        if state.previous_dpi_factor != dpi_factor {
-            state.previous_dpi_factor = dpi_factor;
-            state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
-            state.emit_resize_event();
-        }
-    });
-    trace!("Completed `windowDidChangeScreen:`");
-}
-
-// This will always be called before `window_did_change_screen`.
 extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidChangeBackingProperties:`");
     with_state(this, |state| {
-        let dpi_factor = unsafe { NSWindow::backingScaleFactor(*state.ns_window) } as f64;
-        if state.previous_dpi_factor != dpi_factor {
-            state.previous_dpi_factor = dpi_factor;
-            state.emit_event(WindowEvent::HiDpiFactorChanged(dpi_factor));
-            state.emit_resize_event();
-        }
+        state.emit_static_scale_factor_changed_event();
     });
     trace!("Completed `windowDidChangeBackingProperties:`");
 }
@@ -402,11 +408,42 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_will_enter_fullscreen`");
-            window.shared_state.lock().unwrap().maximized = window.is_zoomed();
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.maximized = window.is_zoomed();
+            match shared_state.fullscreen {
+                // Exclusive mode sets the state in `set_fullscreen` as the user
+                // can't enter exclusive mode by other means (like the
+                // fullscreen button on the window decorations)
+                Some(Fullscreen::Exclusive(_)) => (),
+                // `window_will_enter_fullscreen` was triggered and we're already
+                // in fullscreen, so we must've reached here by `set_fullscreen`
+                // as it updates the state
+                Some(Fullscreen::Borderless(_)) => (),
+                // Otherwise, we must've reached fullscreen by the user clicking
+                // on the green fullscreen button. Update state!
+                None => {
+                    shared_state.fullscreen = Some(Fullscreen::Borderless(window.current_monitor()))
+                }
+            }
+            shared_state.in_fullscreen_transition = true;
             trace!("Unlocked shared state in `window_will_enter_fullscreen`");
         })
     });
     trace!("Completed `windowWillEnterFullscreen:`");
+}
+
+/// Invoked when before exit fullscreen
+extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
+    trace!("Triggered `windowWillExitFullScreen:`");
+    with_state(this, |state| {
+        state.with_window(|window| {
+            trace!("Locked shared state in `window_will_exit_fullscreen`");
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.in_fullscreen_transition = true;
+            trace!("Unlocked shared state in `window_will_exit_fullscreen`");
+        });
+    });
+    trace!("Completed `windowWillExitFullScreen:`");
 }
 
 extern "C" fn window_will_use_fullscreen_presentation_options(
@@ -433,26 +470,18 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
+        state.initial_fullscreen = false;
         state.with_window(|window| {
-            let monitor = window.current_monitor();
             trace!("Locked shared state in `window_did_enter_fullscreen`");
             let mut shared_state = window.shared_state.lock().unwrap();
-            match shared_state.fullscreen {
-                // Exclusive mode sets the state in `set_fullscreen` as the user
-                // can't enter exclusive mode by other means (like the
-                // fullscreen button on the window decorations)
-                Some(Fullscreen::Exclusive(_)) => (),
-                // `window_did_enter_fullscreen` was triggered and we're already
-                // in fullscreen, so we must've reached here by `set_fullscreen`
-                // as it updates the state
-                Some(Fullscreen::Borderless(_)) => (),
-                // Otherwise, we must've reached fullscreen by the user clicking
-                // on the green fullscreen button. Update state!
-                None => shared_state.fullscreen = Some(Fullscreen::Borderless(monitor)),
-            }
+            shared_state.in_fullscreen_transition = false;
+            let target_fullscreen = shared_state.target_fullscreen.take();
             trace!("Unlocked shared state in `window_did_enter_fullscreen`");
+            drop(shared_state);
+            if let Some(target_fullscreen) = target_fullscreen {
+                window.set_fullscreen(target_fullscreen);
+            }
         });
-        state.initial_fullscreen = false;
     });
     trace!("Completed `windowDidEnterFullscreen:`");
 }
@@ -463,6 +492,15 @@ extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
     with_state(this, |state| {
         state.with_window(|window| {
             window.restore_state_from_fullscreen();
+            trace!("Locked shared state in `window_did_exit_fullscreen`");
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.in_fullscreen_transition = false;
+            let target_fullscreen = shared_state.target_fullscreen.take();
+            trace!("Unlocked shared state in `window_did_exit_fullscreen`");
+            drop(shared_state);
+            if let Some(target_fullscreen) = target_fullscreen {
+                window.set_fullscreen(target_fullscreen);
+            }
         })
     });
     trace!("Completed `windowDidExitFullscreen:`");
@@ -487,6 +525,13 @@ extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidFailToEnterFullscreen:`");
     with_state(this, |state| {
+        state.with_window(|window| {
+            trace!("Locked shared state in `window_did_fail_to_enter_fullscreen`");
+            let mut shared_state = window.shared_state.lock().unwrap();
+            shared_state.in_fullscreen_transition = false;
+            shared_state.target_fullscreen = None;
+            trace!("Unlocked shared state in `window_did_fail_to_enter_fullscreen`");
+        });
         if state.initial_fullscreen {
             let _: () = unsafe {
                 msg_send![*state.ns_window,

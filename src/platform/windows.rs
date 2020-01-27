@@ -15,18 +15,52 @@ use crate::{
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopExtWindows {
+    /// Creates an event loop off of the main thread.
+    ///
+    /// # `Window` caveats
+    ///
+    /// Note that any `Window` created on the new thread will be destroyed when the thread
+    /// terminates. Attempting to use a `Window` after its parent thread terminates has
+    /// unspecified, although explicitly not undefined, behavior.
+    fn new_any_thread() -> Self
+    where
+        Self: Sized;
+
     /// By default, winit on Windows will attempt to enable process-wide DPI awareness. If that's
     /// undesirable, you can create an `EventLoop` using this function instead.
     fn new_dpi_unaware() -> Self
+    where
+        Self: Sized;
+
+    /// Creates a DPI-unaware event loop off of the main thread.
+    ///
+    /// The `Window` caveats in [`new_any_thread`](EventLoopExtWindows::new_any_thread) also apply here.
+    fn new_dpi_unaware_any_thread() -> Self
     where
         Self: Sized;
 }
 
 impl<T> EventLoopExtWindows for EventLoop<T> {
     #[inline]
+    fn new_any_thread() -> Self {
+        EventLoop {
+            event_loop: WindowsEventLoop::new_any_thread(),
+            _marker: ::std::marker::PhantomData,
+        }
+    }
+
+    #[inline]
     fn new_dpi_unaware() -> Self {
         EventLoop {
-            event_loop: WindowsEventLoop::with_dpi_awareness(false),
+            event_loop: WindowsEventLoop::new_dpi_unaware(),
+            _marker: ::std::marker::PhantomData,
+        }
+    }
+
+    #[inline]
+    fn new_dpi_unaware_any_thread() -> Self {
+        EventLoop {
+            event_loop: WindowsEventLoop::new_dpi_unaware_any_thread(),
             _marker: ::std::marker::PhantomData,
         }
     }
@@ -34,6 +68,8 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExtWindows {
+    /// Returns the HINSTANCE of the window
+    fn hinstance(&self) -> *mut libc::c_void;
     /// Returns the native handle that is used by this window.
     ///
     /// The pointer will become invalid when the native window was destroyed.
@@ -41,9 +77,17 @@ pub trait WindowExtWindows {
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
+
+    /// Whether the system theme is currently Windows 10's "Dark Mode".
+    fn is_dark_mode(&self) -> bool;
 }
 
 impl WindowExtWindows for Window {
+    #[inline]
+    fn hinstance(&self) -> *mut libc::c_void {
+        self.window.hinstance() as *mut _
+    }
+
     #[inline]
     fn hwnd(&self) -> *mut libc::c_void {
         self.window.hwnd() as *mut _
@@ -52,6 +96,11 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         self.window.set_taskbar_icon(taskbar_icon)
+    }
+
+    #[inline]
+    fn is_dark_mode(&self) -> bool {
+        self.window.is_dark_mode()
     }
 }
 

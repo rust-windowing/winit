@@ -1,4 +1,5 @@
-use std::time::{Duration, Instant};
+use instant::Instant;
+use std::time::Duration;
 use winit::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -6,6 +7,7 @@ use winit::{
 };
 
 fn main() {
+    simple_logger::init().unwrap();
     let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()

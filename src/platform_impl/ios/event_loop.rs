@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::{
+    dpi::LogicalSize,
     event::Event,
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
@@ -27,6 +28,21 @@ use crate::platform_impl::platform::{
     },
     monitor, view, MonitorHandle,
 };
+
+#[derive(Debug)]
+pub enum EventWrapper {
+    StaticEvent(Event<'static, Never>),
+    EventProxy(EventProxy),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EventProxy {
+    DpiChangedProxy {
+        window_id: id,
+        suggested_size: LogicalSize<f64>,
+        scale_factor: f64,
+    },
+}
 
 pub struct EventLoopWindowTarget<T: 'static> {
     receiver: Receiver<T>,
@@ -69,7 +85,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
             let application: *mut c_void = msg_send![class!(UIApplication), sharedApplication];
@@ -165,8 +181,10 @@ impl<T> EventLoopProxy<T> {
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
-        self.sender.send(event).map_err(|_| EventLoopClosed)?;
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+        self.sender
+            .send(event)
+            .map_err(|::std::sync::mpsc::SendError(x)| EventLoopClosed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);
@@ -197,10 +215,10 @@ fn setup_control_flow_observers() {
 
         // Core Animation registers its `CFRunLoopObserver` that performs drawing operations in
         // `CA::Transaction::ensure_implicit` with a priority of `0x1e8480`. We set the main_end
-        // priority to be 0, in order to send EventsCleared before RedrawRequested. This value was
+        // priority to be 0, in order to send MainEventsCleared before RedrawRequested. This value was
         // chosen conservatively to guard against apple using different priorities for their redraw
         // observers in different OS's or on different devices. If it so happens that it's too
-        // conservative, the main symptom would be non-redraw events coming in after `EventsCleared`.
+        // conservative, the main symptom would be non-redraw events coming in after `MainEventsCleared`.
         //
         // The value of `0x1e8480` was determined by inspecting stack traces and the associated
         // registers for every `CFRunLoopAddObserver` call on an iPad Air 2 running iOS 11.4.
@@ -275,7 +293,7 @@ fn setup_control_flow_observers() {
 pub enum Never {}
 
 pub trait EventHandler: Debug {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
+    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow);
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
@@ -294,10 +312,10 @@ impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
 
 impl<F, T> EventHandler for EventLoopHandler<F, T>
 where
-    F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+    F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     T: 'static,
 {
-    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
+    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
         (self.f)(
             event.map_nonuser_event().unwrap(),
             &self.event_loop,

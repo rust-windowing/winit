@@ -8,7 +8,7 @@ use std::ops::{BitAnd, Deref};
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSRect, NSUInteger},
+    foundation::{NSAutoreleasePool, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
@@ -31,6 +31,7 @@ pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
     length: 0,
 };
 
+#[derive(Debug, PartialEq)]
 pub struct IdRef(id);
 
 impl IdRef {
@@ -88,6 +89,22 @@ impl Clone for IdRef {
 // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
 pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
     CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)
+}
+
+pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
+    IdRef::new(NSString::alloc(nil).init_str(s))
+}
+
+pub unsafe fn app_name() -> Option<id> {
+    let bundle: id = msg_send![class!(NSBundle), mainBundle];
+    let dict: id = msg_send![bundle, infoDictionary];
+    let key = ns_string_id_ref("CFBundleName");
+    let app_name: id = msg_send![dict, objectForKey:*key];
+    if app_name != nil {
+        Some(app_name)
+    } else {
+        None
+    }
 }
 
 pub unsafe fn superclass<'a>(this: &'a Object) -> &'a Class {

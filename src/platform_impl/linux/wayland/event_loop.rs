@@ -2,10 +2,15 @@ use std::{
     cell::RefCell,
     collections::VecDeque,
     fmt,
+    io::ErrorKind,
     rc::Rc,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
+
+use mio::{Events, Poll, PollOpt, Ready, Token};
+
+use mio_extras::channel::{channel, Receiver, SendError, Sender};
 
 use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints::v1::client::{
     zwp_locked_pointer_v1::ZwpLockedPointerV1, zwp_pointer_constraints_v1::ZwpPointerConstraintsV1,
@@ -21,15 +26,17 @@ use smithay_client_toolkit::reexports::client::protocol::{
 };
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    event::ModifiersState,
+    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
+    event::{
+        DeviceEvent, DeviceId as RootDeviceId, Event, ModifiersState, StartCause, WindowEvent,
+    },
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
-        sticky_exit_callback, MonitorHandle as PlatformMonitorHandle,
-        VideoMode as PlatformVideoMode,
+        sticky_exit_callback, DeviceId as PlatformDeviceId, MonitorHandle as PlatformMonitorHandle,
+        VideoMode as PlatformVideoMode, WindowId as PlatformWindowId,
     },
-    window::CursorIcon,
+    window::{CursorIcon, WindowId as RootWindowId},
 };
 
 use super::{window::WindowStore, DeviceId, WindowId};
@@ -43,38 +50,36 @@ use smithay_client_toolkit::{
     Environment,
 };
 
-pub struct WindowEventsSink<T> {
-    buffer: VecDeque<crate::event::Event<T>>,
+const KBD_TOKEN: Token = Token(0);
+const USER_TOKEN: Token = Token(1);
+const EVQ_TOKEN: Token = Token(2);
+
+#[derive(Clone)]
+pub struct EventsSink {
+    sender: Sender<Event<'static, ()>>,
 }
 
-impl<T> WindowEventsSink<T> {
-    pub fn new() -> WindowEventsSink<T> {
-        WindowEventsSink {
-            buffer: VecDeque::new(),
-        }
+impl EventsSink {
+    pub fn new(sender: Sender<Event<'static, ()>>) -> EventsSink {
+        EventsSink { sender }
     }
 
-    pub fn send_window_event(&mut self, evt: crate::event::WindowEvent, wid: WindowId) {
-        self.buffer.push_back(crate::event::Event::WindowEvent {
-            event: evt,
-            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Wayland(wid)),
+    pub fn send_event(&self, event: Event<'static, ()>) {
+        self.sender.send(event).unwrap()
+    }
+
+    pub fn send_device_event(&self, event: DeviceEvent, device_id: DeviceId) {
+        self.send_event(Event::DeviceEvent {
+            event,
+            device_id: RootDeviceId(PlatformDeviceId::Wayland(device_id)),
         });
     }
 
-    pub fn send_device_event(&mut self, evt: crate::event::DeviceEvent, dev_id: DeviceId) {
-        self.buffer.push_back(crate::event::Event::DeviceEvent {
-            event: evt,
-            device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(dev_id)),
+    pub fn send_window_event(&self, event: WindowEvent<'static>, window_id: WindowId) {
+        self.send_event(Event::WindowEvent {
+            event,
+            window_id: RootWindowId(PlatformWindowId::Wayland(window_id)),
         });
-    }
-
-    fn empty_with<F>(&mut self, mut callback: F)
-    where
-        F: FnMut(crate::event::Event<T>),
-    {
-        for evt in self.buffer.drain(..) {
-            callback(evt)
-        }
     }
 }
 
@@ -132,10 +137,11 @@ impl CursorManager {
     }
 
     pub fn set_cursor_icon(&mut self, cursor: CursorIcon) {
-        if self.cursor_visible && cursor != self.current_cursor {
+        if cursor != self.current_cursor {
             self.current_cursor = cursor;
-
-            self.set_cursor_icon_impl(cursor);
+            if self.cursor_visible {
+                self.set_cursor_icon_impl(cursor);
+            }
         }
     }
 
@@ -191,7 +197,11 @@ impl CursorManager {
         }
     }
 
-    pub fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
+    // This function can only be called from a thread on which `pointer_constraints_proxy` event
+    // queue is located, so calling it directly from a Window doesn't work well, in case
+    // you've sent your window to another thread, so we need to pass cursor grab updates to
+    // the event loop and call this function from there.
+    fn grab_pointer(&mut self, surface: Option<&WlSurface>) {
         for locked_pointer in self.locked_pointers.drain(..) {
             locked_pointer.destroy();
         }
@@ -221,21 +231,17 @@ impl CursorManager {
 }
 
 pub struct EventLoop<T: 'static> {
-    // The loop
-    inner_loop: ::calloop::EventLoop<()>,
+    // Poll instance
+    poll: Poll,
     // The wayland display
     pub display: Arc<Display>,
     // The output manager
     pub outputs: OutputMgr,
-    // Our sink, shared with some handlers, buffering the events
-    sink: Arc<Mutex<WindowEventsSink<T>>>,
-    pending_user_events: Rc<RefCell<VecDeque<T>>>,
-    // Utility for grabbing the cursor and changing visibility
-    _user_source: ::calloop::Source<::calloop::channel::Channel<T>>,
-    user_sender: ::calloop::channel::Sender<T>,
-    _kbd_source: ::calloop::Source<
-        ::calloop::channel::Channel<(crate::event::WindowEvent, super::WindowId)>,
-    >,
+    // The cursor manager
+    cursor_manager: Arc<Mutex<CursorManager>>,
+    kbd_channel: Receiver<Event<'static, ()>>,
+    user_channel: Receiver<T>,
+    user_sender: Sender<T>,
     window_target: RootELW<T>,
 }
 
@@ -243,12 +249,12 @@ pub struct EventLoop<T: 'static> {
 //
 // We should only try and wake up the `EventLoop` if it still exists, so we hold Weak ptrs.
 pub struct EventLoopProxy<T: 'static> {
-    user_sender: calloop::channel::Sender<T>,
+    user_sender: Sender<T>,
 }
 
 pub struct EventLoopWindowTarget<T> {
-    // The event queue
-    pub evq: RefCell<::calloop::Source<EventQueue>>,
+    // the event queue
+    pub evq: RefCell<EventQueue>,
     // The window store
     pub store: Arc<Mutex<WindowStore>>,
     // The cursor manager
@@ -273,8 +279,14 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
-        self.user_sender.send(event).map_err(|_| EventLoopClosed)
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+        self.user_sender.send(event).map_err(|e| {
+            EventLoopClosed(if let SendError::Disconnected(x) = e {
+                x
+            } else {
+                unreachable!()
+            })
+        })
     }
 }
 
@@ -283,32 +295,26 @@ impl<T: 'static> EventLoop<T> {
         let (display, mut event_queue) = Display::connect_to_env()?;
 
         let display = Arc::new(display);
-        let sink = Arc::new(Mutex::new(WindowEventsSink::new()));
         let store = Arc::new(Mutex::new(WindowStore::new()));
         let seats = Arc::new(Mutex::new(Vec::new()));
 
-        let inner_loop = ::calloop::EventLoop::new().unwrap();
+        let poll = Poll::new().unwrap();
 
-        let (kbd_sender, kbd_channel) = ::calloop::channel::channel();
-        let kbd_sink = sink.clone();
-        let kbd_source = inner_loop
-            .handle()
-            .insert_source(kbd_channel, move |evt, &mut ()| {
-                if let ::calloop::channel::Event::Msg((evt, wid)) = evt {
-                    kbd_sink.lock().unwrap().send_window_event(evt, wid);
-                }
-            })
+        let (kbd_sender, kbd_channel) = channel();
+
+        let sink = EventsSink::new(kbd_sender);
+
+        poll.register(&kbd_channel, KBD_TOKEN, Ready::readable(), PollOpt::level())
             .unwrap();
 
         let pointer_constraints_proxy = Arc::new(Mutex::new(None));
 
         let mut seat_manager = SeatManager {
-            sink: sink.clone(),
-            relative_pointer_manager_proxy: Rc::new(RefCell::new(None)),
-            pointer_constraints_proxy: pointer_constraints_proxy.clone(),
+            sink,
             store: store.clone(),
             seats: seats.clone(),
-            kbd_sender,
+            relative_pointer_manager_proxy: Rc::new(RefCell::new(None)),
+            pointer_constraints_proxy: pointer_constraints_proxy.clone(),
             cursor_manager: Arc::new(Mutex::new(CursorManager::new(pointer_constraints_proxy))),
         };
 
@@ -388,38 +394,31 @@ impl<T: 'static> EventLoop<T> {
         )
         .unwrap();
 
-        let source = inner_loop
-            .handle()
-            .insert_source(event_queue, |(), &mut ()| {})
+        poll.register(&event_queue, EVQ_TOKEN, Ready::readable(), PollOpt::level())
             .unwrap();
 
-        let pending_user_events = Rc::new(RefCell::new(VecDeque::new()));
-        let pending_user_events2 = pending_user_events.clone();
+        let (user_sender, user_channel) = channel();
 
-        let (user_sender, user_channel) = ::calloop::channel::channel();
-
-        let user_source = inner_loop
-            .handle()
-            .insert_source(user_channel, move |evt, &mut ()| {
-                if let ::calloop::channel::Event::Msg(msg) = evt {
-                    pending_user_events2.borrow_mut().push_back(msg);
-                }
-            })
-            .unwrap();
+        poll.register(
+            &user_channel,
+            USER_TOKEN,
+            Ready::readable(),
+            PollOpt::level(),
+        )
+        .unwrap();
 
         let cursor_manager_clone = cursor_manager.clone();
         Ok(EventLoop {
-            inner_loop,
-            sink,
-            pending_user_events,
+            poll,
             display: display.clone(),
             outputs: env.outputs.clone(),
-            _user_source: user_source,
             user_sender,
-            _kbd_source: kbd_source,
+            user_channel,
+            kbd_channel,
+            cursor_manager,
             window_target: RootELW {
                 p: crate::platform_impl::EventLoopWindowTarget::Wayland(EventLoopWindowTarget {
-                    evq: RefCell::new(source),
+                    evq: RefCell::new(event_queue),
                     store,
                     env,
                     cursor_manager: cursor_manager_clone,
@@ -441,7 +440,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(callback);
         std::process::exit(0);
@@ -449,67 +448,84 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut callback: F)
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         // send pending events to the server
         self.display.flush().expect("Wayland connection lost.");
 
         let mut control_flow = ControlFlow::default();
-
-        let sink = self.sink.clone();
-        let user_events = self.pending_user_events.clone();
+        let mut events = Events::with_capacity(8);
 
         callback(
-            crate::event::Event::NewEvents(crate::event::StartCause::Init),
+            Event::NewEvents(StartCause::Init),
             &self.window_target,
             &mut control_flow,
         );
 
         loop {
-            self.post_dispatch_triggers();
+            // Read events from the event queue
+            {
+                let mut evq = get_target(&self.window_target).evq.borrow_mut();
 
-            // empty buffer of events
-            {
-                let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| {
-                    sticky_exit_callback(
-                        evt,
-                        &self.window_target,
-                        &mut control_flow,
-                        &mut callback,
-                    );
-                });
-            }
-            // empty user events
-            {
-                let mut guard = user_events.borrow_mut();
-                for evt in guard.drain(..) {
-                    sticky_exit_callback(
-                        crate::event::Event::UserEvent(evt),
-                        &self.window_target,
-                        &mut control_flow,
-                        &mut callback,
-                    );
+                evq.dispatch_pending()
+                    .expect("failed to dispatch wayland events");
+
+                if let Some(read) = evq.prepare_read() {
+                    if let Err(e) = read.read_events() {
+                        if e.kind() != ErrorKind::WouldBlock {
+                            panic!("failed to read wayland events: {}", e);
+                        }
+                    }
+
+                    evq.dispatch_pending()
+                        .expect("failed to dispatch wayland events");
                 }
             }
-            // do a second run of post-dispatch-triggers, to handle user-generated "request-redraw"
-            // in response of resize & friends
-            self.post_dispatch_triggers();
-            {
-                let mut guard = sink.lock().unwrap();
-                guard.empty_with(|evt| {
-                    sticky_exit_callback(
-                        evt,
-                        &self.window_target,
-                        &mut control_flow,
-                        &mut callback,
-                    );
-                });
+
+            self.post_dispatch_triggers(&mut callback, &mut control_flow);
+
+            while let Ok(event) = self.kbd_channel.try_recv() {
+                let event = event.map_nonuser_event().unwrap();
+                sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
             }
+
+            while let Ok(event) = self.user_channel.try_recv() {
+                sticky_exit_callback(
+                    Event::UserEvent(event),
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback,
+                );
+            }
+
             // send Events cleared
             {
                 sticky_exit_callback(
-                    crate::event::Event::EventsCleared,
+                    Event::MainEventsCleared,
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback,
+                );
+            }
+
+            // handle request-redraw
+            {
+                self.redraw_triggers(|wid, window_target| {
+                    sticky_exit_callback(
+                        Event::RedrawRequested(crate::window::WindowId(
+                            crate::platform_impl::WindowId::Wayland(wid),
+                        )),
+                        window_target,
+                        &mut control_flow,
+                        &mut callback,
+                    );
+                });
+            }
+
+            // send RedrawEventsCleared
+            {
+                sticky_exit_callback(
+                    Event::RedrawEventsCleared,
                     &self.window_target,
                     &mut control_flow,
                     &mut callback,
@@ -542,24 +558,25 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Exit => break,
                 ControlFlow::Poll => {
                     // non-blocking dispatch
-                    self.inner_loop
-                        .dispatch(Some(::std::time::Duration::from_millis(0)), &mut ())
+                    self.poll
+                        .poll(&mut events, Some(Duration::from_millis(0)))
                         .unwrap();
+                    events.clear();
+
                     callback(
-                        crate::event::Event::NewEvents(crate::event::StartCause::Poll),
+                        Event::NewEvents(StartCause::Poll),
                         &self.window_target,
                         &mut control_flow,
                     );
                 }
                 ControlFlow::Wait => {
-                    let timeout = if instant_wakeup {
-                        Some(::std::time::Duration::from_millis(0))
-                    } else {
-                        None
-                    };
-                    self.inner_loop.dispatch(timeout, &mut ()).unwrap();
+                    if !instant_wakeup {
+                        self.poll.poll(&mut events, None).unwrap();
+                        events.clear();
+                    }
+
                     callback(
-                        crate::event::Event::NewEvents(crate::event::StartCause::WaitCancelled {
+                        Event::NewEvents(StartCause::WaitCancelled {
                             start: Instant::now(),
                             requested_resume: None,
                         }),
@@ -573,29 +590,27 @@ impl<T: 'static> EventLoop<T> {
                     let duration = if deadline > start && !instant_wakeup {
                         deadline - start
                     } else {
-                        ::std::time::Duration::from_millis(0)
+                        Duration::from_millis(0)
                     };
-                    self.inner_loop.dispatch(Some(duration), &mut ()).unwrap();
+                    self.poll.poll(&mut events, Some(duration)).unwrap();
+                    events.clear();
+
                     let now = Instant::now();
                     if now < deadline {
                         callback(
-                            crate::event::Event::NewEvents(
-                                crate::event::StartCause::WaitCancelled {
-                                    start,
-                                    requested_resume: Some(deadline),
-                                },
-                            ),
+                            Event::NewEvents(StartCause::WaitCancelled {
+                                start,
+                                requested_resume: Some(deadline),
+                            }),
                             &self.window_target,
                             &mut control_flow,
                         );
                     } else {
                         callback(
-                            crate::event::Event::NewEvents(
-                                crate::event::StartCause::ResumeTimeReached {
-                                    start,
-                                    requested_resume: deadline,
-                                },
-                            ),
+                            Event::NewEvents(StartCause::ResumeTimeReached {
+                                start,
+                                requested_resume: deadline,
+                            }),
                             &self.window_target,
                             &mut control_flow,
                         );
@@ -604,11 +619,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        callback(
-            crate::event::Event::LoopDestroyed,
-            &self.window_target,
-            &mut control_flow,
-        );
+        callback(Event::LoopDestroyed, &self.window_target, &mut control_flow);
     }
 
     pub fn primary_monitor(&self) -> MonitorHandle {
@@ -635,12 +646,44 @@ impl<T> EventLoopWindowTarget<T> {
  */
 
 impl<T> EventLoop<T> {
-    fn post_dispatch_triggers(&mut self) {
-        let mut sink = self.sink.lock().unwrap();
+    fn redraw_triggers<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(WindowId, &RootELW<T>),
+    {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
             _ => unreachable!(),
         };
+        window_target.store.lock().unwrap().for_each_redraw_trigger(
+            |refresh, frame_refresh, wid, frame| {
+                if let Some(frame) = frame {
+                    if frame_refresh {
+                        frame.refresh();
+                        if !refresh {
+                            frame.surface().commit()
+                        }
+                    }
+                }
+                if refresh {
+                    callback(wid, &self.window_target);
+                }
+            },
+        )
+    }
+
+    fn post_dispatch_triggers<F>(&mut self, mut callback: F, control_flow: &mut ControlFlow)
+    where
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        let window_target = match self.window_target.p {
+            crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            _ => unreachable!(),
+        };
+
+        let mut callback = |event: Event<'_, T>| {
+            sticky_exit_callback(event, &self.window_target, control_flow, &mut callback);
+        };
+
         // prune possible dead windows
         {
             let mut cleanup_needed = window_target.cleanup_needed.lock().unwrap();
@@ -648,44 +691,83 @@ impl<T> EventLoop<T> {
                 let pruned = window_target.store.lock().unwrap().cleanup();
                 *cleanup_needed = false;
                 for wid in pruned {
-                    sink.send_window_event(crate::event::WindowEvent::Destroyed, wid);
+                    callback(Event::WindowEvent {
+                        window_id: crate::window::WindowId(
+                            crate::platform_impl::WindowId::Wayland(wid),
+                        ),
+                        event: WindowEvent::Destroyed,
+                    });
                 }
             }
         }
         // process pending resize/refresh
-        window_target.store.lock().unwrap().for_each(
-            |newsize, size, new_dpi, refresh, frame_refresh, closed, wid, frame| {
-                if let Some(frame) = frame {
-                    if let Some((w, h)) = newsize {
-                        frame.resize(w, h);
-                        frame.refresh();
+        window_target.store.lock().unwrap().for_each(|window| {
+            let window_id =
+                crate::window::WindowId(crate::platform_impl::WindowId::Wayland(window.wid));
+            if let Some(frame) = window.frame {
+                if let Some((w, h)) = window.newsize {
+                    // mutter (GNOME Wayland) relies on `set_geometry` to reposition window in case
+                    // it overlaps mutter's `bounding box`, so we can't avoid this resize call,
+                    // which calls `set_geometry` under the hood, for now.
+                    frame.resize(w, h);
+                    frame.refresh();
+
+                    // Don't send resize event downstream if the new size is identical to the
+                    // current one.
+                    if (w, h) != *window.size {
                         let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                        sink.send_window_event(
-                            crate::event::WindowEvent::Resized(logical_size),
-                            wid,
-                        );
-                        *size = (w, h);
-                    } else if frame_refresh {
-                        frame.refresh();
-                        if !refresh {
-                            frame.surface().commit()
-                        }
+                        let physical_size = logical_size
+                            .to_physical(window.new_dpi.unwrap_or(window.prev_dpi) as f64);
+
+                        callback(Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::Resized(physical_size),
+                        });
+                        *window.size = (w, h);
                     }
                 }
-                if let Some(dpi) = new_dpi {
-                    sink.send_window_event(
-                        crate::event::WindowEvent::HiDpiFactorChanged(dpi as f64),
-                        wid,
-                    );
+
+                if let Some(dpi) = window.new_dpi {
+                    let dpi = dpi as f64;
+                    let logical_size = LogicalSize::<f64>::from(*window.size);
+                    let mut new_inner_size = logical_size.to_physical(dpi);
+
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::ScaleFactorChanged {
+                            scale_factor: dpi,
+                            new_inner_size: &mut new_inner_size,
+                        },
+                    });
+
+                    let (w, h) = new_inner_size.to_logical::<u32>(dpi).into();
+                    frame.resize(w, h);
+                    *window.size = (w, h);
                 }
-                if refresh {
-                    sink.send_window_event(crate::event::WindowEvent::RedrawRequested, wid);
-                }
-                if closed {
-                    sink.send_window_event(crate::event::WindowEvent::CloseRequested, wid);
-                }
-            },
-        )
+            }
+            if window.closed {
+                callback(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::CloseRequested,
+                });
+            }
+
+            if let Some(grab_cursor) = window.grab_cursor {
+                let surface = if grab_cursor {
+                    Some(window.surface)
+                } else {
+                    None
+                };
+                self.cursor_manager.lock().unwrap().grab_pointer(surface);
+            }
+        })
+    }
+}
+
+fn get_target<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
+    match target.p {
+        crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+        _ => unreachable!(),
     }
 }
 
@@ -693,17 +775,16 @@ impl<T> EventLoop<T> {
  * Wayland protocol implementations
  */
 
-struct SeatManager<T: 'static> {
-    sink: Arc<Mutex<WindowEventsSink<T>>>,
+struct SeatManager {
+    sink: EventsSink,
     store: Arc<Mutex<WindowStore>>,
     seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
-    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
     pointer_constraints_proxy: Arc<Mutex<Option<ZwpPointerConstraintsV1>>>,
     cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
-impl<T: 'static> SeatManager<T> {
+impl SeatManager {
     fn add_seat(&mut self, id: u32, version: u32, registry: wl_registry::WlRegistry) {
         use std::cmp::min;
 
@@ -715,7 +796,6 @@ impl<T: 'static> SeatManager<T> {
             relative_pointer_manager_proxy: self.relative_pointer_manager_proxy.clone(),
             keyboard: None,
             touch: None,
-            kbd_sender: self.kbd_sender.clone(),
             modifiers_tracker: Arc::new(Mutex::new(ModifiersState::default())),
             cursor_manager: self.cursor_manager.clone(),
         };
@@ -739,10 +819,9 @@ impl<T: 'static> SeatManager<T> {
     }
 }
 
-struct SeatData<T> {
-    sink: Arc<Mutex<WindowEventsSink<T>>>,
+struct SeatData {
+    sink: EventsSink,
     store: Arc<Mutex<WindowStore>>,
-    kbd_sender: ::calloop::channel::Sender<(crate::event::WindowEvent, super::WindowId)>,
     pointer: Option<wl_pointer::WlPointer>,
     relative_pointer: Option<ZwpRelativePointerV1>,
     relative_pointer_manager_proxy: Rc<RefCell<Option<ZwpRelativePointerManagerV1>>>,
@@ -752,7 +831,7 @@ struct SeatData<T> {
     cursor_manager: Arc<Mutex<CursorManager>>,
 }
 
-impl<T: 'static> SeatData<T> {
+impl SeatData {
     fn receive(&mut self, evt: wl_seat::Event, seat: wl_seat::WlSeat) {
         match evt {
             wl_seat::Event::Name { .. } => (),
@@ -798,7 +877,7 @@ impl<T: 'static> SeatData<T> {
                 if capabilities.contains(wl_seat::Capability::Keyboard) && self.keyboard.is_none() {
                     self.keyboard = Some(super::keyboard::init_keyboard(
                         &seat,
-                        self.kbd_sender.clone(),
+                        self.sink.clone(),
                         self.modifiers_tracker.clone(),
                     ))
                 }
@@ -832,7 +911,7 @@ impl<T: 'static> SeatData<T> {
     }
 }
 
-impl<T> Drop for SeatData<T> {
+impl Drop for SeatData {
     fn drop(&mut self) {
         if let Some(pointer) = self.pointer.take() {
             if pointer.as_ref().version() >= 3 {
@@ -866,7 +945,7 @@ pub struct VideoMode {
 
 impl VideoMode {
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -926,9 +1005,9 @@ impl fmt::Debug for MonitorHandle {
         struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
-            size: PhysicalSize,
-            position: PhysicalPosition,
-            hidpi_factor: i32,
+            size: PhysicalSize<u32>,
+            position: PhysicalPosition<i32>,
+            scale_factor: i32,
         }
 
         let monitor_id_proxy = MonitorHandle {
@@ -936,7 +1015,7 @@ impl fmt::Debug for MonitorHandle {
             native_identifier: self.native_identifier(),
             size: self.size(),
             position: self.position(),
-            hidpi_factor: self.hidpi_factor(),
+            scale_factor: self.scale_factor(),
         };
 
         monitor_id_proxy.fmt(f)
@@ -955,7 +1034,7 @@ impl MonitorHandle {
         self.mgr.with_info(&self.proxy, |id, _| id).unwrap_or(0)
     }
 
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         match self.mgr.with_info(&self.proxy, |_, info| {
             info.modes
                 .iter()
@@ -968,7 +1047,7 @@ impl MonitorHandle {
         .into()
     }
 
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         self.mgr
             .with_info(&self.proxy, |_, info| info.location)
             .unwrap_or((0, 0))
@@ -976,7 +1055,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> i32 {
+    pub fn scale_factor(&self) -> i32 {
         self.mgr
             .with_info(&self.proxy, |_, info| info.scale_factor)
             .unwrap_or(1)

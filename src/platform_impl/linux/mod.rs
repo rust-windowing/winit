@@ -7,11 +7,9 @@ use raw_window_handle::RawWindowHandle;
 use smithay_client_toolkit::reexports::client::ConnectError;
 
 pub use self::x11::XNotSupported;
-use self::x11::{
-    ffi::XVisualInfo, get_xtarget, util::WindowType as XWindowType, XConnection, XError,
-};
+use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
 use crate::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
@@ -36,8 +34,8 @@ const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
     pub screen_id: Option<i32>,
-    pub resize_increments: Option<(u32, u32)>,
-    pub base_size: Option<(u32, u32)>,
+    pub resize_increments: Option<Size>,
+    pub base_size: Option<Size>,
     pub class: Option<(String, String)>,
     pub override_redirect: bool,
     pub x11_window_types: Vec<XWindowType>,
@@ -134,7 +132,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         match self {
             &MonitorHandle::X(ref m) => m.size(),
             &MonitorHandle::Wayland(ref m) => m.size(),
@@ -142,7 +140,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         match self {
             &MonitorHandle::X(ref m) => m.position(),
             &MonitorHandle::Wayland(ref m) => m.position(),
@@ -150,10 +148,10 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         match self {
-            &MonitorHandle::X(ref m) => m.hidpi_factor(),
-            &MonitorHandle::Wayland(ref m) => m.hidpi_factor() as f64,
+            &MonitorHandle::X(ref m) => m.scale_factor(),
+            &MonitorHandle::Wayland(ref m) => m.scale_factor() as f64,
         }
     }
 
@@ -174,7 +172,7 @@ pub enum VideoMode {
 
 impl VideoMode {
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         match self {
             &VideoMode::X(ref m) => m.size(),
             &VideoMode::Wayland(ref m) => m.size(),
@@ -248,7 +246,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         match self {
             &Window::X(ref w) => w.outer_position(),
             &Window::Wayland(ref w) => w.outer_position(),
@@ -256,7 +254,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         match self {
             &Window::X(ref m) => m.inner_position(),
             &Window::Wayland(ref m) => m.inner_position(),
@@ -264,7 +262,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, position: Position) {
         match self {
             &Window::X(ref w) => w.set_outer_position(position),
             &Window::Wayland(ref w) => w.set_outer_position(position),
@@ -272,7 +270,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         match self {
             &Window::X(ref w) => w.inner_size(),
             &Window::Wayland(ref w) => w.inner_size(),
@@ -280,7 +278,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         match self {
             &Window::X(ref w) => w.outer_size(),
             &Window::Wayland(ref w) => w.outer_size(),
@@ -288,7 +286,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
+    pub fn set_inner_size(&self, size: Size) {
         match self {
             &Window::X(ref w) => w.set_inner_size(size),
             &Window::Wayland(ref w) => w.set_inner_size(size),
@@ -296,7 +294,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
         match self {
             &Window::X(ref w) => w.set_min_inner_size(dimensions),
             &Window::Wayland(ref w) => w.set_min_inner_size(dimensions),
@@ -304,7 +302,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         match self {
             &Window::X(ref w) => w.set_max_inner_size(dimensions),
             &Window::Wayland(ref w) => w.set_max_inner_size(dimensions),
@@ -344,15 +342,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         match self {
-            &Window::X(ref w) => w.hidpi_factor(),
-            &Window::Wayland(ref w) => w.hidpi_factor() as f64,
+            &Window::X(ref w) => w.scale_factor(),
+            &Window::Wayland(ref w) => w.scale_factor() as f64,
         }
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
         match self {
             &Window::X(ref w) => w.set_cursor_position(position),
             &Window::Wayland(ref w) => w.set_cursor_position(position),
@@ -364,6 +362,14 @@ impl Window {
         match self {
             &Window::X(ref w) => w.set_maximized(maximized),
             &Window::Wayland(ref w) => w.set_maximized(maximized),
+        }
+    }
+
+    #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        match self {
+            &Window::X(ref w) => w.set_minimized(minimized),
+            &Window::Wayland(ref w) => w.set_minimized(minimized),
         }
     }
 
@@ -408,7 +414,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, position: LogicalPosition) {
+    pub fn set_ime_position(&self, position: Position) {
         match self {
             &Window::X(ref w) => w.set_ime_position(position),
             &Window::Wayland(_) => (),
@@ -520,14 +526,22 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
+        assert_is_main_thread("new_any_thread");
+
+        EventLoop::new_any_thread()
+    }
+
+    pub fn new_any_thread() -> EventLoop<T> {
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
                 "x11" => {
                     // TODO: propagate
-                    return EventLoop::new_x11().expect("Failed to initialize X11 backend");
+                    return EventLoop::new_x11_any_thread()
+                        .expect("Failed to initialize X11 backend");
                 }
                 "wayland" => {
-                    return EventLoop::new_wayland().expect("Failed to initialize Wayland backend");
+                    return EventLoop::new_wayland_any_thread()
+                        .expect("Failed to initialize Wayland backend");
                 }
                 _ => panic!(
                     "Unknown environment variable value for {}, try one of `x11`,`wayland`",
@@ -536,12 +550,12 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        let wayland_err = match EventLoop::new_wayland() {
+        let wayland_err = match EventLoop::new_wayland_any_thread() {
             Ok(event_loop) => return event_loop,
             Err(err) => err,
         };
 
-        let x11_err = match EventLoop::new_x11() {
+        let x11_err = match EventLoop::new_x11_any_thread() {
             Ok(event_loop) => return event_loop,
             Err(err) => err,
         };
@@ -554,10 +568,22 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn new_wayland() -> Result<EventLoop<T>, ConnectError> {
+        assert_is_main_thread("new_wayland_any_thread");
+
+        EventLoop::new_wayland_any_thread()
+    }
+
+    pub fn new_wayland_any_thread() -> Result<EventLoop<T>, ConnectError> {
         wayland::EventLoop::new().map(EventLoop::Wayland)
     }
 
     pub fn new_x11() -> Result<EventLoop<T>, XNotSupported> {
+        assert_is_main_thread("new_x11_any_thread");
+
+        EventLoop::new_x11_any_thread()
+    }
+
+    pub fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
         X11_BACKEND
             .lock()
             .as_ref()
@@ -575,7 +601,7 @@ impl<T: 'static> EventLoop<T> {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            EventLoop::X(ref evlp) => get_xtarget(&evlp.target)
+            EventLoop::X(ref evlp) => evlp
                 .x_connection()
                 .available_monitors()
                 .into_iter()
@@ -588,9 +614,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn primary_monitor(&self) -> MonitorHandle {
         match *self {
             EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
-            EventLoop::X(ref evlp) => {
-                MonitorHandle::X(get_xtarget(&evlp.target).x_connection().primary_monitor())
-            }
+            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
         }
     }
 
@@ -603,7 +627,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, callback: F)
     where
-        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         match *self {
             EventLoop::Wayland(ref mut evlp) => evlp.run_return(callback),
@@ -613,7 +637,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, callback: F) -> !
     where
-        F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         match self {
             EventLoop::Wayland(evlp) => evlp.run(callback),
@@ -630,7 +654,7 @@ impl<T: 'static> EventLoop<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         match *self {
             EventLoopProxy::Wayland(ref proxy) => proxy.send_event(event),
             EventLoopProxy::X(ref proxy) => proxy.send_event(event),
@@ -654,12 +678,12 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 fn sticky_exit_callback<T, F>(
-    evt: Event<T>,
+    evt: Event<'_, T>,
     target: &RootELW<T>,
     control_flow: &mut ControlFlow,
     callback: &mut F,
 ) where
-    F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
+    F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
 {
     // make ControlFlow::Exit sticky by providing a dummy
     // control flow reference if it is already Exit.
@@ -671,4 +695,36 @@ fn sticky_exit_callback<T, F>(
     };
     // user callback
     callback(evt, target, cf)
+}
+
+fn assert_is_main_thread(suggested_method: &str) {
+    if !is_main_thread() {
+        panic!(
+            "Initializing the event loop outside of the main thread is a significant \
+             cross-platform compatibility hazard. If you really, absolutely need to create an \
+             EventLoop on a different thread, please use the `EventLoopExtUnix::{}` function.",
+            suggested_method
+        );
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn is_main_thread() -> bool {
+    use libc::{c_long, getpid, syscall, SYS_gettid};
+
+    unsafe { syscall(SYS_gettid) == getpid() as c_long }
+}
+
+#[cfg(any(target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
+fn is_main_thread() -> bool {
+    use libc::pthread_main_np;
+
+    unsafe { pthread_main_np() == 1 }
+}
+
+#[cfg(target_os = "netbsd")]
+fn is_main_thread() -> bool {
+    use libc::_lwp_self;
+
+    unsafe { _lwp_self() == 1 }
 }

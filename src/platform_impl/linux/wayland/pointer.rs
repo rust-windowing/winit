@@ -6,10 +6,13 @@ use crate::event::{
 };
 
 use super::{
-    event_loop::{CursorManager, WindowEventsSink},
+    event_loop::{CursorManager, EventsSink},
+    make_wid,
     window::WindowStore,
     DeviceId,
 };
+
+use smithay_client_toolkit::surface;
 
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_pointer::{self, Event as PtrEvent, WlPointer},
@@ -28,14 +31,15 @@ use smithay_client_toolkit::reexports::protocols::unstable::pointer_constraints:
 
 use smithay_client_toolkit::reexports::client::protocol::wl_surface::WlSurface;
 
-pub fn implement_pointer<T: 'static>(
+pub fn implement_pointer(
     seat: &wl_seat::WlSeat,
-    sink: Arc<Mutex<WindowEventsSink<T>>>,
+    sink: EventsSink,
     store: Arc<Mutex<WindowStore>>,
     modifiers_tracker: Arc<Mutex<ModifiersState>>,
     cursor_manager: Arc<Mutex<CursorManager>>,
 ) -> WlPointer {
     seat.get_pointer(|pointer| {
+        // Currently focused winit surface
         let mut mouse_focus = None;
         let mut axis_buffer = None;
         let mut axis_discrete_buffer = None;
@@ -43,7 +47,6 @@ pub fn implement_pointer<T: 'static>(
 
         pointer.implement_closure(
             move |evt, pointer| {
-                let mut sink = sink.lock().unwrap();
                 let store = store.lock().unwrap();
                 let mut cursor_manager = cursor_manager.lock().unwrap();
                 match evt {
@@ -54,8 +57,17 @@ pub fn implement_pointer<T: 'static>(
                         ..
                     } => {
                         let wid = store.find_wid(&surface);
+
                         if let Some(wid) = wid {
-                            mouse_focus = Some(wid);
+                            let scale_factor = surface::get_dpi_factor(&surface) as f64;
+                            mouse_focus = Some(surface);
+
+                            // Reload cursor style only when we enter winit's surface. Calling
+                            // this function every time on `PtrEvent::Enter` could interfere with
+                            // SCTK CSD handling, since it changes cursor icons when you hover
+                            // cursor over the window borders.
+                            cursor_manager.reload_cursor_style();
+
                             sink.send_window_event(
                                 WindowEvent::CursorEntered {
                                     device_id: crate::event::DeviceId(
@@ -69,14 +81,13 @@ pub fn implement_pointer<T: 'static>(
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x, surface_y).into(),
+                                    position: (surface_x * scale_factor, surface_y * scale_factor)
+                                        .into(),
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
                             );
                         }
-
-                        cursor_manager.reload_cursor_style();
                     }
                     PtrEvent::Leave { surface, .. } => {
                         mouse_focus = None;
@@ -97,13 +108,16 @@ pub fn implement_pointer<T: 'static>(
                         surface_y,
                         ..
                     } => {
-                        if let Some(wid) = mouse_focus {
+                        if let Some(surface) = mouse_focus.as_ref() {
+                            let scale_factor = surface::get_dpi_factor(&surface) as f64;
+                            let wid = make_wid(surface);
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x, surface_y).into(),
+                                    position: (surface_x * scale_factor, surface_y * scale_factor)
+                                        .into(),
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
@@ -111,7 +125,7 @@ pub fn implement_pointer<T: 'static>(
                         }
                     }
                     PtrEvent::Button { button, state, .. } => {
-                        if let Some(wid) = mouse_focus {
+                        if let Some(surface) = mouse_focus.as_ref() {
                             let state = match state {
                                 wl_pointer::ButtonState::Pressed => ElementState::Pressed,
                                 wl_pointer::ButtonState::Released => ElementState::Released,
@@ -133,12 +147,13 @@ pub fn implement_pointer<T: 'static>(
                                     button,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
-                                wid,
+                                make_wid(surface),
                             );
                         }
                     }
                     PtrEvent::Axis { axis, value, .. } => {
-                        if let Some(wid) = mouse_focus {
+                        if let Some(surface) = mouse_focus.as_ref() {
+                            let wid = make_wid(surface);
                             if pointer.as_ref().version() < 5 {
                                 let (mut x, mut y) = (0.0, 0.0);
                                 // old seat compatibility
@@ -180,7 +195,8 @@ pub fn implement_pointer<T: 'static>(
                     PtrEvent::Frame => {
                         let axis_buffer = axis_buffer.take();
                         let axis_discrete_buffer = axis_discrete_buffer.take();
-                        if let Some(wid) = mouse_focus {
+                        if let Some(surface) = mouse_focus.as_ref() {
+                            let wid = make_wid(surface);
                             if let Some((x, y)) = axis_discrete_buffer {
                                 sink.send_window_event(
                                     WindowEvent::MouseWheel {
@@ -237,20 +253,18 @@ pub fn implement_pointer<T: 'static>(
     .unwrap()
 }
 
-pub fn implement_relative_pointer<T: 'static>(
-    sink: Arc<Mutex<WindowEventsSink<T>>>,
+pub fn implement_relative_pointer(
+    sink: EventsSink,
     pointer: &WlPointer,
     manager: &ZwpRelativePointerManagerV1,
 ) -> Result<ZwpRelativePointerV1, ()> {
     manager.get_relative_pointer(pointer, |rel_pointer| {
         rel_pointer.implement_closure(
-            move |evt, _rel_pointer| {
-                let mut sink = sink.lock().unwrap();
-                match evt {
-                    Event::RelativeMotion { dx, dy, .. } => sink
-                        .send_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId),
-                    _ => unreachable!(),
+            move |evt, _rel_pointer| match evt {
+                Event::RelativeMotion { dx, dy, .. } => {
+                    sink.send_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
                 }
+                _ => unreachable!(),
             },
             (),
         )

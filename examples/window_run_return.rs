@@ -9,48 +9,53 @@
     target_os = "openbsd"
 ))]
 fn main() {
+    use std::{thread::sleep, time::Duration};
     use winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         platform::desktop::EventLoopExtDesktop,
         window::WindowBuilder,
     };
-
     let mut event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
+    simple_logger::init().unwrap();
+    let _window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
         .unwrap();
 
-    println!("Close the window to continue.");
-    event_loop.run_return(|event, _, control_flow| match event {
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => *control_flow = ControlFlow::Exit,
-        _ => *control_flow = ControlFlow::Wait,
-    });
-    drop(window);
+    let mut quit = false;
 
-    let _window_2 = WindowBuilder::new()
-        .with_title("A second, fantasticer window!")
-        .build(&event_loop)
-        .unwrap();
+    while !quit {
+        event_loop.run_return(|event, _, control_flow| {
+            *control_flow = ControlFlow::Wait;
 
-    println!("Wa ha ha! You thought that closing the window would finish this?!");
-    event_loop.run_return(|event, _, control_flow| match event {
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => *control_flow = ControlFlow::Exit,
-        _ => *control_flow = ControlFlow::Wait,
-    });
+            if let Event::WindowEvent { event, .. } = &event {
+                // Print only Window events to reduce noise
+                println!("{:?}", event);
+            }
 
-    println!("Okay we're done now for real.");
+            match event {
+                Event::WindowEvent {
+                    event: WindowEvent::CloseRequested,
+                    ..
+                } => {
+                    quit = true;
+                }
+                Event::MainEventsCleared => {
+                    *control_flow = ControlFlow::Exit;
+                }
+                _ => (),
+            }
+        });
+
+        // Sleep for 1/60 second to simulate rendering
+        println!("rendering");
+        sleep(Duration::from_millis(16));
+    }
 }
 
-#[cfg(any(target_os = "ios", target_os = "android"))]
+#[cfg(any(target_os = "ios", target_os = "android", target_arch = "wasm32"))]
 fn main() {
     println!("This platform doesn't support run_return.");
 }

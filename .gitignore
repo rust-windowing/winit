@@ -3,4 +3,7 @@ target/
 rls/
 .vscode/
 *~
+*.wasm
+*.ts
+*.js
 #*#

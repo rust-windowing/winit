@@ -1,22 +1,23 @@
-extern crate env_logger;
-use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
-
-use winit::{
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, Fullscreen, WindowBuilder},
-};
-
-const WINDOW_COUNT: usize = 3;
-const WINDOW_SIZE: (u32, u32) = (600, 400);
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    env_logger::init();
+    use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
+
+    use winit::{
+        dpi::{PhysicalPosition, PhysicalSize, Position, Size},
+        event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::{CursorIcon, Fullscreen, WindowBuilder},
+    };
+
+    const WINDOW_COUNT: usize = 3;
+    const WINDOW_SIZE: PhysicalSize<u32> = PhysicalSize::new(600, 400);
+
+    simple_logger::init().unwrap();
     let event_loop = EventLoop::new();
     let mut window_senders = HashMap::with_capacity(WINDOW_COUNT);
     for _ in 0..WINDOW_COUNT {
         let window = WindowBuilder::new()
-            .with_inner_size(WINDOW_SIZE.into())
+            .with_inner_size(WINDOW_SIZE)
             .build(&event_loop)
             .unwrap();
 
@@ -47,6 +48,7 @@ fn main() {
                             );
                         }
                     }
+                    #[allow(deprecated)]
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
@@ -58,8 +60,8 @@ fn main() {
                         ..
                     } => {
                         window.set_title(&format!("{:?}", key));
-                        let state = !modifiers.shift;
-                        use self::VirtualKeyCode::*;
+                        let state = !modifiers.shift();
+                        use VirtualKeyCode::*;
                         match key {
                             A => window.set_always_on_top(state),
                             C => window.set_cursor_icon(match state {
@@ -79,7 +81,7 @@ fn main() {
                                     video_modes.iter().nth(video_mode_id).unwrap()
                                 );
                             }
-                            F => window.set_fullscreen(match (state, modifiers.alt) {
+                            F => window.set_fullscreen(match (state, modifiers.alt()) {
                                 (true, false) => {
                                     Some(Fullscreen::Borderless(window.current_monitor()))
                                 }
@@ -99,31 +101,38 @@ fn main() {
                                 println!("-> fullscreen     : {:?}", window.fullscreen());
                             }
                             L => window.set_min_inner_size(match state {
-                                true => Some(WINDOW_SIZE.into()),
+                                true => Some(WINDOW_SIZE),
                                 false => None,
                             }),
                             M => window.set_maximized(state),
                             P => window.set_outer_position({
                                 let mut position = window.outer_position().unwrap();
-                                let sign = if state { 1.0 } else { -1.0 };
-                                position.x += 10.0 * sign;
-                                position.y += 10.0 * sign;
+                                let sign = if state { 1 } else { -1 };
+                                position.x += 10 * sign;
+                                position.y += 10 * sign;
                                 position
                             }),
                             Q => window.request_redraw(),
                             R => window.set_resizable(state),
-                            S => window.set_inner_size(
-                                match state {
-                                    true => (WINDOW_SIZE.0 + 100, WINDOW_SIZE.1 + 100),
-                                    false => WINDOW_SIZE,
+                            S => window.set_inner_size(match state {
+                                true => PhysicalSize::new(
+                                    WINDOW_SIZE.width + 100,
+                                    WINDOW_SIZE.height + 100,
+                                ),
+                                false => WINDOW_SIZE,
+                            }),
+                            W => {
+                                if let Size::Physical(size) = WINDOW_SIZE.into() {
+                                    window
+                                        .set_cursor_position(Position::Physical(
+                                            PhysicalPosition::new(
+                                                size.width as i32 / 2,
+                                                size.height as i32 / 2,
+                                            ),
+                                        ))
+                                        .unwrap()
                                 }
-                                .into(),
-                            ),
-                            W => window
-                                .set_cursor_position(
-                                    (WINDOW_SIZE.0 as i32 / 2, WINDOW_SIZE.1 as i32 / 2).into(),
-                                )
-                                .unwrap(),
+                            }
                             Z => {
                                 window.set_visible(false);
                                 thread::sleep(Duration::from_secs(1));
@@ -159,11 +168,18 @@ fn main() {
                 }
                 _ => {
                     if let Some(tx) = window_senders.get(&window_id) {
-                        tx.send(event).unwrap();
+                        if let Some(event) = event.to_static() {
+                            tx.send(event).unwrap();
+                        }
                     }
                 }
             },
             _ => (),
         }
     })
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    panic!("Example not supported on Wasm");
 }

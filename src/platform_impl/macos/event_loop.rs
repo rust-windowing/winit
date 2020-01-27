@@ -84,7 +84,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         self.run_return(callback);
         process::exit(0);
@@ -92,15 +92,16 @@ impl<T> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, callback: F)
     where
-        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
-            let _pool = NSAutoreleasePool::new(nil);
+            let pool = NSAutoreleasePool::new(nil);
             let app = NSApp();
             assert_ne!(app, nil);
             AppState::set_callback(callback, Rc::clone(&self.window_target));
             let _: () = msg_send![app, run];
             AppState::exit();
+            pool.drain();
         }
     }
 
@@ -132,7 +133,7 @@ impl<T> Proxy<T> {
             // process user events through the normal OS EventLoop mechanisms.
             let rl = CFRunLoopGetMain();
             let mut context: CFRunLoopSourceContext = mem::zeroed();
-            context.perform = event_loop_proxy_handler;
+            context.perform = Some(event_loop_proxy_handler);
             let source =
                 CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
@@ -142,8 +143,10 @@ impl<T> Proxy<T> {
         }
     }
 
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
-        self.sender.send(event).map_err(|_| EventLoopClosed)?;
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
+        self.sender
+            .send(event)
+            .map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);

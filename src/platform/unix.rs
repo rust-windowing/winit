@@ -5,7 +5,7 @@ use std::{os::raw, ptr, sync::Arc};
 use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
 
 use crate::{
-    dpi::LogicalSize,
+    dpi::Size,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
@@ -76,35 +76,90 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
 /// Additional methods on `EventLoop` that are specific to Unix.
 pub trait EventLoopExtUnix {
-    /// Builds a new `EventLoops` that is forced to use X11.
+    /// Builds a new `EventLoop` that is forced to use X11.
+    ///
+    /// # Panics
+    ///
+    /// If called outside the main thread. To initialize an X11 event loop outside
+    /// the main thread, use [`new_x11_any_thread`](#tymethod.new_x11_any_thread).
     fn new_x11() -> Result<Self, XNotSupported>
     where
         Self: Sized;
 
     /// Builds a new `EventLoop` that is forced to use Wayland.
+    ///
+    /// # Panics
+    ///
+    /// If called outside the main thread. To initialize a Wayland event loop outside
+    /// the main thread, use [`new_wayland_any_thread`](#tymethod.new_wayland_any_thread).
     fn new_wayland() -> Self
+    where
+        Self: Sized;
+
+    /// Builds a new `EventLoop` on any thread.
+    ///
+    /// This method bypasses the cross-platform compatibility requirement
+    /// that `EventLoop` be created on the main thread.
+    fn new_any_thread() -> Self
+    where
+        Self: Sized;
+
+    /// Builds a new X11 `EventLoop` on any thread.
+    ///
+    /// This method bypasses the cross-platform compatibility requirement
+    /// that `EventLoop` be created on the main thread.
+    fn new_x11_any_thread() -> Result<Self, XNotSupported>
+    where
+        Self: Sized;
+
+    /// Builds a new Wayland `EventLoop` on any thread.
+    ///
+    /// This method bypasses the cross-platform compatibility requirement
+    /// that `EventLoop` be created on the main thread.
+    fn new_wayland_any_thread() -> Self
     where
         Self: Sized;
 }
 
+fn wrap_ev<T>(event_loop: LinuxEventLoop<T>) -> EventLoop<T> {
+    EventLoop {
+        event_loop,
+        _marker: std::marker::PhantomData,
+    }
+}
+
 impl<T> EventLoopExtUnix for EventLoop<T> {
     #[inline]
+    fn new_any_thread() -> Self {
+        wrap_ev(LinuxEventLoop::new_any_thread())
+    }
+
+    #[inline]
+    fn new_x11_any_thread() -> Result<Self, XNotSupported> {
+        LinuxEventLoop::new_x11_any_thread().map(wrap_ev)
+    }
+
+    #[inline]
+    fn new_wayland_any_thread() -> Self {
+        wrap_ev(
+            LinuxEventLoop::new_wayland_any_thread()
+                // TODO: propagate
+                .expect("failed to open Wayland connection"),
+        )
+    }
+
+    #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventLoop::new_x11().map(|ev| EventLoop {
-            event_loop: ev,
-            _marker: ::std::marker::PhantomData,
-        })
+        LinuxEventLoop::new_x11().map(wrap_ev)
     }
 
     #[inline]
     fn new_wayland() -> Self {
-        EventLoop {
-            event_loop: match LinuxEventLoop::new_wayland() {
-                Ok(e) => e,
-                Err(_) => panic!(), // TODO: propagate
-            },
-            _marker: ::std::marker::PhantomData,
-        }
+        wrap_ev(
+            LinuxEventLoop::new_wayland()
+                // TODO: propagate
+                .expect("failed to open Wayland connection"),
+        )
     }
 }
 
@@ -257,9 +312,9 @@ pub trait WindowBuilderExtUnix {
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> Self;
     /// Build window with resize increment hint. Only implemented on X11.
-    fn with_resize_increments(self, increments: LogicalSize) -> Self;
+    fn with_resize_increments<S: Into<Size>>(self, increments: S) -> Self;
     /// Build window with base size hint. Only implemented on X11.
-    fn with_base_size(self, base_size: LogicalSize) -> Self;
+    fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
 
     /// Build window with a given application ID. It should match the `.desktop` file distributed with
     /// your program. Only relevant on Wayland.
@@ -308,13 +363,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize) -> Self {
+    fn with_resize_increments<S: Into<Size>>(mut self, increments: S) -> Self {
         self.platform_specific.resize_increments = Some(increments.into());
         self
     }
 
     #[inline]
-    fn with_base_size(mut self, base_size: LogicalSize) -> Self {
+    fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
         self.platform_specific.base_size = Some(base_size.into());
         self
     }

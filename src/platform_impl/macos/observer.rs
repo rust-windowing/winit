@@ -93,14 +93,14 @@ pub enum CFRunLoopTimerContext {}
 pub struct CFRunLoopSourceContext {
     pub version: CFIndex,
     pub info: *mut c_void,
-    pub retain: extern "C" fn(*const c_void) -> *const c_void,
-    pub release: extern "C" fn(*const c_void),
-    pub copyDescription: extern "C" fn(*const c_void) -> CFStringRef,
-    pub equal: extern "C" fn(*const c_void, *const c_void) -> ffi::Boolean,
-    pub hash: extern "C" fn(*const c_void) -> CFHashCode,
-    pub schedule: extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode),
-    pub cancel: extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode),
-    pub perform: extern "C" fn(*mut c_void),
+    pub retain: Option<extern "C" fn(*const c_void) -> *const c_void>,
+    pub release: Option<extern "C" fn(*const c_void)>,
+    pub copyDescription: Option<extern "C" fn(*const c_void) -> CFStringRef>,
+    pub equal: Option<extern "C" fn(*const c_void, *const c_void) -> ffi::Boolean>,
+    pub hash: Option<extern "C" fn(*const c_void) -> CFHashCode>,
+    pub schedule: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
+    pub cancel: Option<extern "C" fn(*mut c_void, CFRunLoopRef, CFRunLoopMode)>,
+    pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
 // begin is queued with the highest priority to ensure it is processed before other observers
@@ -122,7 +122,7 @@ extern "C" fn control_flow_begin_handler(
 }
 
 // end is queued with the lowest priority to ensure it is processed after other observers
-// without that, LoopDestroyed would  get sent after EventsCleared
+// without that, LoopDestroyed would  get sent after MainEventsCleared
 extern "C" fn control_flow_end_handler(
     _: CFRunLoopObserverRef,
     activity: CFRunLoopActivity,

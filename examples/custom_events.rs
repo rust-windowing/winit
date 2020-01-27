@@ -1,15 +1,17 @@
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
-
-#[derive(Debug, Clone, Copy)]
-enum CustomEvent {
-    Timer,
-}
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    use winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::WindowBuilder,
+    };
+
+    #[derive(Debug, Clone, Copy)]
+    enum CustomEvent {
+        Timer,
+    }
+
+    simple_logger::init().unwrap();
     let event_loop = EventLoop::<CustomEvent>::with_user_event();
 
     let _window = WindowBuilder::new()
@@ -30,12 +32,21 @@ fn main() {
         }
     });
 
-    event_loop.run(move |event, _, control_flow| match event {
-        Event::UserEvent(event) => println!("user event: {:?}", event),
-        Event::WindowEvent {
-            event: WindowEvent::CloseRequested,
-            ..
-        } => *control_flow = ControlFlow::Exit,
-        _ => *control_flow = ControlFlow::Wait,
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        match event {
+            Event::UserEvent(event) => println!("user event: {:?}", event),
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+            _ => (),
+        }
     });
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    panic!("This example is not supported on web.");
 }
