@@ -24,6 +24,7 @@
 - On Wayland, fixed DeviceEvents for relative mouse movement is not always produced.
 - Removed `derivative` crate dependency.
 - On Wayland, add support for set_cursor_icon.
+- **Breaking:** On Wayland, the `WaylandTheme` struct has been replaced with a `Theme` trait, allowing for extra configuration
 
 # 0.20.0 Alpha 3 (2019-08-14)
 
