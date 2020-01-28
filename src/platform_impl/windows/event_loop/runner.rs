@@ -411,6 +411,7 @@ impl<T> EventLoopRunner<T> {
                 // that was sent after `MainEventsCleared`.
                 ControlFlow::Poll => self.call_event_handler(Event::NewEvents(StartCause::Poll)),
             }
+            self.runner_state = RunnerState::HandlingEvents;
         }
 
         match (self.runner_state, &event) {
