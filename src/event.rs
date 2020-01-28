@@ -243,7 +243,7 @@ pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl DeviceId {
     /// Returns the integer value of the DeviceId. This returns useful values for X11 DeviceIds and 0 for others.
-    pub fn get_index(self) -> i32 {
+    pub fn id(&self) -> u32 {
         match self {
             DeviceId(platform_id) => match platform_id {
                 crate::platform::unix::DeviceId::X(i) => match i {
