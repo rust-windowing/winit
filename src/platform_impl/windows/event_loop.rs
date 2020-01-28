@@ -320,11 +320,9 @@ fn main_thread_id() -> DWORD {
     unsafe { MAIN_THREAD_ID }
 }
 
-// Returns true if the wait time was reached, and false if a message must be processed.
-unsafe fn wait_until_time_or_msg(wait_until: Instant) -> bool {
-    let mut msg = mem::zeroed();
+unsafe fn wait_until_time_or_msg(wait_until: Instant) {
     let now = Instant::now();
-    if now <= wait_until {
+    if now < wait_until {
         // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract 1 millisecond
         // from the requested time and spinlock for the remainder to compensate for that.
         let resume_reason = winuser::MsgWaitForMultipleObjectsEx(
@@ -336,16 +334,16 @@ unsafe fn wait_until_time_or_msg(wait_until: Instant) -> bool {
         );
 
         if resume_reason == winerror::WAIT_TIMEOUT {
+            let mut msg = mem::zeroed();
             while Instant::now() < wait_until {
                 if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
-                    return false;
+                    break;
                 }
             }
         }
     }
-
-    return true;
 }
+
 // Implementation taken from https://github.com/rust-lang/rust/blob/db5476571d9b27c862b95c1e64764b0ac8980e23/src/libstd/sys/windows/mod.rs
 fn dur2timeout(dur: Duration) -> DWORD {
     // Note that a duration is a (u64, u32) (seconds, nanoseconds) pair, and the
