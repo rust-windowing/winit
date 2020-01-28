@@ -246,7 +246,7 @@ impl DeviceId {
     pub fn id(&self) -> u32 {
         match self {
             DeviceId(platform_id) => match platform_id {
-                crate::platform::unix::DeviceId::X(i) => match i {
+                platform_id.id()
                     crate::platform::unix::x11::DeviceId(idx) => idx,
                 }
                 _ => 0,
