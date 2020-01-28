@@ -514,6 +514,10 @@ impl WindowId {
 pub struct DeviceId(c_int);
 
 impl DeviceId {
+    pub fn id(&self) -> u32 {
+        self.0 as _
+    }
+
     pub unsafe fn dummy() -> Self {
         DeviceId(0)
     }
