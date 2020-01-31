@@ -344,6 +344,7 @@ impl<'a> WindowEvent<'a> {
                 input,
                 is_synthetic,
             }),
+            Composition { event } => Some(Composition { event }),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,

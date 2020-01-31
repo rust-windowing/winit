@@ -48,7 +48,6 @@ use self::{
     ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
     util::modifiers::ModifierKeymap,
 };
-use crate::platform_impl::platform::x11::ime::ImeEventSender;
 use crate::{
     error::OsError as RootOsError,
     event::{Event, StartCause},

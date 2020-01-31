@@ -20,7 +20,6 @@ use self::{
     input_method::PotentialInputMethods,
 };
 use crate::event::CompositionEvent;
-use crate::platform_impl::platform::x11::ime::context::ImeContextClientData;
 
 pub type ImeReceiver = Receiver<(ffi::Window, i16, i16)>;
 pub type ImeSender = Sender<(ffi::Window, i16, i16)>;
