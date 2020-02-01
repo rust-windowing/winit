@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Document</title>
+</head>
+<body>
+  <canvas id="my_id"></canvas>
+  <script>
+    window.Module = {
+      canvas: document.getElementById('my_id')
+    }
+  </script>
+  <script type="module">
+    import winit_web_tests from "./winit_web_tests.js"
+    winit_web_tests().then((m) => {
+      m.test_gamepad()
+    })
+  </script>
+</body>
+</html>
