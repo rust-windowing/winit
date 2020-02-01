@@ -125,7 +125,6 @@ impl Canvas {
             move |_: FocusEvent| {
                 handler();
             },
-            false,
         ));
     }
 
@@ -138,7 +137,6 @@ impl Canvas {
             move |_: FocusEvent| {
                 handler();
             },
-            false,
         ));
     }
 
@@ -155,7 +153,6 @@ impl Canvas {
                     event::keyboard_modifiers(&event),
                 );
             },
-            false,
         ));
     }
 
@@ -172,7 +169,6 @@ impl Canvas {
                     event::keyboard_modifiers(&event),
                 );
             },
-            false,
         ));
     }
 
@@ -190,7 +186,6 @@ impl Canvas {
             move |event: KeyboardEvent| {
                 handler(event::codepoint(&event));
             },
-            false,
         ));
     }
 
@@ -203,7 +198,6 @@ impl Canvas {
             move |event: PointerEvent| {
                 handler(event.pointer_id(), event::mouse_button(&event));
             },
-            false,
         ));
     }
 
@@ -216,7 +210,6 @@ impl Canvas {
             move |event: PointerEvent| {
                 handler(event.pointer_id(), event::mouse_button(&event));
             },
-            false,
         ));
     }
 
@@ -230,7 +223,6 @@ impl Canvas {
                 let delta = event::mouse_scroll_delta(&event);
                 handler(0, delta);
             },
-            false,
         ));
     }
 
@@ -243,7 +235,6 @@ impl Canvas {
             move |_event: PointerEvent| {
                 handler();
             },
-            false,
         ));
     }
 
@@ -256,7 +247,6 @@ impl Canvas {
             move |_event: PointerEvent| {
                 handler();
             },
-            false,
         ));
     }
 
@@ -272,7 +262,6 @@ impl Canvas {
                     event::mouse_modifiers(&event),
                 );
             },
-            false,
         ));
     }
 
@@ -281,7 +270,7 @@ impl Canvas {
         F: 'static + FnMut(),
     {
         self.on_fullscreen_change =
-            Some(self.add_event("fullscreenchange", move |_: Event| handler(), false));
+            Some(self.add_event("fullscreenchange", move |_: Event| handler()));
     }
 
     pub fn on_gamepad_connected<F>(&mut self, mut handler: F)
@@ -289,7 +278,7 @@ impl Canvas {
         F: 'static + FnMut(GamepadShared),
     {
         let m = self.gamepad_manager.clone();
-        self.on_gamepad_connected = Some(self.add_event(
+        self.on_gamepad_connected = Some(self.add_window_event(
             "gamepadconnected",
             move |event: GamepadEvent| {
                 let gamepad = event
@@ -298,7 +287,6 @@ impl Canvas {
                 let g = m.register(gamepad);
                 handler(g);
             },
-            false,
         ))
     }
 
@@ -307,7 +295,7 @@ impl Canvas {
         F: 'static + FnMut(GamepadShared),
     {
         let m = self.gamepad_manager.clone();
-        self.on_gamepad_disconnected = Some(self.add_event(
+        self.on_gamepad_disconnected = Some(self.add_window_event(
             "gamepaddisconnected",
             move |event: GamepadEvent| {
                 let gamepad = event
@@ -316,7 +304,6 @@ impl Canvas {
                 let g = m.register(gamepad);
                 handler(g);
             },
-            false,
         ))
     }
 
@@ -324,7 +311,6 @@ impl Canvas {
         &self,
         event_name: &str,
         mut handler: F,
-        is_global: bool,
     ) -> Closure<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
@@ -340,15 +326,9 @@ impl Canvas {
             handler(event);
         }) as Box<dyn FnMut(E)>);
 
-        if is_global {
-            self.window
-                .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
-                .expect("Failed to add event listener with callback");
-        } else {
-            self.raw
-                .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
-                .expect("Failed to add event listener with callback");
-        }
+        self.raw
+            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
+            .expect("Failed to add event listener with callback");
 
         closure
     }
@@ -360,7 +340,6 @@ impl Canvas {
         &self,
         event_name: &str,
         mut handler: F,
-        is_global: bool,
     ) -> Closure<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
@@ -381,8 +360,33 @@ impl Canvas {
                     *wants_fullscreen.borrow_mut() = false;
                 }
             },
-            is_global,
         )
+    }
+
+    fn add_window_event<E, F>(
+        &self,
+        event_name: &str,
+        mut handler: F,
+    ) -> Closure<dyn FnMut(E)>
+    where
+        E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
+        F: 'static + FnMut(E),
+    {
+        let closure = Closure::wrap(Box::new(move |event: E| {
+            {
+                let event_ref = event.as_ref();
+                event_ref.stop_propagation();
+                event_ref.cancel_bubble();
+            }
+
+            handler(event);
+        }) as Box<dyn FnMut(E)>);
+
+        self.window
+            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
+            .expect("Failed to add event listener with callback");
+
+        closure
     }
 
     pub fn request_fullscreen(&self) {
