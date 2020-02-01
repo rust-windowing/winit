@@ -8,46 +8,94 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-macro_rules! device_id {
-    ($name:ident, $enumerate:ident) => {
-        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub(crate) struct $name(pub i32);
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct MouseId(pub i32);
 
-        unsafe impl Send for $name {}
-        unsafe impl Sync for $name {}
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct KeyboardId(pub i32);
 
-        impl $name {
-            pub unsafe fn dummy() -> Self {
-                Self(0)
-            }
-
-            pub fn is_connected(&self) -> bool {
-                false
-            }
-
-            pub fn enumerate<'a, T>(
-                event_loop: &'a EventLoop<T>,
-            ) -> impl 'a + Iterator<Item = device::$name> {
-                event_loop.$enumerate()
-            }
-        }
-
-        impl From<$name> for device::$name {
-            fn from(platform_id: $name) -> Self {
-                Self(platform_id)
-            }
-        }
-    };
-}
-
-device_id!(MouseId, mouses);
-device_id!(KeyboardId, keyboards);
-device_id!(HidId, hids);
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct HidId(pub i32);
 
 #[derive(Clone, Debug)]
 pub(crate) struct GamepadHandle {
     pub(crate) id: i32,
     pub(crate) gamepad: GamepadShared,
+}
+
+unsafe impl Send for MouseId {}
+unsafe impl Sync for MouseId {}
+
+impl MouseId {
+    pub unsafe fn dummy() -> Self {
+        Self(0)
+    }
+
+    pub fn is_connected(&self) -> bool {
+        false
+    }
+
+    pub fn enumerate<'a, T>(
+        event_loop: &'a EventLoop<T>,
+    ) -> impl 'a + Iterator<Item = device::MouseId> {
+        event_loop.mouses()
+    }
+}
+
+impl From<MouseId> for device::MouseId {
+    fn from(platform_id: MouseId) -> Self {
+        Self(platform_id)
+    }
+}
+
+unsafe impl Send for KeyboardId {}
+unsafe impl Sync for KeyboardId {}
+
+impl KeyboardId {
+    pub unsafe fn dummy() -> Self {
+        Self(0)
+    }
+
+    pub fn is_connected(&self) -> bool {
+        false
+    }
+
+    pub fn enumerate<'a, T>(
+        event_loop: &'a EventLoop<T>,
+    ) -> impl 'a + Iterator<Item = device::KeyboardId> {
+        event_loop.keyboards()
+    }
+}
+
+impl From<KeyboardId> for device::KeyboardId {
+    fn from(platform_id: KeyboardId) -> Self {
+        Self(platform_id)
+    }
+}
+
+unsafe impl Send for HidId {}
+unsafe impl Sync for HidId {}
+
+impl HidId {
+    pub unsafe fn dummy() -> Self {
+        Self(0)
+    }
+
+    pub fn is_connected(&self) -> bool {
+        false
+    }
+
+    pub fn enumerate<'a, T>(
+        event_loop: &'a EventLoop<T>,
+    ) -> impl 'a + Iterator<Item = device::HidId> {
+        event_loop.hids()
+    }
+}
+
+impl From<HidId> for device::HidId {
+    fn from(platform_id: HidId) -> Self {
+        Self(platform_id)
+    }
 }
 
 unsafe impl Send for GamepadHandle {}
