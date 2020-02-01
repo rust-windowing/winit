@@ -58,17 +58,17 @@ impl GamepadShared {
     // EXPERIMENTAL
     #[allow(dead_code)]
     pub fn vibrate(&self, _value: f64, _duration: f64) {
-    //     for actuator in self.0.haptic_actuators().values() {
-    //         actuator
-    //         .ok()
-    //         .and_then(|a| match a.type_ {
-    //             web_sys::GamepadHapticActuatorType::Vibration => {
-    //                 a.pulse(value, duration);
-    //                 Some(())
-    //             },
-    //             _ => None,
-    //         });
-    //     }
+        //     for actuator in self.0.haptic_actuators().values() {
+        //         actuator
+        //         .ok()
+        //         .and_then(|a| match a.type_ {
+        //             web_sys::GamepadHapticActuatorType::Vibration => {
+        //                 a.pulse(value, duration);
+        //                 Some(())
+        //             },
+        //             _ => None,
+        //         });
+        //     }
     }
 }
 

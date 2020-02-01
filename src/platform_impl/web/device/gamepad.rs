@@ -1,6 +1,6 @@
+use crate::event::device::{BatteryLevel, RumbleError};
 use crate::platform_impl::platform::backend;
 use std::fmt;
-use crate::event::device::{BatteryLevel, RumbleError};
 
 pub enum GamepadShared {
     Raw(backend::GamepadShared),
@@ -42,7 +42,7 @@ impl GamepadShared {
             GamepadShared::Raw(g) => {
                 g.vibrate(0.5, 2.0);
                 Ok(())
-            },
+            }
         }
     }
 
@@ -75,12 +75,7 @@ impl fmt::Debug for GamepadShared {
         if self.is_dummy() {
             write!(f, "Gamepad (Dummy)")
         } else {
-            write!(
-                f,
-                "Gamepad ({}#{})",
-                self.info(),
-                self.id()
-            )
+            write!(f, "Gamepad ({}#{})", self.info(), self.id())
         }
     }
 }

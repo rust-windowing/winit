@@ -4,7 +4,6 @@ use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::platform_impl::platform::device::{GamepadHandle, GamepadShared, KeyboardId, MouseId};
 use crate::window::WindowId;
-use std::clone::Clone;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,

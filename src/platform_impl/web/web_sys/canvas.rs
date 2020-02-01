@@ -185,7 +185,7 @@ impl Canvas {
         // The `keypress` event is deprecated, but there does not seem to be a
         // viable/compatible alternative as of now. `beforeinput` is still widely
         // unsupported.
-        self.on_received_character = Some(self.add_event(
+        self.on_received_character = Some(self.add_user_event(
             "keypress",
             move |event: KeyboardEvent| {
                 handler(event::codepoint(&event));
