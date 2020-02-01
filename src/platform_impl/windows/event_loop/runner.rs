@@ -419,7 +419,8 @@ impl<T> EventLoopRunner<T> {
                 self.call_event_handler(event)
             }
             (RunnerState::New, Event::RedrawRequested(_))
-            | (RunnerState::Idle(..), Event::RedrawRequested(_)) => {
+            | (RunnerState::Idle(..), Event::RedrawRequested(_))
+            | (RunnerState::HandlingEvents, Event::RedrawRequested(_)) => {
                 self.new_events();
                 self.main_events_cleared();
                 self.call_event_handler(event);
