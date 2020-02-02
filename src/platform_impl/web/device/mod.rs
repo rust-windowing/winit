@@ -2,7 +2,7 @@ mod gamepad;
 
 use super::event_loop::EventLoop;
 use crate::event::device;
-pub use gamepad::GamepadShared;
+pub use gamepad::SharedGamepad;
 use std::{
     cmp::{Eq, Ordering, PartialEq, PartialOrd},
     hash::{Hash, Hasher},
@@ -20,7 +20,7 @@ pub(crate) struct HidId(pub i32);
 #[derive(Clone, Debug)]
 pub(crate) struct GamepadHandle {
     pub(crate) id: i32,
-    pub(crate) gamepad: GamepadShared,
+    pub(crate) gamepad: SharedGamepad,
 }
 
 unsafe impl Send for MouseId {}
@@ -105,7 +105,7 @@ impl GamepadHandle {
     pub unsafe fn dummy() -> Self {
         Self {
             id: -1,
-            gamepad: GamepadShared::default(),
+            gamepad: SharedGamepad::default(),
         }
     }
 

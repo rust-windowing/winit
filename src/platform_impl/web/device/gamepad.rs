@@ -2,44 +2,44 @@ use crate::event::device::{BatteryLevel, RumbleError};
 use crate::platform_impl::platform::backend;
 use std::fmt;
 
-pub enum GamepadShared {
-    Raw(backend::GamepadShared),
+pub enum SharedGamepad {
+    Raw(backend::SharedGamepad),
     Dummy,
 }
 
-impl GamepadShared {
+impl SharedGamepad {
     pub fn id(&self) -> i32 {
         match self {
-            GamepadShared::Raw(g) => g.index() as i32,
-            GamepadShared::Dummy => -1,
+            SharedGamepad::Raw(g) => g.index() as i32,
+            SharedGamepad::Dummy => -1,
         }
     }
 
     pub fn info(&self) -> String {
         match self {
-            GamepadShared::Raw(g) => g.id(),
-            GamepadShared::Dummy => String::new(),
+            SharedGamepad::Raw(g) => g.id(),
+            SharedGamepad::Dummy => String::new(),
         }
     }
 
     pub fn connected(&self) -> bool {
         match self {
-            GamepadShared::Raw(g) => g.connected(),
-            GamepadShared::Dummy => false,
+            SharedGamepad::Raw(g) => g.connected(),
+            SharedGamepad::Dummy => false,
         }
     }
 
     pub fn is_dummy(&self) -> bool {
         match self {
-            GamepadShared::Dummy => true,
+            SharedGamepad::Dummy => true,
             _ => false,
         }
     }
 
     pub fn rumble(&self, _left_speed: f64, _right_speed: f64) -> Result<(), RumbleError> {
         match self {
-            GamepadShared::Dummy => Ok(()),
-            GamepadShared::Raw(g) => {
+            SharedGamepad::Dummy => Ok(()),
+            SharedGamepad::Raw(g) => {
                 g.vibrate(0.5, 2.0);
                 Ok(())
             }
@@ -55,22 +55,22 @@ impl GamepadShared {
     }
 }
 
-impl Clone for GamepadShared {
+impl Clone for SharedGamepad {
     fn clone(&self) -> Self {
         match self {
-            GamepadShared::Raw(g) => GamepadShared::Raw(g.clone()),
-            GamepadShared::Dummy => GamepadShared::Dummy,
+            SharedGamepad::Raw(g) => SharedGamepad::Raw(g.clone()),
+            SharedGamepad::Dummy => SharedGamepad::Dummy,
         }
     }
 }
 
-impl Default for GamepadShared {
+impl Default for SharedGamepad {
     fn default() -> Self {
-        GamepadShared::Dummy
+        SharedGamepad::Dummy
     }
 }
 
-impl fmt::Debug for GamepadShared {
+impl fmt::Debug for SharedGamepad {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         if self.is_dummy() {
             write!(f, "Gamepad (Dummy)")

@@ -1,10 +1,12 @@
 mod canvas;
+mod window;
 mod event;
 mod gamepad;
 mod timeout;
 
 pub use self::canvas::Canvas;
-pub use self::gamepad::GamepadShared;
+pub use self::window::SharedWindow;
+pub use self::gamepad::SharedGamepad;
 pub use self::timeout::Timeout;
 
 use crate::dpi::LogicalSize;

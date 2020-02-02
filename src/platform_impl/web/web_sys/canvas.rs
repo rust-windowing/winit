@@ -1,5 +1,4 @@
 use super::event;
-use super::gamepad::{GamepadManagerShared, GamepadShared};
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
@@ -10,13 +9,11 @@ use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    Event, FocusEvent, GamepadEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent,
+    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent,
 };
 
 pub struct Canvas {
     raw: HtmlCanvasElement,
-    window: web_sys::Window,
-    gamepad_manager: GamepadManagerShared,
     on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
@@ -29,8 +26,6 @@ pub struct Canvas {
     on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
-    on_gamepad_connected: Option<Closure<dyn FnMut(GamepadEvent)>>,
-    on_gamepad_disconnected: Option<Closure<dyn FnMut(GamepadEvent)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
@@ -63,12 +58,8 @@ impl Canvas {
             .set_attribute("tabindex", "0")
             .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
-        let gamepad_manager = GamepadManagerShared::create();
-
         Ok(Canvas {
             raw: canvas,
-            window,
-            gamepad_manager,
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -81,8 +72,6 @@ impl Canvas {
             on_mouse_press: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
-            on_gamepad_connected: None,
-            on_gamepad_disconnected: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
         })
     }
@@ -273,40 +262,6 @@ impl Canvas {
             Some(self.add_event("fullscreenchange", move |_: Event| handler()));
     }
 
-    pub fn on_gamepad_connected<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(GamepadShared),
-    {
-        let m = self.gamepad_manager.clone();
-        self.on_gamepad_connected = Some(self.add_window_event(
-            "gamepadconnected",
-            move |event: GamepadEvent| {
-                let gamepad = event
-                    .gamepad()
-                    .expect("[gamepadconnected] expected gamepad");
-                let g = m.register(gamepad);
-                handler(g);
-            },
-        ))
-    }
-
-    pub fn on_gamepad_disconnected<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(GamepadShared),
-    {
-        let m = self.gamepad_manager.clone();
-        self.on_gamepad_disconnected = Some(self.add_window_event(
-            "gamepaddisconnected",
-            move |event: GamepadEvent| {
-                let gamepad = event
-                    .gamepad()
-                    .expect("[gamepaddisconnected] expected gamepad");
-                let g = m.register(gamepad);
-                handler(g);
-            },
-        ))
-    }
-
     fn add_event<E, F>(
         &self,
         event_name: &str,
@@ -361,32 +316,6 @@ impl Canvas {
                 }
             },
         )
-    }
-
-    fn add_window_event<E, F>(
-        &self,
-        event_name: &str,
-        mut handler: F,
-    ) -> Closure<dyn FnMut(E)>
-    where
-        E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
-        F: 'static + FnMut(E),
-    {
-        let closure = Closure::wrap(Box::new(move |event: E| {
-            {
-                let event_ref = event.as_ref();
-                event_ref.stop_propagation();
-                event_ref.cancel_bubble();
-            }
-
-            handler(event);
-        }) as Box<dyn FnMut(E)>);
-
-        self.window
-            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
-            .expect("Failed to add event listener with callback");
-
-        closure
     }
 
     pub fn request_fullscreen(&self) {
