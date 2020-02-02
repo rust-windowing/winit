@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix `set_simple_screen` to remember frame excluding title bar.
 - On macOS, fix set_minimized(true) works only with decorations.
 - On macOS, add `hide_application` to `EventLoopWindowTarget` via a new `EventLoopWindowTargetExtMacOS` trait. `hide_application` will hide the entire application by calling `-[NSApplication hide: nil]`.
 - On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
