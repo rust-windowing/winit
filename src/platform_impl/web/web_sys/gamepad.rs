@@ -27,14 +27,16 @@ impl Clone for SharedGamepadManager {
 }
 
 impl GamepadManager {
-    pub fn register(&self, gamepad: web_sys::Gamepad) -> u32 {// -> SharedGamepad {
+    pub fn register(&self, gamepad: web_sys::Gamepad) -> SharedGamepad {
         let index = gamepad.index();
         let mut gamepads = self.gamepads.borrow_mut();
-        if gamepads.contains_key(&index) {
+        if !gamepads.contains_key(&index) {
             gamepads.insert(index, SharedGamepad(Rc::new(gamepad)));
         }
-        index
-        // self.get(&index).expect("[register] Gamepad expected")
+        gamepads
+            .get(&index)
+            .map(|g| g.clone())
+            .expect("[register] Gamepad expected")
     }
 
     pub fn get(&self, index: &u32) -> Option<SharedGamepad> {

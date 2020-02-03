@@ -1,4 +1,4 @@
-use super::gamepad::{SharedGamepadManager, SharedGamepad};
+use super::gamepad::{SharedGamepad, SharedGamepadManager};
 use crate::error::OsError as RootOE;
 use crate::platform_impl::OsError;
 use std::{cell::RefCell, rc::Rc};
@@ -53,8 +53,7 @@ impl Window {
                 let gamepad = event
                     .gamepad()
                     .expect("[gamepadconnected] expected gamepad");
-                let g_index = manager.register(gamepad);
-                let g = manager.get(&g_index).expect("[gamepadconnected] Gamepad expected");
+                let g = manager.register(gamepad);
                 handler(g);
             },
         ))
@@ -71,8 +70,7 @@ impl Window {
                 let gamepad = event
                     .gamepad()
                     .expect("[gamepaddisconnected] expected gamepad");
-                let g_index = manager.register(gamepad);
-                let g = manager.get(&g_index).expect("[gamepaddisconnected] Gamepad expected");
+                let g = manager.register(gamepad);
                 handler(g);
             },
         ))

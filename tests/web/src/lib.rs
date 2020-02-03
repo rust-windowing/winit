@@ -43,6 +43,7 @@ use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
+// #[wasm_bindgen_test]
 #[wasm_bindgen]
 pub fn test_gamepad() {
     utils::set_panic_hook();
@@ -65,8 +66,7 @@ pub fn test_gamepad() {
                     //     x_value, y_value, ..
                     // } if (x_value.powi(2) + y_value.powi(2)).sqrt() < deadzone => (),
 
-                    // _ => console_log!("[{:?}] {:#?}", gamepad_handle, event),
-                    _ => console_log!("Hello World"),
+                    _ => console_log!("[{:?}] {:#?}", gamepad_handle, event),
                 }
             }
             Event::WindowEvent {
