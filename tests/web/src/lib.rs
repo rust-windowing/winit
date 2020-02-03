@@ -1,3 +1,5 @@
+mod utils;
+
 use winit::{
     event::{
         device::{GamepadEvent, GamepadHandle},
@@ -43,6 +45,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen]
 pub fn test_gamepad() {
+    utils::set_panic_hook();
     let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()
@@ -50,8 +53,8 @@ pub fn test_gamepad() {
         .build(&event_loop)
         .unwrap();
 
-    event_loop.run(move |evemt, _, control_flow| {
-        match evemt {
+    event_loop.run(move |event, _, control_flow| {
+        match event {
             Event::GamepadEvent(gamepad_handle, event) => {
                 match event {
                     // // Discard any Axis events that has a corresponding Stick event.
@@ -61,7 +64,9 @@ pub fn test_gamepad() {
                     // GamepadEvent::Stick {
                     //     x_value, y_value, ..
                     // } if (x_value.powi(2) + y_value.powi(2)).sqrt() < deadzone => (),
-                    _ => console_log!("[{:?}] {:#?}", gamepad_handle, event),
+
+                    // _ => console_log!("[{:?}] {:#?}", gamepad_handle, event),
+                    _ => console_log!("Hello World"),
                 }
             }
             Event::WindowEvent {

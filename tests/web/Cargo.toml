@@ -11,3 +11,9 @@ crate-type = ["cdylib", "rlib"]
 winit = { path = "../../", features = [ "web-sys" ] }
 wasm-bindgen = "0.2.45"
 wasm-bindgen-test = "0.3.8"
+
+# The `console_error_panic_hook` crate provides better debugging of panics by
+# logging them with `console.error`. This is great for development, but requires
+# all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
+# code size when deploying.
+console_error_panic_hook = "0.1.6"
