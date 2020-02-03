@@ -2,6 +2,7 @@ Cargo.lock
 target/
 rls/
 .vscode/
+.cargo/
 util/
 *~
 *.wasm

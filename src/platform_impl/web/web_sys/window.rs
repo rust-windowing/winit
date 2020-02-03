@@ -1,4 +1,4 @@
-use super::gamepad::{GamepadManagerShared, SharedGamepad};
+use super::gamepad::{SharedGamepadManager, SharedGamepad};
 use crate::error::OsError as RootOE;
 use crate::platform_impl::OsError;
 use std::{cell::RefCell, rc::Rc};
@@ -9,7 +9,7 @@ pub struct SharedWindow(pub Rc<RefCell<Window>>);
 
 pub struct Window {
     raw: web_sys::Window,
-    gamepad_manager: GamepadManagerShared,
+    gamepad_manager: SharedGamepadManager,
     on_gamepad_connected: Option<Closure<dyn FnMut(GamepadEvent)>>,
     on_gamepad_disconnected: Option<Closure<dyn FnMut(GamepadEvent)>>,
 }
@@ -32,7 +32,7 @@ impl Window {
         let raw =
             web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
-        let gamepad_manager = GamepadManagerShared::create();
+        let gamepad_manager = SharedGamepadManager::create();
 
         Ok(Window {
             raw,
@@ -46,14 +46,15 @@ impl Window {
     where
         F: 'static + FnMut(SharedGamepad),
     {
-        let m = self.gamepad_manager.clone();
+        let manager = self.gamepad_manager.clone().manager();
         self.on_gamepad_connected = Some(self.add_event(
             "gamepadconnected",
             move |event: GamepadEvent| {
                 let gamepad = event
                     .gamepad()
                     .expect("[gamepadconnected] expected gamepad");
-                let g = m.register(gamepad);
+                let g_index = manager.register(gamepad);
+                let g = manager.get(&g_index).expect("[gamepadconnected] Gamepad expected");
                 handler(g);
             },
         ))
@@ -63,14 +64,15 @@ impl Window {
     where
         F: 'static + FnMut(SharedGamepad),
     {
-        let m = self.gamepad_manager.clone();
+        let manager = self.gamepad_manager.clone().manager();
         self.on_gamepad_disconnected = Some(self.add_event(
             "gamepaddisconnected",
             move |event: GamepadEvent| {
                 let gamepad = event
                     .gamepad()
                     .expect("[gamepaddisconnected] expected gamepad");
-                let g = m.register(gamepad);
+                let g_index = manager.register(gamepad);
+                let g = manager.get(&g_index).expect("[gamepaddisconnected] Gamepad expected");
                 handler(g);
             },
         ))

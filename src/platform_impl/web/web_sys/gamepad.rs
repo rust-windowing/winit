@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-pub struct GamepadManagerShared(Rc<GamepadManager>);
+pub struct SharedGamepadManager(Rc<GamepadManager>);
 
 pub struct GamepadManager {
     gamepads: RefCell<HashMap<u32, SharedGamepad>>,
@@ -8,30 +8,37 @@ pub struct GamepadManager {
 
 pub struct SharedGamepad(Rc<web_sys::Gamepad>);
 
-impl GamepadManagerShared {
-    pub fn create() -> GamepadManagerShared {
-        GamepadManagerShared(Rc::new(GamepadManager {
+impl SharedGamepadManager {
+    pub fn create() -> SharedGamepadManager {
+        SharedGamepadManager(Rc::new(GamepadManager {
             gamepads: RefCell::new(HashMap::new()),
         }))
     }
 
-    pub fn register(&self, gamepad: web_sys::Gamepad) -> SharedGamepad {
-        let index = gamepad.index();
-        let mut gamepads = self.0.gamepads.borrow_mut();
-        if gamepads.contains_key(&index) {
-            gamepads.insert(index, SharedGamepad(Rc::new(gamepad)));
-        }
-        self.get(&index).expect("[register] Gamepad expected")
-    }
-
-    pub fn get(&self, index: &u32) -> Option<SharedGamepad> {
-        self.0.gamepads.borrow().get(index).map(|g| g.clone())
+    pub fn manager(&self) -> Rc<GamepadManager> {
+        self.0.clone()
     }
 }
 
-impl Clone for GamepadManagerShared {
+impl Clone for SharedGamepadManager {
     fn clone(&self) -> Self {
-        GamepadManagerShared(self.0.clone())
+        SharedGamepadManager(self.0.clone())
+    }
+}
+
+impl GamepadManager {
+    pub fn register(&self, gamepad: web_sys::Gamepad) -> u32 {// -> SharedGamepad {
+        let index = gamepad.index();
+        let mut gamepads = self.gamepads.borrow_mut();
+        if gamepads.contains_key(&index) {
+            gamepads.insert(index, SharedGamepad(Rc::new(gamepad)));
+        }
+        index
+        // self.get(&index).expect("[register] Gamepad expected")
+    }
+
+    pub fn get(&self, index: &u32) -> Option<SharedGamepad> {
+        self.gamepads.borrow().get(index).map(|g| g.clone())
     }
 }
 

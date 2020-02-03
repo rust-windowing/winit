@@ -177,9 +177,10 @@ impl<T> WindowTarget<T> {
             runner.request_redraw(WindowId(id));
         });
 
-        let runner = self.runner.clone();
         let shared_window = self.shared_window.clone();
         let mut window = shared_window.0.borrow_mut();
+
+        let runner = self.runner.clone();
         window.on_gamepad_connected(move |gamepad: backend::SharedGamepad| {
             runner.send_event(Event::GamepadEvent(
                 device::GamepadHandle(GamepadHandle {
@@ -191,8 +192,6 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        let shared_window = self.shared_window.clone();
-        let mut window = shared_window.0.borrow_mut();
         window.on_gamepad_disconnected(move |gamepad: backend::SharedGamepad| {
             runner.send_event(Event::GamepadEvent(
                 device::GamepadHandle(GamepadHandle {
