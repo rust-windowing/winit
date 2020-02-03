@@ -1,29 +1,30 @@
-use super::gamepad::{SharedGamepad, SharedGamepadManager};
+use super::gamepad;
+use super::gamepad_manager;
 use crate::error::OsError as RootOE;
 use crate::platform_impl::OsError;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::GamepadEvent;
 
-pub struct SharedWindow(pub Rc<RefCell<Window>>);
+pub struct Shared(pub Rc<RefCell<Window>>);
 
 pub struct Window {
     raw: web_sys::Window,
-    gamepad_manager: SharedGamepadManager,
+    gamepad_manager: gamepad_manager::Shared,
     on_gamepad_connected: Option<Closure<dyn FnMut(GamepadEvent)>>,
     on_gamepad_disconnected: Option<Closure<dyn FnMut(GamepadEvent)>>,
 }
 
-impl SharedWindow {
+impl Shared {
     pub fn new() -> Self {
         let global = Window::create().unwrap();
-        SharedWindow(Rc::new(RefCell::new(global)))
+        Shared(Rc::new(RefCell::new(global)))
     }
 }
 
-impl Clone for SharedWindow {
+impl Clone for Shared {
     fn clone(&self) -> Self {
-        SharedWindow(self.0.clone())
+        Shared(self.0.clone())
     }
 }
 
@@ -32,7 +33,7 @@ impl Window {
         let raw =
             web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
-        let gamepad_manager = SharedGamepadManager::create();
+        let gamepad_manager = gamepad_manager::Shared::create();
 
         Ok(Window {
             raw,
@@ -44,7 +45,7 @@ impl Window {
 
     pub fn on_gamepad_connected<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(SharedGamepad),
+        F: 'static + FnMut(gamepad::Shared),
     {
         let manager = self.gamepad_manager.clone().manager();
         self.on_gamepad_connected = Some(self.add_event(
@@ -61,7 +62,7 @@ impl Window {
 
     pub fn on_gamepad_disconnected<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(SharedGamepad),
+        F: 'static + FnMut(gamepad::Shared),
     {
         let manager = self.gamepad_manager.clone().manager();
         self.on_gamepad_disconnected = Some(self.add_event(

@@ -2,12 +2,12 @@ use super::{backend, proxy::Proxy, runner, window};
 use crate::dpi::LogicalSize;
 use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::platform_impl::platform::device::{GamepadHandle, SharedGamepad, KeyboardId, MouseId};
+use crate::platform_impl::platform::device::{GamepadHandle, gamepad, KeyboardId, MouseId};
 use crate::window::WindowId;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
-    pub(crate) shared_window: backend::SharedWindow,
+    pub(crate) shared_window: backend::window::Shared,
 }
 
 impl<T> Clone for WindowTarget<T> {
@@ -23,7 +23,7 @@ impl<T> WindowTarget<T> {
     pub fn new() -> Self {
         WindowTarget {
             runner: runner::Shared::new(),
-            shared_window: backend::SharedWindow::new(),
+            shared_window: backend::window::Shared::new(),
         }
     }
 
@@ -181,22 +181,22 @@ impl<T> WindowTarget<T> {
         let mut window = shared_window.0.borrow_mut();
 
         let runner = self.runner.clone();
-        window.on_gamepad_connected(move |gamepad: backend::SharedGamepad| {
+        window.on_gamepad_connected(move |gamepad: backend::gamepad::Shared| {
             runner.send_event(Event::GamepadEvent(
                 device::GamepadHandle(GamepadHandle {
                     id: gamepad.index() as i32,
-                    gamepad: SharedGamepad::Raw(gamepad),
+                    gamepad: gamepad::Shared::Raw(gamepad),
                 }),
                 device::GamepadEvent::Added,
             ));
         });
 
         let runner = self.runner.clone();
-        window.on_gamepad_disconnected(move |gamepad: backend::SharedGamepad| {
+        window.on_gamepad_disconnected(move |gamepad: backend::gamepad::Shared| {
             runner.send_event(Event::GamepadEvent(
                 device::GamepadHandle(GamepadHandle {
                     id: gamepad.index() as i32,
-                    gamepad: SharedGamepad::Raw(gamepad),
+                    gamepad: gamepad::Shared::Raw(gamepad),
                 }),
                 device::GamepadEvent::Removed,
             ));

@@ -1,50 +1,8 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::rc::Rc;
 
-pub struct SharedGamepadManager(Rc<GamepadManager>);
+pub struct Shared(pub(crate) Rc<web_sys::Gamepad>);
 
-pub struct GamepadManager {
-    gamepads: RefCell<HashMap<u32, SharedGamepad>>,
-}
-
-pub struct SharedGamepad(Rc<web_sys::Gamepad>);
-
-impl SharedGamepadManager {
-    pub fn create() -> SharedGamepadManager {
-        SharedGamepadManager(Rc::new(GamepadManager {
-            gamepads: RefCell::new(HashMap::new()),
-        }))
-    }
-
-    pub fn manager(&self) -> Rc<GamepadManager> {
-        self.0.clone()
-    }
-}
-
-impl Clone for SharedGamepadManager {
-    fn clone(&self) -> Self {
-        SharedGamepadManager(self.0.clone())
-    }
-}
-
-impl GamepadManager {
-    pub fn register(&self, gamepad: web_sys::Gamepad) -> SharedGamepad {
-        let index = gamepad.index();
-        let mut gamepads = self.gamepads.borrow_mut();
-        if !gamepads.contains_key(&index) {
-            gamepads.insert(index, SharedGamepad(Rc::new(gamepad)));
-        }
-        gamepads
-            .get(&index)
-            .map(|g| g.clone())
-            .expect("[register] Gamepad expected")
-    }
-
-    pub fn get(&self, index: &u32) -> Option<SharedGamepad> {
-        self.gamepads.borrow().get(index).map(|g| g.clone())
-    }
-}
-
-impl SharedGamepad {
+impl Shared {
     // An integer that is auto-incremented to be unique for each device
     // currently connected to the system.
     // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/index
@@ -81,8 +39,8 @@ impl SharedGamepad {
     }
 }
 
-impl Clone for SharedGamepad {
+impl Clone for Shared {
     fn clone(&self) -> Self {
-        SharedGamepad(self.0.clone())
+        Shared(self.0.clone())
     }
 }
