@@ -16,9 +16,9 @@ pub struct Window {
 }
 
 impl Shared {
-    pub fn new() -> Self {
-        let global = Window::create().unwrap();
-        Shared(Rc::new(RefCell::new(global)))
+    pub fn create() -> Result<Self, RootOE> {
+        let global = Window::create()?;
+        Ok(Shared(Rc::new(RefCell::new(global))))
     }
 }
 
@@ -29,7 +29,7 @@ impl Clone for Shared {
 }
 
 impl Window {
-    pub fn create() -> Result<Window, RootOE> {
+    pub fn create() -> Result<Self, RootOE> {
         let raw =
             web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 

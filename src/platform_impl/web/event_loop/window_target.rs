@@ -1,20 +1,20 @@
-use super::{backend, proxy::Proxy, runner, window};
+use super::{backend, proxy::Proxy, runner, window, global_emitter};
 use crate::dpi::LogicalSize;
 use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::platform_impl::platform::device::{GamepadHandle, gamepad, KeyboardId, MouseId};
+use crate::platform_impl::platform::device::{KeyboardId, MouseId};
 use crate::window::WindowId;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
-    pub(crate) shared_window: backend::window::Shared,
+    pub(crate) global_emitter: global_emitter::Shared,
 }
 
 impl<T> Clone for WindowTarget<T> {
     fn clone(&self) -> Self {
         WindowTarget {
             runner: self.runner.clone(),
-            shared_window: self.shared_window.clone(),
+            global_emitter: self.global_emitter.clone(),
         }
     }
 }
@@ -23,7 +23,7 @@ impl<T> WindowTarget<T> {
     pub fn new() -> Self {
         WindowTarget {
             runner: runner::Shared::new(),
-            shared_window: backend::window::Shared::new(),
+            global_emitter: global_emitter::Shared::new(),
         }
     }
 
@@ -37,6 +37,10 @@ impl<T> WindowTarget<T> {
 
     pub fn generate_id(&self) -> window::Id {
         window::Id(self.runner.generate_id())
+    }
+
+    pub fn register_global_events(&self) -> Result<(), crate::error::OsError> {
+        self.global_emitter.register_events(&self.runner)
     }
 
     pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
@@ -175,31 +179,6 @@ impl<T> WindowTarget<T> {
                 event: WindowEvent::Resized(new_size),
             });
             runner.request_redraw(WindowId(id));
-        });
-
-        let shared_window = self.shared_window.clone();
-        let mut window = shared_window.0.borrow_mut();
-
-        let runner = self.runner.clone();
-        window.on_gamepad_connected(move |gamepad: backend::gamepad::Shared| {
-            runner.send_event(Event::GamepadEvent(
-                device::GamepadHandle(GamepadHandle {
-                    id: gamepad.index() as i32,
-                    gamepad: gamepad::Shared::Raw(gamepad),
-                }),
-                device::GamepadEvent::Added,
-            ));
-        });
-
-        let runner = self.runner.clone();
-        window.on_gamepad_disconnected(move |gamepad: backend::gamepad::Shared| {
-            runner.send_event(Event::GamepadEvent(
-                device::GamepadHandle(GamepadHandle {
-                    id: gamepad.index() as i32,
-                    gamepad: gamepad::Shared::Raw(gamepad),
-                }),
-                device::GamepadEvent::Removed,
-            ));
         });
     }
 }
