@@ -1,5 +1,5 @@
 use crate::{
-    dpi::Size,
+    dpi::{PhysicalPosition, Size},
     platform_impl::platform::{event_loop, icon::WinIcon, util},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
@@ -48,6 +48,7 @@ pub struct MouseProperties {
     pub cursor: CursorIcon,
     pub buttons_down: u32,
     cursor_flags: CursorFlags,
+    pub last_position: Option<PhysicalPosition<f64>>,
 }
 
 bitflags! {
@@ -106,6 +107,7 @@ impl WindowState {
                 cursor: CursorIcon::default(),
                 buttons_down: 0,
                 cursor_flags: CursorFlags::empty(),
+                last_position: None,
             },
 
             min_size: attributes.min_inner_size,
