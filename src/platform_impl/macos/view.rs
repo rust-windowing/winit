@@ -26,7 +26,7 @@ use crate::{
         app_state::AppState,
         event::{
             char_to_keycode, check_function_keys, event_mods, get_scancode, modifier_event,
-            scancode_to_keycode, EventWrapper,
+            scancode_to_keycode, keycode_to_char, EventWrapper,
         },
         ffi::*,
         util::{self, IdRef},
@@ -632,44 +632,89 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         let virtual_keycode = retrieve_keycode(event);
 
         let is_repeat = msg_send![event, isARepeat];
+        let ev_mods = event_mods(event);
 
-        #[allow(deprecated)]
-        let window_event = Event::WindowEvent {
-            window_id,
-            event: WindowEvent::KeyboardInput {
-                device_id: DEVICE_ID,
-                input: KeyboardInput {
-                    state: ElementState::Pressed,
-                    scancode,
-                    virtual_keycode,
-                    modifiers: event_mods(event),
-                },
-                is_synthetic: false,
-            },
-        };
+        match ev_mods {
+            _ if ev_mods.alt() || (ev_mods.alt() && ev_mods.shift()) && scancode != 0x3a => {
+                #[allow(deprecated)]
+                let window_event = Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            state: ElementState::Pressed,
+                            scancode,
+                            virtual_keycode,
+                            modifiers: ModifiersState::empty(),
+                        },
+                        is_synthetic: false,
+                    },
+                };
 
-        let pass_along = {
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
-            // Emit `ReceivedCharacter` for key repeats
-            if is_repeat && state.is_key_down {
-                for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
-                    AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::ReceivedCharacter(character),
-                    }));
+                let new_char;
+                if virtual_keycode.is_some() {
+                    new_char = keycode_to_char(virtual_keycode.unwrap(), ev_mods);
+                } else {
+                    new_char = None;
                 }
-                false
-            } else {
-                true
+                AppState::queue_event(EventWrapper::StaticEvent(window_event));
+                match new_char {
+                    Some(_) => {
+                        AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::ReceivedCharacter(new_char.unwrap()),
+                        }));
+                    }
+                    None => {
+                        for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
+                            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::ReceivedCharacter(character),
+                            }));
+                        }
+                    }
+                }
             }
-        };
+            _ => {
+                #[allow(deprecated)]
+                let window_event = Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            state: ElementState::Pressed,
+                            scancode,
+                            virtual_keycode,
+                            modifiers: event_mods(event),
+                        },
+                        is_synthetic: false,
+                    },
+                };
 
-        if pass_along {
-            // Some keys (and only *some*, with no known reason) don't trigger `insertText`, while others do...
-            // So, we don't give repeats the opportunity to trigger that, since otherwise our hack will cause some
-            // keys to generate twice as many characters.
-            let array: id = msg_send![class!(NSArray), arrayWithObject: event];
-            let _: () = msg_send![this, interpretKeyEvents: array];
+                let pass_along = {
+                    AppState::queue_event(EventWrapper::StaticEvent(window_event));
+                    // Emit `ReceivedCharacter` for key repeats
+                    if is_repeat && state.is_key_down {
+                        for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
+                            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::ReceivedCharacter(character),
+                            }));
+                        }
+                        false
+                    } else {
+                        true
+                    }
+                };
+
+                if pass_along {
+                    // Some keys (and only *some*, with no known reason) don't trigger `insertText`, while others do...
+                    // So, we don't give repeats the opportunity to trigger that, since otherwise our hack will cause some
+                    // keys to generate twice as many characters.
+                    let array: id = msg_send![class!(NSArray), arrayWithObject: event];
+                    let _: () = msg_send![this, interpretKeyEvents: array];
+                }
+            }
         }
     }
     trace!("Completed `keyDown`");
