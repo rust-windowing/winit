@@ -481,9 +481,10 @@ impl WindowStore {
         for window in &mut self.windows {
             let opt_arc = window.frame.upgrade();
             let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
+            let mut size = { *window.size.lock().unwrap() };
             f(WindowStoreForEach {
                 newsize: window.newsize.take(),
-                size: &mut *(window.size.lock().unwrap()),
+                size: &mut size,
                 prev_dpi: window.current_dpi,
                 new_dpi: window.new_dpi,
                 closed: window.closed,
@@ -492,6 +493,7 @@ impl WindowStore {
                 wid: make_wid(&window.surface),
                 frame: opt_mutex_lock.as_mut().map(|m| &mut **m),
             });
+            *window.size.lock().unwrap() = size;
             if let Some(dpi) = window.new_dpi.take() {
                 window.current_dpi = dpi;
             }
