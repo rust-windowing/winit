@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use crate::dpi::PhysicalPosition;
 use crate::event::{
     DeviceEvent, ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
     WindowEvent,
@@ -76,13 +77,18 @@ pub fn implement_pointer(
                                 },
                                 wid,
                             );
+
+                            let position = PhysicalPosition::new(
+                                surface_x * scale_factor,
+                                surface_y * scale_factor,
+                            );
+
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x * scale_factor, surface_y * scale_factor)
-                                        .into(),
+                                    position,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
@@ -109,15 +115,20 @@ pub fn implement_pointer(
                         ..
                     } => {
                         if let Some(surface) = mouse_focus.as_ref() {
-                            let scale_factor = surface::get_dpi_factor(&surface) as f64;
                             let wid = make_wid(surface);
+
+                            let scale_factor = surface::get_dpi_factor(&surface) as f64;
+                            let position = PhysicalPosition::new(
+                                surface_x * scale_factor,
+                                surface_y * scale_factor,
+                            );
+
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
                                     device_id: crate::event::DeviceId(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
-                                    position: (surface_x * scale_factor, surface_y * scale_factor)
-                                        .into(),
+                                    position,
                                     modifiers: modifiers_tracker.lock().unwrap().clone(),
                                 },
                                 wid,
