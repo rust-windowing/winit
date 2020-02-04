@@ -25,8 +25,8 @@ use crate::{
     platform_impl::platform::{
         app_state::AppState,
         event::{
-            char_to_keycode, check_function_keys, event_mods, get_scancode, modifier_event,
-            scancode_to_keycode, keycode_to_char, EventWrapper,
+            char_to_keycode, check_function_keys, event_mods, get_scancode, keycode_to_char,
+            modifier_event, scancode_to_keycode, EventWrapper,
         },
         ffi::*,
         util::{self, IdRef},
@@ -666,7 +666,8 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
                         }));
                     }
                     None => {
-                        for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
+                        for character in characters.chars().filter(|c| !is_corporate_character(*c))
+                        {
                             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                                 window_id,
                                 event: WindowEvent::ReceivedCharacter(character),
@@ -695,7 +696,8 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
                     AppState::queue_event(EventWrapper::StaticEvent(window_event));
                     // Emit `ReceivedCharacter` for key repeats
                     if is_repeat && state.is_key_down {
-                        for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
+                        for character in characters.chars().filter(|c| !is_corporate_character(*c))
+                        {
                             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                                 window_id,
                                 event: WindowEvent::ReceivedCharacter(character),
