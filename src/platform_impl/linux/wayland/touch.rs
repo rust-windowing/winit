@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::dpi::PhysicalPosition;
+use crate::dpi::LogicalPosition;
 use crate::event::{TouchPhase, WindowEvent};
 
 use super::{event_loop::EventsSink, make_wid, window::WindowStore, DeviceId};
@@ -16,8 +16,7 @@ use smithay_client_toolkit::reexports::client::protocol::{
 // location is in logical coordinates.
 struct TouchPoint {
     surface: WlSurface,
-    x: f64,
-    y: f64,
+    position: LogicalPosition<f64>,
     id: i32,
 }
 
@@ -38,8 +37,7 @@ pub(crate) fn implement_touch(
                         let wid = store.find_wid(&surface);
                         if let Some(wid) = wid {
                             let scale_factor = surface::get_dpi_factor(&surface) as f64;
-                            let location =
-                                PhysicalPosition::new(scale_factor * x, scale_factor * y);
+                            let position = LogicalPosition::new(x, y);
 
                             sink.send_window_event(
                                 WindowEvent::Touch(crate::event::Touch {
@@ -47,13 +45,17 @@ pub(crate) fn implement_touch(
                                         crate::platform_impl::DeviceId::Wayland(DeviceId),
                                     ),
                                     phase: TouchPhase::Started,
-                                    location,
+                                    location: position.to_physical(scale_factor),
                                     force: None, // TODO
                                     id: id as u64,
                                 }),
                                 wid,
                             );
-                            pending_ids.push(TouchPoint { surface, x, y, id });
+                            pending_ids.push(TouchPoint {
+                                surface,
+                                position,
+                                id,
+                            });
                         }
                     }
                     TouchEvent::Up { id, .. } => {
@@ -62,8 +64,7 @@ pub(crate) fn implement_touch(
                             let pt = pending_ids.remove(idx);
 
                             let scale_factor = surface::get_dpi_factor(&pt.surface) as f64;
-                            let location =
-                                PhysicalPosition::new(pt.x * scale_factor, pt.y * scale_factor);
+                            let location = pt.position.to_physical(scale_factor);
 
                             sink.send_window_event(
                                 WindowEvent::Touch(crate::event::Touch {
@@ -82,12 +83,10 @@ pub(crate) fn implement_touch(
                     TouchEvent::Motion { id, x, y, .. } => {
                         let pt = pending_ids.iter_mut().find(|p| p.id == id);
                         if let Some(pt) = pt {
-                            pt.x = x;
-                            pt.y = y;
+                            pt.position = LogicalPosition::new(x, y);
 
                             let scale_factor = surface::get_dpi_factor(&pt.surface) as f64;
-                            let location =
-                                PhysicalPosition::new(x * scale_factor, y * scale_factor);
+                            let location = pt.position.to_physical(scale_factor);
 
                             sink.send_window_event(
                                 WindowEvent::Touch(crate::event::Touch {
@@ -107,8 +106,7 @@ pub(crate) fn implement_touch(
                     TouchEvent::Cancel => {
                         for pt in pending_ids.drain(..) {
                             let scale_factor = surface::get_dpi_factor(&pt.surface) as f64;
-                            let location =
-                                PhysicalPosition::new(pt.x * scale_factor, pt.y * scale_factor);
+                            let location = pt.position.to_physical(scale_factor);
 
                             sink.send_window_event(
                                 WindowEvent::Touch(crate::event::Touch {

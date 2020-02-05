@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::dpi::PhysicalPosition;
+use crate::dpi::LogicalPosition;
 use crate::event::{
     DeviceEvent, ElementState, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
     WindowEvent,
@@ -78,10 +78,8 @@ pub fn implement_pointer(
                                 wid,
                             );
 
-                            let position = PhysicalPosition::new(
-                                surface_x * scale_factor,
-                                surface_y * scale_factor,
-                            );
+                            let position = LogicalPosition::new(surface_x, surface_y)
+                                .to_physical(scale_factor);
 
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
@@ -118,10 +116,8 @@ pub fn implement_pointer(
                             let wid = make_wid(surface);
 
                             let scale_factor = surface::get_dpi_factor(&surface) as f64;
-                            let position = PhysicalPosition::new(
-                                surface_x * scale_factor,
-                                surface_y * scale_factor,
-                            );
+                            let position = LogicalPosition::new(surface_x, surface_y)
+                                .to_physical(scale_factor);
 
                             sink.send_window_event(
                                 WindowEvent::CursorMoved {
