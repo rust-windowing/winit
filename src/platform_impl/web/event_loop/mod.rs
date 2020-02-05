@@ -1,8 +1,8 @@
+mod global;
 mod proxy;
 mod runner;
 mod state;
 mod window_target;
-mod global_emitter;
 
 pub use self::proxy::Proxy;
 pub use self::window_target::WindowTarget;

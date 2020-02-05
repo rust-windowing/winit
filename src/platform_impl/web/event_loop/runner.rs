@@ -1,4 +1,4 @@
-use super::{backend, state::State};
+use super::{backend, global, state::State};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop as root;
 use crate::window::WindowId;
@@ -24,6 +24,7 @@ pub struct Execution<T> {
     events: RefCell<VecDeque<Event<T>>>,
     id: RefCell<u32>,
     redraw_pending: RefCell<HashSet<WindowId>>,
+    global_emitter: RefCell<global::Emitter>,
 }
 
 struct Runner<T> {
@@ -49,7 +50,15 @@ impl<T: 'static> Shared<T> {
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
             redraw_pending: RefCell::new(HashSet::new()),
+            global_emitter: RefCell::new(global::Emitter::new()),
         }))
+    }
+
+    pub fn register_global_events(&self) -> Result<(), crate::error::OsError> {
+        self.0
+            .global_emitter
+            .borrow()
+            .register_events(&self.clone())
     }
 
     // Set the event callback to use for the event loop runner
@@ -138,6 +147,12 @@ impl<T: 'static> Shared<T> {
                 &mut control,
             );
         }
+        // Collect all global events
+        let gamepad_events = self.0.global_emitter.borrow().collect_gamepad_events();
+        for (handle, event) in gamepad_events {
+            self.handle_event(Event::GamepadEvent(handle, event), &mut control);
+        }
+        // Every events are cleared
         self.handle_event(Event::EventsCleared, &mut control);
         self.apply_control_flow(control);
         // If the event loop is closed, it has been closed this iteration and now the closing

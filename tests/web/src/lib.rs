@@ -66,6 +66,12 @@ pub fn test_gamepad() {
                     //     x_value, y_value, ..
                     // } if (x_value.powi(2) + y_value.powi(2)).sqrt() < deadzone => (),
 
+                    GamepadEvent::Button {
+                        button_id,
+                        button,
+                        state
+                    } => console_log!("[{:?}] {:#?} {:#?} {:#?} {:#?}", gamepad_handle, event, button_id, button, state),
+
                     _ => console_log!("[{:?}] {:#?}", gamepad_handle, event),
                 }
             }

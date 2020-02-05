@@ -1,6 +1,7 @@
 use super::gamepad;
 use super::gamepad_manager;
 use crate::error::OsError as RootOE;
+use crate::event::device;
 use crate::platform_impl::OsError;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -13,6 +14,7 @@ pub struct Window {
     gamepad_manager: gamepad_manager::Shared,
     on_gamepad_connected: Option<Closure<dyn FnMut(GamepadEvent)>>,
     on_gamepad_disconnected: Option<Closure<dyn FnMut(GamepadEvent)>>,
+    on_gamepad_button: Option<Box<dyn FnMut()>>,
 }
 
 impl Shared {
@@ -40,12 +42,21 @@ impl Window {
             gamepad_manager,
             on_gamepad_connected: None,
             on_gamepad_disconnected: None,
+            on_gamepad_button: None,
         })
+    }
+
+    pub fn collect_gamepad_events(
+        &self,
+        events: &mut Vec<(gamepad::Gamepad, device::GamepadEvent)>,
+    ) {
+        let manager = self.gamepad_manager.clone().manager();
+        manager.collect_events(events);
     }
 
     pub fn on_gamepad_connected<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(gamepad::Shared),
+        F: 'static + FnMut(gamepad::Gamepad),
     {
         let manager = self.gamepad_manager.clone().manager();
         self.on_gamepad_connected = Some(self.add_event(
@@ -62,7 +73,7 @@ impl Window {
 
     pub fn on_gamepad_disconnected<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(gamepad::Shared),
+        F: 'static + FnMut(gamepad::Gamepad),
     {
         let manager = self.gamepad_manager.clone().manager();
         self.on_gamepad_disconnected = Some(self.add_event(
@@ -83,12 +94,6 @@ impl Window {
         F: 'static + FnMut(E),
     {
         let closure = Closure::wrap(Box::new(move |event: E| {
-            {
-                let event_ref = event.as_ref();
-                event_ref.stop_propagation();
-                event_ref.cancel_bubble();
-            }
-
             handler(event);
         }) as Box<dyn FnMut(E)>);
 

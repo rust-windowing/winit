@@ -1,4 +1,4 @@
-use super::{backend, proxy::Proxy, runner, window, global_emitter};
+use super::{backend, proxy::Proxy, runner, window};
 use crate::dpi::LogicalSize;
 use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
 use crate::event_loop::ControlFlow;
@@ -7,14 +7,12 @@ use crate::window::WindowId;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
-    pub(crate) global_emitter: global_emitter::Shared,
 }
 
 impl<T> Clone for WindowTarget<T> {
     fn clone(&self) -> Self {
         WindowTarget {
             runner: self.runner.clone(),
-            global_emitter: self.global_emitter.clone(),
         }
     }
 }
@@ -23,7 +21,6 @@ impl<T> WindowTarget<T> {
     pub fn new() -> Self {
         WindowTarget {
             runner: runner::Shared::new(),
-            global_emitter: global_emitter::Shared::new(),
         }
     }
 
@@ -40,7 +37,7 @@ impl<T> WindowTarget<T> {
     }
 
     pub fn register_global_events(&self) -> Result<(), crate::error::OsError> {
-        self.global_emitter.register_events(&self.runner)
+        self.runner.register_global_events()
     }
 
     pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {

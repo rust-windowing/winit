@@ -1,5 +1,6 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode, ElementState, device};
+use crate::platform_impl::platform::device::gamepad::EventCode;
 
 use std::convert::TryInto;
 use web_sys::{KeyboardEvent, MouseEvent, WheelEvent};
@@ -219,4 +220,21 @@ pub fn codepoint(event: &KeyboardEvent) -> char {
     // never panic.
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
     event.key().chars().next().unwrap()
+}
+
+pub fn gamepad_button(code: EventCode, pressed: bool) -> device::GamepadEvent {
+    let button_id = code.0 as u32;
+    let button: Option<device::GamepadButton> = code.into();
+
+    let state = if pressed {
+        ElementState::Pressed
+    } else {
+        ElementState::Released
+    };
+
+    device::GamepadEvent::Button {
+        button_id,
+        button,
+        state,
+    }
 }
