@@ -1,6 +1,6 @@
 # Unreleased
 
-# 0.20.1 (2020-02-04)
+# 0.21.0 (2020-02-04)
 
 - On Windows, fixed "error: linking with `link.exe` failed: exit code: 1120" error on older versions of windows.
 - On macOS, fix set_minimized(true) works only with decorations.
