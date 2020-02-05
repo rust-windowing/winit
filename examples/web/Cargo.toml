@@ -1,5 +1,5 @@
 [package]
-name = "winit-web-tests"
+name = "winit-web-examples"
 version = "0.0.1"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 edition = "2018"
@@ -17,3 +17,6 @@ wasm-bindgen-test = "0.3.8"
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = "0.1.6"
+
+[features]
+gamepad = []

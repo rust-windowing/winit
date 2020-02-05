@@ -1,43 +1,36 @@
 mod utils;
 
+use wasm_bindgen::prelude::*;
 use winit::{
-    event::{
-        device::GamepadEvent,
-        Event, WindowEvent,
-    },
+    event::{device::GamepadEvent, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
 
-// From tests/web: wasm-pack test --firefox --headless
-// From tests/web: wasm-pack build --target web
-// From (project root): npx nodemon --watch src --watch tests/web/src -e rs --exec 'cd tests/web && wasm-pack build --target web'
-
-use wasm_bindgen::prelude::*;
+/**
+ * Build example (from examples/web):
+ *    wasm-pack build --target web -- --features ${EXAMPLE}
+ * Run web server (from examples/web):
+ *    npx http-server
+ *    Open your browser at http://localhost:8000/files/${EXAMPLE}.html
+ * Development (from project root):
+ *    npx nodemon --watch src --watch examples/web/src -e rs --exec 'cd examples/web && wasm-pack build --target web -- --features gamepad'
+ */
 
 #[wasm_bindgen]
 extern "C" {
-    // Use `js_namespace` here to bind `console.log(..)` instead of just
-    // `log(..)`
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 }
 
 macro_rules! console_log {
-  // Note that this is using the `log` function imported above during
-  // `bare_bones`
   ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
 }
 
-extern crate wasm_bindgen_test;
-use wasm_bindgen_test::*;
-
-wasm_bindgen_test_configure!(run_in_browser);
-
-// #[wasm_bindgen_test]
-#[wasm_bindgen]
-pub fn test_gamepad() {
-    utils::set_panic_hook();
+#[cfg(feature = "gamepad")]
+#[wasm_bindgen(start)]
+pub fn example_gamepad() {
+    utils::set_panic_hook(); // needed for error stack trace
     let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()
@@ -49,25 +42,26 @@ pub fn test_gamepad() {
         match event {
             Event::GamepadEvent(gamepad_handle, event) => {
                 match event {
-                    GamepadEvent::Axis {
-                        axis_id,
-                        axis,
-                        value,
-                        stick,
-                    } => console_log!("Axis {:#?} {:#?} {:#?} {:#?}", axis_id, axis, value, stick),
+                    // GamepadEvent::Axis {
+                    //     axis_id,
+                    //     axis,
+                    //     value,
+                    //     stick,
+                    // } => console_log!("Axis {:#?} {:#?} {:#?} {:#?}", axis_id, axis, value, stick),
 
                     // // Discard any Stick event that falls inside the stick's deadzone.
                     // GamepadEvent::Stick {
                     //     x_value, y_value, ..
                     // } if (x_value.powi(2) + y_value.powi(2)).sqrt() < deadzone => (),
-
                     GamepadEvent::Button {
                         button_id,
                         button,
-                        state
+                        state,
                     } => console_log!("Button {:#?} {:#?} {:#?}", button_id, button, state),
 
-                    _ => console_log!("[{:?}] {:#?}", gamepad_handle, event),
+                    GamepadEvent::Added => console_log!("[{:?}] {:#?}", gamepad_handle, event),
+                    GamepadEvent::Removed => console_log!("[{:?}] {:#?}", gamepad_handle, event),
+                    _ => {},
                 }
             }
             Event::WindowEvent {
