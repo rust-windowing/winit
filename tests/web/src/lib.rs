@@ -9,8 +9,9 @@ use winit::{
     window::WindowBuilder,
 };
 
-// wasm-pack test --firefox --headless
-// wasm-pack build --target web
+// From tests/web: wasm-pack test --firefox --headless
+// From tests/web: wasm-pack build --target web
+// From (project root): npx nodemon --watch src --watch tests/web/src -e rs --exec 'cd tests/web && wasm-pack build --target web'
 
 use wasm_bindgen::prelude::*;
 
@@ -20,16 +21,6 @@ extern "C" {
     // `log(..)`
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
-
-    // The `console.log` is quite polymorphic, so we can bind it with multiple
-    // signatures. Note that we need to use `js_name` to ensure we always call
-    // `log` in JS.
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_u32(a: u32);
-
-    // Multiple arguments too!
-    #[wasm_bindgen(js_namespace = console, js_name = log)]
-    fn log_many(a: &str, b: &str);
 }
 
 macro_rules! console_log {
@@ -58,8 +49,12 @@ pub fn test_gamepad() {
         match event {
             Event::GamepadEvent(gamepad_handle, event) => {
                 match event {
-                    // // Discard any Axis events that has a corresponding Stick event.
-                    // GamepadEvent::Axis { stick: true, .. } => (),
+                    GamepadEvent::Axis {
+                        axis_id,
+                        axis,
+                        value,
+                        stick,
+                    } => console_log!("Axis {:#?} {:#?} {:#?} {:#?}", axis_id, axis, value, stick),
 
                     // // Discard any Stick event that falls inside the stick's deadzone.
                     // GamepadEvent::Stick {
@@ -70,7 +65,7 @@ pub fn test_gamepad() {
                         button_id,
                         button,
                         state
-                    } => console_log!("[{:?}] {:#?} {:#?} {:#?} {:#?}", gamepad_handle, event, button_id, button, state),
+                    } => console_log!("Button {:#?} {:#?} {:#?}", button_id, button, state),
 
                     _ => console_log!("[{:?}] {:#?}", gamepad_handle, event),
                 }
