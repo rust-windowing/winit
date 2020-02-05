@@ -2,7 +2,7 @@ mod utils;
 
 use winit::{
     event::{
-        device::{GamepadEvent, GamepadHandle},
+        device::GamepadEvent,
         Event, WindowEvent,
     },
     event_loop::{ControlFlow, EventLoop},

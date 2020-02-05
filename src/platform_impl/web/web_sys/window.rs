@@ -14,7 +14,6 @@ pub struct Window {
     gamepad_manager: gamepad_manager::Shared,
     on_gamepad_connected: Option<Closure<dyn FnMut(GamepadEvent)>>,
     on_gamepad_disconnected: Option<Closure<dyn FnMut(GamepadEvent)>>,
-    on_gamepad_button: Option<Box<dyn FnMut()>>,
 }
 
 impl Shared {
@@ -42,7 +41,6 @@ impl Window {
             gamepad_manager,
             on_gamepad_connected: None,
             on_gamepad_disconnected: None,
-            on_gamepad_button: None,
         })
     }
 
