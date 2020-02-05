@@ -1,5 +1,8 @@
 # Unreleased
 
+# 0.20.1 (2020-02-04)
+
+- On Windows, fixed "error: linking with `link.exe` failed: exit code: 1120" error on older versions of windows.
 - On macOS, fix set_minimized(true) works only with decorations.
 - On macOS, add `hide_application` to `EventLoopWindowTarget` via a new `EventLoopWindowTargetExtMacOS` trait. `hide_application` will hide the entire application by calling `-[NSApplication hide: nil]`.
 - On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
