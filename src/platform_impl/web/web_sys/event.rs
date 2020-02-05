@@ -1,6 +1,6 @@
 use crate::dpi::LogicalPosition;
 use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode, ElementState, device};
-use crate::platform_impl::platform::device::gamepad::EventCode;
+use crate::platform_impl::platform::device::gamepad::native_ev_codes;
 
 use std::convert::TryInto;
 use web_sys::{KeyboardEvent, MouseEvent, WheelEvent};
@@ -222,9 +222,9 @@ pub fn codepoint(event: &KeyboardEvent) -> char {
     event.key().chars().next().unwrap()
 }
 
-pub fn gamepad_button(code: EventCode, pressed: bool) -> device::GamepadEvent {
-    let button_id = code.0 as u32;
-    let button: Option<device::GamepadButton> = code.into();
+pub fn gamepad_button(code: usize, pressed: bool) -> device::GamepadEvent {
+    let button_id = code as u32;
+    let button: Option<device::GamepadButton> = native_ev_codes::button_code(code).into();
 
     let state = if pressed {
         ElementState::Pressed
@@ -236,5 +236,18 @@ pub fn gamepad_button(code: EventCode, pressed: bool) -> device::GamepadEvent {
         button_id,
         button,
         state,
+    }
+}
+
+pub fn gamepad_axis(code: usize, axis_value: f64) -> device::GamepadEvent {
+    let axis_id = code as u32;
+    let axis: Option<device::GamepadAxis> = native_ev_codes::axis_code(code).into();
+    let value = axis_value;// * I32_MAX as f64;
+
+    device::GamepadEvent::Axis {
+        axis_id,
+        axis,
+        value,
+        stick: true,
     }
 }

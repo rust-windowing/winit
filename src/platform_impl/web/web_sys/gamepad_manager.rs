@@ -1,7 +1,6 @@
 use super::event;
 use super::gamepad;
 use crate::event::device;
-use crate::platform_impl::platform::device::gamepad::{native_ev_codes, EventCode};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct Shared(Rc<GamepadManager>);
@@ -53,19 +52,31 @@ impl GamepadManager {
 
         match (old_gamepads.get(0), new_gamepads.get(0)) {
             (Some(old), Some(new)) => {
+
+                // Buttons
                 let buttons = old.mapping.buttons().zip(new.mapping.buttons()).enumerate();
                 for (btn_index, (old_button, new_button)) in buttons {
-                    let code = native_ev_codes::button_code(btn_index);
                     match (old_button, new_button) {
                         (false, true) => {
-                            events.push((new.clone(), event::gamepad_button(code, true)))
+                            events.push((new.clone(), event::gamepad_button(btn_index, true)))
                         }
                         (true, false) => {
-                            events.push((new.clone(), event::gamepad_button(code, false)))
+                            events.push((new.clone(), event::gamepad_button(btn_index, false)))
                         }
                         _ => (),
                     }
                 }
+
+
+                // Axes
+                let axes = old.mapping.axes().zip(new.mapping.axes()).enumerate();
+                for (axis_index, (old_axis, new_axis)) in axes {
+                    if old_axis != new_axis {
+                        events.push((new.clone(), event::gamepad_axis(axis_index, new_axis)))
+                    }
+                }
+
+
             }
             _ => {}
         }
