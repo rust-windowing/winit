@@ -1,4 +1,4 @@
-use super::event;
+use super::utils;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
@@ -137,9 +137,9 @@ impl Canvas {
             "keyup",
             move |event: KeyboardEvent| {
                 handler(
-                    event::scan_code(&event),
-                    event::virtual_key_code(&event),
-                    event::keyboard_modifiers(&event),
+                    utils::scan_code(&event),
+                    utils::virtual_key_code(&event),
+                    utils::keyboard_modifiers(&event),
                 );
             },
         ));
@@ -153,9 +153,9 @@ impl Canvas {
             "keydown",
             move |event: KeyboardEvent| {
                 handler(
-                    event::scan_code(&event),
-                    event::virtual_key_code(&event),
-                    event::keyboard_modifiers(&event),
+                    utils::scan_code(&event),
+                    utils::virtual_key_code(&event),
+                    utils::keyboard_modifiers(&event),
                 );
             },
         ));
@@ -173,7 +173,7 @@ impl Canvas {
         self.on_received_character = Some(self.add_user_event(
             "keypress",
             move |event: KeyboardEvent| {
-                handler(event::codepoint(&event));
+                handler(utils::codepoint(&event));
             },
         ));
     }
@@ -185,7 +185,7 @@ impl Canvas {
         self.on_mouse_release = Some(self.add_event(
             "pointerup",
             move |event: PointerEvent| {
-                handler(event.pointer_id(), event::mouse_button(&event));
+                handler(event.pointer_id(), utils::mouse_button(&event));
             },
         ));
     }
@@ -197,7 +197,7 @@ impl Canvas {
         self.on_mouse_press = Some(self.add_event(
             "pointerdown",
             move |event: PointerEvent| {
-                handler(event.pointer_id(), event::mouse_button(&event));
+                handler(event.pointer_id(), utils::mouse_button(&event));
             },
         ));
     }
@@ -209,7 +209,7 @@ impl Canvas {
         self.on_mouse_wheel = Some(self.add_event(
             "wheel",
             move |event: WheelEvent| {
-                let delta = event::mouse_scroll_delta(&event);
+                let delta = utils::mouse_scroll_delta(&event);
                 handler(0, delta);
             },
         ));
@@ -247,8 +247,8 @@ impl Canvas {
             "pointermove",
             move |event: PointerEvent| {
                 handler(
-                    event::mouse_position(&event),
-                    event::mouse_modifiers(&event),
+                    utils::mouse_position(&event),
+                    utils::mouse_modifiers(&event),
                 );
             },
         ));

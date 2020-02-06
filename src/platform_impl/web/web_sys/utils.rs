@@ -1,9 +1,9 @@
 use crate::dpi::LogicalPosition;
 use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode, ElementState, device};
-use crate::platform_impl::platform::device::gamepad::native_ev_codes;
+use crate::platform_impl::platform::device::{ constants, gamepad };
 
 use std::convert::TryInto;
-use web_sys::{KeyboardEvent, MouseEvent, WheelEvent};
+use web_sys::{KeyboardEvent, MouseEvent, WheelEvent, Gamepad, GamepadMappingType, GamepadButton};
 
 pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     match event.button() {
@@ -224,7 +224,7 @@ pub fn codepoint(event: &KeyboardEvent) -> char {
 
 pub fn gamepad_button(code: usize, pressed: bool) -> device::GamepadEvent {
     let button_id = code as u32;
-    let button: Option<device::GamepadButton> = native_ev_codes::button_code(code).into();
+    let button: Option<device::GamepadButton> = constants::button_code(code).into();
 
     let state = if pressed {
         ElementState::Pressed
@@ -239,15 +239,68 @@ pub fn gamepad_button(code: usize, pressed: bool) -> device::GamepadEvent {
     }
 }
 
-pub fn gamepad_axis(code: usize, axis_value: f64) -> device::GamepadEvent {
+pub fn gamepad_axis(code: usize, value: f64) -> device::GamepadEvent {
     let axis_id = code as u32;
-    let axis: Option<device::GamepadAxis> = native_ev_codes::axis_code(code).into();
-    let value = axis_value;// * I32_MAX as f64;
+    let axis: Option<device::GamepadAxis> = constants::axis_code(code).into();
 
     device::GamepadEvent::Axis {
         axis_id,
         axis,
         value,
-        stick: false,
+        stick: true,
+    }
+}
+
+pub fn gamepad_stick(x_code: usize, y_code: usize, x_value: f64, y_value: f64, side: device::Side) -> device::GamepadEvent {
+    let x_id = x_code as u32;
+    let y_id = y_code as u32;
+
+    device::GamepadEvent::Stick {
+        x_id,
+        y_id,
+        x_value,
+        y_value,
+        side,
+    }
+}
+
+pub fn create_mapping(raw: &Gamepad) -> gamepad::Mapping {
+    match raw.mapping() {
+        GamepadMappingType::Standard => {
+            let mut buttons = [false; 17];
+            let mut axes = [0.0; 4];
+
+            let gbuttons = raw.buttons();
+            for index in 0..buttons.len() {
+                let button: GamepadButton = gbuttons.get(index as u32).into();
+                buttons[index] = button.pressed();
+            }
+
+            let gaxes = raw.axes();
+            for index in 0..axes.len() {
+                let axe: f64 = gaxes.get(index as u32).as_f64().unwrap_or(0.0);
+                axes[index] = axe;
+            }
+
+            gamepad::Mapping::Standard { buttons, axes }
+        }
+        _ => {
+            let mut buttons: Vec<bool> = Vec::new();
+            let mut axes: Vec<f64> = Vec::new();
+
+            let gbuttons = raw.buttons();
+            for index in 0..gbuttons.length() {
+                let button: GamepadButton = gbuttons.get(index as u32).into();
+                buttons.push(button.pressed());
+            }
+
+            let gaxes = raw.axes();
+            for index in 0..gaxes.length() {
+                let axe: f64 = gaxes.get(index as u32).as_f64().unwrap_or(0.0);
+                axes.push(axe);
+            }
+
+            gamepad::Mapping::NoMapping { buttons, axes }
+        }
     }
 }

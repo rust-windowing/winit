@@ -1,4 +1,5 @@
 pub mod gamepad;
+pub mod constants;
 
 use super::event_loop::EventLoop;
 use crate::event::device;

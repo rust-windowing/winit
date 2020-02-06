@@ -1,17 +1,16 @@
-use crate::event::ElementState;
-use crate::platform_impl::platform::device::gamepad::{native_ev_codes, EventCode};
-use std::{cmp::PartialEq, rc::Rc};
-use web_sys::{GamepadButton, GamepadMappingType};
+use std::{cmp::PartialEq};
+use crate::platform_impl::platform::device;
+use super::utils;
 
 pub struct Gamepad {
     pub(crate) index: u32,
     pub(crate) raw: web_sys::Gamepad,
-    pub(crate) mapping: Mapping,
+    pub(crate) mapping: device::gamepad::Mapping,
 }
 
 impl Gamepad {
     pub fn new(raw: web_sys::Gamepad) -> Self {
-        let mapping = Mapping::new(&raw);
+        let mapping = utils::create_mapping(&raw);
 
         Self {
             index: raw.index(),
@@ -74,70 +73,5 @@ impl PartialEq for Gamepad {
     #[inline(always)]
     fn eq(&self, othr: &Self) -> bool {
         self.raw.index() == othr.raw.index()
-    }
-}
-
-#[derive(Clone)]
-pub enum Mapping {
-    Standard { buttons: [bool; 17], axes: [f64; 4] },
-    NoMapping { buttons: Vec<bool>, axes: Vec<f64> },
-}
-
-impl Mapping {
-    pub fn new(raw: &web_sys::Gamepad) -> Mapping {
-        match raw.mapping() {
-            GamepadMappingType::Standard => {
-                let mut buttons = [false; 17];
-                let mut axes = [0.0; 4];
-
-                let gbuttons = raw.buttons();
-                for index in 0..buttons.len() {
-                    let button: GamepadButton = gbuttons.get(index as u32).into();
-                    buttons[index] = button.pressed();
-                }
-
-                let gaxes = raw.axes();
-                for index in 0..axes.len() {
-                    let axe: f64 = gaxes.get(index as u32).as_f64().unwrap_or(0.0);
-                    axes[index] = axe;
-                }
-
-                Mapping::Standard { buttons, axes }
-            }
-            _ => {
-                let mut buttons: Vec<bool> = Vec::new();
-                let mut axes: Vec<f64> = Vec::new();
-
-                let gbuttons = raw.buttons();
-                for index in 0..gbuttons.length() {
-                    let button: GamepadButton = gbuttons.get(index as u32).into();
-                    buttons.push(button.pressed());
-                }
-
-                let gaxes = raw.axes();
-                for index in 0..gaxes.length() {
-                    let axe: f64 = gaxes.get(index as u32).as_f64().unwrap_or(0.0);
-                    axes.push(axe);
-                }
-
-                Mapping::NoMapping { buttons, axes }
-            }
-        }
-    }
-
-    pub(crate) fn buttons<'a>(&'a self) -> impl Iterator<Item = bool> + 'a {
-        match self {
-            Mapping::Standard { buttons, .. } => buttons.iter(),
-            Mapping::NoMapping { buttons, .. } => buttons.iter(),
-        }
-        .cloned()
-    }
-
-    pub(crate) fn axes<'a>(&'a self) -> impl Iterator<Item = f64> + 'a {
-        match self {
-            Mapping::Standard { axes, .. } => axes.iter(),
-            Mapping::NoMapping { axes, .. } => axes.iter(),
-        }
-        .cloned()
     }
 }

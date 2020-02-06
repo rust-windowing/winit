@@ -38,21 +38,27 @@ pub fn example_gamepad() {
         .build(&event_loop)
         .unwrap();
 
+    let deadzone = 0.12;
+
     event_loop.run(move |event, _, control_flow| {
         match event {
             Event::GamepadEvent(gamepad_handle, event) => {
                 match event {
-                    // GamepadEvent::Axis {
-                    //     axis_id,
-                    //     axis,
-                    //     value,
-                    //     stick,
-                    // } => console_log!("Axis {:#?} {:#?} {:#?} {:#?}", axis_id, axis, value, stick),
+                    GamepadEvent::Axis {
+                        axis_id,
+                        axis,
+                        value,
+                        stick,
+                    } if value > deadzone => {
+                        console_log!("Axis {:#?} {:#?} {:#?} {:#?}", axis_id, axis, value, stick)
+                    },
 
-                    // // Discard any Stick event that falls inside the stick's deadzone.
-                    // GamepadEvent::Stick {
-                    //     x_value, y_value, ..
-                    // } if (x_value.powi(2) + y_value.powi(2)).sqrt() < deadzone => (),
+                    GamepadEvent::Stick {
+                        x_id, y_id, x_value, y_value, side
+                    } if (x_value.powi(2) + y_value.powi(2)).sqrt() > deadzone => {
+                        console_log!("Stick {:#?} {:#?} {:#?} {:#?} {:#?}", x_id, y_id, x_value, y_value, side)
+                    },
+
                     GamepadEvent::Button {
                         button_id,
                         button,
@@ -61,6 +67,7 @@ pub fn example_gamepad() {
 
                     GamepadEvent::Added => console_log!("[{:?}] {:#?}", gamepad_handle, event),
                     GamepadEvent::Removed => console_log!("[{:?}] {:#?}", gamepad_handle, event),
+
                     _ => {},
                 }
             }

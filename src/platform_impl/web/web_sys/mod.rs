@@ -1,5 +1,5 @@
 mod canvas;
-mod event;
+mod utils;
 mod timeout;
 mod gamepad_manager;
 pub mod gamepad;
