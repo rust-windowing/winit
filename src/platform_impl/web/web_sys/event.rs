@@ -248,6 +248,6 @@ pub fn gamepad_axis(code: usize, axis_value: f64) -> device::GamepadEvent {
         axis_id,
         axis,
         value,
-        stick: true,
+        stick: false,
     }
 }
