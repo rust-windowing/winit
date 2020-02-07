@@ -1,8 +1,7 @@
 mod canvas;
-mod utils;
 mod timeout;
+mod utils;
 pub mod gamepad;
-pub mod window;
 
 pub use self::canvas::Canvas;
 pub use self::timeout::Timeout;
@@ -73,4 +72,14 @@ pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
         }
         None => false,
     }
+}
+
+pub fn get_gamepads() -> Vec<gamepad::Gamepad> {
+    let mut gamepads: Vec<gamepad::Gamepad> = Vec::new();
+    let web_gamepads = web_sys::window().unwrap().navigator().get_gamepads().ok().unwrap();
+    for index in 0..web_gamepads.length() {
+        let gamepad: web_sys::Gamepad = web_gamepads.get(index).into();
+        gamepads.push(gamepad::Gamepad::new(gamepad));
+    }
+    gamepads
 }

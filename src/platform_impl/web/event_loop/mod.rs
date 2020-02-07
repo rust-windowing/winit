@@ -1,4 +1,3 @@
-mod global;
 mod proxy;
 mod runner;
 mod state;

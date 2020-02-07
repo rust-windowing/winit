@@ -1,6 +1,6 @@
-use std::{cmp::PartialEq};
-use crate::platform_impl::platform::device;
 use super::utils;
+use crate::platform_impl::platform::device;
+use std::cmp::PartialEq;
 
 #[derive(Debug)]
 pub struct Gamepad {
@@ -18,10 +18,6 @@ impl Gamepad {
             raw,
             mapping,
         }
-    }
-
-    pub fn raw(&self) -> web_sys::Gamepad {
-        self.raw.clone()
     }
 
     // An integer that is auto-incremented to be unique for each device

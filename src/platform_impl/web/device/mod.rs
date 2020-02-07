@@ -1,6 +1,4 @@
 pub mod gamepad;
-pub mod gamepad_manager;
-mod constants;
 mod utils;
 
 use super::event_loop::EventLoop;

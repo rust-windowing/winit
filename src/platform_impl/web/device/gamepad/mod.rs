@@ -1,7 +1,10 @@
+mod manager;
+pub mod constants;
+pub use manager::Manager;
+
 use crate::event::device::{BatteryLevel, GamepadAxis, GamepadButton, RumbleError};
 use crate::platform_impl::platform::backend;
 use std::fmt;
-use super::constants;
 
 pub enum Shared {
     Raw(backend::gamepad::Gamepad),

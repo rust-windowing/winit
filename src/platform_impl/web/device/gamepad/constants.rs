@@ -1,4 +1,4 @@
-use super::gamepad::EventCode;
+use super::EventCode;
 
 pub const AXIS_LSTICKX: EventCode = EventCode(0);
 pub const AXIS_LSTICKY: EventCode = EventCode(1);

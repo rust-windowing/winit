@@ -106,6 +106,7 @@ features = [
     'KeyboardEvent',
     'MouseEvent',
     'Node',
+    'Navigator',
     'PointerEvent',
     'Window',
     'WheelEvent',

@@ -3,7 +3,7 @@ use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
 use crate::platform_impl::platform;
 
 use std::convert::TryInto;
-use web_sys::{KeyboardEvent, MouseEvent, WheelEvent, Gamepad, GamepadMappingType, GamepadButton};
+use web_sys::{Gamepad, GamepadButton, GamepadMappingType, KeyboardEvent, MouseEvent, WheelEvent};
 
 pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     match event.button() {

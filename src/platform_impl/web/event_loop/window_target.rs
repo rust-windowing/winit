@@ -40,10 +40,6 @@ impl<T> WindowTarget<T> {
         self.runner.collect_gamepads()
     }
 
-    pub fn register_global_events(&self) -> Result<(), crate::error::OsError> {
-        self.runner.register_global_events()
-    }
-
     pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
         let runner = self.runner.clone();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());

@@ -19,10 +19,6 @@ impl Gamepad {
         }
     }
 
-    pub fn raw(&self) -> stdweb::web::Gamepad {
-        self.raw.clone()
-    }
-
     // An integer that is auto-incremented to be unique for each device
     // currently connected to the system.
     // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/index

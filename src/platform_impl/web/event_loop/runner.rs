@@ -1,7 +1,8 @@
-use super::{backend, global, state::State};
+use super::{backend, state::State};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop as root;
 use crate::window::WindowId;
+use crate::platform_impl::platform::device::gamepad;
 
 use instant::{Duration, Instant};
 use std::{
@@ -24,7 +25,7 @@ pub struct Execution<T> {
     events: RefCell<VecDeque<Event<T>>>,
     id: RefCell<u32>,
     redraw_pending: RefCell<HashSet<WindowId>>,
-    global_emitter: RefCell<global::Emitter>,
+    gamepad_manager: RefCell<gamepad::Manager>,
 }
 
 struct Runner<T> {
@@ -50,22 +51,12 @@ impl<T: 'static> Shared<T> {
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
             redraw_pending: RefCell::new(HashSet::new()),
-            global_emitter: RefCell::new(global::Emitter::new()),
+            gamepad_manager: RefCell::new(gamepad::Manager::new()),
         }))
     }
 
-    pub fn register_global_events(&self) -> Result<(), crate::error::OsError> {
-        self.0
-            .global_emitter
-            .borrow()
-            .register_events(&self.clone())
-    }
-
     pub fn collect_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
-        self.0
-            .global_emitter
-            .borrow()
-            .collect_gamepad_handles()
+        self.0.gamepad_manager.borrow().collect_handles()
     }
 
     // Set the event callback to use for the event loop runner
@@ -155,9 +146,9 @@ impl<T: 'static> Shared<T> {
             );
         }
         // Collect all global events
-        let emitter = self.0.global_emitter.borrow();
+        let mut gamepad_manager = self.0.gamepad_manager.borrow_mut();
         let instance = self.clone();
-        emitter.collect_gamepad_events(move |(handle, event)| {
+        gamepad_manager.collect_events(move |(handle, event)| {
             instance.handle_event(Event::GamepadEvent(handle, event), &mut control);
         });
 
