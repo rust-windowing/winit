@@ -1,6 +1,9 @@
 mod canvas;
-mod event;
+mod utils;
 mod timeout;
+mod gamepad_manager;
+pub mod gamepad;
+pub mod window;
 
 pub use self::canvas::Canvas;
 pub use self::timeout::Timeout;
