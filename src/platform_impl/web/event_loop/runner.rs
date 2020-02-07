@@ -61,6 +61,13 @@ impl<T: 'static> Shared<T> {
             .register_events(&self.clone())
     }
 
+    pub fn get_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
+        self.0
+            .global_emitter
+            .borrow()
+            .get_gamepads()
+    }
+
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootEventLoopWindowTarget reference

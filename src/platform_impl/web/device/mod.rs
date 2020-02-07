@@ -14,18 +14,6 @@ use std::{
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct MouseId(pub i32);
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct KeyboardId(pub i32);
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct HidId(pub i32);
-
-#[derive(Clone, Debug)]
-pub(crate) struct GamepadHandle {
-    pub(crate) id: i32,
-    pub(crate) gamepad: gamepad::Shared,
-}
-
 unsafe impl Send for MouseId {}
 unsafe impl Sync for MouseId {}
 
@@ -50,6 +38,8 @@ impl From<MouseId> for device::MouseId {
         Self(platform_id)
     }
 }
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct KeyboardId(pub i32);
 
 unsafe impl Send for KeyboardId {}
 unsafe impl Sync for KeyboardId {}
@@ -76,6 +66,9 @@ impl From<KeyboardId> for device::KeyboardId {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct HidId(pub i32);
+
 unsafe impl Send for HidId {}
 unsafe impl Sync for HidId {}
 
@@ -99,6 +92,12 @@ impl From<HidId> for device::HidId {
     fn from(platform_id: HidId) -> Self {
         Self(platform_id)
     }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct GamepadHandle {
+    pub(crate) id: i32,
+    pub(crate) gamepad: gamepad::Shared,
 }
 
 unsafe impl Send for GamepadHandle {}

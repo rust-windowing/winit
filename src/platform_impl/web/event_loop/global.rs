@@ -32,7 +32,7 @@ impl Emitter {
                 let gamepad = manager.register(gamepad);
                 r.send_event(Event::GamepadEvent(
                     device::GamepadHandle(GamepadHandle {
-                        id: gamepad.index() as i32,
+                        id: gamepad.index,
                         gamepad: gamepad::Shared::Raw(gamepad),
                     }),
                     device::GamepadEvent::Added,
@@ -45,7 +45,7 @@ impl Emitter {
                 let gamepad = manager.register(gamepad);
                 r.send_event(Event::GamepadEvent(
                     device::GamepadHandle(GamepadHandle {
-                        id: gamepad.index() as i32,
+                        id: gamepad.index,
                         gamepad: gamepad::Shared::Raw(gamepad),
                     }),
                     device::GamepadEvent::Removed,
@@ -68,12 +68,28 @@ impl Emitter {
             .map(|(gamepad, event)| {
                 (
                     device::GamepadHandle(GamepadHandle {
-                        id: gamepad.index() as i32,
+                        id: gamepad.index,
                         gamepad: gamepad::Shared::Raw(gamepad),
                     }),
                     event,
                 )
             })
             .collect()
+    }
+
+    pub fn get_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
+        let manager = self.gamepad_manager.manager();
+        let gamepads = manager.gamepads.borrow();
+
+        gamepads
+        .iter()
+        .map(|gamepad| {
+            device::GamepadHandle(GamepadHandle {
+                id: gamepad.index,
+                gamepad: gamepad::Shared::Raw(gamepad.clone()),
+            })
+        })
+        .collect::<Vec<_>>()
+        // .into_iter()
     }
 }

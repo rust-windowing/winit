@@ -24,7 +24,7 @@ impl Clone for Shared {
 }
 
 pub struct GamepadManager {
-    gamepads: RefCell<Vec<backend::gamepad::Gamepad>>,
+    pub(crate) gamepads: RefCell<Vec<backend::gamepad::Gamepad>>,
 }
 
 impl GamepadManager {

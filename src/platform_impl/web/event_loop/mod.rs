@@ -67,18 +67,18 @@ impl<T> EventLoop<T> {
     }
 
     pub fn mouses(&self) -> impl '_ + Iterator<Item = crate::event::device::MouseId> {
-        Vec::new().into_iter()
+        std::iter::empty()
     }
 
     pub fn keyboards(&self) -> impl '_ + Iterator<Item = crate::event::device::KeyboardId> {
-        Vec::new().into_iter()
+        std::iter::empty()
     }
 
     pub fn hids(&self) -> impl '_ + Iterator<Item = crate::event::device::HidId> {
-        Vec::new().into_iter()
+        std::iter::empty()
     }
 
     pub fn gamepads(&self) -> impl '_ + Iterator<Item = crate::event::device::GamepadHandle> {
-        Vec::new().into_iter()
+        self.elw.p.get_gamepads().into_iter()
     }
 }

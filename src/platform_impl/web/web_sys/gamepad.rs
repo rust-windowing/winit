@@ -4,7 +4,7 @@ use super::utils;
 
 #[derive(Debug)]
 pub struct Gamepad {
-    pub(crate) index: u32,
+    pub(crate) index: i32,
     pub(crate) raw: web_sys::Gamepad,
     pub(crate) mapping: device::gamepad::Mapping,
 }
@@ -14,7 +14,7 @@ impl Gamepad {
         let mapping = utils::create_mapping(&raw);
 
         Self {
-            index: raw.index(),
+            index: raw.index() as i32,
             raw,
             mapping,
         }
