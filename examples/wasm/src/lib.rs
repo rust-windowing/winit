@@ -8,13 +8,13 @@ use winit::{
 };
 
 /**
- * Build example (from examples/web):
+ * Build example (from examples/wasm):
  *    wasm-pack build --target web -- --features ${EXAMPLE}
- * Run web server (from examples/web):
+ * Run web server (from examples/wasm):
  *    npx http-server
  *    Open your browser at http://localhost:8000/files/${EXAMPLE}.html
  * Development (from project root):
- *    npx nodemon --watch src --watch examples/web/src -e rs --exec 'cd examples/web && wasm-pack build --target web -- --features gamepad'
+ *    npx nodemon --watch src --watch examples/wasm/src -e rs --exec 'cd examples/wasm && wasm-pack build --target web -- --features gamepad'
  */
 
 #[wasm_bindgen]
