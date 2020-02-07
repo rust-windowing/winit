@@ -1,16 +1,12 @@
-use super::gamepad;
 use super::utils;
 use crate::event::device;
+use crate::platform_impl::platform::backend;
 use std::{cell::RefCell, rc::Rc};
 
 pub struct Shared(Rc<GamepadManager>);
 
-pub struct GamepadManager {
-    gamepads: RefCell<Vec<gamepad::Gamepad>>,
-}
-
 impl Shared {
-    pub fn create() -> Shared {
+    pub fn new() -> Shared {
         Shared(Rc::new(GamepadManager {
             gamepads: RefCell::new(Vec::new()),
         }))
@@ -27,28 +23,31 @@ impl Clone for Shared {
     }
 }
 
+pub struct GamepadManager {
+    gamepads: RefCell<Vec<backend::gamepad::Gamepad>>,
+}
+
 impl GamepadManager {
-    pub fn register(&self, gamepad: web_sys::Gamepad) -> gamepad::Gamepad {
+    pub fn register(&self, gamepad: backend::gamepad::Gamepad) -> backend::gamepad::Gamepad {
         let mut gamepads = self.gamepads.borrow_mut();
-        let w = gamepad::Gamepad::new(gamepad);
-        if !gamepads.contains(&w) {
-            gamepads.push(w.clone());
+        if !gamepads.contains(&gamepad) {
+            gamepads.push(gamepad.clone());
         }
-        w
+        gamepad
     }
 
-    pub fn collect_new(&self) -> Vec<gamepad::Gamepad> {
+    pub fn collect_changed(&self) -> Vec<backend::gamepad::Gamepad> {
         let gamepads = self.gamepads.borrow();
 
         gamepads
             .iter()
-            .map(|g| gamepad::Gamepad::new(g.raw()))
+            .map(|g| backend::gamepad::Gamepad::new(g.raw()))
             .collect()
     }
 
-    pub fn collect_events(&self, events: &mut Vec<(gamepad::Gamepad, device::GamepadEvent)>) {
+    pub fn collect_events(&self, events: &mut Vec<(backend::gamepad::Gamepad, device::GamepadEvent)>) {
         let old_gamepads = self.gamepads.borrow().clone();
-        let new_gamepads = self.collect_new();
+        let new_gamepads = self.collect_changed();
 
         match (old_gamepads.get(0), new_gamepads.get(0)) {
             (Some(old), Some(new)) => {
@@ -104,6 +103,6 @@ impl GamepadManager {
         }
 
         self.gamepads.replace(new_gamepads);
-        // super::log(&format!("{:?}", events).to_string());
+        // backend::log(&format!("{:?}", events).to_string());
     }
 }

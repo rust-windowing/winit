@@ -1,7 +1,5 @@
 use super::gamepad;
-use super::gamepad_manager;
 use crate::error::OsError as RootOE;
-use crate::event::device;
 use crate::platform_impl::OsError;
 use std::{cell::RefCell, rc::Rc};
 use wasm_bindgen::{closure::Closure, JsCast};
@@ -11,7 +9,6 @@ pub struct Shared(pub Rc<RefCell<Window>>);
 
 pub struct Window {
     raw: web_sys::Window,
-    gamepad_manager: gamepad_manager::Shared,
     on_gamepad_connected: Option<Closure<dyn FnMut(GamepadEvent)>>,
     on_gamepad_disconnected: Option<Closure<dyn FnMut(GamepadEvent)>>,
 }
@@ -34,37 +31,24 @@ impl Window {
         let raw =
             web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
-        let gamepad_manager = gamepad_manager::Shared::create();
-
         Ok(Window {
             raw,
-            gamepad_manager,
             on_gamepad_connected: None,
             on_gamepad_disconnected: None,
         })
-    }
-
-    pub fn collect_gamepad_events(
-        &self,
-        events: &mut Vec<(gamepad::Gamepad, device::GamepadEvent)>,
-    ) {
-        let manager = self.gamepad_manager.clone().manager();
-        manager.collect_events(events);
     }
 
     pub fn on_gamepad_connected<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(gamepad::Gamepad),
     {
-        let manager = self.gamepad_manager.clone().manager();
         self.on_gamepad_connected = Some(self.add_event(
             "gamepadconnected",
             move |event: GamepadEvent| {
                 let gamepad = event
                     .gamepad()
                     .expect("[gamepadconnected] expected gamepad");
-                let g = manager.register(gamepad);
-                handler(g);
+                handler(gamepad::Gamepad::new(gamepad));
             },
         ))
     }
@@ -73,15 +57,13 @@ impl Window {
     where
         F: 'static + FnMut(gamepad::Gamepad),
     {
-        let manager = self.gamepad_manager.clone().manager();
         self.on_gamepad_disconnected = Some(self.add_event(
             "gamepaddisconnected",
             move |event: GamepadEvent| {
                 let gamepad = event
                     .gamepad()
                     .expect("[gamepaddisconnected] expected gamepad");
-                let g = manager.register(gamepad);
-                handler(g);
+                handler(gamepad::Gamepad::new(gamepad));
             },
         ))
     }

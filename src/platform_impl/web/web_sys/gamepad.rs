@@ -2,6 +2,7 @@ use std::{cmp::PartialEq};
 use crate::platform_impl::platform::device;
 use super::utils;
 
+#[derive(Debug)]
 pub struct Gamepad {
     pub(crate) index: u32,
     pub(crate) raw: web_sys::Gamepad,

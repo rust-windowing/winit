@@ -1,5 +1,7 @@
 pub mod gamepad;
-pub mod constants;
+pub mod gamepad_manager;
+mod constants;
+mod utils;
 
 use super::event_loop::EventLoop;
 use crate::event::device;

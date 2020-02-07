@@ -137,7 +137,7 @@ impl fmt::Display for EventCode {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub enum Mapping {
     Standard { buttons: [bool; 17], axes: [f64; 4] },
     NoMapping { buttons: Vec<bool>, axes: Vec<f64> },

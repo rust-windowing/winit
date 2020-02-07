@@ -1,7 +1,6 @@
 mod canvas;
 mod utils;
 mod timeout;
-mod gamepad_manager;
 pub mod gamepad;
 pub mod window;
 

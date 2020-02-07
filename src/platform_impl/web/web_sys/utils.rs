@@ -1,6 +1,6 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode, ElementState, device};
-use crate::platform_impl::platform::device::{ constants, gamepad };
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
+use crate::platform_impl::platform;
 
 use std::convert::TryInto;
 use web_sys::{KeyboardEvent, MouseEvent, WheelEvent, Gamepad, GamepadMappingType, GamepadButton};
@@ -222,49 +222,7 @@ pub fn codepoint(event: &KeyboardEvent) -> char {
     event.key().chars().next().unwrap()
 }
 
-pub fn gamepad_button(code: usize, pressed: bool) -> device::GamepadEvent {
-    let button_id = code as u32;
-    let button: Option<device::GamepadButton> = constants::button_code(code).into();
-
-    let state = if pressed {
-        ElementState::Pressed
-    } else {
-        ElementState::Released
-    };
-
-    device::GamepadEvent::Button {
-        button_id,
-        button,
-        state,
-    }
-}
-
-pub fn gamepad_axis(code: usize, value: f64) -> device::GamepadEvent {
-    let axis_id = code as u32;
-    let axis: Option<device::GamepadAxis> = constants::axis_code(code).into();
-
-    device::GamepadEvent::Axis {
-        axis_id,
-        axis,
-        value,
-        stick: true,
-    }
-}
-
-pub fn gamepad_stick(x_code: usize, y_code: usize, x_value: f64, y_value: f64, side: device::Side) -> device::GamepadEvent {
-    let x_id = x_code as u32;
-    let y_id = y_code as u32;
-
-    device::GamepadEvent::Stick {
-        x_id,
-        y_id,
-        x_value,
-        y_value,
-        side,
-    }
-}
-
-pub fn create_mapping(raw: &Gamepad) -> gamepad::Mapping {
+pub fn create_mapping(raw: &Gamepad) -> platform::device::gamepad::Mapping {
     match raw.mapping() {
         GamepadMappingType::Standard => {
             let mut buttons = [false; 17];
@@ -282,7 +240,7 @@ pub fn create_mapping(raw: &Gamepad) -> gamepad::Mapping {
                 axes[index] = axe;
             }
 
-            gamepad::Mapping::Standard { buttons, axes }
+            platform::device::gamepad::Mapping::Standard { buttons, axes }
         }
         _ => {
             let mut buttons: Vec<bool> = Vec::new();
@@ -300,7 +258,7 @@ pub fn create_mapping(raw: &Gamepad) -> gamepad::Mapping {
                 axes.push(axe);
             }
 
-            gamepad::Mapping::NoMapping { buttons, axes }
+            platform::device::gamepad::Mapping::NoMapping { buttons, axes }
         }
     }
 }
