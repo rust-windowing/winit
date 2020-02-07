@@ -236,7 +236,7 @@ pub enum WindowEvent<'a> {
     },
 
     /// An event from IME
-    Composition { event: CompositionEvent },
+    Composition(CompositionEvent),
 
     /// The cursor has moved on the window.
     CursorMoved {
@@ -344,7 +344,7 @@ impl<'a> WindowEvent<'a> {
                 input,
                 is_synthetic,
             }),
-            Composition { event } => Some(Composition { event }),
+            Composition(event) => Some(Composition(event)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -513,9 +513,9 @@ pub struct KeyboardInput {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CompositionEvent {
-    CompositionStart(),
+    CompositionStart,
     CompositionUpdate(String, usize),
-    CompositionEnd(),
+    CompositionEnd,
 }
 
 /// Describes touch-screen input state.

@@ -1,5 +1,5 @@
 use std::{
-    mem::{transmute, MaybeUninit},
+    mem::transmute,
     os::raw::{c_short, c_void},
     ptr,
     sync::Arc,
@@ -10,7 +10,7 @@ use crate::event::CompositionEvent::{CompositionEnd, CompositionStart, Compositi
 use crate::platform_impl::platform::x11::ime::ImeEventSender;
 use std::ffi::CStr;
 use std::iter::FromIterator;
-use x11_dl::xlib::{XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
+use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
 #[derive(Debug)]
 pub enum ImeContextCreationError {
@@ -30,7 +30,7 @@ extern "C" fn preedit_start_callback(
     client_data.is_composing = true;
     client_data
         .event_sender
-        .send((client_data.window, CompositionStart()))
+        .send((client_data.window, CompositionStart))
         .expect("failed to send composition start event");
     debug!("preedit start callback");
     -1
@@ -50,16 +50,13 @@ extern "C" fn preedit_done_callback(
             .event_sender
             .send((
                 client_data.window,
-                CompositionUpdate(
-                    String::from_iter(client_data.text.clone()),
-                    client_data.cursor_pos,
-                ),
+                CompositionUpdate(client_data.text.iter().collect(), client_data.cursor_pos),
             ))
             .expect("failed to send composition update event");
     }
     client_data
         .event_sender
-        .send((client_data.window, CompositionEnd()))
+        .send((client_data.window, CompositionEnd))
         .expect("failed to send composition end event");
     client_data.is_composing = false;
 }
@@ -185,10 +182,10 @@ unsafe fn create_pre_edit_attr_with_spot<'a>(
 }
 
 fn create_xim_callback(client_data: ffi::XPointer, callback: XIMProcNonnull) -> ffi::XIMCallback {
-    let mut xim_callback: ffi::XIMCallback = unsafe { MaybeUninit::uninit().assume_init() };
-    xim_callback.client_data = client_data;
-    xim_callback.callback = Some(callback);
-    xim_callback
+    XIMCallback {
+        client_data,
+        callback: Some(callback),
+    }
 }
 
 pub struct PreeditCallbacks {
@@ -218,7 +215,6 @@ impl PreeditCallbacks {
 
 pub struct ImeContextClientData {
     pub window: ffi::Window,
-    pub tag: u64,
     pub event_sender: ImeEventSender,
     pub text: Vec<char>,
     pub cursor_pos: usize,
@@ -246,7 +242,6 @@ impl ImeContext {
     ) -> Result<Self, ImeContextCreationError> {
         let client_data = Box::new(ImeContextClientData {
             window,
-            tag: 753,
             event_sender,
             text: Vec::new(),
             cursor_pos: 0,

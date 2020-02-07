@@ -1195,7 +1195,7 @@ impl<T: 'static> EventProcessor<T> {
                 debug!("get composition event");
                 callback(Event::WindowEvent {
                     window_id: mkwid(window),
-                    event: WindowEvent::Composition { event },
+                    event: WindowEvent::Composition(event),
                 });
             }
             Err(_) => (),
