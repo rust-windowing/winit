@@ -155,10 +155,12 @@ impl<T: 'static> Shared<T> {
             );
         }
         // Collect all global events
-        let gamepad_events = self.0.global_emitter.borrow().collect_gamepad_events();
-        for (handle, event) in gamepad_events {
-            self.handle_event(Event::GamepadEvent(handle, event), &mut control);
-        }
+        let emitter = self.0.global_emitter.borrow();
+        let instance = self.clone();
+        emitter.collect_gamepad_events(move |(handle, event)| {
+            instance.handle_event(Event::GamepadEvent(handle, event), &mut control);
+        });
+
         // Every events are cleared
         self.handle_event(Event::EventsCleared, &mut control);
         self.apply_control_flow(control);

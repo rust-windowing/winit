@@ -58,23 +58,28 @@ impl Emitter {
         Ok(())
     }
 
-    pub fn collect_gamepad_events(&self) -> Vec<(device::GamepadHandle, device::GamepadEvent)> {
+    pub fn collect_gamepad_events<F>(&self, mut handler: F)
+    where
+        F: 'static + FnMut((device::GamepadHandle, device::GamepadEvent)),
+    {
         let mut gamepad_events = self.gamepad_events.borrow_mut();
-        self.gamepad_manager.manager().collect_events(&mut gamepad_events);
-        // backend::log(&format!("{:?}", gamepad_events).to_string());
+        self.gamepad_manager
+            .manager()
+            .collect_events(&mut gamepad_events);
 
-        gamepad_events
-            .drain(..)
-            .map(|(gamepad, event)| {
-                (
+        loop {
+            if let Some((gamepad, event)) = gamepad_events.pop() {
+                handler((
                     device::GamepadHandle(GamepadHandle {
                         id: gamepad.index,
                         gamepad: gamepad::Shared::Raw(gamepad),
                     }),
                     event,
-                )
-            })
-            .collect()
+                ));
+            } else {
+                break;
+            }
+        }
     }
 
     pub fn get_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
@@ -82,14 +87,14 @@ impl Emitter {
         let gamepads = manager.gamepads.borrow();
 
         gamepads
-        .iter()
-        .map(|gamepad| {
-            device::GamepadHandle(GamepadHandle {
-                id: gamepad.index,
-                gamepad: gamepad::Shared::Raw(gamepad.clone()),
+            .iter()
+            .map(|gamepad| {
+                device::GamepadHandle(GamepadHandle {
+                    id: gamepad.index,
+                    gamepad: gamepad::Shared::Raw(gamepad.clone()),
+                })
             })
-        })
-        .collect::<Vec<_>>()
+            .collect::<Vec<_>>()
         // .into_iter()
     }
 }
