@@ -17,14 +17,8 @@ use winit::{
  *    npx nodemon --watch src --watch examples/wasm/src -e rs --exec 'cd examples/wasm && wasm-pack build --target web -- --features gamepad'
  */
 
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console)]
-    fn log(s: &str);
-}
-
 macro_rules! console_log {
-  ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+  ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
 }
 
 #[cfg(feature = "gamepad")]
