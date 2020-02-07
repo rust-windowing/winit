@@ -230,8 +230,8 @@ pub fn codepoint(event: &impl IKeyboardEvent) -> char {
 pub fn create_mapping(raw: &Gamepad) -> gamepad::Mapping {
     match raw.mapping() {
         GamepadMappingType::Standard => {
-            let mut buttons = [false; 17];
-            let mut axes = [0.0; 4];
+            let mut buttons = [false; 16];
+            let mut axes = [0.0; 6];
 
             for (index, button) in raw
                 .buttons()

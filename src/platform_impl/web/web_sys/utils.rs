@@ -225,8 +225,8 @@ pub fn codepoint(event: &KeyboardEvent) -> char {
 pub fn create_mapping(raw: &Gamepad) -> platform::device::gamepad::Mapping {
     match raw.mapping() {
         GamepadMappingType::Standard => {
-            let mut buttons = [false; 17];
-            let mut axes = [0.0; 4];
+            let mut buttons = [false; 16];
+            let mut axes = [0.0; 6];
 
             let gbuttons = raw.buttons();
             for index in 0..buttons.len() {

@@ -1,9 +1,9 @@
 use crate::event::{ElementState, device};
-use super::gamepad;
+use super::constants;
 
 pub fn gamepad_button(code: usize, pressed: bool) -> device::GamepadEvent {
   let button_id = code as u32;
-  let button: Option<device::GamepadButton> = gamepad::constants::button_code(code).into();
+  let button = constants::button_code(code);
 
   let state = if pressed {
       ElementState::Pressed
@@ -20,7 +20,7 @@ pub fn gamepad_button(code: usize, pressed: bool) -> device::GamepadEvent {
 
 pub fn gamepad_axis(code: usize, value: f64) -> device::GamepadEvent {
   let axis_id = code as u32;
-  let axis: Option<device::GamepadAxis> = gamepad::constants::axis_code(code).into();
+  let axis = constants::axis_code(code);
 
   device::GamepadEvent::Axis {
       axis_id,

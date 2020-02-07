@@ -1,4 +1,4 @@
-use super::super::utils;
+use super::utils;
 use crate::event::device;
 use crate::platform_impl::platform::{backend, device::gamepad, GamepadHandle};
 use std::collections::VecDeque;
