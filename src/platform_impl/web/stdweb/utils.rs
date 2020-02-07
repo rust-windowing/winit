@@ -1,10 +1,10 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{device, ElementState, ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
-use crate::platform_impl::platform::device::{constants, gamepad};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
+use crate::platform_impl::platform::device::gamepad;
 
 use stdweb::web::{
-    event::{IKeyboardEvent, IMouseEvent, MouseWheelDeltaMode, MouseWheelEvent},
-    Gamepad, GamepadButton, GamepadMappingType,
+    event::{IKeyboardEvent, IMouseEvent, MouseWheelEvent},
+    Gamepad, GamepadMappingType,
 };
 use stdweb::{js, unstable::TryInto, JsSerialize};
 
@@ -225,54 +225,6 @@ pub fn codepoint(event: &impl IKeyboardEvent) -> char {
     // never panic.
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
     event.key().chars().next().unwrap()
-}
-
-pub fn gamepad_button(code: usize, pressed: bool) -> device::GamepadEvent {
-    let button_id = code as u32;
-    let button: Option<device::GamepadButton> = constants::button_code(code).into();
-
-    let state = if pressed {
-        ElementState::Pressed
-    } else {
-        ElementState::Released
-    };
-
-    device::GamepadEvent::Button {
-        button_id,
-        button,
-        state,
-    }
-}
-
-pub fn gamepad_axis(code: usize, value: f64) -> device::GamepadEvent {
-    let axis_id = code as u32;
-    let axis: Option<device::GamepadAxis> = constants::axis_code(code).into();
-
-    device::GamepadEvent::Axis {
-        axis_id,
-        axis,
-        value,
-        stick: true,
-    }
-}
-
-pub fn gamepad_stick(
-    x_code: usize,
-    y_code: usize,
-    x_value: f64,
-    y_value: f64,
-    side: device::Side,
-) -> device::GamepadEvent {
-    let x_id = x_code as u32;
-    let y_id = y_code as u32;
-
-    device::GamepadEvent::Stick {
-        x_id,
-        y_id,
-        x_value,
-        y_value,
-        side,
-    }
 }
 
 pub fn create_mapping(raw: &Gamepad) -> gamepad::Mapping {
