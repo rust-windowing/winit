@@ -1,6 +1,6 @@
 use super::utils;
 use crate::event::device;
-use crate::platform_impl::platform::backend;
+use crate::platform_impl::platform::{backend, device::gamepad, GamepadHandle};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct Shared(Rc<GamepadManager>);
@@ -9,6 +9,7 @@ impl Shared {
     pub fn new() -> Shared {
         Shared(Rc::new(GamepadManager {
             gamepads: RefCell::new(Vec::new()),
+            events: RefCell::new(Vec::new()),
         }))
     }
 
@@ -25,9 +26,11 @@ impl Clone for Shared {
 
 pub struct GamepadManager {
     pub(crate) gamepads: RefCell<Vec<backend::gamepad::Gamepad>>,
+    pub(crate) events: RefCell<Vec<(backend::gamepad::Gamepad, device::GamepadEvent)>>,
 }
 
 impl GamepadManager {
+    // Register every new added/removed gamepad
     pub fn register(&self, gamepad: backend::gamepad::Gamepad) -> backend::gamepad::Gamepad {
         let mut gamepads = self.gamepads.borrow_mut();
         if !gamepads.contains(&gamepad) {
@@ -36,6 +39,22 @@ impl GamepadManager {
         gamepad
     }
 
+    // Called by EventLoop::gamepads()
+    pub fn collect_handles(&self) -> Vec<crate::event::device::GamepadHandle> {
+        let gamepads = self.gamepads.borrow();
+
+        gamepads
+            .iter()
+            .map(|gamepad| {
+                device::GamepadHandle(GamepadHandle {
+                    id: gamepad.index,
+                    gamepad: gamepad::Shared::Raw(gamepad.clone()),
+                })
+            })
+            .collect::<Vec<_>>()
+    }
+
+    // Get an updated raw gamepad and generate a new mapping
     pub fn collect_changed(&self) -> Vec<backend::gamepad::Gamepad> {
         let gamepads = self.gamepads.borrow();
 
@@ -45,10 +64,17 @@ impl GamepadManager {
             .collect()
     }
 
-    pub fn collect_events(&self, events: &mut Vec<(backend::gamepad::Gamepad, device::GamepadEvent)>) {
+    // Collect gamepad events (buttons/axes/sticks)
+    // dispatch to handler and update gamepads
+    pub fn collect_events<F>(&self, mut handler: F)
+    where
+        F: 'static + FnMut((device::GamepadHandle, device::GamepadEvent)),
+    {
+        let mut events = self.events.borrow_mut();
         let old_gamepads = self.gamepads.borrow().clone();
         let new_gamepads = self.collect_changed();
 
+        // Collect events
         match (old_gamepads.get(0), new_gamepads.get(0)) {
             (Some(old), Some(new)) => {
                 // Button events
@@ -102,7 +128,22 @@ impl GamepadManager {
             _ => {}
         }
 
+        // Dispatch events and drain events vec
+        loop {
+            if let Some((gamepad, event)) = events.pop() {
+                handler((
+                    device::GamepadHandle(GamepadHandle {
+                        id: gamepad.index,
+                        gamepad: gamepad::Shared::Raw(gamepad),
+                    }),
+                    event,
+                ));
+            } else {
+                break;
+            }
+        }
+
+        // Update gamepads
         self.gamepads.replace(new_gamepads);
-        // backend::log(&format!("{:?}", events).to_string());
     }
 }

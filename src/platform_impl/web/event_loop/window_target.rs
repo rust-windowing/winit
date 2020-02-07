@@ -36,8 +36,8 @@ impl<T> WindowTarget<T> {
         window::Id(self.runner.generate_id())
     }
 
-    pub fn get_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
-        self.runner.get_gamepads()
+    pub fn collect_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
+        self.runner.collect_gamepads()
     }
 
     pub fn register_global_events(&self) -> Result<(), crate::error::OsError> {

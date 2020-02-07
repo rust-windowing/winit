@@ -61,11 +61,11 @@ impl<T: 'static> Shared<T> {
             .register_events(&self.clone())
     }
 
-    pub fn get_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
+    pub fn collect_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
         self.0
             .global_emitter
             .borrow()
-            .get_gamepads()
+            .collect_gamepad_handles()
     }
 
     // Set the event callback to use for the event loop runner

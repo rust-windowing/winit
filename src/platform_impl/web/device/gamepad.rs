@@ -37,6 +37,7 @@ impl Shared {
         }
     }
 
+    // [EXPERIMENTAL] Not implemented yet
     pub fn rumble(&self, _left_speed: f64, _right_speed: f64) -> Result<(), RumbleError> {
         match self {
             Shared::Dummy => Ok(()),

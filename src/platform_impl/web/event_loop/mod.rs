@@ -79,6 +79,6 @@ impl<T> EventLoop<T> {
     }
 
     pub fn gamepads(&self) -> impl '_ + Iterator<Item = crate::event::device::GamepadHandle> {
-        self.elw.p.get_gamepads().into_iter()
+        self.elw.p.collect_gamepads().into_iter()
     }
 }

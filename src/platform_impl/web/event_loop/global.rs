@@ -3,10 +3,10 @@ use crate::event::{device, Event};
 use crate::platform_impl::platform::device::{gamepad, gamepad_manager, GamepadHandle};
 use std::cell::RefCell;
 
+// Global emitter for every window.addEventListener
 pub struct Emitter {
     window: RefCell<Option<backend::window::Shared>>,
     gamepad_manager: gamepad_manager::Shared,
-    gamepad_events: RefCell<Vec<(backend::gamepad::Gamepad, device::GamepadEvent)>>,
 }
 
 impl Emitter {
@@ -14,10 +14,10 @@ impl Emitter {
         Self {
             window: RefCell::new(None),
             gamepad_manager: gamepad_manager::Shared::new(),
-            gamepad_events: RefCell::new(Vec::new()),
         }
     }
 
+    // Request window object and listen global events
     pub fn register_events<T: 'static>(
         &self,
         runner: &runner::Shared<T>,
@@ -58,43 +58,16 @@ impl Emitter {
         Ok(())
     }
 
-    pub fn collect_gamepad_events<F>(&self, mut handler: F)
+    // Collect and dispatch gamepad events
+    pub fn collect_gamepad_events<F>(&self, handler: F)
     where
         F: 'static + FnMut((device::GamepadHandle, device::GamepadEvent)),
     {
-        let mut gamepad_events = self.gamepad_events.borrow_mut();
-        self.gamepad_manager
-            .manager()
-            .collect_events(&mut gamepad_events);
-
-        loop {
-            if let Some((gamepad, event)) = gamepad_events.pop() {
-                handler((
-                    device::GamepadHandle(GamepadHandle {
-                        id: gamepad.index,
-                        gamepad: gamepad::Shared::Raw(gamepad),
-                    }),
-                    event,
-                ));
-            } else {
-                break;
-            }
-        }
+        self.gamepad_manager.manager().collect_events(handler);
     }
 
-    pub fn get_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
-        let manager = self.gamepad_manager.manager();
-        let gamepads = manager.gamepads.borrow();
-
-        gamepads
-            .iter()
-            .map(|gamepad| {
-                device::GamepadHandle(GamepadHandle {
-                    id: gamepad.index,
-                    gamepad: gamepad::Shared::Raw(gamepad.clone()),
-                })
-            })
-            .collect::<Vec<_>>()
-        // .into_iter()
+    // Collect gamepad handles
+    pub fn collect_gamepad_handles(&self) -> Vec<crate::event::device::GamepadHandle> {
+        self.gamepad_manager.manager().collect_handles()
     }
 }
