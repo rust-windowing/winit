@@ -1,11 +1,12 @@
 use super::utils;
 use crate::event::device;
-use crate::platform_impl::platform::{backend, device::gamepad, GamepadHandle};
+use crate::platform_impl::platform::{backend, device::gamepad, GamepadHandle, event_loop::global};
 use std::collections::VecDeque;
 
 pub struct Manager {
     pub(crate) gamepads: Vec<backend::gamepad::Gamepad>,
     pub(crate) events: VecDeque<(backend::gamepad::Gamepad, device::GamepadEvent)>,
+    pub(crate) global_window: Option<global::Shared>,
 }
 
 impl Manager {
@@ -13,25 +14,19 @@ impl Manager {
         Self {
             gamepads: Vec::new(),
             events: VecDeque::new(),
+            global_window: None,
         }
     }
 
-    // Called by EventLoop::gamepads()
-    pub fn collect_handles(&self) -> Vec<crate::event::device::GamepadHandle> {
-        self.gamepads
-            .iter()
-            .map(|gamepad| {
-                device::GamepadHandle(GamepadHandle {
-                    id: gamepad.index,
-                    gamepad: gamepad::Shared::Raw(gamepad.clone()),
-                })
-            })
-            .collect::<Vec<_>>()
+    // Register global window to fetch gamepads.
+    // Due to Chrome issue, I prefer to use its gamepad list
+    pub fn set_global_window(&mut self, global_window: global::Shared) {
+        self.global_window.replace(global_window);
     }
 
     // Get an updated raw gamepad and generate a new mapping
-    pub fn collect_changed(&self) -> Vec<backend::gamepad::Gamepad> {
-        backend::get_gamepads()
+    pub fn collect_gamepads(&self) -> Option<Vec<backend::gamepad::Gamepad>> {
+        self.global_window.as_ref().map(|w| w.get_gamepads())
     }
 
     // Collect gamepad events (buttons/axes/sticks)
@@ -40,8 +35,13 @@ impl Manager {
     where
         F: 'static + FnMut((device::GamepadHandle, device::GamepadEvent)),
     {
+        let opt_new_gamepads = self.collect_gamepads();
+        if opt_new_gamepads.is_none() {
+            return;
+        }
+
+        let new_gamepads = opt_new_gamepads.unwrap();
         let old_gamepads = &self.gamepads;
-        let new_gamepads = self.collect_changed();
 
         let mut old_index = 0;
         let mut new_index = 0;

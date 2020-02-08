@@ -41,17 +41,12 @@ impl Gamepad {
     // EXPERIMENTAL
     #[allow(dead_code)]
     pub fn vibrate(&self, _value: f64, _duration: f64) {
-        //     for actuator in self.raw.haptic_actuators().values() {
-        //         actuator
-        //         .ok()
-        //         .and_then(|a| match a.type_ {
-        //             web_sys::GamepadHapticActuatorType::Vibration => {
-        //                 a.pulse(value, duration);
-        //                 Some(())
-        //             },
-        //             _ => None,
-        //         });
-        //     }
+        unimplemented!()
+    }
+
+    // Update mapping
+    pub fn remap(&mut self) {
+        self.mapping = utils::create_mapping(&self.raw);
     }
 }
 

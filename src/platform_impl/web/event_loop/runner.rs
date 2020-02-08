@@ -55,8 +55,8 @@ impl<T: 'static> Shared<T> {
         }))
     }
 
-    pub fn collect_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
-        self.0.gamepad_manager.borrow().collect_handles()
+    pub fn set_global_window(&self, global_window: super::global::Shared) {
+        self.0.gamepad_manager.borrow_mut().set_global_window(global_window);
     }
 
     // Set the event callback to use for the event loop runner

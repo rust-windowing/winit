@@ -2,6 +2,7 @@ mod proxy;
 mod runner;
 mod state;
 mod window_target;
+pub(crate) mod global;
 
 pub use self::proxy::Proxy;
 pub use self::window_target::WindowTarget;

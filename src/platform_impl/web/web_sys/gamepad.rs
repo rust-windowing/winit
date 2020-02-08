@@ -39,20 +39,26 @@ impl Gamepad {
         self.raw.connected()
     }
 
-    // EXPERIMENTAL
-    #[allow(dead_code)]
-    pub fn vibrate(&self, _value: f64, _duration: f64) {
-        //     for actuator in self.raw.haptic_actuators().values() {
-        //         actuator
-        //         .ok()
-        //         .and_then(|a| match a.type_ {
-        //             web_sys::GamepadHapticActuatorType::Vibration => {
-        //                 a.pulse(value, duration);
-        //                 Some(())
-        //             },
-        //             _ => None,
-        //         });
-        //     }
+    // An array containing GamepadHapticActuator objects,
+    // each of which represents haptic feedback hardware available on the controller.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/hapticActuators
+    pub fn vibrate(&self, value: f64, duration: f64) {
+        for actuator in self.raw.haptic_actuators().values() {
+            actuator.ok().and_then(|a| {
+                let actuator: web_sys::GamepadHapticActuator = a.into();
+                match actuator.type_() {
+                    web_sys::GamepadHapticActuatorType::Vibration => {
+                        actuator.pulse(value, duration).ok()
+                    }
+                    _ => None,
+                }
+            });
+        }
+    }
+
+    // Update mapping
+    pub fn remap(&mut self) {
+        self.mapping = utils::create_mapping(&self.raw);
     }
 }
 

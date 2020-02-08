@@ -57,9 +57,15 @@ pub fn example_gamepad() {
                         button_id,
                         button,
                         state,
-                    } => console_log!("Button {:#?} {:#?} {:#?}", button_id, button, state),
+                    } => {
+                        gamepad_handle.rumble(5.0, 0.0);
+                        console_log!("Button {:#?} {:#?} {:#?}", button_id, button, state)
+                    },
 
-                    GamepadEvent::Added => console_log!("[{:?}] {:#?}", gamepad_handle, event),
+                    GamepadEvent::Added => {
+                        gamepad_handle.rumble(5.0, 0.0);
+                        console_log!("[{:?}] {:#?}", gamepad_handle, event)
+                    },
                     GamepadEvent::Removed => console_log!("[{:?}] {:#?}", gamepad_handle, event),
 
                     _ => {},

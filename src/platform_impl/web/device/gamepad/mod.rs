@@ -16,6 +16,9 @@ pub enum Shared {
 }
 
 impl Shared {
+    // An integer that is auto-incremented to be unique for each device
+    // currently connected to the system.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/index
     pub fn id(&self) -> i32 {
         match self {
             Shared::Raw(g) => g.index() as i32,
@@ -23,6 +26,8 @@ impl Shared {
         }
     }
 
+    // A string containing some information about the controller.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/id
     pub fn info(&self) -> String {
         match self {
             Shared::Raw(g) => g.id(),
@@ -30,6 +35,8 @@ impl Shared {
         }
     }
 
+    // A boolean indicating whether the gamepad is still connected to the system.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/connected
     pub fn connected(&self) -> bool {
         match self {
             Shared::Raw(g) => g.connected(),
@@ -37,21 +44,23 @@ impl Shared {
         }
     }
 
+    // [EXPERIMENTAL] An array containing GamepadHapticActuator objects,
+    // each of which represents haptic feedback hardware available on the controller.
+    // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/hapticActuators
+    pub fn rumble(&self, left_speed: f64, _right_speed: f64) -> Result<(), RumbleError> {
+        match self {
+            Shared::Dummy => Ok(()),
+            Shared::Raw(g) => {
+                g.vibrate(left_speed, 1000f64);
+                Ok(())
+            }
+        }
+    }
+
     pub fn is_dummy(&self) -> bool {
         match self {
             Shared::Dummy => true,
             _ => false,
-        }
-    }
-
-    // [EXPERIMENTAL] Not implemented yet
-    pub fn rumble(&self, _left_speed: f64, _right_speed: f64) -> Result<(), RumbleError> {
-        match self {
-            Shared::Dummy => Ok(()),
-            Shared::Raw(g) => {
-                g.vibrate(0.5, 2.0);
-                Ok(())
-            }
         }
     }
 
@@ -88,5 +97,3 @@ impl fmt::Debug for Shared {
         }
     }
 }
-
-

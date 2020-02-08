@@ -1,4 +1,4 @@
-use super::{backend, proxy::Proxy, runner, window};
+use super::{backend, proxy::Proxy, runner, window, global};
 use crate::dpi::LogicalSize;
 use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
 use crate::event_loop::ControlFlow;
@@ -7,12 +7,14 @@ use crate::window::WindowId;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
+    pub(crate) global_window: global::Shared,
 }
 
 impl<T> Clone for WindowTarget<T> {
     fn clone(&self) -> Self {
         WindowTarget {
             runner: self.runner.clone(),
+            global_window: self.global_window.clone(),
         }
     }
 }
@@ -21,6 +23,7 @@ impl<T> WindowTarget<T> {
     pub fn new() -> Self {
         WindowTarget {
             runner: runner::Shared::new(),
+            global_window: global::Shared::new(),
         }
     }
 
@@ -29,6 +32,7 @@ impl<T> WindowTarget<T> {
     }
 
     pub fn run(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
+        self.runner.set_global_window(self.global_window.clone());
         self.runner.set_listener(event_handler);
     }
 
@@ -37,7 +41,11 @@ impl<T> WindowTarget<T> {
     }
 
     pub fn collect_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
-        self.runner.collect_gamepads()
+        self.global_window.get_gamepad_handles()
+    }
+
+    pub fn register_global_events(&self) -> Result<(), crate::error::OsError> {
+        self.global_window.register_events()
     }
 
     pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
