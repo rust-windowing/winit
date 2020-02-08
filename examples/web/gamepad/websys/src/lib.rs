@@ -8,20 +8,19 @@ use winit::{
 };
 
 /**
- * Build example (from examples/wasm):
+ * Build example (from examples/gamepad/websys):
  *    wasm-pack build --target web -- --features ${EXAMPLE}
- * Run web server (from examples/wasm):
+ * Run web server (from examples/gamepad/websys):
  *    npx http-server
  *    Open your browser at http://localhost:8000/files/${EXAMPLE}.html
  * Development (from project root):
- *    npx nodemon --watch src --watch examples/wasm/src -e rs --exec 'cd examples/wasm && wasm-pack build --target web -- --features gamepad'
+ *    npx nodemon --watch src --watch examples/gamepad/websys/src -e rs --exec 'cd examples/gamepad/websys && wasm-pack build --target web -- --features gamepad'
  */
 
 macro_rules! console_log {
   ($($t:tt)*) => (web_sys::console::log_1(&format_args!($($t)*).to_string().into()))
 }
 
-#[cfg(feature = "gamepad")]
 #[wasm_bindgen(start)]
 pub fn example_gamepad() {
     utils::set_panic_hook(); // needed for error stack trace
