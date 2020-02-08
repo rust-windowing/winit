@@ -4,8 +4,10 @@ use std::{cell::RefCell, rc::Rc};
 use stdweb::web;
 use stdweb::web::{IEventTarget, event::IGamepadEvent};
 
+#[derive(Debug)]
 pub struct Shared(pub Rc<RefCell<Window>>);
 
+#[derive(Debug)]
 pub struct Window {
     raw: web::Window,
     on_gamepad_connected: Option<web::EventListenerHandle>,
