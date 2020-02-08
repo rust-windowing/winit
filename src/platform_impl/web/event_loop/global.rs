@@ -1,12 +1,12 @@
 use super::super::device::{gamepad, GamepadHandle};
 use super::backend;
 use crate::event::device;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, collections::HashSet};
 
 #[derive(Debug)]
 pub struct Window {
     raw: RefCell<Option<backend::window::Shared>>,
-    gamepads: Rc<RefCell<Vec<backend::gamepad::Gamepad>>>,
+    gamepads: Rc<RefCell<HashSet<i32>>>,
 }
 
 #[derive(Debug)]
@@ -16,7 +16,7 @@ impl Shared {
     pub fn new() -> Self {
         Self(Rc::new(Window {
             raw: RefCell::new(None),
-            gamepads: Rc::new(RefCell::new(Vec::new())),
+            gamepads: Rc::new(RefCell::new(HashSet::new())),
         }))
     }
 
@@ -29,17 +29,18 @@ impl Shared {
             let shared_gamepads = self.0.gamepads.clone();
             window.on_gamepad_connected(move |gamepad: backend::gamepad::Gamepad| {
                 let mut gamepads = shared_gamepads.borrow_mut();
-                if !gamepads.contains(&gamepad) {
-                    gamepads.push(gamepad);
+                let index = gamepad.index();
+                if !gamepads.contains(&index) {
+                    gamepads.insert(index);
                 }
             });
 
             let shared_gamepads = self.0.gamepads.clone();
             window.on_gamepad_disconnected(move |gamepad: backend::gamepad::Gamepad| {
                 let mut gamepads = shared_gamepads.borrow_mut();
-                let index = gamepads.iter().position(|g| g.index() == gamepad.index());
-                if let Some(index) = index {
-                    gamepads.remove(index);
+                let index = gamepad.index();
+                if gamepads.contains(&index) {
+                    gamepads.remove(&index);
                 }
             });
 
@@ -54,15 +55,9 @@ impl Shared {
     // by listening "gamepadconnected" and "gamepaddisconnected"
     pub fn get_gamepads(&self) -> Vec<backend::gamepad::Gamepad> {
         let gamepads = self.0.gamepads.borrow_mut();
-
-        gamepads
-            .iter()
-            .map(|g| {
-                let mut c = g.clone();
-                c.remap();
-                c
-            })
-            .collect()
+        backend::get_gamepads()
+        .filter(|g| gamepads.contains(&g.index()))
+        .collect()
     }
 
     // Return gamepads handles required for EventLoop::gamepads()

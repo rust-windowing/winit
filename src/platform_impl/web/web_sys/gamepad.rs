@@ -23,8 +23,8 @@ impl Gamepad {
     // An integer that is auto-incremented to be unique for each device
     // currently connected to the system.
     // https://developer.mozilla.org/en-US/docs/Web/API/Gamepad/index
-    pub fn index(&self) -> u32 {
-        self.raw.index()
+    pub fn index(&self) -> i32 {
+        self.raw.index() as i32
     }
 
     // A string containing some information about the controller.
@@ -54,11 +54,6 @@ impl Gamepad {
                 }
             });
         }
-    }
-
-    // Update mapping
-    pub fn remap(&mut self) {
-        self.mapping = utils::create_mapping(&self.raw);
     }
 }
 

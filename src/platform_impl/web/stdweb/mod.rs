@@ -52,3 +52,9 @@ pub fn is_fullscreen(canvas: &CanvasElement) -> bool {
         None => false,
     }
 }
+
+pub fn get_gamepads() -> impl Iterator<Item = gamepad::Gamepad> {
+    stdweb::web::Gamepad::get_all()
+    .into_iter()
+    .filter_map(|gamepad| gamepad.map(|gamepad| gamepad::Gamepad::new(gamepad)))
+}

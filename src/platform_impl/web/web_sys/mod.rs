@@ -74,3 +74,16 @@ pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
         None => false,
     }
 }
+
+pub fn get_gamepads() -> impl Iterator<Item = gamepad::Gamepad> {
+    let mut gamepads: Vec<gamepad::Gamepad> = Vec::new();
+    let web_gamepads = web_sys::window().unwrap().navigator().get_gamepads().ok().unwrap();
+    for index in 0..web_gamepads.length() {
+        let jsvalue = web_gamepads.get(index);
+        if !jsvalue.is_null() {
+            let gamepad: web_sys::Gamepad = jsvalue.into();
+            gamepads.push(gamepad::Gamepad::new(gamepad));
+        }
+    }
+    gamepads.into_iter()
+}
