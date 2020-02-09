@@ -446,7 +446,8 @@ impl<T: Theme> SCTKTheme for WaylandTheme<T> {
     }
 
     fn get_close_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.close_button_color(ButtonState::from_sctk(status))
+        self.0
+            .close_button_icon_color(ButtonState::from_sctk(status))
     }
 
     fn get_maximize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
