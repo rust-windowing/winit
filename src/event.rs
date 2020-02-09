@@ -481,7 +481,7 @@ pub enum DeviceEvent {
 
 /// Describes a keyboard input event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_feature", derive(Serialize, Deserialize))]
 pub struct KeyboardInput {
     /// Identifies the physical key pressed
     ///
@@ -508,7 +508,7 @@ pub struct KeyboardInput {
 
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_feature", derive(Serialize, Deserialize))]
 pub enum TouchPhase {
     Started,
     Moved,
@@ -615,7 +615,7 @@ pub type ButtonId = u32;
 
 /// Describes the input state of a key.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_feature", derive(Serialize, Deserialize))]
 pub enum ElementState {
     Pressed,
     Released,
@@ -623,7 +623,7 @@ pub enum ElementState {
 
 /// Describes a button of a mouse controller.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_feature", derive(Serialize, Deserialize))]
 pub enum MouseButton {
     Left,
     Right,
@@ -633,7 +633,7 @@ pub enum MouseButton {
 
 /// Describes a difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_feature", derive(Serialize, Deserialize))]
 pub enum MouseScrollDelta {
     /// Amount in lines or rows to scroll in the horizontal
     /// and vertical directions.
@@ -653,7 +653,7 @@ pub enum MouseScrollDelta {
 /// Symbolic name for a keyboard key.
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 #[repr(u32)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_feature", derive(Serialize, Deserialize))]
 pub enum VirtualKeyCode {
     /// The '1' key over the letters.
     Key1,
@@ -895,7 +895,7 @@ bitflags! {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_feature")]
 mod modifiers_serde {
     use super::ModifiersState;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};

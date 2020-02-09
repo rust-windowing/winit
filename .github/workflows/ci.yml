@@ -141,12 +141,12 @@ jobs:
 
     - name: Build with serde enabled
       shell: bash
-      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features serde_feature,$FEATURES
 
     - name: Build tests with serde enabled
       shell: bash
-      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features serde_feature,$FEATURES
     - name: Run tests with serde enabled
       shell: bash
       if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
-      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features serde_feature,$FEATURES

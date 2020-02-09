@@ -126,7 +126,7 @@ extern crate lazy_static;
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
-#[cfg(feature = "serde")]
+#[cfg(feature = "serde_feature")]
 #[macro_use]
 extern crate serde;
 #[macro_use]
