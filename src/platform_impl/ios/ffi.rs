@@ -222,7 +222,7 @@ impl From<ScreenEdge> for UIRectEdge {
         assert_eq!(
             screen_edge.bits() & !ScreenEdge::ALL.bits(),
             0,
-            "invalid `ScreenEdge`"
+            "[winit] invalid `ScreenEdge`"
         );
         UIRectEdge(screen_edge.bits().into())
     }
@@ -230,8 +230,8 @@ impl From<ScreenEdge> for UIRectEdge {
 
 impl Into<ScreenEdge> for UIRectEdge {
     fn into(self) -> ScreenEdge {
-        let bits: u8 = self.0.try_into().expect("invalid `UIRectEdge`");
-        ScreenEdge::from_bits(bits).expect("invalid `ScreenEdge`")
+        let bits: u8 = self.0.try_into().expect("[winit] invalid `UIRectEdge`");
+        ScreenEdge::from_bits(bits).expect("[winit] invalid `ScreenEdge`")
     }
 }
 

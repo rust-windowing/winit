@@ -424,11 +424,11 @@ impl<T> EventLoopRunner<T> {
                 self.call_event_handler(event);
             }
             (_, Event::RedrawRequested(_)) => {
-                panic!("redraw event in non-redraw phase");
+                panic!("[winit] redraw event in non-redraw phase");
             }
             (RunnerState::HandlingRedraw, _) => {
                 panic!(
-                    "Non-redraw event dispatched durning redraw phase: {:?}",
+                    "[winit] Non-redraw event dispatched durning redraw phase: {:?}",
                     event.map_nonuser_event::<()>().ok()
                 );
             }

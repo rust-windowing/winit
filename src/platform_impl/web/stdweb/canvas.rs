@@ -87,7 +87,7 @@ impl Canvas {
     pub fn set_attribute(&self, attribute: &str, value: &str) {
         self.raw
             .set_attribute(attribute, value)
-            .expect(&format!("Set attribute: {}", attribute));
+            .expect(&format!("[winit] Set attribute: {}", attribute));
     }
 
     pub fn position(&self) -> LogicalPosition<f64> {

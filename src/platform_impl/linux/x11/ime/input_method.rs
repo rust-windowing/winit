@@ -132,13 +132,13 @@ struct InputMethodName {
 impl InputMethodName {
     pub fn from_string(string: String) -> Self {
         let c_string = CString::new(string.clone())
-            .expect("String used to construct CString contained null byte");
+            .expect("[winit] String used to construct CString contained null byte");
         InputMethodName { c_string, string }
     }
 
     pub fn from_str(string: &str) -> Self {
         let c_string =
-            CString::new(string).expect("String used to construct CString contained null byte");
+            CString::new(string).expect("[winit] String used to construct CString contained null byte");
         InputMethodName {
             c_string,
             string: string.to_owned(),

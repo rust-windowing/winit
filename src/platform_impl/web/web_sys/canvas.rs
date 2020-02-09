@@ -87,7 +87,7 @@ impl Canvas {
     pub fn set_attribute(&self, attribute: &str, value: &str) {
         self.raw
             .set_attribute(attribute, value)
-            .expect(&format!("Set attribute: {}", attribute));
+            .expect(&format!("[winit] Set attribute: {}", attribute));
     }
 
     pub fn position(&self) -> LogicalPosition<f64> {
@@ -272,7 +272,7 @@ impl Canvas {
 
         self.raw
             .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
-            .expect("Failed to add event listener with callback");
+            .expect("[winit] Failed to add event listener with callback");
 
         closure
     }
@@ -294,7 +294,7 @@ impl Canvas {
             if *wants_fullscreen.borrow() {
                 canvas
                     .request_fullscreen()
-                    .expect("Failed to enter fullscreen");
+                    .expect("[winit] Failed to enter fullscreen");
                 *wants_fullscreen.borrow_mut() = false;
             }
         })

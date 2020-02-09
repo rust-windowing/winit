@@ -58,10 +58,12 @@ impl<T: 'static> EventLoop<T> {
     pub fn new() -> EventLoop<T> {
         static mut SINGLETON_INIT: bool = false;
         unsafe {
-            assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
+            assert_main_thread!(
+                "[winit] `EventLoop` can only be created on the main thread on iOS"
+            );
             assert!(
                 !SINGLETON_INIT,
-                "Only one `EventLoop` is supported on iOS. \
+                "[winit] Only one `EventLoop` is supported on iOS. \
                  `EventLoopProxy` might be helpful"
             );
             SINGLETON_INIT = true;
@@ -93,8 +95,7 @@ impl<T: 'static> EventLoop<T> {
             assert_eq!(
                 application,
                 ptr::null_mut(),
-                "\
-                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
+                "[winit] `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
                  Note: `EventLoop::run` calls `UIApplicationMain` on iOS"
             );
             app_state::will_launch(Box::new(EventLoopHandler {

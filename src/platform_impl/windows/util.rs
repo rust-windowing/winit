@@ -103,7 +103,7 @@ pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
                 right: x as LONG,
             },
         )
-        .expect("adjust_window_rect failed");
+        .expect("[winit] adjust_window_rect failed");
 
         let outer_x = (rect.right - rect.left).abs() as _;
         let outer_y = (rect.top - rect.bottom).abs() as _;

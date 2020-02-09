@@ -19,7 +19,7 @@ pub fn calc_dpi_factor(
 ) -> f64 {
     // See http://xpra.org/trac/ticket/728 for more information.
     if width_mm == 0 || height_mm == 0 {
-        warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
+        warn!("[winit] XRandR reported that the display's 0mm in size, which is certifiably insane");
         return 1.0;
     }
 
@@ -104,7 +104,7 @@ impl XConnection {
         let deprecated_dpi_override = env::var("WINIT_HIDPI_FACTOR").ok();
         if deprecated_dpi_override.is_some() {
             warn!(
-	            "The WINIT_HIDPI_FACTOR environment variable is deprecated; use WINIT_X11_SCALE_FACTOR"
+	            "[winit] The WINIT_HIDPI_FACTOR environment variable is deprecated; use WINIT_X11_SCALE_FACTOR"
 	        )
         }
         let dpi_env = env::var("WINIT_X11_SCALE_FACTOR").ok().map_or_else(
@@ -118,7 +118,7 @@ impl XConnection {
                     EnvVarDPI::NotSet
                 } else {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                        "[winit] `WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
                         var
                     );
                 }
@@ -136,7 +136,7 @@ impl XConnection {
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_scale_factor(dpi_override) {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                        "[winit] `WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
                         dpi_override,
                     );
                 }

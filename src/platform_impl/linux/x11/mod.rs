@@ -99,7 +99,7 @@ impl<T: 'static> EventLoop<T> {
         let net_wm_ping = unsafe { xconn.get_atom_unchecked(b"_NET_WM_PING\0") };
 
         let dnd = Dnd::new(Arc::clone(&xconn))
-            .expect("Failed to call XInternAtoms when initializing drag and drop");
+            .expect("[winit] Failed to call XInternAtoms when initializing drag and drop");
 
         let (ime_sender, ime_receiver) = mpsc::channel();
         // Input methods will open successfully without setting the locale, but it won't be
@@ -110,14 +110,14 @@ impl<T: 'static> EventLoop<T> {
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!(format!("Failed to open input method: {:#?}", state));
+                panic!("[winit] Failed to open input method: {:#?}", state);
             }
-            result.expect("Failed to set input method destruction callback")
+            result.expect("[winit] Failed to set input method destruction callback")
         });
 
         let randr_event_offset = xconn
             .select_xrandr_input(root)
-            .expect("Failed to query XRandR extension");
+            .expect("[winit] Failed to query XRandR extension");
 
         let xi2ext = unsafe {
             let mut ext = XExtension::default();
@@ -131,7 +131,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
             if res == ffi::False {
-                panic!("X server missing XInput extension");
+                panic!("[winit] X server missing XInput extension");
             }
 
             ext
@@ -147,7 +147,7 @@ impl<T: 'static> EventLoop<T> {
             ) != ffi::Success as libc::c_int
             {
                 panic!(
-                    "X server has XInput extension {}.{} but does not support XInput2",
+                    "[winit] X server has XInput extension {}.{} but does not support XInput2",
                     xinput_major_ver, xinput_minor_ver,
                 );
             }

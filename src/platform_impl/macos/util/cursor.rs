@@ -91,7 +91,7 @@ impl Cursor {
                 let sel = if msg_send![class, respondsToSelector: sel] {
                     sel
                 } else {
-                    warn!("Cursor `{}` appears to be invalid", cursor_name);
+                    warn!("[winit] Cursor `{}` appears to be invalid", cursor_name);
                     sel!(arrowCursor)
                 };
                 msg_send![class, performSelector: sel]

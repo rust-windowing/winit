@@ -13,7 +13,7 @@ impl Timeout {
     where
         F: 'static + FnMut(),
     {
-        let window = web_sys::window().expect("Failed to obtain window");
+        let window = web_sys::window().expect("[winit] Failed to obtain window");
 
         let closure = Closure::wrap(Box::new(f) as Box<dyn FnMut()>);
 
@@ -22,7 +22,7 @@ impl Timeout {
                 &closure.as_ref().unchecked_ref(),
                 duration.as_millis() as i32,
             )
-            .expect("Failed to set timeout");
+            .expect("[winit] Failed to set timeout");
 
         Timeout {
             handle,
@@ -33,7 +33,7 @@ impl Timeout {
 
 impl Drop for Timeout {
     fn drop(&mut self) {
-        let window = web_sys::window().expect("Failed to obtain window");
+        let window = web_sys::window().expect("[winit] Failed to obtain window");
 
         window.clear_timeout_with_handle(self.handle);
     }

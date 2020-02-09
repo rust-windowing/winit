@@ -146,7 +146,7 @@ pub unsafe extern "C" fn xim_instantiate_callback(
             (*inner).is_fallback = false;
         } else if result.is_err() && (*inner).is_destroyed {
             // We have no usable input methods!
-            result.expect("Failed to reopen input method");
+            result.expect("[winit] Failed to reopen input method");
         }
     }
 }
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn xim_destroy_callback(
                 (*inner).is_fallback = true;
             } else {
                 // We have no usable input methods!
-                result.expect("Failed to open fallback input method");
+                result.expect("[winit] Failed to open fallback input method");
             }
         }
     }

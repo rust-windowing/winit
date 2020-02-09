@@ -31,7 +31,7 @@ mod backend;
 mod backend;
 
 #[cfg(not(any(feature = "web-sys", feature = "stdweb")))]
-compile_error!("Please select a feature to build for web: `web-sys`, `stdweb`");
+compile_error!("[winit] Please select a feature to build for web: `web-sys`, `stdweb`");
 
 pub use self::device::Id as DeviceId;
 pub use self::event_loop::{

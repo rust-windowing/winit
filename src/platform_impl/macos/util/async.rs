@@ -107,10 +107,10 @@ pub unsafe fn toggle_full_screen_async(
             if !curr_mask.contains(required) {
                 set_style_mask(*ns_window, *ns_view, required);
                 if let Some(shared_state) = shared_state.upgrade() {
-                    trace!("Locked shared state in `toggle_full_screen_callback`");
+                    trace!("[winit] Locked shared state in `toggle_full_screen_callback`");
                     let mut shared_state_lock = shared_state.lock().unwrap();
                     (*shared_state_lock).saved_style = Some(curr_mask);
-                    trace!("Unlocked shared state in `toggle_full_screen_callback`");
+                    trace!("[winit] Unlocked shared state in `toggle_full_screen_callback`");
                 }
             }
         }
@@ -140,7 +140,7 @@ pub unsafe fn set_maximized_async(
     let shared_state = MainThreadSafe(shared_state);
     Queue::main().exec_async(move || {
         if let Some(shared_state) = shared_state.upgrade() {
-            trace!("Locked shared state in `set_maximized`");
+            trace!("[winit] Locked shared state in `set_maximized`");
             let mut shared_state_lock = shared_state.lock().unwrap();
 
             // Save the standard frame sized if it is not zoomed
@@ -168,7 +168,7 @@ pub unsafe fn set_maximized_async(
                 ns_window.setFrame_display_(new_rect, 0);
             }
 
-            trace!("Unlocked shared state in `set_maximized`");
+            trace!("[winit] Unlocked shared state in `set_maximized`");
         }
     });
 }

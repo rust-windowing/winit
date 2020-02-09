@@ -144,7 +144,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
         wrap_ev(
             LinuxEventLoop::new_wayland_any_thread()
                 // TODO: propagate
-                .expect("failed to open Wayland connection"),
+                .expect("[winit] failed to open Wayland connection"),
         )
     }
 
@@ -158,7 +158,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
         wrap_ev(
             LinuxEventLoop::new_wayland()
                 // TODO: propagate
-                .expect("failed to open Wayland connection"),
+                .expect("[winit] failed to open Wayland connection"),
         )
     }
 }

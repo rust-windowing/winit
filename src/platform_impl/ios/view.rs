@@ -95,7 +95,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         let is_uiview: BOOL = msg_send![root_view_class, isSubclassOfClass: uiview_class];
         assert_eq!(
             is_uiview, YES,
-            "`root_view_class` must inherit from `UIView`"
+            "[winit] `root_view_class` must inherit from `UIView`"
         );
 
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
@@ -168,7 +168,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                         && dpi_factor.is_finite()
                         && dpi_factor.is_sign_positive()
                         && dpi_factor > 0.0,
-                    "invalid scale_factor set on UIView",
+                    "[winit] invalid scale_factor set on UIView",
                 );
                 let scale_factor: f64 = dpi_factor.into();
                 let bounds: CGRect = msg_send![object, bounds];
@@ -245,7 +245,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                         // 2 is UITouchPhase::Stationary and is not expected here
                         UITouchPhase::Ended => TouchPhase::Ended,
                         UITouchPhase::Cancelled => TouchPhase::Cancelled,
-                        _ => panic!("unexpected touch phase: {:?}", phase as i32),
+                        _ => panic!("[winit] unexpected touch phase: {:?}", phase as i32),
                     };
 
                     touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -264,7 +264,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         }
 
         let mut decl = ClassDecl::new(&format!("WinitUIView{}", ID), root_view_class)
-            .expect("Failed to declare class `WinitUIView`");
+            .expect("[winit] Failed to declare class `WinitUIView`");
         ID += 1;
         decl.add_method(
             sel!(drawRect:),
@@ -313,7 +313,7 @@ unsafe fn get_view_controller_class() -> &'static Class {
         }
 
         let mut decl = ClassDecl::new("WinitUIViewController", uiviewcontroller_class)
-            .expect("Failed to declare class `WinitUIViewController`");
+            .expect("[winit] Failed to declare class `WinitUIViewController`");
         decl.add_method(
             sel!(shouldAutorotate),
             should_autorotate as extern "C" fn(&Object, Sel) -> BOOL,
@@ -396,7 +396,7 @@ unsafe fn get_window_class() -> &'static Class {
         }
 
         let mut decl = ClassDecl::new("WinitUIWindow", uiwindow_class)
-            .expect("Failed to declare class `WinitUIWindow`");
+            .expect("[winit] Failed to declare class `WinitUIWindow`");
         decl.add_method(
             sel!(becomeKeyWindow),
             become_key_window as extern "C" fn(&Object, Sel),
@@ -420,9 +420,15 @@ pub unsafe fn create_view(
     let class = get_view_class(platform_attributes.root_view_class);
 
     let view: id = msg_send![class, alloc];
-    assert!(!view.is_null(), "Failed to create `UIView` instance");
+    assert!(
+        !view.is_null(),
+        "[winit] Failed to create `UIView` instance"
+    );
     let view: id = msg_send![view, initWithFrame: frame];
-    assert!(!view.is_null(), "Failed to initialize `UIView` instance");
+    assert!(
+        !view.is_null(),
+        "[winit] Failed to initialize `UIView` instance"
+    );
     let () = msg_send![view, setMultipleTouchEnabled: YES];
     if let Some(scale_factor) = platform_attributes.scale_factor {
         let () = msg_send![view, setContentScaleFactor: scale_factor as CGFloat];
@@ -442,12 +448,12 @@ pub unsafe fn create_view_controller(
     let view_controller: id = msg_send![class, alloc];
     assert!(
         !view_controller.is_null(),
-        "Failed to create `UIViewController` instance"
+        "[winit] Failed to create `UIViewController` instance"
     );
     let view_controller: id = msg_send![view_controller, init];
     assert!(
         !view_controller.is_null(),
-        "Failed to initialize `UIViewController` instance"
+        "[winit] Failed to initialize `UIViewController` instance"
     );
     let status_bar_hidden = if platform_attributes.prefers_status_bar_hidden {
         YES
@@ -497,11 +503,14 @@ pub unsafe fn create_window(
     let class = get_window_class();
 
     let window: id = msg_send![class, alloc];
-    assert!(!window.is_null(), "Failed to create `UIWindow` instance");
+    assert!(
+        !window.is_null(),
+        "[winit] Failed to create `UIWindow` instance"
+    );
     let window: id = msg_send![window, initWithFrame: frame];
     assert!(
         !window.is_null(),
-        "Failed to initialize `UIWindow` instance"
+        "[winit] Failed to initialize `UIWindow` instance"
     );
     let () = msg_send![window, setRootViewController: view_controller];
     match window_attributes.fullscreen {
@@ -564,7 +573,7 @@ pub fn create_delegate_class() {
 
     let ui_responder = class!(UIResponder);
     let mut decl =
-        ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
+        ClassDecl::new("AppDelegate", ui_responder).expect("[winit] Failed to declare class `AppDelegate`");
 
     unsafe {
         decl.add_method(

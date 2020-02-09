@@ -27,7 +27,7 @@ unsafe fn create_pre_edit_attr<'a>(
             ptr::null_mut::<()>(),
         ),
     )
-    .expect("XVaCreateNestedList returned NULL")
+    .expect("[winit] XVaCreateNestedList returned NULL")
 }
 
 // WARNING: this struct doesn't destroy its XIC resource when dropped.

@@ -47,7 +47,7 @@ pub fn scan_code<T: JsSerialize>(event: &T) -> ScanCode {
 
     key_code
         .try_into()
-        .expect("The which value should be a number")
+        .expect("[winit] The which value should be a number")
 }
 
 pub fn virtual_key_code(event: &impl IKeyboardEvent) -> Option<VirtualKeyCode> {

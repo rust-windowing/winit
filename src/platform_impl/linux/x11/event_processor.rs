@@ -160,7 +160,7 @@ impl<T: 'static> EventProcessor<T> {
                     }
                     wt.xconn
                         .check_errors()
-                        .expect("Failed to call XRefreshKeyboardMapping");
+                        .expect("[winit] Failed to call XRefreshKeyboardMapping");
 
                     self.mod_keymap.reset_from_x_connection(&wt.xconn);
                     self.device_mod_state.update_keymap(&self.mod_keymap);
@@ -252,13 +252,13 @@ impl<T: 'static> EventProcessor<T> {
                             }
                             self.dnd
                                 .send_status(window, source_window, DndState::Accepted)
-                                .expect("Failed to send `XdndStatus` message.");
+                                .expect("[winit] Failed to send `XdndStatus` message.");
                         }
                     } else {
                         unsafe {
                             self.dnd
                                 .send_status(window, source_window, DndState::Rejected)
-                                .expect("Failed to send `XdndStatus` message.");
+                                .expect("[winit] Failed to send `XdndStatus` message.");
                         }
                         self.dnd.reset();
                     }
@@ -283,7 +283,7 @@ impl<T: 'static> EventProcessor<T> {
                     unsafe {
                         self.dnd
                             .send_finished(window, source_window, state)
-                            .expect("Failed to send `XdndFinished` message.");
+                            .expect("[winit] Failed to send `XdndFinished` message.");
                     }
                     self.dnd.reset();
                 } else if client_msg.message_type == self.dnd.atoms.leave {
@@ -510,7 +510,7 @@ impl<T: 'static> EventProcessor<T> {
                 wt.ime
                     .borrow_mut()
                     .remove_context(window)
-                    .expect("Failed to destroy input context");
+                    .expect("[winit] Failed to destroy input context");
 
                 callback(Event::WindowEvent {
                     window_id,
@@ -841,7 +841,7 @@ impl<T: 'static> EventProcessor<T> {
                             let modifiers = wt
                                 .xconn
                                 .query_pointer(xev.event, xev.deviceid)
-                                .expect("Failed to query pointer device")
+                                .expect("[winit] Failed to query pointer device")
                                 .get_modifier_state();
 
                             callback(Event::WindowEvent {
@@ -877,7 +877,7 @@ impl<T: 'static> EventProcessor<T> {
                         wt.ime
                             .borrow_mut()
                             .focus(xev.event)
-                            .expect("Failed to focus input context");
+                            .expect("[winit] Failed to focus input context");
 
                         callback(Event::WindowEvent {
                             window_id,
@@ -919,7 +919,7 @@ impl<T: 'static> EventProcessor<T> {
                         wt.ime
                             .borrow_mut()
                             .unfocus(xev.event)
-                            .expect("Failed to unfocus input context");
+                            .expect("[winit] Failed to unfocus input context");
 
                         let window_id = mkwid(xev.event);
 

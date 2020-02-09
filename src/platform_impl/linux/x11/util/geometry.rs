@@ -290,14 +290,14 @@ impl XConnection {
         let (inner_y_rel_root, child) = {
             let coords = self
                 .translate_coords(window, root)
-                .expect("Failed to translate window coordinates");
+                .expect("[winit] Failed to translate window coordinates");
             (coords.y_rel_root, coords.child)
         };
 
         let (width, height, border) = {
             let inner_geometry = self
                 .get_geometry(window)
-                .expect("Failed to get inner window geometry");
+                .expect("[winit] Failed to get inner window geometry");
             (
                 inner_geometry.width,
                 inner_geometry.height,
@@ -350,11 +350,11 @@ impl XConnection {
             // nested in.
             let outer_window = self
                 .climb_hierarchy(window, root)
-                .expect("Failed to climb window hierarchy");
+                .expect("[winit] Failed to climb window hierarchy");
             let (outer_y, outer_width, outer_height) = {
                 let outer_geometry = self
                     .get_geometry(outer_window)
-                    .expect("Failed to get outer window geometry");
+                    .expect("[winit] Failed to get outer window geometry");
                 (
                     outer_geometry.y_rel_parent,
                     outer_geometry.width,

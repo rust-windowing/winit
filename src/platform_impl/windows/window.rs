@@ -78,9 +78,9 @@ impl Window {
                     // It is ok if the initialize result is `S_FALSE` because it might happen that
                     // multiple windows are created on the same thread.
                     if ole_init_result == OLE_E_WRONGCOMPOBJ {
-                        panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
+                        panic!("[winit] OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
                     } else if ole_init_result == RPC_E_CHANGED_MODE {
-                        panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
+                        panic!("[winit] OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
                     }
 
                     let file_drop_runner = event_loop.runner_shared.clone();
@@ -151,14 +151,14 @@ impl Window {
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         util::get_window_rect(self.window.0)
             .map(|rect| Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32)))
-            .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
+            .expect("[winit] Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
     }
 
     #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         let mut position: POINT = unsafe { mem::zeroed() };
         if unsafe { winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
-            panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
+            panic!("[winit] Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
         }
         Ok(PhysicalPosition::new(position.x as i32, position.y as i32))
     }
@@ -196,7 +196,7 @@ impl Window {
     pub fn inner_size(&self) -> PhysicalSize<u32> {
         let mut rect: RECT = unsafe { mem::zeroed() };
         if unsafe { winuser::GetClientRect(self.window.0, &mut rect) } == 0 {
-            panic!("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
+            panic!("[winit] Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
         }
         PhysicalSize::new(
             (rect.right - rect.left) as u32,
@@ -579,7 +579,7 @@ impl Window {
     pub fn set_window_icon(&self, mut window_icon: Option<Icon>) {
         let window_icon = window_icon
             .take()
-            .map(|icon| WinIcon::from_icon(icon).expect("Failed to create `ICON_SMALL`"));
+            .map(|icon| WinIcon::from_icon(icon).expect("[winit] Failed to create `ICON_SMALL`"));
         if let Some(ref window_icon) = window_icon {
             window_icon.set_for_window(self.window.0, IconType::Small);
         } else {
@@ -592,7 +592,7 @@ impl Window {
     pub fn set_taskbar_icon(&self, mut taskbar_icon: Option<Icon>) {
         let taskbar_icon = taskbar_icon
             .take()
-            .map(|icon| WinIcon::from_icon(icon).expect("Failed to create `ICON_BIG`"));
+            .map(|icon| WinIcon::from_icon(icon).expect("[winit] Failed to create `ICON_BIG`"));
         if let Some(ref taskbar_icon) = taskbar_icon {
             taskbar_icon.set_for_window(self.window.0, IconType::Big);
         } else {

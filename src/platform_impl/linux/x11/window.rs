@@ -138,7 +138,7 @@ impl UnownedWindow {
         };
         let dpi_factor = guessed_monitor.scale_factor();
 
-        info!("Guessed window scale factor: {}", dpi_factor);
+        info!("[winit] Guessed window scale factor: {}", dpi_factor);
 
         let max_inner_size: Option<(u32, u32)> = window_attrs
             .max_inner_size
@@ -165,7 +165,7 @@ impl UnownedWindow {
                 dimensions.1 = cmp::max(dimensions.1, min.1);
             }
             debug!(
-                "Calculated physical dimensions: {}x{}",
+                "[winit] Calculated physical dimensions: {}x{}",
                 dimensions.0, dimensions.1
             );
             dimensions
@@ -279,9 +279,9 @@ impl UnownedWindow {
             {
                 let (class, instance) = if let Some((instance, class)) = pl_attribs.class {
                     let instance = CString::new(instance.as_str())
-                        .expect("`WM_CLASS` instance contained null byte");
+                        .expect("[winit] `WM_CLASS` instance contained null byte");
                     let class =
-                        CString::new(class.as_str()).expect("`WM_CLASS` class contained null byte");
+                        CString::new(class.as_str()).expect("[winit] `WM_CLASS` class contained null byte");
                     (instance, class)
                 } else {
                     let class = env::args()
@@ -293,13 +293,13 @@ impl UnownedWindow {
                         .map(|bin_name| bin_name.to_owned())
                         .or_else(|| Some(window_attrs.title.clone()))
                         .and_then(|string| CString::new(string.as_str()).ok())
-                        .expect("Default `WM_CLASS` class contained null byte");
+                        .expect("[winit] Default `WM_CLASS` class contained null byte");
                     // This environment variable is extraordinarily unlikely to actually be used...
                     let instance = env::var("RESOURCE_NAME")
                         .ok()
                         .and_then(|instance| CString::new(instance.as_str()).ok())
                         .or_else(|| Some(class.clone()))
-                        .expect("Default `WM_CLASS` instance contained null byte");
+                        .expect("[winit] Default `WM_CLASS` instance contained null byte");
                     (instance, class)
                 };
 
@@ -331,7 +331,7 @@ impl UnownedWindow {
 
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
-                        warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
+                        warn!("[winit] To avoid a WM bug, disabling resizing has no effect on Xfwm4");
                     } else {
                         max_inner_size = Some(dimensions.into());
                         min_inner_size = Some(dimensions.into());
@@ -514,7 +514,7 @@ impl UnownedWindow {
     fn set_gtk_theme_variant(&self, variant: String) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_GTK_THEME_VARIANT\0") };
         let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
-        let variant = CString::new(variant).expect("`_GTK_THEME_VARIANT` contained null byte");
+        let variant = CString::new(variant).expect("[winit] `_GTK_THEME_VARIANT` contained null byte");
         self.xconn.change_property(
             self.xwindow,
             hint_atom,
@@ -529,7 +529,7 @@ impl UnownedWindow {
         let mut wm_hints = self
             .xconn
             .get_wm_hints(self.xwindow)
-            .expect("`XGetWMHints` failed");
+            .expect("[winit] `XGetWMHints` failed");
         if is_urgent {
             (*wm_hints).flags |= ffi::XUrgencyHint;
         } else {
@@ -538,7 +538,7 @@ impl UnownedWindow {
         self.xconn
             .set_wm_hints(self.xwindow, wm_hints)
             .flush()
-            .expect("Failed to set urgency hint");
+            .expect("[winit] Failed to set urgency hint");
     }
 
     fn set_netwm(
@@ -628,7 +628,7 @@ impl UnownedWindow {
                 let (monitor_id, mode_id) = shared_state_lock.desktop_video_mode.take().unwrap();
                 self.xconn
                     .set_crtc_config(monitor_id, mode_id)
-                    .expect("failed to restore desktop video mode");
+                    .expect("[winit] failed to restore desktop video mode");
             }
             _ => (),
         }
@@ -688,7 +688,7 @@ impl UnownedWindow {
                     // games to want to do this anyway).
                     self.xconn
                         .set_crtc_config(monitor.id, video_mode.native_mode)
-                        .expect("failed to set video mode");
+                        .expect("[winit] failed to set video mode");
                 }
 
                 let window_position = self.outer_position_physical();
@@ -716,7 +716,7 @@ impl UnownedWindow {
         if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
             flusher
                 .sync()
-                .expect("Failed to change window fullscreen state");
+                .expect("[winit] Failed to change window fullscreen state");
             self.invalidate_cached_frame_extents();
         }
     }
@@ -780,7 +780,7 @@ impl UnownedWindow {
     pub fn set_minimized(&self, minimized: bool) {
         self.set_minimized_inner(minimized)
             .flush()
-            .expect("Failed to change window minimization");
+            .expect("[winit] Failed to change window minimization");
     }
 
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
@@ -802,14 +802,14 @@ impl UnownedWindow {
     pub fn set_maximized(&self, maximized: bool) {
         self.set_maximized_inner(maximized)
             .flush()
-            .expect("Failed to change window maximization");
+            .expect("[winit] Failed to change window maximization");
         self.invalidate_cached_frame_extents();
     }
 
     fn set_title_inner(&self, title: &str) -> util::Flusher<'_> {
         let wm_name_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_NAME\0") };
         let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
-        let title = CString::new(title).expect("Window title contained null byte");
+        let title = CString::new(title).expect("[winit] Window title contained null byte");
         unsafe {
             (self.xconn.xlib.XStoreName)(
                 self.xconn.display,
@@ -830,7 +830,7 @@ impl UnownedWindow {
     pub fn set_title(&self, title: &str) {
         self.set_title_inner(title)
             .flush()
-            .expect("Failed to set window title");
+            .expect("[winit] Failed to set window title");
     }
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
@@ -845,7 +845,7 @@ impl UnownedWindow {
     pub fn set_decorations(&self, decorations: bool) {
         self.set_decorations_inner(decorations)
             .flush()
-            .expect("Failed to set decoration state");
+            .expect("[winit] Failed to set decoration state");
         self.invalidate_cached_frame_extents();
     }
 
@@ -866,7 +866,7 @@ impl UnownedWindow {
     pub fn set_always_on_top(&self, always_on_top: bool) {
         self.set_always_on_top_inner(always_on_top)
             .flush()
-            .expect("Failed to set always-on-top state");
+            .expect("[winit] Failed to set always-on-top state");
     }
 
     fn set_icon_inner(&self, icon: Icon) -> util::Flusher<'_> {
@@ -900,7 +900,7 @@ impl UnownedWindow {
             None => self.unset_icon_inner(),
         }
         .flush()
-        .expect("Failed to set icons");
+        .expect("[winit] Failed to set icons");
     }
 
     #[inline]
@@ -920,7 +920,7 @@ impl UnownedWindow {
             }
             self.xconn
                 .flush_requests()
-                .expect("Failed to call XMapRaised");
+                .expect("[winit] Failed to call XMapRaised");
             shared_state.visibility = Visibility::YesWait;
         } else {
             unsafe {
@@ -928,7 +928,7 @@ impl UnownedWindow {
             }
             self.xconn
                 .flush_requests()
-                .expect("Failed to call XUnmapWindow");
+                .expect("[winit] Failed to call XUnmapWindow");
             shared_state.visibility = Visibility::No;
         }
     }
@@ -1003,7 +1003,7 @@ impl UnownedWindow {
     pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
         self.set_position_inner(x, y)
             .flush()
-            .expect("Failed to call `XMoveWindow`");
+            .expect("[winit] Failed to call `XMoveWindow`");
     }
 
     #[inline]
@@ -1048,7 +1048,7 @@ impl UnownedWindow {
             );
             self.xconn.flush_requests()
         }
-        .expect("Failed to call `XResizeWindow`");
+        .expect("[winit] Failed to call `XResizeWindow`");
     }
 
     #[inline]
@@ -1071,7 +1071,7 @@ impl UnownedWindow {
 
     pub(crate) fn set_min_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
         self.update_normal_hints(|normal_hints| normal_hints.set_min_size(dimensions))
-            .expect("Failed to call `XSetWMNormalHints`");
+            .expect("[winit] Failed to call `XSetWMNormalHints`");
     }
 
     #[inline]
@@ -1084,7 +1084,7 @@ impl UnownedWindow {
 
     pub(crate) fn set_max_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
         self.update_normal_hints(|normal_hints| normal_hints.set_max_size(dimensions))
-            .expect("Failed to call `XSetWMNormalHints`");
+            .expect("[winit] Failed to call `XSetWMNormalHints`");
     }
 
     #[inline]
@@ -1116,7 +1116,7 @@ impl UnownedWindow {
             normal_hints.set_resize_increments(resize_increments);
             normal_hints.set_base_size(base_size);
         })
-        .expect("Failed to update normal hints");
+        .expect("[winit] Failed to update normal hints");
 
         let new_width = (width as f64 * scale_factor).round() as u32;
         let new_height = (height as f64 * scale_factor).round() as u32;
@@ -1129,7 +1129,7 @@ impl UnownedWindow {
             // Making the window unresizable on Xfwm prevents further changes to `WM_NORMAL_HINTS` from being detected.
             // This makes it impossible for resizing to be re-enabled, and also breaks DPI scaling. As such, we choose
             // the lesser of two evils and do nothing.
-            warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
+            warn!("[winit] To avoid a WM bug, disabling resizing has no effect on Xfwm4");
             return;
         }
 
@@ -1157,7 +1157,7 @@ impl UnownedWindow {
             normal_hints.set_min_size(min_inner_size);
             normal_hints.set_max_size(max_inner_size);
         })
-        .expect("Failed to call `XSetWMNormalHints`");
+        .expect("[winit] Failed to call `XSetWMNormalHints`");
     }
 
     #[inline]

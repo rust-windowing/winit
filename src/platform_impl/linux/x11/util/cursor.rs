@@ -22,7 +22,7 @@ impl XConnection {
         };
 
         if pixmap == 0 {
-            panic!("failed to allocate pixmap for cursor");
+            panic!("[winit] failed to allocate pixmap for cursor");
         }
 
         unsafe {
@@ -123,7 +123,7 @@ impl XConnection {
         unsafe {
             (self.xlib.XDefineCursor)(self.display, window, cursor);
 
-            self.flush_requests().expect("Failed to set the cursor");
+            self.flush_requests().expect("[winit] Failed to set the cursor");
         }
     }
 }

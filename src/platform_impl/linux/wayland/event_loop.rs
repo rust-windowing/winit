@@ -111,7 +111,7 @@ impl CursorManager {
         let auto_themer = self
             .auto_themer
             .as_ref()
-            .expect("AutoThemer not initialized. Server did not advertise shm or compositor?");
+            .expect("[winit] AutoThemer not initialized. Server did not advertise shm or compositor?");
         self.pointers.push(auto_themer.theme_pointer(pointer));
     }
 
@@ -455,7 +455,7 @@ impl<T: 'static> EventLoop<T> {
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         // send pending events to the server
-        self.display.flush().expect("Wayland connection lost.");
+        self.display.flush().expect("[winit] Wayland connection lost.");
 
         let mut control_flow = ControlFlow::default();
         let mut events = Events::with_capacity(8);
@@ -472,17 +472,17 @@ impl<T: 'static> EventLoop<T> {
                 let mut evq = get_target(&self.window_target).evq.borrow_mut();
 
                 evq.dispatch_pending()
-                    .expect("failed to dispatch wayland events");
+                    .expect("[winit] failed to dispatch wayland events");
 
                 if let Some(read) = evq.prepare_read() {
                     if let Err(e) = read.read_events() {
                         if e.kind() != ErrorKind::WouldBlock {
-                            panic!("failed to read wayland events: {}", e);
+                            panic!("[winit] failed to read wayland events: {}", e);
                         }
                     }
 
                     evq.dispatch_pending()
-                        .expect("failed to dispatch wayland events");
+                        .expect("[winit] failed to dispatch wayland events");
                 }
             }
 
@@ -537,7 +537,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             // send pending events to the server
-            self.display.flush().expect("Wayland connection lost.");
+            self.display.flush().expect("[winit] Wayland connection lost.");
 
             // During the run of the user callback, some other code monitoring and reading the
             // wayland socket may have been run (mesa for example does this with vsync), if that
@@ -554,7 +554,7 @@ impl<T: 'static> EventLoop<T> {
                     .evq
                     .borrow_mut()
                     .dispatch_pending()
-                    .expect("Wayland connection lost.");
+                    .expect("[winit] Wayland connection lost.");
                 dispatched > 0
             };
 
@@ -1092,7 +1092,7 @@ pub fn primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
                 mgr: outputs.clone(),
             }
         } else {
-            panic!("No monitor is available.")
+            panic!("[winit] No monitor is available.")
         }
     })
 }

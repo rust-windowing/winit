@@ -92,7 +92,7 @@ impl State {
 
     pub unsafe fn get_ptr(obj: &Object) -> *mut Self {
         let this: *mut c_void = *(*obj).get_ivar(Self::name());
-        assert!(!this.is_null(), "`activationHackState` pointer was null");
+        assert!(!this.is_null(), "[winit] `activationHackState` pointer was null");
         this as *mut Self
     }
 
@@ -132,20 +132,20 @@ impl State {
 // mouse movements prior to activation are the cause of this quirk, they should
 // be a reliable way to determine if the hack needs to be performed.
 pub extern "C" fn mouse_moved(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `activationHackMouseMoved`");
+    trace!("[winit] Triggered `activationHackMouseMoved`");
     unsafe {
         if !State::get_activated(this) {
             // We check if `CFBundleName` is undefined to determine if the
             // app is unbundled.
             if let None = util::app_name() {
-                info!("App detected as unbundled");
+                info!("[winit] App detected as unbundled");
                 unfocus(this);
             } else {
-                info!("App detected as bundled");
+                info!("[winit] App detected as bundled");
             }
         }
     }
-    trace!("Completed `activationHackMouseMoved`");
+    trace!("[winit] Completed `activationHackMouseMoved`");
 }
 
 // Switch focus to the dock.
@@ -163,9 +163,9 @@ unsafe fn unfocus(this: &Object) {
     // would almost surely be a cleaner approach.
     let active: BOOL = msg_send![NSApp(), isActive];
     if active == YES {
-        error!("Unbundled app activation hack triggered on an app that's already active; this shouldn't happen!");
+        error!("[winit] Unbundled app activation hack triggered on an app that's already active; this shouldn't happen!");
     } else {
-        info!("Performing unbundled app activation hack");
+        info!("[winit] Performing unbundled app activation hack");
         let dock_bundle_id = util::ns_string_id_ref("com.apple.dock");
         let dock_array: id = msg_send![
             class!(NSRunningApplication),
@@ -173,7 +173,7 @@ unsafe fn unfocus(this: &Object) {
         ];
         let dock_array_len: NSUInteger = msg_send![dock_array, count];
         if dock_array_len == 0 {
-            error!("The Dock doesn't seem to be running, so switching focus to it is impossible");
+            error!("[winit] The Dock doesn't seem to be running, so switching focus to it is impossible");
         } else {
             State::set_needs_refocus(this, true);
             let dock: id = msg_send![dock_array, objectAtIndex: 0];
@@ -184,7 +184,7 @@ unsafe fn unfocus(this: &Object) {
                 activateWithOptions: NSApplicationActivateIgnoringOtherApps
             ];
             if status == NO {
-                error!("Failed to switch focus to Dock");
+                error!("[winit] Failed to switch focus to Dock");
             }
         }
     }
@@ -202,7 +202,7 @@ pub unsafe fn refocus(this: &Object) {
             activateWithOptions: NSApplicationActivateIgnoringOtherApps
         ];
         if success == NO {
-            error!("Failed to refocus app");
+            error!("[winit] Failed to refocus app");
         }
     }
 }

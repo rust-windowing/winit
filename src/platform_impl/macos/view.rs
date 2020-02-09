@@ -299,7 +299,7 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 }
 
 extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
-    trace!("Triggered `viewDidMoveToWindow`");
+    trace!("[winit] Triggered `viewDidMoveToWindow`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -317,7 +317,7 @@ extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
         ];
         state.tracking_rect = Some(tracking_rect);
     }
-    trace!("Completed `viewDidMoveToWindow`");
+    trace!("[winit] Completed `viewDidMoveToWindow`");
 }
 
 extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
@@ -389,10 +389,10 @@ extern "C" fn has_marked_text(_this: &Object, _sel: Sel) -> BOOL {
 
 extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
     unsafe {
-        trace!("Triggered `markedRange`");
+        trace!("[winit] Triggered `markedRange`");
         let marked_text: id = *this.get_ivar("markedText");
         let length = marked_text.length();
-        trace!("Completed `markedRange`");
+        trace!("[winit] Completed `markedRange`");
         if length > 0 {
             NSRange::new(0, length - 1)
         } else {
@@ -402,8 +402,8 @@ extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
 }
 
 extern "C" fn selected_range(_this: &Object, _sel: Sel) -> NSRange {
-    trace!("Triggered `selectedRange`");
-    trace!("Completed `selectedRange`");
+    trace!("[winit] Triggered `selectedRange`");
+    trace!("[winit] Completed `selectedRange`");
     util::EMPTY_RANGE
 }
 
@@ -414,7 +414,7 @@ extern "C" fn set_marked_text(
     _selected_range: NSRange,
     _replacement_range: NSRange,
 ) {
-    trace!("Triggered `setMarkedText`");
+    trace!("[winit] Triggered `setMarkedText`");
     unsafe {
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
         let _: () = msg_send![(*marked_text_ref), release];
@@ -427,11 +427,11 @@ extern "C" fn set_marked_text(
         };
         *marked_text_ref = marked_text;
     }
-    trace!("Completed `setMarkedText`");
+    trace!("[winit] Completed `setMarkedText`");
 }
 
 extern "C" fn unmark_text(this: &Object, _sel: Sel) {
-    trace!("Triggered `unmarkText`");
+    trace!("[winit] Triggered `unmarkText`");
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         let mutable_string = marked_text.mutableString();
@@ -439,12 +439,12 @@ extern "C" fn unmark_text(this: &Object, _sel: Sel) {
         let input_context: id = msg_send![this, inputContext];
         let _: () = msg_send![input_context, discardMarkedText];
     }
-    trace!("Completed `unmarkText`");
+    trace!("[winit] Completed `unmarkText`");
 }
 
 extern "C" fn valid_attributes_for_marked_text(_this: &Object, _sel: Sel) -> id {
-    trace!("Triggered `validAttributesForMarkedText`");
-    trace!("Completed `validAttributesForMarkedText`");
+    trace!("[winit] Triggered `validAttributesForMarkedText`");
+    trace!("[winit] Completed `validAttributesForMarkedText`");
     unsafe { msg_send![class!(NSArray), array] }
 }
 
@@ -454,14 +454,14 @@ extern "C" fn attributed_substring_for_proposed_range(
     _range: NSRange,
     _actual_range: *mut c_void, // *mut NSRange
 ) -> id {
-    trace!("Triggered `attributedSubstringForProposedRange`");
-    trace!("Completed `attributedSubstringForProposedRange`");
+    trace!("[winit] Triggered `attributedSubstringForProposedRange`");
+    trace!("[winit] Completed `attributedSubstringForProposedRange`");
     nil
 }
 
 extern "C" fn character_index_for_point(_this: &Object, _sel: Sel, _point: NSPoint) -> NSUInteger {
-    trace!("Triggered `characterIndexForPoint`");
-    trace!("Completed `characterIndexForPoint`");
+    trace!("[winit] Triggered `characterIndexForPoint`");
+    trace!("[winit] Completed `characterIndexForPoint`");
     0
 }
 
@@ -472,7 +472,7 @@ extern "C" fn first_rect_for_character_range(
     _actual_range: *mut c_void, // *mut NSRange
 ) -> NSRect {
     unsafe {
-        trace!("Triggered `firstRectForCharacterRange`");
+        trace!("[winit] Triggered `firstRectForCharacterRange`");
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
         let (x, y) = state.ime_spot.unwrap_or_else(|| {
@@ -484,13 +484,13 @@ extern "C" fn first_rect_for_character_range(
             let y = util::bottom_left_to_top_left(content_rect);
             (x, y)
         });
-        trace!("Completed `firstRectForCharacterRange`");
+        trace!("[winit] Completed `firstRectForCharacterRange`");
         NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(0.0, 0.0))
     }
 }
 
 extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: NSRange) {
-    trace!("Triggered `insertText`");
+    trace!("[winit] Triggered `insertText`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -522,11 +522,11 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
 
         AppState::queue_events(events);
     }
-    trace!("Completed `insertText`");
+    trace!("[winit] Completed `insertText`");
 }
 
 extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
-    trace!("Triggered `doCommandBySelector`");
+    trace!("[winit] Triggered `doCommandBySelector`");
     // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human readable" character
     // happens, i.e. newlines, tabs, and Ctrl+C.
     unsafe {
@@ -559,7 +559,7 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
 
         AppState::queue_events(events);
     }
-    trace!("Completed `doCommandBySelector`");
+    trace!("[winit] Completed `doCommandBySelector`");
 }
 
 fn get_characters(event: id, ignore_modifiers: bool) -> String {
@@ -619,7 +619,7 @@ fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
 }
 
 extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `keyDown`");
+    trace!("[winit] Triggered `keyDown`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -672,11 +672,11 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
             let _: () = msg_send![this, interpretKeyEvents: array];
         }
     }
-    trace!("Completed `keyDown`");
+    trace!("[winit] Completed `keyDown`");
 }
 
 extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `keyUp`");
+    trace!("[winit] Triggered `keyUp`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -703,11 +703,11 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `keyUp`");
+    trace!("[winit] Completed `keyUp`");
 }
 
 extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `flagsChanged`");
+    trace!("[winit] Triggered `flagsChanged`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -762,7 +762,7 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
             event: DeviceEvent::ModifiersChanged(state.modifiers),
         }));
     }
-    trace!("Completed `flagsChanged`");
+    trace!("[winit] Completed `flagsChanged`");
 }
 
 extern "C" fn insert_tab(this: &Object, _sel: Sel, _sender: id) {
@@ -790,7 +790,7 @@ extern "C" fn insert_back_tab(this: &Object, _sel: Sel, _sender: id) {
 // Allows us to receive Cmd-. (the shortcut for closing a dialog)
 // https://bugs.eclipse.org/bugs/show_bug.cgi?id=300620#c6
 extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
-    trace!("Triggered `cancelOperation`");
+    trace!("[winit] Triggered `cancelOperation`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -818,7 +818,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `cancelOperation`");
+    trace!("[winit] Completed `cancelOperation`");
 }
 
 fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: ElementState) {
@@ -919,7 +919,7 @@ extern "C" fn other_mouse_dragged(this: &Object, _sel: Sel, event: id) {
 }
 
 extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `mouseEntered`");
+    trace!("[winit] Triggered `mouseEntered`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -934,11 +934,11 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
         AppState::queue_event(EventWrapper::StaticEvent(enter_event));
         mouse_motion(this, event);
     }
-    trace!("Completed `mouseEntered`");
+    trace!("[winit] Completed `mouseEntered`");
 }
 
 extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
-    trace!("Triggered `mouseExited`");
+    trace!("[winit] Triggered `mouseExited`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -952,11 +952,11 @@ extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `mouseExited`");
+    trace!("[winit] Completed `mouseExited`");
 }
 
 extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `scrollWheel`");
+    trace!("[winit] Triggered `scrollWheel`");
     unsafe {
         let delta = {
             let (x, y) = (event.scrollingDeltaX(), event.scrollingDeltaY());
@@ -995,11 +995,11 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
         AppState::queue_event(EventWrapper::StaticEvent(device_event));
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `scrollWheel`");
+    trace!("[winit] Completed `scrollWheel`");
 }
 
 extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `pressureChangeWithEvent`");
+    trace!("[winit] Triggered `pressureChangeWithEvent`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -1018,7 +1018,7 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `pressureChangeWithEvent`");
+    trace!("[winit] Completed `pressureChangeWithEvent`");
 }
 
 // Allows us to receive Ctrl-Tab and Ctrl-Esc.

@@ -59,23 +59,23 @@ extern "C" fn dealloc(this: &Object, _: Sel) {
 }
 
 extern "C" fn did_finish_launching(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `applicationDidFinishLaunching`");
+    trace!("[winit] Triggered `applicationDidFinishLaunching`");
     AppState::launched();
-    trace!("Completed `applicationDidFinishLaunching`");
+    trace!("[winit] Completed `applicationDidFinishLaunching`");
 }
 
 extern "C" fn did_become_active(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `applicationDidBecomeActive`");
+    trace!("[winit] Triggered `applicationDidBecomeActive`");
     unsafe {
         activation_hack::State::set_activated(this, true);
     }
-    trace!("Completed `applicationDidBecomeActive`");
+    trace!("[winit] Completed `applicationDidBecomeActive`");
 }
 
 extern "C" fn did_resign_active(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `applicationDidResignActive`");
+    trace!("[winit] Triggered `applicationDidResignActive`");
     unsafe {
         activation_hack::refocus(this);
     }
-    trace!("Completed `applicationDidResignActive`");
+    trace!("[winit] Completed `applicationDidResignActive`");
 }

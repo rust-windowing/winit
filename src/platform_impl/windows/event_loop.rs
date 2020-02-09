@@ -133,7 +133,7 @@ macro_rules! main_thread_check {
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
         if thread_id != main_thread_id() {
             panic!(concat!(
-                "Initializing the event loop outside of the main thread is a significant \
+                "[winit] Initializing the event loop outside of the main thread is a significant \
                  cross-platform compatibility hazard. If you really, absolutely need to create an \
                  EventLoop on a different thread, please use the `EventLoopExtWindows::",
                 $fn_name,
@@ -431,7 +431,10 @@ impl EventLoopThreadExecutor {
                     raw as *mut () as usize as WPARAM,
                     0,
                 );
-                assert!(res != 0, "PostMessage failed ; is the messages queue full?");
+                assert!(
+                    res != 0,
+                    "[winit] PostMessage failed ; is the messages queue full?"
+                );
             }
         }
     }

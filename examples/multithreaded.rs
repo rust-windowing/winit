@@ -181,5 +181,5 @@ fn main() {
 
 #[cfg(target_arch = "wasm32")]
 fn main() {
-    panic!("Example not supported on Wasm");
+    panic!("[winit] Example not supported on Wasm");
 }

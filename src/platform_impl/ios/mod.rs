@@ -75,8 +75,6 @@ mod monitor;
 mod view;
 mod window;
 
-use std::fmt;
-
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
     monitor::{MonitorHandle, VideoMode},

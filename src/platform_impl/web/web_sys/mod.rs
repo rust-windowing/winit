@@ -17,14 +17,16 @@ pub fn throw(msg: &str) {
 }
 
 pub fn exit_fullscreen() {
-    let window = web_sys::window().expect("Failed to obtain window");
-    let document = window.document().expect("Failed to obtain document");
+    let window = web_sys::window().expect("[winit] Failed to obtain window");
+    let document = window
+        .document()
+        .expect("[winit] Failed to obtain document");
 
     document.exit_fullscreen();
 }
 
 pub fn on_unload(mut handler: impl FnMut() + 'static) {
-    let window = web_sys::window().expect("Failed to obtain window");
+    let window = web_sys::window().expect("[winit] Failed to obtain window");
 
     let closure = Closure::wrap(
         Box::new(move |_: BeforeUnloadEvent| handler()) as Box<dyn FnMut(BeforeUnloadEvent)>
@@ -32,7 +34,7 @@ pub fn on_unload(mut handler: impl FnMut() + 'static) {
 
     window
         .add_event_listener_with_callback("beforeunload", &closure.as_ref().unchecked_ref())
-        .expect("Failed to add close listener");
+        .expect("[winit] Failed to add close listener");
 }
 
 impl WindowExtWebSys for Window {
@@ -42,23 +44,23 @@ impl WindowExtWebSys for Window {
 }
 
 pub fn window_size() -> LogicalSize<f64> {
-    let window = web_sys::window().expect("Failed to obtain window");
+    let window = web_sys::window().expect("[winit] Failed to obtain window");
     let width = window
         .inner_width()
-        .expect("Failed to get width")
+        .expect("[winit] Failed to get width")
         .as_f64()
-        .expect("Failed to get width as f64");
+        .expect("[winit] Failed to get width as f64");
     let height = window
         .inner_height()
-        .expect("Failed to get height")
+        .expect("[winit] Failed to get height")
         .as_f64()
-        .expect("Failed to get height as f64");
+        .expect("[winit] Failed to get height as f64");
 
     LogicalSize { width, height }
 }
 
 pub fn scale_factor() -> f64 {
-    let window = web_sys::window().expect("Failed to obtain window");
+    let window = web_sys::window().expect("[winit] Failed to obtain window");
     window.device_pixel_ratio()
 }
 
@@ -74,15 +76,17 @@ pub fn set_canvas_size(raw: &HtmlCanvasElement, size: Size) {
     let style = raw.style();
     style
         .set_property("width", &format!("{}px", logical_size.width))
-        .expect("Failed to set canvas width");
+        .expect("[winit] Failed to set canvas width");
     style
         .set_property("height", &format!("{}px", logical_size.height))
-        .expect("Failed to set canvas height");
+        .expect("[winit] Failed to set canvas height");
 }
 
 pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
-    let window = window().expect("Failed to obtain window");
-    let document = window.document().expect("Failed to obtain document");
+    let window = window().expect("[winit] Failed to obtain window");
+    let document = window
+        .document()
+        .expect("[winit] Failed to obtain document");
 
     match document.fullscreen_element() {
         Some(elem) => {

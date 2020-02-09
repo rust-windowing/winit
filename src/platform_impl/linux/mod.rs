@@ -480,7 +480,7 @@ unsafe extern "C" fn x_error_callback(
             minor_code: (*event).minor_code,
         };
 
-        error!("X11 error: {:#?}", error);
+        error!("[winit] X11 error: {:#?}", error);
 
         *xconn.latest_error.lock() = Some(error);
     }
@@ -520,14 +520,14 @@ impl<T: 'static> EventLoop<T> {
                 "x11" => {
                     // TODO: propagate
                     return EventLoop::new_x11_any_thread()
-                        .expect("Failed to initialize X11 backend");
+                        .expect("[winit] Failed to initialize X11 backend");
                 }
                 "wayland" => {
                     return EventLoop::new_wayland_any_thread()
-                        .expect("Failed to initialize Wayland backend");
+                        .expect("[winit] Failed to initialize Wayland backend");
                 }
                 _ => panic!(
-                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                    "[winit] Unknown environment variable value for {}, try one of `x11`,`wayland`",
                     BACKEND_PREFERENCE_ENV_VAR,
                 ),
             }
@@ -543,11 +543,10 @@ impl<T: 'static> EventLoop<T> {
             Err(err) => err,
         };
 
-        let err_string = format!(
-            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
+        panic!(
+            "[winit] Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
             wayland_err, x11_err,
         );
-        panic!(err_string);
     }
 
     pub fn new_wayland() -> Result<EventLoop<T>, Error> {
@@ -683,7 +682,7 @@ fn sticky_exit_callback<T, F>(
 fn assert_is_main_thread(suggested_method: &str) {
     if !is_main_thread() {
         panic!(
-            "Initializing the event loop outside of the main thread is a significant \
+            "[winit] Initializing the event loop outside of the main thread is a significant \
              cross-platform compatibility hazard. If you really, absolutely need to create an \
              EventLoop on a different thread, please use the `EventLoopExtUnix::{}` function.",
             suggested_method

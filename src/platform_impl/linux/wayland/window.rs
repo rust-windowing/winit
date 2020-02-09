@@ -123,7 +123,7 @@ impl Window {
         // Check for fullscreen requirements
         match attributes.fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
-                panic!("Wayland doesn't support exclusive fullscreen")
+                panic!("[winit] Wayland doesn't support exclusive fullscreen")
             }
             Some(Fullscreen::Borderless(RootMonitorHandle {
                 inner: PlatformMonitorHandle::Wayland(ref monitor_id),

@@ -260,14 +260,14 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 }
 
 extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
-    trace!("Triggered `windowShouldClose:`");
+    trace!("[winit] Triggered `windowShouldClose:`");
     with_state(this, |state| state.emit_event(WindowEvent::CloseRequested));
-    trace!("Completed `windowShouldClose:`");
+    trace!("[winit] Completed `windowShouldClose:`");
     NO
 }
 
 extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowWillClose:`");
+    trace!("[winit] Triggered `windowWillClose:`");
     with_state(this, |state| unsafe {
         // `setDelegate:` retains the previous value and then autoreleases it
         let pool = NSAutoreleasePool::new(nil);
@@ -277,56 +277,56 @@ extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
         pool.drain();
         state.emit_event(WindowEvent::Destroyed);
     });
-    trace!("Completed `windowWillClose:`");
+    trace!("[winit] Completed `windowWillClose:`");
 }
 
 extern "C" fn window_did_resize(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidResize:`");
+    trace!("[winit] Triggered `windowDidResize:`");
     with_state(this, |state| {
         state.emit_resize_event();
         state.emit_move_event();
     });
-    trace!("Completed `windowDidResize:`");
+    trace!("[winit] Completed `windowDidResize:`");
 }
 
 // This won't be triggered if the move was part of a resize.
 extern "C" fn window_did_move(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidMove:`");
+    trace!("[winit] Triggered `windowDidMove:`");
     with_state(this, |state| {
         state.emit_move_event();
     });
-    trace!("Completed `windowDidMove:`");
+    trace!("[winit] Completed `windowDidMove:`");
 }
 
 extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidChangeBackingProperties:`");
+    trace!("[winit] Triggered `windowDidChangeBackingProperties:`");
     with_state(this, |state| {
         state.emit_static_scale_factor_changed_event();
     });
-    trace!("Completed `windowDidChangeBackingProperties:`");
+    trace!("[winit] Completed `windowDidChangeBackingProperties:`");
 }
 
 extern "C" fn window_did_become_key(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidBecomeKey:`");
+    trace!("[winit] Triggered `windowDidBecomeKey:`");
     with_state(this, |state| {
         // TODO: center the cursor if the window had mouse grab when it
         // lost focus
         state.emit_event(WindowEvent::Focused(true));
     });
-    trace!("Completed `windowDidBecomeKey:`");
+    trace!("[winit] Completed `windowDidBecomeKey:`");
 }
 
 extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidResignKey:`");
+    trace!("[winit] Triggered `windowDidResignKey:`");
     with_state(this, |state| {
         state.emit_event(WindowEvent::Focused(false));
     });
-    trace!("Completed `windowDidResignKey:`");
+    trace!("[winit] Completed `windowDidResignKey:`");
 }
 
 /// Invoked when the dragged image enters destination bounds or frame
 extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
-    trace!("Triggered `draggingEntered:`");
+    trace!("[winit] Triggered `draggingEntered:`");
 
     use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
     use std::path::PathBuf;
@@ -348,20 +348,20 @@ extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
         }
     }
 
-    trace!("Completed `draggingEntered:`");
+    trace!("[winit] Completed `draggingEntered:`");
     YES
 }
 
 /// Invoked when the image is released
 extern "C" fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> BOOL {
-    trace!("Triggered `prepareForDragOperation:`");
-    trace!("Completed `prepareForDragOperation:`");
+    trace!("[winit] Triggered `prepareForDragOperation:`");
+    trace!("[winit] Completed `prepareForDragOperation:`");
     YES
 }
 
 /// Invoked after the released image has been removed from the screen
 extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
-    trace!("Triggered `performDragOperation:`");
+    trace!("[winit] Triggered `performDragOperation:`");
 
     use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
     use std::path::PathBuf;
@@ -383,31 +383,31 @@ extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL 
         }
     }
 
-    trace!("Completed `performDragOperation:`");
+    trace!("[winit] Completed `performDragOperation:`");
     YES
 }
 
 /// Invoked when the dragging operation is complete
 extern "C" fn conclude_drag_operation(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `concludeDragOperation:`");
-    trace!("Completed `concludeDragOperation:`");
+    trace!("[winit] Triggered `concludeDragOperation:`");
+    trace!("[winit] Completed `concludeDragOperation:`");
 }
 
 /// Invoked when the dragging operation is cancelled
 extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `draggingExited:`");
+    trace!("[winit] Triggered `draggingExited:`");
     with_state(this, |state| {
         state.emit_event(WindowEvent::HoveredFileCancelled)
     });
-    trace!("Completed `draggingExited:`");
+    trace!("[winit] Completed `draggingExited:`");
 }
 
 /// Invoked when before enter fullscreen
 extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowWillEnterFullscreen:`");
+    trace!("[winit] Triggered `windowWillEnterFullscreen:`");
     with_state(this, |state| {
         state.with_window(|window| {
-            trace!("Locked shared state in `window_will_enter_fullscreen`");
+            trace!("[winit] Locked shared state in `window_will_enter_fullscreen`");
             let mut shared_state = window.shared_state.lock().unwrap();
             shared_state.maximized = window.is_zoomed();
             match shared_state.fullscreen {
@@ -426,24 +426,24 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
                 }
             }
             shared_state.in_fullscreen_transition = true;
-            trace!("Unlocked shared state in `window_will_enter_fullscreen`");
+            trace!("[winit] Unlocked shared state in `window_will_enter_fullscreen`");
         })
     });
-    trace!("Completed `windowWillEnterFullscreen:`");
+    trace!("[winit] Completed `windowWillEnterFullscreen:`");
 }
 
 /// Invoked when before exit fullscreen
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowWillExitFullScreen:`");
+    trace!("[winit] Triggered `windowWillExitFullScreen:`");
     with_state(this, |state| {
         state.with_window(|window| {
-            trace!("Locked shared state in `window_will_exit_fullscreen`");
+            trace!("[winit] Locked shared state in `window_will_exit_fullscreen`");
             let mut shared_state = window.shared_state.lock().unwrap();
             shared_state.in_fullscreen_transition = true;
-            trace!("Unlocked shared state in `window_will_exit_fullscreen`");
+            trace!("[winit] Unlocked shared state in `window_will_exit_fullscreen`");
         });
     });
-    trace!("Completed `windowWillExitFullScreen:`");
+    trace!("[winit] Completed `windowWillExitFullScreen:`");
 }
 
 extern "C" fn window_will_use_fullscreen_presentation_options(
@@ -468,42 +468,42 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidEnterFullscreen:`");
+    trace!("[winit] Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
         state.initial_fullscreen = false;
         state.with_window(|window| {
-            trace!("Locked shared state in `window_did_enter_fullscreen`");
+            trace!("[winit] Locked shared state in `window_did_enter_fullscreen`");
             let mut shared_state = window.shared_state.lock().unwrap();
             shared_state.in_fullscreen_transition = false;
             let target_fullscreen = shared_state.target_fullscreen.take();
-            trace!("Unlocked shared state in `window_did_enter_fullscreen`");
+            trace!("[winit] Unlocked shared state in `window_did_enter_fullscreen`");
             drop(shared_state);
             if let Some(target_fullscreen) = target_fullscreen {
                 window.set_fullscreen(target_fullscreen);
             }
         });
     });
-    trace!("Completed `windowDidEnterFullscreen:`");
+    trace!("[winit] Completed `windowDidEnterFullscreen:`");
 }
 
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidExitFullscreen:`");
+    trace!("[winit] Triggered `windowDidExitFullscreen:`");
     with_state(this, |state| {
         state.with_window(|window| {
             window.restore_state_from_fullscreen();
-            trace!("Locked shared state in `window_did_exit_fullscreen`");
+            trace!("[winit] Locked shared state in `window_did_exit_fullscreen`");
             let mut shared_state = window.shared_state.lock().unwrap();
             shared_state.in_fullscreen_transition = false;
             let target_fullscreen = shared_state.target_fullscreen.take();
-            trace!("Unlocked shared state in `window_did_exit_fullscreen`");
+            trace!("[winit] Unlocked shared state in `window_did_exit_fullscreen`");
             drop(shared_state);
             if let Some(target_fullscreen) = target_fullscreen {
                 window.set_fullscreen(target_fullscreen);
             }
         })
     });
-    trace!("Completed `windowDidExitFullscreen:`");
+    trace!("[winit] Completed `windowDidExitFullscreen:`");
 }
 
 /// Invoked when fail to enter fullscreen
@@ -523,14 +523,14 @@ extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
 /// This method indicates that there was an error, and you should clean up any
 /// work you may have done to prepare to enter full-screen mode.
 extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidFailToEnterFullscreen:`");
+    trace!("[winit] Triggered `windowDidFailToEnterFullscreen:`");
     with_state(this, |state| {
         state.with_window(|window| {
-            trace!("Locked shared state in `window_did_fail_to_enter_fullscreen`");
+            trace!("[winit] Locked shared state in `window_did_fail_to_enter_fullscreen`");
             let mut shared_state = window.shared_state.lock().unwrap();
             shared_state.in_fullscreen_transition = false;
             shared_state.target_fullscreen = None;
-            trace!("Unlocked shared state in `window_did_fail_to_enter_fullscreen`");
+            trace!("[winit] Unlocked shared state in `window_did_fail_to_enter_fullscreen`");
         });
         if state.initial_fullscreen {
             let _: () = unsafe {
@@ -544,5 +544,5 @@ extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) 
             state.with_window(|window| window.restore_state_from_fullscreen());
         }
     });
-    trace!("Completed `windowDidFailToEnterFullscreen:`");
+    trace!("[winit] Completed `windowDidFailToEnterFullscreen:`");
 }

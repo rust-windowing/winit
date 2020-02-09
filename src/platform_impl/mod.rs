@@ -37,4 +37,4 @@ mod platform;
     not(target_os = "openbsd"),
     not(target_arch = "wasm32"),
 ))]
-compile_error!("The platform you're compiling for is not supported by winit");
+compile_error!("[winit] The platform you're compiling for is not supported by winit");
