@@ -1,10 +1,10 @@
 use std::sync::{Arc, Mutex};
 
-use crate::dpi::LogicalPosition;
 use crate::event::{TouchPhase, WindowEvent};
 
 use super::{event_loop::EventsSink, make_wid, window::WindowStore, DeviceId};
 
+use winit_types::dpi::LogicalPosition;
 use smithay_client_toolkit::surface;
 
 use smithay_client_toolkit::reexports::client::protocol::{

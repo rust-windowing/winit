@@ -35,9 +35,9 @@
 //! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
 use std::path::PathBuf;
+use winit_types::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 
 use crate::{
-    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -304,7 +304,7 @@ pub enum WindowEvent<'a> {
     /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
     /// by the OS, but it can be changed to any value.
     ///
-    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
+    /// For more information about DPI in general, see the `dpi` module in the crate `winit_types`.
     ScaleFactorChanged {
         scale_factor: f64,
         new_inner_size: &'a mut PhysicalSize<u32>,

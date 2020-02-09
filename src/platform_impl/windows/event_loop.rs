@@ -27,6 +27,7 @@ use std::{
     time::{Duration, Instant},
 };
 use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
 use winapi::{
     shared::{
@@ -43,7 +44,6 @@ use winapi::{
 
 use self::runner::{ELRShared, EventLoopRunnerShared};
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{

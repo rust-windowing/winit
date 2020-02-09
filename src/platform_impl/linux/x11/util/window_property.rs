@@ -1,11 +1,13 @@
 use super::*;
 
+use winit_types::error::Error;
+
 pub type Cardinal = c_long;
 pub const CARDINAL_SIZE: usize = mem::size_of::<c_long>();
 
 #[derive(Debug, Clone)]
 pub enum GetPropertyError {
-    XError(XError),
+    Error(Error),
     TypeMismatch(ffi::Atom),
     FormatMismatch(c_int),
     NothingAllocated,
@@ -72,7 +74,7 @@ impl XConnection {
                 );
 
                 if let Err(e) = self.check_errors() {
-                    return Err(GetPropertyError::XError(e));
+                    return Err(GetPropertyError::Error(e));
                 }
 
                 if actual_type != property_type {

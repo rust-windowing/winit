@@ -3,6 +3,7 @@ use winit::{
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
+use winit_types::dpi::LogicalSize;
 
 fn main() {
     simple_logger::init().unwrap();
@@ -10,7 +11,7 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
-        .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
+        .with_inner_size(LogicalSize::new(128.0, 128.0))
         .build(&event_loop)
         .unwrap();
 

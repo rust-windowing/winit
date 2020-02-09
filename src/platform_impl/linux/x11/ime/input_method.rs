@@ -8,8 +8,9 @@ use std::{
 };
 
 use parking_lot::Mutex;
+use winit_types::error::Error;
 
-use super::{ffi, util, XConnection, XError};
+use super::{ffi, util, XConnection};
 
 lazy_static! {
     static ref GLOBAL_LOCK: Mutex<()> = Default::default();
@@ -80,7 +81,7 @@ impl InputMethodResult {
 
 #[derive(Debug, Clone)]
 enum GetXimServersError {
-    XError(XError),
+    Error(Error),
     GetPropertyError(util::GetPropertyError),
     InvalidUtf8(IntoStringError),
 }
@@ -118,7 +119,7 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
         (xconn.xlib.XFree)(name as _);
         formatted_names.push(string.replace("@server=", "@im="));
     }
-    xconn.check_errors().map_err(GetXimServersError::XError)?;
+    xconn.check_errors().map_err(GetXimServersError::Error)?;
     Ok(formatted_names)
 }
 

@@ -1,9 +1,9 @@
 use std::{any::Any, cell::RefCell, collections::VecDeque, mem, panic, ptr, rc::Rc, time::Instant};
 
 use winapi::{shared::windef::HWND, um::winuser};
+use winit_types::dpi::PhysicalSize;
 
 use crate::{
-    dpi::PhysicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::{event_loop::EventLoop, util},

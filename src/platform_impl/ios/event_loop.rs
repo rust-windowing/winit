@@ -7,8 +7,9 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
+use winit_types::dpi::LogicalSize;
+
 use crate::{
-    dpi::LogicalSize,
     event::Event,
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,

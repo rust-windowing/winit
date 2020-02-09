@@ -128,7 +128,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
                 let dpi_factor: CGFloat = msg_send![screen, scale];
-                let size = crate::dpi::LogicalSize {
+                let size = winit_types::dpi::LogicalSize {
                     width: screen_frame.size.width as f64,
                     height: screen_frame.size.height as f64,
                 }
@@ -176,7 +176,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let size = crate::dpi::LogicalSize {
+                let size = winit_types::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 };

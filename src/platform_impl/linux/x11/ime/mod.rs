@@ -10,7 +10,7 @@ use std::sync::{
     Arc,
 };
 
-use super::{ffi, util, XConnection, XError};
+use super::{ffi, util, XConnection};
 
 pub use self::context::ImeContextCreationError;
 use self::{
@@ -20,13 +20,15 @@ use self::{
     input_method::PotentialInputMethods,
 };
 
+use winit_types::error::Error;
+
 pub type ImeReceiver = Receiver<(ffi::Window, i16, i16)>;
 pub type ImeSender = Sender<(ffi::Window, i16, i16)>;
 
 #[derive(Debug)]
 pub enum ImeCreationError {
     OpenFailure(PotentialInputMethods),
-    SetDestroyCallbackFailed(XError),
+    SetDestroyCallbackFailed(Error),
 }
 
 pub struct Ime {
@@ -110,7 +112,7 @@ impl Ime {
         }
     }
 
-    pub fn remove_context(&mut self, window: ffi::Window) -> Result<bool, XError> {
+    pub fn remove_context(&mut self, window: ffi::Window) -> Result<bool, Error> {
         if let Some(Some(context)) = self.inner.contexts.remove(&window) {
             unsafe {
                 self.inner.destroy_ic_if_necessary(context.ic)?;
@@ -121,7 +123,7 @@ impl Ime {
         }
     }
 
-    pub fn focus(&mut self, window: ffi::Window) -> Result<bool, XError> {
+    pub fn focus(&mut self, window: ffi::Window) -> Result<bool, Error> {
         if self.is_destroyed() {
             return Ok(false);
         }
@@ -132,7 +134,7 @@ impl Ime {
         }
     }
 
-    pub fn unfocus(&mut self, window: ffi::Window) -> Result<bool, XError> {
+    pub fn unfocus(&mut self, window: ffi::Window) -> Result<bool, Error> {
         if self.is_destroyed() {
             return Ok(false);
         }

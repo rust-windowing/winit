@@ -1,6 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc, slice, sync::Arc};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
 use parking_lot::MutexGuard;
 
@@ -13,7 +14,6 @@ use super::{
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
     event::{
         DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, TouchPhase, WindowEvent,
     },

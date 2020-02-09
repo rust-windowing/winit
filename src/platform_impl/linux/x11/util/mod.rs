@@ -27,7 +27,9 @@ use std::{
     ptr,
 };
 
-use super::{ffi, XConnection, XError};
+use super::{ffi, XConnection};
+
+use winit_types::error::Error;
 
 pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     let wrapped = Some(value);
@@ -50,12 +52,12 @@ impl<'a> Flusher<'a> {
     }
 
     // "I want this request sent now!"
-    pub fn flush(self) -> Result<(), XError> {
+    pub fn flush(self) -> Result<(), Error> {
         self.xconn.flush_requests()
     }
 
     // "I want the response now too!"
-    pub fn sync(self) -> Result<(), XError> {
+    pub fn sync(self) -> Result<(), Error> {
         self.xconn.sync_with_server()
     }
 
@@ -73,7 +75,7 @@ impl XConnection {
     // 4. Calls that have a return dependent on a response (i.e. `XGetWindowProperty`) sync internally.
     //    When in doubt, check the X11 source; if a function calls `_XReply`, it flushes and waits.
     // All util functions that abstract an async function will return a `Flusher`.
-    pub fn flush_requests(&self) -> Result<(), XError> {
+    pub fn flush_requests(&self) -> Result<(), Error> {
         unsafe { (self.xlib.XFlush)(self.display) };
         //println!("XFlush");
         // This isn't necessarily a useful time to check for errors (since our request hasn't
@@ -81,7 +83,7 @@ impl XConnection {
         self.check_errors()
     }
 
-    pub fn sync_with_server(&self) -> Result<(), XError> {
+    pub fn sync_with_server(&self) -> Result<(), Error> {
         unsafe { (self.xlib.XSync)(self.display, ffi::False) };
         //println!("XSync");
         self.check_errors()

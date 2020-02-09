@@ -1,11 +1,11 @@
 // This example is used by developers to test various window functions.
 
 use winit::{
-    dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Fullscreen, WindowBuilder},
 };
+use winit_types::dpi::{LogicalSize, PhysicalSize};
 
 fn main() {
     simple_logger::init().unwrap();

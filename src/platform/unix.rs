@@ -3,9 +3,9 @@
 use std::{os::raw, ptr, sync::Arc};
 
 use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
+use winit_types::dpi::Size;
 
 use crate::{
-    dpi::Size,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
@@ -82,7 +82,7 @@ pub trait EventLoopExtUnix {
     ///
     /// If called outside the main thread. To initialize an X11 event loop outside
     /// the main thread, use [`new_x11_any_thread`](#tymethod.new_x11_any_thread).
-    fn new_x11() -> Result<Self, XNotSupported>
+    fn new_x11() -> Result<Self, Error>
     where
         Self: Sized;
 
@@ -108,7 +108,7 @@ pub trait EventLoopExtUnix {
     ///
     /// This method bypasses the cross-platform compatibility requirement
     /// that `EventLoop` be created on the main thread.
-    fn new_x11_any_thread() -> Result<Self, XNotSupported>
+    fn new_x11_any_thread() -> Result<Self, Error>
     where
         Self: Sized;
 
@@ -135,7 +135,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
     }
 
     #[inline]
-    fn new_x11_any_thread() -> Result<Self, XNotSupported> {
+    fn new_x11_any_thread() -> Result<Self, Error> {
         LinuxEventLoop::new_x11_any_thread().map(wrap_ev)
     }
 
@@ -149,7 +149,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
     }
 
     #[inline]
-    fn new_x11() -> Result<Self, XNotSupported> {
+    fn new_x11() -> Result<Self, Error> {
         LinuxEventLoop::new_x11().map(wrap_ev)
     }
 

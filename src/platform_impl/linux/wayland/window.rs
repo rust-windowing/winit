@@ -6,8 +6,6 @@ use std::{
 };
 
 use crate::{
-    dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
         platform::wayland::event_loop::{available_monitors, primary_monitor},
@@ -26,6 +24,9 @@ use smithay_client_toolkit::{
     surface::{get_dpi_factor, get_outputs},
     window::{ConceptFrame, Event as WEvent, State as WState, Theme, Window as SWindow},
 };
+
+use winit_types::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use winit_types::error::{Error, ErrorType};
 
 use super::{event_loop::CursorManager, make_wid, EventLoopWindowTarget, MonitorHandle, WindowId};
 
@@ -48,7 +49,7 @@ impl Window {
         evlp: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         pl_attribs: PlAttributes,
-    ) -> Result<Window, RootOsError> {
+    ) -> Result<Window, Error> {
         // Create the surface first to get initial DPI
         let window_store = evlp.store.clone();
         let cursor_manager = evlp.cursor_manager.clone();
@@ -206,13 +207,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Err(NotSupportedError::new())
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
+        Err(make_error!(ErrorType::NotSupported(
+            "Getting the outer position is not supported on Wayland.".to_string()
+        )))
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Err(NotSupportedError::new())
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
+        Err(make_error!(ErrorType::NotSupported(
+            "Getting the inner position is not supported on Wayland.".to_string()
+        )))
     }
 
     #[inline]
@@ -306,10 +311,12 @@ impl Window {
         }
     }
 
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
         match fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
-                panic!("Wayland doesn't support exclusive fullscreen")
+                return Err(make_error!(ErrorType::NotSupported(
+                    "Wayland doesn't support exclusive fullscreen".to_string()
+                )));
             }
             Some(Fullscreen::Borderless(RootMonitorHandle {
                 inner: PlatformMonitorHandle::Wayland(ref monitor_id),
@@ -322,6 +329,8 @@ impl Window {
             Some(Fullscreen::Borderless(_)) => unreachable!(),
             None => self.frame.lock().unwrap().unset_fullscreen(),
         }
+
+        Ok(())
     }
 
     pub fn set_theme<T: Theme>(&self, theme: T) {
@@ -341,14 +350,16 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), Error> {
         *self.cursor_grab_changed.lock().unwrap() = Some(grab);
         Ok(())
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _pos: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, _pos: Position) -> Result<(), Error> {
+        Err(make_error!(ErrorType::NotSupported(
+            "Setting the cursor position is not supported on Wayland.".to_string()
+        )))
     }
 
     pub fn display(&self) -> &Display {

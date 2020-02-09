@@ -24,9 +24,9 @@ use smithay_client_toolkit::pointer::{AutoPointer, AutoThemer};
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_compositor::WlCompositor, wl_shm::WlShm, wl_surface::WlSurface,
 };
+use winit_types::dpi::{LogicalSize, PhysicalPosition, PhysicalSize};
 
 use crate::{
-    dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{
         DeviceEvent, DeviceId as RootDeviceId, Event, ModifiersState, StartCause, WindowEvent,
     },
@@ -45,10 +45,13 @@ use smithay_client_toolkit::{
     output::OutputMgr,
     reexports::client::{
         protocol::{wl_keyboard, wl_output, wl_pointer, wl_registry, wl_seat, wl_touch},
-        ConnectError, Display, EventQueue, GlobalEvent,
+        Display, EventQueue, GlobalEvent,
     },
     Environment,
 };
+
+use winit_types::error::Error;
+use winit_types::platform::OsError;
 
 const KBD_TOKEN: Token = Token(0);
 const USER_TOKEN: Token = Token(1);
@@ -291,8 +294,9 @@ impl<T: 'static> EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<EventLoop<T>, ConnectError> {
-        let (display, mut event_queue) = Display::connect_to_env()?;
+    pub fn new() -> Result<EventLoop<T>, Error> {
+        let (display, mut event_queue) = Display::connect_to_env()
+            .map_err(|err| make_oserror!(OsError::WaylandConnectError(Arc::new(err))))?;
 
         let display = Arc::new(display);
         let store = Arc::new(Mutex::new(WindowStore::new()));
@@ -715,7 +719,7 @@ impl<T> EventLoop<T> {
                     // Don't send resize event downstream if the new size is identical to the
                     // current one.
                     if (w, h) != *window.size {
-                        let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
+                        let logical_size = winit_types::dpi::LogicalSize::new(w as f64, h as f64);
                         let physical_size = logical_size
                             .to_physical(window.new_dpi.unwrap_or(window.prev_dpi) as f64);
 

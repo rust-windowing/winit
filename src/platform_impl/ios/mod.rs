@@ -98,14 +98,3 @@ impl DeviceId {
 
 unsafe impl Send for DeviceId {}
 unsafe impl Sync for DeviceId {}
-
-#[derive(Debug)]
-pub enum OsError {}
-
-impl fmt::Display for OsError {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            _ => unreachable!(),
-        }
-    }
-}

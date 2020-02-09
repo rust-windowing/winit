@@ -1,5 +1,6 @@
-use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::monitor::{MonitorHandle, VideoMode};
+
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Handle;

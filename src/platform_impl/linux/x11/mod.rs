@@ -19,7 +19,7 @@ mod xdisplay;
 pub use self::{
     monitor::{MonitorHandle, VideoMode},
     window::UnownedWindow,
-    xdisplay::{XConnection, XError, XNotSupported},
+    xdisplay::XConnection,
 };
 
 use std::{
@@ -36,6 +36,7 @@ use std::{
 };
 
 use libc::{self, setlocale, LC_CTYPE};
+use winit_types::error::Error;
 
 use mio::{unix::EventedFd, Events, Poll, PollOpt, Ready, Token};
 
@@ -48,7 +49,6 @@ use self::{
     util::modifiers::ModifierKeymap,
 };
 use crate::{
-    error::OsError as RootOsError,
     event::{Event, StartCause},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
@@ -507,7 +507,7 @@ impl Window {
         event_loop: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, RootOsError> {
+    ) -> Result<Self, Error> {
         let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
         event_loop
             .windows

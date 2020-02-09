@@ -1,10 +1,11 @@
-use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
-use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWI};
 
 use raw_window_handle::web::WebHandle;
+
+use winit_types::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
+use winit_types::error::Error;
 
 use super::{backend, monitor, EventLoopWindowTarget};
 
@@ -24,7 +25,7 @@ impl Window {
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
         platform_attr: PlatformSpecificBuilderAttributes,
-    ) -> Result<Self, RootOE> {
+    ) -> Result<Self, Error> {
         let runner = target.runner.clone();
 
         let id = target.generate_id();
@@ -70,11 +71,11 @@ impl Window {
         (self.register_redraw_request)();
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         Ok(self.canvas.position().to_physical(self.scale_factor()))
     }
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         // Note: the canvas element has no window decorations, so this is equal to `outer_position`.
         self.outer_position()
     }
@@ -170,13 +171,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), Error> {
         // Intentionally a no-op, as the web does not support setting cursor positions
         Ok(())
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), Error> {
         // Intentionally a no-op, as the web does not (properly) support grabbing the cursor
         Ok(())
     }

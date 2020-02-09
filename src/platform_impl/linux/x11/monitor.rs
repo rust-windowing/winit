@@ -1,19 +1,19 @@
 use std::os::raw::*;
 
-use parking_lot::Mutex;
-
 use super::{
     ffi::{
         RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
         RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
     },
-    util, XConnection, XError,
+    util, XConnection,
 };
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
+
+use parking_lot::Mutex;
+use winit_types::dpi::{self, PhysicalPosition, PhysicalSize};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;

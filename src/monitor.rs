@@ -9,10 +9,8 @@
 //! [monitor_handle]: crate::monitor::MonitorHandle
 //! [loop_get]: crate::event_loop::EventLoop::available_monitors
 //! [window_get]: crate::window::Window::available_monitors
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl,
-};
+use crate::platform_impl;
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
 
 /// Describes a fullscreen video mode of a monitor.
 ///
@@ -150,7 +148,7 @@ impl MonitorHandle {
 
     /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
-    /// See the [`dpi`](crate::dpi) module for more information.
+    /// See the `dpi` module in the `winit_types` crate for more information.
     ///
     /// ## Platform-specific
     ///

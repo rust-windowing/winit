@@ -2,8 +2,9 @@
 
 use std::os::raw::c_void;
 
+use winit_types::dpi::LogicalSize;
+
 use crate::{
-    dpi::LogicalSize,
     event_loop::EventLoopWindowTarget,
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},

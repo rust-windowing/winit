@@ -13,9 +13,9 @@ use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
+use winit_types::dpi::LogicalSize;
 
 use crate::{
-    dpi::LogicalSize,
     event::{Event, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,

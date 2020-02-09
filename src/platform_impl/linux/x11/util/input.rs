@@ -1,5 +1,7 @@
 use std::{slice, str};
 
+use winit_types::error::Error;
+
 use super::*;
 use crate::event::ModifiersState;
 
@@ -95,7 +97,7 @@ impl XConnection {
         &self,
         window: ffi::Window,
         device_id: c_int,
-    ) -> Result<PointerState<'_>, XError> {
+    ) -> Result<PointerState<'_>, Error> {
         unsafe {
             let mut root = 0;
             let mut child = 0;

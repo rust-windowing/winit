@@ -2,6 +2,9 @@
 
 use parking_lot::Mutex;
 use raw_window_handle::{windows::WindowsHandle, RawWindowHandle};
+use winit_types::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use winit_types::error::Error;
+
 use std::{
     cell::Cell,
     ffi::OsStr,
@@ -30,8 +33,6 @@ use winapi::{
 };
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_dark_mode,
@@ -63,7 +64,7 @@ impl Window {
         event_loop: &EventLoopWindowTarget<T>,
         w_attr: WindowAttributes,
         pl_attr: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window, RootOsError> {
+    ) -> Result<Window, Error> {
         // We dispatch an `init` function because of code style.
         // First person to remove the need for cloning here gets a cookie!
         //
@@ -147,14 +148,14 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         util::get_window_rect(self.window.0)
             .map(|rect| Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32)))
             .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         let mut position: POINT = unsafe { mem::zeroed() };
         if unsafe { winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
             panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
@@ -290,7 +291,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), Error> {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
         let (tx, rx) = channel();
@@ -299,8 +300,7 @@ impl Window {
             let result = window_state
                 .lock()
                 .mouse
-                .set_cursor_flags(window.0, |f| f.set(CursorFlags::GRABBED, grab))
-                .map_err(|e| ExternalError::Os(os_error!(e)));
+                .set_cursor_flags(window.0, |f| f.set(CursorFlags::GRABBED, grab));
             let _ = tx.send(result);
         });
         rx.recv().unwrap()
@@ -329,17 +329,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), Error> {
         let dpi_factor = self.scale_factor();
         let (x, y) = position.to_physical::<i32>(dpi_factor).into();
 
         let mut point = POINT { x, y };
         unsafe {
             if winuser::ClientToScreen(self.window.0, &mut point) == 0 {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(make_oserror!(Arc::new(io::Error::last_os_error())));
             }
             if winuser::SetCursorPos(point.x, point.y) == 0 {
-                return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
+                return Err(make_oserror!(Arc::new(io::Error::last_os_error())));
             }
         }
         Ok(())
@@ -639,7 +639,7 @@ unsafe fn init<T: 'static>(
     mut attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
-) -> Result<Window, RootOsError> {
+) -> Result<Window, Error> {
     let title = OsStr::new(&attributes.title)
         .encode_wide()
         .chain(Some(0).into_iter())
@@ -648,7 +648,7 @@ unsafe fn init<T: 'static>(
     let window_icon = {
         let icon = attributes.window_icon.take().map(WinIcon::from_icon);
         if let Some(icon) = icon {
-            Some(icon.map_err(|e| os_error!(e))?)
+            Some(icon?)
         } else {
             None
         }
@@ -656,7 +656,7 @@ unsafe fn init<T: 'static>(
     let taskbar_icon = {
         let icon = attributes.window_icon.take().map(WinIcon::from_icon);
         if let Some(icon) = icon {
-            Some(icon.map_err(|e| os_error!(e))?)
+            Some(icon?)
         } else {
             None
         }
@@ -697,7 +697,7 @@ unsafe fn init<T: 'static>(
         );
 
         if handle.is_null() {
-            return Err(os_error!(io::Error::last_os_error()));
+            return Err(make_oserror!(Arc::new(io::Error::last_os_error())));
         }
 
         WindowWrapper(handle)

@@ -5,9 +5,10 @@ mod timeout;
 pub use self::canvas::Canvas;
 pub use self::timeout::Timeout;
 
-use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtStdweb;
 use crate::window::Window;
+
+use winit_types::dpi::{LogicalSize, Size};
 
 use stdweb::js;
 use stdweb::web::event::BeforeUnloadEvent;

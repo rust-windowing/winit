@@ -1,8 +1,10 @@
 use super::event;
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
-use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::platform_impl::PlatformSpecificWindowBuilderAttributes;
+
+use winit_types::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
+use winit_types::error::Error;
+use winit_types::platform::OsError;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -35,20 +37,22 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
+    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, Error> {
         let canvas = match attr.canvas {
             Some(canvas) => canvas,
             None => {
                 let window = web_sys::window()
-                    .ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+                    .ok_or(make_oserror!(OsError("Failed to obtain window".to_owned())))?;
 
-                let document = window
-                    .document()
-                    .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
+                let document = window.document().ok_or(make_oserror!(OsError(
+                    "Failed to obtain document".to_owned()
+                )))?;
 
                 document
                     .create_element("canvas")
-                    .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                    .map_err(|_| {
+                        make_oserror!(OsError("Failed to create canvas element".to_owned()))
+                    })?
                     .unchecked_into()
             }
         };
@@ -60,7 +64,7 @@ impl Canvas {
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
         canvas
             .set_attribute("tabindex", "0")
-            .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
+            .map_err(|_| make_oserror!(OsError("Failed to set a tabindex".to_owned())))?;
 
         Ok(Canvas {
             raw: canvas,

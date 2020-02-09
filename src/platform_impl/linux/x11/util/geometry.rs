@@ -1,4 +1,7 @@
 use std::cmp;
+use std::os::raw;
+
+use winit_types::error::Error;
 
 use super::*;
 
@@ -146,7 +149,7 @@ impl XConnection {
         &self,
         window: ffi::Window,
         root: ffi::Window,
-    ) -> Result<TranslatedCoords, XError> {
+    ) -> Result<TranslatedCoords, Error> {
         let mut coords = TranslatedCoords::default();
 
         unsafe {
@@ -167,7 +170,7 @@ impl XConnection {
     }
 
     // This is adequate for inner_size
-    pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, XError> {
+    pub fn get_geometry(&self, window: ffi::Window) -> Result<Geometry, Error> {
         let mut geometry = Geometry::default();
 
         let _status = unsafe {
@@ -230,7 +233,7 @@ impl XConnection {
         client_list.map(|client_list| client_list.contains(&window))
     }
 
-    fn get_parent_window(&self, window: ffi::Window) -> Result<ffi::Window, XError> {
+    fn get_parent_window(&self, window: ffi::Window) -> Result<ffi::Window, Error> {
         let parent = unsafe {
             let mut root = 0;
             let mut parent = 0;
@@ -261,7 +264,7 @@ impl XConnection {
         &self,
         window: ffi::Window,
         root: ffi::Window,
-    ) -> Result<ffi::Window, XError> {
+    ) -> Result<ffi::Window, Error> {
         let mut outer_window = window;
         loop {
             let candidate = self.get_parent_window(outer_window)?;

@@ -15,9 +15,9 @@ use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
 };
+use winit_types::dpi::LogicalPosition;
 
 use crate::{
-    dpi::LogicalPosition,
     event::{
         DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, MouseButton,
         MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,

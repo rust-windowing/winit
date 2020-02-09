@@ -1,5 +1,6 @@
-use crate::dpi::LogicalPosition;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+
+use winit_types::dpi::LogicalPosition;
 
 use stdweb::web::event::{IKeyboardEvent, IMouseEvent, MouseWheelDeltaMode, MouseWheelEvent};
 use stdweb::{js, unstable::TryInto, JsSerialize};

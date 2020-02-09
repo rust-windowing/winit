@@ -16,11 +16,11 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSPoint, NSSize},
 };
+use winit_types::dpi::LogicalSize;
 
 use objc::runtime::YES;
 
 use crate::{
-    dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{

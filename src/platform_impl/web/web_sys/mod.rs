@@ -5,11 +5,12 @@ mod timeout;
 pub use self::canvas::Canvas;
 pub use self::timeout::Timeout;
 
-use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
+
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement};
+use winit_types::dpi::{LogicalSize, Size};
 
 pub fn throw(msg: &str) {
     wasm_bindgen::throw_str(msg);

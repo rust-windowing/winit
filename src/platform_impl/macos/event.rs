@@ -4,9 +4,9 @@ use cocoa::{
     appkit::{NSEvent, NSEventModifierFlags},
     base::id,
 };
+use winit_types::dpi::LogicalSize;
 
 use crate::{
-    dpi::LogicalSize,
     event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
     platform_impl::platform::{
         util::{IdRef, Never},

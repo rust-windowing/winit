@@ -1,6 +1,6 @@
 use std::{collections::HashMap, os::raw::c_char, ptr, sync::Arc};
 
-use super::{ffi, XConnection, XError};
+use super::{ffi, XConnection};
 
 use super::{
     context::{ImeContext, ImeContextCreationError},
@@ -8,12 +8,14 @@ use super::{
     input_method::PotentialInputMethods,
 };
 
+use winit_types::error::Error;
+
 pub unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,
     xim: ffi::XIM,
     field: *const c_char,
     callback: *mut ffi::XIMCallback,
-) -> Result<(), XError> {
+) -> Result<(), Error> {
     // It's advisable to wrap variadic FFI functions in our own functions, as we want to minimize
     // access that isn't type-checked.
     (xconn.xlib.XSetIMValues)(xim, field, callback, ptr::null_mut::<()>());
@@ -29,38 +31,40 @@ pub unsafe fn xim_set_callback(
 pub unsafe fn set_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
-) -> Result<(), XError> {
-    (xconn.xlib.XRegisterIMInstantiateCallback)(
-        xconn.display,
+) -> Result<(), Error> {
+    let xlib = syms!(XLIB);
+    (xlib.XRegisterIMInstantiateCallback)(
+        **xconn.display,
         ptr::null_mut(),
         ptr::null_mut(),
         ptr::null_mut(),
         Some(xim_instantiate_callback),
         client_data,
     );
-    xconn.check_errors()
+    xconn.display.check_errors()
 }
 
 pub unsafe fn unset_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
-) -> Result<(), XError> {
-    (xconn.xlib.XUnregisterIMInstantiateCallback)(
-        xconn.display,
+) -> Result<(), Error> {
+    let xlib = syms!(XLIB);
+    (xlib.XUnregisterIMInstantiateCallback)(
+        **xconn.display,
         ptr::null_mut(),
         ptr::null_mut(),
         ptr::null_mut(),
         Some(xim_instantiate_callback),
         client_data,
     );
-    xconn.check_errors()
+    xconn.display.check_errors()
 }
 
 pub unsafe fn set_destroy_callback(
     xconn: &Arc<XConnection>,
     im: ffi::XIM,
     inner: &ImeInner,
-) -> Result<(), XError> {
+) -> Result<(), Error> {
     xim_set_callback(
         &xconn,
         im,
@@ -73,7 +77,7 @@ pub unsafe fn set_destroy_callback(
 enum ReplaceImError {
     MethodOpenFailed(PotentialInputMethods),
     ContextCreationFailed(ImeContextCreationError),
-    SetDestroyCallbackFailed(XError),
+    SetDestroyCallbackFailed(Error),
 }
 
 // Attempt to replace current IM (which may or may not be presently valid) with a new one. This

@@ -7,8 +7,6 @@ use std::{
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 
 use crate::{
-    dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -24,6 +22,10 @@ use crate::{
     },
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
+use winit_types::dpi::{
+    self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size,
+};
+use winit_types::error::{Error, ErrorType};
 
 pub struct Inner {
     pub window: id,
@@ -76,7 +78,7 @@ impl Inner {
         }
     }
 
-    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
             let position = LogicalPosition {
@@ -88,7 +90,7 @@ impl Inner {
         }
     }
 
-    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, Error> {
         unsafe {
             let screen_frame = self.screen_frame();
             let position = LogicalPosition {
@@ -168,12 +170,16 @@ impl Inner {
         debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), Error> {
+        Err(make_error!(ErrorType::NotSupported(
+            "Setting the cursor position is not supported on iOS.".to_string()
+        )))
     }
 
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), Error> {
+        Err(make_error!(ErrorType::NotSupported(
+            "Setting the cursor grab is not supported on iOS.".to_string()
+        )))
     }
 
     pub fn set_cursor_visible(&self, _visible: bool) {
@@ -188,7 +194,7 @@ impl Inner {
         warn!("`Window::set_maximized` is ignored on iOS")
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) -> Result<(), Error> {
         unsafe {
             let uiscreen = match monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
@@ -198,8 +204,9 @@ impl Inner {
                 }
                 Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
                 None => {
-                    warn!("`Window::set_fullscreen(None)` ignored on iOS");
-                    return;
+                    return Err(make_error!(ErrorType::NotSupported(
+                        "`Window::set_fullscreen(None) is not supported on iOS.".to_string()
+                    )));
                 }
             };
 
@@ -219,6 +226,8 @@ impl Inner {
                 uiscreen,
                 setOverscanCompensation: UIScreenOverscanCompensation::None
             ];
+
+            Ok(())
         }
     }
 
@@ -330,7 +339,7 @@ impl Window {
         _event_loop: &EventLoopWindowTarget<T>,
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Window, RootOsError> {
+    ) -> Result<Window, Error> {
         if let Some(_) = window_attributes.min_inner_size {
             warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
         }
@@ -408,7 +417,7 @@ impl Window {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![view, convertRect:bounds toCoordinateSpace:screen_space];
-                let size = crate::dpi::LogicalSize {
+                let size = winit_types::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
                 };

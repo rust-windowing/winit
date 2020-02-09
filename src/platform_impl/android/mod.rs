@@ -22,8 +22,6 @@ use crate::{
 use raw_window_handle::{android::AndroidHandle, RawWindowHandle};
 use CreationError::OsError;
 
-pub type OsError = std::io::Error;
-
 pub struct EventLoop {
     event_rx: Receiver<android_glue::Event>,
     suspend_callback: RefCell<Option<Box<dyn Fn(bool) -> ()>>>,

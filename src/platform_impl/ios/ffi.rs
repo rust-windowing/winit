@@ -3,11 +3,9 @@
 use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
 
 use objc::{runtime::Object, Encode, Encoding};
+use winit_types::dpi::LogicalSize;
 
-use crate::{
-    dpi::LogicalSize,
-    platform::ios::{Idiom, ScreenEdge, ValidOrientations},
-};
+use crate::platform::ios::{Idiom, ScreenEdge, ValidOrientations};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;

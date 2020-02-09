@@ -14,16 +14,16 @@ mod view;
 mod window;
 mod window_delegate;
 
-use std::{fmt, ops::Deref, sync::Arc};
+use std::{ops::Deref, sync::Arc};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
     monitor::{MonitorHandle, VideoMode},
     window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
 };
-use crate::{
-    error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
-};
+use crate::{event::DeviceId as RootDeviceId, window::WindowAttributes};
+
+use winit_types::error::Error;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
@@ -43,12 +43,6 @@ pub struct Window {
     _delegate: util::IdRef,
 }
 
-#[derive(Debug)]
-pub enum OsError {
-    CGError(core_graphics::base::CGError),
-    CreationError(&'static str),
-}
-
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
@@ -65,17 +59,8 @@ impl Window {
         _window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, RootOsError> {
+    ) -> Result<Self, Error> {
         let (window, _delegate) = UnownedWindow::new(attributes, pl_attribs)?;
         Ok(Window { window, _delegate })
-    }
-}
-
-impl fmt::Display for OsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            OsError::CGError(e) => f.pad(&format!("CGError {}", e)),
-            OsError::CreationError(e) => f.pad(e),
-        }
     }
 }

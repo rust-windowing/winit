@@ -4,8 +4,9 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use winit_types::dpi::{PhysicalPosition, PhysicalSize};
+
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
         app_state,

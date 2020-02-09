@@ -7,8 +7,9 @@ use std::{
 };
 
 use percent_encoding::percent_decode;
+use winit_types::error::Error;
 
-use super::{ffi, util, XConnection, XError};
+use super::{ffi, util, XConnection};
 
 #[derive(Debug)]
 pub struct DndAtoms {
@@ -27,7 +28,7 @@ pub struct DndAtoms {
 }
 
 impl DndAtoms {
-    pub fn new(xconn: &Arc<XConnection>) -> Result<Self, XError> {
+    pub fn new(xconn: &Arc<XConnection>) -> Result<Self, Error> {
         let names = [
             b"XdndAware\0".as_ptr() as *mut c_char,
             b"XdndEnter\0".as_ptr() as *mut c_char,
@@ -100,7 +101,7 @@ pub struct Dnd {
 }
 
 impl Dnd {
-    pub fn new(xconn: Arc<XConnection>) -> Result<Self, XError> {
+    pub fn new(xconn: Arc<XConnection>) -> Result<Self, Error> {
         let atoms = DndAtoms::new(&xconn)?;
         Ok(Dnd {
             xconn,
@@ -124,7 +125,7 @@ impl Dnd {
         this_window: c_ulong,
         target_window: c_ulong,
         state: DndState,
-    ) -> Result<(), XError> {
+    ) -> Result<(), Error> {
         let (accepted, action) = match state {
             DndState::Accepted => (1, self.atoms.action_private as c_long),
             DndState::Rejected => (0, self.atoms.none as c_long),
@@ -145,7 +146,7 @@ impl Dnd {
         this_window: c_ulong,
         target_window: c_ulong,
         state: DndState,
-    ) -> Result<(), XError> {
+    ) -> Result<(), Error> {
         let (accepted, action) = match state {
             DndState::Accepted => (1, self.atoms.action_private as c_long),
             DndState::Rejected => (0, self.atoms.none as c_long),
