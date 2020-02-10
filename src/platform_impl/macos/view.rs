@@ -50,13 +50,13 @@ impl Default for CursorState {
     }
 }
 
-struct ViewState {
+pub(super) struct ViewState {
     ns_window: id,
     pub cursor_state: Arc<Mutex<CursorState>>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
     is_key_down: bool,
-    modifiers: ModifiersState,
+    pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
 }
 
