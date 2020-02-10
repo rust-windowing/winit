@@ -70,6 +70,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub fullsize_content_view: bool,
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
+    pub ignore_alt_modifier: bool,
 }
 
 fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
@@ -94,7 +95,7 @@ unsafe fn create_view(
     ns_window: id,
     pl_attribs: &PlatformSpecificWindowBuilderAttributes,
 ) -> Option<(IdRef, Weak<Mutex<CursorState>>)> {
-    let (ns_view, cursor_state) = new_view(ns_window);
+    let (ns_view, cursor_state) = new_view(ns_window, pl_attribs);
     ns_view.non_nil().map(|ns_view| {
         if !pl_attribs.disallow_hidpi {
             ns_view.setWantsBestResolutionOpenGLSurface_(YES);
