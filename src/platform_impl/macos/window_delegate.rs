@@ -16,11 +16,12 @@ use objc::{
 
 use crate::{
     dpi::LogicalSize,
-    event::{Event, WindowEvent},
+    event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
+        view::ViewState,
         window::{get_window_id, UnownedWindow},
     },
     window::{Fullscreen, WindowId},
@@ -319,6 +320,29 @@ extern "C" fn window_did_become_key(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowDidResignKey:`");
     with_state(this, |state| {
+        // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
+        // NSWindowDelegate will receive a didResignKey event despite no event
+        // being received when the modifiers are released.  This is because
+        // flagsChanged events are received by the NSView instead of the
+        // NSWindowDelegate, and as a result a tracked modifiers state can quite
+        // easily fall out of synchrony with reality.  This requires us to emit
+        // a synthetic ModifiersChanged event when we lose focus.
+        //
+        // Here we (very unsafely) acquire the winitState (a ViewState) from the
+        // Object referenced by state.ns_view (an IdRef, which is dereferenced
+        // to an id)
+        let view_state: &mut ViewState = unsafe {
+            let ns_view: &Object = (*state.ns_view).as_ref().expect("failed to deref");
+            let state_ptr: *mut c_void = *ns_view.get_ivar("winitState");
+            &mut *(state_ptr as *mut ViewState)
+        };
+
+        // Both update the state and emit a ModifiersChanged event.
+        if !view_state.modifiers.is_empty() {
+            view_state.modifiers = ModifiersState::empty();
+            state.emit_event(WindowEvent::ModifiersChanged(view_state.modifiers));
+        }
+
         state.emit_event(WindowEvent::Focused(false));
     });
     trace!("Completed `windowDidResignKey:`");
