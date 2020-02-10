@@ -31,8 +31,7 @@ use crate::{
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
-        PlatformSpecificWindowBuilderAttributes,
-        DEVICE_ID,
+        PlatformSpecificWindowBuilderAttributes, DEVICE_ID,
     },
     window::WindowId,
 };
@@ -68,7 +67,7 @@ impl ViewState {
 
 pub fn new_view(
     ns_window: id,
-    pl_attribs: &PlatformSpecificWindowBuilderAttributes
+    pl_attribs: &PlatformSpecificWindowBuilderAttributes,
 ) -> (IdRef, Weak<Mutex<CursorState>>) {
     let cursor_state = Default::default();
     let cursor_access = Arc::downgrade(&cursor_state);
