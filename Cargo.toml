@@ -77,7 +77,7 @@ features = [
 wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] }
 mio = "0.6"
 mio-extras = "2.0"
-smithay-client-toolkit = "0.6"
+smithay-client-toolkit = "^0.6.6"
 x11-dl = "2.18.3"
 percent-encoding = "2.0"
 
