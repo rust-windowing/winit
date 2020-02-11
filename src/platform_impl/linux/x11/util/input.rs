@@ -29,8 +29,7 @@ impl ModifiersState {
 }
 
 // NOTE: Some of these fields are not used, but may be of use in the future.
-pub struct PointerState<'a> {
-    xconn: &'a XConnection,
+pub struct PointerState {
     pub root: ffi::Window,
     pub child: ffi::Window,
     pub root_x: c_double,
@@ -43,18 +42,19 @@ pub struct PointerState<'a> {
     pub relative_to_window: bool,
 }
 
-impl<'a> PointerState<'a> {
+impl PointerState {
     pub fn get_modifier_state(&self) -> ModifiersState {
         ModifiersState::from_x11(&self.modifiers)
     }
 }
 
-impl<'a> Drop for PointerState<'a> {
+impl Drop for PointerState {
     fn drop(&mut self) {
+        let xlib = syms!(XLIB);
         if !self.buttons.mask.is_null() {
             unsafe {
                 // This is why you need to read the docs carefully...
-                (self.xconn.xlib.XFree)(self.buttons.mask as _);
+                (xlib.XFree)(self.buttons.mask as _);
             }
         }
     }
@@ -67,14 +67,15 @@ impl XConnection {
         device_id: c_int,
         mask: i32,
     ) -> Flusher<'_> {
+        let xinput2 = syms!(XINPUT2);
         let mut event_mask = ffi::XIEventMask {
             deviceid: device_id,
             mask: &mask as *const _ as *mut c_uchar,
             mask_len: mem::size_of_val(&mask) as c_int,
         };
         unsafe {
-            (self.xinput2.XISelectEvents)(
-                self.display,
+            (xinput2.XISelectEvents)(
+                **self.display,
                 window,
                 &mut event_mask as *mut ffi::XIEventMask,
                 1, // number of masks to read from pointer above
@@ -85,7 +86,8 @@ impl XConnection {
 
     #[allow(dead_code)]
     pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher<'_>> {
-        let status = unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id, mask, mask) };
+        let xlib = syms!(XLIB);
+        let status = unsafe { (xlib.XkbSelectEvents)(**self.display, device_id, mask, mask) };
         if status == ffi::True {
             Some(Flusher::new(self))
         } else {
@@ -97,7 +99,8 @@ impl XConnection {
         &self,
         window: ffi::Window,
         device_id: c_int,
-    ) -> Result<PointerState<'_>, Error> {
+    ) -> Result<PointerState, Error> {
+        let xinput2 = syms!(XINPUT2);
         unsafe {
             let mut root = 0;
             let mut child = 0;
@@ -109,8 +112,8 @@ impl XConnection {
             let mut modifiers = Default::default();
             let mut group = Default::default();
 
-            let relative_to_window = (self.xinput2.XIQueryPointer)(
-                self.display,
+            let relative_to_window = (xinput2.XIQueryPointer)(
+                **self.display,
                 device_id,
                 window,
                 &mut root,
@@ -124,10 +127,9 @@ impl XConnection {
                 &mut group,
             ) == ffi::True;
 
-            self.check_errors()?;
+            self.display.check_errors()?;
 
             Ok(PointerState {
-                xconn: self,
                 root,
                 child,
                 root_x,
@@ -149,10 +151,11 @@ impl XConnection {
         buffer: *mut u8,
         size: usize,
     ) -> (ffi::KeySym, ffi::Status, c_int) {
+        let xlib = syms!(XLIB);
         let mut keysym: ffi::KeySym = 0;
         let mut status: ffi::Status = 0;
         let count = unsafe {
-            (self.xlib.Xutf8LookupString)(
+            (xlib.Xutf8LookupString)(
                 ic,
                 key_event,
                 buffer as *mut c_char,

@@ -14,19 +14,14 @@ pub enum ImeContextCreationError {
     Null,
 }
 
-unsafe fn create_pre_edit_attr<'a>(
-    xconn: &'a Arc<XConnection>,
-    ic_spot: &'a ffi::XPoint,
-) -> util::XSmartPointer<'a, c_void> {
-    util::XSmartPointer::new(
-        xconn,
-        (xconn.xlib.XVaCreateNestedList)(
-            0,
-            ffi::XNSpotLocation_0.as_ptr() as *const _,
-            ic_spot,
-            ptr::null_mut::<()>(),
-        ),
-    )
+unsafe fn create_pre_edit_attr<'a>(ic_spot: &'a ffi::XPoint) -> util::XSmartPointer<c_void> {
+    let xlib = syms!(XLIB);
+    util::XSmartPointer::new((xlib.XVaCreateNestedList)(
+        0,
+        ffi::XNSpotLocation_0.as_ptr() as *const _,
+        ic_spot,
+        ptr::null_mut::<()>(),
+    ))
     .expect("[winit] XVaCreateNestedList returned NULL")
 }
 
@@ -48,13 +43,14 @@ impl ImeContext {
         ic_spot: Option<ffi::XPoint>,
     ) -> Result<Self, ImeContextCreationError> {
         let ic = if let Some(ic_spot) = ic_spot {
-            ImeContext::create_ic_with_spot(xconn, im, window, ic_spot)
+            ImeContext::create_ic_with_spot(im, window, ic_spot)
         } else {
-            ImeContext::create_ic(xconn, im, window)
+            ImeContext::create_ic(im, window)
         };
 
         let ic = ic.ok_or(ImeContextCreationError::Null)?;
         xconn
+            .display
             .check_errors()
             .map_err(ImeContextCreationError::Error)?;
 
@@ -64,12 +60,9 @@ impl ImeContext {
         })
     }
 
-    unsafe fn create_ic(
-        xconn: &Arc<XConnection>,
-        im: ffi::XIM,
-        window: ffi::Window,
-    ) -> Option<ffi::XIC> {
-        let ic = (xconn.xlib.XCreateIC)(
+    unsafe fn create_ic(im: ffi::XIM, window: ffi::Window) -> Option<ffi::XIC> {
+        let xlib = syms!(XLIB);
+        let ic = (xlib.XCreateIC)(
             im,
             ffi::XNInputStyle_0.as_ptr() as *const _,
             ffi::XIMPreeditNothing | ffi::XIMStatusNothing,
@@ -85,13 +78,13 @@ impl ImeContext {
     }
 
     unsafe fn create_ic_with_spot(
-        xconn: &Arc<XConnection>,
         im: ffi::XIM,
         window: ffi::Window,
         ic_spot: ffi::XPoint,
     ) -> Option<ffi::XIC> {
-        let pre_edit_attr = create_pre_edit_attr(xconn, &ic_spot);
-        let ic = (xconn.xlib.XCreateIC)(
+        let xlib = syms!(XLIB);
+        let pre_edit_attr = create_pre_edit_attr(&ic_spot);
+        let ic = (xlib.XCreateIC)(
             im,
             ffi::XNInputStyle_0.as_ptr() as *const _,
             ffi::XIMPreeditNothing | ffi::XIMStatusNothing,
@@ -111,27 +104,29 @@ impl ImeContext {
     pub fn focus(&self, xconn: &Arc<XConnection>) -> Result<(), Error> {
         let xlib = syms!(XLIB);
         unsafe {
-            (xconn.xlib.XSetICFocus)(self.ic);
+            (xlib.XSetICFocus)(self.ic);
         }
-        xconn.check_errors()
+        xconn.display.check_errors()
     }
 
     pub fn unfocus(&self, xconn: &Arc<XConnection>) -> Result<(), Error> {
+        let xlib = syms!(XLIB);
         unsafe {
-            (xconn.xlib.XUnsetICFocus)(self.ic);
+            (xlib.XUnsetICFocus)(self.ic);
         }
-        xconn.check_errors()
+        xconn.display.check_errors()
     }
 
-    pub fn set_spot(&mut self, xconn: &Arc<XConnection>, x: c_short, y: c_short) {
+    pub fn set_spot(&mut self, x: c_short, y: c_short) {
+        let xlib = syms!(XLIB);
         if self.ic_spot.x == x && self.ic_spot.y == y {
             return;
         }
         self.ic_spot = ffi::XPoint { x, y };
 
         unsafe {
-            let pre_edit_attr = create_pre_edit_attr(xconn, &self.ic_spot);
-            (xconn.xlib.XSetICValues)(
+            let pre_edit_attr = create_pre_edit_attr(&self.ic_spot);
+            (xlib.XSetICValues)(
                 self.ic,
                 ffi::XNPreeditAttributes_0.as_ptr() as *const _,
                 pre_edit_attr.ptr,

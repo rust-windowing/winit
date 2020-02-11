@@ -7,13 +7,15 @@ use super::{context::ImeContext, input_method::PotentialInputMethods};
 use winit_types::error::Error;
 
 pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), Error> {
-    (xconn.xlib.XCloseIM)(im);
-    xconn.check_errors()
+    let xlib = syms!(XLIB);
+    (xlib.XCloseIM)(im);
+    xconn.display.check_errors()
 }
 
 pub unsafe fn destroy_ic(xconn: &Arc<XConnection>, ic: ffi::XIC) -> Result<(), Error> {
-    (xconn.xlib.XDestroyIC)(ic);
-    xconn.check_errors()
+    let xlib = syms!(XLIB);
+    (xlib.XDestroyIC)(ic);
+    xconn.display.check_errors()
 }
 
 pub struct ImeInner {

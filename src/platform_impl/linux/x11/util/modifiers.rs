@@ -48,8 +48,9 @@ impl ModifierKeymap {
     }
 
     pub fn reset_from_x_connection(&mut self, xconn: &XConnection) {
+        let xlib = syms!(XLIB);
         unsafe {
-            let keymap = (xconn.xlib.XGetModifierMapping)(xconn.display);
+            let keymap = (xlib.XGetModifierMapping)(**xconn.display);
 
             if keymap.is_null() {
                 panic!("[winit] failed to allocate XModifierKeymap");
@@ -57,7 +58,7 @@ impl ModifierKeymap {
 
             self.reset_from_x_keymap(&*keymap);
 
-            (xconn.xlib.XFreeModifiermap)(keymap);
+            (xlib.XFreeModifiermap)(keymap);
         }
     }
 

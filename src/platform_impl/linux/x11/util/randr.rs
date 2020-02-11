@@ -1,71 +1,135 @@
-use std::{env, slice, str::FromStr};
+use std::os::raw::*;
+use std::slice;
 
 use super::{
-    ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
+    ffi::{
+        CurrentTime, RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
+        RRScreenChangeNotifyMask, Success, True, Window, XRRCrtcInfo, XRRScreenResources,
+    },
     *,
 };
-use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
+use crate::platform_impl::platform::x11::{
+    monitor::{MonitorHandle, MonitorInfoSource},
+    VideoMode,
+};
+
+use winit_types::error::Error;
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
-pub enum EnvVarDPI {
-    Randr,
-    Scale(f64),
-    NotSet,
-}
-
-pub fn calc_dpi_factor(
-    (width_px, height_px): (u32, u32),
-    (width_mm, height_mm): (u64, u64),
-) -> f64 {
-    // See http://xpra.org/trac/ticket/728 for more information.
-    if width_mm == 0 || height_mm == 0 {
-        warn!("[winit] XRandR reported that the display's 0mm in size, which is certifiably insane");
-        return 1.0;
-    }
-
-    let ppmm = ((width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)).sqrt();
-    // Quantize 1/12 step size
-    let dpi_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
-    assert!(validate_scale_factor(dpi_factor));
-    dpi_factor
-}
 
 impl XConnection {
-    // Retrieve DPI from Xft.dpi property
-    pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
-        (self.xlib.XrmInitialize)();
-        let resource_manager_str = (self.xlib.XResourceManagerString)(self.display);
-        if resource_manager_str == ptr::null_mut() {
-            return None;
-        }
-        if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
-            let name: &str = "Xft.dpi:\t";
-            for pair in res.split("\n") {
-                if pair.starts_with(&name) {
-                    let res = &pair[name.len()..];
-                    return f64::from_str(&res).ok();
+    pub fn query_monitor_list_xrandr(&self) -> Vec<MonitorHandle> {
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
+        let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
+        unsafe {
+            let mut major = 0;
+            let mut minor = 0;
+            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
+
+            // With RandR, there will only ever be one screen, so using default
+            // here is OK.
+            let screen = (xlib.XDefaultScreen)(**self.display);
+            let root = (xlib.XRootWindow)(**self.display, screen);
+            let resources = if (major == 1 && minor >= 3) || major > 1 {
+                (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
+            } else {
+                // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
+                // Upon failure, `resources` will be null.
+                (xrandr.XRRGetScreenResources)(**self.display, root)
+            };
+
+            if resources.is_null() {
+                panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
+            }
+
+            let mut available;
+            let mut has_primary = false;
+
+            let primary = (xrandr.XRRGetOutputPrimary)(**self.display, root);
+            available = Vec::with_capacity((*resources).ncrtc as usize);
+            for crtc_index in 0..(*resources).ncrtc {
+                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
+                let crtc = (xrandr.XRRGetCrtcInfo)(**self.display, resources, crtc_id);
+                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
+                if is_active {
+                    let primary = *(*crtc).outputs.offset(0) == primary;
+                    has_primary |= primary;
+
+                    let (name, scale_factor, video_modes) =
+                        self.get_output_info(resources, crtc).unwrap();
+                    let dimensions = ((*crtc).width as u32, (*crtc).height as u32);
+                    let position = ((*crtc).x as i32, (*crtc).y as i32);
+                    let rect = AaRect::new(position, dimensions);
+                    available.push(MonitorHandle {
+                        id: Some(crtc_id),
+                        name,
+                        scale_factor,
+                        dimensions,
+                        position,
+                        primary,
+                        rect,
+                        video_modes,
+                        screen: Some(screen),
+                    });
+                }
+                (xrandr.XRRFreeCrtcInfo)(crtc);
+            }
+
+            // If no monitors were detected as being primary, we just pick one ourselves!
+            if !has_primary {
+                if let Some(ref mut fallback) = available.first_mut() {
+                    // Setting this here will come in handy if we ever add an `is_primary` method.
+                    fallback.primary = true;
                 }
             }
+
+            (xrandr.XRRFreeScreenResources)(resources);
+            available
         }
-        None
     }
+
+    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, Error> {
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
+        let xrandr = syms!(XRANDR_2_2_0);
+
+        let mut event_offset = 0;
+        let mut error_offset = 0;
+        let status = unsafe {
+            (xrandr.XRRQueryExtension)(**self.display, &mut event_offset, &mut error_offset)
+        };
+
+        if status != True {
+            self.display.check_errors()?;
+            unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
+        }
+
+        let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
+        unsafe { (xrandr.XRRSelectInput)(**self.display, root, mask) };
+
+        Ok(event_offset)
+    }
+
     pub unsafe fn get_output_info(
         &self,
         resources: *mut XRRScreenResources,
         crtc: *mut XRRCrtcInfo,
     ) -> Option<(String, f64, Vec<VideoMode>)> {
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
+        let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         let output_info =
-            (self.xrandr.XRRGetOutputInfo)(self.display, resources, *(*crtc).outputs.offset(0));
+            (xrandr.XRRGetOutputInfo)(**self.display, resources, *(*crtc).outputs.offset(0));
         if output_info.is_null() {
             // When calling `XRRGetOutputInfo` on a virtual monitor (versus a physical display)
             // it's possible for it to return null.
             // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=816596
-            let _ = self.check_errors(); // discard `BadRROutput` error
+            let _ = self.display.check_errors(); // discard `BadRROutput` error
             return None;
         }
 
-        let screen = (self.xlib.XDefaultScreen)(self.display);
-        let bit_depth = (self.xlib.XDefaultDepth)(self.display, screen);
+        // With RandR, there will only ever be one screen, so using default
+        // here is OK.
+        let screen = (xlib.XDefaultScreen)(**self.display);
+        let bit_depth = (xlib.XDefaultDepth)(**self.display, screen);
 
         let output_modes =
             slice::from_raw_parts((*output_info).modes, (*output_info).nmode as usize);
@@ -87,7 +151,7 @@ impl XConnection {
                     size: (x.width, x.height),
                     refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
                     bit_depth: bit_depth as u16,
-                    native_mode: x.id,
+                    native_mode: Some(x.id),
                     // This is populated in `MonitorHandle::video_modes` as the
                     // video mode is returned to the user
                     monitor: None,
@@ -100,82 +164,34 @@ impl XConnection {
             (*output_info).nameLen as usize,
         );
         let name = String::from_utf8_lossy(name_slice).into();
-        // Override DPI if `WINIT_X11_SCALE_FACTOR` variable is set
-        let deprecated_dpi_override = env::var("WINIT_HIDPI_FACTOR").ok();
-        if deprecated_dpi_override.is_some() {
-            warn!(
-	            "[winit] The WINIT_HIDPI_FACTOR environment variable is deprecated; use WINIT_X11_SCALE_FACTOR"
-	        )
-        }
-        let dpi_env = env::var("WINIT_X11_SCALE_FACTOR").ok().map_or_else(
-            || EnvVarDPI::NotSet,
-            |var| {
-                if var.to_lowercase() == "randr" {
-                    EnvVarDPI::Randr
-                } else if let Ok(dpi) = f64::from_str(&var) {
-                    EnvVarDPI::Scale(dpi)
-                } else if var.is_empty() {
-                    EnvVarDPI::NotSet
-                } else {
-                    panic!(
-                        "[winit] `WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
-                        var
-                    );
-                }
-            },
-        );
+        let scale_factor = self
+            .acquire_scale_factor(Some((output_info, crtc)), screen)
+            .unwrap();
 
-        let scale_factor = match dpi_env {
-            EnvVarDPI::Randr => calc_dpi_factor(
-                ((*crtc).width as u32, (*crtc).height as u32),
-                (
-                    (*output_info).mm_width as u64,
-                    (*output_info).mm_height as u64,
-                ),
-            ),
-            EnvVarDPI::Scale(dpi_override) => {
-                if !validate_scale_factor(dpi_override) {
-                    panic!(
-                        "[winit] `WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
-                        dpi_override,
-                    );
-                }
-                dpi_override
-            }
-            EnvVarDPI::NotSet => {
-                if let Some(dpi) = self.get_xft_dpi() {
-                    dpi / 96.
-                } else {
-                    calc_dpi_factor(
-                        ((*crtc).width as u32, (*crtc).height as u32),
-                        (
-                            (*output_info).mm_width as u64,
-                            (*output_info).mm_height as u64,
-                        ),
-                    )
-                }
-            }
-        };
-
-        (self.xrandr.XRRFreeOutputInfo)(output_info);
+        (xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, scale_factor, modes))
     }
+
     pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
+        let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         unsafe {
             let mut major = 0;
             let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
 
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            // With RandR, there will only ever be one screen, so using default
+            // here is OK.
+            let root = (xlib.XDefaultRootWindow)(**self.display);
             let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+                (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
             } else {
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
+                (xrandr.XRRGetScreenResources)(**self.display, root)
             };
 
-            let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
-            let status = (self.xrandr.XRRSetCrtcConfig)(
-                self.display,
+            let crtc = (xrandr.XRRGetCrtcInfo)(**self.display, resources, crtc_id);
+            let status = (xrandr.XRRSetCrtcConfig)(
+                **self.display,
                 resources,
                 crtc_id,
                 CurrentTime,
@@ -187,8 +203,8 @@ impl XConnection {
                 1,
             );
 
-            (self.xrandr.XRRFreeCrtcInfo)(crtc);
-            (self.xrandr.XRRFreeScreenResources)(resources);
+            (xrandr.XRRFreeCrtcInfo)(crtc);
+            (xrandr.XRRFreeScreenResources)(resources);
 
             if status == Success as i32 {
                 Ok(())
@@ -197,23 +213,28 @@ impl XConnection {
             }
         }
     }
+
     pub fn get_crtc_mode(&self, crtc_id: RRCrtc) -> RRMode {
+        assert_eq!(self.monitor_info_source, MonitorInfoSource::XRandR);
+        let (xlib, xrandr) = syms!(XLIB, XRANDR_2_2_0);
         unsafe {
             let mut major = 0;
             let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+            (xrandr.XRRQueryVersion)(**self.display, &mut major, &mut minor);
 
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
+            // With RandR, there will only ever be one screen, so using default
+            // here is OK.
+            let root = (xlib.XDefaultRootWindow)(**self.display);
             let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
+                (xrandr.XRRGetScreenResourcesCurrent)(**self.display, root)
             } else {
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
+                (xrandr.XRRGetScreenResources)(**self.display, root)
             };
 
-            let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
+            let crtc = (xrandr.XRRGetCrtcInfo)(**self.display, resources, crtc_id);
             let mode = (*crtc).mode;
-            (self.xrandr.XRRFreeCrtcInfo)(crtc);
-            (self.xrandr.XRRFreeScreenResources)(resources);
+            (xrandr.XRRFreeCrtcInfo)(crtc);
+            (xrandr.XRRFreeScreenResources)(resources);
             mode
         }
     }

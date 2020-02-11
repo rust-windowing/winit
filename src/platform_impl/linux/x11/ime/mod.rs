@@ -150,7 +150,7 @@ impl Ime {
             return;
         }
         if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window) {
-            context.set_spot(&self.xconn, x as _, y as _);
+            context.set_spot(x as _, y as _);
         }
     }
 }

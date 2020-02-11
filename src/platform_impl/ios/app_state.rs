@@ -671,7 +671,7 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
                 ref mut queued_events,
                 queued_gpu_redraws: _,
             } => mem::replace(queued_events, Vec::new()),
-            s => bug!("unexpected state {:?}", s),
+            s => bug!("[winit] unexpected state {:?}", s),
         };
         if queued_events.is_empty() {
             let queued_gpu_redraws = match this.take_state() {

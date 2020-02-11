@@ -136,6 +136,15 @@ extern crate bitflags;
 extern crate objc;
 #[cfg(all(target_arch = "wasm32", feature = "std_web"))]
 extern crate std_web as stdweb;
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+#[macro_use]
+extern crate glutin_x11_sym;
 #[macro_use]
 extern crate winit_types;
 

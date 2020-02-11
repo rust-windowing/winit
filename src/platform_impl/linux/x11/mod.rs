@@ -46,6 +46,7 @@ use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
     ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
+    monitor::MonitorInfoSource,
     util::modifiers::ModifierKeymap,
 };
 use crate::{
@@ -63,7 +64,6 @@ pub struct EventLoopWindowTarget<T> {
     wm_delete_window: ffi::Atom,
     net_wm_ping: ffi::Atom,
     ime_sender: ImeSender,
-    root: ffi::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     pending_redraws: Arc<Mutex<HashSet<WindowId>>>,
@@ -92,7 +92,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoop<T> {
     pub fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
-        let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
+        let (xlib, xinput2) = syms!(XLIB, XINPUT2);
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
 
@@ -108,22 +108,37 @@ impl<T: 'static> EventLoop<T> {
             setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
         }
         let ime = RefCell::new({
-            let result = Ime::new(Arc::clone(&xconn));
-            if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!("[winit] Failed to open input method: {:#?}", state);
+            match Ime::new(Arc::clone(&xconn)) {
+                Err(ImeCreationError::OpenFailure(err)) => {
+                    panic!("[winit] Failed to open input method: {:#?}", err)
+                }
+                Err(ImeCreationError::SetDestroyCallbackFailed(err)) => panic!(
+                    "[winit] Failed to set input method destruction callback: {:#?}",
+                    err
+                ),
+                Ok(result) => result,
             }
-            result.expect("[winit] Failed to set input method destruction callback")
         });
 
-        let randr_event_offset = xconn
-            .select_xrandr_input(root)
-            .expect("[winit] Failed to query XRandR extension");
+        let randr_event_offset = match xconn.monitor_info_source {
+            MonitorInfoSource::XRandR => {
+                // With RandR there is only ever one screen, therefore only one
+                // root, so using the default is okay here.
+                let root = unsafe { (xlib.XDefaultRootWindow)(**xconn.display) };
+                Some(
+                    xconn
+                        .select_xrandr_input(root)
+                        .expect("Failed to query XRandR extension"),
+                )
+            }
+            _ => None,
+        };
 
         let xi2ext = unsafe {
             let mut ext = XExtension::default();
 
-            let res = (xconn.xlib.XQueryExtension)(
-                xconn.display,
+            let res = (xlib.XQueryExtension)(
+                **xconn.display,
                 b"XInputExtension\0".as_ptr() as *const c_char,
                 &mut ext.opcode,
                 &mut ext.first_event_id,
@@ -140,8 +155,8 @@ impl<T: 'static> EventLoop<T> {
         unsafe {
             let mut xinput_major_ver = ffi::XI_2_Major;
             let mut xinput_minor_ver = ffi::XI_2_Minor;
-            if (xconn.xinput2.XIQueryVersion)(
-                xconn.display,
+            if (xinput2.XIQueryVersion)(
+                **xconn.display,
                 &mut xinput_major_ver,
                 &mut xinput_minor_ver,
             ) != ffi::Success as libc::c_int
@@ -153,7 +168,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
 
-        xconn.update_cached_wm_info(root);
+        xconn.update_cached_wm_info();
 
         let pending_redraws: Arc<Mutex<HashSet<WindowId>>> = Default::default();
 
@@ -163,7 +178,6 @@ impl<T: 'static> EventLoop<T> {
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
                 ime,
-                root,
                 windows: Default::default(),
                 _marker: ::std::marker::PhantomData,
                 ime_sender,
@@ -210,10 +224,16 @@ impl<T: 'static> EventLoop<T> {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        get_xtarget(&target)
-            .xconn
-            .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
-            .queue();
+        //
+        // Hierarchy changed events should arrive to all roots, so using default
+        // is okay here.
+        {
+            let root = unsafe { (xlib.XDefaultRootWindow)(**get_xtarget(&target).xconn.display) };
+            get_xtarget(&target)
+                .xconn
+                .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
+                .queue();
+        }
 
         event_processor.init_device(ffi::XIAllDevices);
 
@@ -446,24 +466,23 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
-struct DeviceInfo<'a> {
-    xconn: &'a XConnection,
+struct DeviceInfo {
     info: *const ffi::XIDeviceInfo,
     count: usize,
 }
 
-impl<'a> DeviceInfo<'a> {
-    fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
+impl DeviceInfo {
+    fn get(xconn: &XConnection, device: c_int) -> Option<Self> {
+        let xinput2 = syms!(XINPUT2);
         unsafe {
             let mut count = 0;
-            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors().ok()?;
+            let info = (xinput2.XIQueryDevice)(**xconn.display, device, &mut count);
+            xconn.display.check_errors().ok()?;
 
             if info.is_null() || count == 0 {
                 None
             } else {
                 Some(DeviceInfo {
-                    xconn,
                     info,
                     count: count as usize,
                 })
@@ -472,14 +491,15 @@ impl<'a> DeviceInfo<'a> {
     }
 }
 
-impl<'a> Drop for DeviceInfo<'a> {
+impl Drop for DeviceInfo {
     fn drop(&mut self) {
+        let xinput2 = syms!(XINPUT2);
         assert!(!self.info.is_null());
-        unsafe { (self.xconn.xinput2.XIFreeDeviceInfo)(self.info as *mut _) };
+        unsafe { (xinput2.XIFreeDeviceInfo)(self.info as *mut _) };
     }
 }
 
-impl<'a> Deref for DeviceInfo<'a> {
+impl Deref for DeviceInfo {
     type Target = [ffi::XIDeviceInfo];
     fn deref(&self) -> &Self::Target {
         unsafe { slice::from_raw_parts(self.info, self.count) }
@@ -521,10 +541,11 @@ impl Drop for Window {
     fn drop(&mut self) {
         let window = self.deref();
         let xconn = &window.xconn;
+        let xlib = syms!(XLIB);
         unsafe {
-            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0);
+            (xlib.XDestroyWindow)(**xconn.display, window.id().0);
             // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
-            let _ = xconn.check_errors();
+            let _ = xconn.display.check_errors();
         }
     }
 }
@@ -541,9 +562,10 @@ impl<'a> GenericEventCookie<'a> {
         xconn: &'b XConnection,
         event: ffi::XEvent,
     ) -> Option<GenericEventCookie<'b>> {
+        let xlib = syms!(XLIB);
         unsafe {
             let mut cookie: ffi::XGenericEventCookie = From::from(event);
-            if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
+            if (xlib.XGetEventData)(**xconn.display, &mut cookie) == ffi::True {
                 Some(GenericEventCookie { xconn, cookie })
             } else {
                 None
@@ -554,8 +576,9 @@ impl<'a> GenericEventCookie<'a> {
 
 impl<'a> Drop for GenericEventCookie<'a> {
     fn drop(&mut self) {
+        let xlib = syms!(XLIB);
         unsafe {
-            (self.xconn.xlib.XFreeEventData)(self.xconn.display, &mut self.cookie);
+            (xlib.XFreeEventData)(**self.xconn.display, &mut self.cookie);
         }
     }
 }
@@ -611,9 +634,21 @@ impl Device {
                 | ffi::XI_RawKeyPressMask
                 | ffi::XI_RawKeyReleaseMask;
             // The request buffer is flushed when we poll for events
-            wt.xconn
-                .select_xinput_events(wt.root, info.deviceid, mask)
-                .queue();
+            {
+                // The raw motions events appear to still happen even when the
+                // focus is on a different screen on multihead systems.
+                //
+                // I (Freya) haven't tested if it breaks on multihead systems
+                // with two different window managers, but we can't support
+                // everything, can we? That just strikes me as a painful setup
+                // that would have bigger problems than some missing device
+                // events.
+                let xlib = syms!(XLIB);
+                let root = unsafe { (xlib.XDefaultRootWindow)(**wt.xconn.display) };
+                wt.xconn
+                    .select_xinput_events(root, info.deviceid, mask)
+                    .queue();
+            }
 
             // Identify scroll axes
             for class_ptr in Device::classes(info) {

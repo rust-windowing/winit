@@ -2,24 +2,23 @@ use std::ops::{Deref, DerefMut};
 
 use super::*;
 
-pub struct XSmartPointer<'a, T> {
-    xconn: &'a XConnection,
+pub struct XSmartPointer<T> {
     pub ptr: *mut T,
 }
 
-impl<'a, T> XSmartPointer<'a, T> {
+impl<T> XSmartPointer<T> {
     // You're responsible for only passing things to this that should be XFree'd.
     // Returns None if ptr is null.
-    pub fn new(xconn: &'a XConnection, ptr: *mut T) -> Option<Self> {
+    pub fn new(ptr: *mut T) -> Option<Self> {
         if !ptr.is_null() {
-            Some(XSmartPointer { xconn, ptr })
+            Some(XSmartPointer { ptr })
         } else {
             None
         }
     }
 }
 
-impl<'a, T> Deref for XSmartPointer<'a, T> {
+impl<T> Deref for XSmartPointer<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -27,33 +26,37 @@ impl<'a, T> Deref for XSmartPointer<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for XSmartPointer<'a, T> {
+impl<T> DerefMut for XSmartPointer<T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.ptr }
     }
 }
 
-impl<'a, T> Drop for XSmartPointer<'a, T> {
+impl<T> Drop for XSmartPointer<T> {
     fn drop(&mut self) {
+        let xlib = syms!(XLIB);
         unsafe {
-            (self.xconn.xlib.XFree)(self.ptr as *mut _);
+            (xlib.XFree)(self.ptr as *mut _);
         }
     }
 }
 
 impl XConnection {
-    pub fn alloc_class_hint(&self) -> XSmartPointer<'_, ffi::XClassHint> {
-        XSmartPointer::new(self, unsafe { (self.xlib.XAllocClassHint)() })
+    pub fn alloc_class_hint(&self) -> XSmartPointer<ffi::XClassHint> {
+        let xlib = syms!(XLIB);
+        XSmartPointer::new(unsafe { (xlib.XAllocClassHint)() })
             .expect("[winit] `XAllocClassHint` returned null; out of memory")
     }
 
-    pub fn alloc_size_hints(&self) -> XSmartPointer<'_, ffi::XSizeHints> {
-        XSmartPointer::new(self, unsafe { (self.xlib.XAllocSizeHints)() })
+    pub fn alloc_size_hints(&self) -> XSmartPointer<ffi::XSizeHints> {
+        let xlib = syms!(XLIB);
+        XSmartPointer::new(unsafe { (xlib.XAllocSizeHints)() })
             .expect("[winit] `XAllocSizeHints` returned null; out of memory")
     }
 
-    pub fn alloc_wm_hints(&self) -> XSmartPointer<'_, ffi::XWMHints> {
-        XSmartPointer::new(self, unsafe { (self.xlib.XAllocWMHints)() })
+    pub fn alloc_wm_hints(&self) -> XSmartPointer<ffi::XWMHints> {
+        let xlib = syms!(XLIB);
+        XSmartPointer::new(unsafe { (xlib.XAllocWMHints)() })
             .expect("[winit] `XAllocWMHints` returned null; out of memory")
     }
 }

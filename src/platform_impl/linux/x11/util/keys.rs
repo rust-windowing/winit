@@ -63,24 +63,27 @@ impl Iterator for KeymapIter<'_> {
 
 impl XConnection {
     pub fn keycode_to_keysym(&self, keycode: ffi::KeyCode) -> ffi::KeySym {
-        unsafe { (self.xlib.XKeycodeToKeysym)(self.display, keycode, 0) }
+        let xlib = syms!(XLIB);
+        unsafe { (xlib.XKeycodeToKeysym)(**self.display, keycode, 0) }
     }
 
     pub fn lookup_keysym(&self, xkev: &mut ffi::XKeyEvent) -> ffi::KeySym {
+        let xlib = syms!(XLIB);
         let mut keysym = 0;
 
         unsafe {
-            (self.xlib.XLookupString)(xkev, ptr::null_mut(), 0, &mut keysym, ptr::null_mut());
+            (xlib.XLookupString)(xkev, ptr::null_mut(), 0, &mut keysym, ptr::null_mut());
         }
 
         keysym
     }
 
     pub fn query_keymap(&self) -> Keymap {
+        let xlib = syms!(XLIB);
         let mut keys = [0; 32];
 
         unsafe {
-            (self.xlib.XQueryKeymap)(self.display, keys.as_mut_ptr() as *mut c_char);
+            (xlib.XQueryKeymap)(**self.display, keys.as_mut_ptr() as *mut c_char);
         }
 
         Keymap { keys }

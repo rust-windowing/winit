@@ -1,10 +1,8 @@
-use std::os::raw::*;
+use std::os::raw;
+use std::{env, ptr, str::FromStr};
 
 use super::{
-    ffi::{
-        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
-        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
-    },
+    ffi::{XRRCrtcInfo, XRROutputInfo},
     util, XConnection,
 };
 use crate::{
@@ -14,6 +12,7 @@ use crate::{
 
 use parking_lot::Mutex;
 use winit_types::dpi::{self, PhysicalPosition, PhysicalSize};
+use x11_dl::xrandr::{RRCrtc, RRMode};
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
@@ -32,8 +31,84 @@ pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
-    pub(crate) native_mode: RRMode,
     pub(crate) monitor: Option<MonitorHandle>,
+    /// RandR only. None otherwise.
+    pub(crate) native_mode: Option<RRMode>,
+}
+
+/// How we are going to get the scale factor.
+#[derive(PartialEq, Debug, Copy, Clone)]
+pub enum ScaleFactorSource {
+    Scale(f64),
+    Xft,
+    XRandR,
+    Xlib,
+}
+
+impl From<MonitorInfoSource> for ScaleFactorSource {
+    fn from(mis: MonitorInfoSource) -> Self {
+        match mis {
+            MonitorInfoSource::XRandR => ScaleFactorSource::XRandR,
+            MonitorInfoSource::Xinerama => ScaleFactorSource::Xlib,
+            MonitorInfoSource::Xlib => ScaleFactorSource::Xlib,
+        }
+    }
+}
+
+impl From<MonitorInfoSource> for Vec<ScaleFactorSource> {
+    fn from(mis: MonitorInfoSource) -> Self {
+        // Override DPI if `WINIT_X11_SCALE_FACTOR` variable is set
+        let deprecated_scale_override = env::var("WINIT_HIDPI_FACTOR").ok();
+        if deprecated_scale_override.is_some() {
+            warn!(
+                "[winit] The WINIT_HIDPI_FACTOR environment variable is deprecated; use WINIT_X11_SCALE_FACTOR"
+            )
+        }
+
+        let sfc: ScaleFactorSource = mis.into();
+        let default = vec![ScaleFactorSource::Xft, sfc];
+        env::var("WINIT_X11_SCALE_FACTOR").ok().map_or_else(
+            || default.clone(),
+            |var| match var.trim() {
+                "" => default.clone(),
+                var => {
+                    var
+                        .to_lowercase()
+                        .split(",")
+                        .map(|var| match var {
+                            "randr" => ScaleFactorSource::XRandR,
+                            "xlib" => ScaleFactorSource::Xlib,
+                            "xft" => ScaleFactorSource::Xft,
+                            _ => {
+                                if let Ok(scale) = f64::from_str(&var) {
+                                    if !dpi::validate_scale_factor(scale) {
+                                        panic!(
+                                            "[winit] `WINIT_X11_SCALE_FACTOR` invalid; Scale factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                                            scale,
+                                        );
+                                    }
+                                    ScaleFactorSource::Scale(scale)
+                                } else {
+                                    panic!(
+                                        "[winit] `WINIT_X11_SCALE_FACTOR` invalid; Scale factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                                        var
+                                    );
+                                }
+                            }
+                        })
+                        .collect()
+                }
+            },
+        )
+    }
+}
+
+/// How we are going to get monitor info.
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
+pub enum MonitorInfoSource {
+    XRandR,
+    Xinerama,
+    Xlib,
 }
 
 impl VideoMode {
@@ -62,22 +137,24 @@ impl VideoMode {
 
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
-    /// The actual id
-    pub(crate) id: RRCrtc,
+    /// The actual id, RandR only.
+    pub(crate) id: Option<RRCrtc>,
+    /// X11 screen. None if dummy.
+    pub(crate) screen: Option<raw::c_int>,
     /// The name of the monitor
     pub(crate) name: String,
     /// The size of the monitor
-    dimensions: (u32, u32),
+    pub(crate) dimensions: (u32, u32),
     /// The position of the monitor in the X screen
-    position: (i32, i32),
+    pub(crate) position: (i32, i32),
     /// If the monitor is the primary one
-    primary: bool,
+    pub(crate) primary: bool,
     /// The DPI scale factor
     pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
     pub(crate) rect: util::AaRect,
     /// Supported video modes on this monitor
-    video_modes: Vec<VideoMode>,
+    pub(crate) video_modes: Vec<VideoMode>,
 }
 
 impl PartialEq for MonitorHandle {
@@ -107,32 +184,9 @@ impl std::hash::Hash for MonitorHandle {
 }
 
 impl MonitorHandle {
-    fn new(
-        xconn: &XConnection,
-        resources: *mut XRRScreenResources,
-        id: RRCrtc,
-        crtc: *mut XRRCrtcInfo,
-        primary: bool,
-    ) -> Option<Self> {
-        let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
-        let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
-        let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
-        let rect = util::AaRect::new(position, dimensions);
-        Some(MonitorHandle {
-            id,
-            name,
-            scale_factor,
-            dimensions,
-            position,
-            primary,
-            rect,
-            video_modes,
-        })
-    }
-
     pub fn dummy() -> Self {
         MonitorHandle {
-            id: 0,
+            id: Some(0),
             name: "<dummy monitor>".into(),
             scale_factor: 1.0,
             dimensions: (1, 1),
@@ -140,12 +194,13 @@ impl MonitorHandle {
             primary: true,
             rect: util::AaRect::new((0, 0), (1, 1)),
             video_modes: Vec::new(),
+            screen: None,
         }
     }
 
     pub(crate) fn is_dummy(&self) -> bool {
         // Zero is an invalid XID value; no real monitor will have it
-        self.id == 0
+        self.id == Some(0)
     }
 
     pub fn name(&self) -> Option<String> {
@@ -153,8 +208,13 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
-        self.id as u32
+    pub fn native_id(&self) -> Option<u32> {
+        self.id.map(|id| id as u32)
+    }
+
+    #[inline]
+    pub fn x11_screen(&self) -> Option<raw::c_int> {
+        self.screen
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
@@ -183,7 +243,11 @@ impl MonitorHandle {
 }
 
 impl XConnection {
-    pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> MonitorHandle {
+    pub fn get_monitor_for_window(
+        &self,
+        window_rect: Option<util::AaRect>,
+        window_screen: raw::c_int,
+    ) -> MonitorHandle {
         let monitors = self.available_monitors();
 
         if monitors.is_empty() {
@@ -201,6 +265,9 @@ impl XConnection {
         let mut largest_overlap = 0;
         let mut matched_monitor = default;
         for monitor in &monitors {
+            if monitor.screen != Some(window_screen) {
+                continue;
+            };
             let overlapping_area = window_rect.get_overlapping_area(&monitor.rect);
             if overlapping_area > largest_overlap {
                 largest_overlap = overlapping_area;
@@ -212,52 +279,10 @@ impl XConnection {
     }
 
     fn query_monitor_list(&self) -> Vec<MonitorHandle> {
-        unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
-
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
-            let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
-            } else {
-                // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
-                // Upon failure, `resources` will be null.
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
-            };
-
-            if resources.is_null() {
-                panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
-            }
-
-            let mut available;
-            let mut has_primary = false;
-
-            let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
-            available = Vec::with_capacity((*resources).ncrtc as usize);
-            for crtc_index in 0..(*resources).ncrtc {
-                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
-                let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
-                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
-                if is_active {
-                    let is_primary = *(*crtc).outputs.offset(0) == primary;
-                    has_primary |= is_primary;
-                    MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
-                        .map(|monitor_id| available.push(monitor_id));
-                }
-                (self.xrandr.XRRFreeCrtcInfo)(crtc);
-            }
-
-            // If no monitors were detected as being primary, we just pick one ourselves!
-            if !has_primary {
-                if let Some(ref mut fallback) = available.first_mut() {
-                    // Setting this here will come in handy if we ever add an `is_primary` method.
-                    fallback.primary = true;
-                }
-            }
-
-            (self.xrandr.XRRFreeScreenResources)(resources);
-            available
+        match self.monitor_info_source {
+            MonitorInfoSource::XRandR => self.query_monitor_list_xrandr(),
+            MonitorInfoSource::Xinerama => self.query_monitor_list_xinerama(),
+            MonitorInfoSource::Xlib => self.query_monitor_list_none(),
         }
     }
 
@@ -283,32 +308,103 @@ impl XConnection {
             .find(|monitor| monitor.primary)
             .unwrap_or_else(MonitorHandle::dummy)
     }
+}
 
-    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {
-        let has_xrandr = unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor)
-        };
-        assert!(
-            has_xrandr == True,
-            "[winit] XRandR extension not available."
+pub fn calc_scale_factor(
+    (width_px, height_px): (u32, u32),
+    (width_mm, height_mm): (u64, u64),
+) -> f64 {
+    // See http://xpra.org/trac/ticket/728 for more information.
+    if width_mm == 0 || height_mm == 0 {
+        warn!(
+            "[winit] XRandR reported that the display's 0mm in size, which is certifiably insane"
         );
+        return 1.0;
+    }
 
-        let mut event_offset = 0;
-        let mut error_offset = 0;
-        let status = unsafe {
-            (self.xrandr.XRRQueryExtension)(self.display, &mut event_offset, &mut error_offset)
-        };
+    let ppmm = ((width_px as f64 * height_px as f64) / (width_mm as f64 * height_mm as f64)).sqrt();
+    // Quantize 1/12 step size
+    let scale_factor = ((ppmm * (12.0 * 25.4 / 96.0)).round() / 12.0).max(1.0);
+    assert!(dpi::validate_scale_factor(scale_factor));
+    scale_factor
+}
 
-        if status != True {
-            self.check_errors()?;
-            unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
+impl XConnection {
+    // Retrieve DPI from Xft.dpi property
+    pub fn get_xft_scale(&self) -> Option<f64> {
+        unsafe {
+            let xlib = syms!(XLIB);
+            (xlib.XrmInitialize)();
+            let resource_manager_str = (xlib.XResourceManagerString)(**self.display);
+            if resource_manager_str == ptr::null_mut() {
+                return None;
+            }
+            if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
+                let name: &str = "Xft.dpi:\t";
+                for pair in res.split("\n") {
+                    if pair.starts_with(&name) {
+                        let res = &pair[name.len()..];
+                        return f64::from_str(&res).ok();
+                    }
+                }
+            }
+            None
+        }
+    }
+
+    pub fn get_xlib_dims(&self, screen: raw::c_int) -> ((u32, u32), (u64, u64)) {
+        unsafe {
+            let xlib = syms!(XLIB);
+            let screen_ptr = (xlib.XScreenOfDisplay)(**self.display, screen);
+            let dimensions = (
+                (xlib.XWidthOfScreen)(screen_ptr) as u32,
+                (xlib.XHeightOfScreen)(screen_ptr) as u32,
+            );
+            let dimensions_mm = (
+                (xlib.XWidthMMOfScreen)(screen_ptr) as u64,
+                (xlib.XHeightMMOfScreen)(screen_ptr) as u64,
+            );
+            (dimensions, dimensions_mm)
+        }
+    }
+
+    pub fn acquire_scale_factor(
+        &self,
+        xrandr_parts: Option<(*mut XRROutputInfo, *mut XRRCrtcInfo)>,
+        screen: raw::c_int,
+    ) -> Option<f64> {
+        let scale_factor_sources: Vec<ScaleFactorSource> = self.monitor_info_source.into();
+
+        for sfc in scale_factor_sources {
+            match sfc {
+                ScaleFactorSource::Scale(s) => return Some(s),
+                ScaleFactorSource::Xft => {
+                    if let Some(s) = self.get_xft_scale() {
+                        return Some(s / 96.0);
+                    }
+                }
+                ScaleFactorSource::Xlib => {
+                    let (dimensions, dimensions_mm) = self.get_xlib_dims(screen);
+                    return Some(calc_scale_factor(dimensions, dimensions_mm));
+                }
+                ScaleFactorSource::XRandR => unsafe {
+                    if let Some((output_info, crtc)) = xrandr_parts {
+                        return Some(calc_scale_factor(
+                            ((*crtc).width as u32, (*crtc).height as u32),
+                            (
+                                (*output_info).mm_width as u64,
+                                (*output_info).mm_height as u64,
+                            ),
+                        ));
+                    } else {
+                        panic!(
+                            "[winit] `WINIT_X11_SCALE_FACTOR` had `randr`, but system does not have RANDR ext.",
+                        );
+                    }
+                },
+            }
         }
 
-        let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
-        unsafe { (self.xrandr.XRRSelectInput)(self.display, root, mask) };
-
-        Ok(event_offset)
+        None
     }
 }

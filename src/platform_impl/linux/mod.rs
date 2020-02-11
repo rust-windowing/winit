@@ -1,6 +1,6 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
+use std::{collections::VecDeque, env, os::raw, sync::Arc};
 
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
@@ -31,7 +31,7 @@ const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub visual_infos: Option<XVisualInfo>,
-    pub screen_id: Option<i32>,
+    pub screen: Option<raw::c_int>,
     pub resize_increments: Option<Size>,
     pub base_size: Option<Size>,
     pub class: Option<(String, String)>,
@@ -45,7 +45,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
             visual_infos: None,
-            screen_id: None,
+            screen: None,
             resize_increments: None,
             base_size: None,
             class: None,
@@ -107,10 +107,18 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn native_identifier(&self) -> u32 {
+    pub fn native_id(&self) -> Option<u32> {
         match self {
-            &MonitorHandle::X(ref m) => m.native_identifier(),
-            &MonitorHandle::Wayland(ref m) => m.native_identifier(),
+            &MonitorHandle::X(ref m) => m.native_id(),
+            &MonitorHandle::Wayland(ref m) => Some(m.native_id()),
+        }
+    }
+
+    #[inline]
+    pub fn x11_screen(&self) -> Option<raw::c_int> {
+        match self {
+            &MonitorHandle::X(ref m) => m.x11_screen(),
+            &MonitorHandle::Wayland(_) => None,
         }
     }
 
@@ -454,38 +462,6 @@ impl Window {
             &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
-}
-
-unsafe extern "C" fn x_error_callback(
-    display: *mut x11::ffi::Display,
-    event: *mut x11::ffi::XErrorEvent,
-) -> c_int {
-    let xconn_lock = X11_BACKEND.lock();
-    if let Ok(ref xconn) = *xconn_lock {
-        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
-        // which do not require initialization.
-        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
-        (xconn.xlib.XGetErrorText)(
-            display,
-            (*event).error_code as c_int,
-            buf.as_mut_ptr() as *mut c_char,
-            buf.len() as c_int,
-        );
-        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
-
-        let error = XError {
-            description: description.into_owned(),
-            error_code: (*event).error_code,
-            request_code: (*event).request_code,
-            minor_code: (*event).minor_code,
-        };
-
-        error!("[winit] X11 error: {:#?}", error);
-
-        *xconn.latest_error.lock() = Some(error);
-    }
-    // Fun fact: this return value is completely ignored.
-    0
 }
 
 pub enum EventLoop<T: 'static> {

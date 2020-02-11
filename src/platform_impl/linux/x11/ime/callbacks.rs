@@ -16,10 +16,11 @@ pub unsafe fn xim_set_callback(
     field: *const c_char,
     callback: *mut ffi::XIMCallback,
 ) -> Result<(), Error> {
+    let xlib = syms!(XLIB);
     // It's advisable to wrap variadic FFI functions in our own functions, as we want to minimize
     // access that isn't type-checked.
-    (xconn.xlib.XSetIMValues)(xim, field, callback, ptr::null_mut::<()>());
-    xconn.check_errors()
+    (xlib.XSetIMValues)(xim, field, callback, ptr::null_mut::<()>());
+    xconn.display.check_errors()
 }
 
 // Set a callback for when an input method matching the current locale modifiers becomes

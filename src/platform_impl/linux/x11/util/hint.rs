@@ -181,12 +181,12 @@ impl MwmHints {
     }
 }
 
-pub struct NormalHints<'a> {
-    size_hints: XSmartPointer<'a, ffi::XSizeHints>,
+pub struct NormalHints {
+    size_hints: XSmartPointer<ffi::XSizeHints>,
 }
 
-impl<'a> NormalHints<'a> {
-    pub fn new(xconn: &'a XConnection) -> Self {
+impl<'a> NormalHints {
+    pub fn new(xconn: &XConnection) -> Self {
         NormalHints {
             size_hints: xconn.alloc_size_hints(),
         }
@@ -245,13 +245,14 @@ impl<'a> NormalHints<'a> {
 }
 
 impl XConnection {
-    pub fn get_wm_hints(&self, window: ffi::Window) -> Result<XSmartPointer<'_, ffi::XWMHints>, Error> {
-        let wm_hints = unsafe { (self.xlib.XGetWMHints)(self.display, window) };
-        self.check_errors()?;
+    pub fn get_wm_hints(&self, window: ffi::Window) -> Result<XSmartPointer<ffi::XWMHints>, Error> {
+        let xlib = syms!(XLIB);
+        let wm_hints = unsafe { (xlib.XGetWMHints)(**self.display, window) };
+        self.display.check_errors()?;
         let wm_hints = if wm_hints.is_null() {
             self.alloc_wm_hints()
         } else {
-            XSmartPointer::new(self, wm_hints).unwrap()
+            XSmartPointer::new(wm_hints).unwrap()
         };
         Ok(wm_hints)
     }
@@ -259,35 +260,36 @@ impl XConnection {
     pub fn set_wm_hints(
         &self,
         window: ffi::Window,
-        wm_hints: XSmartPointer<'_, ffi::XWMHints>,
+        wm_hints: XSmartPointer<ffi::XWMHints>,
     ) -> Flusher<'_> {
+        let xlib = syms!(XLIB);
         unsafe {
-            (self.xlib.XSetWMHints)(self.display, window, wm_hints.ptr);
+            (xlib.XSetWMHints)(**self.display, window, wm_hints.ptr);
         }
         Flusher::new(self)
     }
 
-    pub fn get_normal_hints(&self, window: ffi::Window) -> Result<NormalHints<'_>, Error> {
+    pub fn get_normal_hints(&self, window: ffi::Window) -> Result<NormalHints, Error> {
+        let xlib = syms!(XLIB);
         let size_hints = self.alloc_size_hints();
         let mut supplied_by_user = MaybeUninit::uninit();
         unsafe {
-            (self.xlib.XGetWMNormalHints)(
-                self.display,
+            (xlib.XGetWMNormalHints)(
+                **self.display,
                 window,
                 size_hints.ptr,
                 supplied_by_user.as_mut_ptr(),
             );
         }
-        self.check_errors().map(|_| NormalHints { size_hints })
+        self.display
+            .check_errors()
+            .map(|_| NormalHints { size_hints })
     }
 
-    pub fn set_normal_hints(
-        &self,
-        window: ffi::Window,
-        normal_hints: NormalHints<'_>,
-    ) -> Flusher<'_> {
+    pub fn set_normal_hints(&self, window: ffi::Window, normal_hints: NormalHints) -> Flusher<'_> {
+        let xlib = syms!(XLIB);
         unsafe {
-            (self.xlib.XSetWMNormalHints)(self.display, window, normal_hints.size_hints.ptr);
+            (xlib.XSetWMNormalHints)(**self.display, window, normal_hints.size_hints.ptr);
         }
         Flusher::new(self)
     }

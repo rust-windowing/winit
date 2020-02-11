@@ -171,8 +171,9 @@ impl Dnd {
     }
 
     pub unsafe fn convert_selection(&self, window: c_ulong, time: c_ulong) {
-        (self.xconn.xlib.XConvertSelection)(
-            self.xconn.display,
+        let xlib = syms!(XLIB);
+        (xlib.XConvertSelection)(
+            **self.xconn.display,
             self.atoms.selection,
             self.atoms.uri_list,
             self.atoms.selection,

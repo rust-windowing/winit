@@ -23,7 +23,7 @@ use crate::{
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
-    pub(super) randr_event_offset: c_int,
+    pub(super) randr_event_offset: Option<c_int>,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
@@ -45,9 +45,9 @@ impl<T: 'static> EventProcessor<T> {
         }
     }
 
-    fn with_window<F, Ret>(&self, window_id: ffi::Window, callback: F) -> Option<Ret>
+    fn with_window<F, Ret>(&self, window_id: ffi::Window, mut callback: F) -> Option<Ret>
     where
-        F: Fn(&Arc<UnownedWindow>) -> Ret,
+        F: FnMut(&Arc<UnownedWindow>) -> Ret,
     {
         let mut deleted = false;
         let window_id = WindowId(window_id);
@@ -74,13 +74,15 @@ impl<T: 'static> EventProcessor<T> {
     }
 
     pub(super) fn poll(&self) -> bool {
+        let xlib = syms!(XLIB);
         let wt = get_xtarget(&self.target);
-        let result = unsafe { (wt.xconn.xlib.XPending)(wt.xconn.display) };
+        let result = unsafe { (xlib.XPending)(**wt.xconn.display) };
 
         result != 0
     }
 
     pub(super) unsafe fn poll_one_event(&mut self, event_ptr: *mut ffi::XEvent) -> bool {
+        let xlib = syms!(XLIB);
         let wt = get_xtarget(&self.target);
         // This function is used to poll and remove a single event
         // from the Xlib event queue in a non-blocking, atomic way.
@@ -97,8 +99,8 @@ impl<T: 'static> EventProcessor<T> {
             1
         }
 
-        let result = (wt.xconn.xlib.XCheckIfEvent)(
-            wt.xconn.display,
+        let result = (xlib.XCheckIfEvent)(
+            **wt.xconn.display,
             event_ptr,
             Some(predicate),
             std::ptr::null_mut(),
@@ -111,6 +113,7 @@ impl<T: 'static> EventProcessor<T> {
     where
         F: FnMut(Event<'_, T>),
     {
+        let xlib = syms!(XLIB);
         let wt = get_xtarget(&self.target);
         // XFilterEvent tells us when an event has been discarded by the input method.
         // Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
@@ -118,7 +121,7 @@ impl<T: 'static> EventProcessor<T> {
         // arrow keys from being detected twice.
         if ffi::True
             == unsafe {
-                (wt.xconn.xlib.XFilterEvent)(xev, {
+                (xlib.XFilterEvent)(xev, {
                     let xev: &ffi::XAnyEvent = xev.as_ref();
                     xev.window
                 })
@@ -156,9 +159,10 @@ impl<T: 'static> EventProcessor<T> {
                     || mapping.request == ffi::MappingKeyboard
                 {
                     unsafe {
-                        (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                        (xlib.XRefreshKeyboardMapping)(xev.as_mut());
                     }
                     wt.xconn
+                        .display
                         .check_errors()
                         .expect("[winit] Failed to call XRefreshKeyboardMapping");
 
@@ -180,14 +184,20 @@ impl<T: 'static> EventProcessor<T> {
                     });
                 } else if client_msg.data.get_long(0) as ffi::Atom == wt.net_wm_ping {
                     let response_msg: &mut ffi::XClientMessageEvent = xev.as_mut();
-                    response_msg.window = wt.root;
-                    wt.xconn
-                        .send_event(
-                            wt.root,
-                            Some(ffi::SubstructureNotifyMask | ffi::SubstructureRedirectMask),
-                            *response_msg,
-                        )
-                        .queue();
+                    // We should send the message back to the window's root, not
+                    // the default, as that's what makes the most sense, especially
+                    // given that different window managers can be controlling
+                    // different screens.
+                    self.with_window(response_msg.window, |window| {
+                        response_msg.window = window.root;
+                        wt.xconn
+                            .send_event(
+                                window.root,
+                                Some(ffi::SubstructureNotifyMask | ffi::SubstructureRedirectMask),
+                                *response_msg,
+                            )
+                            .queue();
+                    });
                 } else if client_msg.message_type == self.dnd.atoms.enter {
                     let source_window = client_msg.data.get_long(0) as c_ulong;
                     let flags = client_msg.data.get_long(1);
@@ -377,8 +387,13 @@ impl<T: 'static> EventProcessor<T> {
                             .as_ref()
                             .cloned()
                             .unwrap_or_else(|| {
+                                // We must use the window's root, not the default screen's
+                                // root else we will sometimes (but not always) get a bad
+                                // match error.
+                                //
+                                // It appears to be very timing specific.
                                 let frame_extents =
-                                    wt.xconn.get_frame_extents_heuristic(xwindow, wt.root);
+                                    wt.xconn.get_frame_extents_heuristic(xwindow, window.screen);
                                 shared_state_lock.frame_extents = Some(frame_extents.clone());
                                 frame_extents
                             });
@@ -403,13 +418,15 @@ impl<T: 'static> EventProcessor<T> {
                         // If we don't use the existing adjusted value when available, then the user can screw up the
                         // resizing by dragging across monitors *without* dropping the window.
                         let (width, height) = shared_state_lock
-                            .dpi_adjusted
+                            .scale_factor_adjusted
                             .unwrap_or_else(|| (xev.width as u32, xev.height as u32));
 
                         let last_scale_factor = shared_state_lock.last_monitor.scale_factor;
                         let new_scale_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            let monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
+                            let monitor = wt
+                                .xconn
+                                .get_monitor_for_window(Some(window_rect), window.screen);
 
                             if monitor.is_dummy() {
                                 // Avoid updating monitor using a dummy monitor handle
@@ -420,7 +437,7 @@ impl<T: 'static> EventProcessor<T> {
                             }
                         };
                         if last_scale_factor != new_scale_factor {
-                            let (new_width, new_height) = window.adjust_for_dpi(
+                            let (new_width, new_height) = window.adjust_for_scale_factor(
                                 last_scale_factor,
                                 new_scale_factor,
                                 width,
@@ -447,7 +464,8 @@ impl<T: 'static> EventProcessor<T> {
                                     new_inner_size.width,
                                     new_inner_size.height,
                                 );
-                                shared_state_lock.dpi_adjusted = Some(new_inner_size.into());
+                                shared_state_lock.scale_factor_adjusted =
+                                    Some(new_inner_size.into());
                                 // if the DPI factor changed, force a resize event to ensure the logical
                                 // size is computed with the right DPI factor
                                 resized = true;
@@ -459,10 +477,12 @@ impl<T: 'static> EventProcessor<T> {
                     // doesn't need this, but Xfwm does. The hack should not be run on other WMs, since tiling
                     // WMs constrain the window size, making the resize fail. This would cause an endless stream of
                     // XResizeWindow requests, making Xorg, the winit client, and the WM consume 100% of CPU.
-                    if let Some(adjusted_size) = shared_state_lock.dpi_adjusted {
-                        if new_inner_size == adjusted_size || !util::wm_name_is_one_of(&["Xfwm4"]) {
+                    if let Some(adjusted_size) = shared_state_lock.scale_factor_adjusted {
+                        if new_inner_size == adjusted_size
+                            || !util::wm_name_is_one_of(&["Xfwm4"], window.screen)
+                        {
                             // When this finally happens, the event will not be synthetic.
-                            shared_state_lock.dpi_adjusted = None;
+                            shared_state_lock.scale_factor_adjusted = None;
                         } else {
                             window.set_inner_size_physical(adjusted_size.0, adjusted_size.1);
                         }
@@ -488,7 +508,7 @@ impl<T: 'static> EventProcessor<T> {
                 // (which is almost all of them). Failing to correctly update WM info doesn't
                 // really have much impact, since on the WMs affected (xmonad, dwm, etc.) the only
                 // effect is that we waste some time trying to query unsupported properties.
-                wt.xconn.update_cached_wm_info(wt.root);
+                wt.xconn.update_cached_wm_info();
 
                 self.with_window(xev.window, |window| {
                     window.invalidate_cached_frame_extents();
@@ -1119,7 +1139,9 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
             _ => {
-                if event_type == self.randr_event_offset {
+                // With Xinerama, hotpluging is _NOT_ supported, as the configuration
+                // is static.
+                if Some(event_type) == self.randr_event_offset {
                     // In the future, it would be quite easy to emit monitor hotplug events.
                     let prev_list = monitor::invalidate_cached_monitor_list();
                     if let Some(prev_list) = prev_list {
@@ -1138,7 +1160,7 @@ impl<T: 'static> EventProcessor<T> {
                                                     let (width, height) =
                                                         window.inner_size_physical();
                                                     let (new_width, new_height) = window
-                                                        .adjust_for_dpi(
+                                                        .adjust_for_scale_factor(
                                                             prev_monitor.scale_factor,
                                                             new_monitor.scale_factor,
                                                             width,

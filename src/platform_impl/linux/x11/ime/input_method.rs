@@ -17,16 +17,17 @@ lazy_static! {
 }
 
 unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<ffi::XIM> {
+    let xlib = syms!(XLIB);
     let _lock = GLOBAL_LOCK.lock();
 
     // XSetLocaleModifiers returns...
     // * The current locale modifiers if it's given a NULL pointer.
     // * The new locale modifiers if we succeeded in setting them.
     // * NULL if the locale modifiers string is malformed.
-    (xconn.xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr());
+    (xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr());
 
-    let im = (xconn.xlib.XOpenIM)(
-        xconn.display,
+    let im = (xlib.XOpenIM)(
+        **xconn.display,
         ptr::null_mut(),
         ptr::null_mut(),
         ptr::null_mut(),
@@ -93,17 +94,19 @@ enum GetXimServersError {
 // modifiers, since we don't want a user who's looking at logs to ask "am I supposed to set
 // XMODIFIERS to `@server=ibus`?!?"
 unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXimServersError> {
+    let xlib = syms!(XLIB);
     let servers_atom = xconn.get_atom_unchecked(b"XIM_SERVERS\0");
 
-    let root = (xconn.xlib.XDefaultRootWindow)(xconn.display);
+    // TODO: Default root probably works with multihead setups, right?
+    let root = (xlib.XDefaultRootWindow)(**xconn.display);
 
     let mut atoms: Vec<ffi::Atom> = xconn
         .get_property(root, servers_atom, ffi::XA_ATOM)
         .map_err(GetXimServersError::GetPropertyError)?;
 
     let mut names: Vec<*const c_char> = Vec::with_capacity(atoms.len());
-    (xconn.xlib.XGetAtomNames)(
-        xconn.display,
+    (xlib.XGetAtomNames)(
+        **xconn.display,
         atoms.as_mut_ptr(),
         atoms.len() as _,
         names.as_mut_ptr() as _,
@@ -116,10 +119,13 @@ unsafe fn get_xim_servers(xconn: &Arc<XConnection>) -> Result<Vec<String>, GetXi
             .to_owned()
             .into_string()
             .map_err(GetXimServersError::InvalidUtf8)?;
-        (xconn.xlib.XFree)(name as _);
+        (xlib.XFree)(name as _);
         formatted_names.push(string.replace("@server=", "@im="));
     }
-    xconn.check_errors().map_err(GetXimServersError::Error)?;
+    xconn
+        .display
+        .check_errors()
+        .map_err(GetXimServersError::Error)?;
     Ok(formatted_names)
 }
 

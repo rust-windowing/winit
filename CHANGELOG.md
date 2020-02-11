@@ -3,10 +3,12 @@
 - On Wayland, fix coordinates in touch events when scale factor isn't 1.
 - On Wayland, fix color from `close_button_icon_color` not applying.
 - **Breaking:** Renamed `serde` feature to `serde_feature`.
+- **Breaking:** On X11, the function `xlib_screen_id` was renamed to `xlib_screen`. Also added `x11_screen` to `MonitorHandle`. `MonitorHandle`'s `native_id` now returns an `Option`.
 - **Breaking:** The types in `winit::dpi` and `winit::error` have been moved to the new `winit_types` crate.
 - **Breaking:** Unified all functions to return the same error type, `winit_types::error::Error`.
 - Winit's panic and log messages now begin with "[winit]" as to help distinguish them from glutin's.
 - **Breaking:** `Window::set_fullscreen` now returns an `Result<(), Error>` instead of panicking or doing nothing silently.
+- On X11, if the RandR extension is not present, winit will no longer panic. Instead it will return the list of X11 screens, augmenting it with information from Xinerama if present.
 
 # 0.21.0 (2020-02-04)
 

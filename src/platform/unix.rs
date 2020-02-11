@@ -1,9 +1,14 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{os::raw, ptr, sync::Arc};
+use std::{os::raw, ptr};
 
+use glutin_interface::{
+    GbmWindowParts, NativeDisplay, NativeWindow, NativeWindowSource, RawDisplay, RawWindow, Seal,
+    WaylandWindowParts, X11WindowParts,
+};
 use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
-use winit_types::dpi::Size;
+use winit_types::dpi::{PhysicalSize, Size};
+use winit_types::error::{Error, ErrorType};
 
 use crate::{
     event_loop::{EventLoop, EventLoopWindowTarget},
@@ -12,16 +17,11 @@ use crate::{
 };
 
 use crate::platform_impl::{
-    x11::{ffi::XVisualInfo, XConnection},
-    EventLoop as LinuxEventLoop, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
-    Window as LinuxWindow,
+    x11::ffi::XVisualInfo, EventLoop as LinuxEventLoop,
+    EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow,
 };
 
-// TODO: stupid hack so that glutin can do its work
-#[doc(hidden)]
-pub use crate::platform_impl::x11;
-
-pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
+pub use crate::platform_impl::x11::util::WindowType as XWindowType;
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
@@ -31,16 +31,23 @@ pub trait EventLoopWindowTargetExtUnix {
     /// True if the `EventLoopWindowTarget` uses X11.
     fn is_x11(&self) -> bool;
 
-    #[doc(hidden)]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
-
-    /// Returns a pointer to the `wl_display` object of wayland that is used by this
-    /// `EventLoopWindowTarget`.
+    /// Returns a pointer to the `wl_display` object of Wayland that is used by
+    /// this `EventLoopWindowTarget`.
     ///
-    /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
+    /// Returns `None` if the `EventLoop` doesn't use Wayland (if it uses Xlib
+    /// for example).
     ///
     /// The pointer will become invalid when the winit `EventLoop` is destroyed.
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
+
+    /// Returns a pointer to the `Display` object of Xlib that is used by this
+    /// `EventLoopWindowTarget`.
+    ///
+    /// Returns `None` if the `EventLoop` doesn't use Xlib (if it uses Wayland
+    /// for example).
+    ///
+    /// The pointer will become invalid when the winit `EventLoop` is destroyed.
+    fn xlib_display(&self) -> Option<*mut raw::c_void>;
 }
 
 impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
@@ -55,15 +62,6 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[doc(hidden)]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match self.p {
-            LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
-            _ => None,
-        }
-    }
-
-    #[inline]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.p {
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
@@ -71,6 +69,94 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
             }
             _ => None,
         }
+    }
+
+    #[inline]
+    fn xlib_display(&self) -> Option<*mut raw::c_void> {
+        match self.p {
+            LinuxEventLoopWindowTarget::X(ref p) => Some(**p.x_connection().display as *mut _),
+            _ => None,
+        }
+    }
+}
+
+impl NativeWindow for Window {
+    fn raw_window(&self) -> RawWindow {
+        self.wayland_surface()
+            .map(|wl_surface| RawWindow::Wayland {
+                wl_surface,
+                _non_exhaustive_do_not_use: Seal,
+            })
+            .unwrap_or_else(|| RawWindow::Xlib {
+                window: self.xlib_window().unwrap(),
+                _non_exhaustive_do_not_use: Seal,
+            })
+    }
+
+    fn size(&self) -> PhysicalSize<u32> {
+        self.inner_size()
+    }
+
+    fn scale_factor(&self) -> f64 {
+        self.scale_factor()
+    }
+}
+
+impl<T> NativeDisplay for EventLoopWindowTarget<T> {
+    fn raw_display(&self) -> RawDisplay {
+        self.wayland_display()
+            .map(|wl_display| RawDisplay::Wayland {
+                wl_display: Some(wl_display),
+                _non_exhaustive_do_not_use: Seal,
+            })
+            .unwrap_or_else(|| RawDisplay::Xlib {
+                display: self.xlib_display().unwrap(),
+                screen: None,
+                _non_exhaustive_do_not_use: Seal,
+            })
+    }
+}
+
+impl<T> NativeWindowSource for EventLoopWindowTarget<T> {
+    type Window = Window;
+    type WindowBuilder = WindowBuilder;
+
+    fn build_wayland(
+        &self,
+        wb: Self::WindowBuilder,
+        _wwp: WaylandWindowParts,
+    ) -> Result<Self::Window, Error> {
+        if !self.is_wayland() {
+            return Err(make_error!(ErrorType::BadApiUsage(
+                "Trying to make Wayland window with non-Wayland display.".to_string()
+            )));
+        }
+
+        wb.build(self)
+    }
+
+    fn build_x11(
+        &self,
+        wb: Self::WindowBuilder,
+        xwp: X11WindowParts,
+    ) -> Result<Self::Window, Error> {
+        if !self.is_x11() {
+            return Err(make_error!(ErrorType::BadApiUsage(
+                "Trying to make X11 window with non-X11 display.".to_string()
+            )));
+        }
+
+        wb.with_x11_visual(xwp.x_visual_info)
+            .with_x11_screen(xwp.screen)
+            .build(self)
+    }
+
+    fn build_gbm(
+        &self,
+        _wb: Self::WindowBuilder,
+        _gbmwp: GbmWindowParts,
+    ) -> Result<Self::Window, Error> {
+        unimplemented!("Winit does not provide GBM support")
     }
 }
 
@@ -174,13 +260,10 @@ pub trait WindowExtUnix {
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the winit `Window` is destroyed.
     fn xlib_display(&self) -> Option<*mut raw::c_void>;
 
-    fn xlib_screen_id(&self) -> Option<raw::c_int>;
-
-    #[doc(hidden)]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
+    fn xlib_screen(&self) -> Option<raw::c_int>;
 
     /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
     fn set_urgent(&self, is_urgent: bool);
@@ -189,21 +272,21 @@ pub trait WindowExtUnix {
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the winit `Window` is destroyed.
     fn xcb_connection(&self) -> Option<*mut raw::c_void>;
 
     /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the winit `Window` is destroyed.
     fn wayland_surface(&self) -> Option<*mut raw::c_void>;
 
     /// Returns a pointer to the `wl_display` object of wayland that is used by this window.
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the winit `Window` is destroyed.
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
     /// Sets the color theme of the client side window decorations on wayland
@@ -237,18 +320,9 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
-    fn xlib_screen_id(&self) -> Option<raw::c_int> {
+    fn xlib_screen(&self) -> Option<raw::c_int> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            _ => None,
-        }
-    }
-
-    #[inline]
-    #[doc(hidden)]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
+            LinuxWindow::X(ref w) => Some(w.xlib_screen()),
             _ => None,
         }
     }
@@ -301,7 +375,7 @@ impl WindowExtUnix for Window {
 /// Additional methods on `WindowBuilder` that are specific to Unix.
 pub trait WindowBuilderExtUnix {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
-    fn with_x11_screen(self, screen_id: i32) -> Self;
+    fn with_x11_screen(self, screen: raw::c_int) -> Self;
 
     /// Build window with `WM_CLASS` hint; defaults to the name of the binary. Only relevant on X11.
     fn with_class(self, class: String, instance: String) -> Self;
@@ -327,14 +401,14 @@ pub trait WindowBuilderExtUnix {
 impl WindowBuilderExtUnix for WindowBuilder {
     #[inline]
     fn with_x11_visual<T>(mut self, visual_infos: *const T) -> Self {
-        self.platform_specific.visual_infos =
-            Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
+        let visual_infos: XVisualInfo = unsafe { ptr::read(visual_infos as *const XVisualInfo) };
+        self.platform_specific.visual_infos = Some(visual_infos);
         self
     }
 
     #[inline]
-    fn with_x11_screen(mut self, screen_id: i32) -> Self {
-        self.platform_specific.screen_id = Some(screen_id);
+    fn with_x11_screen(mut self, screen: raw::c_int) -> Self {
+        self.platform_specific.screen = Some(screen);
         self
     }
 
@@ -384,13 +458,24 @@ impl WindowBuilderExtUnix for WindowBuilder {
 /// Additional methods on `MonitorHandle` that are specific to Linux.
 pub trait MonitorHandleExtUnix {
     /// Returns the inner identifier of the monitor.
-    fn native_id(&self) -> u32;
+    ///
+    /// On X11, `None` if RandR extension not in use.
+    fn native_id(&self) -> Option<u32>;
+
+    /// Returns the X11 screen of the monitor. None if using Wayland or is a
+    /// dummy window.
+    fn x11_screen(&self) -> Option<raw::c_int>;
 }
 
 impl MonitorHandleExtUnix for MonitorHandle {
     #[inline]
-    fn native_id(&self) -> u32 {
-        self.inner.native_identifier()
+    fn native_id(&self) -> Option<u32> {
+        self.inner.native_id()
+    }
+
+    #[inline]
+    fn x11_screen(&self) -> Option<raw::c_int> {
+        self.inner.x11_screen()
     }
 }
 
