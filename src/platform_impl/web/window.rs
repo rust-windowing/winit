@@ -212,12 +212,13 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) -> Result<(), Error> {
         if monitor.is_some() {
             self.canvas.request_fullscreen();
         } else if self.canvas.is_fullscreen() {
             backend::exit_fullscreen();
         }
+        Ok(())
     }
 
     #[inline]

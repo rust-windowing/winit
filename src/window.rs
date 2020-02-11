@@ -54,7 +54,7 @@ impl Drop for Window {
         // closing the window doesn't necessarily always mean application exit,
         // such as when there are multiple windows)
         if let Some(Fullscreen::Exclusive(_)) = self.fullscreen() {
-            self.set_fullscreen(None);
+            self.set_fullscreen(None).unwrap();
         }
     }
 }
@@ -617,8 +617,10 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    /// - **X11:** Exclusive mode is only supported if the X Server supports
+    ///   RandR.
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
         self.window.set_fullscreen(fullscreen)
     }
 

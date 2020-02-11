@@ -48,9 +48,9 @@ fn main() {
                     (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
                     (VirtualKeyCode::F, ElementState::Pressed) => {
                         if window.fullscreen().is_some() {
-                            window.set_fullscreen(None);
+                            window.set_fullscreen(None).unwrap();
                         } else {
-                            window.set_fullscreen(fullscreen.clone());
+                            window.set_fullscreen(fullscreen.clone()).unwrap();
                         }
                     }
                     (VirtualKeyCode::S, ElementState::Pressed) => {

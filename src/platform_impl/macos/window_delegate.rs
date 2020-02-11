@@ -479,7 +479,7 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
             trace!("[winit] Unlocked shared state in `window_did_enter_fullscreen`");
             drop(shared_state);
             if let Some(target_fullscreen) = target_fullscreen {
-                window.set_fullscreen(target_fullscreen);
+                window.set_fullscreen(target_fullscreen).unwrap();
             }
         });
     });
@@ -499,7 +499,7 @@ extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
             trace!("[winit] Unlocked shared state in `window_did_exit_fullscreen`");
             drop(shared_state);
             if let Some(target_fullscreen) = target_fullscreen {
-                window.set_fullscreen(target_fullscreen);
+                window.set_fullscreen(target_fullscreen).unwrap();
             }
         })
     });

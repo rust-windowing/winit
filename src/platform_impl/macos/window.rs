@@ -394,7 +394,7 @@ impl UnownedWindow {
         let delegate = new_delegate(&window, fullscreen.is_some());
 
         // Set fullscreen mode after we setup everything
-        window.set_fullscreen(fullscreen);
+        window.set_fullscreen(fullscreen)?;
 
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
@@ -705,24 +705,24 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
         trace!("[winit] Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
         if shared_state_lock.is_simple_fullscreen {
             trace!("[winit] Unlocked shared state in `set_fullscreen`");
-            return;
+            return Ok(());
         }
         if shared_state_lock.in_fullscreen_transition {
             // We can't set fullscreen here.
             // Set fullscreen after transition.
             shared_state_lock.target_fullscreen = Some(fullscreen);
             trace!("[winit] Unlocked shared state in `set_fullscreen`");
-            return;
+            return Ok(());
         }
         let old_fullscreen = shared_state_lock.fullscreen.clone();
         if fullscreen == old_fullscreen {
             trace!("[winit] Unlocked shared state in `set_fullscreen`");
-            return;
+            return Ok(());
         }
         trace!("[winit] Unlocked shared state in `set_fullscreen`");
         drop(shared_state_lock);
@@ -871,6 +871,8 @@ impl UnownedWindow {
             },
             _ => (),
         }
+
+        Ok(())
     }
 
     #[inline]

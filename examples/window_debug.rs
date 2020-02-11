@@ -75,17 +75,21 @@ fn main() {
                             .video_modes()
                             .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
                         {
-                            window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
+                            window
+                                .set_fullscreen(Some(Fullscreen::Exclusive(mode)))
+                                .unwrap();
                         } else {
                             eprintln!("no video modes available");
                         }
                     }
                     VirtualKeyCode::F => {
                         if window.fullscreen().is_some() {
-                            window.set_fullscreen(None);
+                            window.set_fullscreen(None).unwrap();
                         } else {
                             let monitor = window.current_monitor();
-                            window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
+                            window
+                                .set_fullscreen(Some(Fullscreen::Borderless(monitor)))
+                                .unwrap();
                         }
                     }
                     VirtualKeyCode::M => {

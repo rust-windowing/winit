@@ -381,14 +381,14 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
         let mut window_state_lock = window_state.lock();
         let old_fullscreen = window_state_lock.fullscreen.clone();
         if window_state_lock.fullscreen == fullscreen {
-            return;
+            return Ok(());
         }
         window_state_lock.fullscreen = fullscreen.clone();
         drop(window_state_lock);
@@ -542,6 +542,8 @@ impl Window {
                 taskbar_mark_fullscreen(window.0, fullscreen.is_some());
             }
         });
+
+        Ok(())
     }
 
     #[inline]
@@ -779,7 +781,7 @@ unsafe fn init<T: 'static>(
     win.set_visible(attributes.visible);
 
     if let Some(_) = attributes.fullscreen {
-        win.set_fullscreen(attributes.fullscreen);
+        win.set_fullscreen(attributes.fullscreen)?;
         force_window_active(win.window.0);
     }
 

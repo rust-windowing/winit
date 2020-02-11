@@ -438,7 +438,7 @@ impl UnownedWindow {
             }
             if window_attrs.fullscreen.is_some() {
                 window
-                    .set_fullscreen_inner(window_attrs.fullscreen.clone())
+                    .set_fullscreen_inner(window_attrs.fullscreen.clone())?
                     .map(|flusher| flusher.queue());
             }
             if window_attrs.always_on_top {
@@ -583,22 +583,27 @@ impl UnownedWindow {
         flusher
     }
 
-    fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Option<util::Flusher<'_>> {
+    fn set_fullscreen_inner(
+        &self,
+        fullscreen: Option<Fullscreen>,
+    ) -> Result<Option<util::Flusher<'_>>, RootOsError> {
+
         let mut shared_state_lock = self.shared_state.lock();
 
         match shared_state_lock.visibility {
             // Setting fullscreen on a window that is not visible will generate an error.
             Visibility::No | Visibility::YesWait => {
                 shared_state_lock.desired_fullscreen = Some(fullscreen);
-                return None;
+                return Ok(None);
             }
             Visibility::Yes => (),
         }
 
         let old_fullscreen = shared_state_lock.fullscreen.clone();
         if old_fullscreen == fullscreen {
-            return None;
+            return Ok(None);
         }
+
         shared_state_lock.fullscreen = fullscreen.clone();
 
         match (&old_fullscreen, &fullscreen) {
@@ -642,7 +647,7 @@ impl UnownedWindow {
                 if let Some(position) = shared_state_lock.restore_position.take() {
                     self.set_position_inner(position.0, position.1).queue();
                 }
-                Some(flusher)
+                Ok(Some(flusher))
             }
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
@@ -657,7 +662,7 @@ impl UnownedWindow {
 
                 // Don't set fullscreen on an invalid dummy monitor handle
                 if monitor.is_dummy() {
-                    return None;
+                    return Ok(None);
                 }
 
                 if let Some(video_mode) = video_mode {
@@ -696,7 +701,7 @@ impl UnownedWindow {
                 let monitor_origin: (i32, i32) = monitor.position().into();
                 self.set_position_inner(monitor_origin.0, monitor_origin.1)
                     .queue();
-                Some(self.set_fullscreen_hint(true))
+                Ok(Some(self.set_fullscreen_hint(true)))
             }
         }
     }
@@ -712,13 +717,15 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
+    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) -> Result<(), Error> {
+        if let Some(flusher) = self.set_fullscreen_inner(fullscreen)? {
             flusher
                 .sync()
                 .expect("[winit] Failed to change window fullscreen state");
             self.invalidate_cached_frame_extents();
         }
+
+        Ok(())
     }
 
     // Called by EventProcessor when a VisibilityNotify event is received
@@ -735,7 +742,7 @@ impl UnownedWindow {
 
                 if let Some(fullscreen) = shared_state.desired_fullscreen.take() {
                     drop(shared_state);
-                    self.set_fullscreen(fullscreen);
+                    self.set_fullscreen(fullscreen).unwrap();
                 }
             }
         }

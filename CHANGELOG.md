@@ -6,6 +6,7 @@
 - **Breaking:** The types in `winit::dpi` and `winit::error` have been moved to the new `winit_types` crate.
 - **Breaking:** Unified all functions to return the same error type, `winit_types::error::Error`.
 - Winit's panic and log messages now begin with "[winit]" as to help distinguish them from glutin's.
+- **Breaking:** `Window::set_fullscreen` now returns an `Result<(), Error>` instead of panicking or doing nothing silently.
 
 # 0.21.0 (2020-02-04)
 
