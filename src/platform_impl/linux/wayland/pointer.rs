@@ -12,8 +12,8 @@ use super::{
     DeviceId,
 };
 
-use winit_types::dpi::LogicalPosition;
 use smithay_client_toolkit::surface;
+use winit_types::dpi::LogicalPosition;
 
 use smithay_client_toolkit::reexports::client::protocol::{
     wl_pointer::{self, Event as PtrEvent, WlPointer},

@@ -10,7 +10,11 @@ pub fn mouse_button(event: &MouseEvent) -> MouseButton {
         0 => MouseButton::Left,
         1 => MouseButton::Middle,
         2 => MouseButton::Right,
-        i => MouseButton::Other((i - 3).try_into().expect("[winit] very large mouse button value")),
+        i => MouseButton::Other(
+            (i - 3)
+                .try_into()
+                .expect("[winit] very large mouse button value"),
+        ),
     }
 }
 

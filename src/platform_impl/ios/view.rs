@@ -572,8 +572,8 @@ pub fn create_delegate_class() {
     }
 
     let ui_responder = class!(UIResponder);
-    let mut decl =
-        ClassDecl::new("AppDelegate", ui_responder).expect("[winit] Failed to declare class `AppDelegate`");
+    let mut decl = ClassDecl::new("AppDelegate", ui_responder)
+        .expect("[winit] Failed to declare class `AppDelegate`");
 
     unsafe {
         decl.add_method(

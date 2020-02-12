@@ -143,8 +143,8 @@ impl InputMethodName {
     }
 
     pub fn from_str(string: &str) -> Self {
-        let c_string =
-            CString::new(string).expect("[winit] String used to construct CString contained null byte");
+        let c_string = CString::new(string)
+            .expect("[winit] String used to construct CString contained null byte");
         InputMethodName {
             c_string,
             string: string.to_owned(),
