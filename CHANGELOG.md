@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix `set_simple_screen` to remember frame excluding title bar.
 - On Wayland, fix coordinates in touch events when scale factor isn't 1.
 - On Wayland, fix color from `close_button_icon_color` not applying.
 - Ignore locale if unsupported by X11 backend

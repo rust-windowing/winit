@@ -1028,7 +1028,11 @@ impl WindowExtMacOS for UnownedWindow {
 
             if fullscreen {
                 // Remember the original window's settings
-                shared_state_lock.standard_frame = Some(NSWindow::frame(*self.ns_window));
+                // Exclude title bar
+                shared_state_lock.standard_frame = Some(NSWindow::contentRectForFrameRect_(
+                    *self.ns_window,
+                    NSWindow::frame(*self.ns_window),
+                ));
                 shared_state_lock.saved_style = Some(self.ns_window.styleMask());
                 shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
 
