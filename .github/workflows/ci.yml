@@ -39,7 +39,6 @@ jobs:
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
           - { target: x86_64-apple-darwin,      os: macos-latest,    }
           - { target: x86_64-apple-ios,         os: macos-latest,    }
-          - { target: armv7-apple-ios,          os: macos-latest,    }
           - { target: aarch64-apple-ios,        os: macos-latest,    }
           # We're using Windows rather than Ubuntu to run the wasm tests because caching cargo-web
           # doesn't currently work on Linux.
