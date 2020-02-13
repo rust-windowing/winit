@@ -61,10 +61,10 @@ impl EventLoop {
         while let Ok(event) = self.event_rx.try_recv() {
             let e = match event {
                 android_glue::Event::EventMotion(motion) => {
-                    let dpi_factor = MonitorHandle.scale_factor();
+                    let scale_factor = MonitorHandle.scale_factor();
                     let location = LogicalPosition::from_physical(
                         (motion.x as f64, motion.y as f64),
-                        dpi_factor,
+                        scale_factor,
                     );
                     Some(Event::WindowEvent {
                         window_id: RootWindowId(WindowId),
@@ -102,9 +102,9 @@ impl EventLoop {
                     if native_window.is_null() {
                         None
                     } else {
-                        let dpi_factor = MonitorHandle.scale_factor();
+                        let scale_factor = MonitorHandle.scale_factor();
                         let physical_size = MonitorHandle.size();
-                        let size = LogicalSize::from_physical(physical_size, dpi_factor);
+                        let size = LogicalSize::from_physical(physical_size, scale_factor);
                         Some(Event::WindowEvent {
                             window_id: RootWindowId(WindowId),
                             event: WindowEvent::Resized(size),
@@ -319,9 +319,9 @@ impl Window {
         if self.native_window.is_null() {
             None
         } else {
-            let dpi_factor = self.scale_factor();
+            let scale_factor = self.scale_factor();
             let physical_size = self.current_monitor().size();
-            Some(LogicalSize::from_physical(physical_size, dpi_factor))
+            Some(LogicalSize::from_physical(physical_size, scale_factor))
         }
     }
 

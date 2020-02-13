@@ -43,7 +43,7 @@ pub struct WindowDelegateState {
     previous_position: Option<(f64, f64)>,
 
     // Used to prevent redundant events.
-    previous_dpi_factor: f64,
+    previous_scale_factor: f64,
 }
 
 impl WindowDelegateState {
@@ -55,7 +55,7 @@ impl WindowDelegateState {
             window: Arc::downgrade(&window),
             initial_fullscreen,
             previous_position: None,
-            previous_dpi_factor: scale_factor,
+            previous_scale_factor: scale_factor,
         };
 
         if scale_factor != 1.0 {
@@ -82,11 +82,11 @@ impl WindowDelegateState {
 
     pub fn emit_static_scale_factor_changed_event(&mut self) {
         let scale_factor = self.get_scale_factor();
-        if scale_factor == self.previous_dpi_factor {
+        if scale_factor == self.previous_scale_factor {
             return ();
         };
 
-        self.previous_dpi_factor = scale_factor;
+        self.previous_scale_factor = scale_factor;
         let wrapper = EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
             ns_window: IdRef::retain(*self.ns_window),
             suggested_size: self.view_size(),

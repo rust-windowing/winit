@@ -1422,7 +1422,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             if window_state.min_size.is_some() || window_state.max_size.is_some() {
                 if let Some(min_size) = window_state.min_size {
-                    let min_size = min_size.to_physical(window_state.dpi_factor);
+                    let min_size = min_size.to_physical(window_state.scale_factor);
                     let (width, height): (u32, u32) = util::adjust_size(window, min_size).into();
                     (*mmi).ptMinTrackSize = POINT {
                         x: width as i32,
@@ -1430,7 +1430,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     };
                 }
                 if let Some(max_size) = window_state.max_size {
-                    let max_size = max_size.to_physical(window_state.dpi_factor);
+                    let max_size = max_size.to_physical(window_state.scale_factor);
                     let (width, height): (u32, u32) = util::adjust_size(window, max_size).into();
                     (*mmi).ptMaxTrackSize = POINT {
                         x: width as i32,
@@ -1452,15 +1452,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // application since they are the same".
             // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
             let new_dpi_x = u32::from(LOWORD(wparam as DWORD));
-            let new_dpi_factor = dpi_to_scale_factor(new_dpi_x);
-            let old_dpi_factor: f64;
+            let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
+            let old_scale_factor: f64;
 
             let allow_resize = {
                 let mut window_state = subclass_input.window_state.lock();
-                old_dpi_factor = window_state.dpi_factor;
-                window_state.dpi_factor = new_dpi_factor;
+                old_scale_factor = window_state.scale_factor;
+                window_state.scale_factor = new_scale_factor;
 
-                if new_dpi_factor == old_dpi_factor {
+                if new_scale_factor == old_scale_factor {
                     return 0;
                 }
 
@@ -1516,15 +1516,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 // We calculate our own size because the default suggested rect doesn't do a great job
                 // of preserving the window's logical size.
                 true => old_physical_inner_size
-                    .to_logical::<f64>(old_dpi_factor)
-                    .to_physical::<u32>(new_dpi_factor),
+                    .to_logical::<f64>(old_scale_factor)
+                    .to_physical::<u32>(new_scale_factor),
                 false => old_physical_inner_size,
             };
 
             let _ = subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
-                    scale_factor: new_dpi_factor,
+                    scale_factor: new_scale_factor,
                     new_inner_size: &mut new_physical_inner_size,
                 },
             });
