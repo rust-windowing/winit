@@ -81,9 +81,7 @@ pub fn try_dark_mode(hwnd: HWND) -> bool {
             LIGHT_THEME_NAME.as_ptr()
         };
 
-        let status = unsafe {
-            uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null())
-        };
+        let status = unsafe { uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null()) };
 
         if status == 0 {
             set_dark_mode_for_window(hwnd, is_dark_mode);
