@@ -4,6 +4,7 @@
 - On Wayland, fix coordinates in touch events when scale factor isn't 1.
 - On Wayland, fix color from `close_button_icon_color` not applying.
 - Ignore locale if unsupported by X11 backend
+- On Wayland, Add HiDPI cursor support
 
 # 0.21.0 (2020-02-04)
 
