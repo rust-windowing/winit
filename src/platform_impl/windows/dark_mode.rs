@@ -44,9 +44,8 @@ lazy_static! {
                 };
 
                 let status = (rtl_get_version)(&mut vi as _);
-                assert!(NT_SUCCESS(status));
 
-                if vi.dwMajorVersion == 10 && vi.dwMinorVersion == 0 {
+                if NT_SUCCESS(status) && vi.dwMajorVersion == 10 && vi.dwMinorVersion == 0 {
                     Some(vi.dwBuildNumber)
                 } else {
                     None
@@ -82,16 +81,16 @@ pub fn try_dark_mode(hwnd: HWND) -> bool {
             LIGHT_THEME_NAME.as_ptr()
         };
 
-        unsafe {
-            assert_eq!(
-                0,
-                uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null())
-            );
+        let status = unsafe {
+            uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null())
+        };
 
+        if status == 0 {
             set_dark_mode_for_window(hwnd, is_dark_mode)
+            is_dark_mode
+        } else {
+            false
         }
-
-        is_dark_mode
     } else {
         false
     }
@@ -132,10 +131,11 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) {
                 cbData: std::mem::size_of_val(&is_dark_mode_bigbool) as _,
             };
 
-            assert_eq!(
-                1,
-                set_window_composition_attribute(hwnd, &mut data as *mut _)
-            );
+            let status = set_window_composition_attribute(hwnd, &mut data as *mut _);
+
+            if status == 0 {
+                *is_dark_mode = false;
+            }
         }
     }
 }
