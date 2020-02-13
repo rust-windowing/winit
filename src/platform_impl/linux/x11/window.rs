@@ -726,9 +726,11 @@ impl UnownedWindow {
                     // mode higher than the current desktop video mode (I'm sure
                     // this will make someone unhappy, but it's very unusual for
                     // games to want to do this anyway).
-                    self.xconn
-                        .set_crtc_config(monitor.id, video_mode.native_mode)
-                        .expect("[winit] failed to set video mode");
+                    if let (Some(id), Some(native_mode)) = (monitor.id, video_mode.native_mode) {
+                        self.xconn
+                            .set_crtc_config(id, native_mode)
+                            .expect("[winit] failed to set video mode");
+                    }
                 }
 
                 let window_position = self.outer_position_physical();
