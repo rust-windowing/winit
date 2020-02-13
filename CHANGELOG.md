@@ -11,6 +11,7 @@
 - On Wayland, Hide CSD for fullscreen windows.
 - On Windows, ignore spurious mouse move messages.
 - **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
+- On Windows, fix crash at startup on systems that do not properly support Windows' Dark Mode
 
 # 0.21.0 (2020-02-04)
 
