@@ -86,7 +86,7 @@ pub fn try_dark_mode(hwnd: HWND) -> bool {
         };
 
         if status == 0 {
-            set_dark_mode_for_window(hwnd, is_dark_mode)
+            set_dark_mode_for_window(hwnd, is_dark_mode);
             is_dark_mode
         } else {
             false
