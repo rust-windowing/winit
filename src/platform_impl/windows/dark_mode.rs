@@ -6,9 +6,10 @@ use std::os::windows::ffi::OsStrExt;
 use winapi::{
     shared::{
         basetsd::SIZE_T,
-        minwindef::{BOOL, DWORD, UINT, ULONG, WORD},
+        minwindef::{BOOL, DWORD, FALSE, UINT, ULONG, WORD},
         ntdef::{LPSTR, NTSTATUS, NT_SUCCESS, PVOID, WCHAR},
         windef::HWND,
+        winerror::S_OK,
     },
     um::{libloaderapi, uxtheme, winuser},
 };
@@ -83,7 +84,7 @@ pub fn try_dark_mode(hwnd: HWND) -> bool {
 
         let status = unsafe { uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null()) };
 
-        status == 0 && set_dark_mode_for_window(hwnd, is_dark_mode)
+        status == S_OK && set_dark_mode_for_window(hwnd, is_dark_mode)
     } else {
         false
     }
@@ -126,7 +127,7 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {
 
             let status = set_window_composition_attribute(hwnd, &mut data as *mut _);
 
-            status != 0
+            status != FALSE
         }
     } else {
         false
@@ -198,7 +199,7 @@ fn is_high_contrast() -> bool {
         )
     };
 
-    (ok > 0) && ((HCF_HIGHCONTRASTON & hc.dwFlags) == 1)
+    ok != FALSE && (HCF_HIGHCONTRASTON & hc.dwFlags) == 1
 }
 
 fn widestring(src: &'static str) -> Vec<u16> {
