@@ -83,18 +83,13 @@ pub fn try_dark_mode(hwnd: HWND) -> bool {
 
         let status = unsafe { uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null()) };
 
-        if status == 0 {
-            set_dark_mode_for_window(hwnd, is_dark_mode);
-            is_dark_mode
-        } else {
-            false
-        }
+        status == 0 && set_dark_mode_for_window(hwnd, is_dark_mode)
     } else {
         false
     }
 }
 
-fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: &mut bool) {
+fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {
     // Uses Windows undocumented API SetWindowCompositionAttribute,
     // as seen in win32-darkmode example linked at top of file.
 
@@ -121,20 +116,20 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: &mut bool) {
     if let Some(set_window_composition_attribute) = *SET_WINDOW_COMPOSITION_ATTRIBUTE {
         unsafe {
             // SetWindowCompositionAttribute needs a bigbool (i32), not bool.
-            let mut is_dark_mode_bigbool = is_dark_mode as &mut BOOL;
+            let mut is_dark_mode_bigbool = is_dark_mode as BOOL;
 
             let mut data = WINDOWCOMPOSITIONATTRIBDATA {
                 Attrib: WCA_USEDARKMODECOLORS,
-                pvData: is_dark_mode_bigbool as *mut _ as _,
+                pvData: &mut is_dark_mode_bigbool as *mut _ as _,
                 cbData: std::mem::size_of_val(&is_dark_mode_bigbool) as _,
             };
 
             let status = set_window_composition_attribute(hwnd, &mut data as *mut _);
 
-            if status == 0 {
-                *is_dark_mode = false;
-            }
+            status == 0
         }
+    } else {
+        false
     }
 }
 
