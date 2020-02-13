@@ -2,7 +2,7 @@ use super::{backend, device, proxy::Proxy, runner, window};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::window::WindowId;
+use crate::window::{Theme, WindowId};
 use std::clone::Clone;
 
 pub struct WindowTarget<T: 'static> {
@@ -198,6 +198,19 @@ impl<T> WindowTarget<T> {
                 event: WindowEvent::Resized(new_size),
             });
             runner.request_redraw(WindowId(id));
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_dark_mode(move |is_dark_mode| {
+            let theme = if is_dark_mode {
+                Theme::Dark
+            } else {
+                Theme::Light
+            };
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::ThemeChanged(theme),
+            });
         });
     }
 }

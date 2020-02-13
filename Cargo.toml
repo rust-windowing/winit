@@ -101,6 +101,8 @@ features = [
     'HtmlCanvasElement',
     'HtmlElement',
     'KeyboardEvent',
+    'MediaQueryList',
+    'MediaQueryListEvent',
     'MouseEvent',
     'Node',
     'PointerEvent',
