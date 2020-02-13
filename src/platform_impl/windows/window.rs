@@ -217,8 +217,8 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        let dpi_factor = self.scale_factor();
-        let (width, height) = size.to_physical::<u32>(dpi_factor).into();
+        let scale_factor = self.scale_factor();
+        let (width, height) = size.to_physical::<u32>(scale_factor).into();
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
@@ -325,13 +325,13 @@ impl Window {
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        self.window_state.lock().dpi_factor
+        self.window_state.lock().scale_factor
     }
 
     #[inline]
     pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
-        let dpi_factor = self.scale_factor();
-        let (x, y) = position.to_physical::<i32>(dpi_factor).into();
+        let scale_factor = self.scale_factor();
+        let (x, y) = position.to_physical::<i32>(scale_factor).into();
 
         let mut point = POINT { x, y };
         unsafe {
@@ -402,7 +402,7 @@ impl Window {
                     let client_rect = util::get_client_rect(window.0).unwrap();
                     window_state_lock.saved_window = Some(SavedWindow {
                         client_rect,
-                        dpi_factor: window_state_lock.dpi_factor,
+                        scale_factor: window_state_lock.scale_factor,
                     });
                 }
                 _ => (),
@@ -513,10 +513,10 @@ impl Window {
                     let mut window_state_lock = window_state.lock();
                     if let Some(SavedWindow {
                         client_rect,
-                        dpi_factor,
+                        scale_factor,
                     }) = window_state_lock.saved_window.take()
                     {
-                        window_state_lock.dpi_factor = dpi_factor;
+                        window_state_lock.scale_factor = scale_factor;
                         drop(window_state_lock);
                         let client_rect = util::adjust_window_rect(window.0, client_rect).unwrap();
 
@@ -712,7 +712,7 @@ unsafe fn init<T: 'static>(
     }
 
     let dpi = hwnd_dpi(real_window.0);
-    let dpi_factor = dpi_to_scale_factor(dpi);
+    let scale_factor = dpi_to_scale_factor(dpi);
 
     // making the window transparent
     if attributes.transparent && !pl_attribs.no_redirection_bitmap {
@@ -758,7 +758,7 @@ unsafe fn init<T: 'static>(
             &attributes,
             window_icon,
             taskbar_icon,
-            dpi_factor,
+            scale_factor,
             dark_mode,
         );
         let window_state = Arc::new(Mutex::new(window_state));
