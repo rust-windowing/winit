@@ -92,7 +92,10 @@ impl State {
 
     pub unsafe fn get_ptr(obj: &Object) -> *mut Self {
         let this: *mut c_void = *(*obj).get_ivar(Self::name());
-        assert!(!this.is_null(), "[winit] `activationHackState` pointer was null");
+        assert!(
+            !this.is_null(),
+            "[winit] `activationHackState` pointer was null"
+        );
         this as *mut Self
     }
 

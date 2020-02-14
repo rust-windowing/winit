@@ -127,7 +127,8 @@ impl XConnection {
         unsafe {
             (xlib.XDefineCursor)(**self.display, window, cursor);
 
-            self.flush_requests().expect("[winit] Failed to set the cursor");
+            self.flush_requests()
+                .expect("[winit] Failed to set the cursor");
         }
     }
 }

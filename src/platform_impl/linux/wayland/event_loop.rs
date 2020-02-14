@@ -108,10 +108,9 @@ impl CursorManager {
     }
 
     fn register_pointer(&mut self, pointer: wl_pointer::WlPointer) {
-        let auto_themer = self
-            .auto_themer
-            .as_ref()
-            .expect("[winit] AutoThemer not initialized. Server did not advertise shm or compositor?");
+        let auto_themer = self.auto_themer.as_ref().expect(
+            "[winit] AutoThemer not initialized. Server did not advertise shm or compositor?",
+        );
         self.pointers.push(auto_themer.theme_pointer(pointer));
     }
 
@@ -455,7 +454,9 @@ impl<T: 'static> EventLoop<T> {
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         // send pending events to the server
-        self.display.flush().expect("[winit] Wayland connection lost.");
+        self.display
+            .flush()
+            .expect("[winit] Wayland connection lost.");
 
         let mut control_flow = ControlFlow::default();
         let mut events = Events::with_capacity(8);
@@ -537,7 +538,9 @@ impl<T: 'static> EventLoop<T> {
             }
 
             // send pending events to the server
-            self.display.flush().expect("[winit] Wayland connection lost.");
+            self.display
+                .flush()
+                .expect("[winit] Wayland connection lost.");
 
             // During the run of the user callback, some other code monitoring and reading the
             // wayland socket may have been run (mesa for example does this with vsync), if that

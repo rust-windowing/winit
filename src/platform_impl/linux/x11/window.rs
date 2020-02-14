@@ -289,8 +289,8 @@ impl UnownedWindow {
                 let (class, instance) = if let Some((instance, class)) = pl_attribs.class {
                     let instance = CString::new(instance.as_str())
                         .expect("[winit] `WM_CLASS` instance contained null byte");
-                    let class =
-                        CString::new(class.as_str()).expect("[winit] `WM_CLASS` class contained null byte");
+                    let class = CString::new(class.as_str())
+                        .expect("[winit] `WM_CLASS` class contained null byte");
                     (instance, class)
                 } else {
                     let class = env::args()
@@ -517,7 +517,8 @@ impl UnownedWindow {
     fn set_gtk_theme_variant(&self, variant: String) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_GTK_THEME_VARIANT\0") };
         let utf8_atom = unsafe { self.xconn.get_atom_unchecked(b"UTF8_STRING\0") };
-        let variant = CString::new(variant).expect("[winit] `_GTK_THEME_VARIANT` contained null byte");
+        let variant =
+            CString::new(variant).expect("[winit] `_GTK_THEME_VARIANT` contained null byte");
         self.xconn.change_property(
             self.xwindow,
             hint_atom,
@@ -726,9 +727,11 @@ impl UnownedWindow {
                     // mode higher than the current desktop video mode (I'm sure
                     // this will make someone unhappy, but it's very unusual for
                     // games to want to do this anyway).
-                    self.xconn
-                        .set_crtc_config(monitor.id, video_mode.native_mode)
-                        .expect("[winit] failed to set video mode");
+                    if let (Some(id), Some(native_mode)) = (monitor.id, video_mode.native_mode) {
+                        self.xconn
+                            .set_crtc_config(id, native_mode)
+                            .expect("[winit] failed to set video mode");
+                    }
                 }
 
                 let window_position = self.outer_position_physical();
