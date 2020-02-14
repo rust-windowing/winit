@@ -513,9 +513,9 @@ pub struct KeyboardInput {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CompositionEvent {
-    CompositionStart,
+    CompositionStart(String),
     CompositionUpdate(String, usize),
-    CompositionEnd,
+    CompositionEnd(String),
 }
 
 /// Describes touch-screen input state.

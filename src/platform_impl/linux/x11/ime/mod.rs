@@ -19,12 +19,18 @@ use self::{
     inner::{close_im, ImeInner},
     input_method::PotentialInputMethods,
 };
-use crate::event::CompositionEvent;
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ImeEvent {
+    Start,
+    Update(String, usize),
+    End,
+}
 
 pub type ImeReceiver = Receiver<(ffi::Window, i16, i16)>;
 pub type ImeSender = Sender<(ffi::Window, i16, i16)>;
-pub type ImeEventReceiver = Receiver<(ffi::Window, CompositionEvent)>;
-pub type ImeEventSender = Sender<(ffi::Window, CompositionEvent)>;
+pub type ImeEventReceiver = Receiver<(ffi::Window, ImeEvent)>;
+pub type ImeEventSender = Sender<(ffi::Window, ImeEvent)>;
 
 #[derive(Debug)]
 pub enum ImeCreationError {

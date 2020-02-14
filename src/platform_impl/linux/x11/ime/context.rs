@@ -6,10 +6,8 @@ use std::{
 };
 
 use super::{ffi, util, XConnection, XError};
-use crate::event::CompositionEvent::{CompositionEnd, CompositionStart, CompositionUpdate};
-use crate::platform_impl::platform::x11::ime::ImeEventSender;
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
 use std::ffi::CStr;
-use std::iter::FromIterator;
 use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
 #[derive(Debug)]
@@ -27,12 +25,10 @@ extern "C" fn preedit_start_callback(
 
     client_data.text.clear();
     client_data.cursor_pos = 0;
-    client_data.is_composing = true;
     client_data
         .event_sender
-        .send((client_data.window, CompositionStart))
+        .send((client_data.window, ImeEvent::Start))
         .expect("failed to send composition start event");
-    debug!("preedit start callback");
     -1
 }
 
@@ -43,22 +39,10 @@ extern "C" fn preedit_done_callback(
 ) {
     let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData) };
 
-    if !client_data.text.is_empty() {
-        client_data.text.clear();
-        client_data.cursor_pos = 0;
-        client_data
-            .event_sender
-            .send((
-                client_data.window,
-                CompositionUpdate(client_data.text.iter().collect(), client_data.cursor_pos),
-            ))
-            .expect("failed to send composition update event");
-    }
     client_data
         .event_sender
-        .send((client_data.window, CompositionEnd))
+        .send((client_data.window, ImeEvent::End))
         .expect("failed to send composition end event");
-    client_data.is_composing = false;
 }
 
 extern "C" fn preedit_draw_callback(
@@ -100,15 +84,16 @@ extern "C" fn preedit_draw_callback(
     client_data.text.split_off(chg_range.start);
     client_data.text.append(&mut new_chars);
     client_data.text.append(&mut old_text_tail);
+    let mut cursor_byte_pos = 0;
+    for i in 0..client_data.cursor_pos {
+        cursor_byte_pos += client_data.text[i].len_utf8();
+    }
 
     client_data
         .event_sender
         .send((
             client_data.window,
-            CompositionUpdate(
-                String::from_iter(client_data.text.clone()),
-                client_data.cursor_pos,
-            ),
+            ImeEvent::Update(client_data.text.iter().collect(), cursor_byte_pos),
         ))
         .expect("failed to send composition update event");
 }
@@ -126,10 +111,7 @@ extern "C" fn preedit_caret_callback(
         .event_sender
         .send((
             client_data.window,
-            CompositionUpdate(
-                String::from_iter(client_data.text.clone()),
-                client_data.cursor_pos,
-            ),
+            ImeEvent::Update(client_data.text.iter().collect(), client_data.cursor_pos),
         ))
         .expect("failed to send composition update event");
 }
@@ -218,7 +200,6 @@ pub struct ImeContextClientData {
     pub event_sender: ImeEventSender,
     pub text: Vec<char>,
     pub cursor_pos: usize,
-    pub is_composing: bool,
 }
 
 // WARNING: this struct doesn't destroy its XIC resource when dropped.
@@ -245,7 +226,6 @@ impl ImeContext {
             event_sender,
             text: Vec::new(),
             cursor_pos: 0,
-            is_composing: false,
         });
         let client_data_ptr = Box::into_raw(client_data);
         let preedit_callbacks = PreeditCallbacks::new(client_data_ptr as ffi::XPointer);

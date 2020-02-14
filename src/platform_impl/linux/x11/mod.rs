@@ -227,6 +227,8 @@ impl<T: 'static> EventLoop<T> {
             device_mod_state: Default::default(),
             num_touch: 0,
             first_touch: None,
+            is_composing: false,
+            composed_text: None,
         };
 
         // Register for device hotplug events
