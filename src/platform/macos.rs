@@ -56,6 +56,14 @@ pub trait WindowExtMacOS {
     /// And allows the user to have a fullscreen window without using another
     /// space or taking control over the entire monitor.
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
+
+    /// Toggles the `Option` key being interpretted as an `Alt` modifier.
+    ///
+    /// This will ignore diacritical marks and accent characters from
+    /// being processed as received characters. Instead, the input
+    /// device's raw character will be placed in event queues with the
+    /// Alt modifier set.
+    fn set_option_as_alt(&self, option_as_alt: bool);
 }
 
 impl WindowExtMacOS for Window {
@@ -82,6 +90,11 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         self.window.set_simple_fullscreen(fullscreen)
+    }
+
+    #[inline]
+    fn set_option_as_alt(&self, option_as_alt: bool) {
+        self.window.set_option_as_alt(option_as_alt)
     }
 }
 
@@ -131,7 +144,6 @@ pub trait WindowBuilderExtMacOS {
     /// Build window with `resizeIncrements` property. Values must not be 0.
     fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
-    fn with_ignore_alt_modifier(self, ignore_alt_modifier: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -189,12 +201,6 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> WindowBuilder {
         self.platform_specific.disallow_hidpi = disallow_hidpi;
-        self
-    }
-
-    #[inline]
-    fn with_ignore_alt_modifier(mut self, ignore_alt_modifier: bool) -> WindowBuilder {
-        self.platform_specific.ignore_alt_modifier = ignore_alt_modifier;
         self
     }
 }

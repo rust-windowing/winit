@@ -31,7 +31,7 @@ use crate::{
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
-        PlatformSpecificWindowBuilderAttributes, DEVICE_ID,
+        DEVICE_ID,
     },
     window::WindowId,
 };
@@ -65,10 +65,7 @@ impl ViewState {
     }
 }
 
-pub fn new_view(
-    ns_window: id,
-    pl_attribs: &PlatformSpecificWindowBuilderAttributes,
-) -> (IdRef, Weak<Mutex<CursorState>>) {
+pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
     let cursor_state = Default::default();
     let cursor_access = Arc::downgrade(&cursor_state);
     let state = ViewState {
@@ -77,7 +74,7 @@ pub fn new_view(
         ime_spot: None,
         modifiers: Default::default(),
         tracking_rect: None,
-        ignore_alt_modifier: pl_attribs.ignore_alt_modifier,
+        ignore_alt_modifier: false,
     };
     unsafe {
         // This is free'd in `dealloc`
@@ -99,6 +96,12 @@ pub unsafe fn set_ime_position(ns_view: id, input_context: id, x: f64, y: f64) {
     let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
     state.ime_spot = Some((base_x + x, base_y - y));
     let _: () = msg_send![input_context, invalidateCharacterCoordinates];
+}
+
+pub unsafe fn set_option_as_alt(ns_view: id, option_as_alt: bool) {
+    let state_ptr: *mut c_void = *(*ns_view).get_mut_ivar("winitState");
+    let state = &mut *(state_ptr as *mut ViewState);
+    state.ignore_alt_modifier = option_as_alt;
 }
 
 struct ViewClass(*const Class);

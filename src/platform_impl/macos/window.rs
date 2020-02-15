@@ -23,7 +23,7 @@ use crate::{
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
         view::CursorState,
-        view::{self, new_view},
+        view::{self, new_view, set_option_as_alt},
         window_delegate::new_delegate,
         OsError,
     },
@@ -95,7 +95,7 @@ unsafe fn create_view(
     ns_window: id,
     pl_attribs: &PlatformSpecificWindowBuilderAttributes,
 ) -> Option<(IdRef, Weak<Mutex<CursorState>>)> {
-    let (ns_view, cursor_state) = new_view(ns_window, pl_attribs);
+    let (ns_view, cursor_state) = new_view(ns_window);
     ns_view.non_nil().map(|ns_view| {
         if !pl_attribs.disallow_hidpi {
             ns_view.setWantsBestResolutionOpenGLSurface_(YES);
@@ -1086,6 +1086,13 @@ impl WindowExtMacOS for UnownedWindow {
 
                 true
             }
+        }
+    }
+
+    #[inline]
+    fn set_option_as_alt(&self, option_as_alt: bool) {
+        unsafe {
+            set_option_as_alt(*self.ns_view, option_as_alt);
         }
     }
 }
