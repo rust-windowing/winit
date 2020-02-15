@@ -265,7 +265,6 @@ impl ImeContext {
             pre_edit_attr.ptr,
             ptr::null_mut::<()>(),
         );
-        println!("set preedit call back");
         if ic.is_null() {
             None
         } else {
@@ -291,7 +290,6 @@ impl ImeContext {
             pre_edit_attr.ptr,
             ptr::null_mut::<()>(),
         );
-        println!("set preedit call back 2");
         if ic.is_null() {
             None
         } else {
