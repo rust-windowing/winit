@@ -245,6 +245,7 @@ impl Canvas {
     where
         F: 'static + FnMut(bool),
     {
+        // TODO: upstream to stdweb
         js! {
             var handler = @{handler};
 

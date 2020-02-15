@@ -34,6 +34,7 @@ impl WindowExtStdweb for Window {
     }
 
     fn is_dark_mode(&self) -> bool {
+        // TODO: upstream to stdweb
         let is_dark_mode = js! {
             return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
         };
