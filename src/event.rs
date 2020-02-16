@@ -139,7 +139,7 @@ impl<'a, T> Event<'a, T> {
             WindowEvent { window_id, event } => event
                 .to_static()
                 .map(|event| WindowEvent { window_id, event }),
-            UserEvent(_) => None,
+            UserEvent(event) => Some(UserEvent(event)),
             DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
             NewEvents(cause) => Some(NewEvents(cause)),
             MainEventsCleared => Some(MainEventsCleared),
