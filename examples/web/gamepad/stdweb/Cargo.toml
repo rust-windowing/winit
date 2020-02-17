@@ -7,5 +7,5 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-winit = { path = "../../", features = [ "stdweb" ] }
+winit = { path = "../../../../", features = [ "stdweb" ] }
 stdweb = "0.4.20"
