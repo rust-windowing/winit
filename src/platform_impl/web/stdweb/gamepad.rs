@@ -44,11 +44,6 @@ impl Gamepad {
     pub fn vibrate(&self, _value: f64, _duration: f64) {
         unimplemented!()
     }
-
-    // Update mapping
-    pub fn remap(&mut self) {
-        self.mapping = utils::create_mapping(&self.raw);
-    }
 }
 
 impl Clone for Gamepad {

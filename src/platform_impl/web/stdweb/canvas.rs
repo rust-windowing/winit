@@ -167,7 +167,7 @@ impl Canvas {
     where
         F: 'static + FnMut(),
     {
-        self.on_cursor_leave = Some(self.add_event(move |event: PointerOutEvent| {
+        self.on_cursor_leave = Some(self.add_event(move |_event: PointerOutEvent| {
             handler();
         }));
     }
@@ -176,7 +176,7 @@ impl Canvas {
     where
         F: 'static + FnMut(),
     {
-        self.on_cursor_enter = Some(self.add_event(move |event: PointerOverEvent| {
+        self.on_cursor_enter = Some(self.add_event(move |_event: PointerOverEvent| {
             handler();
         }));
     }
