@@ -9,12 +9,12 @@ use winit::{
 
 /**
  * Build example (from examples/gamepad/websys):
- *    wasm-pack build --target web -- --features ${EXAMPLE}
+ *    wasm-pack build --target web
  * Run web server (from examples/gamepad/websys):
  *    npx http-server
  *    Open your browser at http://localhost:8000/files/${EXAMPLE}.html
  * Development (from project root):
- *    npx nodemon --watch src --watch examples/gamepad/websys/src -e rs --exec 'cd examples/gamepad/websys && wasm-pack build --target web -- --features gamepad'
+ *    npx nodemon --watch src --watch examples/web/gamepad/websys/src -e rs --exec 'cd examples/web/gamepad/websys && wasm-pack build --target web'
  */
 
 macro_rules! console_log {
