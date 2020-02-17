@@ -127,12 +127,12 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
                     msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
-                let dpi_factor: CGFloat = msg_send![screen, scale];
+                let scale_factor: CGFloat = msg_send![screen, scale];
                 let size = crate::dpi::LogicalSize {
                     width: screen_frame.size.width as f64,
                     height: screen_frame.size.height as f64,
                 }
-                .to_physical(dpi_factor.into());
+                .to_physical(scale_factor.into());
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
@@ -162,15 +162,15 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 // `setContentScaleFactor` may be called with a value of 0, which means "reset the
                 // content scale factor to a device-specific default value", so we can't use the
                 // parameter here. We can query the actual factor using the getter
-                let dpi_factor: CGFloat = msg_send![object, contentScaleFactor];
+                let scale_factor: CGFloat = msg_send![object, contentScaleFactor];
                 assert!(
-                    !dpi_factor.is_nan()
-                        && dpi_factor.is_finite()
-                        && dpi_factor.is_sign_positive()
-                        && dpi_factor > 0.0,
+                    !scale_factor.is_nan()
+                        && scale_factor.is_finite()
+                        && scale_factor.is_sign_positive()
+                        && scale_factor > 0.0,
                     "invalid scale_factor set on UIView",
                 );
-                let scale_factor: f64 = dpi_factor.into();
+                let scale_factor: f64 = scale_factor.into();
                 let bounds: CGRect = msg_send![object, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];

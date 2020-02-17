@@ -6,6 +6,7 @@
 - Ignore locale if unsupported by X11 backend
 - On Wayland, Add HiDPI cursor support
 - On Web, add the ability to query "Light" or "Dark" system theme send `ThemeChanged` on change.
+- Fix `Event::to_static` returning `None` for user events.
 
 # 0.21.0 (2020-02-04)
 
