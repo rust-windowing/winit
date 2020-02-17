@@ -39,7 +39,10 @@ use crate::{
     window::{CursorIcon, WindowId as RootWindowId},
 };
 
-use super::{window::WindowStore, DeviceId, WindowId};
+use super::{
+    window::{DecorationsAction, WindowStore},
+    DeviceId, WindowId,
+};
 
 use smithay_client_toolkit::{
     output::OutputMgr,
@@ -713,6 +716,13 @@ impl<T> EventLoop<T> {
                 crate::window::WindowId(crate::platform_impl::WindowId::Wayland(window.wid));
             if let Some(frame) = window.frame {
                 if let Some((w, h)) = window.newsize {
+                    // Update decorations state
+                    match window.decorations_action {
+                        Some(DecorationsAction::Hide) => frame.set_decorate(false),
+                        Some(DecorationsAction::Show) => frame.set_decorate(true),
+                        None => (),
+                    }
+
                     // mutter (GNOME Wayland) relies on `set_geometry` to reposition window in case
                     // it overlaps mutter's `bounding box`, so we can't avoid this resize call,
                     // which calls `set_geometry` under the hood, for now.
