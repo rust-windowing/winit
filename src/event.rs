@@ -45,8 +45,10 @@ use crate::{
 /// Describes a generic event.
 ///
 /// See the module-level docs for more information on the event loop manages each event.
+///
+/// `T` is a user-defined custom event type.
 #[derive(Debug, PartialEq)]
-pub enum Event<'a, T: 'static> {
+pub enum Event<T: 'static> {
     /// Emitted when new events arrive from the OS to be processed.
     ///
     /// This event type is useful as a place to put code that should be done before you start
@@ -58,7 +60,7 @@ pub enum Event<'a, T: 'static> {
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
         window_id: WindowId,
-        event: WindowEvent<'a>,
+        event: WindowEvent,
     },
 
     /// Emitted when the OS sends an event to a device.
@@ -118,7 +120,7 @@ pub enum Event<'a, T: 'static> {
     LoopDestroyed,
 }
 
-impl<T: Clone> Clone for Event<'static, T> {
+impl<T: Clone> Clone for Event<T> {
     fn clone(&self) -> Self {
         use self::Event::*;
         match self {
@@ -142,8 +144,8 @@ impl<T: Clone> Clone for Event<'static, T> {
     }
 }
 
-impl<'a, T> Event<'a, T> {
-    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
+impl<T> Event<T> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
         use self::Event::*;
         match self {
             UserEvent(_) => Err(self),
@@ -161,7 +163,8 @@ impl<'a, T> Event<'a, T> {
 
     /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
     /// Otherwise, return `None`.
-    pub fn to_static(self) -> Option<Event<'static, T>> {
+    // TODO: remove?
+    pub fn to_static(self) -> Option<Event<T>> {
         use self::Event::*;
         match self {
             WindowEvent { window_id, event } => event
@@ -208,7 +211,7 @@ pub enum StartCause {
 
 /// Describes an event from a `Window`.
 #[derive(Debug, PartialEq)]
-pub enum WindowEvent<'a> {
+pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
 
@@ -342,7 +345,7 @@ pub enum WindowEvent<'a> {
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     ScaleFactorChanged {
         scale_factor: f64,
-        new_inner_size: &'a mut PhysicalSize<u32>,
+        new_inner_size: NewInnerSizeInteriorMutCoolThing,
     },
 
     /// The system window theme has changed.
@@ -354,7 +357,87 @@ pub enum WindowEvent<'a> {
     ThemeChanged(Theme),
 }
 
-impl Clone for WindowEvent<'static> {
+use std::{
+    cell::Cell,
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
+
+// TODO naming
+#[derive(Debug, Clone)]
+pub struct NewInnerSizeInteriorMutCoolThing {
+    inner: Arc<Mutex<NewInnerSizeInteriorMutCoolThingInner>>,
+}
+
+#[derive(Debug, Clone)]
+struct NewInnerSizeInteriorMutCoolThingInner {
+    /// TODO doc this uses interior mutability in `set_inner_size`!
+    new_inner_size: Cell<PhysicalSize<u32>>,
+
+    /// If the event that this originated from was handled, this struct is essential read-only. Once this field is `true`, no further calls to `set_inner_size` will succeed.
+    is_readonly: bool,
+}
+
+pub struct NewInnerSizeInteriorMutCoolThingIsReadonlyNowError;
+
+impl Debug for NewInnerSizeInteriorMutCoolThingIsReadonlyNowError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "todo error message, but this new_inner_size cell is being mutated after winit has consumed it, so there will be no effect on the window")
+    }
+}
+
+/// Manually implement `PartialEq` to treat `Self` like just a `PhysicalSize<u32>`.
+///
+/// Ignores the `Mutex` (i.e. unconditionally locks).
+impl PartialEq<NewInnerSizeInteriorMutCoolThing> for NewInnerSizeInteriorMutCoolThing {
+    /// Note: will deadlock when `other` == `self`!
+    fn eq(&self, other: &NewInnerSizeInteriorMutCoolThing) -> bool {
+        // Note: ignoring `is_readonly` flag!
+        self.inner.lock().unwrap().new_inner_size == other.inner.lock().unwrap().new_inner_size
+    }
+}
+
+impl From<NewInnerSizeInteriorMutCoolThing> for PhysicalSize<u32> {
+    fn from(new_inner_size: NewInnerSizeInteriorMutCoolThing) -> Self {
+        new_inner_size.inner_size()
+    }
+}
+
+impl NewInnerSizeInteriorMutCoolThing {
+    pub fn new(new_inner_size: PhysicalSize<u32>) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(NewInnerSizeInteriorMutCoolThingInner {
+                new_inner_size: Cell::new(new_inner_size),
+                is_readonly: false,
+            })),
+        }
+    }
+
+    // todo: doc that this needs to be called after the winit event loop processes the containing event and looks at the resulting `inner_size`.
+    pub(crate) fn mark_new_inner_size_consumed(self) {
+        self.inner.lock().unwrap().is_readonly = true;
+    }
+
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
+        self.inner.lock().unwrap().new_inner_size.get()
+    }
+
+    pub fn set_inner_size(
+        &self,
+        new_size: PhysicalSize<u32>,
+    ) -> Result<(), NewInnerSizeInteriorMutCoolThingIsReadonlyNowError> {
+        let a = self.inner.lock().unwrap();
+        if a.is_readonly {
+            Err(NewInnerSizeInteriorMutCoolThingIsReadonlyNowError)
+        } else {
+            // Only one borrow guarenteed by `Mutex`.
+            a.new_inner_size.set(new_size);
+            Ok(())
+        }
+    }
+}
+
+impl Clone for WindowEvent {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
         return match self {
@@ -445,8 +528,9 @@ impl Clone for WindowEvent<'static> {
     }
 }
 
-impl<'a> WindowEvent<'a> {
-    pub fn to_static(self) -> Option<WindowEvent<'static>> {
+impl WindowEvent {
+    // TODO remove?
+    pub fn to_static(self) -> Option<WindowEvent> {
         use self::WindowEvent::*;
         match self {
             Resized(size) => Some(Resized(size)),

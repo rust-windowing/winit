@@ -14,7 +14,7 @@ use winapi::{
 
 use crate::{
     dpi::PhysicalSize,
-    event::{Event, StartCause, WindowEvent},
+    event::{Event, NewInnerSizeInteriorMutCoolThing, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::util,
     window::WindowId,
@@ -30,7 +30,7 @@ pub(crate) struct EventLoopRunner<T: 'static> {
     runner_state: Cell<RunnerState>,
     last_events_cleared: Cell<Instant>,
 
-    event_handler: Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>,
+    event_handler: Cell<Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>>,
     event_buffer: RefCell<VecDeque<BufferedEvent<T>>>,
 
     owned_windows: Cell<HashSet<HWND>>,
@@ -56,7 +56,7 @@ enum RunnerState {
 }
 
 enum BufferedEvent<T: 'static> {
-    Event(Event<'static, T>),
+    Event(Event<T>),
     ScaleFactorChanged(WindowId, f64, PhysicalSize<u32>),
 }
 
@@ -77,11 +77,11 @@ impl<T> EventLoopRunner<T> {
 
     pub(crate) unsafe fn set_event_handler<F>(&self, f: F)
     where
-        F: FnMut(Event<'_, T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &mut ControlFlow),
     {
         let old_event_handler = self.event_handler.replace(mem::transmute::<
-            Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
-            Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
+            Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>,
+            Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>,
         >(Some(Box::new(f))));
         assert!(old_event_handler.is_none());
     }
@@ -199,7 +199,7 @@ impl<T> EventLoopRunner<T> {
         self.move_state_to(RunnerState::HandlingMainEvents);
     }
 
-    pub(crate) unsafe fn send_event(&self, event: Event<'_, T>) {
+    pub(crate) unsafe fn send_event(&self, event: Event<T>) {
         if let Event::RedrawRequested(_) = event {
             if self.runner_state.get() != RunnerState::HandlingRedrawEvents {
                 warn!("RedrawRequested dispatched without explicit MainEventsCleared");
@@ -229,7 +229,7 @@ impl<T> EventLoopRunner<T> {
         self.move_state_to(RunnerState::Idle);
     }
 
-    pub(crate) unsafe fn call_event_handler(&self, event: Event<'_, T>) {
+    pub(crate) unsafe fn call_event_handler(&self, event: Event<T>) {
         self.catch_unwind(|| {
             let mut control_flow = self.control_flow.take();
             let mut event_handler = self.event_handler.take()
@@ -374,7 +374,7 @@ impl<T> EventLoopRunner<T> {
 }
 
 impl<T> BufferedEvent<T> {
-    pub fn from_event(event: Event<'_, T>) -> BufferedEvent<T> {
+    pub fn from_event(event: Event<T>) -> BufferedEvent<T> {
         match event {
             Event::WindowEvent {
                 event:
@@ -383,27 +383,36 @@ impl<T> BufferedEvent<T> {
                         new_inner_size,
                     },
                 window_id,
-            } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
+            } => BufferedEvent::ScaleFactorChanged(
+                window_id,
+                scale_factor,
+                new_inner_size.inner_size(),
+            ),
             event => BufferedEvent::Event(event.to_static().unwrap()),
         }
     }
 
-    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<'_, T>)) {
+    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<T>)) {
         match self {
             Self::Event(event) => dispatch(event),
-            Self::ScaleFactorChanged(window_id, scale_factor, mut new_inner_size) => {
+            Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
+                let inner_size_cell = NewInnerSizeInteriorMutCoolThing::new(new_inner_size);
+
                 dispatch(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::ScaleFactorChanged {
                         scale_factor,
-                        new_inner_size: &mut new_inner_size,
+                        new_inner_size: inner_size_cell.clone(),
                     },
                 });
+
+                let new_inner_size = inner_size_cell.inner_size();
                 util::set_inner_size_physical(
                     (window_id.0).0,
                     new_inner_size.width as _,
                     new_inner_size.height as _,
                 );
+                inner_size_cell.mark_new_inner_size_consumed();
             }
         }
     }
