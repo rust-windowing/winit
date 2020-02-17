@@ -46,7 +46,7 @@ use crate::{
 ///
 /// See the module-level docs for more information on the event loop manages each event.
 ///
-/// `T` is a user-defined custom event type.
+/// `T` is a user-defined custom event type (see: `Self::UserEvent(T)`).
 #[derive(Debug, PartialEq)]
 pub enum Event<T: 'static> {
     /// Emitted when new events arrive from the OS to be processed.
