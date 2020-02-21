@@ -1,5 +1,6 @@
 # Unreleased
 
+- Added Clone implementation for 'static events.
 - On Windows, fix minor timing issue in wait_until_time_or_msg
 - On macOS, fix `set_simple_screen` to remember frame excluding title bar.
 - On Wayland, fix coordinates in touch events when scale factor isn't 1.
