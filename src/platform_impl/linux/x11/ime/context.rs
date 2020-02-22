@@ -45,6 +45,14 @@ extern "C" fn preedit_done_callback(
         .expect("failed to send composition end event");
 }
 
+fn calc_byte_position(text: &Vec<char>, pos: usize) -> usize {
+    let mut byte_pos = 0;
+    for i in 0..pos {
+        byte_pos += text[i].len_utf8();
+    }
+    byte_pos
+}
+
 extern "C" fn preedit_draw_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
@@ -84,10 +92,7 @@ extern "C" fn preedit_draw_callback(
     client_data.text.split_off(chg_range.start);
     client_data.text.append(&mut new_chars);
     client_data.text.append(&mut old_text_tail);
-    let mut cursor_byte_pos = 0;
-    for i in 0..client_data.cursor_pos {
-        cursor_byte_pos += client_data.text[i].len_utf8();
-    }
+    let cursor_byte_pos = calc_byte_position(&client_data.text, client_data.cursor_pos);
 
     client_data
         .event_sender
@@ -106,12 +111,13 @@ extern "C" fn preedit_caret_callback(
     let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData) };
     let call_data = unsafe { &mut *(call_data as *mut XIMPreeditCaretCallbackStruct) };
     client_data.cursor_pos = call_data.position as usize;
+    let cursor_byte_pos = calc_byte_position(&client_data.text, client_data.cursor_pos);
 
     client_data
         .event_sender
         .send((
             client_data.window,
-            ImeEvent::Update(client_data.text.iter().collect(), client_data.cursor_pos),
+            ImeEvent::Update(client_data.text.iter().collect(), cursor_byte_pos),
         ))
         .expect("failed to send composition update event");
 }
