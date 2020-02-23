@@ -50,9 +50,7 @@ use crate::{
         dark_mode::try_dark_mode,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
-        event::{
-            self, handle_extended_keys, process_key_params, vkey_to_winit_vkey, ModifiersStateSide,
-        },
+        event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         monitor, raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
@@ -108,7 +106,6 @@ impl<T> SubclassInput<T> {
 struct ThreadMsgTargetSubclassInput<T: 'static> {
     event_loop_runner: EventLoopRunnerShared<T>,
     user_event_receiver: Receiver<T>,
-    modifiers_state: ModifiersStateSide,
 }
 
 impl<T> ThreadMsgTargetSubclassInput<T> {
@@ -555,7 +552,6 @@ fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) ->
         let subclass_input = ThreadMsgTargetSubclassInput {
             event_loop_runner,
             user_event_receiver: rx,
-            modifiers_state: ModifiersStateSide::default(),
         };
         let input_ptr = Box::into_raw(Box::new(subclass_input));
         let subclass_result = commctrl::SetWindowSubclass(
@@ -605,6 +601,24 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
     match pressure {
         1..=1024 => Some(Force::Normalized(pressure as f64 / 1024.0)),
         _ => None,
+    }
+}
+
+/// Emit a `ModifiersChanged` event whenever modifiers have changed.
+fn update_modifiers<T>(window: HWND, subclass_input: &SubclassInput<T>) {
+    use crate::event::WindowEvent::ModifiersChanged;
+
+    let modifiers = event::get_key_mods();
+    let mut window_state = subclass_input.window_state.lock();
+    if window_state.modifiers_state != modifiers {
+        window_state.modifiers_state = modifiers;
+
+        unsafe {
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: ModifiersChanged(modifiers),
+            });
+        }
     }
 }
 
@@ -859,6 +873,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
             let position = PhysicalPosition::new(x, y);
 
+            update_modifiers(window, subclass_input);
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: CursorMoved {
@@ -897,6 +913,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let value = value as i32;
             let value = value as f32 / winuser::WHEEL_DELTA as f32;
 
+            update_modifiers(window, subclass_input);
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel {
@@ -917,6 +935,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let value = value as i32;
             let value = value as f32 / winuser::WHEEL_DELTA as f32;
 
+            update_modifiers(window, subclass_input);
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: WindowEvent::MouseWheel {
@@ -936,6 +956,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
                 if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
+                    update_modifiers(window, subclass_input);
+
                     #[allow(deprecated)]
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
@@ -966,6 +988,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
             use crate::event::ElementState::Released;
             if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
+                update_modifiers(window, subclass_input);
+
                 #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
@@ -989,6 +1013,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
+            update_modifiers(window, subclass_input);
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: MouseInput {
@@ -1007,6 +1033,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
 
             release_mouse(&mut *subclass_input.window_state.lock());
+
+            update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1027,6 +1055,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
+            update_modifiers(window, subclass_input);
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: MouseInput {
@@ -1045,6 +1075,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
 
             release_mouse(&mut *subclass_input.window_state.lock());
+
+            update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1065,6 +1097,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
+            update_modifiers(window, subclass_input);
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: MouseInput {
@@ -1083,6 +1117,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
 
             release_mouse(&mut *subclass_input.window_state.lock());
+
+            update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1104,6 +1140,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
+            update_modifiers(window, subclass_input);
+
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: MouseInput {
@@ -1123,6 +1161,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
             release_mouse(&mut *subclass_input.window_state.lock());
+
+            update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1332,6 +1372,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
                 let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
 
+                update_modifiers(window, subclass_input);
+
                 #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
@@ -1383,6 +1425,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 })
             }
 
+            subclass_input.window_state.lock().modifiers_state = ModifiersState::empty();
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: ModifiersChanged(ModifiersState::empty()),
@@ -1805,8 +1848,6 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
                 ElementState::{Pressed, Released},
                 MouseScrollDelta::LineDelta,
-                VirtualKeyCode,
-                WindowEvent::ModifiersChanged,
             };
 
             if let Some(data) = raw_input::get_raw_input_data(lparam as _) {
@@ -1885,48 +1926,6 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         {
                             let virtual_keycode = vkey_to_winit_vkey(vkey);
 
-                            // If we ever change the DeviceEvent API to only emit events when a
-                            // window is focused, we'll need to emit synthetic `ModifiersChanged`
-                            // events when Winit windows lose focus so that these don't drift out
-                            // of sync with the actual modifier state.
-                            let old_modifiers_state =
-                                subclass_input.modifiers_state.filter_out_altgr().into();
-                            match virtual_keycode {
-                                Some(VirtualKeyCode::LShift) => subclass_input
-                                    .modifiers_state
-                                    .set(ModifiersStateSide::LSHIFT, pressed),
-                                Some(VirtualKeyCode::RShift) => subclass_input
-                                    .modifiers_state
-                                    .set(ModifiersStateSide::RSHIFT, pressed),
-                                Some(VirtualKeyCode::LControl) => subclass_input
-                                    .modifiers_state
-                                    .set(ModifiersStateSide::LCTRL, pressed),
-                                Some(VirtualKeyCode::RControl) => subclass_input
-                                    .modifiers_state
-                                    .set(ModifiersStateSide::RCTRL, pressed),
-                                Some(VirtualKeyCode::LAlt) => subclass_input
-                                    .modifiers_state
-                                    .set(ModifiersStateSide::LALT, pressed),
-                                Some(VirtualKeyCode::RAlt) => subclass_input
-                                    .modifiers_state
-                                    .set(ModifiersStateSide::RALT, pressed),
-                                Some(VirtualKeyCode::LWin) => subclass_input
-                                    .modifiers_state
-                                    .set(ModifiersStateSide::LLOGO, pressed),
-                                Some(VirtualKeyCode::RWin) => subclass_input
-                                    .modifiers_state
-                                    .set(ModifiersStateSide::RLOGO, pressed),
-                                _ => (),
-                            }
-                            let new_modifiers_state =
-                                subclass_input.modifiers_state.filter_out_altgr().into();
-                            if new_modifiers_state != old_modifiers_state {
-                                subclass_input.send_event(Event::WindowEvent {
-                                    window_id: RootWindowId(WindowId(window)),
-                                    event: ModifiersChanged(new_modifiers_state),
-                                });
-                            }
-
                             #[allow(deprecated)]
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
@@ -1934,7 +1933,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                                     scancode,
                                     state,
                                     virtual_keycode,
-                                    modifiers: new_modifiers_state,
+                                    modifiers: event::get_key_mods(),
                                 }),
                             });
                         }
