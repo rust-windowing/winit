@@ -37,7 +37,7 @@ use instant::Instant;
 use std::path::PathBuf;
 
 use crate::{
-    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -764,7 +764,7 @@ pub enum MouseScrollDelta {
     /// Scroll events are expressed as a PixelDelta if
     /// supported by the device (eg. a touchpad) and
     /// platform.
-    PixelDelta(LogicalPosition<f64>),
+    PixelDelta(PhysicalPosition<f64>),
 }
 
 /// Symbolic name for a keyboard key.
