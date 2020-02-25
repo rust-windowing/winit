@@ -17,7 +17,7 @@ jobs:
   Check_Formatting:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: stable
@@ -54,7 +54,7 @@ jobs:
 
     runs-on: ${{ matrix.platform.os }}
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     # Used to cache cargo-web
     - name: Cache cargo folder
       uses: actions/cache@v1
