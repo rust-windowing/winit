@@ -38,6 +38,17 @@ impl WindowExtWebSys for Window {
     fn canvas(&self) -> HtmlCanvasElement {
         self.window.canvas().raw().clone()
     }
+
+    fn is_dark_mode(&self) -> bool {
+        let window = web_sys::window().expect("Failed to obtain window");
+
+        window
+            .match_media("(prefers-color-scheme: dark)")
+            .ok()
+            .flatten()
+            .map(|media| media.matches())
+            .unwrap_or(false)
+    }
 }
 
 pub fn window_size() -> LogicalSize<f64> {
@@ -91,3 +102,5 @@ pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
         None => false,
     }
 }
+
+pub type RawCanvasType = HtmlCanvasElement;

@@ -27,12 +27,12 @@ pub struct WindowState {
     pub taskbar_icon: Option<WinIcon>,
 
     pub saved_window: Option<SavedWindow>,
-    pub dpi_factor: f64,
+    pub scale_factor: f64,
 
     pub modifiers_state: ModifiersState,
     pub fullscreen: Option<Fullscreen>,
     /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
-    /// times in `EventsCleared`.
+    /// times in `MainEventsCleared`.
     pub queued_out_of_band_redraw: bool,
     pub is_dark_mode: bool,
     pub high_surrogate: Option<u16>,
@@ -42,7 +42,7 @@ pub struct WindowState {
 #[derive(Clone)]
 pub struct SavedWindow {
     pub client_rect: RECT,
-    pub dpi_factor: f64,
+    pub scale_factor: f64,
 }
 
 #[derive(Clone)]
@@ -100,7 +100,7 @@ impl WindowState {
         attributes: &WindowAttributes,
         window_icon: Option<WinIcon>,
         taskbar_icon: Option<WinIcon>,
-        dpi_factor: f64,
+        scale_factor: f64,
         is_dark_mode: bool,
     ) -> WindowState {
         WindowState {
@@ -117,7 +117,7 @@ impl WindowState {
             taskbar_icon,
 
             saved_window: None,
-            dpi_factor,
+            scale_factor,
 
             modifiers_state: ModifiersState::default(),
             fullscreen: None,

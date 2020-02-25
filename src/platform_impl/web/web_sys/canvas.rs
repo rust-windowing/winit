@@ -2,13 +2,16 @@ use super::event;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
-use crate::platform_impl::OsError;
+use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
-use web_sys::{Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent};
+use web_sys::{
+    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, PointerEvent,
+    WheelEvent,
+};
 
 pub struct Canvas {
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
@@ -26,6 +29,7 @@ pub struct Canvas {
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
+    on_dark_mode: Option<Closure<dyn FnMut(MediaQueryListEvent)>>,
 }
 
 impl Drop for Canvas {
@@ -35,18 +39,23 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create() -> Result<Self, RootOE> {
-        let window =
-            web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
+        let canvas = match attr.canvas {
+            Some(canvas) => canvas,
+            None => {
+                let window = web_sys::window()
+                    .ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
-        let document = window
-            .document()
-            .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
+                let document = window
+                    .document()
+                    .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
 
-        let canvas: HtmlCanvasElement = document
-            .create_element("canvas")
-            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-            .unchecked_into();
+                document
+                    .create_element("canvas")
+                    .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                    .unchecked_into()
+            }
+        };
 
         // A tabindex is needed in order to capture local keyboard events.
         // A "0" value means that the element should be focusable in
@@ -72,6 +81,7 @@ impl Canvas {
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
+            on_dark_mode: None,
         })
     }
 
@@ -244,6 +254,28 @@ impl Canvas {
     {
         self.on_fullscreen_change =
             Some(self.add_event("fullscreenchange", move |_: Event| handler()));
+    }
+
+    pub fn on_dark_mode<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(bool),
+    {
+        let window = web_sys::window().expect("Failed to obtain window");
+
+        self.on_dark_mode = window
+            .match_media("(prefers-color-scheme: dark)")
+            .ok()
+            .flatten()
+            .and_then(|media| {
+                let closure = Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
+                    handler(event.matches())
+                }) as Box<dyn FnMut(_)>);
+
+                media
+                    .add_listener_with_opt_callback(Some(&closure.as_ref().unchecked_ref()))
+                    .map(|_| closure)
+                    .ok()
+            });
     }
 
     fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>

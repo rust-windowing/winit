@@ -317,11 +317,9 @@ fn main_thread_id() -> DWORD {
     unsafe { MAIN_THREAD_ID }
 }
 
-// Returns true if the wait time was reached, and false if a message must be processed.
-unsafe fn wait_until_time_or_msg(wait_until: Instant) -> bool {
-    let mut msg = mem::zeroed();
+unsafe fn wait_until_time_or_msg(wait_until: Instant) {
     let now = Instant::now();
-    if now <= wait_until {
+    if now < wait_until {
         // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract 1 millisecond
         // from the requested time and spinlock for the remainder to compensate for that.
         let resume_reason = winuser::MsgWaitForMultipleObjectsEx(
@@ -333,16 +331,16 @@ unsafe fn wait_until_time_or_msg(wait_until: Instant) -> bool {
         );
 
         if resume_reason == winerror::WAIT_TIMEOUT {
+            let mut msg = mem::zeroed();
             while Instant::now() < wait_until {
                 if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
-                    return false;
+                    break;
                 }
             }
         }
     }
-
-    return true;
 }
+
 // Implementation taken from https://github.com/rust-lang/rust/blob/db5476571d9b27c862b95c1e64764b0ac8980e23/src/libstd/sys/windows/mod.rs
 fn dur2timeout(dur: Duration) -> DWORD {
     // Note that a duration is a (u64, u32) (seconds, nanoseconds) pair, and the
@@ -1474,7 +1472,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             if window_state.min_size.is_some() || window_state.max_size.is_some() {
                 if let Some(min_size) = window_state.min_size {
-                    let min_size = min_size.to_physical(window_state.dpi_factor);
+                    let min_size = min_size.to_physical(window_state.scale_factor);
                     let (width, height): (u32, u32) = util::adjust_size(window, min_size).into();
                     (*mmi).ptMinTrackSize = POINT {
                         x: width as i32,
@@ -1482,7 +1480,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     };
                 }
                 if let Some(max_size) = window_state.max_size {
-                    let max_size = max_size.to_physical(window_state.dpi_factor);
+                    let max_size = max_size.to_physical(window_state.scale_factor);
                     let (width, height): (u32, u32) = util::adjust_size(window, max_size).into();
                     (*mmi).ptMaxTrackSize = POINT {
                         x: width as i32,
@@ -1504,15 +1502,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // application since they are the same".
             // https://msdn.microsoft.com/en-us/library/windows/desktop/dn312083(v=vs.85).aspx
             let new_dpi_x = u32::from(LOWORD(wparam as DWORD));
-            let new_dpi_factor = dpi_to_scale_factor(new_dpi_x);
-            let old_dpi_factor: f64;
+            let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
+            let old_scale_factor: f64;
 
             let allow_resize = {
                 let mut window_state = subclass_input.window_state.lock();
-                old_dpi_factor = window_state.dpi_factor;
-                window_state.dpi_factor = new_dpi_factor;
+                old_scale_factor = window_state.scale_factor;
+                window_state.scale_factor = new_scale_factor;
 
-                if new_dpi_factor == old_dpi_factor {
+                if new_scale_factor == old_scale_factor {
                     return 0;
                 }
 
@@ -1522,7 +1520,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             let style = winuser::GetWindowLongW(window, winuser::GWL_STYLE) as _;
             let style_ex = winuser::GetWindowLongW(window, winuser::GWL_EXSTYLE) as _;
-            let b_menu = !winuser::GetMenu(window).is_null() as BOOL;
 
             // New size as suggested by Windows.
             let suggested_rect = *(lparam as *const RECT);
@@ -1536,14 +1533,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             // let margin_right: i32;
             // let margin_bottom: i32;
             {
-                let mut adjusted_rect = suggested_rect;
-                winuser::AdjustWindowRectExForDpi(
-                    &mut adjusted_rect,
-                    style,
-                    b_menu,
-                    style_ex,
-                    new_dpi_x,
-                );
+                let adjusted_rect =
+                    util::adjust_window_rect_with_styles(window, style, style_ex, suggested_rect)
+                        .unwrap_or(suggested_rect);
                 margin_left = suggested_rect.left - adjusted_rect.left;
                 margin_top = suggested_rect.top - adjusted_rect.top;
                 // margin_right = adjusted_rect.right - suggested_rect.right;
@@ -1574,15 +1566,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 // We calculate our own size because the default suggested rect doesn't do a great job
                 // of preserving the window's logical size.
                 true => old_physical_inner_size
-                    .to_logical::<f64>(old_dpi_factor)
-                    .to_physical::<u32>(new_dpi_factor),
+                    .to_logical::<f64>(old_scale_factor)
+                    .to_physical::<u32>(new_scale_factor),
                 false => old_physical_inner_size,
             };
 
             let _ = subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
-                    scale_factor: new_dpi_factor,
+                    scale_factor: new_scale_factor,
                     new_inner_size: &mut new_physical_inner_size,
                 },
             });
@@ -1608,13 +1600,13 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     bottom: suggested_ul.1 + new_physical_inner_size.height as LONG,
                 };
 
-                winuser::AdjustWindowRectExForDpi(
-                    &mut conservative_rect,
+                conservative_rect = util::adjust_window_rect_with_styles(
+                    window,
                     style,
-                    b_menu,
                     style_ex,
-                    new_dpi_x,
-                );
+                    conservative_rect,
+                )
+                .unwrap_or(conservative_rect);
 
                 // If we're not dragging the window, offset the window so that the cursor's
                 // relative horizontal position in the title bar is preserved.

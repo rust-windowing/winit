@@ -7,7 +7,7 @@
 
 ```toml
 [dependencies]
-winit = "0.20.0"
+winit = "0.21.0"
 ```
 
 ## [Documentation](https://docs.rs/winit)

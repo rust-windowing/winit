@@ -39,7 +39,10 @@ use crate::{
     window::{CursorIcon, WindowId as RootWindowId},
 };
 
-use super::{window::WindowStore, DeviceId, WindowId};
+use super::{
+    window::{DecorationsAction, WindowStore},
+    DeviceId, WindowId,
+};
 
 use smithay_client_toolkit::{
     output::OutputMgr,
@@ -90,6 +93,7 @@ pub struct CursorManager {
     locked_pointers: Vec<ZwpLockedPointerV1>,
     cursor_visible: bool,
     current_cursor: CursorIcon,
+    scale_factor: u32,
 }
 
 impl CursorManager {
@@ -101,6 +105,7 @@ impl CursorManager {
             locked_pointers: Vec::new(),
             cursor_visible: true,
             current_cursor: CursorIcon::default(),
+            scale_factor: 1,
         }
     }
 
@@ -143,6 +148,11 @@ impl CursorManager {
                 self.set_cursor_icon_impl(cursor);
             }
         }
+    }
+
+    pub fn update_scale_factor(&mut self, scale: u32) {
+        self.scale_factor = scale;
+        self.reload_cursor_style();
     }
 
     fn set_cursor_icon_impl(&mut self, cursor: CursorIcon) {
@@ -193,7 +203,7 @@ impl CursorManager {
         for pointer in self.pointers.iter() {
             // Ignore erros, since we don't want to fail hard in case we can't find a proper cursor
             // in a given theme.
-            let _ = pointer.set_cursor(cursor, None);
+            let _ = pointer.set_cursor_with_scale(cursor, self.scale_factor, None);
         }
     }
 
@@ -706,6 +716,13 @@ impl<T> EventLoop<T> {
                 crate::window::WindowId(crate::platform_impl::WindowId::Wayland(window.wid));
             if let Some(frame) = window.frame {
                 if let Some((w, h)) = window.newsize {
+                    // Update decorations state
+                    match window.decorations_action {
+                        Some(DecorationsAction::Hide) => frame.set_decorate(false),
+                        Some(DecorationsAction::Show) => frame.set_decorate(true),
+                        None => (),
+                    }
+
                     // mutter (GNOME Wayland) relies on `set_geometry` to reposition window in case
                     // it overlaps mutter's `bounding box`, so we can't avoid this resize call,
                     // which calls `set_geometry` under the hood, for now.
@@ -728,6 +745,13 @@ impl<T> EventLoop<T> {
                 }
 
                 if let Some(dpi) = window.new_dpi {
+                    // Update cursor scale factor
+                    {
+                        self.cursor_manager
+                            .lock()
+                            .unwrap()
+                            .update_scale_factor(dpi as u32);
+                    };
                     let dpi = dpi as f64;
                     let logical_size = LogicalSize::<f64>::from(*window.size);
                     let mut new_inner_size = logical_size.to_physical(dpi);
@@ -742,6 +766,8 @@ impl<T> EventLoop<T> {
 
                     let (w, h) = new_inner_size.to_logical::<u32>(dpi).into();
                     frame.resize(w, h);
+                    // Refresh frame to rescale decorations
+                    frame.refresh();
                     *window.size = (w, h);
                 }
             }

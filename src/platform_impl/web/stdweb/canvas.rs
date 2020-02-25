@@ -2,10 +2,11 @@ use super::event;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
-use crate::platform_impl::OsError;
+use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use stdweb::js;
 use stdweb::traits::IPointerEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{
@@ -43,12 +44,15 @@ impl Drop for Canvas {
 }
 
 impl Canvas {
-    pub fn create() -> Result<Self, RootOE> {
-        let canvas: CanvasElement = document()
-            .create_element("canvas")
-            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-            .try_into()
-            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?;
+    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
+        let canvas = match attr.canvas {
+            Some(canvas) => canvas,
+            None => document()
+                .create_element("canvas")
+                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                .try_into()
+                .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?,
+        };
 
         // A tabindex is needed in order to capture local keyboard events.
         // A "0" value means that the element should be focusable in
@@ -235,6 +239,22 @@ impl Canvas {
         F: 'static + FnMut(),
     {
         self.on_fullscreen_change = Some(self.add_event(move |_: FullscreenChangeEvent| handler()));
+    }
+
+    pub fn on_dark_mode<F>(&mut self, handler: F)
+    where
+        F: 'static + FnMut(bool),
+    {
+        // TODO: upstream to stdweb
+        js! {
+            var handler = @{handler};
+
+            if (window.matchMedia) {
+                window.matchMedia("(prefers-color-scheme: dark)").addListener(function(e) {
+                    handler(event.matches)
+                });
+            }
+        }
     }
 
     fn add_event<E, F>(&self, mut handler: F) -> EventListenerHandle

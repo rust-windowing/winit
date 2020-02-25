@@ -29,6 +29,7 @@ use std::{
     mem::{self, MaybeUninit},
     ops::Deref,
     os::raw::*,
+    ptr,
     rc::Rc,
     slice,
     sync::{mpsc, Arc, Mutex, Weak},
@@ -105,7 +106,25 @@ impl<T: 'static> EventLoop<T> {
         // Input methods will open successfully without setting the locale, but it won't be
         // possible to actually commit pre-edit sequences.
         unsafe {
+            // Remember default locale to restore it if target locale is unsupported
+            // by Xlib
+            let default_locale = setlocale(LC_CTYPE, ptr::null());
             setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
+
+            // Check if set locale is supported by Xlib.
+            // If not, calls to some Xlib functions like `XSetLocaleModifiers`
+            // will fail.
+            let locale_supported = (xconn.xlib.XSupportsLocale)() == 1;
+            if !locale_supported {
+                let unsupported_locale = setlocale(LC_CTYPE, ptr::null());
+                warn!(
+                    "Unsupported locale \"{}\". Restoring default locale \"{}\".",
+                    CStr::from_ptr(unsupported_locale).to_string_lossy(),
+                    CStr::from_ptr(default_locale).to_string_lossy()
+                );
+                // Restore default locale
+                setlocale(LC_CTYPE, default_locale);
+            }
         }
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
@@ -396,7 +415,6 @@ impl<T: 'static> EventLoop<T> {
         let mut xev = MaybeUninit::uninit();
 
         let wt = get_xtarget(&self.target);
-        let mut pending_redraws = wt.pending_redraws.lock().unwrap();
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
@@ -410,7 +428,7 @@ impl<T: 'static> EventLoop<T> {
                             super::WindowId::X(wid),
                         )) = event
                         {
-                            pending_redraws.insert(wid);
+                            wt.pending_redraws.lock().unwrap().insert(wid);
                         } else {
                             callback(event, window_target, control_flow);
                         }
@@ -491,20 +509,8 @@ impl<'a> Deref for DeviceInfo<'a> {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(ffi::Window);
 
-impl WindowId {
-    pub unsafe fn dummy() -> Self {
-        WindowId(0)
-    }
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
-
-impl DeviceId {
-    pub unsafe fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
 
 pub struct Window(Arc<UnownedWindow>);
 
