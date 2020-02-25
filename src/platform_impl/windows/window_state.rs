@@ -29,9 +29,6 @@ pub struct WindowState {
     pub scale_factor: f64,
 
     pub fullscreen: Option<Fullscreen>,
-    /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
-    /// times in `MainEventsCleared`.
-    pub queued_out_of_band_redraw: bool,
     pub is_dark_mode: bool,
     pub high_surrogate: Option<u16>,
     window_flags: WindowFlags,
@@ -120,7 +117,6 @@ impl WindowState {
             scale_factor,
 
             fullscreen: None,
-            queued_out_of_band_redraw: false,
             is_dark_mode,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
