@@ -106,6 +106,9 @@ impl<T> ELRShared<T> {
         if let Err(event) = self.send_event_unbuffered(event) {
             // If the runner is already borrowed, we're in the middle of an event loop invocation.
             // Add the event to a buffer to be processed later.
+            if let Event::RedrawRequested(_) = event  {
+                panic!("buffering RedrawRequested event");
+            }
             self.buffer
                 .borrow_mut()
                 .push_back(BufferedEvent::from_event(event));
