@@ -266,7 +266,7 @@ impl WindowFlags {
                         | winuser::SWP_NOSIZE
                         | winuser::SWP_NOACTIVATE,
                 );
-                winuser::UpdateWindow(window);
+                winuser::InvalidateRgn(window, ptr::null_mut(), 0);
             }
         }
 

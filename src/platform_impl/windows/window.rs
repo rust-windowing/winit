@@ -187,7 +187,7 @@ impl Window {
                     | winuser::SWP_NOSIZE
                     | winuser::SWP_NOACTIVATE,
             );
-            winuser::UpdateWindow(self.window.0);
+            winuser::InvalidateRgn(self.window.0, ptr::null_mut(), 0);
         }
     }
 
@@ -506,7 +506,7 @@ impl Window {
                             size.1 as i32,
                             winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER,
                         );
-                        winuser::UpdateWindow(window.0);
+                        winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                     }
                 }
                 None => {
@@ -532,7 +532,7 @@ impl Window {
                                     | winuser::SWP_NOZORDER
                                     | winuser::SWP_NOACTIVATE,
                             );
-                            winuser::UpdateWindow(window.0);
+                            winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                         }
                     }
                 }
