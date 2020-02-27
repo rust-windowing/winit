@@ -106,7 +106,7 @@ impl<T> ELRShared<T> {
         if let Err(event) = self.send_event_unbuffered(event) {
             // If the runner is already borrowed, we're in the middle of an event loop invocation.
             // Add the event to a buffer to be processed later.
-            if let Event::RedrawRequested(_) = event  {
+            if let Event::RedrawRequested(_) = event {
                 panic!("buffering RedrawRequested event");
             }
             self.buffer
@@ -178,6 +178,17 @@ impl<T> ELRShared<T> {
         let mut runner_ref = self.runner.borrow_mut();
         if let Some(ref mut runner) = *runner_ref {
             runner.in_modal_loop = in_modal_loop;
+            if in_modal_loop {
+                // jumpstart the modal loop
+                unsafe {
+                    winuser::RedrawWindow(
+                        runner.modal_redraw_window,
+                        ptr::null(),
+                        ptr::null_mut(),
+                        winuser::RDW_INTERNALPAINT,
+                    );
+                }
+            }
         }
     }
 

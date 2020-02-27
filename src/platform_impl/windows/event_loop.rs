@@ -632,13 +632,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
 
         winuser::WM_NCLBUTTONDOWN => {
-            // jumpstart the modal loop
-            winuser::RedrawWindow(
-                window,
-                ptr::null(),
-                ptr::null_mut(),
-                winuser::RDW_INTERNALPAINT,
-            );
             if wparam == winuser::HTCAPTION as _ {
                 winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
             }
