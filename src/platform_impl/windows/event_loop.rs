@@ -252,7 +252,7 @@ impl<T: 'static> EventLoop<T> {
                         ptr::null_mut(),
                         winuser::WM_PAINT,
                         winuser::WM_PAINT,
-                        winuser::PM_REMOVE,
+                        winuser::PM_QS_PAINT | winuser::PM_REMOVE,
                     ) {
                         break;
                     }
@@ -1725,7 +1725,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         ptr::null_mut(),
                         winuser::WM_PAINT,
                         winuser::WM_PAINT,
-                        winuser::PM_REMOVE,
+                        winuser::PM_QS_PAINT | winuser::PM_REMOVE,
                     ) {
                         break;
                     }
