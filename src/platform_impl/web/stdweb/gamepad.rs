@@ -1,6 +1,7 @@
 use std::{cmp::PartialEq};
 use crate::platform_impl::platform::device;
 use super::utils;
+use stdweb::js;
 
 #[derive(Debug)]
 pub struct Gamepad {
@@ -41,8 +42,25 @@ impl Gamepad {
 
     // EXPERIMENTAL
     #[allow(dead_code)]
-    pub fn vibrate(&self, _value: f64, _duration: f64) {
-        unimplemented!()
+    pub fn vibrate(&self, value: f64, duration: f64) {
+        let index = self.index;
+        js! {
+            const gamepads = navigator.getGamepads();
+            let gamepad = null;
+            for (let i = 0; i < gamepads.length; i++) {
+                if (gamepads[i] && gamepads[i].index == @{index}) {
+                    gamepad = gamepads[i];
+                    break
+                }
+            }
+            if (!gamepad || !gamepad.hapticActuators) return;
+            for (let i = 0; i < gamepad.hapticActuators.length; i++) {
+                const actuator = gamepad.hapticActuators[i];
+                if (actuator && actuator.type === "vibration") {
+                    actuator.pulse(@{value}, @{duration});
+                }
+            }
+        }
     }
 }
 
