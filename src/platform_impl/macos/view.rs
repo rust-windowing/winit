@@ -820,6 +820,8 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
 
         let event: id = msg_send![NSApp(), currentEvent];
 
+        update_potentially_stale_modifiers(state, event);
+
         #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
@@ -910,6 +912,8 @@ fn mouse_motion(this: &Object, event: id) {
         let y = view_rect.size.height as f64 - view_point.y as f64;
         let logical_position = LogicalPosition::new(x, y);
 
+        update_potentially_stale_modifiers(state, event);
+
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::CursorMoved {
@@ -945,8 +949,6 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        update_potentially_stale_modifiers(state, event);
-
         let enter_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::CursorEntered {
@@ -955,18 +957,15 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
         };
 
         AppState::queue_event(EventWrapper::StaticEvent(enter_event));
-        mouse_motion(this, event);
     }
     trace!("Completed `mouseEntered`");
 }
 
-extern "C" fn mouse_exited(this: &Object, _sel: Sel, event: id) {
+extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
     trace!("Triggered `mouseExited`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
-
-        update_potentially_stale_modifiers(state, event);
 
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
@@ -1030,8 +1029,6 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
-
-        update_potentially_stale_modifiers(state, event);
 
         let pressure = event.pressure();
         let stage = event.stage();
