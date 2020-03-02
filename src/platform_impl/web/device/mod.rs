@@ -26,7 +26,7 @@ impl MouseId {
     pub fn enumerate<'a, T>(
         event_loop: &'a EventLoop<T>,
     ) -> impl 'a + Iterator<Item = device::MouseId> {
-        event_loop.mouses()
+        event_loop.mice()
     }
 }
 

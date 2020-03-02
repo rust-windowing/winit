@@ -66,7 +66,7 @@ impl<T> EventLoop<T> {
         &self.elw
     }
 
-    pub fn mouses(&self) -> impl '_ + Iterator<Item = crate::event::device::MouseId> {
+    pub fn mice(&self) -> impl '_ + Iterator<Item = crate::event::device::MouseId> {
         std::iter::empty()
     }
 
