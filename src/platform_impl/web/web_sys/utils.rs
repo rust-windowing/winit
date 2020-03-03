@@ -1,8 +1,9 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
+use crate::platform_impl::platform;
 
 use std::convert::TryInto;
-use web_sys::{KeyboardEvent, MouseEvent, WheelEvent};
+use web_sys::{Gamepad, GamepadButton, GamepadMappingType, KeyboardEvent, MouseEvent, WheelEvent};
 
 pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     match event.button() {
@@ -29,15 +30,10 @@ pub fn mouse_position(event: &MouseEvent) -> LogicalPosition {
     }
 }
 
-pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
+pub fn mouse_scroll_delta(event: &WheelEvent) -> (f64, f64) {
     let x = event.delta_x();
     let y = event.delta_y();
-
-    match event.delta_mode() {
-        WheelEvent::DOM_DELTA_LINE => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
-        WheelEvent::DOM_DELTA_PIXEL => Some(MouseScrollDelta::PixelDelta(LogicalPosition { x, y })),
-        _ => None,
-    }
+    (x, y)
 }
 
 pub fn scan_code(event: &KeyboardEvent) -> ScanCode {
@@ -224,4 +220,45 @@ pub fn codepoint(event: &KeyboardEvent) -> char {
     // never panic.
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
     event.key().chars().next().unwrap()
+}
+
+pub fn create_mapping(raw: &Gamepad) -> platform::device::gamepad::Mapping {
+    match raw.mapping() {
+        GamepadMappingType::Standard => {
+            let mut buttons = [false; 16];
+            let mut axes = [0.0; 6];
+
+            let gbuttons = raw.buttons();
+            for index in 0..buttons.len() {
+                let button: GamepadButton = gbuttons.get(index as u32).into();
+                buttons[index] = button.pressed();
+            }
+
+            let gaxes = raw.axes();
+            for index in 0..axes.len() {
+                let axe: f64 = gaxes.get(index as u32).as_f64().unwrap_or(0.0);
+                axes[index] = axe;
+            }
+
+            platform::device::gamepad::Mapping::Standard { buttons, axes }
+        }
+        _ => {
+            let mut buttons: Vec<bool> = Vec::new();
+            let mut axes: Vec<f64> = Vec::new();
+
+            let gbuttons = raw.buttons();
+            for index in 0..gbuttons.length() {
+                let button: GamepadButton = gbuttons.get(index as u32).into();
+                buttons.push(button.pressed());
+            }
+
+            let gaxes = raw.axes();
+            for index in 0..gaxes.length() {
+                let axe: f64 = gaxes.get(index as u32).as_f64().unwrap_or(0.0);
+                axes.push(axe);
+            }
+
+            platform::device::gamepad::Mapping::NoMapping { buttons, axes }
+        }
+    }
 }

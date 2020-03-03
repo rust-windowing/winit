@@ -1,7 +1,7 @@
-use super::event;
+use super::utils;
 use crate::dpi::{LogicalPosition, LogicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
 use crate::platform_impl::OsError;
 
 use std::cell::RefCell;
@@ -129,9 +129,9 @@ impl Canvas {
     {
         self.on_keyboard_release = Some(self.add_user_event(move |event: KeyUpEvent| {
             handler(
-                event::scan_code(&event),
-                event::virtual_key_code(&event),
-                event::keyboard_modifiers(&event),
+                utils::scan_code(&event),
+                utils::virtual_key_code(&event),
+                utils::keyboard_modifiers(&event),
             );
         }));
     }
@@ -142,9 +142,9 @@ impl Canvas {
     {
         self.on_keyboard_press = Some(self.add_user_event(move |event: KeyDownEvent| {
             handler(
-                event::scan_code(&event),
-                event::virtual_key_code(&event),
-                event::keyboard_modifiers(&event),
+                utils::scan_code(&event),
+                utils::virtual_key_code(&event),
+                utils::keyboard_modifiers(&event),
             );
         }));
     }
@@ -159,75 +159,65 @@ impl Canvas {
         // viable/compatible alternative as of now. `beforeinput` is still widely
         // unsupported.
         self.on_received_character = Some(self.add_user_event(move |event: KeyPressEvent| {
-            handler(event::codepoint(&event));
+            handler(utils::codepoint(&event));
         }));
     }
 
     pub fn on_cursor_leave<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
-        self.on_cursor_leave = Some(self.add_event(move |event: PointerOutEvent| {
-            handler(event.pointer_id());
+        self.on_cursor_leave = Some(self.add_event(move |_event: PointerOutEvent| {
+            handler();
         }));
     }
 
     pub fn on_cursor_enter<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
-        self.on_cursor_enter = Some(self.add_event(move |event: PointerOverEvent| {
-            handler(event.pointer_id());
+        self.on_cursor_enter = Some(self.add_event(move |_event: PointerOverEvent| {
+            handler();
         }));
     }
 
     pub fn on_mouse_release<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         self.on_mouse_release = Some(self.add_user_event(move |event: PointerUpEvent| {
-            handler(
-                event.pointer_id(),
-                event::mouse_button(&event),
-                event::mouse_modifiers(&event),
-            );
+            handler(event.pointer_id(), utils::mouse_button(&event));
         }));
     }
 
     pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         self.on_mouse_press = Some(self.add_user_event(move |event: PointerDownEvent| {
-            handler(
-                event.pointer_id(),
-                event::mouse_button(&event),
-                event::mouse_modifiers(&event),
-            );
+            handler(event.pointer_id(), utils::mouse_button(&event));
         }));
     }
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, LogicalPosition, ModifiersState),
+        F: 'static + FnMut(LogicalPosition, ModifiersState),
     {
         self.on_cursor_move = Some(self.add_event(move |event: PointerMoveEvent| {
             handler(
-                event.pointer_id(),
-                event::mouse_position(&event),
-                event::mouse_modifiers(&event),
+                utils::mouse_position(&event),
+                utils::mouse_modifiers(&event),
             );
         }));
     }
 
     pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
+        F: 'static + FnMut(i32, (f64, f64)),
     {
         self.on_mouse_wheel = Some(self.add_event(move |event: MouseWheelEvent| {
-            if let Some(delta) = event::mouse_scroll_delta(&event) {
-                handler(0, delta, event::mouse_modifiers(&event));
-            }
+            let delta = utils::mouse_scroll_delta(&event);
+            handler(0, delta);
         }));
     }
 

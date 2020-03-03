@@ -1,7 +1,11 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
+use crate::platform_impl::platform::device::gamepad;
 
-use stdweb::web::event::{IKeyboardEvent, IMouseEvent, MouseWheelDeltaMode, MouseWheelEvent};
+use stdweb::web::{
+    event::{IKeyboardEvent, IMouseEvent, MouseWheelEvent},
+    Gamepad, GamepadMappingType,
+};
 use stdweb::{js, unstable::TryInto, JsSerialize};
 
 pub fn mouse_button(event: &impl IMouseEvent) -> MouseButton {
@@ -30,15 +34,10 @@ pub fn mouse_position(event: &impl IMouseEvent) -> LogicalPosition {
     }
 }
 
-pub fn mouse_scroll_delta(event: &MouseWheelEvent) -> Option<MouseScrollDelta> {
+pub fn mouse_scroll_delta(event: &MouseWheelEvent) -> (f64, f64) {
     let x = event.delta_x();
     let y = event.delta_y();
-
-    match event.delta_mode() {
-        MouseWheelDeltaMode::Line => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
-        MouseWheelDeltaMode::Pixel => Some(MouseScrollDelta::PixelDelta(LogicalPosition { x, y })),
-        MouseWheelDeltaMode::Page => None,
-    }
+    (x, y)
 }
 
 pub fn scan_code<T: JsSerialize>(event: &T) -> ScanCode {
@@ -226,4 +225,37 @@ pub fn codepoint(event: &impl IKeyboardEvent) -> char {
     // never panic.
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
     event.key().chars().next().unwrap()
+}
+
+pub fn create_mapping(raw: &Gamepad) -> gamepad::Mapping {
+    match raw.mapping() {
+        GamepadMappingType::Standard => {
+            let mut buttons = [false; 16];
+            let mut axes = [0.0; 6];
+
+            for (index, button) in raw
+                .buttons()
+                .into_iter()
+                .enumerate()
+                .take(buttons.len())
+            {
+                buttons[index] = button.pressed();
+            }
+
+            for (index, axis) in raw.axes().into_iter().enumerate().take(axes.len()) {
+                axes[index] = axis;
+            }
+
+            gamepad::Mapping::Standard { buttons, axes }
+        }
+        _ => {
+            let buttons = raw
+                .buttons()
+                .into_iter()
+                .map(|button| button.pressed())
+                .collect();
+            let axes = raw.axes();
+            gamepad::Mapping::NoMapping { buttons, axes }
+        }
+    }
 }

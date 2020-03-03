@@ -1,6 +1,8 @@
 mod canvas;
-mod event;
+pub mod gamepad;
 mod timeout;
+mod utils;
+pub mod window;
 
 pub use self::canvas::Canvas;
 pub use self::timeout::Timeout;
@@ -49,4 +51,10 @@ pub fn is_fullscreen(canvas: &CanvasElement) -> bool {
         }
         None => false,
     }
+}
+
+pub fn get_gamepads() -> impl Iterator<Item = gamepad::Gamepad> {
+    stdweb::web::Gamepad::get_all()
+    .into_iter()
+    .filter_map(|gamepad| gamepad.map(|gamepad| gamepad::Gamepad::new(gamepad)))
 }

@@ -2,6 +2,7 @@ use super::{backend, state::State};
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop as root;
 use crate::window::WindowId;
+use crate::platform_impl::platform::device::gamepad;
 
 use instant::{Duration, Instant};
 use std::{
@@ -24,6 +25,7 @@ pub struct Execution<T> {
     events: RefCell<VecDeque<Event<T>>>,
     id: RefCell<u32>,
     redraw_pending: RefCell<HashSet<WindowId>>,
+    gamepad_manager: RefCell<gamepad::Manager>,
 }
 
 struct Runner<T> {
@@ -49,7 +51,12 @@ impl<T: 'static> Shared<T> {
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
             redraw_pending: RefCell::new(HashSet::new()),
+            gamepad_manager: RefCell::new(gamepad::Manager::new()),
         }))
+    }
+
+    pub fn set_global_window(&self, global_window: super::global::Shared) {
+        self.0.gamepad_manager.borrow_mut().set_global_window(global_window);
     }
 
     // Set the event callback to use for the event loop runner
@@ -138,6 +145,14 @@ impl<T: 'static> Shared<T> {
                 &mut control,
             );
         }
+        // Collect all global events
+        let mut gamepad_manager = self.0.gamepad_manager.borrow_mut();
+        let instance = self.clone();
+        gamepad_manager.collect_events(move |(handle, event)| {
+            instance.handle_event(Event::GamepadEvent(handle, event), &mut control);
+        });
+
+        // Every events are cleared
         self.handle_event(Event::EventsCleared, &mut control);
         self.apply_control_flow(control);
         // If the event loop is closed, it has been closed this iteration and now the closing
