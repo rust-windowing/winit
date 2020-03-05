@@ -242,7 +242,6 @@ impl<T: 'static> EventLoop<T> {
                         break;
                     }
                 }
-                assert!(!unread_message_exists);
                 runner.main_events_cleared();
                 // Drain eventual WM_PAINT messages sent if user called request_redraw()
                 // during handling of MainEventsCleared.

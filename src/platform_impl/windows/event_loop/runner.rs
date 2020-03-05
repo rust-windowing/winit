@@ -145,7 +145,9 @@ impl<T> ELRShared<T> {
         let mut runner_ref = self.runner.borrow_mut();
         if let Some(ref mut runner) = *runner_ref {
             runner.main_events_cleared();
-            assert!(self.buffer.borrow().is_empty());
+            if !self.buffer.borrow().is_empty() {
+                warn!("Buffered events while dispatching MainEventsCleared");
+            }
         }
     }
 
@@ -153,7 +155,9 @@ impl<T> ELRShared<T> {
         let mut runner_ref = self.runner.borrow_mut();
         if let Some(ref mut runner) = *runner_ref {
             runner.redraw_events_cleared();
-            assert!(self.buffer.borrow().is_empty());
+            if !self.buffer.borrow().is_empty() {
+                warn!("Buffered events while dispatching RedrawEventsCleared");
+            }
         }
     }
 
@@ -372,7 +376,7 @@ impl<T> EventLoopRunner<T> {
                 self.call_event_handler(Event::RedrawRequested(*window_id));
             }
             (RunnerState::HandlingRedraw, _) => {
-                panic!(
+                warn!(
                     "non-redraw event in redraw phase: {:?}",
                     event.map_nonuser_event::<()>().ok()
                 );
