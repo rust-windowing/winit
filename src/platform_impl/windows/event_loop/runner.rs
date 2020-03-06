@@ -396,7 +396,8 @@ impl<T> EventLoopRunner<T> {
                 self.runner_state = RunnerState::HandlingRedraw;
             }
 
-            // we already cleared the main events, we don't have to do anything.
+            // We already cleared the main events, we don't have to do anything.
+            // This happens when process_events() processed a RedrawRequested event.
             RunnerState::HandlingRedraw => {}
 
             // If we *weren't* handling events, we don't have to do anything.
@@ -443,9 +444,13 @@ impl<T> EventLoopRunner<T> {
                 self.call_event_handler(Event::RedrawEventsCleared);
                 self.runner_state = RunnerState::Idle(Instant::now());
             }
-
-            // If we *weren't* handling redraws, we don't have to do anything.
-            _ => (),
+            // No event was processed, we don't have to do anything.
+            RunnerState::DeferredNewEvents(_) => (),
+            // Should not happen.
+            _ => warn!(
+                "unexpected state in redraw_events_cleared: {:?}",
+                self.runner_state
+            ),
         }
     }
 
