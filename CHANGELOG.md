@@ -9,6 +9,7 @@
 - On Web, add the ability to query "Light" or "Dark" system theme send `ThemeChanged` on change.
 - Fix `Event::to_static` returning `None` for user events.
 - On Wayland, Hide CSD for fullscreen windows.
+- On Windows, ignore spurious mouse move messages.
 
 # 0.21.0 (2020-02-04)
 
