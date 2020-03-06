@@ -9,6 +9,7 @@
 - On Web, add the ability to query "Light" or "Dark" system theme send `ThemeChanged` on change.
 - Fix `Event::to_static` returning `None` for user events.
 - On Wayland, Hide CSD for fullscreen windows.
+- **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
 
 # 0.21.0 (2020-02-04)
 
@@ -22,7 +23,6 @@
 - On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
 - On X11, fix deadlock on window state when handling certain window events.
 - `WindowBuilder` now implements `Default`.
-- **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
 - **Breaking:** `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
 - On Wayland, fix coordinates in mouse events when scale factor isn't 1
 - On Web, add the ability to provide a custom canvas
