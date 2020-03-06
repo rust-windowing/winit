@@ -777,14 +777,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
         winuser::WM_PAINT => {
             if subclass_input.event_loop_runner.should_buffer() {
-                // this branch can happen in response to `UpdateWindow`, if win32 decides to
-                // redraw the window outside the normal flow of the event loop.
-                winuser::RedrawWindow(
-                    window,
-                    ptr::null(),
-                    ptr::null_mut(),
-                    winuser::RDW_INTERNALPAINT,
-                );
+                panic!("InvalidateRgn should be used instead of UpdateWindow");
+                // // this branch can happen in response to `UpdateWindow`, if win32 decides to
+                // // redraw the window outside the normal flow of the event loop.
+                // winuser::RedrawWindow(
+                //     window,
+                //     ptr::null(),
+                //     ptr::null_mut(),
+                //     winuser::RDW_INTERNALPAINT,
+                // );
             } else {
                 let managing_redraw =
                     flush_paint_messages(Some(window), &subclass_input.event_loop_runner);
