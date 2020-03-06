@@ -870,17 +870,27 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let x = windowsx::GET_X_LPARAM(lparam) as f64;
             let y = windowsx::GET_Y_LPARAM(lparam) as f64;
             let position = PhysicalPosition::new(x, y);
+            let cursor_moved;
+            {
+                // handle spurious WM_MOUSEMOVE messages
+                // see https://devblogs.microsoft.com/oldnewthing/20031001-00/?p=42343
+                // and http://debugandconquer.blogspot.com/2015/08/the-cause-of-spurious-mouse-move.html
+                let mut w = subclass_input.window_state.lock();
+                cursor_moved = w.mouse.last_position != Some(position);
+                w.mouse.last_position = Some(position);
+            }
+            if cursor_moved {
+                update_modifiers(window, subclass_input);
 
-            update_modifiers(window, subclass_input);
-
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: CursorMoved {
-                    device_id: DEVICE_ID,
-                    position,
-                    modifiers: event::get_key_mods(),
-                },
-            });
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: CursorMoved {
+                        device_id: DEVICE_ID,
+                        position,
+                        modifiers: event::get_key_mods(),
+                    },
+                });
+            }
 
             0
         }
