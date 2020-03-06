@@ -1,5 +1,6 @@
 use crate::{
     dpi::{PhysicalPosition, Size},
+    event::ModifiersState,
     platform_impl::platform::{event_loop, icon::WinIcon, util},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
@@ -28,6 +29,7 @@ pub struct WindowState {
     pub saved_window: Option<SavedWindow>,
     pub scale_factor: f64,
 
+    pub modifiers_state: ModifiersState,
     pub fullscreen: Option<Fullscreen>,
     /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
     /// times in `MainEventsCleared`.
@@ -119,6 +121,7 @@ impl WindowState {
             saved_window: None,
             scale_factor,
 
+            modifiers_state: ModifiersState::default(),
             fullscreen: None,
             queued_out_of_band_redraw: false,
             is_dark_mode,
