@@ -84,6 +84,10 @@ jobs:
       shell: bash
       run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features $FEATURES
 
+    - name: List Video Modes
+      shell: bash
+      run: cargo $WEB run --example video_modes
+
     - name: Build tests
       shell: bash
       run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features $FEATURES
