@@ -30,10 +30,10 @@ fn main() {
         event_loop.run_return(|event, _, control_flow| {
             *control_flow = ControlFlow::Wait;
 
-            // if let Event::WindowEvent { event, .. } = &event {
-            //     // Print only Window events to reduce noise
+            if let Event::WindowEvent { event, .. } = &event {
+                // Print only Window events to reduce noise
                 println!("{:?}", event);
-            // }
+            }
 
             match event {
                 Event::WindowEvent {

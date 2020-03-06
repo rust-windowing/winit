@@ -639,6 +639,19 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
     }
 }
 
+/// Flush redraw events for Winit's windows.
+///
+/// Winit's API guarantees that all redraw events will be clustered together and dispatched all at
+/// once, but the standard Windows message loop doesn't always exhibit that behavior. If multiple
+/// windows have had redraws scheduled, but an input event is pushed to the message queue between
+/// the `WM_PAINT` call for the first window and the `WM_PAINT` call for the second window, Windows
+/// will dispatch the input event immediately instead of flushing all the redraw events. This
+/// function explicitly pulls all of Winit's redraw events out of the event queue so that they
+/// always all get processed in one fell swoop.
+///
+/// Returns `true` if this invocation flushed all the redraw events. If this function is re-entrant,
+/// it won't flush the redraw events and will return `false`.
+#[must_use]
 unsafe fn flush_paint_messages<T: 'static>(except: Option<HWND>, runner: &ELRShared<T>) -> bool {
     if !runner.redrawing() {
         runner.main_events_cleared();
@@ -774,7 +787,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
         winuser::WM_PAINT => {
             if subclass_input.event_loop_runner.should_buffer() {
-                // this branch can happen in response to `UpdateWindow`, if Windows decides to
+                // this branch can happen in response to `UpdateWindow`, if win32 decides to
                 // redraw the window outside the normal flow of the event loop.
                 winuser::RedrawWindow(
                     window,
@@ -1878,9 +1891,16 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         winuser::WM_PAINT => {
             winuser::ValidateRect(window, ptr::null());
 
-            flush_paint_messages(None, &subclass_input.event_loop_runner);
-            subclass_input.event_loop_runner.redraw_events_cleared();
-            process_control_flow(&subclass_input.event_loop_runner);
+            // If the WM_PAINT handler in `public_window_callback` has already flushed the redraw
+            // events, `handling_events` will return false and we won't emit a second
+            // `RedrawEventsCleared` event.
+            if subclass_input.event_loop_runner.handling_events() {
+                // This WM_PAINT handler will never be re-entrant because `flush_paint_messages`
+                // doesn't call WM_PAINT for the thread event target (i.e. this window).
+                assert!(flush_paint_messages(None, &subclass_input.event_loop_runner));
+                subclass_input.event_loop_runner.redraw_events_cleared();
+                process_control_flow(&subclass_input.event_loop_runner);
+            }
 
             0
         }
