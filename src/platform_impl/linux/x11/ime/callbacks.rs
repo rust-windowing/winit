@@ -108,7 +108,13 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     for (window, old_context) in (*inner).contexts.iter() {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
         let new_context = {
-            let result = ImeContext::new(xconn, new_im.im, *window, spot);
+            let result = ImeContext::new(
+                xconn,
+                new_im.im,
+                *window,
+                spot,
+                (*inner).event_sender.clone(),
+            );
             if result.is_err() {
                 let _ = close_im(xconn, new_im.im);
             }

@@ -270,6 +270,9 @@ pub enum WindowEvent<'a> {
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
+    /// An event from IME
+    Composition(CompositionEvent),
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -376,7 +379,7 @@ impl Clone for WindowEvent<'static> {
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
-
+            Composition(composition) => Composition(composition.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
             #[allow(deprecated)]
             CursorMoved {
@@ -468,6 +471,7 @@ impl<'a> WindowEvent<'a> {
                 is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
+            Composition(event) => Some(Composition(event)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -621,6 +625,14 @@ pub struct KeyboardInput {
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
     #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CompositionEvent {
+    CompositionStart(String),
+    CompositionUpdate(String, usize),
+    CompositionEnd(String),
 }
 
 /// Describes touch-screen input state.

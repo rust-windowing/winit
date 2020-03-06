@@ -12,10 +12,12 @@ use super::{
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{
-        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, TouchPhase, WindowEvent,
+        CompositionEvent, DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState,
+        TouchPhase, WindowEvent,
     },
     event_loop::EventLoopWindowTarget as RootELW,
 };
@@ -26,6 +28,7 @@ const KEYCODE_OFFSET: u8 = 8;
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
+    pub(super) ime_event_receiver: ImeEventReceiver,
     pub(super) randr_event_offset: c_int,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
@@ -37,6 +40,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
     pub(super) active_window: Option<ffi::Window>,
+    pub(super) is_composing: bool,
+    pub(super) composed_text: Option<String>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -608,6 +613,10 @@ impl<T: 'static> EventProcessor<T> {
                             event: WindowEvent::ReceivedCharacter(chr),
                         };
                         callback(event);
+                    }
+                    if self.is_composing && !written.is_empty() {
+                        self.composed_text = Some(written);
+                        self.is_composing = false;
                     }
                 }
             }
@@ -1225,6 +1234,40 @@ impl<T: 'static> EventProcessor<T> {
             Ok((window_id, x, y)) => {
                 wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
             }
+            Err(_) => (),
+        }
+        match self.ime_event_receiver.try_recv() {
+            Ok((window, event)) => match event {
+                ImeEvent::Start => {
+                    self.is_composing = true;
+                    self.composed_text = None;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Composition(CompositionEvent::CompositionStart(
+                            "".to_owned(),
+                        )),
+                    });
+                }
+                ImeEvent::Update(text, position) => {
+                    if self.is_composing {
+                        callback(Event::WindowEvent {
+                            window_id: mkwid(window),
+                            event: WindowEvent::Composition(CompositionEvent::CompositionUpdate(
+                                text, position,
+                            )),
+                        });
+                    }
+                }
+                ImeEvent::End => {
+                    self.is_composing = false;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Composition(CompositionEvent::CompositionEnd(
+                            self.composed_text.take().unwrap_or("".to_owned()),
+                        )),
+                    });
+                }
+            },
             Err(_) => (),
         }
     }
