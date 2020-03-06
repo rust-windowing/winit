@@ -239,9 +239,15 @@ impl<T: 'static> EventLoop<T> {
                     unread_message_exists = false;
 
                     if msg.message == winuser::WM_PAINT {
+                        // An "external" redraw was requested.
+                        // Note that the WM_PAINT has been dispatched and
+                        // has caused the event loop to emit the MainEventsCleared event.
+                        // See EventLoopRunner::process_event().
+                        // The call to main_events_cleared() below will do nothing.
                         break;
                     }
                 }
+                // Make sure we emit the MainEventsCleared event if no WM_PAINT message was received.
                 runner.main_events_cleared();
                 // Drain eventual WM_PAINT messages sent if user called request_redraw()
                 // during handling of MainEventsCleared.
