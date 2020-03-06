@@ -19,9 +19,18 @@ use self::{
     inner::{close_im, ImeInner},
     input_method::PotentialInputMethods,
 };
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum ImeEvent {
+    Start,
+    Update(String, usize),
+    End,
+}
 
 pub type ImeReceiver = Receiver<(ffi::Window, i16, i16)>;
 pub type ImeSender = Sender<(ffi::Window, i16, i16)>;
+pub type ImeEventReceiver = Receiver<(ffi::Window, ImeEvent)>;
+pub type ImeEventSender = Sender<(ffi::Window, ImeEvent)>;
 
 #[derive(Debug)]
 pub enum ImeCreationError {
@@ -37,11 +46,14 @@ pub struct Ime {
 }
 
 impl Ime {
-    pub fn new(xconn: Arc<XConnection>) -> Result<Self, ImeCreationError> {
+    pub fn new(
+        xconn: Arc<XConnection>,
+        event_sender: ImeEventSender,
+    ) -> Result<Self, ImeCreationError> {
         let potential_input_methods = PotentialInputMethods::new(&xconn);
 
         let (mut inner, client_data) = {
-            let mut inner = Box::new(ImeInner::new(xconn, potential_input_methods));
+            let mut inner = Box::new(ImeInner::new(xconn, potential_input_methods, event_sender));
             let inner_ptr = Box::into_raw(inner);
             let client_data = inner_ptr as _;
             let destroy_callback = ffi::XIMCallback {
@@ -93,7 +105,15 @@ impl Ime {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
-            Some(unsafe { ImeContext::new(&self.inner.xconn, self.inner.im, window, None) }?)
+            Some(unsafe {
+                ImeContext::new(
+                    &self.inner.xconn,
+                    self.inner.im,
+                    window,
+                    None,
+                    self.inner.event_sender.clone(),
+                )
+            }?)
         };
         self.inner.contexts.insert(window, context);
         Ok(!self.is_destroyed())
