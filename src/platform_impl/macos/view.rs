@@ -943,7 +943,7 @@ extern "C" fn other_mouse_dragged(this: &Object, _sel: Sel, event: id) {
     mouse_motion(this, event);
 }
 
-extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
+extern "C" fn mouse_entered(this: &Object, _sel: Sel, _event: id) {
     trace!("Triggered `mouseEntered`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
