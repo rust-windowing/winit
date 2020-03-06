@@ -111,6 +111,7 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to call XInternAtoms when initializing drag and drop");
 
         let (ime_sender, ime_receiver) = mpsc::channel();
+        let (ime_event_sender, ime_event_receiver) = mpsc::channel();
         // Input methods will open successfully without setting the locale, but it won't be
         // possible to actually commit pre-edit sequences.
         unsafe {
@@ -135,7 +136,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
         let ime = RefCell::new({
-            let result = Ime::new(Arc::clone(&xconn));
+            let result = Ime::new(Arc::clone(&xconn), ime_event_sender);
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
                 panic!("Failed to open input method: {:#?}", state);
             }
@@ -219,12 +220,15 @@ impl<T: 'static> EventLoop<T> {
             devices: Default::default(),
             randr_event_offset,
             ime_receiver,
+            ime_event_receiver,
             xi2ext,
             mod_keymap,
             device_mod_state: Default::default(),
             num_touch: 0,
             first_touch: None,
             active_window: None,
+            is_composing: false,
+            composed_text: None,
         };
 
         // Register for device hotplug events
