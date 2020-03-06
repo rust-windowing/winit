@@ -326,16 +326,6 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
                         winuser::PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
                         wait_until_opt = None;
                     }
-
-                    // TODO: SPINLOCK ON MAIN THREAD
-                    // if resume_reason == winerror::WAIT_TIMEOUT {
-                    //     let mut msg = mem::zeroed();
-                    //     while Instant::now() < wait_until {
-                    //         if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
-                    //             break;
-                    //         }
-                    //     }
-                    // }
                 }
             }
         }
@@ -664,7 +654,7 @@ unsafe fn flush_paint_messages<T: 'static>(except: Option<HWND>, runner: &ELRSha
                 redraw_window,
                 winuser::WM_PAINT,
                 winuser::WM_PAINT,
-                winuser::PM_REMOVE,
+                winuser::PM_REMOVE | winuser::QS_PAINT,
             ) {
                 return;
             }
@@ -2044,6 +2034,19 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 0,
                 0,
             );
+
+            // if the control_flow is WaitUntil, make sure the given moment has actually passed
+            // before emitting NewEvents
+            if let ControlFlow::WaitUntil(wait_until) =
+                subclass_input.event_loop_runner.control_flow()
+            {
+                let mut msg = mem::zeroed();
+                while Instant::now() < wait_until {
+                    if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
+                        break;
+                    }
+                }
+            }
             subclass_input.event_loop_runner.poll();
             0
         }

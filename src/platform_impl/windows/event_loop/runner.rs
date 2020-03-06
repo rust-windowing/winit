@@ -254,14 +254,6 @@ impl<T> ELRShared<T> {
     unsafe fn move_state_to(&self, processing_events: ProcessingEvents) {
         use ProcessingEvents::{MainEvents, NoEvents, RedrawEvents, Uninitialized};
 
-        let probably_wrong = || {
-            warn!(
-                "Given winit's current design, the fact that this branch is getting hit \
-                 is probably indicates a bug. Please open an issue at \
-                 https://github.com/rust-windowing/winit"
-            )
-        };
-
         match (
             self.processing_events.replace(processing_events),
             processing_events,
@@ -297,7 +289,7 @@ impl<T> ELRShared<T> {
                 self.call_event_handler(Event::MainEventsCleared);
             }
             (MainEvents, NoEvents) => {
-                probably_wrong();
+                warn!("RedrawEventsCleared emitted without explicit MainEventsCleared");
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_event_handler(Event::RedrawEventsCleared);
             }
@@ -305,7 +297,7 @@ impl<T> ELRShared<T> {
                 self.call_event_handler(Event::RedrawEventsCleared);
             }
             (RedrawEvents, MainEvents) => {
-                probably_wrong();
+                warn!("NewEvents emitted without explicit RedrawEventsCleared");
                 self.call_event_handler(Event::RedrawEventsCleared);
                 self.call_new_events(false);
             }
