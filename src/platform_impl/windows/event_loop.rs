@@ -654,7 +654,7 @@ unsafe fn flush_paint_messages<T: 'static>(except: Option<HWND>, runner: &ELRSha
                 redraw_window,
                 winuser::WM_PAINT,
                 winuser::WM_PAINT,
-                winuser::PM_REMOVE | winuser::QS_PAINT,
+                winuser::PM_REMOVE | winuser::PM_QS_PAINT,
             ) {
                 return;
             }
@@ -1882,8 +1882,6 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         // Because WM_PAINT comes after all other messages, we use it during modal loops to detect
         // when the event queue has been emptied. See `process_event` for more details.
         winuser::WM_PAINT => {
-            winuser::ValidateRect(window, ptr::null());
-
             // If the WM_PAINT handler in `public_window_callback` has already flushed the redraw
             // events, `handling_events` will return false and we won't emit a second
             // `RedrawEventsCleared` event.
@@ -1898,7 +1896,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 process_control_flow(&subclass_input.event_loop_runner);
             }
 
-            0
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
         winuser::WM_INPUT_DEVICE_CHANGE => {

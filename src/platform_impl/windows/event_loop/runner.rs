@@ -265,15 +265,14 @@ impl<T> ELRShared<T> {
 
             (Uninitialized, MainEvents) => {
                 self.call_new_events(true);
-                self.call_event_handler(Event::NewEvents(StartCause::Init));
             }
             (Uninitialized, RedrawEvents) => {
                 self.call_new_events(true);
-                self.call_event_handler(Event::MainEventsCleared);
+                self.call_events_cleared();
             }
             (Uninitialized, NoEvents) => {
                 self.call_new_events(true);
-                self.call_event_handler(Event::MainEventsCleared);
+                self.call_events_cleared();
                 self.call_event_handler(Event::RedrawEventsCleared);
             }
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
@@ -283,14 +282,14 @@ impl<T> ELRShared<T> {
             }
             (NoEvents, RedrawEvents) => {
                 self.call_new_events(false);
-                self.call_event_handler(Event::MainEventsCleared);
+                self.call_events_cleared();
             }
             (MainEvents, RedrawEvents) => {
-                self.call_event_handler(Event::MainEventsCleared);
+                self.call_events_cleared();
             }
             (MainEvents, NoEvents) => {
                 warn!("RedrawEventsCleared emitted without explicit MainEventsCleared");
-                self.call_event_handler(Event::MainEventsCleared);
+                self.call_events_cleared();
                 self.call_event_handler(Event::RedrawEventsCleared);
             }
             (RedrawEvents, NoEvents) => {
@@ -312,10 +311,19 @@ impl<T> ELRShared<T> {
                 requested_resume: None,
                 start: self.last_events_cleared.get(),
             },
-            (false, ControlFlow::WaitUntil(requested_resume)) => StartCause::WaitCancelled {
-                requested_resume: Some(requested_resume),
-                start: self.last_events_cleared.get(),
-            },
+            (false, ControlFlow::WaitUntil(requested_resume)) => {
+                if Instant::now() < requested_resume {
+                    StartCause::WaitCancelled {
+                        requested_resume: Some(requested_resume),
+                        start: self.last_events_cleared.get(),
+                    }
+                } else {
+                    StartCause::ResumeTimeReached {
+                        requested_resume,
+                        start: self.last_events_cleared.get(),
+                    }
+                }
+            }
         };
         self.call_event_handler(Event::NewEvents(start_cause));
         self.dispatch_buffered_events();
@@ -325,5 +333,10 @@ impl<T> ELRShared<T> {
             ptr::null_mut(),
             winuser::RDW_INTERNALPAINT,
         );
+    }
+
+    unsafe fn call_events_cleared(&self) {
+        self.last_events_cleared.set(Instant::now());
+        self.call_event_handler(Event::MainEventsCleared);
     }
 }
