@@ -44,7 +44,7 @@ use crate::{
     },
     window::{Fullscreen, WindowId as RootWindowId},
 };
-use runner::{EventLoopRunnerShared, ELRShared};
+use runner::{ELRShared, EventLoopRunnerShared};
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
     pointerId: UINT,
@@ -157,7 +157,8 @@ impl<T: 'static> EventLoop<T> {
 
         let runner_shared = Rc::new(ELRShared::new(thread_msg_target, wait_thread_id));
 
-        let thread_msg_sender = subclass_event_target_window(thread_msg_target, runner_shared.clone());
+        let thread_msg_sender =
+            subclass_event_target_window(thread_msg_target, runner_shared.clone());
         raw_input::register_all_mice_and_keyboards_for_raw_input(thread_msg_target);
 
         EventLoop {
@@ -270,11 +271,10 @@ fn get_wait_thread_id() -> DWORD {
             &mut msg,
             -1 as _,
             *SEND_WAIT_THREAD_ID_MSG_ID,
-            *SEND_WAIT_THREAD_ID_MSG_ID
+            *SEND_WAIT_THREAD_ID_MSG_ID,
         );
         assert_eq!(
-            msg.message,
-            *SEND_WAIT_THREAD_ID_MSG_ID,
+            msg.message, *SEND_WAIT_THREAD_ID_MSG_ID,
             "this shouldn't be possible. please open an issue with Winit. error code: {}",
             result
         );
@@ -323,12 +323,7 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
                         winuser::MWMO_INPUTAVAILABLE,
                     );
                     if resume_reason == winerror::WAIT_TIMEOUT {
-                        winuser::PostMessageW(
-                            msg_window_id,
-                            *PROCESS_NEW_EVENTS_MSG_ID,
-                            0,
-                            0,
-                        );
+                        winuser::PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
                         wait_until_opt = None;
                     }
 
@@ -579,7 +574,10 @@ fn create_event_target_window() -> HWND {
     }
 }
 
-fn subclass_event_target_window<T>(window: HWND, event_loop_runner: EventLoopRunnerShared<T>) -> Sender<T> {
+fn subclass_event_target_window<T>(
+    window: HWND,
+    event_loop_runner: EventLoopRunnerShared<T>,
+) -> Sender<T> {
     unsafe {
         let (tx, rx) = mpsc::channel();
 
@@ -683,21 +681,17 @@ unsafe fn flush_paint_messages<T: 'static>(except: Option<HWND>, runner: &ELRSha
 unsafe fn process_control_flow<T: 'static>(runner: &ELRShared<T>) {
     match runner.control_flow() {
         ControlFlow::Poll => {
-            winuser::PostMessageW(
-                runner.thread_msg_target(),
-                *PROCESS_NEW_EVENTS_MSG_ID,
-                0, 0
-            );
-        },
+            winuser::PostMessageW(runner.thread_msg_target(), *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
+        }
         ControlFlow::Wait => (),
         ControlFlow::WaitUntil(until) => {
             winuser::PostThreadMessageW(
                 runner.wait_thread_id(),
                 *WAIT_UNTIL_MSG_ID,
                 0,
-                Box::into_raw(WaitUntilInstantBox::new(until)) as LPARAM
+                Box::into_raw(WaitUntilInstantBox::new(until)) as LPARAM,
             );
-        },
+        }
         ControlFlow::Exit => (),
     }
 }
@@ -742,14 +736,20 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
     match msg {
         winuser::WM_ENTERSIZEMOVE => {
-            subclass_input.window_state.lock().set_window_flags_in_place(|f| f.insert(WindowFlags::MARKER_IN_SIZE_MOVE));
+            subclass_input
+                .window_state
+                .lock()
+                .set_window_flags_in_place(|f| f.insert(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
-        },
+        }
 
         winuser::WM_EXITSIZEMOVE => {
-            subclass_input.window_state.lock().set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
+            subclass_input
+                .window_state
+                .lock()
+                .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
-        },
+        }
 
         winuser::WM_NCCREATE => {
             enable_non_client_dpi_scaling(window);
@@ -795,9 +795,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     ptr::null_mut(),
                     winuser::RDW_INTERNALPAINT,
                 );
-
             } else {
-                let managing_redraw =  flush_paint_messages(Some(window), &subclass_input.event_loop_runner);
+                let managing_redraw =
+                    flush_paint_messages(Some(window), &subclass_input.event_loop_runner);
                 subclass_input.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
                 if managing_redraw {
                     subclass_input.event_loop_runner.redraw_events_cleared();
@@ -806,7 +806,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             }
 
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
-        },
+        }
 
         winuser::WM_WINDOWPOSCHANGING => {
             let mut window_state = subclass_input.window_state.lock();
@@ -1708,7 +1708,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             {
                 let window_state = subclass_input.window_state.lock();
-                dragging_window = window_state.window_flags().contains(WindowFlags::MARKER_IN_SIZE_MOVE);
+                dragging_window = window_state
+                    .window_flags()
+                    .contains(WindowFlags::MARKER_IN_SIZE_MOVE);
                 // Unset maximized if we're changing the window's size.
                 if new_physical_inner_size != old_physical_inner_size {
                     WindowState::set_window_flags(window_state, window, |f| {
@@ -1897,7 +1899,10 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             if subclass_input.event_loop_runner.handling_events() {
                 // This WM_PAINT handler will never be re-entrant because `flush_paint_messages`
                 // doesn't call WM_PAINT for the thread event target (i.e. this window).
-                assert!(flush_paint_messages(None, &subclass_input.event_loop_runner));
+                assert!(flush_paint_messages(
+                    None,
+                    &subclass_input.event_loop_runner
+                ));
                 subclass_input.event_loop_runner.redraw_events_cleared();
                 process_control_flow(&subclass_input.event_loop_runner);
             }
@@ -2036,7 +2041,8 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             winuser::PostThreadMessageW(
                 subclass_input.event_loop_runner.wait_thread_id(),
                 *CANCEL_WAIT_UNTIL_MSG_ID,
-                0, 0
+                0,
+                0,
             );
             subclass_input.event_loop_runner.poll();
             0

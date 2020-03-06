@@ -1,6 +1,16 @@
-use std::{any::Any, cell::{Cell, RefCell}, collections::{HashSet, VecDeque}, mem, ptr, panic, rc::Rc, time::Instant};
+use std::{
+    any::Any,
+    cell::{Cell, RefCell},
+    collections::{HashSet, VecDeque},
+    mem, panic, ptr,
+    rc::Rc,
+    time::Instant,
+};
 
-use winapi::{um::winuser, shared::{minwindef::DWORD, windef::HWND}};
+use winapi::{
+    shared::{minwindef::DWORD, windef::HWND},
+    um::winuser,
+};
 
 use crate::{
     dpi::PhysicalSize,
@@ -85,7 +95,7 @@ impl<T> ELRShared<T> {
             last_events_cleared: Cell::new(Instant::now()),
             event_handler: Cell::new(None),
             event_buffer: RefCell::new(VecDeque::new()),
-            owned_windows: Cell::new(HashSet::new())
+            owned_windows: Cell::new(HashSet::new()),
         }
     }
 
@@ -101,12 +111,10 @@ impl<T> ELRShared<T> {
     where
         F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        let old_event_handler = self.event_handler.replace(
-            mem::transmute::<
-                Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
-                Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
-            >(Some(Box::new(f))),
-        );
+        let old_event_handler = self.event_handler.replace(mem::transmute::<
+            Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
+            Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
+        >(Some(Box::new(f))));
         assert!(old_event_handler.is_none());
     }
 
@@ -176,7 +184,8 @@ impl<T> ELRShared<T> {
                 } else {
                     event_handler(event, &mut ControlFlow::Exit);
                 }
-            })).err();
+            }))
+            .err();
 
             assert!(self.event_handler.replace(Some(event_handler)).is_none());
             self.control_flow.set(control_flow);
@@ -243,51 +252,58 @@ impl<T> ELRShared<T> {
     }
 
     unsafe fn move_state_to(&self, processing_events: ProcessingEvents) {
-        use ProcessingEvents::{Uninitialized, NoEvents, MainEvents, RedrawEvents};
+        use ProcessingEvents::{MainEvents, NoEvents, RedrawEvents, Uninitialized};
 
-        let probably_wrong = || warn!("Given winit's current design, the fact that this branch is getting hit \
-                                       is probably indicates a bug. Please open an issue at \
-                                       https://github.com/rust-windowing/winit");
+        let probably_wrong = || {
+            warn!(
+                "Given winit's current design, the fact that this branch is getting hit \
+                 is probably indicates a bug. Please open an issue at \
+                 https://github.com/rust-windowing/winit"
+            )
+        };
 
-        match (self.processing_events.replace(processing_events), processing_events) {
-            (Uninitialized, Uninitialized) |
-            (NoEvents, NoEvents) |
-            (MainEvents, MainEvents) |
-            (RedrawEvents, RedrawEvents) => (),
+        match (
+            self.processing_events.replace(processing_events),
+            processing_events,
+        ) {
+            (Uninitialized, Uninitialized)
+            | (NoEvents, NoEvents)
+            | (MainEvents, MainEvents)
+            | (RedrawEvents, RedrawEvents) => (),
 
             (Uninitialized, MainEvents) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::NewEvents(StartCause::Init));
-            },
+            }
             (Uninitialized, RedrawEvents) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::MainEventsCleared);
-            },
+            }
             (Uninitialized, NoEvents) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_event_handler(Event::RedrawEventsCleared);
-            },
+            }
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
             (NoEvents, MainEvents) => {
                 self.call_new_events(false);
-            },
+            }
             (NoEvents, RedrawEvents) => {
                 self.call_new_events(false);
                 self.call_event_handler(Event::MainEventsCleared);
-            },
+            }
             (MainEvents, RedrawEvents) => {
                 self.call_event_handler(Event::MainEventsCleared);
-            },
+            }
             (MainEvents, NoEvents) => {
                 probably_wrong();
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_event_handler(Event::RedrawEventsCleared);
-            },
+            }
             (RedrawEvents, NoEvents) => {
                 self.call_event_handler(Event::RedrawEventsCleared);
-            },
+            }
             (RedrawEvents, MainEvents) => {
                 probably_wrong();
                 self.call_event_handler(Event::RedrawEventsCleared);
@@ -300,12 +316,22 @@ impl<T> ELRShared<T> {
         let start_cause = match (init, self.control_flow()) {
             (true, _) => StartCause::Init,
             (false, ControlFlow::Poll) => StartCause::Poll,
-            (false, ControlFlow::Exit) |
-            (false, ControlFlow::Wait) => StartCause::WaitCancelled{ requested_resume: None, start: self.last_events_cleared.get() },
-            (false, ControlFlow::WaitUntil(requested_resume)) => StartCause::WaitCancelled{ requested_resume: Some(requested_resume), start: self.last_events_cleared.get() },
+            (false, ControlFlow::Exit) | (false, ControlFlow::Wait) => StartCause::WaitCancelled {
+                requested_resume: None,
+                start: self.last_events_cleared.get(),
+            },
+            (false, ControlFlow::WaitUntil(requested_resume)) => StartCause::WaitCancelled {
+                requested_resume: Some(requested_resume),
+                start: self.last_events_cleared.get(),
+            },
         };
         self.call_event_handler(Event::NewEvents(start_cause));
         self.dispatch_buffered_events();
-        winuser::RedrawWindow(self.thread_msg_target, ptr::null(), ptr::null_mut(), winuser::RDW_INTERNALPAINT);
+        winuser::RedrawWindow(
+            self.thread_msg_target,
+            ptr::null(),
+            ptr::null_mut(),
+            winuser::RDW_INTERNALPAINT,
+        );
     }
 }
