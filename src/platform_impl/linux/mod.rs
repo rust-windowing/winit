@@ -18,6 +18,8 @@ use crate::{
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
+pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
+
 pub mod wayland;
 pub mod x11;
 

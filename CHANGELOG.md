@@ -12,6 +12,8 @@
 - On Wayland, Hide CSD for fullscreen windows.
 - On Windows, ignore spurious mouse move messages.
 - **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
+- On Windows, add `IconExtWindows` trait which exposes creating an `Icon` from an external file or embedded resource
+- Add `BadIcon::OsError` variant for when OS icon functionality fails
 - On Windows, fix crash at startup on systems that do not properly support Windows' Dark Mode
 
 # 0.21.0 (2020-02-04)
