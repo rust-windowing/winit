@@ -11,6 +11,8 @@
 - On Wayland, Hide CSD for fullscreen windows.
 - On Windows, ignore spurious mouse move messages.
 - **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
+- On Windows, add `IconExtWindows` trait which exposes creating an `Icon` from an external file or embedded resource
+- Add `BadIcon::OsError` variant for when OS icon functionality fails
 
 # 0.21.0 (2020-02-04)
 
@@ -28,8 +30,6 @@
 - On Wayland, fix coordinates in mouse events when scale factor isn't 1
 - On Web, add the ability to provide a custom canvas
 - **Breaking:** On Wayland, the `WaylandTheme` struct has been replaced with a `Theme` trait, allowing for extra configuration
-- On Windows, add `IconExtWindows` trait which exposes creating an `Icon` from an external file or embedded resource
-- Add `BadIcon::OsError` variant for when OS icon functionality fails
 
 # 0.20.0 (2020-01-05)
 
