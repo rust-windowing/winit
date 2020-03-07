@@ -22,25 +22,36 @@ use crate::{
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
 pub(crate) struct ELRShared<T: 'static> {
+    // The event loop's win32 handles
     thread_msg_target: HWND,
     wait_thread_id: DWORD,
-    processing_events: Cell<ProcessingEvents>,
-    panic_error: Cell<Option<PanicError>>,
+
     control_flow: Cell<ControlFlow>,
+    runner_state: Cell<RunnerState>,
     last_events_cleared: Cell<Instant>,
+
     event_handler: Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>,
     event_buffer: RefCell<VecDeque<BufferedEvent<T>>>,
+
     owned_windows: Cell<HashSet<HWND>>,
+
+    panic_error: Cell<Option<PanicError>>,
 }
 
 pub type PanicError = Box<dyn Any + Send + 'static>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum ProcessingEvents {
+enum RunnerState {
+    /// The event loop has just been created, and an `Init` event must be sent.
     Uninitialized,
-    NoEvents,
-    MainEvents,
-    RedrawEvents,
+    /// The event loop is idling.
+    Idle,
+    /// The event loop is handling the OS's events and sending them to the user's callback.
+    /// `NewEvents` has been sent, and `MainEventsCleared` hasn't.
+    HandlingMainEvents,
+    /// The event loop is handling the redraw events and sending them to the user's callback.
+    /// `MainEventsCleared` has been sent, and `RedrawEventsCleared` hasn't.
+    HandlingRedrawEvents,
 }
 
 enum BufferedEvent<T: 'static> {
@@ -48,48 +59,12 @@ enum BufferedEvent<T: 'static> {
     ScaleFactorChanged(WindowId, f64, PhysicalSize<u32>),
 }
 
-impl<T> BufferedEvent<T> {
-    pub fn from_event(event: Event<'_, T>) -> BufferedEvent<T> {
-        match event {
-            Event::WindowEvent {
-                event:
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size,
-                    },
-                window_id,
-            } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
-            event => BufferedEvent::Event(event.to_static().unwrap()),
-        }
-    }
-
-    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<'_, T>)) {
-        match self {
-            Self::Event(event) => dispatch(event),
-            Self::ScaleFactorChanged(window_id, scale_factor, mut new_inner_size) => {
-                dispatch(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size: &mut new_inner_size,
-                    },
-                });
-                util::set_inner_size_physical(
-                    (window_id.0).0,
-                    new_inner_size.width as _,
-                    new_inner_size.height as _,
-                );
-            }
-        }
-    }
-}
-
 impl<T> ELRShared<T> {
     pub(crate) fn new(thread_msg_target: HWND, wait_thread_id: DWORD) -> ELRShared<T> {
         ELRShared {
             thread_msg_target,
             wait_thread_id,
-            processing_events: Cell::new(ProcessingEvents::Uninitialized),
+            runner_state: Cell::new(RunnerState::Uninitialized),
             control_flow: Cell::new(ControlFlow::Poll),
             panic_error: Cell::new(None),
             last_events_cleared: Cell::new(Instant::now()),
@@ -97,14 +72,6 @@ impl<T> ELRShared<T> {
             event_buffer: RefCell::new(VecDeque::new()),
             owned_windows: Cell::new(HashSet::new()),
         }
-    }
-
-    pub fn thread_msg_target(&self) -> HWND {
-        self.thread_msg_target
-    }
-
-    pub fn wait_thread_id(&self) -> DWORD {
-        self.wait_thread_id
     }
 
     pub(crate) unsafe fn set_event_handler<F>(&self, f: F)
@@ -122,7 +89,7 @@ impl<T> ELRShared<T> {
         let ELRShared {
             thread_msg_target: _,
             wait_thread_id: _,
-            processing_events,
+            runner_state,
             panic_error,
             control_flow,
             last_events_cleared: _,
@@ -130,19 +97,84 @@ impl<T> ELRShared<T> {
             event_buffer: _,
             owned_windows: _,
         } = self;
-        processing_events.set(ProcessingEvents::Uninitialized);
+        runner_state.set(RunnerState::Uninitialized);
         panic_error.set(None);
         control_flow.set(ControlFlow::Poll);
         event_handler.set(None);
     }
+}
 
+/// State retrieval functions.
+impl<T> ELRShared<T> {
+    pub fn thread_msg_target(&self) -> HWND {
+        self.thread_msg_target
+    }
+
+    pub fn wait_thread_id(&self) -> DWORD {
+        self.wait_thread_id
+    }
+
+    pub fn redrawing(&self) -> bool {
+        self.runner_state.get() == RunnerState::HandlingRedrawEvents
+    }
+
+    pub fn take_panic_error(&self) -> Result<(), PanicError> {
+        match self.panic_error.take() {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
+    }
+
+    pub fn control_flow(&self) -> ControlFlow {
+        self.control_flow.get()
+    }
+
+    pub fn handling_events(&self) -> bool {
+        self.runner_state.get() != RunnerState::Idle
+    }
+
+    pub fn should_buffer(&self) -> bool {
+        let handler = self.event_handler.take();
+        let should_buffer = handler.is_none();
+        self.event_handler.set(handler);
+        should_buffer
+    }
+}
+
+/// Associated window functions.
+impl<T> ELRShared<T> {
+    pub fn register_window(&self, window: HWND) {
+        let mut owned_windows = self.owned_windows.take();
+        owned_windows.insert(window);
+        self.owned_windows.set(owned_windows);
+    }
+
+    pub fn remove_window(&self, window: HWND) {
+        let mut owned_windows = self.owned_windows.take();
+        owned_windows.remove(&window);
+        self.owned_windows.set(owned_windows);
+    }
+
+    pub fn owned_windows(&self, mut f: impl FnMut(HWND)) {
+        let mut owned_windows = self.owned_windows.take();
+        for hwnd in &owned_windows {
+            f(*hwnd);
+        }
+        let new_owned_windows = self.owned_windows.take();
+        owned_windows.extend(&new_owned_windows);
+        self.owned_windows.set(owned_windows);
+    }
+}
+
+/// Event dispatch functions.
+impl<T> ELRShared<T> {
     pub(crate) unsafe fn poll(&self) {
-        self.move_state_to(ProcessingEvents::MainEvents);
+        self.move_state_to(RunnerState::HandlingMainEvents);
     }
 
     pub(crate) unsafe fn send_event(&self, event: Event<'_, T>) {
         if let Event::RedrawRequested(_) = event {
-            self.move_state_to(ProcessingEvents::RedrawEvents);
+            self.move_state_to(RunnerState::HandlingRedrawEvents);
             self.call_event_handler(event);
         } else {
             if self.should_buffer() {
@@ -152,7 +184,7 @@ impl<T> ELRShared<T> {
                     .borrow_mut()
                     .push_back(BufferedEvent::from_event(event))
             } else {
-                self.move_state_to(ProcessingEvents::MainEvents);
+                self.move_state_to(RunnerState::HandlingMainEvents);
                 self.call_event_handler(event);
                 self.dispatch_buffered_events();
             }
@@ -160,15 +192,11 @@ impl<T> ELRShared<T> {
     }
 
     pub(crate) unsafe fn main_events_cleared(&self) {
-        self.move_state_to(ProcessingEvents::RedrawEvents);
+        self.move_state_to(RunnerState::HandlingRedrawEvents);
     }
 
     pub(crate) unsafe fn redraw_events_cleared(&self) {
-        self.move_state_to(ProcessingEvents::NoEvents);
-    }
-
-    pub fn redrawing(&self) -> bool {
-        self.processing_events.get() == ProcessingEvents::RedrawEvents
+        self.move_state_to(RunnerState::Idle);
     }
 
     pub(crate) unsafe fn call_event_handler(&self, event: Event<'_, T>) {
@@ -193,50 +221,6 @@ impl<T> ELRShared<T> {
         self.panic_error.set(panic_error);
     }
 
-    pub(crate) fn take_panic_error(&self) -> Result<(), PanicError> {
-        match self.panic_error.take() {
-            Some(err) => Err(err),
-            None => Ok(()),
-        }
-    }
-
-    pub fn register_window(&self, window: HWND) {
-        let mut owned_windows = self.owned_windows.take();
-        owned_windows.insert(window);
-        self.owned_windows.set(owned_windows);
-    }
-
-    pub fn remove_window(&self, window: HWND) {
-        let mut owned_windows = self.owned_windows.take();
-        owned_windows.remove(&window);
-        self.owned_windows.set(owned_windows);
-    }
-
-    pub fn control_flow(&self) -> ControlFlow {
-        self.control_flow.get()
-    }
-
-    pub fn handling_events(&self) -> bool {
-        self.processing_events.get() != ProcessingEvents::NoEvents
-    }
-
-    pub fn owned_windows(&self, mut f: impl FnMut(HWND)) {
-        let mut owned_windows = self.owned_windows.take();
-        for hwnd in &owned_windows {
-            f(*hwnd);
-        }
-        let new_owned_windows = self.owned_windows.take();
-        owned_windows.extend(&new_owned_windows);
-        self.owned_windows.set(owned_windows);
-    }
-
-    pub fn should_buffer(&self) -> bool {
-        let handler = self.event_handler.take();
-        let should_buffer = handler.is_none();
-        self.event_handler.set(handler);
-        should_buffer
-    }
-
     unsafe fn dispatch_buffered_events(&self) {
         loop {
             // We do this instead of using a `while let` loop because if we use a `while let`
@@ -251,53 +235,53 @@ impl<T> ELRShared<T> {
         }
     }
 
-    unsafe fn move_state_to(&self, processing_events: ProcessingEvents) {
-        use ProcessingEvents::{MainEvents, NoEvents, RedrawEvents, Uninitialized};
+    unsafe fn move_state_to(&self, runner_state: RunnerState) {
+        use RunnerState::{HandlingMainEvents, Idle, HandlingRedrawEvents, Uninitialized};
 
         match (
-            self.processing_events.replace(processing_events),
-            processing_events,
+            self.runner_state.replace(runner_state),
+            runner_state,
         ) {
             (Uninitialized, Uninitialized)
-            | (NoEvents, NoEvents)
-            | (MainEvents, MainEvents)
-            | (RedrawEvents, RedrawEvents) => (),
+            | (Idle, Idle)
+            | (HandlingMainEvents, HandlingMainEvents)
+            | (HandlingRedrawEvents, HandlingRedrawEvents) => (),
 
-            (Uninitialized, MainEvents) => {
+            (Uninitialized, HandlingMainEvents) => {
                 self.call_new_events(true);
             }
-            (Uninitialized, RedrawEvents) => {
+            (Uninitialized, HandlingRedrawEvents) => {
                 self.call_new_events(true);
-                self.call_events_cleared();
+                self.call_event_handler(Event::MainEventsCleared);
             }
-            (Uninitialized, NoEvents) => {
+            (Uninitialized, Idle) => {
                 self.call_new_events(true);
-                self.call_events_cleared();
-                self.call_event_handler(Event::RedrawEventsCleared);
+                self.call_event_handler(Event::MainEventsCleared);
+                self.call_redraw_events_cleared();
             }
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
-            (NoEvents, MainEvents) => {
+            (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
             }
-            (NoEvents, RedrawEvents) => {
+            (Idle, HandlingRedrawEvents) => {
                 self.call_new_events(false);
-                self.call_events_cleared();
+                self.call_event_handler(Event::MainEventsCleared);
             }
-            (MainEvents, RedrawEvents) => {
-                self.call_events_cleared();
+            (HandlingMainEvents, HandlingRedrawEvents) => {
+                self.call_event_handler(Event::MainEventsCleared);
             }
-            (MainEvents, NoEvents) => {
-                warn!("RedrawEventsCleared emitted without explicit MainEventsCleared");
-                self.call_events_cleared();
-                self.call_event_handler(Event::RedrawEventsCleared);
+            (HandlingMainEvents, Idle) => {
+                warn!("HandlingRedrawEventsCleared emitted without explicit HandlingMainEventsCleared");
+                self.call_event_handler(Event::MainEventsCleared);
+                self.call_redraw_events_cleared();
             }
-            (RedrawEvents, NoEvents) => {
-                self.call_event_handler(Event::RedrawEventsCleared);
+            (HandlingRedrawEvents, Idle) => {
+                self.call_redraw_events_cleared();
             }
-            (RedrawEvents, MainEvents) => {
-                warn!("NewEvents emitted without explicit RedrawEventsCleared");
-                self.call_event_handler(Event::RedrawEventsCleared);
+            (HandlingRedrawEvents, HandlingMainEvents) => {
+                warn!("NewEvents emitted without explicit HandlingRedrawEventsCleared");
+                self.call_redraw_events_cleared();
                 self.call_new_events(false);
             }
         }
@@ -335,8 +319,44 @@ impl<T> ELRShared<T> {
         );
     }
 
-    unsafe fn call_events_cleared(&self) {
+    unsafe fn call_redraw_events_cleared(&self) {
+        self.call_event_handler(Event::RedrawEventsCleared);
         self.last_events_cleared.set(Instant::now());
-        self.call_event_handler(Event::MainEventsCleared);
+    }
+}
+
+impl<T> BufferedEvent<T> {
+    pub fn from_event(event: Event<'_, T>) -> BufferedEvent<T> {
+        match event {
+            Event::WindowEvent {
+                event:
+                    WindowEvent::ScaleFactorChanged {
+                        scale_factor,
+                        new_inner_size,
+                    },
+                window_id,
+            } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
+            event => BufferedEvent::Event(event.to_static().unwrap()),
+        }
+    }
+
+    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<'_, T>)) {
+        match self {
+            Self::Event(event) => dispatch(event),
+            Self::ScaleFactorChanged(window_id, scale_factor, mut new_inner_size) => {
+                dispatch(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::ScaleFactorChanged {
+                        scale_factor,
+                        new_inner_size: &mut new_inner_size,
+                    },
+                });
+                util::set_inner_size_physical(
+                    (window_id.0).0,
+                    new_inner_size.width as _,
+                    new_inner_size.height as _,
+                );
+            }
+        }
     }
 }
