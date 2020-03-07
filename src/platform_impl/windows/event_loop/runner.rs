@@ -40,6 +40,7 @@ pub(crate) struct ELRShared<T: 'static> {
 
 pub type PanicError = Box<dyn Any + Send + 'static>;
 
+/// See `move_state_to` function for details on how the state loop works.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum RunnerState {
     /// The event loop has just been created, and an `Init` event must be sent.
@@ -174,7 +175,10 @@ impl<T> ELRShared<T> {
 
     pub(crate) unsafe fn send_event(&self, event: Event<'_, T>) {
         if let Event::RedrawRequested(_) = event {
-            self.move_state_to(RunnerState::HandlingRedrawEvents);
+            if self.runner_state.get() != RunnerState::HandlingRedrawEvents {
+                warn!("RedrawRequested dispatched without explicit MainEventsCleared");
+                self.move_state_to(RunnerState::HandlingRedrawEvents);
+            }
             self.call_event_handler(event);
         } else {
             if self.should_buffer() {
@@ -235,18 +239,38 @@ impl<T> ELRShared<T> {
         }
     }
 
-    unsafe fn move_state_to(&self, runner_state: RunnerState) {
+    /// Dispatch control flow events (`NewEvents`, `MainEventsCleared`, and `RedrawEventsCleared`) as
+    /// necessary to bring the internal `RunnerState` to the new runner state.
+    ///
+    /// The state transitions are defined as follows:
+    ///
+    /// ```text
+    ///    Uninitialized
+    ///          |
+    ///          V
+    ///  HandlingMainEvents
+    ///   ^            |
+    ///   |            V
+    /// Idle <--- HandlingRedrawEvents
+    /// ```
+    ///
+    /// Attempting to transition back to `Uninitialized` will result in a panic. Transitioning to
+    /// the current state is a no-op. Even if the `new_runner_state` isn't the immediate next state
+    /// in the runner state machine (e.g. `self.runner_state == HandlingMainEvents` and
+    /// `new_runner_state == Idle`), the intermediate state transitions will still be executed.
+    unsafe fn move_state_to(&self, new_runner_state: RunnerState) {
         use RunnerState::{HandlingMainEvents, Idle, HandlingRedrawEvents, Uninitialized};
 
         match (
-            self.runner_state.replace(runner_state),
-            runner_state,
+            self.runner_state.replace(new_runner_state),
+            new_runner_state,
         ) {
             (Uninitialized, Uninitialized)
             | (Idle, Idle)
             | (HandlingMainEvents, HandlingMainEvents)
             | (HandlingRedrawEvents, HandlingRedrawEvents) => (),
 
+            // State transitions that initialize the event loop.
             (Uninitialized, HandlingMainEvents) => {
                 self.call_new_events(true);
             }
@@ -261,6 +285,7 @@ impl<T> ELRShared<T> {
             }
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
+            // State transitions that start the event handling process.
             (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
             }
@@ -268,19 +293,21 @@ impl<T> ELRShared<T> {
                 self.call_new_events(false);
                 self.call_event_handler(Event::MainEventsCleared);
             }
+
             (HandlingMainEvents, HandlingRedrawEvents) => {
                 self.call_event_handler(Event::MainEventsCleared);
             }
             (HandlingMainEvents, Idle) => {
-                warn!("HandlingRedrawEventsCleared emitted without explicit HandlingMainEventsCleared");
+                warn!("RedrawEventsCleared emitted without explicit MainEventsCleared");
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
             }
+
             (HandlingRedrawEvents, Idle) => {
                 self.call_redraw_events_cleared();
             }
             (HandlingRedrawEvents, HandlingMainEvents) => {
-                warn!("NewEvents emitted without explicit HandlingRedrawEventsCleared");
+                warn!("NewEvents emitted without explicit RedrawEventsCleared");
                 self.call_redraw_events_cleared();
                 self.call_new_events(false);
             }
