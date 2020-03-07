@@ -724,7 +724,10 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 ) -> LRESULT {
     let subclass_input = &*(subclass_input_ptr as *const SubclassInput<T>);
 
-    match msg {
+    // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
+    // the closure to catch_unwind directly so that the match body indendation wouldn't change and
+    // the git blame and history would be preserved.
+    let callback = || match msg {
         winuser::WM_ENTERSIZEMOVE => {
             subclass_input
                 .window_state
@@ -1861,7 +1864,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
         }
-    }
+    };
+
+    subclass_input
+        .event_loop_runner
+        .catch_unwind(callback)
+        .unwrap_or(-1)
 }
 
 unsafe extern "system" fn thread_event_target_callback<T: 'static>(
@@ -1873,7 +1881,12 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
     let subclass_input = &mut *(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
-    match msg {
+    let runner = subclass_input.event_loop_runner.clone();
+
+    // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
+    // the closure to catch_unwind directly so that the match body indendation wouldn't change and
+    // the git blame and history would be preserved.
+    let callback = || match msg {
         winuser::WM_DESTROY => {
             Box::from_raw(subclass_input);
             drop(subclass_input);
@@ -2043,7 +2056,6 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 let mut msg = mem::zeroed();
                 while Instant::now() < wait_until {
                     if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
-
                         // This works around a bug in PeekMessageW. If the message PeekMessageW
                         // gets is a WM_PAINT message that had RDW_INTERNALPAINT set (i.e. doesn't
                         // have an update region), PeekMessageW will remove that window from the
@@ -2070,5 +2082,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             0
         }
         _ => commctrl::DefSubclassProc(window, msg, wparam, lparam),
-    }
+    };
+
+    runner.catch_unwind(callback).unwrap_or(-1)
 }

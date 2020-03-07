@@ -142,8 +142,34 @@ impl<T> ELRShared<T> {
     }
 }
 
-/// Associated window functions.
+/// Misc. functions
 impl<T> ELRShared<T> {
+    pub fn catch_unwind<R>(&self, f: impl FnOnce() -> R) -> Option<R> {
+        let panic_error = self.panic_error.take();
+        if panic_error.is_none() {
+            let result = panic::catch_unwind(panic::AssertUnwindSafe(f));
+
+            // Check to see if the panic error was set in a re-entrant call to catch_unwind inside
+            // of `f`. If it was, that error takes priority. If it wasn't, check if our call to
+            // catch_unwind caught any panics and set panic_error appropriately.
+            match self.panic_error.take() {
+                None => match result {
+                    Ok(r) => Some(r),
+                    Err(e) => {
+                        self.panic_error.set(Some(e));
+                        None
+                    }
+                },
+                Some(e) => {
+                    self.panic_error.set(Some(e));
+                    None
+                }
+            }
+        } else {
+            self.panic_error.set(panic_error);
+            None
+        }
+    }
     pub fn register_window(&self, window: HWND) {
         let mut owned_windows = self.owned_windows.take();
         owned_windows.insert(window);
@@ -204,25 +230,20 @@ impl<T> ELRShared<T> {
     }
 
     pub(crate) unsafe fn call_event_handler(&self, event: Event<'_, T>) {
-        let mut panic_error = self.panic_error.take();
-        if panic_error.is_none() {
+        self.catch_unwind(|| {
             let mut control_flow = self.control_flow.take();
             let mut event_handler = self.event_handler.take()
                 .expect("either event handler is re-entrant (likely), or no event handler is registered (very unlikely)");
 
-            panic_error = panic::catch_unwind(panic::AssertUnwindSafe(|| {
-                if control_flow != ControlFlow::Exit {
-                    event_handler(event, &mut control_flow);
-                } else {
-                    event_handler(event, &mut ControlFlow::Exit);
-                }
-            }))
-            .err();
+            if control_flow != ControlFlow::Exit {
+                event_handler(event, &mut control_flow);
+            } else {
+                event_handler(event, &mut ControlFlow::Exit);
+            }
 
             assert!(self.event_handler.replace(Some(event_handler)).is_none());
             self.control_flow.set(control_flow);
-        }
-        self.panic_error.set(panic_error);
+        });
     }
 
     unsafe fn dispatch_buffered_events(&self) {
@@ -259,7 +280,7 @@ impl<T> ELRShared<T> {
     /// in the runner state machine (e.g. `self.runner_state == HandlingMainEvents` and
     /// `new_runner_state == Idle`), the intermediate state transitions will still be executed.
     unsafe fn move_state_to(&self, new_runner_state: RunnerState) {
-        use RunnerState::{HandlingMainEvents, Idle, HandlingRedrawEvents, Uninitialized};
+        use RunnerState::{HandlingMainEvents, HandlingRedrawEvents, Idle, Uninitialized};
 
         match (
             self.runner_state.replace(new_runner_state),
