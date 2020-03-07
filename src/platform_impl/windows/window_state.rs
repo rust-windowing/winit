@@ -31,9 +31,6 @@ pub struct WindowState {
 
     pub modifiers_state: ModifiersState,
     pub fullscreen: Option<Fullscreen>,
-    /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
-    /// times in `MainEventsCleared`.
-    pub queued_out_of_band_redraw: bool,
     pub is_dark_mode: bool,
     pub high_surrogate: Option<u16>,
     window_flags: WindowFlags,
@@ -122,7 +119,6 @@ impl WindowState {
 
             modifiers_state: ModifiersState::default(),
             fullscreen: None,
-            queued_out_of_band_redraw: false,
             is_dark_mode,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
@@ -272,7 +268,7 @@ impl WindowFlags {
                         | winuser::SWP_NOSIZE
                         | winuser::SWP_NOACTIVATE,
                 );
-                winuser::UpdateWindow(window);
+                winuser::InvalidateRgn(window, ptr::null_mut(), 0);
             }
         }
 

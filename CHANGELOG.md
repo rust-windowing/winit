@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Windows, fix minor timing issue in wait_until_time_or_msg
+- On Windows, rework handling of request_redraw() to address panics.
 - On macOS, fix `set_simple_screen` to remember frame excluding title bar.
 - On Wayland, fix coordinates in touch events when scale factor isn't 1.
 - On Wayland, fix color from `close_button_icon_color` not applying.
@@ -13,6 +14,7 @@
 - **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
 - On Windows, add `IconExtWindows` trait which exposes creating an `Icon` from an external file or embedded resource
 - Add `BadIcon::OsError` variant for when OS icon functionality fails
+- On Windows, fix crash at startup on systems that do not properly support Windows' Dark Mode
 
 # 0.21.0 (2020-02-04)
 
