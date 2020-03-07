@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Windows, fix minor timing issue in wait_until_time_or_msg
+- On Windows, rework handling of request_redraw() to address panics.
 - On macOS, fix `set_simple_screen` to remember frame excluding title bar.
 - On Wayland, fix coordinates in touch events when scale factor isn't 1.
 - On Wayland, fix color from `close_button_icon_color` not applying.
