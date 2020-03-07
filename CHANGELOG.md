@@ -13,6 +13,8 @@
 - On Windows, ignore spurious mouse move messages.
 - **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
 - On Windows, fix crash at startup on systems that do not properly support Windows' Dark Mode
+- Revert On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
+- on macOS, fix incorrect ReceivedCharacter events for some key combinations.
 
 # 0.21.0 (2020-02-04)
 
@@ -34,7 +36,6 @@
 # 0.20.0 (2020-01-05)
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
-
 - **Breaking**: Overhaul how Winit handles DPI:
   + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
   + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
