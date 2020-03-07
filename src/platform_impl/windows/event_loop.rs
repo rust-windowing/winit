@@ -1882,6 +1882,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         // Because WM_PAINT comes after all other messages, we use it during modal loops to detect
         // when the event queue has been emptied. See `process_event` for more details.
         winuser::WM_PAINT => {
+            winuser::ValidateRect(window, ptr::null());
             // If the WM_PAINT handler in `public_window_callback` has already flushed the redraw
             // events, `handling_events` will return false and we won't emit a second
             // `RedrawEventsCleared` event.
@@ -1896,7 +1897,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 process_control_flow(&subclass_input.event_loop_runner);
             }
 
-            commctrl::DefSubclassProc(window, msg, wparam, lparam)
+            0
         }
 
         winuser::WM_INPUT_DEVICE_CHANGE => {
@@ -2042,6 +2043,25 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 let mut msg = mem::zeroed();
                 while Instant::now() < wait_until {
                     if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
+
+                        // This works around a bug in PeekMessageW. If the message PeekMessageW
+                        // gets is a WM_PAINT message that had RDW_INTERNALPAINT set (i.e. doesn't
+                        // have an update region), PeekMessageW will remove that window from the
+                        // redraw queue even though we told it not to remove messages from the
+                        // queue. We fix it by re-dispatching an internal paint message to that
+                        // window.
+                        if msg.message == winuser::WM_PAINT {
+                            let mut rect = mem::zeroed();
+                            if 0 == winuser::GetUpdateRect(msg.hwnd, &mut rect, 0) {
+                                winuser::RedrawWindow(
+                                    msg.hwnd,
+                                    ptr::null(),
+                                    ptr::null_mut(),
+                                    winuser::RDW_INTERNALPAINT,
+                                );
+                            }
+                        }
+
                         break;
                     }
                 }
