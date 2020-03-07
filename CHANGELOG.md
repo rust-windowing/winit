@@ -1,4 +1,4 @@
-# Unreleased
+# 0.22.0 (2020-03-07)
 
 - On Windows, fix minor timing issue in wait_until_time_or_msg
 - On macOS, fix `set_simple_screen` to remember frame excluding title bar.
