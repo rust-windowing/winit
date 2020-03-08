@@ -610,6 +610,9 @@ fn update_modifiers<T>(window: HWND, subclass_input: &SubclassInput<T>) {
     if window_state.modifiers_state != modifiers {
         window_state.modifiers_state = modifiers;
 
+        // Drop lock
+        drop(window_state);
+
         unsafe {
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
