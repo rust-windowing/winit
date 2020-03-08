@@ -1,4 +1,3 @@
-
 //! This is the entry point for the test executables.
 //!
 //! Run by `cargo run --bin gui_tests`
@@ -10,7 +9,8 @@ fn run_test(name: &str) -> bool {
     let output = Command::new("cargo")
         .env("RUST_BACKTRACE", "1")
         .args(&["run", "--bin", name])
-        .output().unwrap();
+        .output()
+        .unwrap();
     if output.status.success() {
         println!("Success");
         true
@@ -29,10 +29,7 @@ fn run_test(name: &str) -> bool {
 }
 
 fn main() {
-    let tests = [
-        "basic_mouse",
-        "resize"
-    ];
+    let tests = ["basic_mouse", "resize"];
     let mut failed = 0;
     println!("Running {} tests", tests.len());
     for test_name in &tests {
@@ -40,7 +37,12 @@ fn main() {
             failed += 1;
         }
     }
-    println!("Finished running {} tests. {} failed, {} succeeded.", tests.len(), failed, tests.len() - failed);
+    println!(
+        "Finished running {} tests. {} failed, {} succeeded.",
+        tests.len(),
+        failed,
+        tests.len() - failed
+    );
     if failed > 0 {
         std::process::exit(1);
     }

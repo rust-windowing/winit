@@ -1,28 +1,30 @@
-
-use enigo::{Enigo, MouseButton, MouseControllable, KeyboardControllable, Key};
+use enigo::{Enigo, Key, KeyboardControllable, MouseButton, MouseControllable};
+use std::collections::VecDeque;
+use std::f32::consts::PI;
+use std::sync::{
+    atomic::{AtomicIsize, Ordering},
+    mpsc::channel,
+};
 use std::thread;
 use std::time::Duration;
-use std::f32::consts::PI;
-use std::collections::VecDeque;
-use std::sync::{mpsc::channel, atomic::{AtomicIsize, Ordering}};
 
 use winit::{
-    event::{Event, WindowEvent, ElementState, VirtualKeyCode, KeyboardInput},
+    dpi::PhysicalPosition,
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
-    dpi::PhysicalPosition,
 };
 
 fn main() {
-    let (sender, receiver) = channel::<Event::<'static, ()>>();
+    let (sender, receiver) = channel::<Event<'static, ()>>();
     let window_pos = PhysicalPosition::<i32>::new(200, 200);
-    let create_enigo_thread = move | client_pos_x: i32, client_pos_y: i32 | {
+    let create_enigo_thread = move |client_pos_x: i32, client_pos_y: i32| {
         thread::spawn(move || {
             let cursor_x = 20;
             let cursor_y = 20;
             let pause_time = Duration::from_millis(500);
             let mut enigo = Enigo::new();
-            enigo.mouse_move_to(client_pos_x-1, client_pos_y-1);
+            enigo.mouse_move_to(client_pos_x - 1, client_pos_y - 1);
             thread::sleep(pause_time);
             enigo.mouse_move_to(client_pos_x + cursor_x + 1, client_pos_y + cursor_y + 1);
             thread::sleep(pause_time);
@@ -37,19 +39,28 @@ fn main() {
                 }
             }
             match relevant_events.pop_front() {
-                Some(Event::WindowEvent { event: WindowEvent::Moved(pos), .. })
-                if pos.x as i32 == window_pos.x && pos.y as i32 == window_pos.y => {}
+                Some(Event::WindowEvent {
+                    event: WindowEvent::Moved(pos),
+                    ..
+                }) if pos.x as i32 == window_pos.x && pos.y as i32 == window_pos.y => {}
                 _ => unreachable!(),
             }
             match relevant_events.pop_front() {
-                Some(Event::WindowEvent { event: WindowEvent::CursorEntered{..}, .. }) => {}
+                Some(Event::WindowEvent {
+                    event: WindowEvent::CursorEntered { .. },
+                    ..
+                }) => {}
                 _ => unreachable!(),
             }
             match relevant_events.pop_front() {
-                Some(Event::WindowEvent { event: WindowEvent::CursorMoved{
-                    position: PhysicalPosition { x, y }, ..}, ..
-                }) if x as i32 == cursor_x && y as i32 == cursor_y => {
-                },
+                Some(Event::WindowEvent {
+                    event:
+                        WindowEvent::CursorMoved {
+                            position: PhysicalPosition { x, y },
+                            ..
+                        },
+                    ..
+                }) if x as i32 == cursor_x && y as i32 == cursor_y => {}
                 _ => unreachable!(),
             }
             // match relevant_events.pop_front() {
@@ -92,15 +103,16 @@ fn main() {
                 window_id,
             } if window_id == window.id() => *control_flow = ControlFlow::Exit,
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            state: ElementState::Pressed,
-                            ..
-                        },
-                    ..
-                },
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                virtual_keycode: Some(VirtualKeyCode::Escape),
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    },
                 window_id,
             } => *control_flow = ControlFlow::Exit,
             Event::MainEventsCleared => {
@@ -113,7 +125,7 @@ fn main() {
                 sender.send(event).unwrap();
             }
         }
-        if *control_flow  == ControlFlow::Exit {
+        if *control_flow == ControlFlow::Exit {
             enigo_handle.take().unwrap().join().unwrap();
         }
     });
