@@ -73,7 +73,7 @@ fn main() {
                 }
             }
             let new_width = inner_size.width + width_offset;
-            let new_height = inner_size.height + height_offset - 1;
+            let new_height = inner_size.height + height_offset;
             match relevant_events.pop_back() {
                 Some(Event::WindowEvent {
                     event: WindowEvent::Resized(size),
