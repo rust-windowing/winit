@@ -15,6 +15,7 @@
 - On Windows, add `IconExtWindows` trait which exposes creating an `Icon` from an external file or embedded resource
 - Add `BadIcon::OsError` variant for when OS icon functionality fails
 - On Windows, fix crash at startup on systems that do not properly support Windows' Dark Mode
+- On X11, fix `ResumeTimeReached` being fired too early.
 
 # 0.21.0 (2020-02-04)
 
