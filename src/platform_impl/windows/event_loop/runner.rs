@@ -33,6 +33,8 @@ pub(crate) struct EventLoopRunner<T: 'static> {
     event_handler: Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>,
     event_buffer: RefCell<VecDeque<BufferedEvent<T>>>,
 
+    modal_fns: RefCell<VecDeque<Box<dyn 'static + FnOnce()>>>,
+
     owned_windows: Cell<HashSet<HWND>>,
 
     panic_error: Cell<Option<PanicError>>,
@@ -71,6 +73,7 @@ impl<T> EventLoopRunner<T> {
             last_events_cleared: Cell::new(Instant::now()),
             event_handler: Cell::new(None),
             event_buffer: RefCell::new(VecDeque::new()),
+            modal_fns: RefCell::new(VecDeque::new()),
             owned_windows: Cell::new(HashSet::new()),
         }
     }
@@ -96,6 +99,7 @@ impl<T> EventLoopRunner<T> {
             last_events_cleared: _,
             event_handler,
             event_buffer: _,
+            modal_fns: _,
             owned_windows: _,
         } = self;
         runner_state.set(RunnerState::Uninitialized);
@@ -191,6 +195,10 @@ impl<T> EventLoopRunner<T> {
         owned_windows.extend(&new_owned_windows);
         self.owned_windows.set(owned_windows);
     }
+
+    pub fn schedule_modal_fn(&self, f: impl 'static + FnOnce()) {
+        self.modal_fns.borrow_mut().push_back(Box::new(f));
+    }
 }
 
 /// Event dispatch functions.
@@ -243,6 +251,14 @@ impl<T> EventLoopRunner<T> {
 
             assert!(self.event_handler.replace(Some(event_handler)).is_none());
             self.control_flow.set(control_flow);
+
+            loop {
+                let modal_fn_opt = self.modal_fns.borrow_mut().pop_front();
+                match modal_fn_opt {
+                    Some(f) => f(),
+                    None => break,
+                }
+            }
         });
     }
 

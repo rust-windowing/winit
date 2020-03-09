@@ -247,6 +247,10 @@ impl<T> EventLoopWindowTarget<T> {
             target_window: self.thread_msg_target,
         }
     }
+
+    pub fn schedule_modal_fn(&self, f: impl 'static + FnOnce()) {
+        self.runner_shared.schedule_modal_fn(f);
+    }
 }
 
 fn main_thread_id() -> DWORD {

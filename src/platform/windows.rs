@@ -10,7 +10,7 @@ use winapi::shared::windef::HWND;
 use crate::{
     dpi::PhysicalSize,
     event::DeviceId,
-    event_loop::EventLoop,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
     window::{BadIcon, Icon, Window, WindowBuilder},
@@ -66,6 +66,57 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
             event_loop: WindowsEventLoop::new_dpi_unaware_any_thread(),
             _marker: ::std::marker::PhantomData,
         }
+    }
+}
+
+/// Additional methods on `EventLoopWindowTarget` that are specific to Windows.
+pub trait EventLoopWindowTargetExtWindows {
+    /// Schedule a closure to be invoked after the current event handler returns.
+    ///
+    /// This is useful if you're calling one of the Windows API's many *modal functions*. Modal
+    /// functions take over control of the event loop for the duration of their execution, and don't
+    /// return control flow to the caller until the operation they perform has been completed.
+    /// They're typically used for popup windows that the user must click through to continue using
+    /// the program - the [`MessageBox`](https://docs.microsoft.com/en-us/windows/win32/dlgbox/using-dialog-boxes#displaying-a-message-box)
+    /// function is a good example of this.
+    ///
+    /// The reason this function is necessary is that, if you call a modal function inside of the
+    /// standard Winit event handler closure, Winit cannot dispatch OS events to that closure
+    /// while the modal loop is running since the closure is being borrowed by the closure
+    /// invocation that called the modal function. This function sidesteps that issue by allowing
+    /// you to call modal functions outside the scope of the normal event handler function, which
+    /// prevents the double-borrowing and allows event loop execution to continue as normal.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// event_loop_window_target.schedule_modal_fn(move || unsafe {
+    ///     println!("\n\t\tstart modal loop\n");
+    ///
+    ///     let msg_box_id = winuser::MessageBoxA(
+    ///         hwnd as _,
+    ///         "Please press Yes or No\0".as_ptr() as *const _,
+    ///         "Dialog Box\0".as_ptr() as *const _,
+    ///         winuser::MB_ICONEXCLAMATION | winuser::MB_YESNO
+    ///     );
+    ///
+    ///     println!("\n\t\tend modal loop\n");
+    ///
+    ///     if msg_box_id == winuser::IDYES {
+    ///         println!("Yes pressed!");
+    ///     } else {
+    ///         println!("No pressed!");
+    ///     }
+    /// });
+    /// ```
+    ///
+    /// See also the `win32_modal_dialog.rs` example.
+    fn schedule_modal_fn(&self, f: impl 'static + FnOnce());
+}
+
+impl<T> EventLoopWindowTargetExtWindows for EventLoopWindowTarget<T> {
+    fn schedule_modal_fn(&self, f: impl 'static + FnOnce()) {
+        self.p.schedule_modal_fn(f);
     }
 }
 
