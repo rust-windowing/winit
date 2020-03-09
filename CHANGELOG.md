@@ -1,4 +1,4 @@
-# 0.22.0 (2020-03-07)
+# 0.22.0 (2020-03-09)
 
 - On Windows, fix minor timing issue in wait_until_time_or_msg
 - On Windows, rework handling of request_redraw() to address panics.
