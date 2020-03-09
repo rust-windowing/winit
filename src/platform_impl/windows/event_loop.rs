@@ -610,6 +610,9 @@ fn update_modifiers<T>(window: HWND, subclass_input: &SubclassInput<T>) {
     if window_state.modifiers_state != modifiers {
         window_state.modifiers_state = modifiers;
 
+        // Drop lock
+        drop(window_state);
+
         unsafe {
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -736,7 +739,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let windowpos = lparam as *const winuser::WINDOWPOS;
             if (*windowpos).flags & winuser::SWP_NOMOVE != winuser::SWP_NOMOVE {
                 let physical_position =
-                    PhysicalPosition::new((*windowpos).x as u32, (*windowpos).y as u32);
+                    PhysicalPosition::new((*windowpos).x as i32, (*windowpos).y as i32);
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: Moved(physical_position),
