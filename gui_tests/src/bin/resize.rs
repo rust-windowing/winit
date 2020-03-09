@@ -14,6 +14,9 @@ use winit::{
     window::WindowBuilder,
 };
 
+mod common;
+use common::{lower_left_resize_pos, window_drag_location};
+
 fn main() {
     let event_loop = EventLoop::new();
     let el_proxy = event_loop.create_proxy();
@@ -23,16 +26,14 @@ fn main() {
     // that's drawn by the application itself.
     let outer_pos = PhysicalPosition::<i32>::new(200, 200);
     let inner_size = PhysicalSize::new(512, 512);
-    let create_enigo_thread = move |inner_pos_x: i32, inner_pos_y: i32| {
+    let create_enigo_thread = move |inner_pos: PhysicalPosition<i32>| {
         thread::spawn(move || {
             // Defer shutdown request.
             defer!(el_proxy.send_event(()).unwrap());
             let pause_time = Duration::from_millis(250);
             let mut enigo = Enigo::new();
-            enigo.mouse_move_to(
-                inner_pos_x + inner_size.width + 2,
-                inner_pos_y + inner_size.height + 2,
-            );
+            let resize_pos = lower_left_resize_pos(inner_pos, inner_size);
+            enigo.mouse_move_to(resize_pos.x, resize_pos.y);
             thread::sleep(pause_time);
             enigo.mouse_down(MouseButton::Left);
             let mut width_offset = 0;
@@ -41,22 +42,20 @@ fn main() {
                 thread::sleep(Duration::from_millis(1));
                 width_offset = i * 2;
                 height_offset = i;
-                enigo.mouse_move_to(
-                    inner_pos_x + inner_size.width + 2 + width_offset,
-                    inner_pos_y + inner_size.height + 2 + height_offset,
-                );
+                enigo.mouse_move_to(resize_pos.x + width_offset, resize_pos.y + height_offset)
             }
             thread::sleep(Duration::from_millis(1));
             enigo.mouse_up(MouseButton::Left);
             thread::sleep(pause_time);
-            enigo.mouse_move_to(inner_pos_x + inner_size.width / 2, inner_pos_y - 2);
+            let drag_pos = window_drag_location(inner_pos);
+            enigo.mouse_move_to(drag_pos.x, drag_pos.y);
             enigo.mouse_down(MouseButton::Left);
             for i in 0..50 {
                 thread::sleep(Duration::from_millis(1));
-                enigo.mouse_move_to(inner_pos_x + inner_size.width / 2 + i, inner_pos_y - 2 + i);
+                enigo.mouse_move_to(drag_pos.x + i, drag_pos.y + i);
             }
             thread::sleep(Duration::from_millis(1));
-            enigo.mouse_move_to(inner_pos_x + inner_size.width / 2, inner_pos_y - 2);
+            enigo.mouse_move_to(drag_pos.x, drag_pos.y);
             enigo.mouse_up(MouseButton::Left);
             thread::sleep(pause_time);
 
@@ -72,8 +71,8 @@ fn main() {
                     _ => {} // ignore the rest
                 }
             }
-            let new_width = inner_size.width + width_offset;
-            let new_height = inner_size.height + height_offset;
+            let new_width = inner_size.width as i32 + width_offset;
+            let new_height = inner_size.height as i32 + height_offset;
             match relevant_events.pop_back() {
                 Some(Event::WindowEvent {
                     event: WindowEvent::Resized(size),
@@ -102,7 +101,7 @@ fn main() {
 
     window.set_outer_position(outer_pos);
     let inner_pos = window.inner_position().unwrap();
-    let mut enigo_handle = Some(create_enigo_thread(inner_pos.x as i32, inner_pos.y as i32));
+    let mut enigo_handle = Some(create_enigo_thread(inner_pos));
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -135,7 +134,10 @@ fn main() {
         }
         if enigo_handle.is_some() {
             if let Some(event) = event.to_static() {
-                sender.send(event).unwrap();
+                match sender.send(event) {
+                    Err(_) => eprintln!("Could not send the event, the enigo thread has closed"),
+                    Ok(()) => (),
+                }
             }
         }
         if *control_flow == ControlFlow::Exit {

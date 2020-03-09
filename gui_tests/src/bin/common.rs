@@ -2,16 +2,39 @@ use enigo::{Enigo, Key, KeyboardControllable, MouseButton, MouseControllable};
 use std::f32::consts::PI;
 use std::thread;
 use std::time::Duration;
+use winit::{
+    dpi::{PhysicalPosition, PhysicalSize},
+};
 
-pub fn move_in_circle(enigo: &mut Enigo, pos_x: i32, pos_y: i32, r: f32) {
-    let mut angle = 0.0;
-    while angle < 2.0 * PI {
-        thread::sleep(Duration::from_millis(1));
-        let x = (angle.cos() * r) as i32;
-        let y = (angle.sin() * r) as i32;
-        enigo.mouse_move_to(pos_x + x, pos_y + y);
-        angle += 0.02;
-    }
+/// Return the a location at the lower left corner of the window where a left click and cursor
+/// movement would result in resizing the window. (If the window is resizable)
+pub fn lower_left_resize_pos(
+    window_inner_pos: PhysicalPosition<i32>,
+    window_inner_size: PhysicalSize<u32>
+) -> PhysicalPosition<i32> {
+    lower_left_resize_pos_impl(window_inner_pos, window_inner_size)
+}
+
+#[cfg(target_os = "windows")]
+fn lower_left_resize_pos_impl(
+    window_inner_pos: PhysicalPosition<i32>,
+    window_inner_size: PhysicalSize<u32>
+) -> PhysicalPosition<i32> {
+    PhysicalPosition::<i32>::new(
+        window_inner_pos.x + window_inner_size.width as i32 + 2,
+        window_inner_pos.y + window_inner_size.height as i32 + 2,
+    )
+}
+
+/// Return the cursor position where a left click and cursor movement would result in moving the
+/// window.
+pub fn window_drag_location(window_inner_pos: PhysicalPosition<i32>) -> PhysicalPosition<i32> {
+    window_drag_location_impl(window_inner_pos)
+}
+
+#[cfg(target_os = "windows")]
+fn window_drag_location_impl(window_inner_pos: PhysicalPosition<i32>) -> PhysicalPosition<i32> {
+    PhysicalPosition::<i32>::new(window_inner_pos.x + 2, window_inner_pos.y - 2)
 }
 
 pub fn move_slowly_to(
@@ -33,3 +56,5 @@ pub fn move_slowly_to(
         );
     }
 }
+
+
