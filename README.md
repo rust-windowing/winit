@@ -2,8 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
 [![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
-[![Build Status](https://travis-ci.org/rust-windowing/winit.svg?branch=master)](https://travis-ci.org/rust-windowing/winit)
-[![Build status](https://ci.appveyor.com/api/projects/status/hr89but4x1n3dphq/branch/master?svg=true)](https://ci.appveyor.com/project/Osspial/winit/branch/master)
+[![CI Status](https://github.com/rust-windowing/winit/workflows/CI/badge.svg)](https://github.com/rust-windowing/winit/actions)
 
 ```toml
 [dependencies]
