@@ -594,7 +594,7 @@ fn subclass_event_target_window<T>(
             event_loop_runner,
             user_event_receiver: rx,
         };
-        let input_ptr = Box::into_raw(Box::new(subclass_input));
+        let input_ptr = Rc::into_raw(Rc::new(subclass_input));
         let subclass_result = commctrl::SetWindowSubclass(
             window,
             Some(thread_event_target_callback::<T>),
@@ -627,7 +627,7 @@ const WINDOW_SUBCLASS_ID: UINT_PTR = 0;
 const THREAD_EVENT_TARGET_SUBCLASS_ID: UINT_PTR = 1;
 pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>) {
     subclass_input.event_loop_runner.register_window(window);
-    let input_ptr = Box::into_raw(Box::new(subclass_input));
+    let input_ptr = Rc::into_raw(Rc::new(subclass_input));
     let subclass_result = unsafe {
         commctrl::SetWindowSubclass(
             window,
@@ -637,6 +637,23 @@ pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>)
         )
     };
     assert_eq!(subclass_result, 1);
+}
+
+/// Get a subclass input `Rc` and increment the reference count.
+unsafe fn get_subclass_input_rc<S>(t: *const S) -> Rc<S> {
+    let rc = Rc::from_raw(t);
+    let rc_cloned = rc.clone();
+    mem::forget(rc);
+    rc_cloned
+}
+
+/// Destroy the original subclass input `Rc` and decrements the reference count.
+///
+/// This should only be called in the `WM_DESTROY` handler. If the event handler function isn't
+/// re-entrant, this will destroy the subclass data immediately. If it *is* re-entrant, the subclass
+/// data will be destroyed when the highest-level event handler returns.
+unsafe fn destroy_subclass_input_rc<S>(t: *const S) {
+    Rc::from_raw(t);
 }
 
 fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
@@ -744,7 +761,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
     _: UINT_PTR,
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
-    let subclass_input = &*(subclass_input_ptr as *const SubclassInput<T>);
+    let subclass_input_ptr = subclass_input_ptr as *const SubclassInput<T>;
+    let subclass_input_rc = get_subclass_input_rc(subclass_input_ptr);
+    let subclass_input = &*subclass_input_rc;
 
     winuser::RedrawWindow(
         subclass_input.event_loop_runner.thread_msg_target(),
@@ -757,6 +776,23 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
+        // We use WM_NCDESTROY instead of WM_DESTROY because WM_NCDESTROY is dispatched after
+        // WM_DESTROY, and de-allocating the subclass data in WM_DESTROY causes the above
+        // subclass_input fields to point to uninitialized memory, which triggers undefined
+        // behavior.
+        winuser::WM_NCDESTROY => {
+            use crate::event::WindowEvent::Destroyed;
+            ole2::RevokeDragDrop(window);
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: Destroyed,
+            });
+            subclass_input.event_loop_runner.remove_window(window);
+
+            destroy_subclass_input_rc(subclass_input_ptr);
+            0
+        }
+
         winuser::WM_ENTERSIZEMOVE => {
             subclass_input
                 .window_state
@@ -790,20 +826,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 window_id: RootWindowId(WindowId(window)),
                 event: CloseRequested,
             });
-            0
-        }
-
-        winuser::WM_DESTROY => {
-            use crate::event::WindowEvent::Destroyed;
-            ole2::RevokeDragDrop(window);
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: Destroyed,
-            });
-            subclass_input.event_loop_runner.remove_window(window);
-
-            drop(subclass_input);
-            Box::from_raw(subclass_input_ptr as *mut SubclassInput<T>);
             0
         }
 
@@ -1908,7 +1930,9 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     _: UINT_PTR,
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
-    let subclass_input = &mut *(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
+    let subclass_input_ptr = subclass_input_ptr as *const ThreadMsgTargetSubclassInput<T>;
+    let subclass_input_rc = get_subclass_input_rc(subclass_input_ptr);
+    let subclass_input = &*subclass_input_rc;
     let runner = subclass_input.event_loop_runner.clone();
 
     if msg != winuser::WM_PAINT {
@@ -1924,9 +1948,12 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
-        winuser::WM_DESTROY => {
-            Box::from_raw(subclass_input);
-            drop(subclass_input);
+        // We use WM_NCDESTROY instead of WM_DESTROY because WM_NCDESTROY is dispatched after
+        // WM_DESTROY, and de-allocating the subclass data in WM_DESTROY causes the above
+        // subclass_input fields to point to uninitialized memory, which triggers undefined
+        // behavior.
+        winuser::WM_NCDESTROY => {
+            destroy_subclass_input_rc(subclass_input_ptr);
             0
         }
         // Because WM_PAINT comes after all other messages, we use it during modal loops to detect
