@@ -2056,7 +2056,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 let mut msg = mem::zeroed();
                 while Instant::now() < wait_until {
                     if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
-                        // This works around a bug in PeekMessageW. If the message PeekMessageW
+                        // This works around a "feature" in PeekMessageW. If the message PeekMessageW
                         // gets is a WM_PAINT message that had RDW_INTERNALPAINT set (i.e. doesn't
                         // have an update region), PeekMessageW will remove that window from the
                         // redraw queue even though we told it not to remove messages from the
