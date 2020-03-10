@@ -9,15 +9,20 @@ use winapi::shared::windef::HWND;
 
 use crate::{
     dpi::PhysicalSize,
-    event::DeviceId,
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event::{DeviceId, Event},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
+    platform_impl::{EventLoop as WindowsEventLoop, WinIcon, EventLoopEmbedded as WindowsEventLoopEmbedded},
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
+pub struct EventLoopEmbedded<'a, T: 'static> {
+    p: WindowsEventLoopEmbedded<'a, T>,
+}
+
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopExtWindows {
+    type UserEvent;
     /// Creates an event loop off of the main thread.
     ///
     /// # `Window` caveats
@@ -41,9 +46,24 @@ pub trait EventLoopExtWindows {
     fn new_dpi_unaware_any_thread() -> Self
     where
         Self: Sized;
+
+    /// Initialize an event loop that can run through somebody else's event pump.
+    ///
+    /// This does *not* dispatch events without external assistance! Other code must be running a
+    /// [Win32 message loop](https://docs.microsoft.com/en-us/windows/win32/learnwin32/window-messages),
+    /// and the `event_handler` closure will be called while the `EventLoopEmbedded` is in scope.
+    /// The loop can come from any code that calls the native Win32 message loop functions - for
+    /// example, this could be used to embed a Winit message loop in an SDL or GLFW application, or
+    /// create a DAW plugin.
+    ///
+    /// TODO: REWRITE `exit_requested` and `resume_panic_if_necessary` as trait functions.
+    fn run_embedded<'a, F>(self, event_handler: F) -> EventLoopEmbedded<'a, Self::UserEvent>
+    where
+        F: 'a + FnMut(Event<'_, Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
 }
 
 impl<T> EventLoopExtWindows for EventLoop<T> {
+    type UserEvent = T;
     #[inline]
     fn new_any_thread() -> Self {
         EventLoop {
@@ -66,6 +86,25 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
             event_loop: WindowsEventLoop::new_dpi_unaware_any_thread(),
             _marker: ::std::marker::PhantomData,
         }
+    }
+
+    fn run_embedded<'a, F>(self, event_handler: F) -> EventLoopEmbedded<'a, Self::UserEvent>
+    where
+        F: 'a + FnMut(Event<'_, Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow)
+    {
+        EventLoopEmbedded {
+            p: self.event_loop.run_embedded(event_handler)
+        }
+    }
+}
+
+impl<T> EventLoopEmbedded<'_, T> {
+    pub fn exit_requested(&self) -> bool {
+        self.p.exit_requested()
+    }
+
+    pub fn resume_panic_if_necessary(&self) {
+        self.p.resume_panic_if_necessary()
     }
 }
 

@@ -104,13 +104,18 @@ impl<T> ThreadMsgTargetSubclassInput<T> {
 
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
-    window_target: RootELW<T>,
+    window_target: Rc<RootELW<T>>,
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
     thread_id: DWORD,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
+}
+
+pub struct EventLoopEmbedded<'a, T: 'static> {
+    window_target: Rc<RootELW<T>>,
+    _function_lifetime: PhantomData<&'a ()>,
 }
 
 macro_rules! main_thread_check {
@@ -163,14 +168,14 @@ impl<T: 'static> EventLoop<T> {
 
         EventLoop {
             thread_msg_sender,
-            window_target: RootELW {
+            window_target: Rc::new(RootELW {
                 p: EventLoopWindowTarget {
                     thread_id,
                     thread_msg_target,
                     runner_shared,
                 },
                 _marker: PhantomData,
-            },
+            }),
         }
     }
 
@@ -186,27 +191,14 @@ impl<T: 'static> EventLoop<T> {
         ::std::process::exit(0);
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F)
+    pub fn run_return<F>(&mut self, event_handler: F)
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        let event_loop_windows_ref = &self.window_target;
-
         unsafe {
-            self.window_target
-                .p
-                .runner_shared
-                .set_event_handler(move |event, control_flow| {
-                    event_handler(event, event_loop_windows_ref, control_flow)
-                });
-        }
-
-        let runner = &self.window_target.p.runner_shared;
-
-        unsafe {
+            let runner = self.embedded_runner(event_handler);
             let mut msg = mem::zeroed();
 
-            runner.poll();
             'main: loop {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main;
@@ -214,27 +206,86 @@ impl<T: 'static> EventLoop<T> {
                 winuser::TranslateMessage(&mut msg);
                 winuser::DispatchMessageW(&mut msg);
 
-                if let Err(payload) = runner.take_panic_error() {
-                    runner.reset_runner();
-                    panic::resume_unwind(payload);
-                }
+                runner.resume_panic_if_necessary();
 
-                if runner.control_flow() == ControlFlow::Exit && !runner.handling_events() {
+                if runner.exit_requested() {
                     break 'main;
                 }
             }
         }
+    }
 
+    pub fn run_embedded<'a, F>(mut self, event_handler: F) -> EventLoopEmbedded<'a, T>
+    where
+        F: 'a + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow)
+    {
         unsafe {
-            runner.call_event_handler(Event::LoopDestroyed);
+            self.embedded_runner(event_handler)
         }
-        runner.reset_runner();
+    }
+
+    unsafe fn embedded_runner<'a, F>(
+        &mut self,
+        mut event_handler: F
+    ) -> EventLoopEmbedded<'a, T>
+    where
+        F: 'a + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow)
+    {
+        let window_target = self.window_target.clone();
+        let event_loop_windows_ptr = &*window_target as *const RootELW<T>;
+
+        window_target
+            .p
+            .runner_shared
+            .set_event_handler(move |event, control_flow| {
+                event_handler(event, &*event_loop_windows_ptr, control_flow)
+            });
+
+        window_target.p.runner_shared.poll();
+
+        EventLoopEmbedded {
+            window_target,
+            _function_lifetime: PhantomData,
+        }
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             target_window: self.window_target.p.thread_msg_target,
             event_send: self.thread_msg_sender.clone(),
+        }
+    }
+}
+
+impl<T> EventLoopEmbedded<'_, T> {
+    pub fn exit_requested(&self) -> bool {
+        let runner = &self.window_target.p.runner_shared;
+        runner.control_flow() == ControlFlow::Exit && !runner.handling_events()
+    }
+
+    pub fn resume_panic_if_necessary(&self) {
+        let runner = &self.window_target.p.runner_shared;
+
+        if let Err(payload) = runner.take_panic_error() {
+            runner.reset_runner();
+            panic::resume_unwind(payload);
+        }
+    }
+}
+
+impl<T> Drop for EventLoopEmbedded<'_, T> {
+    fn drop(&mut self) {
+        unsafe {
+            self.window_target.p.runner_shared.call_event_handler(Event::LoopDestroyed);
+            self.window_target.p.runner_shared.reset_runner();
+        }
+    }
+}
+
+impl<T> Drop for EventLoopWindowTarget<T> {
+    fn drop(&mut self) {
+        unsafe {
+            winuser::DestroyWindow(self.thread_msg_target);
         }
     }
 }
@@ -378,14 +429,6 @@ fn dur2timeout(dur: Duration) -> DWORD {
             }
         })
         .unwrap_or(winbase::INFINITE)
-}
-
-impl<T> Drop for EventLoop<T> {
-    fn drop(&mut self) {
-        unsafe {
-            winuser::DestroyWindow(self.window_target.p.thread_msg_target);
-        }
-    }
 }
 
 pub(crate) struct EventLoopThreadExecutor {
