@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.22.0 (2020-03-09)
+
 - On Windows, fix minor timing issue in wait_until_time_or_msg
 - On Windows, rework handling of request_redraw() to address panics.
 - On macOS, fix `set_simple_screen` to remember frame excluding title bar.
@@ -15,6 +17,8 @@
 - On Windows, add `IconExtWindows` trait which exposes creating an `Icon` from an external file or embedded resource
 - Add `BadIcon::OsError` variant for when OS icon functionality fails
 - On Windows, fix crash at startup on systems that do not properly support Windows' Dark Mode
+- Revert On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
+- on macOS, fix incorrect ReceivedCharacter events for some key combinations.
 - **Breaking:** Use `i32` instead of `u32` for position type in `WindowEvent::Moved`.
 - On X11, fix `ResumeTimeReached` being fired too early.
 
@@ -38,7 +42,6 @@
 # 0.20.0 (2020-01-05)
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
-
 - **Breaking**: Overhaul how Winit handles DPI:
   + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
   + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
