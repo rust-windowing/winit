@@ -640,7 +640,10 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
 /// Returns `true` if this invocation flushed all the redraw events. If this function is re-entrant,
 /// it won't flush the redraw events and will return `false`.
 #[must_use]
-unsafe fn flush_paint_messages<T: 'static>(except: Option<HWND>, runner: &EventLoopRunner<T>) -> bool {
+unsafe fn flush_paint_messages<T: 'static>(
+    except: Option<HWND>,
+    runner: &EventLoopRunner<T>,
+) -> bool {
     if !runner.redrawing() {
         runner.main_events_cleared();
         let mut msg = mem::zeroed();
