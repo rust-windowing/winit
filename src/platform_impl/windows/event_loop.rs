@@ -44,7 +44,7 @@ use crate::{
     },
     window::{Fullscreen, WindowId as RootWindowId},
 };
-use runner::{ELRShared, EventLoopRunnerShared};
+use runner::{EventLoopRunner, EventLoopRunnerShared};
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
     pointerId: UINT,
@@ -155,7 +155,7 @@ impl<T: 'static> EventLoop<T> {
         thread::spawn(move || wait_thread(thread_id, send_thread_msg_target as HWND));
         let wait_thread_id = get_wait_thread_id();
 
-        let runner_shared = Rc::new(ELRShared::new(thread_msg_target, wait_thread_id));
+        let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target, wait_thread_id));
 
         let thread_msg_sender =
             subclass_event_target_window(thread_msg_target, runner_shared.clone());
@@ -640,7 +640,7 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
 /// Returns `true` if this invocation flushed all the redraw events. If this function is re-entrant,
 /// it won't flush the redraw events and will return `false`.
 #[must_use]
-unsafe fn flush_paint_messages<T: 'static>(except: Option<HWND>, runner: &ELRShared<T>) -> bool {
+unsafe fn flush_paint_messages<T: 'static>(except: Option<HWND>, runner: &EventLoopRunner<T>) -> bool {
     if !runner.redrawing() {
         runner.main_events_cleared();
         let mut msg = mem::zeroed();
@@ -668,7 +668,7 @@ unsafe fn flush_paint_messages<T: 'static>(except: Option<HWND>, runner: &ELRSha
     }
 }
 
-unsafe fn process_control_flow<T: 'static>(runner: &ELRShared<T>) {
+unsafe fn process_control_flow<T: 'static>(runner: &EventLoopRunner<T>) {
     match runner.control_flow() {
         ControlFlow::Poll => {
             winuser::PostMessageW(runner.thread_msg_target(), *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);

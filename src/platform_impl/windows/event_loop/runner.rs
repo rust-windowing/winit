@@ -20,8 +20,8 @@ use crate::{
     window::WindowId,
 };
 
-pub(crate) type EventLoopRunnerShared<T> = Rc<ELRShared<T>>;
-pub(crate) struct ELRShared<T: 'static> {
+pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
+pub(crate) struct EventLoopRunner<T: 'static> {
     // The event loop's win32 handles
     thread_msg_target: HWND,
     wait_thread_id: DWORD,
@@ -60,9 +60,9 @@ enum BufferedEvent<T: 'static> {
     ScaleFactorChanged(WindowId, f64, PhysicalSize<u32>),
 }
 
-impl<T> ELRShared<T> {
-    pub(crate) fn new(thread_msg_target: HWND, wait_thread_id: DWORD) -> ELRShared<T> {
-        ELRShared {
+impl<T> EventLoopRunner<T> {
+    pub(crate) fn new(thread_msg_target: HWND, wait_thread_id: DWORD) -> EventLoopRunner<T> {
+        EventLoopRunner {
             thread_msg_target,
             wait_thread_id,
             runner_state: Cell::new(RunnerState::Uninitialized),
@@ -87,7 +87,7 @@ impl<T> ELRShared<T> {
     }
 
     pub(crate) fn reset_runner(&self) {
-        let ELRShared {
+        let EventLoopRunner {
             thread_msg_target: _,
             wait_thread_id: _,
             runner_state,
@@ -106,7 +106,7 @@ impl<T> ELRShared<T> {
 }
 
 /// State retrieval functions.
-impl<T> ELRShared<T> {
+impl<T> EventLoopRunner<T> {
     pub fn thread_msg_target(&self) -> HWND {
         self.thread_msg_target
     }
@@ -143,7 +143,7 @@ impl<T> ELRShared<T> {
 }
 
 /// Misc. functions
-impl<T> ELRShared<T> {
+impl<T> EventLoopRunner<T> {
     pub fn catch_unwind<R>(&self, f: impl FnOnce() -> R) -> Option<R> {
         let panic_error = self.panic_error.take();
         if panic_error.is_none() {
@@ -194,7 +194,7 @@ impl<T> ELRShared<T> {
 }
 
 /// Event dispatch functions.
-impl<T> ELRShared<T> {
+impl<T> EventLoopRunner<T> {
     pub(crate) unsafe fn poll(&self) {
         self.move_state_to(RunnerState::HandlingMainEvents);
     }
