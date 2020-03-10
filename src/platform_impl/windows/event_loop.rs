@@ -217,19 +217,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_embedded<'a, F>(mut self, event_handler: F) -> EventLoopEmbedded<'a, T>
     where
-        F: 'a + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow)
+        F: 'a + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        unsafe {
-            self.embedded_runner(event_handler)
-        }
+        unsafe { self.embedded_runner(event_handler) }
     }
 
-    unsafe fn embedded_runner<'a, F>(
-        &mut self,
-        mut event_handler: F
-    ) -> EventLoopEmbedded<'a, T>
+    unsafe fn embedded_runner<'a, F>(&mut self, mut event_handler: F) -> EventLoopEmbedded<'a, T>
     where
-        F: 'a + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow)
+        F: 'a + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let window_target = self.window_target.clone();
         let event_loop_windows_ptr = &*window_target as *const RootELW<T>;
@@ -276,7 +271,10 @@ impl<T> EventLoopEmbedded<'_, T> {
 impl<T> Drop for EventLoopEmbedded<'_, T> {
     fn drop(&mut self) {
         unsafe {
-            self.window_target.p.runner_shared.call_event_handler(Event::LoopDestroyed);
+            self.window_target
+                .p
+                .runner_shared
+                .call_event_handler(Event::LoopDestroyed);
             self.window_target.p.runner_shared.reset_runner();
         }
     }

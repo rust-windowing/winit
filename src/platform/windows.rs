@@ -12,7 +12,9 @@ use crate::{
     event::{DeviceId, Event},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::{EventLoop as WindowsEventLoop, WinIcon, EventLoopEmbedded as WindowsEventLoopEmbedded},
+    platform_impl::{
+        EventLoop as WindowsEventLoop, EventLoopEmbedded as WindowsEventLoopEmbedded, WinIcon,
+    },
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
@@ -59,7 +61,12 @@ pub trait EventLoopExtWindows {
     /// TODO: REWRITE `exit_requested` and `resume_panic_if_necessary` as trait functions.
     fn run_embedded<'a, F>(self, event_handler: F) -> EventLoopEmbedded<'a, Self::UserEvent>
     where
-        F: 'a + FnMut(Event<'_, Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow);
+        F: 'a
+            + FnMut(
+                Event<'_, Self::UserEvent>,
+                &EventLoopWindowTarget<Self::UserEvent>,
+                &mut ControlFlow,
+            );
 }
 
 impl<T> EventLoopExtWindows for EventLoop<T> {
@@ -90,10 +97,15 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
 
     fn run_embedded<'a, F>(self, event_handler: F) -> EventLoopEmbedded<'a, Self::UserEvent>
     where
-        F: 'a + FnMut(Event<'_, Self::UserEvent>, &EventLoopWindowTarget<Self::UserEvent>, &mut ControlFlow)
+        F: 'a
+            + FnMut(
+                Event<'_, Self::UserEvent>,
+                &EventLoopWindowTarget<Self::UserEvent>,
+                &mut ControlFlow,
+            ),
     {
         EventLoopEmbedded {
-            p: self.event_loop.run_embedded(event_handler)
+            p: self.event_loop.run_embedded(event_handler),
         }
     }
 }

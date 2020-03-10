@@ -1,10 +1,10 @@
-use winit::{
-    event::{Event, KeyboardInput, WindowEvent, VirtualKeyCode, ElementState},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-    platform::windows::{WindowExtWindows, EventLoopWindowTargetExtWindows},
-};
 use winapi::um::winuser;
+use winit::{
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    platform::windows::{EventLoopWindowTargetExtWindows, WindowExtWindows},
+    window::WindowBuilder,
+};
 
 #[derive(Debug, Clone, Copy)]
 enum ModalDialogEvent {
@@ -27,8 +27,23 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            Event::WindowEvent{ event: WindowEvent::CloseRequested, .. } |
-            Event::WindowEvent{ event: WindowEvent::KeyboardInput{ input: KeyboardInput{ virtual_keycode: Some(VirtualKeyCode::Escape), state: ElementState::Pressed, ..}, ..}, ..} => {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            }
+            | Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                virtual_keycode: Some(VirtualKeyCode::Escape),
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } => {
                 let hwnd = window.hwnd();
                 let proxy = proxy.clone();
                 window_target.schedule_modal_fn(move || unsafe {
@@ -38,7 +53,7 @@ fn main() {
                         hwnd as _,
                         "Are you sure you want close the window?\0".as_ptr() as *const _,
                         "Confirm Close\0".as_ptr() as *const _,
-                        winuser::MB_ICONEXCLAMATION | winuser::MB_YESNO
+                        winuser::MB_ICONEXCLAMATION | winuser::MB_YESNO,
                     );
 
                     println!("\n\t\tend modal loop\n");
@@ -47,7 +62,7 @@ fn main() {
                         proxy.send_event(ModalDialogEvent::CloseWindow).unwrap();
                     }
                 });
-            },
+            }
             Event::UserEvent(ModalDialogEvent::CloseWindow) => {
                 *control_flow = ControlFlow::Exit;
             }
