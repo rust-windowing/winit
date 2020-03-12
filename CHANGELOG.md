@@ -1,5 +1,7 @@
 # Unreleased
 
+- On X11, fix `ResumeTimeReached` being fired too early.
+
 # 0.22.0 (2020-03-09)
 
 - On Windows, fix minor timing issue in wait_until_time_or_msg
