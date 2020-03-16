@@ -227,9 +227,7 @@ impl<T: 'static> Shared<T> {
         if !is_closed && self.0.runner.borrow().is_some() {
             // Take an event out of the queue and handle it
             // Make sure not to let the borrow_mut live during the next handle_event
-            let event = {
-                self.0.events.borrow_mut().pop_front()
-            };
+            let event = { self.0.events.borrow_mut().pop_front() };
             if let Some(event) = event {
                 self.handle_event(event, control);
             }
