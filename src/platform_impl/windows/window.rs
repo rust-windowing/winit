@@ -753,10 +753,16 @@ unsafe fn init<T: 'static>(
         thread_executor: event_loop.create_thread_executor(),
     };
 
-    let dimensions = attributes
-        .inner_size
-        .unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
-    win.set_inner_size(dimensions);
+    // Calling `Window::set_inner_size` will unset MAXIMIZED. Explicit
+    // `inner_size` should overwrite MAXIMIZED, but we need to preserve
+    // MAXIMIZED if it was set and `inner_size` wasn't.
+    if !attributes.maximized || attributes.inner_size.is_some() {
+        let dimensions = attributes
+            .inner_size
+            .unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
+        win.set_inner_size(dimensions);
+    }
+
     win.set_visible(attributes.visible);
 
     if let Some(_) = attributes.fullscreen {
