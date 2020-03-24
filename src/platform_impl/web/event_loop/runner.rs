@@ -227,7 +227,8 @@ impl<T: 'static> Shared<T> {
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
         if !is_closed && self.0.runner.borrow().is_some() {
             // Take an event out of the queue and handle it
-            if let Some(event) = self.0.events.borrow_mut().pop_front() {
+            let event = { self.0.events.borrow_mut().pop_front() };
+            if let Some(event) = event {
                 self.handle_event(event, control);
             }
         }
@@ -240,7 +241,7 @@ impl<T: 'static> Shared<T> {
             root::ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
-                    timeout: backend::Timeout::new(move || cloned.poll(), Duration::from_millis(0)),
+                    request: backend::AnimationFrameRequest::new(move || cloned.poll()),
                 }
             }
             root::ControlFlow::Wait => State::Wait {

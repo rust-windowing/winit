@@ -3,7 +3,10 @@ mod event;
 mod timeout;
 
 pub use self::canvas::Canvas;
-pub use self::timeout::Timeout;
+pub use self::timeout::{
+    Timeout,
+    AnimationFrameRequest,
+};
 
 use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
