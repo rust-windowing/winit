@@ -992,6 +992,9 @@ extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
 
 extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
     trace!("Triggered `scrollWheel`");
+
+    mouse_motion(this, event);
+
     unsafe {
         let delta = {
             let (x, y) = (event.scrollingDeltaX(), event.scrollingDeltaY());
@@ -1037,6 +1040,9 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
 
 extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
     trace!("Triggered `pressureChangeWithEvent`");
+
+    mouse_motion(this, event);
+
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
