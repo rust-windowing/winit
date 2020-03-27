@@ -1,6 +1,6 @@
-use std::time::Duration;
-use std::rc::Rc;
 use std::cell::Cell;
+use std::rc::Rc;
+use std::time::Duration;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 
@@ -44,7 +44,7 @@ impl Drop for Timeout {
 #[derive(Debug)]
 pub struct AnimationFrameRequest {
     handle: i32,
-    // track callback state, because cancel_animation_frame is expensive
+    // track callback state, because `cancelAnimationFrame` is slow
     fired: Rc<Cell<bool>>,
     _closure: Closure<dyn FnMut()>,
 }
@@ -70,7 +70,7 @@ impl AnimationFrameRequest {
         AnimationFrameRequest {
             handle,
             fired,
-            _closure: closure
+            _closure: closure,
         }
     }
 }
@@ -79,7 +79,9 @@ impl Drop for AnimationFrameRequest {
     fn drop(&mut self) {
         if !(*self.fired).get() {
             let window = web_sys::window().expect("Failed to obtain window");
-            window.cancel_animation_frame(self.handle);
+            window
+                .cancel_animation_frame(self.handle)
+                .expect("Failed to cancel animation frame");
         }
     }
 }
