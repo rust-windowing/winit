@@ -755,12 +755,12 @@ unsafe fn init<T: 'static>(
         .inner_size
         .unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
     win.set_inner_size(dimensions);
-    win.set_visible(attributes.visible);
     if attributes.maximized {
         // Need to set MAXIMIZED after setting `inner_size` as
         // `Window::set_inner_size` changes MAXIMIZED to false.
         win.set_maximized(true);
     }
+    win.set_visible(attributes.visible);
 
     if let Some(_) = attributes.fullscreen {
         win.set_fullscreen(attributes.fullscreen);
