@@ -139,7 +139,7 @@ impl<'a, T> Event<'a, T> {
             WindowEvent { window_id, event } => event
                 .to_static()
                 .map(|event| WindowEvent { window_id, event }),
-            UserEvent(_) => None,
+            UserEvent(event) => Some(UserEvent(event)),
             DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
             NewEvents(cause) => Some(NewEvents(cause)),
             MainEventsCleared => Some(MainEventsCleared),
@@ -185,7 +185,7 @@ pub enum WindowEvent<'a> {
     Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(PhysicalPosition<u32>),
+    Moved(PhysicalPosition<i32>),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -238,6 +238,13 @@ pub enum WindowEvent<'a> {
     /// An event from IME
     Composition(CompositionEvent),
 
+    /// The keyboard modifiers have changed.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    ///   issue, and it should get fixed - but it's the current state of the API.
+    ModifiersChanged(ModifiersState),
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -246,7 +253,7 @@ pub enum WindowEvent<'a> {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<f64>,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -261,7 +268,7 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -270,7 +277,7 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -345,6 +352,7 @@ impl<'a> WindowEvent<'a> {
                 is_synthetic,
             }),
             Composition(event) => Some(Composition(event)),
+            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -468,16 +476,6 @@ pub enum DeviceEvent {
 
     Key(KeyboardInput),
 
-    /// The keyboard modifiers have changed.
-    ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
-    ///   issue, and it should get fixed - but it's the current state of the API.
-    ModifiersChanged(ModifiersState),
-
     Text {
         codepoint: char,
     },
@@ -506,7 +504,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
 }
 

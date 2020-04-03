@@ -37,6 +37,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) first_touch: Option<u64>,
     pub(super) is_composing: bool,
     pub(super) composed_text: Option<String>,
+    // Currently focused window belonging to this process
+    pub(super) active_window: Option<ffi::Window>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -141,11 +143,12 @@ impl<T: 'static> EventProcessor<T> {
                         if let Some(modifiers) =
                             self.device_mod_state.update_state(&state, modifier)
                         {
-                            let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-                            callback(Event::DeviceEvent {
-                                device_id,
-                                event: DeviceEvent::ModifiersChanged(modifiers),
-                            });
+                            if let Some(window_id) = self.active_window {
+                                callback(Event::WindowEvent {
+                                    window_id: mkwid(window_id),
+                                    event: WindowEvent::ModifiersChanged(modifiers),
+                                });
+                            }
                         }
                     }
                 }
@@ -881,44 +884,58 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
-                        let window_id = mkwid(xev.event);
-
                         wt.ime
                             .borrow_mut()
                             .focus(xev.event)
                             .expect("Failed to focus input context");
 
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: Focused(true),
-                        });
-
                         let modifiers = ModifiersState::from_x11(&xev.mods);
 
-                        update_modifiers!(modifiers, None);
+                        self.device_mod_state.update_state(&modifiers, None);
 
-                        // The deviceid for this event is for a keyboard instead of a pointer,
-                        // so we have to do a little extra work.
-                        let pointer_id = self
-                            .devices
-                            .borrow()
-                            .get(&DeviceId(xev.deviceid))
-                            .map(|device| device.attachment)
-                            .unwrap_or(2);
+                        if self.active_window != Some(xev.event) {
+                            self.active_window = Some(xev.event);
 
-                        let position = PhysicalPosition::new(xev.event_x, xev.event_y);
+                            let window_id = mkwid(xev.event);
+                            let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: CursorMoved {
-                                device_id: mkdid(pointer_id),
-                                position,
-                                modifiers,
-                            },
-                        });
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: Focused(true),
+                            });
 
-                        // Issue key press events for all pressed keys
-                        self.handle_pressed_keys(window_id, ElementState::Pressed, &mut callback);
+                            if !modifiers.is_empty() {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: WindowEvent::ModifiersChanged(modifiers),
+                                });
+                            }
+
+                            // The deviceid for this event is for a keyboard instead of a pointer,
+                            // so we have to do a little extra work.
+                            let pointer_id = self
+                                .devices
+                                .borrow()
+                                .get(&DeviceId(xev.deviceid))
+                                .map(|device| device.attachment)
+                                .unwrap_or(2);
+
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: CursorMoved {
+                                    device_id: mkdid(pointer_id),
+                                    position,
+                                    modifiers,
+                                },
+                            });
+
+                            // Issue key press events for all pressed keys
+                            self.handle_pressed_keys(
+                                window_id,
+                                ElementState::Pressed,
+                                &mut callback,
+                            );
+                        }
                     }
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
@@ -930,15 +947,26 @@ impl<T: 'static> EventProcessor<T> {
                             .unfocus(xev.event)
                             .expect("Failed to unfocus input context");
 
-                        let window_id = mkwid(xev.event);
+                        if self.active_window.take() == Some(xev.event) {
+                            let window_id = mkwid(xev.event);
 
-                        // Issue key release events for all pressed keys
-                        self.handle_pressed_keys(window_id, ElementState::Released, &mut callback);
+                            // Issue key release events for all pressed keys
+                            self.handle_pressed_keys(
+                                window_id,
+                                ElementState::Released,
+                                &mut callback,
+                            );
 
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: Focused(false),
-                        })
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::ModifiersChanged(ModifiersState::empty()),
+                            });
+
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: Focused(false),
+                            })
+                        }
                     }
 
                     ffi::XI_TouchBegin | ffi::XI_TouchUpdate | ffi::XI_TouchEnd => {
@@ -1093,10 +1121,12 @@ impl<T: 'static> EventProcessor<T> {
                             let new_modifiers = self.device_mod_state.modifiers();
 
                             if modifiers != new_modifiers {
-                                callback(Event::DeviceEvent {
-                                    device_id,
-                                    event: DeviceEvent::ModifiersChanged(new_modifiers),
-                                });
+                                if let Some(window_id) = self.active_window {
+                                    callback(Event::WindowEvent {
+                                        window_id: mkwid(window_id),
+                                        event: WindowEvent::ModifiersChanged(new_modifiers),
+                                    });
+                                }
                             }
                         }
                     }

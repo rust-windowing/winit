@@ -229,6 +229,7 @@ impl<T: 'static> EventLoop<T> {
             first_touch: None,
             is_composing: false,
             composed_text: None,
+            active_window: None,
         };
 
         // Register for device hotplug events
@@ -271,14 +272,16 @@ impl<T: 'static> EventLoop<T> {
     {
         let mut control_flow = ControlFlow::default();
         let mut events = Events::with_capacity(8);
-
-        callback(
-            crate::event::Event::NewEvents(crate::event::StartCause::Init),
-            &self.target,
-            &mut control_flow,
-        );
+        let mut cause = StartCause::Init;
 
         loop {
+            sticky_exit_callback(
+                crate::event::Event::NewEvents(cause),
+                &self.target,
+                &mut control_flow,
+                &mut callback,
+            );
+
             // Process all pending events
             self.drain_events(&mut callback, &mut control_flow);
 
@@ -329,7 +332,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             let start = Instant::now();
-            let (mut cause, deadline, timeout);
+            let (deadline, timeout);
 
             match control_flow {
                 ControlFlow::Exit => break,
@@ -360,38 +363,20 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
 
-            if self.event_processor.poll() {
-                // If the XConnection already contains buffered events, we don't
-                // need to wait for data on the socket.
-                // However, we still need to check for user events.
-                self.poll
-                    .poll(&mut events, Some(Duration::from_millis(0)))
-                    .unwrap();
-                events.clear();
-
-                callback(
-                    crate::event::Event::NewEvents(cause),
-                    &self.target,
-                    &mut control_flow,
-                );
-            } else {
+            // If the XConnection already contains buffered events, we don't
+            // need to wait for data on the socket.
+            if !self.event_processor.poll() {
                 self.poll.poll(&mut events, timeout).unwrap();
                 events.clear();
+            }
 
-                let wait_cancelled = deadline.map_or(false, |deadline| Instant::now() < deadline);
+            let wait_cancelled = deadline.map_or(false, |deadline| Instant::now() < deadline);
 
-                if wait_cancelled {
-                    cause = StartCause::WaitCancelled {
-                        start,
-                        requested_resume: deadline,
-                    };
-                }
-
-                callback(
-                    crate::event::Event::NewEvents(cause),
-                    &self.target,
-                    &mut control_flow,
-                );
+            if wait_cancelled {
+                cause = StartCause::WaitCancelled {
+                    start,
+                    requested_resume: deadline,
+                };
             }
         }
 

@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.21.0"
+version = "0.22.0"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2018"
@@ -28,7 +28,7 @@ raw-window-handle = "0.3"
 bitflags = "1"
 
 [dev-dependencies]
-image = "0.21"
+image = "0.23"
 simple_logger = "1"
 
 [target.'cfg(target_os = "android")'.dependencies.android_glue]
@@ -101,6 +101,8 @@ features = [
     'HtmlCanvasElement',
     'HtmlElement',
     'KeyboardEvent',
+    'MediaQueryList',
+    'MediaQueryListEvent',
     'MouseEvent',
     'Node',
     'PointerEvent',

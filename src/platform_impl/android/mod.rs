@@ -22,6 +22,8 @@ use crate::{
 use raw_window_handle::{android::AndroidHandle, RawWindowHandle};
 use CreationError::OsError;
 
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
+
 pub type OsError = std::io::Error;
 
 pub struct EventLoop {
