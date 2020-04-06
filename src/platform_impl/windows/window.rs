@@ -70,8 +70,9 @@ impl Window {
         //
         // done. you owe me -- ossi
         unsafe {
+            let drag_and_drop = pl_attr.drag_and_drop;
             init(w_attr, pl_attr, event_loop).map(|win| {
-                let file_drop_handler = {
+                let file_drop_handler = if drag_and_drop {
                     use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
 
                     let ole_init_result = ole2::OleInitialize(ptr::null_mut());
@@ -80,7 +81,11 @@ impl Window {
                     if ole_init_result == OLE_E_WRONGCOMPOBJ {
                         panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
                     } else if ole_init_result == RPC_E_CHANGED_MODE {
-                        panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
+                        panic!(
+                            "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. \
+                            Make sure other crates are not using multithreaded COM library \
+                            on the same thread or disable drag and drop support."
+                        );
                     }
 
                     let file_drop_runner = event_loop.runner_shared.clone();
@@ -99,7 +104,9 @@ impl Window {
                         ole2::RegisterDragDrop(win.window.0, handler_interface_ptr),
                         S_OK
                     );
-                    file_drop_handler
+                    Some(file_drop_handler)
+                } else {
+                    None
                 };
 
                 let subclass_input = event_loop::SubclassInput {

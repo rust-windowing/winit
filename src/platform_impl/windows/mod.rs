@@ -19,6 +19,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub parent: Option<HWND>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
+    pub drag_and_drop: bool,
 }
 
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}

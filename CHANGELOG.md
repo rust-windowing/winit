@@ -23,6 +23,7 @@
 - On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
 - On Web, fix a possible panic during event handling
 - On macOS, fix `EventLoopProxy` leaking memory for every instance.
+- On Windows, drag and drop is now optional and must be enabled with `WindowBuilderExtWindows::with_drag_and_drop(true)`.
 
 # 0.22.0 (2020-03-09)
 

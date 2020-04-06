@@ -117,6 +117,9 @@ pub trait WindowBuilderExtWindows {
 
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
     fn with_no_redirection_bitmap(self, flag: bool) -> WindowBuilder;
+
+    /// Enables drag and drop support. Will interfere with other crates that use multi-threaded COM API on the same thread.
+    fn with_drag_and_drop(self, flag: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -135,6 +138,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_no_redirection_bitmap(mut self, flag: bool) -> WindowBuilder {
         self.platform_specific.no_redirection_bitmap = flag;
+        self
+    }
+
+    #[inline]
+    fn with_drag_and_drop(mut self, flag: bool) -> WindowBuilder {
+        self.platform_specific.drag_and_drop = flag;
         self
     }
 }
