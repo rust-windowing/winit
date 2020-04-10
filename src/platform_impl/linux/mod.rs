@@ -63,7 +63,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 
 lazy_static! {
     pub static ref X11_BACKEND: Mutex<Result<Arc<XConnection>, XNotSupported>> =
-        { Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)) };
+        Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new));
 }
 
 #[derive(Debug, Clone)]
