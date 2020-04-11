@@ -241,7 +241,7 @@ impl<T: 'static> Shared<T> {
             root::ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
-                    timeout: backend::Timeout::new(move || cloned.poll(), Duration::from_millis(0)),
+                    request: backend::AnimationFrameRequest::new(move || cloned.poll()),
                 }
             }
             root::ControlFlow::Wait => State::Wait {
