@@ -388,6 +388,8 @@ impl Window {
                 view_controller,
             );
 
+            let () = msg_send![window, addSubview: view];
+
             let result = Window {
                 inner: Inner {
                     window,
