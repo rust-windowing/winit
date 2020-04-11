@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, fix `ResumeTimeReached` being fired too early.
+- On Web, fix a possible panic during event handling
 
 # 0.22.0 (2020-03-09)
 
