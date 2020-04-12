@@ -65,7 +65,7 @@ pub fn init_keyboard(
                             wl_keyboard::KeyState::Released => ElementState::Released,
                             _ => unreachable!(),
                         };
-                        let vkcode = key_to_vkey(rawkey, keysym);
+                        let vkcode = keysym_to_vkey(keysym);
                         my_sink.send_window_event(
                             #[allow(deprecated)]
                             WindowEvent::KeyboardInput {
@@ -110,7 +110,7 @@ pub fn init_keyboard(
         move |repeat_event: KeyRepeatEvent, _| {
             if let Some(wid) = *repeat_target.lock().unwrap() {
                 let state = ElementState::Pressed;
-                let vkcode = key_to_vkey(repeat_event.rawkey, repeat_event.keysym);
+                let vkcode = keysym_to_vkey(repeat_event.keysym);
                 repeat_sink.send_window_event(
                     #[allow(deprecated)]
                     WindowEvent::KeyboardInput {
@@ -199,26 +199,20 @@ pub fn init_keyboard(
     }
 }
 
-fn key_to_vkey(rawkey: u32, keysym: u32) -> Option<VirtualKeyCode> {
-    match rawkey {
-        1 => Some(VirtualKeyCode::Escape),
-        2 => Some(VirtualKeyCode::Key1),
-        3 => Some(VirtualKeyCode::Key2),
-        4 => Some(VirtualKeyCode::Key3),
-        5 => Some(VirtualKeyCode::Key4),
-        6 => Some(VirtualKeyCode::Key5),
-        7 => Some(VirtualKeyCode::Key6),
-        8 => Some(VirtualKeyCode::Key7),
-        9 => Some(VirtualKeyCode::Key8),
-        10 => Some(VirtualKeyCode::Key9),
-        11 => Some(VirtualKeyCode::Key0),
-        _ => keysym_to_vkey(keysym),
-    }
-}
-
 fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
     use smithay_client_toolkit::keyboard::keysyms;
     match keysym {
+        // numbers
+        keysyms::XKB_KEY_1 => Some(VirtualKeyCode::Key1),
+        keysyms::XKB_KEY_2 => Some(VirtualKeyCode::Key2),
+        keysyms::XKB_KEY_3 => Some(VirtualKeyCode::Key3),
+        keysyms::XKB_KEY_4 => Some(VirtualKeyCode::Key4),
+        keysyms::XKB_KEY_5 => Some(VirtualKeyCode::Key4),
+        keysyms::XKB_KEY_6 => Some(VirtualKeyCode::Key5),
+        keysyms::XKB_KEY_7 => Some(VirtualKeyCode::Key6),
+        keysyms::XKB_KEY_8 => Some(VirtualKeyCode::Key7),
+        keysyms::XKB_KEY_9 => Some(VirtualKeyCode::Key8),
+        keysyms::XKB_KEY_0 => Some(VirtualKeyCode::Key9),
         // letters
         keysyms::XKB_KEY_A | keysyms::XKB_KEY_a => Some(VirtualKeyCode::A),
         keysyms::XKB_KEY_B | keysyms::XKB_KEY_b => Some(VirtualKeyCode::B),
@@ -246,6 +240,8 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         keysyms::XKB_KEY_X | keysyms::XKB_KEY_x => Some(VirtualKeyCode::X),
         keysyms::XKB_KEY_Y | keysyms::XKB_KEY_y => Some(VirtualKeyCode::Y),
         keysyms::XKB_KEY_Z | keysyms::XKB_KEY_z => Some(VirtualKeyCode::Z),
+        // Escape
+        keysyms::XKB_KEY_Escape => Some(VirtualKeyCode::Escape),
         // F--
         keysyms::XKB_KEY_F1 => Some(VirtualKeyCode::F1),
         keysyms::XKB_KEY_F2 => Some(VirtualKeyCode::F2),
@@ -286,10 +282,14 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         keysyms::XKB_KEY_Up => Some(VirtualKeyCode::Up),
         keysyms::XKB_KEY_Right => Some(VirtualKeyCode::Right),
         keysyms::XKB_KEY_Down => Some(VirtualKeyCode::Down),
-        //
+
         keysyms::XKB_KEY_BackSpace => Some(VirtualKeyCode::Back),
         keysyms::XKB_KEY_Return => Some(VirtualKeyCode::Return),
         keysyms::XKB_KEY_space => Some(VirtualKeyCode::Space),
+
+        keysyms::XKB_KEY_Multi_key => Some(VirtualKeyCode::Compose),
+        keysyms::XKB_KEY_caret => Some(VirtualKeyCode::Caret),
+
         // keypad
         keysyms::XKB_KEY_Num_Lock => Some(VirtualKeyCode::Numlock),
         keysyms::XKB_KEY_KP_0 => Some(VirtualKeyCode::Numpad0),
@@ -308,33 +308,32 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         keysyms::XKB_KEY_plus => Some(VirtualKeyCode::Add),
         keysyms::XKB_KEY_apostrophe => Some(VirtualKeyCode::Apostrophe),
         // => Some(VirtualKeyCode::Apps),
-        // => Some(VirtualKeyCode::At),
+        keysyms::XKB_KEY_at => Some(VirtualKeyCode::At),
         // => Some(VirtualKeyCode::Ax),
         keysyms::XKB_KEY_backslash => Some(VirtualKeyCode::Backslash),
-        // => Some(VirtualKeyCode::Calculator),
+        keysyms::XKB_KEY_XF86Calculator => Some(VirtualKeyCode::Calculator),
         // => Some(VirtualKeyCode::Capital),
         keysyms::XKB_KEY_colon => Some(VirtualKeyCode::Colon),
         keysyms::XKB_KEY_comma => Some(VirtualKeyCode::Comma),
         // => Some(VirtualKeyCode::Convert),
-        // => Some(VirtualKeyCode::Decimal),
-        // => Some(VirtualKeyCode::Divide),
+        keysyms::XKB_KEY_KP_Decimal => Some(VirtualKeyCode::Decimal),
         keysyms::XKB_KEY_equal => Some(VirtualKeyCode::Equals),
-        // => Some(VirtualKeyCode::Grave),
+        keysyms::XKB_KEY_grave => Some(VirtualKeyCode::Grave),
         // => Some(VirtualKeyCode::Kana),
-        // => Some(VirtualKeyCode::Kanji),
+        keysyms::XKB_KEY_Kanji => Some(VirtualKeyCode::Kanji),
         keysyms::XKB_KEY_Alt_L => Some(VirtualKeyCode::LAlt),
-        // => Some(VirtualKeyCode::LBracket),
+        keysyms::XKB_KEY_bracketleft => Some(VirtualKeyCode::LBracket),
         keysyms::XKB_KEY_Control_L => Some(VirtualKeyCode::LControl),
         keysyms::XKB_KEY_Shift_L => Some(VirtualKeyCode::LShift),
-        // => Some(VirtualKeyCode::LWin),
-        // => Some(VirtualKeyCode::Mail),
+        keysyms::XKB_KEY_Super_L => Some(VirtualKeyCode::LWin),
+        keysyms::XKB_KEY_XF86Mail => Some(VirtualKeyCode::Mail),
         // => Some(VirtualKeyCode::MediaSelect),
         // => Some(VirtualKeyCode::MediaStop),
         keysyms::XKB_KEY_minus => Some(VirtualKeyCode::Minus),
         keysyms::XKB_KEY_asterisk => Some(VirtualKeyCode::Multiply),
-        // => Some(VirtualKeyCode::Mute),
+        keysyms::XKB_KEY_XF86AudioMute => Some(VirtualKeyCode::Mute),
         // => Some(VirtualKeyCode::MyComputer),
-        // => Some(VirtualKeyCode::NextTrack),
+        keysyms::XKB_KEY_XF86AudioNext => Some(VirtualKeyCode::NextTrack),
         // => Some(VirtualKeyCode::NoConvert),
         keysyms::XKB_KEY_KP_Separator => Some(VirtualKeyCode::NumpadComma),
         keysyms::XKB_KEY_KP_Enter => Some(VirtualKeyCode::NumpadEnter),
@@ -347,24 +346,23 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         keysyms::XKB_KEY_KP_Home => Some(VirtualKeyCode::Home),
         keysyms::XKB_KEY_KP_End => Some(VirtualKeyCode::End),
         // => Some(VirtualKeyCode::OEM102),
-        // => Some(VirtualKeyCode::Period),
+        keysyms::XKB_KEY_period => Some(VirtualKeyCode::Period),
         // => Some(VirtualKeyCode::Playpause),
-        // => Some(VirtualKeyCode::Power),
-        // => Some(VirtualKeyCode::Prevtrack),
+        keysyms::XKB_KEY_XF86PowerOff => Some(VirtualKeyCode::Power),
+        keysyms::XKB_KEY_XF86AudioPrev => Some(VirtualKeyCode::PrevTrack),
         keysyms::XKB_KEY_Alt_R => Some(VirtualKeyCode::RAlt),
-        // => Some(VirtualKeyCode::RBracket),
+        keysyms::XKB_KEY_bracketright => Some(VirtualKeyCode::RBracket),
         keysyms::XKB_KEY_Control_R => Some(VirtualKeyCode::RControl),
         keysyms::XKB_KEY_Shift_R => Some(VirtualKeyCode::RShift),
-        // => Some(VirtualKeyCode::RWin),
+        keysyms::XKB_KEY_Super_R => Some(VirtualKeyCode::RWin),
         keysyms::XKB_KEY_semicolon => Some(VirtualKeyCode::Semicolon),
         keysyms::XKB_KEY_slash => Some(VirtualKeyCode::Slash),
-        // => Some(VirtualKeyCode::Sleep),
+        keysyms::XKB_KEY_XF86Sleep => Some(VirtualKeyCode::Sleep),
         // => Some(VirtualKeyCode::Stop),
-        // => Some(VirtualKeyCode::Subtract),
         // => Some(VirtualKeyCode::Sysrq),
         keysyms::XKB_KEY_Tab => Some(VirtualKeyCode::Tab),
         keysyms::XKB_KEY_ISO_Left_Tab => Some(VirtualKeyCode::Tab),
-        // => Some(VirtualKeyCode::Underline),
+        keysyms::XKB_KEY_underscore => Some(VirtualKeyCode::Underline),
         // => Some(VirtualKeyCode::Unlabeled),
         keysyms::XKB_KEY_XF86AudioLowerVolume => Some(VirtualKeyCode::VolumeDown),
         keysyms::XKB_KEY_XF86AudioRaiseVolume => Some(VirtualKeyCode::VolumeUp),
@@ -376,7 +374,7 @@ fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         // => Some(VirtualKeyCode::WebRefresh),
         // => Some(VirtualKeyCode::WebSearch),
         // => Some(VirtualKeyCode::WebStop),
-        // => Some(VirtualKeyCode::Yen),
+        keysyms::XKB_KEY_yen => Some(VirtualKeyCode::Yen),
         keysyms::XKB_KEY_XF86Copy => Some(VirtualKeyCode::Copy),
         keysyms::XKB_KEY_XF86Paste => Some(VirtualKeyCode::Paste),
         keysyms::XKB_KEY_XF86Cut => Some(VirtualKeyCode::Cut),
