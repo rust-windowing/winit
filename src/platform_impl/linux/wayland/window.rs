@@ -60,7 +60,10 @@ impl Window {
         let window_store = evlp.store.clone();
         let cursor_manager = evlp.cursor_manager.clone();
         let surface = evlp.env.create_surface(move |scale_factor, surface| {
-            window_store.lock().unwrap().scale_factor_change(&surface, scale_factor);
+            window_store
+                .lock()
+                .unwrap()
+                .scale_factor_change(&surface, scale_factor);
             surface.set_buffer_scale(scale_factor);
         });
 

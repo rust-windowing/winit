@@ -731,11 +731,12 @@ impl<T> EventLoop<T> {
                     .update_scale_factor(scale_factor as u32);
                 let new_logical_size = {
                     let scale_factor = scale_factor as f64;
-                    let mut physical_size = LogicalSize::<f64>::from(logical_size).to_physical(scale_factor);
+                    let mut physical_size =
+                        LogicalSize::<f64>::from(logical_size).to_physical(scale_factor);
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ScaleFactorChanged {
-                            scale_factor: scale_factor,
+                            scale_factor,
                             new_inner_size: &mut physical_size,
                         },
                     });
@@ -767,8 +768,9 @@ impl<T> EventLoop<T> {
                 // Don't send resize event downstream if the new logical size and scale is identical to the
                 // current one
                 if logical_size != old_size || window.new_scale_factor.is_some() {
-                    let physical_size = LogicalSize::<f64>::from(logical_size)
-                        .to_physical(window.new_scale_factor.unwrap_or(window.prev_scale_factor) as f64);
+                    let physical_size = LogicalSize::<f64>::from(logical_size).to_physical(
+                        window.new_scale_factor.unwrap_or(window.prev_scale_factor) as f64,
+                    );
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::Resized(physical_size),
