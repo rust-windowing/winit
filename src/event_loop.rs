@@ -111,6 +111,7 @@ impl EventLoop<()> {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> EventLoop<()> {
         EventLoop::<()>::with_user_event()
     }

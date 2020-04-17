@@ -1,8 +1,11 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::{os::raw, ptr, sync::Arc};
+use std::os::raw;
 
-use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
+/*use smithay_client_toolkit::window::{
+    Frame as Frame, ConceptFrame,
+    ButtonState
+};*/
 
 use crate::{
     dpi::Size,
@@ -11,16 +14,21 @@ use crate::{
     window::{Window, WindowBuilder},
 };
 
+#[cfg(feature = "x11")]
+use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
 use crate::platform_impl::{
-    x11::{ffi::XVisualInfo, XConnection},
-    EventLoop as LinuxEventLoop, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
+    EventLoop as LinuxEventLoop,
     Window as LinuxWindow,
 };
+#[cfg(any(feature = "x11", feature= "wayland-client/use_system_lib"))]
+use crate::platform_impl::EventLoopWindowTarget as LinuxEventLoopWindowTarget;
 
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
+#[cfg(feature = "x11")]
 pub use crate::platform_impl::x11;
 
+#[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
@@ -31,6 +39,7 @@ pub trait EventLoopWindowTargetExtUnix {
     /// True if the `EventLoopWindowTarget` uses X11.
     fn is_x11(&self) -> bool;
 
+    #[cfg(feature = "x11")]
     #[doc(hidden)]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
@@ -40,6 +49,7 @@ pub trait EventLoopWindowTargetExtUnix {
     /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
     ///
     /// The pointer will become invalid when the winit `EventLoop` is destroyed.
+    #[cfg(feature = "wayland-client/use_system_lib")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 }
 
@@ -54,6 +64,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
         !self.p.is_wayland()
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     #[doc(hidden)]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
@@ -63,12 +74,14 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
         }
     }
 
+    #[cfg(feature = "wayland-client/use_system_lib")]
     #[inline]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.p {
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
-                Some(p.display().get_display_ptr() as *mut _)
+                Some(p.display.get_display_ptr() as *mut _)
             }
+            #[allow(unreachable_patterns)]
             _ => None,
         }
     }
@@ -82,6 +95,7 @@ pub trait EventLoopExtUnix {
     ///
     /// If called outside the main thread. To initialize an X11 event loop outside
     /// the main thread, use [`new_x11_any_thread`](#tymethod.new_x11_any_thread).
+    #[cfg(feature = "x11")]
     fn new_x11() -> Result<Self, XNotSupported>
     where
         Self: Sized;
@@ -108,6 +122,7 @@ pub trait EventLoopExtUnix {
     ///
     /// This method bypasses the cross-platform compatibility requirement
     /// that `EventLoop` be created on the main thread.
+    #[cfg(feature = "x11")]
     fn new_x11_any_thread() -> Result<Self, XNotSupported>
     where
         Self: Sized;
@@ -135,6 +150,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
     }
 
     #[inline]
+    #[cfg(feature = "x11")]
     fn new_x11_any_thread() -> Result<Self, XNotSupported> {
         LinuxEventLoop::new_x11_any_thread().map(wrap_ev)
     }
@@ -148,6 +164,7 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
         )
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     fn new_x11() -> Result<Self, XNotSupported> {
         LinuxEventLoop::new_x11().map(wrap_ev)
@@ -168,6 +185,7 @@ pub trait WindowExtUnix {
     /// Returns the ID of the `Window` xlib object that is used by this window.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
+    #[cfg(feature = "x11")]
     fn xlib_window(&self) -> Option<raw::c_ulong>;
 
     /// Returns a pointer to the `Display` object of xlib that is used by this window.
@@ -175,14 +193,18 @@ pub trait WindowExtUnix {
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
+    #[cfg(feature = "x11")]
     fn xlib_display(&self) -> Option<*mut raw::c_void>;
 
+    #[cfg(feature = "x11")]
     fn xlib_screen_id(&self) -> Option<raw::c_int>;
 
+    #[cfg(feature = "x11")]
     #[doc(hidden)]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
     /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
+    #[cfg(feature = "x11")]
     fn set_urgent(&self, is_urgent: bool);
 
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
@@ -190,6 +212,7 @@ pub trait WindowExtUnix {
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
+    #[cfg(feature = "x11")]
     fn xcb_connection(&self) -> Option<*mut raw::c_void>;
 
     /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
@@ -204,10 +227,11 @@ pub trait WindowExtUnix {
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
+    #[cfg(feature = "wayland-client/use_system_lib")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
     /// Sets the color theme of the client side window decorations on wayland
-    fn set_wayland_theme<T: Theme>(&self, theme: T);
+    //fn set_wayland_theme<T: Theme>(&self, theme: T);
 
     /// Check if the window is ready for drawing
     ///
@@ -220,49 +244,61 @@ pub trait WindowExtUnix {
 }
 
 impl WindowExtUnix for Window {
+    #[cfg(feature = "x11")]
     #[inline]
     fn xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
+            #[cfg(feature = "x11")]
             LinuxWindow::X(ref w) => Some(w.xlib_window()),
             _ => None,
         }
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     fn xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
+            #[cfg(feature = "x11")]
             LinuxWindow::X(ref w) => Some(w.xlib_display()),
             _ => None,
         }
     }
 
     #[inline]
+    #[cfg(feature = "x11")]
     fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
+            #[cfg(feature = "x11")]
             LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
             _ => None,
         }
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     #[doc(hidden)]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
+            #[cfg(feature = "x11")]
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
             _ => None,
         }
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     fn set_urgent(&self, is_urgent: bool) {
+        #[cfg(feature = "x11")]
         if let LinuxWindow::X(ref w) = self.window {
             w.set_urgent(is_urgent);
         }
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
+            #[cfg(feature = "x11")]
             LinuxWindow::X(ref w) => Some(w.xcb_connection()),
             _ => None,
         }
@@ -272,25 +308,28 @@ impl WindowExtUnix for Window {
     fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
+            #[allow(unreachable_patterns)]
             _ => None,
         }
     }
 
+    #[cfg(feature = "wayland-client/use_system_lib")]
     #[inline]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.display().as_ref().c_ptr() as *mut _),
+            LinuxWindow::Wayland(ref w) => Some(w.display.get_display_ptr() as *mut _),
+            #[allow(unreachable_patterns)]
             _ => None,
         }
     }
 
-    #[inline]
-    fn set_wayland_theme<T: Theme>(&self, theme: T) {
+    /*#[inline]
+    fn set_wayland_theme(&self, config: <ConceptFrame as Frame>::Config) {
         match self.window {
-            LinuxWindow::Wayland(ref w) => w.set_theme(WaylandTheme(theme)),
+            LinuxWindow::Wayland(ref w) => w.set_frame_config(WaylandTheme(theme)),
             _ => {}
         }
-    }
+    }*/
 
     #[inline]
     fn is_ready(&self) -> bool {
@@ -300,7 +339,9 @@ impl WindowExtUnix for Window {
 
 /// Additional methods on `WindowBuilder` that are specific to Unix.
 pub trait WindowBuilderExtUnix {
+    #[cfg(feature = "x11")]
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
+    #[cfg(feature = "x11")]
     fn with_x11_screen(self, screen_id: i32) -> Self;
 
     /// Build window with `WM_CLASS` hint; defaults to the name of the binary. Only relevant on X11.
@@ -308,6 +349,7 @@ pub trait WindowBuilderExtUnix {
     /// Build window with override-redirect flag; defaults to false. Only relevant on X11.
     fn with_override_redirect(self, override_redirect: bool) -> Self;
     /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
+    #[cfg(feature = "x11")]
     fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> Self;
@@ -326,12 +368,14 @@ pub trait WindowBuilderExtUnix {
 
 impl WindowBuilderExtUnix for WindowBuilder {
     #[inline]
+    #[cfg(feature = "x11")]
     fn with_x11_visual<T>(mut self, visual_infos: *const T) -> Self {
         self.platform_specific.visual_infos =
             Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
         self
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     fn with_x11_screen(mut self, screen_id: i32) -> Self {
         self.platform_specific.screen_id = Some(screen_id);
@@ -351,6 +395,7 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
+    #[cfg(feature = "x11")]
     fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
         self.platform_specific.x11_window_types = x11_window_types;
         self
@@ -393,10 +438,19 @@ impl MonitorHandleExtUnix for MonitorHandle {
         self.inner.native_identifier()
     }
 }
-
-/// Wrapper for implementing SCTK's theme trait.
-struct WaylandTheme<T: Theme>(T);
-
+/*
+/// Wrapper for converting trait to window frame config.
+pub WaylandTheme<T: Theme>(theme: T) -> WindowFrameConfig {
+    WindowFrameConfig{
+        primary_color: theme.primary_color(true),
+        secondary_color: theme.secondary_color(true),
+        close_button: Some(theme.close_button_icon_color(), ButtonColorSpec)>,
+        maximize_button: Option<(ButtonColorSpec, ButtonColorSpec)>,
+        minimize_button: Option<(ButtonColorSpec, ButtonColorSpec)>,
+        title_font: Option<(String, f32)>,
+        title_color: ColorSpec,
+    }
+}
 pub trait Theme: Send + 'static {
     /// Primary color of the scheme.
     fn primary_color(&self, window_active: bool) -> [u8; 4];
@@ -487,3 +541,4 @@ impl ButtonState {
         }
     }
 }
+*/

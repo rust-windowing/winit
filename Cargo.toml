@@ -78,12 +78,10 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] }
-mio = "0.6"
-mio-extras = "2.0"
-smithay-client-toolkit = "^0.6.6"
-x11-dl = "2.18.5"
-percent-encoding = "2.0"
+wayland-client = { version = '^0.26' , features = ["use_system_lib"] }
+smithay-client-toolkit = { version = '^0.9' }
+x11-dl = { version = "2.18.5", optional=true }
+percent-encoding = "2.1"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
 version = "0.10"
