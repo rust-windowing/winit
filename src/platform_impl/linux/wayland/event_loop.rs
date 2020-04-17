@@ -736,11 +736,11 @@ impl<T> EventLoop<T> {
                         let physical_size = logical_size
                             .to_physical(window.new_dpi.unwrap_or(window.prev_dpi) as f64);
 
+                        *window.size = (w, h);
                         callback(Event::WindowEvent {
                             window_id,
                             event: WindowEvent::Resized(physical_size),
                         });
-                        *window.size = (w, h);
                     }
                 }
 
