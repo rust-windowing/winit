@@ -68,7 +68,7 @@ impl Window {
         });
 
         let scale_factor = {
-            if let Some(output) = get_outputs(&surface).last() {
+            if get_outputs(&surface).last().is_some() {
                 get_dpi_factor(&surface) // any WM where this works on unmapped surface ?
             } else {
                 primary_monitor(&evlp.env.outputs).scale_factor()

@@ -716,11 +716,11 @@ impl<T> EventLoop<T> {
                 crate::window::WindowId(crate::platform_impl::WindowId::Wayland(window.wid));
 
             // Update window logical .size field (for callbacks using .inner_size)
-            let (old_size, mut logical_size) = {
+            let (old_logical_size, mut logical_size) = {
                 let mut window_size = window.size.lock().unwrap();
-                let old_size = *window_size;
-                *window_size = window.new_size.unwrap_or(old_size);
-                (old_size, *window_size)
+                let old_logical_size = *window_size;
+                *window_size = window.new_size.unwrap_or(old_logical_size);
+                (old_logical_size, *window_size)
             };
 
             if let Some(scale_factor) = window.new_scale_factor {
@@ -767,7 +767,7 @@ impl<T> EventLoop<T> {
                 }
                 // Don't send resize event downstream if the new logical size and scale is identical to the
                 // current one
-                if logical_size != old_size || window.new_scale_factor.is_some() {
+                if logical_size != old_logical_size || window.new_scale_factor.is_some() {
                     let physical_size = LogicalSize::<f64>::from(logical_size).to_physical(
                         window.new_scale_factor.unwrap_or(window.prev_scale_factor) as f64,
                     );
