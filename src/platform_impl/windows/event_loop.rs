@@ -315,7 +315,6 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
                 }
             }
 
-
             if msg.message == *WAIT_UNTIL_MSG_ID {
                 wait_until_opt = Some(*WaitUntilInstantBox::from_raw(msg.lParam as *mut _));
             } else if msg.message == *CANCEL_WAIT_UNTIL_MSG_ID {
