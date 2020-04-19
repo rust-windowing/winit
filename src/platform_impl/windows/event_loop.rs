@@ -284,7 +284,7 @@ fn get_wait_thread_id() -> DWORD {
 
 fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
     unsafe {
-        let mut msg = mem::zeroed();
+        let mut msg: winuser::MSG;
 
         let cur_thread_id = processthreadsapi::GetCurrentThreadId();
         winuser::PostThreadMessageW(
@@ -296,12 +296,25 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
 
         let mut wait_until_opt = None;
         'main: loop {
-            if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
-                break 'main;
+            // Zeroing out the message ensures that the `WaitUntilInstantBox` doesn't get
+            // double-freed if `MsgWaitForMultipleObjectsEx` returns early and there aren't
+            // additional messages to process.
+            msg = mem::zeroed();
+
+            if wait_until_opt.is_some() {
+                if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, winuser::PM_REMOVE) {
+                    winuser::TranslateMessage(&mut msg);
+                    winuser::DispatchMessageW(&mut msg);
+                }
+            } else {
+                if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                    break 'main;
+                } else {
+                    winuser::TranslateMessage(&mut msg);
+                    winuser::DispatchMessageW(&mut msg);
+                }
             }
 
-            winuser::TranslateMessage(&mut msg);
-            winuser::DispatchMessageW(&mut msg);
 
             if msg.message == *WAIT_UNTIL_MSG_ID {
                 wait_until_opt = Some(*WaitUntilInstantBox::from_raw(msg.lParam as *mut _));
@@ -326,6 +339,9 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
                         winuser::PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
                         wait_until_opt = None;
                     }
+                } else {
+                    winuser::PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
+                    wait_until_opt = None;
                 }
             }
         }
