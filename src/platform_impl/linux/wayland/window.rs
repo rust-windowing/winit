@@ -67,9 +67,12 @@ impl Window {
             surface.set_buffer_scale(scale_factor);
         });
 
+        // Always 1.
+        let scale_factor = get_dpi_factor(&surface);
+
         let (width, height) = attributes
             .inner_size
-            .map(|size| size.to_logical::<f64>(1.).into())
+            .map(|size| size.to_logical::<f64>(scale_factor as f64).into())
             .unwrap_or((800, 600));
 
         // Create the window
@@ -175,12 +178,12 @@ impl Window {
         frame.set_min_size(
             attributes
                 .min_inner_size
-                .map(|size| size.to_logical::<f64>(1.).into()),
+                .map(|size| size.to_logical::<f64>(scale_factor as f64).into()),
         );
         frame.set_max_size(
             attributes
                 .max_inner_size
-                .map(|size| size.to_logical::<f64>(1.).into()),
+                .map(|size| size.to_logical::<f64>(scale_factor as f64).into()),
         );
 
         let kill_switch = Arc::new(Mutex::new(false));
@@ -200,7 +203,7 @@ impl Window {
             surface: surface.clone(),
             kill_switch: kill_switch.clone(),
             frame: Arc::downgrade(&frame),
-            current_scale_factor: 1,
+            current_scale_factor: scale_factor,
             new_scale_factor: None,
             decorated: decorated.clone(),
             pending_decorations_action: pending_decorations_action.clone(),
