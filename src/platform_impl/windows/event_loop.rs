@@ -727,6 +727,13 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 ) -> LRESULT {
     let subclass_input = &*(subclass_input_ptr as *const SubclassInput<T>);
 
+    winuser::RedrawWindow(
+        subclass_input.event_loop_runner.thread_msg_target(),
+        ptr::null(),
+        ptr::null_mut(),
+        winuser::RDW_INTERNALPAINT,
+    );
+
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
@@ -1885,6 +1892,15 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
 ) -> LRESULT {
     let subclass_input = &mut *(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
     let runner = subclass_input.event_loop_runner.clone();
+
+    if msg != winuser::WM_PAINT {
+        winuser::RedrawWindow(
+            window,
+            ptr::null(),
+            ptr::null_mut(),
+            winuser::RDW_INTERNALPAINT,
+        );
+    }
 
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
