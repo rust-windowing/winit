@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Windows, fix window intermittently hanging when `ControlFlow` was set to `Poll`.
+
 # 0.22.1 (2020-04-16)
 
 - On X11, fix `ResumeTimeReached` being fired too early.
