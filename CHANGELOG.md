@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Windows, fix ALT-Tab behaviour for fullscreen windows.
 - On Windows, fix `WindowBuilder::with_maximized` being ignored.
 
 # 0.22.1 (2020-04-16)
