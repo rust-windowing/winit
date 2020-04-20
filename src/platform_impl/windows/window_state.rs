@@ -87,7 +87,11 @@ bitflags! {
             WindowFlags::RESIZABLE.bits |
             WindowFlags::MAXIMIZED.bits
         );
-        const FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
+        #[deprecated(
+            since = "0.23.0",
+            note = "This mask is now empty and excludes WindowFlags::ALWAYS_ON_TOP to ensure \
+            that ALT-Tab behaviour works as expected.")]
+        const FULLSCREEN_OR_MASK = 0;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
@@ -176,7 +180,6 @@ impl WindowFlags {
     fn mask(mut self) -> WindowFlags {
         if self.contains(WindowFlags::MARKER_FULLSCREEN) {
             self &= WindowFlags::FULLSCREEN_AND_MASK;
-            self |= WindowFlags::FULLSCREEN_OR_MASK;
         }
         if !self.contains(WindowFlags::VISIBLE) {
             self &= WindowFlags::INVISIBLE_AND_MASK;
