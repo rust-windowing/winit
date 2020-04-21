@@ -1,8 +1,13 @@
 # Unreleased
 
+- On Windows, fix `WindowBuilder::with_maximized` being ignored.
+
+# 0.22.1 (2020-04-16)
+
 - On X11, fix `ResumeTimeReached` being fired too early.
 - On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
 - On Web, fix a possible panic during event handling
+- On macOS, fix `EventLoopProxy` leaking memory for every instance.
 
 # 0.22.0 (2020-03-09)
 

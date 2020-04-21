@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.22.0"
+version = "0.22.1"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2018"
@@ -12,7 +12,9 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [package.metadata.docs.rs]
-features = ["serde"]
+features = ["serde", "web-sys"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
 
 [features]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
