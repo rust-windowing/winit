@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Windows, fix `WindowBuilder::with_maximized` being ignored.
+- On iOS, touch positions are now properly converted to physical pixels.
 
 # 0.22.1 (2020-04-16)
 
