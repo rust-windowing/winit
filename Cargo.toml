@@ -33,8 +33,10 @@ bitflags = "1"
 image = "0.23"
 simple_logger = "1"
 
-[target.'cfg(target_os = "android")'.dependencies.android_glue]
-version = "0.2"
+[target.'cfg(target_os = "android")'.dependencies]
+ndk = "0.1.0"
+ndk-sys = "0.1.0"
+ndk-glue = "0.1.0"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc = "0.2.3"
