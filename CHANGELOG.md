@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Windows, fix `WindowBuilder::with_maximized` being ignored.
+- On Android, minimal platform support.
 
 # 0.22.1 (2020-04-16)
 
