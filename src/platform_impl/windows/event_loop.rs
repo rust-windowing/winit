@@ -1,17 +1,4 @@
 #![allow(non_snake_case)]
-//! An events loop on Win32 is a background thread.
-//!
-//! Creating an events loop spawns a thread and blocks it in a permanent Win32 events loop.
-//! Destroying the events loop stops the thread.
-//!
-//! You can use the `execute_in_thread` method to execute some code in the background thread.
-//! Since Win32 requires you to create a window in the right thread, you must use this method
-//! to create a window.
-//!
-//! If you create a window whose class is set to `callback`, the window's events will be
-//! propagated with `run_forever` and `poll_events`.
-//! The closure passed to the `execute_in_thread` method takes an `Inserter` that you can use to
-//! add a `WindowState` entry to a list of window to be used by the callback.
 
 mod runner;
 
@@ -24,6 +11,7 @@ use std::{
         mpsc::{self, Receiver, Sender},
         Arc,
     },
+    thread,
     time::{Duration, Instant},
 };
 use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
@@ -41,7 +29,6 @@ use winapi::{
     },
 };
 
-use self::runner::{ELRShared, EventLoopRunnerShared};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
@@ -57,6 +44,7 @@ use crate::{
     },
     window::{Fullscreen, WindowId as RootWindowId},
 };
+use runner::{EventLoopRunner, EventLoopRunnerShared};
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
     pointerId: UINT,
@@ -160,9 +148,17 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn new_dpi_unaware_any_thread() -> EventLoop<T> {
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
-        let runner_shared = Rc::new(ELRShared::new());
-        let (thread_msg_target, thread_msg_sender) =
-            thread_event_target_window(runner_shared.clone());
+
+        let thread_msg_target = create_event_target_window();
+
+        let send_thread_msg_target = thread_msg_target as usize;
+        thread::spawn(move || wait_thread(thread_id, send_thread_msg_target as HWND));
+        let wait_thread_id = get_wait_thread_id();
+
+        let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target, wait_thread_id));
+
+        let thread_msg_sender =
+            subclass_event_target_window(thread_msg_target, runner_shared.clone());
         raw_input::register_all_mice_and_keyboards_for_raw_input(thread_msg_target);
 
         EventLoop {
@@ -200,87 +196,39 @@ impl<T: 'static> EventLoop<T> {
             self.window_target
                 .p
                 .runner_shared
-                .set_runner(self, move |event, control_flow| {
+                .set_event_handler(move |event, control_flow| {
                     event_handler(event, event_loop_windows_ref, control_flow)
-                })
+                });
         }
 
         let runner = &self.window_target.p.runner_shared;
 
         unsafe {
             let mut msg = mem::zeroed();
-            let mut unread_message_exists = false;
 
+            runner.poll();
             'main: loop {
+                if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                    break 'main;
+                }
+                winuser::TranslateMessage(&mut msg);
+                winuser::DispatchMessageW(&mut msg);
+
                 if let Err(payload) = runner.take_panic_error() {
-                    runner.destroy_runner();
+                    runner.reset_runner();
                     panic::resume_unwind(payload);
                 }
 
-                runner.new_events();
-                loop {
-                    if !unread_message_exists {
-                        if 0 == winuser::PeekMessageW(
-                            &mut msg,
-                            ptr::null_mut(),
-                            0,
-                            0,
-                            winuser::PM_REMOVE,
-                        ) {
-                            break;
-                        }
-                    }
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
-
-                    unread_message_exists = false;
-
-                    if msg.message == winuser::WM_PAINT {
-                        // An "external" redraw was requested.
-                        // Note that the WM_PAINT has been dispatched and
-                        // has caused the event loop to emit the MainEventsCleared event.
-                        // See EventLoopRunner::process_event().
-                        // The call to main_events_cleared() below will do nothing.
-                        break;
-                    }
-                }
-                // Make sure we emit the MainEventsCleared event if no WM_PAINT message was received.
-                runner.main_events_cleared();
-                // Drain eventual WM_PAINT messages sent if user called request_redraw()
-                // during handling of MainEventsCleared.
-                loop {
-                    if 0 == winuser::PeekMessageW(
-                        &mut msg,
-                        ptr::null_mut(),
-                        winuser::WM_PAINT,
-                        winuser::WM_PAINT,
-                        winuser::PM_QS_PAINT | winuser::PM_REMOVE,
-                    ) {
-                        break;
-                    }
-
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
-                }
-                runner.redraw_events_cleared();
-                match runner.control_flow() {
-                    ControlFlow::Exit => break 'main,
-                    ControlFlow::Wait => {
-                        if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
-                            break 'main;
-                        }
-                        unread_message_exists = true;
-                    }
-                    ControlFlow::WaitUntil(resume_time) => {
-                        wait_until_time_or_msg(resume_time);
-                    }
-                    ControlFlow::Poll => (),
+                if runner.control_flow() == ControlFlow::Exit && !runner.handling_events() {
+                    break 'main;
                 }
             }
         }
 
-        runner.destroy_loop();
-        runner.destroy_runner();
+        unsafe {
+            runner.call_event_handler(Event::LoopDestroyed);
+        }
+        runner.reset_runner();
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -316,24 +264,83 @@ fn main_thread_id() -> DWORD {
     unsafe { MAIN_THREAD_ID }
 }
 
-unsafe fn wait_until_time_or_msg(wait_until: Instant) {
-    let now = Instant::now();
-    if now < wait_until {
-        // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract 1 millisecond
-        // from the requested time and spinlock for the remainder to compensate for that.
-        let resume_reason = winuser::MsgWaitForMultipleObjectsEx(
+fn get_wait_thread_id() -> DWORD {
+    unsafe {
+        let mut msg = mem::zeroed();
+        let result = winuser::GetMessageW(
+            &mut msg,
+            -1 as _,
+            *SEND_WAIT_THREAD_ID_MSG_ID,
+            *SEND_WAIT_THREAD_ID_MSG_ID,
+        );
+        assert_eq!(
+            msg.message, *SEND_WAIT_THREAD_ID_MSG_ID,
+            "this shouldn't be possible. please open an issue with Winit. error code: {}",
+            result
+        );
+        msg.lParam as DWORD
+    }
+}
+
+fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
+    unsafe {
+        let mut msg: winuser::MSG;
+
+        let cur_thread_id = processthreadsapi::GetCurrentThreadId();
+        winuser::PostThreadMessageW(
+            parent_thread_id,
+            *SEND_WAIT_THREAD_ID_MSG_ID,
             0,
-            ptr::null(),
-            dur2timeout(wait_until - now).saturating_sub(1),
-            winuser::QS_ALLEVENTS,
-            winuser::MWMO_INPUTAVAILABLE,
+            cur_thread_id as LPARAM,
         );
 
-        if resume_reason == winerror::WAIT_TIMEOUT {
-            let mut msg = mem::zeroed();
-            while Instant::now() < wait_until {
-                if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
-                    break;
+        let mut wait_until_opt = None;
+        'main: loop {
+            // Zeroing out the message ensures that the `WaitUntilInstantBox` doesn't get
+            // double-freed if `MsgWaitForMultipleObjectsEx` returns early and there aren't
+            // additional messages to process.
+            msg = mem::zeroed();
+
+            if wait_until_opt.is_some() {
+                if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, winuser::PM_REMOVE) {
+                    winuser::TranslateMessage(&mut msg);
+                    winuser::DispatchMessageW(&mut msg);
+                }
+            } else {
+                if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                    break 'main;
+                } else {
+                    winuser::TranslateMessage(&mut msg);
+                    winuser::DispatchMessageW(&mut msg);
+                }
+            }
+
+            if msg.message == *WAIT_UNTIL_MSG_ID {
+                wait_until_opt = Some(*WaitUntilInstantBox::from_raw(msg.lParam as *mut _));
+            } else if msg.message == *CANCEL_WAIT_UNTIL_MSG_ID {
+                wait_until_opt = None;
+            }
+
+            if let Some(wait_until) = wait_until_opt {
+                let now = Instant::now();
+                if now < wait_until {
+                    // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract
+                    // 1 millisecond from the requested time and spinlock for the remainder to
+                    // compensate for that.
+                    let resume_reason = winuser::MsgWaitForMultipleObjectsEx(
+                        0,
+                        ptr::null(),
+                        dur2timeout(wait_until - now).saturating_sub(1),
+                        winuser::QS_ALLEVENTS,
+                        winuser::MWMO_INPUTAVAILABLE,
+                    );
+                    if resume_reason == winerror::WAIT_TIMEOUT {
+                        winuser::PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
+                        wait_until_opt = None;
+                    }
+                } else {
+                    winuser::PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
+                    wait_until_opt = None;
                 }
             }
         }
@@ -461,6 +468,8 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 }
 
+type WaitUntilInstantBox = Box<Instant>;
+
 lazy_static! {
     // Message sent by the `EventLoopProxy` when we want to wake up the thread.
     // WPARAM and LPARAM are unused.
@@ -475,6 +484,29 @@ lazy_static! {
     static ref EXEC_MSG_ID: u32 = {
         unsafe {
             winuser::RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr() as *const i8)
+        }
+    };
+    static ref PROCESS_NEW_EVENTS_MSG_ID: u32 = {
+        unsafe {
+            winuser::RegisterWindowMessageA("Winit::ProcessNewEvents\0".as_ptr() as *const i8)
+        }
+    };
+    /// lparam is the wait thread's message id.
+    static ref SEND_WAIT_THREAD_ID_MSG_ID: u32 = {
+        unsafe {
+            winuser::RegisterWindowMessageA("Winit::SendWaitThreadId\0".as_ptr() as *const i8)
+        }
+    };
+    /// lparam points to a `Box<Instant>` signifying the time `PROCESS_NEW_EVENTS_MSG_ID` should
+    /// be sent.
+    static ref WAIT_UNTIL_MSG_ID: u32 = {
+        unsafe {
+            winuser::RegisterWindowMessageA("Winit::WaitUntil\0".as_ptr() as *const i8)
+        }
+    };
+    static ref CANCEL_WAIT_UNTIL_MSG_ID: u32 = {
+        unsafe {
+            winuser::RegisterWindowMessageA("Winit::CancelWaitUntil\0".as_ptr() as *const i8)
         }
     };
     // Message sent by a `Window` when it wants to be destroyed by the main thread.
@@ -519,7 +551,7 @@ lazy_static! {
     };
 }
 
-fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) -> (HWND, Sender<T>) {
+fn create_event_target_window() -> HWND {
     unsafe {
         let window = winuser::CreateWindowExW(
             winuser::WS_EX_NOACTIVATE | winuser::WS_EX_TRANSPARENT | winuser::WS_EX_LAYERED,
@@ -543,7 +575,15 @@ fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) ->
             // the LAYERED style.
             (winuser::WS_VISIBLE | winuser::WS_POPUP) as _,
         );
+        window
+    }
+}
 
+fn subclass_event_target_window<T>(
+    window: HWND,
+    event_loop_runner: EventLoopRunnerShared<T>,
+) -> Sender<T> {
+    unsafe {
         let (tx, rx) = mpsc::channel();
 
         let subclass_input = ThreadMsgTargetSubclassInput {
@@ -559,7 +599,7 @@ fn thread_event_target_window<T>(event_loop_runner: EventLoopRunnerShared<T>) ->
         );
         assert_eq!(subclass_result, 1);
 
-        (window, tx)
+        tx
     }
 }
 
@@ -582,6 +622,7 @@ unsafe fn release_mouse(window_state: &mut WindowState) {
 const WINDOW_SUBCLASS_ID: UINT_PTR = 0;
 const THREAD_EVENT_TARGET_SUBCLASS_ID: UINT_PTR = 1;
 pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>) {
+    subclass_input.event_loop_runner.register_window(window);
     let input_ptr = Box::into_raw(Box::new(subclass_input));
     let subclass_result = unsafe {
         commctrl::SetWindowSubclass(
@@ -598,6 +639,68 @@ fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
     match pressure {
         1..=1024 => Some(Force::Normalized(pressure as f64 / 1024.0)),
         _ => None,
+    }
+}
+
+/// Flush redraw events for Winit's windows.
+///
+/// Winit's API guarantees that all redraw events will be clustered together and dispatched all at
+/// once, but the standard Windows message loop doesn't always exhibit that behavior. If multiple
+/// windows have had redraws scheduled, but an input event is pushed to the message queue between
+/// the `WM_PAINT` call for the first window and the `WM_PAINT` call for the second window, Windows
+/// will dispatch the input event immediately instead of flushing all the redraw events. This
+/// function explicitly pulls all of Winit's redraw events out of the event queue so that they
+/// always all get processed in one fell swoop.
+///
+/// Returns `true` if this invocation flushed all the redraw events. If this function is re-entrant,
+/// it won't flush the redraw events and will return `false`.
+#[must_use]
+unsafe fn flush_paint_messages<T: 'static>(
+    except: Option<HWND>,
+    runner: &EventLoopRunner<T>,
+) -> bool {
+    if !runner.redrawing() {
+        runner.main_events_cleared();
+        let mut msg = mem::zeroed();
+        runner.owned_windows(|redraw_window| {
+            if Some(redraw_window) == except {
+                return;
+            }
+
+            if 0 == winuser::PeekMessageW(
+                &mut msg,
+                redraw_window,
+                winuser::WM_PAINT,
+                winuser::WM_PAINT,
+                winuser::PM_REMOVE | winuser::PM_QS_PAINT,
+            ) {
+                return;
+            }
+
+            winuser::TranslateMessage(&mut msg);
+            winuser::DispatchMessageW(&mut msg);
+        });
+        true
+    } else {
+        false
+    }
+}
+
+unsafe fn process_control_flow<T: 'static>(runner: &EventLoopRunner<T>) {
+    match runner.control_flow() {
+        ControlFlow::Poll => {
+            winuser::PostMessageW(runner.thread_msg_target(), *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
+        }
+        ControlFlow::Wait => (),
+        ControlFlow::WaitUntil(until) => {
+            winuser::PostThreadMessageW(
+                runner.wait_thread_id(),
+                *WAIT_UNTIL_MSG_ID,
+                0,
+                Box::into_raw(WaitUntilInstantBox::new(until)) as LPARAM,
+            );
+        }
+        ControlFlow::Exit => (),
     }
 }
 
@@ -639,20 +742,37 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 ) -> LRESULT {
     let subclass_input = &*(subclass_input_ptr as *const SubclassInput<T>);
 
-    match msg {
+    winuser::RedrawWindow(
+        subclass_input.event_loop_runner.thread_msg_target(),
+        ptr::null(),
+        ptr::null_mut(),
+        winuser::RDW_INTERNALPAINT,
+    );
+
+    // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
+    // the closure to catch_unwind directly so that the match body indendation wouldn't change and
+    // the git blame and history would be preserved.
+    let callback = || match msg {
         winuser::WM_ENTERSIZEMOVE => {
-            subclass_input.event_loop_runner.set_modal_loop(true);
+            subclass_input
+                .window_state
+                .lock()
+                .set_window_flags_in_place(|f| f.insert(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
         }
+
         winuser::WM_EXITSIZEMOVE => {
-            subclass_input.event_loop_runner.set_modal_loop(false);
+            subclass_input
+                .window_state
+                .lock()
+                .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
         }
+
         winuser::WM_NCCREATE => {
             enable_non_client_dpi_scaling(window);
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
-
         winuser::WM_NCLBUTTONDOWN => {
             if wparam == winuser::HTCAPTION as _ {
                 winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
@@ -676,6 +796,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 window_id: RootWindowId(WindowId(window)),
                 event: Destroyed,
             });
+            subclass_input.event_loop_runner.remove_window(window);
 
             drop(subclass_input);
             Box::from_raw(subclass_input_ptr as *mut SubclassInput<T>);
@@ -683,7 +804,25 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
 
         winuser::WM_PAINT => {
-            subclass_input.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
+            if subclass_input.event_loop_runner.should_buffer() {
+                // this branch can happen in response to `UpdateWindow`, if win32 decides to
+                // redraw the window outside the normal flow of the event loop.
+                winuser::RedrawWindow(
+                    window,
+                    ptr::null(),
+                    ptr::null_mut(),
+                    winuser::RDW_INTERNALPAINT,
+                );
+            } else {
+                let managing_redraw =
+                    flush_paint_messages(Some(window), &subclass_input.event_loop_runner);
+                subclass_input.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
+                if managing_redraw {
+                    subclass_input.event_loop_runner.redraw_events_cleared();
+                    process_control_flow(&subclass_input.event_loop_runner);
+                }
+            }
+
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
@@ -1583,11 +1722,19 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 },
             });
 
-            // Unset maximized if we're changing the window's size.
-            if new_physical_inner_size != old_physical_inner_size {
-                WindowState::set_window_flags(subclass_input.window_state.lock(), window, |f| {
-                    f.set(WindowFlags::MAXIMIZED, false)
-                });
+            let dragging_window: bool;
+
+            {
+                let window_state = subclass_input.window_state.lock();
+                dragging_window = window_state
+                    .window_flags()
+                    .contains(WindowFlags::MARKER_IN_SIZE_MOVE);
+                // Unset maximized if we're changing the window's size.
+                if new_physical_inner_size != old_physical_inner_size {
+                    WindowState::set_window_flags(window_state, window, |f| {
+                        f.set(WindowFlags::MAXIMIZED, false)
+                    });
+                }
             }
 
             let new_outer_rect: RECT;
@@ -1612,9 +1759,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 )
                 .unwrap_or(conservative_rect);
 
-                // If we're not dragging the window, offset the window so that the cursor's
+                // If we're dragging the window, offset the window so that the cursor's
                 // relative horizontal position in the title bar is preserved.
-                let dragging_window = subclass_input.event_loop_runner.in_modal_loop();
                 if dragging_window {
                     let bias = {
                         let cursor_pos = {
@@ -1742,7 +1888,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
         }
-    }
+    };
+
+    subclass_input
+        .event_loop_runner
+        .catch_unwind(callback)
+        .unwrap_or(-1)
 }
 
 unsafe extern "system" fn thread_event_target_callback<T: 'static>(
@@ -1754,7 +1905,21 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
     let subclass_input = &mut *(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
-    match msg {
+    let runner = subclass_input.event_loop_runner.clone();
+
+    if msg != winuser::WM_PAINT {
+        winuser::RedrawWindow(
+            window,
+            ptr::null(),
+            ptr::null_mut(),
+            winuser::RDW_INTERNALPAINT,
+        );
+    }
+
+    // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
+    // the closure to catch_unwind directly so that the match body indendation wouldn't change and
+    // the git blame and history would be preserved.
+    let callback = || match msg {
         winuser::WM_DESTROY => {
             Box::from_raw(subclass_input);
             drop(subclass_input);
@@ -1764,52 +1929,20 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         // when the event queue has been emptied. See `process_event` for more details.
         winuser::WM_PAINT => {
             winuser::ValidateRect(window, ptr::null());
-            let queue_call_again = || {
-                winuser::RedrawWindow(
-                    window,
-                    ptr::null(),
-                    ptr::null_mut(),
-                    winuser::RDW_INTERNALPAINT,
-                );
-            };
-            let in_modal_loop = subclass_input.event_loop_runner.in_modal_loop();
-            if in_modal_loop {
-                let runner = &subclass_input.event_loop_runner;
-                runner.main_events_cleared();
-                // Drain eventual WM_PAINT messages sent if user called request_redraw()
-                // during handling of MainEventsCleared.
-                let mut msg = mem::zeroed();
-                loop {
-                    if 0 == winuser::PeekMessageW(
-                        &mut msg,
-                        ptr::null_mut(),
-                        winuser::WM_PAINT,
-                        winuser::WM_PAINT,
-                        winuser::PM_QS_PAINT | winuser::PM_REMOVE,
-                    ) {
-                        break;
-                    }
-
-                    if msg.hwnd != window {
-                        winuser::TranslateMessage(&mut msg);
-                        winuser::DispatchMessageW(&mut msg);
-                    }
-                }
-                runner.redraw_events_cleared();
-                match runner.control_flow() {
-                    // Waiting is handled by the modal loop.
-                    ControlFlow::Exit | ControlFlow::Wait => runner.new_events(),
-                    ControlFlow::WaitUntil(resume_time) => {
-                        wait_until_time_or_msg(resume_time);
-                        runner.new_events();
-                        queue_call_again();
-                    }
-                    ControlFlow::Poll => {
-                        runner.new_events();
-                        queue_call_again();
-                    }
-                }
+            // If the WM_PAINT handler in `public_window_callback` has already flushed the redraw
+            // events, `handling_events` will return false and we won't emit a second
+            // `RedrawEventsCleared` event.
+            if subclass_input.event_loop_runner.handling_events() {
+                // This WM_PAINT handler will never be re-entrant because `flush_paint_messages`
+                // doesn't call WM_PAINT for the thread event target (i.e. this window).
+                assert!(flush_paint_messages(
+                    None,
+                    &subclass_input.event_loop_runner
+                ));
+                subclass_input.event_loop_runner.redraw_events_cleared();
+                process_control_flow(&subclass_input.event_loop_runner);
             }
+
             0
         }
 
@@ -1940,6 +2073,49 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             function();
             0
         }
+        _ if msg == *PROCESS_NEW_EVENTS_MSG_ID => {
+            winuser::PostThreadMessageW(
+                subclass_input.event_loop_runner.wait_thread_id(),
+                *CANCEL_WAIT_UNTIL_MSG_ID,
+                0,
+                0,
+            );
+
+            // if the control_flow is WaitUntil, make sure the given moment has actually passed
+            // before emitting NewEvents
+            if let ControlFlow::WaitUntil(wait_until) =
+                subclass_input.event_loop_runner.control_flow()
+            {
+                let mut msg = mem::zeroed();
+                while Instant::now() < wait_until {
+                    if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0) {
+                        // This works around a "feature" in PeekMessageW. If the message PeekMessageW
+                        // gets is a WM_PAINT message that had RDW_INTERNALPAINT set (i.e. doesn't
+                        // have an update region), PeekMessageW will remove that window from the
+                        // redraw queue even though we told it not to remove messages from the
+                        // queue. We fix it by re-dispatching an internal paint message to that
+                        // window.
+                        if msg.message == winuser::WM_PAINT {
+                            let mut rect = mem::zeroed();
+                            if 0 == winuser::GetUpdateRect(msg.hwnd, &mut rect, 0) {
+                                winuser::RedrawWindow(
+                                    msg.hwnd,
+                                    ptr::null(),
+                                    ptr::null_mut(),
+                                    winuser::RDW_INTERNALPAINT,
+                                );
+                            }
+                        }
+
+                        break;
+                    }
+                }
+            }
+            subclass_input.event_loop_runner.poll();
+            0
+        }
         _ => commctrl::DefSubclassProc(window, msg, wparam, lparam),
-    }
+    };
+
+    runner.catch_unwind(callback).unwrap_or(-1)
 }
