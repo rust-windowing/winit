@@ -80,7 +80,9 @@ bitflags! {
         /// window's state to match our stored state. This controls whether to accept those changes.
         const MARKER_RETAIN_STATE_ON_SIZE = 1 << 10;
 
-        const MINIMIZED = 1 << 11;
+        const MARKER_IN_SIZE_MOVE = 1 << 11;
+
+        const MINIMIZED = 1 << 12;
 
         const FULLSCREEN_AND_MASK = !(
             WindowFlags::DECORATIONS.bits |
