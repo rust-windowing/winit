@@ -45,7 +45,7 @@ dispatch = "0.2.0"
 objc = "0.2.6"
 
 [target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
-git = "https://github.com/LuoZijun/rust-core-video-sys"
+version = "0.1.4"
 default_features = false
 features = ["display_link"]
 
