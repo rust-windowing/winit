@@ -3,13 +3,14 @@ mod event;
 mod timeout;
 
 pub use self::canvas::Canvas;
-pub use self::timeout::Timeout;
+pub use self::timeout::{AnimationFrameRequest, Timeout};
 
 use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtStdweb;
 use crate::window::Window;
 
 use stdweb::js;
+use stdweb::unstable::TryInto;
 use stdweb::web::event::BeforeUnloadEvent;
 use stdweb::web::window;
 use stdweb::web::IEventTarget;
@@ -30,6 +31,15 @@ pub fn on_unload(mut handler: impl FnMut() + 'static) {
 impl WindowExtStdweb for Window {
     fn canvas(&self) -> CanvasElement {
         self.window.canvas().raw().clone()
+    }
+
+    fn is_dark_mode(&self) -> bool {
+        // TODO: upstream to stdweb
+        let is_dark_mode = js! {
+            return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches)
+        };
+
+        is_dark_mode.try_into().expect("should return a bool")
     }
 }
 

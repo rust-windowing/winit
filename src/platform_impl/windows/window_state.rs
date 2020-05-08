@@ -1,6 +1,8 @@
 use crate::{
-    dpi::Size,
-    platform_impl::platform::{event_loop, icon::WinIcon, util},
+    dpi::{PhysicalPosition, Size},
+    event::ModifiersState,
+    icon::Icon,
+    platform_impl::platform::{event_loop, util},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 use parking_lot::MutexGuard;
@@ -14,7 +16,6 @@ use winapi::{
 };
 
 /// Contains information about states and the window that the callback is going to use.
-#[derive(Clone)]
 pub struct WindowState {
     pub mouse: MouseProperties,
 
@@ -22,16 +23,14 @@ pub struct WindowState {
     pub min_size: Option<Size>,
     pub max_size: Option<Size>,
 
-    pub window_icon: Option<WinIcon>,
-    pub taskbar_icon: Option<WinIcon>,
+    pub window_icon: Option<Icon>,
+    pub taskbar_icon: Option<Icon>,
 
     pub saved_window: Option<SavedWindow>,
-    pub dpi_factor: f64,
+    pub scale_factor: f64,
 
+    pub modifiers_state: ModifiersState,
     pub fullscreen: Option<Fullscreen>,
-    /// Used to supress duplicate redraw attempts when calling `request_redraw` multiple
-    /// times in `MainEventsCleared`.
-    pub queued_out_of_band_redraw: bool,
     pub is_dark_mode: bool,
     pub high_surrogate: Option<u16>,
     window_flags: WindowFlags,
@@ -40,7 +39,7 @@ pub struct WindowState {
 #[derive(Clone)]
 pub struct SavedWindow {
     pub client_rect: RECT,
-    pub dpi_factor: f64,
+    pub scale_factor: f64,
 }
 
 #[derive(Clone)]
@@ -48,6 +47,7 @@ pub struct MouseProperties {
     pub cursor: CursorIcon,
     pub buttons_down: u32,
     cursor_flags: CursorFlags,
+    pub last_position: Option<PhysicalPosition<f64>>,
 }
 
 bitflags! {
@@ -80,7 +80,9 @@ bitflags! {
         /// window's state to match our stored state. This controls whether to accept those changes.
         const MARKER_RETAIN_STATE_ON_SIZE = 1 << 10;
 
-        const MINIMIZED = 1 << 11;
+        const MARKER_IN_SIZE_MOVE = 1 << 11;
+
+        const MINIMIZED = 1 << 12;
 
         const FULLSCREEN_AND_MASK = !(
             WindowFlags::DECORATIONS.bits |
@@ -96,9 +98,8 @@ bitflags! {
 impl WindowState {
     pub fn new(
         attributes: &WindowAttributes,
-        window_icon: Option<WinIcon>,
-        taskbar_icon: Option<WinIcon>,
-        dpi_factor: f64,
+        taskbar_icon: Option<Icon>,
+        scale_factor: f64,
         is_dark_mode: bool,
     ) -> WindowState {
         WindowState {
@@ -106,19 +107,20 @@ impl WindowState {
                 cursor: CursorIcon::default(),
                 buttons_down: 0,
                 cursor_flags: CursorFlags::empty(),
+                last_position: None,
             },
 
             min_size: attributes.min_inner_size,
             max_size: attributes.max_inner_size,
 
-            window_icon,
+            window_icon: attributes.window_icon.clone(),
             taskbar_icon,
 
             saved_window: None,
-            dpi_factor,
+            scale_factor,
 
+            modifiers_state: ModifiersState::default(),
             fullscreen: None,
-            queued_out_of_band_redraw: false,
             is_dark_mode,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
@@ -268,7 +270,7 @@ impl WindowFlags {
                         | winuser::SWP_NOSIZE
                         | winuser::SWP_NOACTIVATE,
                 );
-                winuser::UpdateWindow(window);
+                winuser::InvalidateRgn(window, ptr::null_mut(), 0);
             }
         }
 

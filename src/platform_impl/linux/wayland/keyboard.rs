@@ -8,9 +8,7 @@ use smithay_client_toolkit::{
     reexports::client::protocol::{wl_keyboard, wl_seat},
 };
 
-use crate::event::{
-    DeviceEvent, ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent,
-};
+use crate::event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent};
 
 pub fn init_keyboard(
     seat: &wl_seat::WlSeat,
@@ -33,9 +31,24 @@ pub fn init_keyboard(
                     let wid = make_wid(&surface);
                     my_sink.send_window_event(WindowEvent::Focused(true), wid);
                     *target.lock().unwrap() = Some(wid);
+
+                    let modifiers = *modifiers_tracker.lock().unwrap();
+
+                    if !modifiers.is_empty() {
+                        my_sink.send_window_event(WindowEvent::ModifiersChanged(modifiers), wid);
+                    }
                 }
                 KbEvent::Leave { surface, .. } => {
                     let wid = make_wid(&surface);
+                    let modifiers = *modifiers_tracker.lock().unwrap();
+
+                    if !modifiers.is_empty() {
+                        my_sink.send_window_event(
+                            WindowEvent::ModifiersChanged(ModifiersState::empty()),
+                            wid,
+                        );
+                    }
+
                     my_sink.send_window_event(WindowEvent::Focused(false), wid);
                     *target.lock().unwrap() = None;
                 }
@@ -88,7 +101,9 @@ pub fn init_keyboard(
 
                     *modifiers_tracker.lock().unwrap() = modifiers;
 
-                    my_sink.send_device_event(DeviceEvent::ModifiersChanged(modifiers), DeviceId);
+                    if let Some(wid) = *target.lock().unwrap() {
+                        my_sink.send_window_event(WindowEvent::ModifiersChanged(modifiers), wid);
+                    }
                 }
             }
         },

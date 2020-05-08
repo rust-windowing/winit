@@ -1,5 +1,43 @@
 # Unreleased
 
+- On Windows, fix window intermittently hanging when `ControlFlow` was set to `Poll`.
+- On Windows, fix `WindowBuilder::with_maximized` being ignored.
+- On Android, minimal platform support.
+- On iOS, touch positions are now properly converted to physical pixels.
+
+# 0.22.1 (2020-04-16)
+
+- On X11, fix `ResumeTimeReached` being fired too early.
+- On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
+- On Web, fix a possible panic during event handling
+- On macOS, fix `EventLoopProxy` leaking memory for every instance.
+
+# 0.22.0 (2020-03-09)
+
+- On Windows, fix minor timing issue in wait_until_time_or_msg
+- On Windows, rework handling of request_redraw() to address panics.
+- On macOS, fix `set_simple_screen` to remember frame excluding title bar.
+- On Wayland, fix coordinates in touch events when scale factor isn't 1.
+- On Wayland, fix color from `close_button_icon_color` not applying.
+- Ignore locale if unsupported by X11 backend
+- On Wayland, Add HiDPI cursor support
+- On Web, add the ability to query "Light" or "Dark" system theme send `ThemeChanged` on change.
+- Fix `Event::to_static` returning `None` for user events.
+- On Wayland, Hide CSD for fullscreen windows.
+- On Windows, ignore spurious mouse move messages.
+- **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
+- On Windows, add `IconExtWindows` trait which exposes creating an `Icon` from an external file or embedded resource
+- Add `BadIcon::OsError` variant for when OS icon functionality fails
+- On Windows, fix crash at startup on systems that do not properly support Windows' Dark Mode
+- Revert On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
+- on macOS, fix incorrect ReceivedCharacter events for some key combinations.
+- **Breaking:** Use `i32` instead of `u32` for position type in `WindowEvent::Moved`.
+- On macOS, a mouse motion event is now generated before every mouse click.
+
+# 0.21.0 (2020-02-04)
+
+- On Windows, fixed "error: linking with `link.exe` failed: exit code: 1120" error on older versions of windows.
+- On macOS, fix set_minimized(true) works only with decorations.
 - On macOS, add `hide_application` to `EventLoopWindowTarget` via a new `EventLoopWindowTargetExtMacOS` trait. `hide_application` will hide the entire application by calling `-[NSApplication hide: nil]`.
 - On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
 - On macOS, fix `CursorMoved` event reporting the cursor position using logical coordinates.
@@ -12,11 +50,11 @@
 - **Breaking:** `WindowEvent::CursorMoved` changed to `f64` units, preserving high-precision data supplied by most backends
 - On Wayland, fix coordinates in mouse events when scale factor isn't 1
 - On Web, add the ability to provide a custom canvas
+- **Breaking:** On Wayland, the `WaylandTheme` struct has been replaced with a `Theme` trait, allowing for extra configuration
 
 # 0.20.0 (2020-01-05)
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
-
 - **Breaking**: Overhaul how Winit handles DPI:
   + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
   + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
