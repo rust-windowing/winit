@@ -4,6 +4,7 @@
 - On Windows, fix `WindowBuilder::with_maximized` being ignored.
 - On Android, minimal platform support.
 - On iOS, touch positions are now properly converted to physical pixels.
+- On macOS, updated core-* dependencies and cocoa
 
 # 0.22.1 (2020-04-16)
 
@@ -43,7 +44,6 @@
 - On macOS, fix `CursorMoved` event reporting the cursor position using logical coordinates.
 - On macOS, fix issue where unbundled applications would sometimes open without being focused.
 - On macOS, fix `run_return` does not return unless it receives a message.
-- On macOS, updated core-* dependencies and cocoa
 - On Windows, fix bug where `RedrawRequested` would only get emitted every other iteration of the event loop.
 - On X11, fix deadlock on window state when handling certain window events.
 - `WindowBuilder` now implements `Default`.
