@@ -230,7 +230,7 @@ pub enum WindowEvent {
     /// The window received a unicode character.
     Char(char),
 
-    KeyPress(LogicalKey, ScanCode, PressFlags),
+    KeyPress(KeyPress),
 
     /// The keyboard modifiers have changed.
     ///
@@ -252,7 +252,7 @@ pub enum WindowEvent {
 
     PointerForce(PointerId, Force),
 
-    PointerPress(PointerId, PointerButton, PressFlags),
+    PointerPress(PointerId, PointerPress),
 
     ScrollStarted,
     ScrollDiscrete(Vector<i32>),
@@ -275,55 +275,98 @@ pub struct Vector<T> {
     pub y: T,
 }
 
-bitflags!{
-    pub struct PressFlags: u8 {
-        /// Whether or not the button is currently pressed down.
-        const IS_DOWN = 1 << 0;
-        /// Whether or not this is a repeat press.
-        ///
-        /// This has different semantics for key and pointer events:
-        /// - If true in key event, the user has held down the key long enough to send duplicate
-        ///   events.
-        /// - If true in pointer event, the user has pressed and released multiple times in a short
-        ///   interval.
-        ///
-        /// TODO: SHOULD THIS BE SPLIT INTO TWO SEPARATE FLAGS?
-        const IS_REPEAT = 1 << 1;
-        /// If set, the event was generated synthetically by winit
-        /// in one of the following circumstances:
-        ///
-        /// * Synthetic key press events are generated for all keys pressed
-        ///   when a window gains focus. Likewise, synthetic key release events
-        ///   are generated for all keys pressed when a window goes out of focus.
-        ///   ***Currently, this is only functional on X11 and Windows***
-        ///
-        /// Otherwise, this value is always `false`.
-        const IS_SYNTHETIC = 1 << 2;
-    }
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct KeyPress {
+    pub(crate) logical_key: Option<LogicalKey>,
+    pub(crate) scan_code: u32,
+    pub(crate) is_down: bool,
+    pub(crate) repeat_count: u32,
+    pub(crate) is_synthetic: bool,
 }
 
-bitflags!{
-    pub struct RawPressFlags: u8 {
-        /// Whether or not the button is currently pressed down.
-        const IS_DOWN = 1 << 0;
-    }
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RawKeyPress {
+    pub(crate) logical_key: Option<LogicalKey>,
+    pub(crate) scan_code: u32,
+    pub(crate) is_down: bool,
 }
 
-impl PressFlags {
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PointerPress {
+    pub(crate) button: u8,
+    pub(crate) is_down: bool,
+    pub(crate) click_count: u32,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RawPointerPress {
+    pub(crate) button: u8,
+    pub(crate) is_down: bool,
+}
+
+impl KeyPress {
+    pub fn logical_key(&self) -> Option<LogicalKey> {
+        self.logical_key
+    }
+    pub fn scan_code(&self) -> u32 {
+        self.scan_code
+    }
     pub fn is_down(&self) -> bool {
-        self.contains(Self::IS_DOWN)
+        self.is_down
     }
-    pub fn is_repeat(&self) -> bool {
-        self.contains(Self::IS_REPEAT)
+    /// The number of repeat events that have been generated from the user holding the key down. Is
+    /// `0` for the first event, and increments by `1` for every further event.
+    ///
+    /// TODO PHRASE BETTER
+    pub fn repeat_count(&self) -> u32 {
+        self.repeat_count
     }
+    /// If set, the event was generated synthetically by winit
+    /// in one of the following circumstances:
+    ///
+    /// * Synthetic key press events are generated for all keys pressed
+    ///   when a window gains focus. Likewise, synthetic key release events
+    ///   are generated for all keys pressed when a window goes out of focus.
+    ///   ***Currently, this is only functional on X11 and Windows***
+    ///
+    /// Otherwise, this value is always `false`.
     pub fn is_synthetic(&self) -> bool {
-        self.contains(Self::IS_SYNTHETIC)
+        self.is_synthetic
     }
 }
 
-impl RawPressFlags {
+impl RawKeyPress {
+    pub fn logical_key(&self) -> Option<LogicalKey> {
+        self.logical_key
+    }
+    pub fn scan_code(&self) -> u32 {
+        self.scan_code
+    }
     pub fn is_down(&self) -> bool {
-        self.contains(Self::IS_DOWN)
+        self.is_down
+    }
+}
+
+impl PointerPress {
+    pub fn button(&self) -> u8 {
+        self.button
+    }
+    pub fn is_down(&self) -> bool {
+        self.is_down
+    }
+    /// The number of clicks the user has made in the same spot. Is `1` for the first click, `2`
+    /// for the second click, etc.
+    pub fn click_count(&self) -> u32 {
+        self.click_count
+    }
+}
+
+impl RawPointerPress {
+    pub fn button(&self) -> u8 {
+        self.button
+    }
+    pub fn is_down(&self) -> bool {
+        self.is_down
     }
 }
 
@@ -362,7 +405,7 @@ pub enum RawPointerEvent {
     Added,
     /// A device has been removed.
     Removed,
-    Press(PointerButton, RawPressFlags),
+    Press(RawPointerPress),
     /// Relative change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
@@ -385,7 +428,7 @@ pub enum RawKeyboardEvent {
     Added,
     /// A keyboard device has been removed.
     Removed,
-    Press(Option<LogicalKey>, ScanCode, RawPressFlags),
+    Press(RawKeyPress),
 }
 
 /// A typed identifier for a mouse device.
