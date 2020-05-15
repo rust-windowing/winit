@@ -38,6 +38,7 @@ fn main() {
                         _ => (),
                     }
                 }
+                WindowEvent::ModifiersChanged(m) => modifiers = m,
                 _ => (),
             },
             Event::DeviceEvent { event, .. } => match event {
@@ -46,7 +47,6 @@ fn main() {
                     ElementState::Pressed => println!("mouse button {} pressed", button),
                     ElementState::Released => println!("mouse button {} released", button),
                 },
-                DeviceEvent::ModifiersChanged(m) => modifiers = m,
                 _ => (),
             },
             _ => (),

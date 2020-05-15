@@ -83,6 +83,8 @@ pub use self::{
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
 
+pub(crate) use crate::icon::NoIcon as PlatformIcon;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId {
     uiscreen: ffi::id,

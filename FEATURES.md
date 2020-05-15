@@ -109,8 +109,8 @@ If your PR makes notable changes to Winit's features, please update this section
   translating keypresses into UTF-8 characters, handling dead keys and IMEs.
 - **Drag & Drop**: Dragging content into winit, detecting when content enters, drops, or if the drop is cancelled.
 - **Raw Device Events**: Capturing input from input devices without any OS filtering.
-- **Gamepad/Joystick events**: Capturing input from gampads and joysticks.
-- **Device movement events:**: Capturing input from the device gyroscope and accelerometer.
+- **Gamepad/Joystick events**: Capturing input from gamepads and joysticks.
+- **Device movement events**: Capturing input from the device gyroscope and accelerometer.
 
 ## Platform
 ### Windows

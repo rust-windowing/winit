@@ -18,6 +18,8 @@ use crate::{
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
+pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
+
 pub mod wayland;
 pub mod x11;
 
@@ -61,7 +63,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 
 lazy_static! {
     pub static ref X11_BACKEND: Mutex<Result<Arc<XConnection>, XNotSupported>> =
-        { Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)) };
+        Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new));
 }
 
 #[derive(Debug, Clone)]

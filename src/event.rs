@@ -81,10 +81,11 @@ pub enum Event<'a, T: 'static> {
     ///
     /// This event is useful as a place to put your code that should be run after all
     /// state-changing events have been handled and you want to do stuff (updating state, performing
-    /// calculations, etc) that happens as the "main body" of your event loop. If your program draws
-    /// graphics, it's usually better to do it in response to
+    /// calculations, etc) that happens as the "main body" of your event loop. If your program only draws
+    /// graphics when something changes, it's usually better to do it in response to
     /// [`Event::RedrawRequested`](crate::event::Event::RedrawRequested), which gets emitted
-    /// immediately after this event.
+    /// immediately after this event. Programs that draw graphics continuously, like most games,
+    /// can render here unconditionally for simplicity.
     MainEventsCleared,
 
     /// Emitted after `MainEventsCleared` when a window should be redrawn.
@@ -97,6 +98,9 @@ pub enum Event<'a, T: 'static> {
     ///
     /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
     /// into a single event, to help avoid duplicating rendering work.
+    ///
+    /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
+    /// something changes, like most non-game GUIs.
     RedrawRequested(WindowId),
 
     /// Emitted after all `RedrawRequested` events have been processed and control flow is about to
@@ -209,7 +213,7 @@ pub enum WindowEvent<'a> {
     Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(PhysicalPosition<u32>),
+    Moved(PhysicalPosition<i32>),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -259,6 +263,13 @@ pub enum WindowEvent<'a> {
         is_synthetic: bool,
     },
 
+    /// The keyboard modifiers have changed.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    ///   issue, and it should get fixed - but it's the current state of the API.
+    ModifiersChanged(ModifiersState),
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -267,7 +278,7 @@ pub enum WindowEvent<'a> {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<f64>,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -282,7 +293,7 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -291,7 +302,7 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -455,6 +466,7 @@ impl<'a> WindowEvent<'a> {
                 input,
                 is_synthetic,
             }),
+            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -578,16 +590,6 @@ pub enum DeviceEvent {
 
     Key(KeyboardInput),
 
-    /// The keyboard modifiers have changed.
-    ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
-    ///   issue, and it should get fixed - but it's the current state of the API.
-    ModifiersChanged(ModifiersState),
-
     Text {
         codepoint: char,
     },
@@ -616,7 +618,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
 }
 

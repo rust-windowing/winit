@@ -32,18 +32,19 @@ use winapi::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_dark_mode,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
-        icon::{self, IconType, WinIcon},
+        icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -187,7 +188,7 @@ impl Window {
                     | winuser::SWP_NOSIZE
                     | winuser::SWP_NOACTIVATE,
             );
-            winuser::UpdateWindow(self.window.0);
+            winuser::InvalidateRgn(self.window.0, ptr::null_mut(), 0);
         }
     }
 
@@ -506,7 +507,7 @@ impl Window {
                             size.1 as i32,
                             winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER,
                         );
-                        winuser::UpdateWindow(window.0);
+                        winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                     }
                 }
                 None => {
@@ -532,7 +533,7 @@ impl Window {
                                     | winuser::SWP_NOZORDER
                                     | winuser::SWP_NOACTIVATE,
                             );
-                            winuser::UpdateWindow(window.0);
+                            winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                         }
                     }
                 }
@@ -576,12 +577,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, mut window_icon: Option<Icon>) {
-        let window_icon = window_icon
-            .take()
-            .map(|icon| WinIcon::from_icon(icon).expect("Failed to create `ICON_SMALL`"));
+    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         if let Some(ref window_icon) = window_icon {
-            window_icon.set_for_window(self.window.0, IconType::Small);
+            window_icon
+                .inner
+                .set_for_window(self.window.0, IconType::Small);
         } else {
             icon::unset_for_window(self.window.0, IconType::Small);
         }
@@ -589,12 +589,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_taskbar_icon(&self, mut taskbar_icon: Option<Icon>) {
-        let taskbar_icon = taskbar_icon
-            .take()
-            .map(|icon| WinIcon::from_icon(icon).expect("Failed to create `ICON_BIG`"));
+    pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         if let Some(ref taskbar_icon) = taskbar_icon {
-            taskbar_icon.set_for_window(self.window.0, IconType::Big);
+            taskbar_icon
+                .inner
+                .set_for_window(self.window.0, IconType::Big);
         } else {
             icon::unset_for_window(self.window.0, IconType::Big);
         }
@@ -636,7 +635,7 @@ unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
 
 unsafe fn init<T: 'static>(
-    mut attributes: WindowAttributes,
+    attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
 ) -> Result<Window, RootOsError> {
@@ -645,25 +644,8 @@ unsafe fn init<T: 'static>(
         .chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
-    let window_icon = {
-        let icon = attributes.window_icon.take().map(WinIcon::from_icon);
-        if let Some(icon) = icon {
-            Some(icon.map_err(|e| os_error!(e))?)
-        } else {
-            None
-        }
-    };
-    let taskbar_icon = {
-        let icon = attributes.window_icon.take().map(WinIcon::from_icon);
-        if let Some(icon) = icon {
-            Some(icon.map_err(|e| os_error!(e))?)
-        } else {
-            None
-        }
-    };
-
     // registering the window class
-    let class_name = register_window_class(&window_icon, &taskbar_icon);
+    let class_name = register_window_class(&attributes.window_icon, &pl_attribs.taskbar_icon);
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::DECORATIONS, attributes.decorations);
@@ -746,8 +728,6 @@ unsafe fn init<T: 'static>(
         }
     }
 
-    window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
-
     // If the system theme is dark, we need to set the window theme now
     // before we update the window flags (and possibly show the
     // window for the first time).
@@ -756,8 +736,7 @@ unsafe fn init<T: 'static>(
     let window_state = {
         let window_state = WindowState::new(
             &attributes,
-            window_icon,
-            taskbar_icon,
+            pl_attribs.taskbar_icon,
             scale_factor,
             dark_mode,
         );
@@ -776,6 +755,11 @@ unsafe fn init<T: 'static>(
         .inner_size
         .unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
     win.set_inner_size(dimensions);
+    if attributes.maximized {
+        // Need to set MAXIMIZED after setting `inner_size` as
+        // `Window::set_inner_size` changes MAXIMIZED to false.
+        win.set_maximized(true);
+    }
     win.set_visible(attributes.visible);
 
     if let Some(_) = attributes.fullscreen {
@@ -787,8 +771,8 @@ unsafe fn init<T: 'static>(
 }
 
 unsafe fn register_window_class(
-    window_icon: &Option<WinIcon>,
-    taskbar_icon: &Option<WinIcon>,
+    window_icon: &Option<Icon>,
+    taskbar_icon: &Option<Icon>,
 ) -> Vec<u16> {
     let class_name: Vec<_> = OsStr::new("Window Class")
         .encode_wide()
@@ -797,11 +781,11 @@ unsafe fn register_window_class(
 
     let h_icon = taskbar_icon
         .as_ref()
-        .map(|icon| icon.handle)
+        .map(|icon| icon.inner.as_raw_handle())
         .unwrap_or(ptr::null_mut());
     let h_icon_small = window_icon
         .as_ref()
-        .map(|icon| icon.handle)
+        .map(|icon| icon.inner.as_raw_handle())
         .unwrap_or(ptr::null_mut());
 
     let class = winuser::WNDCLASSEXW {

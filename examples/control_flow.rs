@@ -41,15 +41,9 @@ fn main() {
         println!("{:?}", event);
         match event {
             Event::NewEvents(start_cause) => {
-                wait_cancelled = mode == Mode::WaitUntil;
-                match start_cause {
-                    StartCause::ResumeTimeReached {
-                        start: _,
-                        requested_resume: _,
-                    } => {
-                        wait_cancelled = false;
-                    }
-                    _ => (),
+                wait_cancelled = match start_cause {
+                    StartCause::WaitCancelled { .. } => mode == Mode::WaitUntil,
+                    _ => false,
                 }
             }
             Event::WindowEvent { event, .. } => match event {
@@ -100,7 +94,13 @@ fn main() {
             Event::RedrawEventsCleared => {
                 *control_flow = match mode {
                     Mode::Wait => ControlFlow::Wait,
-                    Mode::WaitUntil => ControlFlow::WaitUntil(time::Instant::now() + WAIT_TIME),
+                    Mode::WaitUntil => {
+                        if wait_cancelled {
+                            *control_flow
+                        } else {
+                            ControlFlow::WaitUntil(time::Instant::now() + WAIT_TIME)
+                        }
+                    }
                     Mode::Poll => {
                         thread::sleep(POLL_SLEEP_TIME);
                         ControlFlow::Poll

@@ -6,6 +6,7 @@ use objc::{
 };
 
 use crate::{
+    dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
@@ -209,7 +210,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     if touch == nil {
                         break;
                     }
-                    let location: CGPoint = msg_send![touch, locationInView: nil];
+                    let logical_location: CGPoint = msg_send![touch, locationInView: nil];
                     let touch_type: UITouchType = msg_send![touch, type];
                     let force = if os_supports_force {
                         let trait_collection: id = msg_send![object, traitCollection];
@@ -248,12 +249,19 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                         _ => panic!("unexpected touch phase: {:?}", phase as i32),
                     };
 
+                    let physical_location = {
+                        let scale_factor: CGFloat = msg_send![object, contentScaleFactor];
+                        PhysicalPosition::from_logical::<(f64, f64), f64>(
+                            (logical_location.x as _, logical_location.y as _),
+                            scale_factor,
+                        )
+                    };
                     touch_events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(window.into()),
                         event: WindowEvent::Touch(Touch {
                             device_id: RootDeviceId(DeviceId { uiscreen }),
                             id: touch_id,
-                            location: (location.x as f64, location.y as f64).into(),
+                            location: physical_location,
                             force,
                             phase,
                         }),
