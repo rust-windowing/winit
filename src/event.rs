@@ -118,6 +118,30 @@ pub enum Event<'a, T: 'static> {
     LoopDestroyed,
 }
 
+impl<T: Clone> Clone for Event<'static, T> {
+    fn clone(&self) -> Self {
+        use self::Event::*;
+        match self {
+            WindowEvent { window_id, event } => WindowEvent {
+                window_id: *window_id,
+                event: event.clone(),
+            },
+            UserEvent(event) => UserEvent(event.clone()),
+            DeviceEvent { device_id, event } => DeviceEvent {
+                device_id: *device_id,
+                event: event.clone(),
+            },
+            NewEvents(cause) => NewEvents(cause.clone()),
+            MainEventsCleared => MainEventsCleared,
+            RedrawRequested(wid) => RedrawRequested(*wid),
+            RedrawEventsCleared => RedrawEventsCleared,
+            LoopDestroyed => LoopDestroyed,
+            Suspended => Suspended,
+            Resumed => Resumed,
+        }
+    }
+}
+
 impl<'a, T> Event<'a, T> {
     pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
         use self::Event::*;
@@ -328,6 +352,97 @@ pub enum WindowEvent<'a> {
     ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
+}
+
+impl Clone for WindowEvent<'static> {
+    fn clone(&self) -> Self {
+        use self::WindowEvent::*;
+        return match self {
+            Resized(size) => Resized(size.clone()),
+            Moved(pos) => Moved(pos.clone()),
+            CloseRequested => CloseRequested,
+            Destroyed => Destroyed,
+            DroppedFile(file) => DroppedFile(file.clone()),
+            HoveredFile(file) => HoveredFile(file.clone()),
+            HoveredFileCancelled => HoveredFileCancelled,
+            ReceivedCharacter(c) => ReceivedCharacter(*c),
+            Focused(f) => Focused(*f),
+            KeyboardInput {
+                device_id,
+                input,
+                is_synthetic,
+            } => KeyboardInput {
+                device_id: *device_id,
+                input: *input,
+                is_synthetic: *is_synthetic,
+            },
+
+            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
+            #[allow(deprecated)]
+            CursorMoved {
+                device_id,
+                position,
+                modifiers,
+            } => CursorMoved {
+                device_id: *device_id,
+                position: *position,
+                modifiers: *modifiers,
+            },
+            CursorEntered { device_id } => CursorEntered {
+                device_id: *device_id,
+            },
+            CursorLeft { device_id } => CursorLeft {
+                device_id: *device_id,
+            },
+            #[allow(deprecated)]
+            MouseWheel {
+                device_id,
+                delta,
+                phase,
+                modifiers,
+            } => MouseWheel {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+                modifiers: *modifiers,
+            },
+            #[allow(deprecated)]
+            MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            } => MouseInput {
+                device_id: *device_id,
+                state: *state,
+                button: *button,
+                modifiers: *modifiers,
+            },
+            TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            } => TouchpadPressure {
+                device_id: *device_id,
+                pressure: *pressure,
+                stage: *stage,
+            },
+            AxisMotion {
+                device_id,
+                axis,
+                value,
+            } => AxisMotion {
+                device_id: *device_id,
+                axis: *axis,
+                value: *value,
+            },
+            Touch(touch) => Touch(*touch),
+            ThemeChanged(theme) => ThemeChanged(theme.clone()),
+            ScaleFactorChanged { .. } => {
+                unreachable!("Static event can't be about scale factor changing")
+            }
+        };
+    }
 }
 
 impl<'a> WindowEvent<'a> {
@@ -809,8 +924,10 @@ pub enum VirtualKeyCode {
     Multiply,
     Mute,
     MyComputer,
-    NavigateForward,  // also called "Prior"
-    NavigateBackward, // also called "Next"
+    // also called "Next"
+    NavigateForward,
+    // also called "Prior"
+    NavigateBackward,
     NextTrack,
     NoConvert,
     NumpadComma,
