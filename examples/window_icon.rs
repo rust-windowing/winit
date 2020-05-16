@@ -1,7 +1,7 @@
 extern crate image;
 use std::path::Path;
 use winit::{
-    event::Event,
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Icon, WindowBuilder},
 };
@@ -30,15 +30,13 @@ fn main() {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
-        if let Event::WindowEvent { event, .. } = event {
-            use winit::event::WindowEvent::*;
-            match event {
-                CloseRequested => *control_flow = ControlFlow::Exit,
-                DroppedFile(path) => {
-                    window.set_window_icon(Some(load_icon(&path)));
-                }
-                _ => (),
-            }
+        match event {
+            Event::WindowEvent(_, event) => match event {
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::FileDropped(path) => window.set_window_icon(Some(load_icon(&path))),
+                _ => ()
+            },
+            _ => (),
         }
     });
 }

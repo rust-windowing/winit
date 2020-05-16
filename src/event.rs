@@ -419,6 +419,9 @@ impl KeyPress {
     pub fn is_down(&self) -> bool {
         self.is_down
     }
+    pub fn is_up(&self) -> bool {
+        !self.is_down
+    }
     /// Is `true` if the user has held down the key long enough to send duplicate events.
     ///
     /// Is always `false` if `is_down` is `false`.
@@ -449,6 +452,9 @@ impl RawKeyPress {
     pub fn is_down(&self) -> bool {
         self.is_down
     }
+    pub fn is_up(&self) -> bool {
+        !self.is_down
+    }
 }
 
 impl PointerPress {
@@ -457,6 +463,9 @@ impl PointerPress {
     }
     pub fn is_down(&self) -> bool {
         self.is_down
+    }
+    pub fn is_up(&self) -> bool {
+        !self.is_down
     }
     /// The number of clicks the user has made in the same spot within the system's double-click
     /// interval. `1` is emitted on the first click, `2` is emitted on the second click, etc.
@@ -473,6 +482,9 @@ impl RawPointerPress {
     }
     pub fn is_down(&self) -> bool {
         self.is_down
+    }
+    pub fn is_up(&self) -> bool {
+        !self.is_down
     }
 }
 

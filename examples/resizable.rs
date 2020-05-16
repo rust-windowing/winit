@@ -1,6 +1,6 @@
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{Event, LogicalKey, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -22,17 +22,9 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, .. } => match event {
+            Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::Space),
-                            state: ElementState::Released,
-                            ..
-                        },
-                    ..
-                } => {
+                WindowEvent::KeyPress(e) if e.is_up() && e.logical_key_is(LogicalKey::Space) => {
                     resizable = !resizable;
                     println!("Resizable: {}", resizable);
                     window.set_resizable(resizable);

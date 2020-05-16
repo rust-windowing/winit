@@ -1,7 +1,7 @@
 use std::{thread, time};
 
 use winit::{
-    event::{Event, KeyboardInput, WindowEvent},
+    event::{Event, LogicalKey, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -37,7 +37,6 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::{ElementState, StartCause, VirtualKeyCode};
         println!("{:?}", event);
         match event {
             Event::NewEvents(start_cause) => {
@@ -46,36 +45,28 @@ fn main() {
                     _ => false,
                 }
             }
-            Event::WindowEvent { event, .. } => match event {
+            Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => {
                     close_requested = true;
                 }
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
-                            state: ElementState::Pressed,
-                            ..
-                        },
-                    ..
-                } => match virtual_code {
-                    VirtualKeyCode::Key1 => {
+                WindowEvent::KeyPress(e) if e.is_down() => match e.logical_key() {
+                    Some(LogicalKey::Key1) => {
                         mode = Mode::Wait;
                         println!("\nmode: {:?}\n", mode);
                     }
-                    VirtualKeyCode::Key2 => {
+                    Some(LogicalKey::Key2) => {
                         mode = Mode::WaitUntil;
                         println!("\nmode: {:?}\n", mode);
                     }
-                    VirtualKeyCode::Key3 => {
+                    Some(LogicalKey::Key3) => {
                         mode = Mode::Poll;
                         println!("\nmode: {:?}\n", mode);
                     }
-                    VirtualKeyCode::R => {
+                    Some(LogicalKey::R) => {
                         request_redraw = !request_redraw;
                         println!("\nrequest_redraw: {}\n", request_redraw);
                     }
-                    VirtualKeyCode::Escape => {
+                    Some(LogicalKey::Escape) => {
                         close_requested = true;
                     }
                     _ => (),

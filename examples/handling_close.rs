@@ -1,5 +1,5 @@
 use winit::{
-    event::{Event, KeyboardInput, WindowEvent},
+    event::{Event, LogicalKey, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -16,67 +16,51 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::{
-            ElementState::Released,
-            VirtualKeyCode::{N, Y},
-        };
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, .. } => {
-                match event {
-                    WindowEvent::CloseRequested => {
-                        // `CloseRequested` is sent when the close button on the window is pressed (or
-                        // through whatever other mechanisms the window manager provides for closing a
-                        // window). If you don't handle this event, the close button won't actually do
-                        // anything.
+            Event::WindowEvent(_, event) => match event {
+                WindowEvent::CloseRequested => {
+                    // `CloseRequested` is sent when the close button on the window is pressed (or
+                    // through whatever other mechanisms the window manager provides for closing a
+                    // window). If you don't handle this event, the close button won't actually do
+                    // anything.
 
-                        // A common thing to do here is prompt the user if they have unsaved work.
-                        // Creating a proper dialog box for that is far beyond the scope of this
-                        // example, so here we'll just respond to the Y and N keys.
-                        println!("Are you ready to bid your window farewell? [Y/N]");
-                        close_requested = true;
+                    // A common thing to do here is prompt the user if they have unsaved work.
+                    // Creating a proper dialog box for that is far beyond the scope of this
+                    // example, so here we'll just respond to the Y and N keys.
+                    println!("Are you ready to bid your window farewell? [Y/N]");
+                    close_requested = true;
 
-                        // In applications where you can safely close the window without further
-                        // action from the user, this is generally where you'd handle cleanup before
-                        // closing the window. How to close the window is detailed in the handler for
-                        // the Y key.
+                    // In applications where you can safely close the window without further
+                    // action from the user, this is generally where you'd handle cleanup before
+                    // closing the window. How to close the window is detailed in the handler for
+                    // the Y key.
+                }
+                WindowEvent::KeyPress(e) if e.is_up() => match e.logical_key() {
+                    Some(LogicalKey::Y) => {
+                        if close_requested {
+                            // This is where you'll want to do any cleanup you need.
+                            println!("Buh-bye!");
+
+                            // For a single-window application like this, you'd normally just
+                            // break out of the event loop here. If you wanted to keep running the
+                            // event loop (i.e. if it's a multi-window application), you need to
+                            // drop the window. That closes it, and results in `Destroyed` being
+                            // sent.
+                            *control_flow = ControlFlow::Exit;
+                        }
                     }
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                virtual_keycode: Some(virtual_code),
-                                state: Released,
-                                ..
-                            },
-                        ..
-                    } => {
-                        match virtual_code {
-                            Y => {
-                                if close_requested {
-                                    // This is where you'll want to do any cleanup you need.
-                                    println!("Buh-bye!");
-
-                                    // For a single-window application like this, you'd normally just
-                                    // break out of the event loop here. If you wanted to keep running the
-                                    // event loop (i.e. if it's a multi-window application), you need to
-                                    // drop the window. That closes it, and results in `Destroyed` being
-                                    // sent.
-                                    *control_flow = ControlFlow::Exit;
-                                }
-                            }
-                            N => {
-                                if close_requested {
-                                    println!("Your window will continue to stay by your side.");
-                                    close_requested = false;
-                                }
-                            }
-                            _ => (),
+                    Some(LogicalKey::N) => {
+                        if close_requested {
+                            println!("Your window will continue to stay by your side.");
+                            close_requested = false;
                         }
                     }
                     _ => (),
-                }
-            }
+                },
+                _ => (),
+            },
             _ => (),
         }
     });

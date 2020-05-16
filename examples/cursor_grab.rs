@@ -1,5 +1,5 @@
 use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
+    event::{Event, LogicalKey, ModifiersState, RawPointerEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -19,34 +19,28 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, .. } => match event {
+            Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Released,
-                            virtual_keycode: Some(key),
-                            ..
-                        },
-                    ..
-                } => {
-                    use winit::event::VirtualKeyCode::*;
-                    match key {
-                        Escape => *control_flow = ControlFlow::Exit,
-                        G => window.set_cursor_grab(!modifiers.shift()).unwrap(),
-                        H => window.set_cursor_visible(modifiers.shift()),
-                        _ => (),
-                    }
-                }
+                WindowEvent::KeyPress(e) if e.is_down() => match e.logical_key() {
+                    Some(LogicalKey::Escape) => *control_flow = ControlFlow::Exit,
+                    Some(LogicalKey::G) => window.set_cursor_grab(!modifiers.shift()).unwrap(),
+                    Some(LogicalKey::H) => window.set_cursor_visible(modifiers.shift()),
+                    _ => (),
+                },
                 WindowEvent::ModifiersChanged(m) => modifiers = m,
                 _ => (),
             },
-            Event::DeviceEvent { event, .. } => match event {
-                DeviceEvent::MouseMotion { delta } => println!("mouse moved: {:?}", delta),
-                DeviceEvent::Button { button, state } => match state {
-                    ElementState::Pressed => println!("mouse button {} pressed", button),
-                    ElementState::Released => println!("mouse button {} released", button),
-                },
+            Event::RawPointerEvent(_, event) => match event {
+                RawPointerEvent::MovedRelative(delta) => println!("pointer moved: {:?}", delta),
+                RawPointerEvent::MovedAbsolute(position) => {
+                    println!("pointer moved to: {:?}", position)
+                }
+                RawPointerEvent::Press(e) if e.is_down() => {
+                    println!("pointer button {:?} pressed", e.button())
+                }
+                RawPointerEvent::Press(e) if e.is_up() => {
+                    println!("pointer button {:?} released", e.button())
+                }
                 _ => (),
             },
             _ => (),

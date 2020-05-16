@@ -6,11 +6,13 @@
 //! [`WindowBuilder`], populating it with data, and calling the [`WindowBuilder::build`] method:
 //!
 //! ```no_run
+//! # use winit::{event_loop::EventLoop, window::Window};
 //! let mut event_loop = EventLoop::new();
 //! let window = Window::new(&event_loop).unwrap();
 //! ```
 //!
 //! ```no_run
+//! # use winit::{event_loop::EventLoop, window::WindowBuilder};
 //! let mut event_loop = EventLoop::new();
 //! let window = WindowBuilder::new()
 //!     .with_title("A fantastic window!")
@@ -28,14 +30,18 @@
 //! `Window` will only close either when it is explicitly dropped or the application quits.
 //!
 //! ```no_run
+//! # use winit::{
+//! #     event_loop::{ControlFlow, EventLoop},
+//! #     event::{Event, WindowEvent},
+//! #     window::WindowBuilder
+//! # };
+//! # let event_loop = EventLoop::new();
 //! event_loop.run(move |event, _, control_flow| {
 //!     *control_flow = ControlFlow::Wait;
 //!
 //!     match event {
-//!         Event::WindowEvent {
-//!             event: WindowEvent::CloseRequested,
-//!             ..
-//!         } => *control_flow = ControlFlow::Exit,
+//!         Event::WindowEvent(_, WindowEvent::CloseRequested)
+//!             => *control_flow = ControlFlow::Exit,
 //!         _ => (),
 //!     }
 //! });

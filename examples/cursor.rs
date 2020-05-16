@@ -1,5 +1,5 @@
 use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{CursorIcon, WindowBuilder},
 };
@@ -17,18 +17,7 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent {
-                event:
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                ..
-                            },
-                        ..
-                    },
-                ..
-            } => {
+            Event::WindowEvent(_, WindowEvent::KeyPress(e)) if e.is_down() => {
                 println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
                 window.set_cursor_icon(CURSORS[cursor_idx]);
                 if cursor_idx < CURSORS.len() - 1 {
@@ -37,10 +26,7 @@ fn main() {
                     cursor_idx = 0;
                 }
             }
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => {
+            Event::WindowEvent(_, WindowEvent::CloseRequested) => {
                 *control_flow = ControlFlow::Exit;
                 return;
             }

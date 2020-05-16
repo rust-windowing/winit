@@ -19,13 +19,9 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
-            Event::MainEventsCleared => {
-                window.request_redraw();
-            }
+            Event::WindowEvent(window_id, WindowEvent::CloseRequested)
+                if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            Event::MainEventsCleared => window.request_redraw(),
             _ => (),
         }
     });

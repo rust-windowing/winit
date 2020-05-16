@@ -1,5 +1,5 @@
 use winit::{
-    event::{ElementState, Event, WindowEvent},
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -19,14 +19,9 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, .. } => match event {
+            Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::MouseInput {
-                    state: ElementState::Released,
-                    ..
-                } => {
-                    window.request_redraw();
-                }
+                WindowEvent::PointerPress(_, e) if e.is_up() => window.request_redraw(),
                 _ => (),
             },
             Event::RedrawRequested(_) => {

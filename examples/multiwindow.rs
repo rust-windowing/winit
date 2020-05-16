@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
@@ -19,7 +19,7 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, window_id } => {
+            Event::WindowEvent(window_id, event) => {
                 match event {
                     WindowEvent::CloseRequested => {
                         println!("Window {:?} has received the signal to close", window_id);
@@ -31,14 +31,7 @@ fn main() {
                             *control_flow = ControlFlow::Exit;
                         }
                     }
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                ..
-                            },
-                        ..
-                    } => {
+                    WindowEvent::KeyPress(e) if e.is_down() => {
                         let window = Window::new(&event_loop).unwrap();
                         windows.insert(window.id(), window);
                     }

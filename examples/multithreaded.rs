@@ -4,7 +4,7 @@ fn main() {
 
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-        event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+        event::{Event, WindowEvent, ModifiersState},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
@@ -23,6 +23,7 @@ fn main() {
 
         let mut video_modes: Vec<_> = window.current_monitor().video_modes().collect();
         let mut video_mode_id = 0usize;
+        let mut modifiers = ModifiersState::empty();
 
         let (tx, rx) = mpsc::channel();
         window_senders.insert(window.id(), tx);
@@ -47,21 +48,12 @@ fn main() {
                                 video_modes.iter().nth(video_mode_id).unwrap()
                             );
                         }
-                    }
-                    #[allow(deprecated)]
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Released,
-                                virtual_keycode: Some(key),
-                                modifiers,
-                                ..
-                            },
-                        ..
-                    } => {
+                    },
+                    WindowEvent::ModifiersChanged(mods) => modifiers = mods,
+                    WindowEvent::KeyPress(e) if e.is_up() => if let Some(key) = e.logical_key() {
                         window.set_title(&format!("{:?}", key));
                         let state = !modifiers.shift();
-                        use VirtualKeyCode::*;
+                        use winit::event::LogicalKey::*;
                         match key {
                             A => window.set_always_on_top(state),
                             C => window.set_cursor_icon(match state {
@@ -152,23 +144,14 @@ fn main() {
             false => ControlFlow::Exit,
         };
         match event {
-            Event::WindowEvent { event, window_id } => match event {
+            Event::WindowEvent(window_id, event) => match event {
                 WindowEvent::CloseRequested
-                | WindowEvent::Destroyed
-                | WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Released,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                    ..
-                } => {
+                | WindowEvent::Destroyed => {
                     window_senders.remove(&window_id);
                 }
                 _ => {
                     if let Some(tx) = window_senders.get(&window_id) {
-                        if let Some(event) = event.to_static() {
+                        if let Ok(event) = event.to_static() {
                             tx.send(event).unwrap();
                         }
                     }

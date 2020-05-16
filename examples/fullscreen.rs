@@ -1,5 +1,5 @@
 use std::io::{stdin, stdout, Write};
-use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use winit::event::{Event, LogicalKey, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::monitor::{MonitorHandle, VideoMode};
 use winit::window::{Fullscreen, WindowBuilder};
@@ -34,33 +34,25 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, .. } => match event {
+            Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
-                            state,
-                            ..
-                        },
-                    ..
-                } => match (virtual_code, state) {
-                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
-                    (VirtualKeyCode::F, ElementState::Pressed) => {
+                WindowEvent::KeyPress(e) if e.is_down() => match e.logical_key() {
+                    Some(LogicalKey::Escape) => *control_flow = ControlFlow::Exit,
+                    Some(LogicalKey::F) => {
                         if window.fullscreen().is_some() {
                             window.set_fullscreen(None);
                         } else {
                             window.set_fullscreen(fullscreen.clone());
                         }
                     }
-                    (VirtualKeyCode::S, ElementState::Pressed) => {
+                    Some(LogicalKey::S) => {
                         println!("window.fullscreen {:?}", window.fullscreen());
                     }
-                    (VirtualKeyCode::M, ElementState::Pressed) => {
+                    Some(LogicalKey::M) => {
                         is_maximized = !is_maximized;
                         window.set_maximized(is_maximized);
                     }
-                    (VirtualKeyCode::D, ElementState::Pressed) => {
+                    Some(LogicalKey::D) => {
                         decorations = !decorations;
                         window.set_decorations(decorations);
                     }
