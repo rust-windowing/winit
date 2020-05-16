@@ -1,5 +1,4 @@
 use winit::dpi::LogicalSize;
-use winit::dpi::PhysicalSize;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -38,10 +37,10 @@ fn main() {
                     },
                 ..
             } => {
-                dbg!((scale_factor, new_inner_size.inner_size()));
+                dbg!((scale_factor, new_inner_size.get()));
 
-                new_inner_size
-                    .set_inner_size(
+                let _os_suggested_value = new_inner_size
+                    .replace(
                         LogicalSize {
                             width: 100,
                             height: 200,

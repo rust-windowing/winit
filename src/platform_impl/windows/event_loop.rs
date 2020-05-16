@@ -31,10 +31,7 @@ use winapi::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{
-        DeviceEvent, Event, Force, KeyboardInput, NewInnerSizeInteriorMutCoolThing, Touch,
-        TouchPhase, WindowEvent,
-    },
+    event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
         dark_mode::try_dark_mode,
@@ -1708,14 +1705,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let inner_size_cell = NewInnerSizeInteriorMutCoolThing::new(match allow_resize {
-                // We calculate our own size because the default suggested rect doesn't do a great job
-                // of preserving the window's logical size.
-                true => old_physical_inner_size
-                    .to_logical::<f64>(old_scale_factor)
-                    .to_physical::<u32>(new_scale_factor),
-                false => old_physical_inner_size,
-            });
+            let (inner_size_cell, mut_lifetime) =
+                scoped_arc_cell::scoped_arc_cell(match allow_resize {
+                    // We calculate our own size because the default suggested rect doesn't do a great job
+                    // of preserving the window's logical size.
+                    true => old_physical_inner_size
+                        .to_logical::<f64>(old_scale_factor)
+                        .to_physical::<u32>(new_scale_factor),
+                    false => old_physical_inner_size,
+                });
 
             let _ = subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1724,9 +1722,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     new_inner_size: inner_size_cell.clone(),
                 },
             });
+            std::mem::drop(mut_lifetime);
 
-            let new_physical_inner_size = inner_size_cell.inner_size();
-            inner_size_cell.mark_new_inner_size_consumed();
+            let new_physical_inner_size = inner_size_cell.get();
 
             let dragging_window: bool;
 

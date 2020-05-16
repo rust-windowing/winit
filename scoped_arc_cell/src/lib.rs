@@ -1,4 +1,10 @@
-//! Shared mutable datastructure, with the mutability tied to the liveliness of a owner struct.
+//! Shared mutable cell containing data, with the mutability tied to the liveliness of a lifetime ScopedMutabilityOwner struct.
+//!
+//! Use `scoped_arc_cell` to create a matching `ArcCell` and `ScopedMutabilityOwner` pair. The data can be shared by cloning the `ArcCell`.
+//!
+//! As long as the `ScopedMutabilityOwner` is alive, mutating the inner data will succeed. Once the `ScopedMutabilityOwner` has been `drop`ped, the calls will fail.
+
+#![warn(missing_docs)]
 
 use crossbeam_utils::atomic::AtomicCell;
 use std::{
@@ -10,21 +16,32 @@ use std::{
     },
 };
 
-pub fn scoped_arc_cell<T: Copy>(val: T) -> (ScopedArcCell<T>, ScopedArcCellOwner<T>) {
-    let owner = ScopedArcCellOwner::new(val);
-    (owner.create_arc_cell(), owner)
+/// Create a matching `ArcCell` and `ScopedMutabilityOwner` pair wrapping some value.
+///
+/// See crate-level documentation for mutability rules.
+pub fn scoped_arc_cell<T: Copy>(val: T) -> (ArcCell<T>, ScopedMutabilityOwner<T>) {
+    let aaaa = ScopedMutabilityOwner::new(val);
+    (aaaa.create_reference(), aaaa)
 }
 
+/// Container for shared atomic interior mutability.
+///
+/// See crate-level documentation for mutability rules.
 #[derive(Debug, Clone)]
-pub struct ScopedArcCell<T: Copy> {
+pub struct ArcCell<T: Copy> {
     data: Arc<Data<T>>,
 }
 
+/// A type that owns the the mutability lifetime of the matching `ArcCell`.
+///
+/// See crate-level documentation for mutability rules.
 #[derive(Debug)]
-pub struct ScopedArcCellOwner<T: Copy> {
+pub struct ScopedMutabilityOwner<T: Copy> {
+    /// TODO(tangmi): Osspial, this is semantically an Arc<Mutex<Cell<_>>>, but implemented with AtomicCell for perf/avoiding deadlock issues?
     data: Arc<Data<T>>,
 }
 
+/// An error returned when trying to mutate a `ArcCell` that is read-only because the `ScopedMutabilityOwner` has already been `drop`ped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct StoreError<T>(pub T);
 
@@ -34,73 +51,66 @@ struct Data<T: Copy> {
     is_read_only: AtomicBool,
 }
 
-impl<T: Copy> ScopedArcCell<T> {
-    pub fn store(&self, val: T) -> Result<(), StoreError<T>> {
-        match self.data.is_read_only.load(Ordering::Acquire) {
-            false => Ok(self.data.val.store(val)),
-            true => Err(StoreError(val)),
-        }
-    }
-    pub fn swap(&self, val: T) -> Result<T, StoreError<T>> {
+impl<T: Copy> ArcCell<T> {
+    /// Replaces the contained value, and returns it.
+    pub fn replace(&self, val: T) -> Result<T, StoreError<T>> {
         match self.data.is_read_only.load(Ordering::Acquire) {
             false => Ok(self.data.val.swap(val)),
             true => Err(StoreError(val)),
         }
     }
 
-    pub fn load(&self) -> T {
+    /// Returns a copy of the contained value.
+    pub fn get(&self) -> T {
         self.data.val.load()
     }
 
+    /// Returns a raw pointer to the underlying data in this cell.
     pub fn as_ptr(&self) -> *mut T {
         self.data.val.as_ptr()
     }
 }
 
-impl<T: Copy> ScopedArcCellOwner<T> {
-    pub fn new(val: T) -> ScopedArcCellOwner<T> {
+/// Manually implement `PartialEq` to treat `Self` like just a `T`.
+impl<T: Copy + PartialEq> PartialEq<ArcCell<T>> for ArcCell<T> {
+    fn eq(&self, other: &ArcCell<T>) -> bool {
+        // Note: does not compare `is_read_only` flag.
+        self.data.val.load() == other.data.val.load()
+    }
+}
+
+impl<T: Copy> ScopedMutabilityOwner<T> {
+    fn new(val: T) -> ScopedMutabilityOwner<T> {
         let data = Arc::new(Data {
             val: AtomicCell::new(val),
             is_read_only: AtomicBool::new(false),
         });
-        ScopedArcCellOwner { data }
+        ScopedMutabilityOwner { data }
     }
 
-    pub fn create_arc_cell(&self) -> ScopedArcCell<T> {
-        ScopedArcCell {
+    /// Create a new reference from the underlying data.
+    ///
+    /// The data will remain immutably alive even after this struct's lifetime.
+    pub fn create_reference(&self) -> ArcCell<T> {
+        ArcCell {
             data: self.data.clone(),
         }
     }
-
-    pub fn store(&self, val: T) {
-        self.data.val.store(val)
-    }
-
-    pub fn swap(&self, val: T) -> T {
-        self.data.val.swap(val)
-    }
-
-    pub fn load(&self) -> T {
-        self.data.val.load()
-    }
-
-    pub fn as_ptr(&self) -> *mut T {
-        self.data.val.as_ptr()
-    }
 }
 
-impl<T: Copy> Drop for ScopedArcCellOwner<T> {
+impl<T: Copy> Drop for ScopedMutabilityOwner<T> {
     fn drop(&mut self) {
         self.data.is_read_only.store(true, Ordering::Release);
     }
 }
 
 impl<T: Debug> Error for StoreError<T> {}
+
 impl<T> Display for StoreError<T> {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(
             f,
-            "the ScopedArcCellOwner was destroyed, making this ScopedArcCell read-only"
+            "the ScopedMutabilityOwner was destroyed, making this ArcCell read-only"
         )
     }
 }

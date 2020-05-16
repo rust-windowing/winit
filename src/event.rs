@@ -41,6 +41,7 @@ use crate::{
     platform_impl,
     window::{Theme, WindowId},
 };
+use scoped_arc_cell::ArcCell;
 
 /// Describes a generic event.
 ///
@@ -294,13 +295,13 @@ pub enum WindowEvent {
     /// * Moving the window to a display with a different scale factor.
     ///
     /// After this event callback has been processed, the window will be resized to whatever value
-    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
+    /// is contained in the `new_inner_size` reference. By default, this will contain the size suggested
     /// by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     ScaleFactorChanged {
         scale_factor: f64,
-        new_inner_size: NewInnerSizeInteriorMutCoolThing,
+        new_inner_size: ArcCell<PhysicalSize<u32>>,
     },
 
     /// The system window theme has changed.
@@ -310,86 +311,6 @@ pub enum WindowEvent {
     ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
-}
-
-use std::{
-    cell::Cell,
-    fmt::Debug,
-    sync::{Arc, Mutex},
-};
-
-// TODO naming
-#[derive(Debug, Clone)]
-pub struct NewInnerSizeInteriorMutCoolThing {
-    inner: Arc<Mutex<NewInnerSizeInteriorMutCoolThingInner>>,
-}
-
-#[derive(Debug, Clone)]
-struct NewInnerSizeInteriorMutCoolThingInner {
-    /// TODO doc this uses interior mutability in `set_inner_size`!
-    new_inner_size: Cell<PhysicalSize<u32>>,
-
-    /// If the event that this originated from was handled, this struct is essential read-only. Once this field is `true`, no further calls to `set_inner_size` will succeed.
-    is_readonly: bool,
-}
-
-pub struct NewInnerSizeInteriorMutCoolThingIsReadonlyNowError;
-
-impl Debug for NewInnerSizeInteriorMutCoolThingIsReadonlyNowError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "todo error message, but this new_inner_size cell is being mutated after winit has consumed it, so there will be no effect on the window")
-    }
-}
-
-/// Manually implement `PartialEq` to treat `Self` like just a `PhysicalSize<u32>`.
-///
-/// Ignores the `Mutex` (i.e. unconditionally locks).
-impl PartialEq<NewInnerSizeInteriorMutCoolThing> for NewInnerSizeInteriorMutCoolThing {
-    /// Note: will deadlock when `other` == `self`!
-    fn eq(&self, other: &NewInnerSizeInteriorMutCoolThing) -> bool {
-        // Note: ignoring `is_readonly` flag!
-        self.inner.lock().unwrap().new_inner_size == other.inner.lock().unwrap().new_inner_size
-    }
-}
-
-impl From<NewInnerSizeInteriorMutCoolThing> for PhysicalSize<u32> {
-    fn from(new_inner_size: NewInnerSizeInteriorMutCoolThing) -> Self {
-        new_inner_size.inner_size()
-    }
-}
-
-impl NewInnerSizeInteriorMutCoolThing {
-    pub fn new(new_inner_size: PhysicalSize<u32>) -> Self {
-        Self {
-            inner: Arc::new(Mutex::new(NewInnerSizeInteriorMutCoolThingInner {
-                new_inner_size: Cell::new(new_inner_size),
-                is_readonly: false,
-            })),
-        }
-    }
-
-    // todo: doc that this needs to be called after the winit event loop processes the containing event and looks at the resulting `inner_size`.
-    pub(crate) fn mark_new_inner_size_consumed(self) {
-        self.inner.lock().unwrap().is_readonly = true;
-    }
-
-    pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.inner.lock().unwrap().new_inner_size.get()
-    }
-
-    pub fn set_inner_size(
-        &self,
-        new_size: PhysicalSize<u32>,
-    ) -> Result<(), NewInnerSizeInteriorMutCoolThingIsReadonlyNowError> {
-        let a = self.inner.lock().unwrap();
-        if a.is_readonly {
-            Err(NewInnerSizeInteriorMutCoolThingIsReadonlyNowError)
-        } else {
-            // Only one borrow guarenteed by `Mutex`.
-            a.new_inner_size.set(new_size);
-            Ok(())
-        }
-    }
 }
 
 /// Identifier of an input device.
