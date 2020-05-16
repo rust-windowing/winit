@@ -62,7 +62,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn run<F>(self, mut event_handler: F) -> !
     where
         F: 'static
-            + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+            + FnMut(event::Event<T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         let mut cf = ControlFlow::default();
         let mut first_event = None;
@@ -99,11 +99,12 @@ impl<T: 'static> EventLoop<T> {
                         *CONFIG.write().unwrap() = config;
                         let scale_factor = MonitorHandle.scale_factor();
                         if (scale_factor - old_scale_factor).abs() < f64::EPSILON {
-                            let mut size = MonitorHandle.size();
+                            let (new_inner_size, _mut_owner) =
+                                scoped_arc_cell::scoped_arc_cell(MonitorHandle.size());
                             let event = event::Event::WindowEvent {
                                 window_id: window::WindowId(WindowId),
                                 event: event::WindowEvent::ScaleFactorChanged {
-                                    new_inner_size: &mut size,
+                                    new_inner_size,
                                     scale_factor,
                                 },
                             };
