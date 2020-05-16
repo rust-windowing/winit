@@ -293,14 +293,14 @@ pub struct RawKeyPress {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PointerPress {
-    pub(crate) button: u8,
+    pub(crate) button: PointerButton,
     pub(crate) is_down: bool,
     pub(crate) click_count: u32,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RawPointerPress {
-    pub(crate) button: u8,
+    pub(crate) button: PointerButton,
     pub(crate) is_down: bool,
 }
 
@@ -345,7 +345,7 @@ impl RawKeyPress {
 }
 
 impl PointerPress {
-    pub fn button(&self) -> u8 {
+    pub fn button(&self) -> PointerButton {
         self.button
     }
     pub fn is_down(&self) -> bool {
@@ -359,7 +359,7 @@ impl PointerPress {
 }
 
 impl RawPointerPress {
-    pub fn button(&self) -> u8 {
+    pub fn button(&self) -> PointerButton {
         self.button
     }
     pub fn is_down(&self) -> bool {
@@ -392,9 +392,63 @@ pub enum PointerId {
     // PenId(PenId),
 }
 
-/// Hardware-dependent keyboard scan code.
-pub type ScanCode = u32;
-pub type PointerButton = u8;
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[repr(transparent)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(transparent))]
+pub struct PointerButton(PointerButtonInner);
+
+/// We use an internal enum rather than exposing the variants directly so that the `BUTTON_n`
+/// constants are formatted and exposed in a similar style to the `{MOUSE|TOUCH|PEN}_n` constants.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename = "PointerButton"))]
+enum PointerButtonInner {
+    Button0,
+    Button1,
+    Button2,
+    Button3,
+    Button4,
+    Button5,
+}
+
+impl PointerButton {
+    pub const MOUSE_LEFT: Self = Self::BUTTON_0;
+    pub const MOUSE_RIGHT: Self = Self::BUTTON_1;
+    pub const MOUSE_MIDDLE: Self = Self::BUTTON_2;
+    pub const MOUSE_X1: Self = Self::BUTTON_3;
+    pub const MOUSE_X2: Self = Self::BUTTON_4;
+
+    pub const TOUCH_DOWN: Self = Self::BUTTON_0;
+
+    // pub const PEN_DOWN: Self = Self::BUTTON_0;
+    // pub const PEN_BARREL: Self = Self::BUTTON_1;
+    // pub const PEN_ERASER: Self = Self::BUTTON_5;
+
+    pub const BUTTON_0: Self = Self(PointerButtonInner::Button0);
+    pub const BUTTON_1: Self = Self(PointerButtonInner::Button1);
+    pub const BUTTON_2: Self = Self(PointerButtonInner::Button2);
+    pub const BUTTON_3: Self = Self(PointerButtonInner::Button3);
+    pub const BUTTON_4: Self = Self(PointerButtonInner::Button4);
+    // pub const BUTTON_5: Self = Self(PointerButtonInner::Button5);
+
+    pub fn as_u8(&self) -> u8 { self.0 }
+    pub fn is_mouse_left(&self) -> bool { *self == Self::MOUSE_LEFT }
+    pub fn is_mouse_right(&self) -> bool { *self == Self::MOUSE_RIGHT }
+    pub fn is_mouse_middle(&self) -> bool { *self == Self::MOUSE_MIDDLE }
+    pub fn is_mouse_x1(&self) -> bool { *self == Self::MOUSE_X1 }
+    pub fn is_mouse_x2(&self) -> bool { *self == Self::MOUSE_X2 }
+    pub fn is_touch_down(&self) -> bool { *self == Self::TOUCH_DOWN }
+    // pub fn is_pen_down(&self) -> bool { *self == Self::PEN_DOWN }
+    // pub fn is_pen_barrel(&self) -> bool { *self == Self::PEN_BARREL }
+    // pub fn is_pen_eraser(&self) -> bool { *self == Self::PEN_ERASER }
+    pub fn is_button_0(&self) -> bool { *self == Self::BUTTON_0 }
+    pub fn is_button_1(&self) -> bool { *self == Self::BUTTON_1 }
+    pub fn is_button_2(&self) -> bool { *self == Self::BUTTON_2 }
+    pub fn is_button_3(&self) -> bool { *self == Self::BUTTON_3 }
+    pub fn is_button_4(&self) -> bool { *self == Self::BUTTON_4 }
+    // pub fn is_button_5(&self) -> bool { *self == Self::BUTTON_5 }
+}
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum RawPointerEvent {
