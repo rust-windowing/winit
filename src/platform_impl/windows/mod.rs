@@ -1,6 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use winapi::{self, shared::windef::HWND};
+use winapi::{self, shared::windef::HWND, um::winnt::HANDLE};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
@@ -11,7 +11,6 @@ pub use self::{
 
 pub use self::icon::WinIcon as PlatformIcon;
 
-use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
 
 #[derive(Clone, Default)]
@@ -30,30 +29,68 @@ pub struct Cursor(pub *const winapi::ctypes::wchar_t);
 unsafe impl Send for Cursor {}
 unsafe impl Sync for Cursor {}
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(u32);
+macro_rules! device_id {
+    ($name:ident) => {
+        #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        pub(crate) struct $name(HANDLE);
 
-impl DeviceId {
-    pub unsafe fn dummy() -> Self {
-        DeviceId(0)
-    }
-}
+        unsafe impl Send for $name {}
+        unsafe impl Sync for $name {}
 
-impl DeviceId {
-    pub fn persistent_identifier(&self) -> Option<String> {
-        if self.0 != 0 {
-            raw_input::get_raw_input_device_name(self.0 as _)
-        } else {
-            None
+        impl $name {
+            pub unsafe fn dummy() -> Self {
+                Self(std::ptr::null_mut())
+            }
+
+            pub fn persistent_identifier(&self) -> Option<String> {
+                raw_input::get_raw_input_device_name(self.0)
+            }
+
+            #[inline(always)]
+            pub fn handle(&self) -> HANDLE {
+                self.0
+            }
         }
+
+        impl From<$name> for crate::event::$name {
+            fn from(platform_id: $name) -> Self {
+                Self(platform_id)
+            }
+        }
+    };
+}
+
+device_id!(PointerDeviceId);
+device_id!(KeyboardDeviceId);
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MouseId;
+impl MouseId {
+    pub unsafe fn dummy() -> Self {
+        MouseId
+    }
+}
+impl From<MouseId> for crate::event::MouseId {
+    fn from(platform_id: MouseId) -> Self {
+        Self(platform_id)
     }
 }
 
-// Constant device ID, to be removed when this backend is updated to report real device IDs.
-const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
+impl crate::event::PointerId {
+    const MOUSE_ID: Self = Self::MouseId(crate::event::MouseId(MouseId));
+}
 
-fn wrap_device_id(id: u32) -> RootDeviceId {
-    RootDeviceId(DeviceId(id))
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TouchId(u32);
+impl TouchId {
+    pub unsafe fn dummy() -> Self {
+        TouchId(!0)
+    }
+}
+impl From<TouchId> for crate::event::TouchId {
+    fn from(platform_id: TouchId) -> Self {
+        Self(platform_id)
+    }
 }
 
 pub type OsError = std::io::Error;
@@ -68,6 +105,12 @@ impl WindowId {
         use std::ptr::null_mut;
 
         WindowId(null_mut())
+    }
+}
+
+impl From<WindowId> for crate::window::WindowId {
+    fn from(platform_id: WindowId) -> Self {
+        Self(platform_id)
     }
 }
 

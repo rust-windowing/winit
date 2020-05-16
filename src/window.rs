@@ -1,4 +1,46 @@
-//! The `Window` struct and associated types.
+//! The [`Window`] struct and associated types.
+//!
+//! # Window creation
+//!
+//! [`Window`]s can be created either by calling the [`Window::new`] function or by creating a
+//! [`WindowBuilder`], populating it with data, and calling the [`WindowBuilder::build`] method:
+//!
+//! ```no_run
+//! let mut event_loop = EventLoop::new();
+//! let window = Window::new(&event_loop).unwrap();
+//! ```
+//!
+//! ```no_run
+//! let mut event_loop = EventLoop::new();
+//! let window = WindowBuilder::new()
+//!     .with_title("A fantastic window!")
+//!     .build(&event_loop)
+//!     .unwrap();
+//! ```
+//!
+//! # Rendering
+//!
+//! Winit does not provide any tools to directly render onto windows. Instead, you should use
+//! either the platform-specific handle retrieval methods provided in the `platform` module
+//!
+//! Applications should listen for `WindowEvent::CloseRequested` to handle the user attempting to
+//! close the window. `CloseRequested` does not force the window to be closed immediately - the
+//! `Window` will only close either when it is explicitly dropped or the application quits.
+//!
+//! ```no_run
+//! event_loop.run(move |event, _, control_flow| {
+//!     *control_flow = ControlFlow::Wait;
+//!
+//!     match event {
+//!         Event::WindowEvent {
+//!             event: WindowEvent::CloseRequested,
+//!             ..
+//!         } => *control_flow = ControlFlow::Exit,
+//!         _ => (),
+//!     }
+//! });
+//! ```
+
 use std::fmt;
 
 use crate::{
@@ -13,30 +55,7 @@ pub use crate::icon::{BadIcon, Icon};
 
 /// Represents a window.
 ///
-/// # Example
-///
-/// ```no_run
-/// use winit::{
-///     event::{Event, WindowEvent},
-///     event_loop::{ControlFlow, EventLoop},
-///     window::Window,
-/// };
-///
-/// let mut event_loop = EventLoop::new();
-/// let window = Window::new(&event_loop).unwrap();
-///
-/// event_loop.run(move |event, _, control_flow| {
-///     *control_flow = ControlFlow::Wait;
-///
-///     match event {
-///         Event::WindowEvent {
-///             event: WindowEvent::CloseRequested,
-///             ..
-///         } => *control_flow = ControlFlow::Exit,
-///         _ => (),
-///     }
-/// });
-/// ```
+/// See the module-level docs for more info.
 pub struct Window {
     pub(crate) window: platform_impl::Window,
 }
@@ -80,6 +99,8 @@ impl WindowId {
 }
 
 /// Object that allows you to build windows.
+///
+/// See the module-level docs for more info.
 #[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
@@ -863,7 +884,7 @@ pub enum Fullscreen {
     Borderless(MonitorHandle),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Theme {
     Light,
     Dark,

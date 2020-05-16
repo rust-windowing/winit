@@ -24,7 +24,7 @@ use winapi::{
 
 use crate::platform_impl::platform::WindowId;
 
-use crate::{event::Event, window::WindowId as SuperWindowId};
+use crate::event::{Event, WindowEvent};
 
 #[repr(C)]
 pub struct FileDropHandlerData {
@@ -92,13 +92,12 @@ impl FileDropHandler {
         _pt: *const POINTL,
         pdwEffect: *mut DWORD,
     ) -> HRESULT {
-        use crate::event::WindowEvent::HoveredFile;
         let drop_handler = Self::from_interface(this);
         let hdrop = Self::iterate_filenames(pDataObj, |filename| {
-            drop_handler.send_event(Event::WindowEvent {
-                window_id: SuperWindowId(WindowId(drop_handler.window)),
-                event: HoveredFile(filename),
-            });
+            drop_handler.send_event(Event::WindowEvent(
+                WindowId(drop_handler.window).into(),
+                WindowEvent::FileHovered(filename),
+            ));
         });
         drop_handler.hovered_is_valid = hdrop.is_some();
         drop_handler.cursor_effect = if drop_handler.hovered_is_valid {
@@ -124,13 +123,12 @@ impl FileDropHandler {
     }
 
     pub unsafe extern "system" fn DragLeave(this: *mut IDropTarget) -> HRESULT {
-        use crate::event::WindowEvent::HoveredFileCancelled;
         let drop_handler = Self::from_interface(this);
         if drop_handler.hovered_is_valid {
-            drop_handler.send_event(Event::WindowEvent {
-                window_id: SuperWindowId(WindowId(drop_handler.window)),
-                event: HoveredFileCancelled,
-            });
+            drop_handler.send_event(Event::WindowEvent(
+                WindowId(drop_handler.window).into(),
+                WindowEvent::FileHoverCancelled
+            ));
         }
 
         S_OK
@@ -143,13 +141,12 @@ impl FileDropHandler {
         _pt: *const POINTL,
         _pdwEffect: *mut DWORD,
     ) -> HRESULT {
-        use crate::event::WindowEvent::DroppedFile;
         let drop_handler = Self::from_interface(this);
         let hdrop = Self::iterate_filenames(pDataObj, |filename| {
-            drop_handler.send_event(Event::WindowEvent {
-                window_id: SuperWindowId(WindowId(drop_handler.window)),
-                event: DroppedFile(filename),
-            });
+            drop_handler.send_event(Event::WindowEvent(
+                WindowId(drop_handler.window).into(),
+                WindowEvent::FileDropped(filename),
+            ));
         });
         if let Some(hdrop) = hdrop {
             shellapi::DragFinish(hdrop);

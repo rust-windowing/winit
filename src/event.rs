@@ -40,7 +40,7 @@ use std::{
 };
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, PhysicalDelta, UnitlessDelta},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -61,8 +61,7 @@ pub enum Event<'a, T: 'static> {
     AppEvent(AppEvent),
 
     /// Emitted when the OS sends an event to a winit window.
-    WindowEvent(WindowId, WindowEvent),
-    WindowEventImmediate(WindowId, WindowEventImmediate<'a>),
+    WindowEvent(WindowId, WindowEvent<'a>),
 
     RawPointerEvent(PointerDeviceId, RawPointerEvent),
     RawKeyboardEvent(KeyboardDeviceId, RawKeyboardEvent),
@@ -127,16 +126,14 @@ impl<'a, T> Event<'a, T> {
         match self {
             UserEvent(_) => Err(self),
             WindowEvent(window_id, event) => Ok(WindowEvent(window_id, event)),
-            WindowEventImmediate(window_id, event) => Ok(WindowEventImmediate(window_id, event)),
             RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
             RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
+            AppEvent(app_event) => Ok(AppEvent(app_event)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             MainEventsCleared => Ok(MainEventsCleared),
             RedrawRequested(wid) => Ok(RedrawRequested(wid)),
             RedrawEventsCleared => Ok(RedrawEventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),
-            Suspended => Ok(Suspended),
-            Resumed => Ok(Resumed),
         }
     }
 
@@ -146,12 +143,12 @@ impl<'a, T> Event<'a, T> {
         use self::Event::*;
         match self {
             NewEvents(cause) => Ok(NewEvents(cause)),
-            WindowEvent(window_id, event) => Ok(WindowEvent(window_id, event)),
-            WindowEventImmediate(window_id, event) => Err(WindowEventImmediate(window_id, event)),
+            WindowEvent(window_id, event) => event.to_static()
+                .map(|e| -> Event<'static, T> {WindowEvent(window_id, e)})
+                .map_err(|e| -> Event<'a, T> {WindowEvent(window_id, e)}),
             RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
             RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
-            Suspended => Ok(Suspended),
-            Resumed => Ok(Resumed),
+            AppEvent(app_event) => Ok(AppEvent(app_event)),
             UserEvent(e) => Ok(UserEvent(e)),
             MainEventsCleared => Ok(MainEventsCleared),
             RedrawRequested(wid) => Ok(RedrawRequested(wid)),
@@ -188,9 +185,9 @@ pub enum StartCause {
 }
 
 /// Describes an event from a `Window`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum WindowEvent {
+pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
 
@@ -207,28 +204,28 @@ pub enum WindowEvent {
     ///
     /// When the user drops multiple files at once, this event will be emitted for each file
     /// separately.
-    DroppedFile(PathBuf),
+    FileDropped(PathBuf),
 
     /// A file is being hovered over the window.
     ///
     /// When the user hovers multiple files at once, this event will be emitted for each file
     /// separately.
-    HoveredFile(PathBuf),
+    FileHovered(PathBuf),
 
     /// A file was hovered, but has exited the window.
     ///
     /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
     /// hovered.
-    HoveredFileCancelled,
+    FileHoverCancelled,
 
     /// The window gained focus.
-    FocusedGained,
+    FocusGained,
 
     /// The window lost focus.
-    FocustLost,
+    FocusLost,
 
     /// The window received a unicode character.
-    Char(char),
+    CharReceived(char),
 
     KeyPress(KeyPress),
 
@@ -243,20 +240,16 @@ pub enum WindowEvent {
     ModifiersChanged(ModifiersState),
 
     PointerCreated(PointerId),
-    PointerDestroyed(PointerId),
-
+    PointerForce(PointerId, Force),
     PointerMoved(PointerId, PhysicalPosition<f64>),
-
+    PointerPress(PointerId, PointerPress),
     PointerEntered(PointerId),
     PointerLeft(PointerId),
-
-    PointerForce(PointerId, Force),
-
-    PointerPress(PointerId, PointerPress),
+    PointerDestroyed(PointerId),
 
     ScrollStarted,
-    ScrollDiscrete(Vector<i32>),
-    ScrollSmooth(Vector<f64>),
+    ScrollLines(UnitlessDelta<f64>),
+    ScrollPixels(PhysicalDelta<f64>),
     ScrollEnded,
 
     /// The system window theme has changed.
@@ -266,13 +259,87 @@ pub enum WindowEvent {
     ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
+
+    /// The window's scale factor has changed.
+    ///
+    /// The following user actions can cause DPI changes:
+    ///
+    /// * Changing the display's resolution.
+    /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
+    /// * Moving the window to a display with a different scale factor.
+    ///
+    /// After this event callback has been processed, the window will be resized to whatever value
+    /// is pointed to by the `PhysicalSize` reference. By default, this will contain the size suggested
+    /// by the OS, but it can be changed to any value.
+    ///
+    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
+    ScaleFactorChanged(f64, &'a mut PhysicalSize<u32>),
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Vector<T> {
-    pub x: T,
-    pub y: T,
+impl Clone for WindowEvent<'static> {
+    fn clone(&self) -> Self {
+        use self::WindowEvent::*;
+        match *self {
+            Resized(size) => Resized(size),
+            Moved(position) => Moved(position),
+            CloseRequested => CloseRequested,
+            Destroyed => Destroyed,
+            FileDropped(ref path) => FileDropped(path.clone()),
+            FileHovered(ref path) => FileHovered(path.clone()),
+            FileHoverCancelled => FileHoverCancelled,
+            FocusGained => FocusGained,
+            FocusLost => FocusLost,
+            CharReceived(char) => CharReceived(char),
+            KeyPress(key_press) => KeyPress(key_press),
+            ModifiersChanged(state) => ModifiersChanged(state),
+            PointerCreated(id) => PointerCreated(id),
+            PointerForce(id, force) => PointerForce(id, force),
+            PointerMoved(id, position) => PointerMoved(id, position),
+            PointerPress(id, pointer_press) => PointerPress(id, pointer_press),
+            PointerEntered(id) => PointerEntered(id),
+            PointerLeft(id) => PointerLeft(id),
+            PointerDestroyed(id) => PointerDestroyed(id),
+            ScrollStarted => ScrollStarted,
+            ScrollLines(delta) => ScrollLines(delta),
+            ScrollPixels(delta) => ScrollPixels(delta),
+            ScrollEnded => ScrollEnded,
+            ThemeChanged(theme) => ThemeChanged(theme),
+            ScaleFactorChanged(..) => unreachable!("Static event can't be about scale factor changing")
+        }
+    }
+}
+
+impl<'a> WindowEvent<'a> {
+    pub fn to_static(self) -> Result<WindowEvent<'static>, WindowEvent<'a>> {
+        use self::WindowEvent::*;
+        match self {
+            Resized(size) => Ok(Resized(size)),
+            Moved(position) => Ok(Moved(position)),
+            CloseRequested => Ok(CloseRequested),
+            Destroyed => Ok(Destroyed),
+            FileDropped(path) => Ok(FileDropped(path)),
+            FileHovered(path) => Ok(FileHovered(path)),
+            FileHoverCancelled => Ok(FileHoverCancelled),
+            FocusGained => Ok(FocusGained),
+            FocusLost => Ok(FocusLost),
+            CharReceived(char) => Ok(CharReceived(char)),
+            KeyPress(key_press) => Ok(KeyPress(key_press)),
+            ModifiersChanged(state) => Ok(ModifiersChanged(state)),
+            PointerCreated(id) => Ok(PointerCreated(id)),
+            PointerForce(id, force) => Ok(PointerForce(id, force)),
+            PointerMoved(id, position) => Ok(PointerMoved(id, position)),
+            PointerPress(id, pointer_press) => Ok(PointerPress(id, pointer_press)),
+            PointerEntered(id) => Ok(PointerEntered(id)),
+            PointerLeft(id) => Ok(PointerLeft(id)),
+            PointerDestroyed(id) => Ok(PointerDestroyed(id)),
+            ScrollStarted => Ok(ScrollStarted),
+            ScrollLines(delta) => Ok(ScrollLines(delta)),
+            ScrollPixels(delta) => Ok(ScrollPixels(delta)),
+            ScrollEnded => Ok(ScrollEnded),
+            ThemeChanged(theme) => Ok(ThemeChanged(theme)),
+            ScaleFactorChanged(..) => Err(self),
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -308,6 +375,11 @@ impl KeyPress {
     pub fn logical_key(&self) -> Option<LogicalKey> {
         self.logical_key
     }
+
+    pub fn logical_key_is(&self, key: LogicalKey) -> bool {
+        self.logical_key == Some(key)
+    }
+
     pub fn scan_code(&self) -> u32 {
         self.scan_code
     }
@@ -315,8 +387,10 @@ impl KeyPress {
         self.is_down
     }
     /// Is `true` if the user has held down the key long enough to send duplicate events.
+    ///
+    /// Is always `false` if `is_down` is `false`.
     pub fn is_repeat(&self) -> bool {
-        self.repeat_count
+        self.is_repeat
     }
     /// If set, the event was generated synthetically by winit
     /// in one of the following circumstances:
@@ -353,6 +427,8 @@ impl PointerPress {
     }
     /// The number of clicks the user has made in the same spot within the system's double-click
     /// interval. `1` is emitted on the first click, `2` is emitted on the second click, etc.
+    ///
+    /// Is always `0` if `is_down` is `false`.
     pub fn click_count(&self) -> u32 {
         self.click_count
     }
@@ -367,29 +443,34 @@ impl RawPointerPress {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub enum WindowEventImmediate<'a> {
-    /// The window's scale factor has changed.
-    ///
-    /// The following user actions can cause DPI changes:
-    ///
-    /// * Changing the display's resolution.
-    /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
-    /// * Moving the window to a display with a different scale factor.
-    ///
-    /// After this event callback has been processed, the window will be resized to whatever value
-    /// is pointed to by the `PhysicalSize` reference. By default, this will contain the size suggested
-    /// by the OS, but it can be changed to any value.
-    ///
-    /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
-    ScaleFactorChanged(f64, &'a mut PhysicalSize<u32>),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PointerId {
     MouseId(MouseId),
     TouchId(TouchId),
     // PenId(PenId),
+}
+
+impl PointerId {
+    pub fn is_mouse_id(&self) -> bool {
+        match *self {
+            PointerId::MouseId(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_touch_id(&self) -> bool {
+        match *self {
+            PointerId::TouchId(_) => true,
+            _ => false,
+        }
+    }
+
+    // pub fn is_pen_id(&self) -> bool {
+    //     match *self {
+    //         PointerId::PenId(_) => true,
+    //         _ => false,
+    //     }
+    // }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -404,50 +485,50 @@ pub struct PointerButton(PointerButtonInner);
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename = "PointerButton"))]
 enum PointerButtonInner {
-    Button0,
     Button1,
     Button2,
     Button3,
     Button4,
     Button5,
+    // Button6,
 }
 
 impl PointerButton {
-    pub const MOUSE_LEFT: Self = Self::BUTTON_0;
-    pub const MOUSE_RIGHT: Self = Self::BUTTON_1;
-    pub const MOUSE_MIDDLE: Self = Self::BUTTON_2;
-    pub const MOUSE_X1: Self = Self::BUTTON_3;
-    pub const MOUSE_X2: Self = Self::BUTTON_4;
+    pub const MOUSE_LEFT: Self = Self::BUTTON_1;
+    pub const MOUSE_RIGHT: Self = Self::BUTTON_2;
+    pub const MOUSE_MIDDLE: Self = Self::BUTTON_3;
+    pub const MOUSE_X1: Self = Self::BUTTON_4;
+    pub const MOUSE_X2: Self = Self::BUTTON_5;
 
-    pub const TOUCH_DOWN: Self = Self::BUTTON_0;
+    pub const TOUCH_CONTACT: Self = Self::BUTTON_1;
 
-    // pub const PEN_DOWN: Self = Self::BUTTON_0;
-    // pub const PEN_BARREL: Self = Self::BUTTON_1;
-    // pub const PEN_ERASER: Self = Self::BUTTON_5;
+    // pub const PEN_DOWN: Self = Self::BUTTON_1;
+    // pub const PEN_BARREL: Self = Self::BUTTON_2;
+    // pub const PEN_ERASER: Self = Self::BUTTON_6;
 
-    pub const BUTTON_0: Self = Self(PointerButtonInner::Button0);
     pub const BUTTON_1: Self = Self(PointerButtonInner::Button1);
     pub const BUTTON_2: Self = Self(PointerButtonInner::Button2);
     pub const BUTTON_3: Self = Self(PointerButtonInner::Button3);
     pub const BUTTON_4: Self = Self(PointerButtonInner::Button4);
-    // pub const BUTTON_5: Self = Self(PointerButtonInner::Button5);
+    pub const BUTTON_5: Self = Self(PointerButtonInner::Button5);
+    // pub const BUTTON_6: Self = Self(PointerButtonInner::Button6);
 
-    pub fn as_u8(&self) -> u8 { self.0 }
+    pub fn as_u8(&self) -> u8 { self.0 as u8 }
     pub fn is_mouse_left(&self) -> bool { *self == Self::MOUSE_LEFT }
     pub fn is_mouse_right(&self) -> bool { *self == Self::MOUSE_RIGHT }
     pub fn is_mouse_middle(&self) -> bool { *self == Self::MOUSE_MIDDLE }
     pub fn is_mouse_x1(&self) -> bool { *self == Self::MOUSE_X1 }
     pub fn is_mouse_x2(&self) -> bool { *self == Self::MOUSE_X2 }
-    pub fn is_touch_down(&self) -> bool { *self == Self::TOUCH_DOWN }
-    // pub fn is_pen_down(&self) -> bool { *self == Self::PEN_DOWN }
+    pub fn is_touch_contact(&self) -> bool { *self == Self::TOUCH_CONTACT }
+    // pub fn is_pen_contact(&self) -> bool { *self == Self::PEN_CONTACT }
     // pub fn is_pen_barrel(&self) -> bool { *self == Self::PEN_BARREL }
     // pub fn is_pen_eraser(&self) -> bool { *self == Self::PEN_ERASER }
-    pub fn is_button_0(&self) -> bool { *self == Self::BUTTON_0 }
     pub fn is_button_1(&self) -> bool { *self == Self::BUTTON_1 }
     pub fn is_button_2(&self) -> bool { *self == Self::BUTTON_2 }
     pub fn is_button_3(&self) -> bool { *self == Self::BUTTON_3 }
     pub fn is_button_4(&self) -> bool { *self == Self::BUTTON_4 }
-    // pub fn is_button_5(&self) -> bool { *self == Self::BUTTON_5 }
+    pub fn is_button_5(&self) -> bool { *self == Self::BUTTON_5 }
+    // pub fn is_button_6(&self) -> bool { *self == Self::BUTTON_6 }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -462,14 +543,14 @@ pub enum RawPointerEvent {
     /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
     /// the values provided here are the change in position of the mouse since the previous
     /// `MovedRelative` event.
-    MovedRelative(Vector<f64>),
+    MovedRelative(PhysicalDelta<f64>),
     /// Change in absolute position of a pointing device.
     ///
     /// The `PhysicalPosition` value is the new position of the cursor relative to the desktop. This
     /// generally doesn't get output by standard mouse devices, but can get output from tablet devices.
     MovedAbsolute(PhysicalPosition<f64>),
     /// Change in rotation of mouse wheel.
-    Wheel(Vector<f64>),
+    Wheel(UnitlessDelta<f64>),
 }
 
 /// Raw keyboard events.

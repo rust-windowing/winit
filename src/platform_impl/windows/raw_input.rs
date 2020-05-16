@@ -21,7 +21,10 @@ use winapi::{
     },
 };
 
-use crate::{event::ElementState, platform_impl::platform::util};
+use crate::{
+    event::PointerButton,
+    platform_impl::platform::util,
+};
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
@@ -189,33 +192,43 @@ fn button_flags_to_element_state(
     button_flags: USHORT,
     down_flag: USHORT,
     up_flag: USHORT,
-) -> Option<ElementState> {
+) -> Option<bool> {
     // We assume the same button won't be simultaneously pressed and released.
     if util::has_flag(button_flags, down_flag) {
-        Some(ElementState::Pressed)
+        Some(true)
     } else if util::has_flag(button_flags, up_flag) {
-        Some(ElementState::Released)
+        Some(false)
     } else {
         None
     }
 }
 
-pub fn get_raw_mouse_button_state(button_flags: USHORT) -> [Option<ElementState>; 3] {
+pub fn get_raw_mouse_button_state(button_flags: USHORT) -> [Option<(PointerButton, bool)>; 5] {
     [
         button_flags_to_element_state(
             button_flags,
-            winuser::RI_MOUSE_LEFT_BUTTON_DOWN,
-            winuser::RI_MOUSE_LEFT_BUTTON_UP,
-        ),
+            winuser::RI_MOUSE_BUTTON_1_DOWN,
+            winuser::RI_MOUSE_BUTTON_1_UP,
+        ).map(|b| (PointerButton::BUTTON_1, b)),
         button_flags_to_element_state(
             button_flags,
-            winuser::RI_MOUSE_MIDDLE_BUTTON_DOWN,
-            winuser::RI_MOUSE_MIDDLE_BUTTON_UP,
-        ),
+            winuser::RI_MOUSE_BUTTON_2_DOWN,
+            winuser::RI_MOUSE_BUTTON_2_UP,
+        ).map(|b| (PointerButton::BUTTON_2, b)),
         button_flags_to_element_state(
             button_flags,
-            winuser::RI_MOUSE_RIGHT_BUTTON_DOWN,
-            winuser::RI_MOUSE_RIGHT_BUTTON_UP,
-        ),
+            winuser::RI_MOUSE_BUTTON_3_DOWN,
+            winuser::RI_MOUSE_BUTTON_3_UP,
+        ).map(|b| (PointerButton::BUTTON_3, b)),
+        button_flags_to_element_state(
+            button_flags,
+            winuser::RI_MOUSE_BUTTON_4_DOWN,
+            winuser::RI_MOUSE_BUTTON_4_UP,
+        ).map(|b| (PointerButton::BUTTON_4, b)),
+        button_flags_to_element_state(
+            button_flags,
+            winuser::RI_MOUSE_BUTTON_5_DOWN,
+            winuser::RI_MOUSE_BUTTON_5_UP,
+        ).map(|b| (PointerButton::BUTTON_5, b)),
     ]
 }

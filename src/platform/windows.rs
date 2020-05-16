@@ -9,7 +9,7 @@ use winapi::shared::windef::HWND;
 
 use crate::{
     dpi::PhysicalSize,
-    event::DeviceId,
+    event::{PointerDeviceId, KeyboardDeviceId},
     event_loop::EventLoop,
     monitor::MonitorHandle,
     platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
@@ -160,18 +160,38 @@ impl MonitorHandleExtWindows for MonitorHandle {
     }
 }
 
-/// Additional methods on `DeviceId` that are specific to Windows.
+/// Additional methods on device IDs that are specific to Windows.
 pub trait DeviceIdExtWindows {
     /// Returns an identifier that persistently refers to this specific device.
     ///
     /// Will return `None` if the device is no longer available.
     fn persistent_identifier(&self) -> Option<String>;
+
+    /// Returns the handle of the device - `HANDLE`.
+    fn handle(&self) -> *mut c_void;
 }
 
-impl DeviceIdExtWindows for DeviceId {
+impl DeviceIdExtWindows for PointerDeviceId {
     #[inline]
     fn persistent_identifier(&self) -> Option<String> {
         self.0.persistent_identifier()
+    }
+
+    #[inline]
+    fn handle(&self) -> *mut c_void {
+        self.0.handle() as _
+    }
+}
+
+impl DeviceIdExtWindows for KeyboardDeviceId {
+    #[inline]
+    fn persistent_identifier(&self) -> Option<String> {
+        self.0.persistent_identifier()
+    }
+
+    #[inline]
+    fn handle(&self) -> *mut c_void {
+        self.0.handle() as _
     }
 }
 
