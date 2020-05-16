@@ -1705,7 +1705,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
             // exiting fullscreen (the restored size is already DPI adjusted).
-            let (inner_size_cell, mut_lifetime) =
+            let (new_inner_size, new_inner_size_mut_owner) =
                 scoped_arc_cell::scoped_arc_cell(match allow_resize {
                     // We calculate our own size because the default suggested rect doesn't do a great job
                     // of preserving the window's logical size.
@@ -1719,12 +1719,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 window_id: RootWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,
-                    new_inner_size: inner_size_cell.clone(),
+                    new_inner_size: new_inner_size.clone(),
                 },
             });
-            std::mem::drop(mut_lifetime);
+            std::mem::drop(new_inner_size_mut_owner);
 
-            let new_physical_inner_size = inner_size_cell.get();
+            let new_physical_inner_size = new_inner_size.get();
 
             let dragging_window: bool;
 
