@@ -37,8 +37,7 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: 'static
-            + FnMut(Event<'static, T>, &root::EventLoopWindowTarget<T>, &mut root::ControlFlow),
+        F: 'static + FnMut(Event<T>, &root::EventLoopWindowTarget<T>, &mut root::ControlFlow),
     {
         let target = root::EventLoopWindowTarget {
             p: self.elw.p.clone(),

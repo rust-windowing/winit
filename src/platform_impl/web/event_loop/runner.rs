@@ -22,7 +22,7 @@ impl<T> Clone for Shared<T> {
 
 pub struct Execution<T: 'static> {
     runner: RefCell<Option<Runner<T>>>,
-    events: RefCell<VecDeque<Event<'static, T>>>,
+    events: RefCell<VecDeque<Event<T>>>,
     id: RefCell<u32>,
     redraw_pending: RefCell<HashSet<WindowId>>,
 }
@@ -30,11 +30,11 @@ pub struct Execution<T: 'static> {
 struct Runner<T: 'static> {
     state: State,
     is_busy: bool,
-    event_handler: Box<dyn FnMut(Event<'static, T>, &mut root::ControlFlow)>,
+    event_handler: Box<dyn FnMut(Event<T>, &mut root::ControlFlow)>,
 }
 
 impl<T: 'static> Runner<T> {
-    pub fn new(event_handler: Box<dyn FnMut(Event<'static, T>, &mut root::ControlFlow)>) -> Self {
+    pub fn new(event_handler: Box<dyn FnMut(Event<T>, &mut root::ControlFlow)>) -> Self {
         Runner {
             state: State::Init,
             is_busy: false,
@@ -56,10 +56,7 @@ impl<T: 'static> Shared<T> {
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootEventLoopWindowTarget reference
-    pub fn set_listener(
-        &self,
-        event_handler: Box<dyn FnMut(Event<'static, T>, &mut root::ControlFlow)>,
-    ) {
+    pub fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut root::ControlFlow)>) {
         self.0.runner.replace(Some(Runner::new(event_handler)));
         self.init();
 
@@ -104,14 +101,14 @@ impl<T: 'static> Shared<T> {
     // Add an event to the event loop runner, from the user or an event handler
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub fn send_event(&self, event: Event<'static, T>) {
+    pub fn send_event(&self, event: Event<T>) {
         self.send_events(iter::once(event));
     }
 
     // Add a series of events to the event loop runner
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub fn send_events(&self, events: impl Iterator<Item = Event<'static, T>>) {
+    pub fn send_events(&self, events: impl Iterator<Item = Event<T>>) {
         // If the event loop is closed, it should discard any new events
         if self.is_closed() {
             return;
@@ -169,7 +166,7 @@ impl<T: 'static> Shared<T> {
     // cleared
     //
     // This will also process any events that have been queued or that are queued during processing
-    fn run_until_cleared(&self, events: impl Iterator<Item = Event<'static, T>>) {
+    fn run_until_cleared(&self, events: impl Iterator<Item = Event<T>>) {
         let mut control = self.current_control_flow();
         for event in events {
             self.handle_event(event, &mut control);
@@ -200,7 +197,7 @@ impl<T: 'static> Shared<T> {
     // handle_event takes in events and either queues them or applies a callback
     //
     // It should only ever be called from send_event
-    fn handle_event(&self, event: Event<'static, T>, control: &mut root::ControlFlow) {
+    fn handle_event(&self, event: Event<T>, control: &mut root::ControlFlow) {
         let is_closed = self.is_closed();
         match *self.0.runner.borrow_mut() {
             Some(ref mut runner) => {
