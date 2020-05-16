@@ -13,11 +13,8 @@ use winapi::{
 };
 
 use crate::{
-    dpi::PhysicalSize,
-    event::{Event, NewInnerSizeInteriorMutCoolThing, StartCause, WindowEvent},
+    event::{Event, StartCause},
     event_loop::ControlFlow,
-    platform_impl::platform::util,
-    window::WindowId,
 };
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
@@ -31,7 +28,7 @@ pub(crate) struct EventLoopRunner<T: 'static> {
     last_events_cleared: Cell<Instant>,
 
     event_handler: Cell<Option<Box<dyn FnMut(Event<T>, &mut ControlFlow)>>>,
-    event_buffer: RefCell<VecDeque<BufferedEvent<T>>>,
+    event_buffer: RefCell<VecDeque<Event<T>>>,
 
     owned_windows: Cell<HashSet<HWND>>,
 
@@ -53,11 +50,6 @@ enum RunnerState {
     /// The event loop is handling the redraw events and sending them to the user's callback.
     /// `MainEventsCleared` has been sent, and `RedrawEventsCleared` hasn't.
     HandlingRedrawEvents,
-}
-
-enum BufferedEvent<T: 'static> {
-    Event(Event<T>),
-    ScaleFactorChanged(WindowId, f64, PhysicalSize<u32>),
 }
 
 impl<T> EventLoopRunner<T> {
@@ -210,9 +202,7 @@ impl<T> EventLoopRunner<T> {
             if self.should_buffer() {
                 // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
                 // the event to a buffer to be processed later.
-                self.event_buffer
-                    .borrow_mut()
-                    .push_back(BufferedEvent::from_event(event))
+                self.event_buffer.borrow_mut().push_back(event)
             } else {
                 self.move_state_to(RunnerState::HandlingMainEvents);
                 self.call_event_handler(event);
@@ -254,7 +244,7 @@ impl<T> EventLoopRunner<T> {
             // `process_event` will fail.
             let buffered_event_opt = self.event_buffer.borrow_mut().pop_front();
             match buffered_event_opt {
-                Some(e) => e.dispatch_event(|e| self.call_event_handler(e)),
+                Some(e) => self.call_event_handler(e),
                 None => break,
             }
         }
@@ -370,50 +360,5 @@ impl<T> EventLoopRunner<T> {
     unsafe fn call_redraw_events_cleared(&self) {
         self.call_event_handler(Event::RedrawEventsCleared);
         self.last_events_cleared.set(Instant::now());
-    }
-}
-
-impl<T> BufferedEvent<T> {
-    pub fn from_event(event: Event<T>) -> BufferedEvent<T> {
-        match event {
-            Event::WindowEvent {
-                event:
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size,
-                    },
-                window_id,
-            } => BufferedEvent::ScaleFactorChanged(
-                window_id,
-                scale_factor,
-                new_inner_size.inner_size(),
-            ),
-            event => BufferedEvent::Event(event.to_static().unwrap()),
-        }
-    }
-
-    pub fn dispatch_event(self, dispatch: impl FnOnce(Event<T>)) {
-        match self {
-            Self::Event(event) => dispatch(event),
-            Self::ScaleFactorChanged(window_id, scale_factor, new_inner_size) => {
-                let inner_size_cell = NewInnerSizeInteriorMutCoolThing::new(new_inner_size);
-
-                dispatch(Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size: inner_size_cell.clone(),
-                    },
-                });
-
-                let new_inner_size = inner_size_cell.inner_size();
-                util::set_inner_size_physical(
-                    (window_id.0).0,
-                    new_inner_size.width as _,
-                    new_inner_size.height as _,
-                );
-                inner_size_cell.mark_new_inner_size_consumed();
-            }
-        }
     }
 }

@@ -47,7 +47,7 @@ use crate::{
 /// See the module-level docs for more information on the event loop manages each event.
 ///
 /// `T` is a user-defined custom event type (see: `Self::UserEvent(T)`).
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Event<T: 'static> {
     /// Emitted when new events arrive from the OS to be processed.
     ///
@@ -120,30 +120,6 @@ pub enum Event<T: 'static> {
     LoopDestroyed,
 }
 
-impl<T: Clone> Clone for Event<T> {
-    fn clone(&self) -> Self {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => WindowEvent {
-                window_id: *window_id,
-                event: event.clone(),
-            },
-            UserEvent(event) => UserEvent(event.clone()),
-            DeviceEvent { device_id, event } => DeviceEvent {
-                device_id: *device_id,
-                event: event.clone(),
-            },
-            NewEvents(cause) => NewEvents(cause.clone()),
-            MainEventsCleared => MainEventsCleared,
-            RedrawRequested(wid) => RedrawRequested(*wid),
-            RedrawEventsCleared => RedrawEventsCleared,
-            LoopDestroyed => LoopDestroyed,
-            Suspended => Suspended,
-            Resumed => Resumed,
-        }
-    }
-}
-
 impl<T> Event<T> {
     pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
         use self::Event::*;
@@ -158,27 +134,6 @@ impl<T> Event<T> {
             LoopDestroyed => Ok(LoopDestroyed),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
-        }
-    }
-
-    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
-    /// Otherwise, return `None`.
-    // TODO: remove?
-    pub fn to_static(self) -> Option<Event<T>> {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => event
-                .to_static()
-                .map(|event| WindowEvent { window_id, event }),
-            UserEvent(event) => Some(UserEvent(event)),
-            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Some(NewEvents(cause)),
-            MainEventsCleared => Some(MainEventsCleared),
-            RedrawRequested(wid) => Some(RedrawRequested(wid)),
-            RedrawEventsCleared => Some(RedrawEventsCleared),
-            LoopDestroyed => Some(LoopDestroyed),
-            Suspended => Some(Suspended),
-            Resumed => Some(Resumed),
         }
     }
 }
@@ -210,7 +165,7 @@ pub enum StartCause {
 }
 
 /// Describes an event from a `Window`.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
@@ -433,182 +388,6 @@ impl NewInnerSizeInteriorMutCoolThing {
             // Only one borrow guarenteed by `Mutex`.
             a.new_inner_size.set(new_size);
             Ok(())
-        }
-    }
-}
-
-impl Clone for WindowEvent {
-    fn clone(&self) -> Self {
-        use self::WindowEvent::*;
-        return match self {
-            Resized(size) => Resized(size.clone()),
-            Moved(pos) => Moved(pos.clone()),
-            CloseRequested => CloseRequested,
-            Destroyed => Destroyed,
-            DroppedFile(file) => DroppedFile(file.clone()),
-            HoveredFile(file) => HoveredFile(file.clone()),
-            HoveredFileCancelled => HoveredFileCancelled,
-            ReceivedCharacter(c) => ReceivedCharacter(*c),
-            Focused(f) => Focused(*f),
-            KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            } => KeyboardInput {
-                device_id: *device_id,
-                input: *input,
-                is_synthetic: *is_synthetic,
-            },
-
-            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
-            #[allow(deprecated)]
-            CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            } => CursorMoved {
-                device_id: *device_id,
-                position: *position,
-                modifiers: *modifiers,
-            },
-            CursorEntered { device_id } => CursorEntered {
-                device_id: *device_id,
-            },
-            CursorLeft { device_id } => CursorLeft {
-                device_id: *device_id,
-            },
-            #[allow(deprecated)]
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            } => MouseWheel {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-                modifiers: *modifiers,
-            },
-            #[allow(deprecated)]
-            MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            } => MouseInput {
-                device_id: *device_id,
-                state: *state,
-                button: *button,
-                modifiers: *modifiers,
-            },
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => TouchpadPressure {
-                device_id: *device_id,
-                pressure: *pressure,
-                stage: *stage,
-            },
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => AxisMotion {
-                device_id: *device_id,
-                axis: *axis,
-                value: *value,
-            },
-            Touch(touch) => Touch(*touch),
-            ThemeChanged(theme) => ThemeChanged(theme.clone()),
-            ScaleFactorChanged { .. } => {
-                unreachable!("Static event can't be about scale factor changing")
-            }
-        };
-    }
-}
-
-impl WindowEvent {
-    // TODO remove?
-    pub fn to_static(self) -> Option<WindowEvent> {
-        use self::WindowEvent::*;
-        match self {
-            Resized(size) => Some(Resized(size)),
-            Moved(position) => Some(Moved(position)),
-            CloseRequested => Some(CloseRequested),
-            Destroyed => Some(Destroyed),
-            DroppedFile(file) => Some(DroppedFile(file)),
-            HoveredFile(file) => Some(HoveredFile(file)),
-            HoveredFileCancelled => Some(HoveredFileCancelled),
-            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
-            Focused(focused) => Some(Focused(focused)),
-            KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            } => Some(KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            }),
-            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
-            #[allow(deprecated)]
-            CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            } => Some(CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            }),
-            CursorEntered { device_id } => Some(CursorEntered { device_id }),
-            CursorLeft { device_id } => Some(CursorLeft { device_id }),
-            #[allow(deprecated)]
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            } => Some(MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            }),
-            #[allow(deprecated)]
-            MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            } => Some(MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            }),
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => Some(TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            }),
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => Some(AxisMotion {
-                device_id,
-                axis,
-                value,
-            }),
-            Touch(touch) => Some(Touch(touch)),
-            ThemeChanged(theme) => Some(ThemeChanged(theme)),
-            ScaleFactorChanged { .. } => None,
         }
     }
 }
