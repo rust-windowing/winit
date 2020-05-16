@@ -341,7 +341,7 @@ macro_rules! dpi_type {
     };
 }
 
-dpi_type!{
+dpi_type! {
     let h = x;
     let v = y;
 
@@ -353,7 +353,7 @@ dpi_type!{
     pub enum Position;
 }
 
-dpi_type!{
+dpi_type! {
     let h = width;
     let v = height;
 
@@ -365,7 +365,7 @@ dpi_type!{
     pub enum Size;
 }
 
-dpi_type!{
+dpi_type! {
     let h = x;
     let v = y;
 

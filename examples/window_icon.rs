@@ -34,7 +34,7 @@ fn main() {
             Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::FileDropped(path) => window.set_window_icon(Some(load_icon(&path))),
-                _ => ()
+                _ => (),
             },
             _ => (),
         }

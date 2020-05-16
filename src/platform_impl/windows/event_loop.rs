@@ -30,10 +30,10 @@ use winapi::{
 };
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, PhysicalDelta, UnitlessDelta},
+    dpi::{PhysicalDelta, PhysicalPosition, PhysicalSize, UnitlessDelta},
     event::{
-        Event, Force, WindowEvent, RawPointerEvent, RawKeyboardEvent, PointerId, KeyPress, LogicalKey,
-        PointerPress, PointerButton, ModifiersState, RawPointerPress, RawKeyPress,
+        Event, Force, KeyPress, LogicalKey, ModifiersState, PointerButton, PointerId, PointerPress,
+        RawKeyPress, RawKeyboardEvent, RawPointerEvent, RawPointerPress, WindowEvent,
     },
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
@@ -43,7 +43,7 @@ use crate::{
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         monitor, raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
-        WindowId, TouchId, KeyboardDeviceId, PointerDeviceId,
+        KeyboardDeviceId, PointerDeviceId, TouchId, WindowId,
     },
     window::{Fullscreen, Theme},
 };
@@ -720,7 +720,7 @@ fn update_modifiers<T>(window: HWND, subclass_input: &SubclassInput<T>) {
         unsafe {
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::ModifiersChanged(modifiers)
+                WindowEvent::ModifiersChanged(modifiers),
             ));
         }
     }
@@ -891,10 +891,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let h = HIWORD(lparam as DWORD) as u32;
 
             let physical_size = PhysicalSize::new(w, h);
-            let event = Event::WindowEvent(
-                WindowId(window).into(),
-                WindowEvent::Resized(physical_size),
-            );
+            let event =
+                Event::WindowEvent(WindowId(window).into(), WindowEvent::Resized(physical_size));
 
             {
                 let mut w = subclass_input.window_state.lock();
@@ -1066,7 +1064,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             if msg == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
-                if let Some((scan_code, logical_key, is_repeat)) = process_key_params(wparam, lparam) {
+                if let Some((scan_code, logical_key, is_repeat)) =
+                    process_key_params(wparam, lparam)
+                {
                     update_modifiers(window, subclass_input);
 
                     subclass_input.send_event(Event::WindowEvent(
@@ -1121,8 +1121,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     PointerPress {
                         button: PointerButton::MOUSE_LEFT,
                         is_down: true,
-                        click_count: {println!("\t\tTODO: IMPLEMENT CLICK_COUNT"); 0},
-                    }
+                        click_count: {
+                            println!("\t\tTODO: IMPLEMENT CLICK_COUNT");
+                            0
+                        },
+                    },
                 ),
             ));
             0
@@ -1140,7 +1143,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         button: PointerButton::MOUSE_LEFT,
                         is_down: false,
                         click_count: 0,
-                    }
+                    },
                 ),
             ));
             0
@@ -1157,8 +1160,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     PointerPress {
                         button: PointerButton::MOUSE_RIGHT,
                         is_down: true,
-                        click_count: {println!("\t\tTODO: IMPLEMENT CLICK_COUNT"); 0},
-                    }
+                        click_count: {
+                            println!("\t\tTODO: IMPLEMENT CLICK_COUNT");
+                            0
+                        },
+                    },
                 ),
             ));
             0
@@ -1176,7 +1182,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         button: PointerButton::MOUSE_RIGHT,
                         is_down: false,
                         click_count: 0,
-                    }
+                    },
                 ),
             ));
             0
@@ -1193,8 +1199,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     PointerPress {
                         button: PointerButton::MOUSE_MIDDLE,
                         is_down: true,
-                        click_count: {println!("\t\tTODO: IMPLEMENT CLICK_COUNT"); 0},
-                    }
+                        click_count: {
+                            println!("\t\tTODO: IMPLEMENT CLICK_COUNT");
+                            0
+                        },
+                    },
                 ),
             ));
             0
@@ -1212,7 +1221,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         button: PointerButton::MOUSE_MIDDLE,
                         is_down: false,
                         click_count: 0,
-                    }
+                    },
                 ),
             ));
             0
@@ -1227,7 +1236,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 2 => PointerButton::MOUSE_X2,
                 _ => {
                     warn!("invalid x-button passed");
-                    return 0
+                    return 0;
                 }
             };
 
@@ -1238,8 +1247,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     PointerPress {
                         button,
                         is_down: true,
-                        click_count: {println!("\t\tTODO: IMPLEMENT CLICK_COUNT"); 0},
-                    }
+                        click_count: {
+                            println!("\t\tTODO: IMPLEMENT CLICK_COUNT");
+                            0
+                        },
+                    },
                 ),
             ));
             0
@@ -1254,7 +1266,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 2 => PointerButton::MOUSE_X2,
                 _ => {
                     warn!("invalid x-button passed");
-                    return 0
+                    return 0;
                 }
             };
 
@@ -1266,7 +1278,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         button,
                         is_down: false,
                         click_count: 0,
-                    }
+                    },
                 ),
             ));
             0
@@ -1321,7 +1333,10 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                 PointerPress {
                                     button: PointerButton::TOUCH_CONTACT,
                                     is_down: true,
-                                    click_count: {println!("\t\tTODO: IMPLEMENT CLICK_COUNT"); 0},
+                                    click_count: {
+                                        println!("\t\tTODO: IMPLEMENT CLICK_COUNT");
+                                        0
+                                    },
                                 },
                             ),
                         ));
@@ -1374,7 +1389,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 }
 
                 let pointer_info_count = (entries_count * pointers_count) as usize;
-                let mut pointer_infos = Vec::<winuser::POINTER_INFO>::with_capacity(pointer_info_count);
+                let mut pointer_infos =
+                    Vec::<winuser::POINTER_INFO>::with_capacity(pointer_info_count);
                 pointer_infos.set_len(pointer_info_count);
                 if GetPointerFrameInfoHistory(
                     pointer_id,
@@ -1493,7 +1509,10 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                 PointerPress {
                                     button: PointerButton::TOUCH_CONTACT,
                                     is_down: true,
-                                    click_count: {println!("\t\tTODO: IMPLEMENT CLICK_COUNT"); 0},
+                                    click_count: {
+                                        println!("\t\tTODO: IMPLEMENT CLICK_COUNT");
+                                        0
+                                    },
                                 },
                             ),
                         ));
@@ -1861,7 +1880,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let changed = window_state.is_dark_mode != is_dark_mode;
 
             if changed {
-                let theme = if is_dark_mode { Theme::Dark } else { Theme::Light };
+                let theme = if is_dark_mode {
+                    Theme::Dark
+                } else {
+                    Theme::Light
+                };
 
                 window_state.is_dark_mode = is_dark_mode;
                 mem::drop(window_state);
@@ -1965,7 +1988,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         winuser::GIDC_ARRIVAL => RawPointerEvent::Added,
                         winuser::GIDC_REMOVAL => RawPointerEvent::Removed,
                         _ => unreachable!(),
-                    }
+                    },
                 )),
                 winuser::RIM_TYPEKEYBOARD => subclass_input.send_event(Event::RawKeyboardEvent(
                     KeyboardDeviceId(lparam as _).into(),
@@ -1973,7 +1996,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         winuser::GIDC_ARRIVAL => RawKeyboardEvent::Added,
                         winuser::GIDC_REMOVAL => RawKeyboardEvent::Removed,
                         _ => unreachable!(),
-                    }
+                    },
                 )),
                 _ => (),
             }
@@ -1994,7 +2017,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         if x != 0.0 || y != 0.0 {
                             subclass_input.send_event(Event::RawPointerEvent(
                                 pointer_id,
-                                RawPointerEvent::MovedRelative(PhysicalDelta::new(x, y))
+                                RawPointerEvent::MovedRelative(PhysicalDelta::new(x, y)),
                             ));
                         }
                     }
@@ -2006,7 +2029,10 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                             RawPointerEvent::Wheel(UnitlessDelta::new(0.0, delta)),
                         ));
                     }
-                    if util::has_flag(mouse.usButtonFlags, 0x0800 /*winuser::RI_MOUSE_HWHEEL*/) {
+                    if util::has_flag(
+                        mouse.usButtonFlags,
+                        0x0800, /*winuser::RI_MOUSE_HWHEEL*/
+                    ) {
                         let delta = mouse.usButtonData as f64 / winuser::WHEEL_DELTA as f64;
                         subclass_input.send_event(Event::RawPointerEvent(
                             pointer_id,

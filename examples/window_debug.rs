@@ -2,7 +2,7 @@
 
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
-    event::{RawKeyboardEvent, Event, LogicalKey, WindowEvent},
+    event::{Event, LogicalKey, RawKeyboardEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Fullscreen, WindowBuilder},
 };
@@ -33,22 +33,25 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::RawKeyboardEvent(_, RawKeyboardEvent::Press(e)) if e.is_down() => match e.logical_key() {
-                Some(LogicalKey::M) => {
-                    if minimized {
-                        minimized = !minimized;
-                        window.set_minimized(minimized);
+            Event::RawKeyboardEvent(_, RawKeyboardEvent::Press(e)) if e.is_down() => {
+                match e.logical_key() {
+                    Some(LogicalKey::M) => {
+                        if minimized {
+                            minimized = !minimized;
+                            window.set_minimized(minimized);
+                        }
                     }
-                }
-                Some(LogicalKey::V) => {
-                    if !visible {
-                        visible = !visible;
-                        window.set_visible(visible);
+                    Some(LogicalKey::V) => {
+                        if !visible {
+                            visible = !visible;
+                            window.set_visible(visible);
+                        }
                     }
+                    _ => (),
                 }
-                _ => (),
-            },
-            Event::WindowEvent(_, WindowEvent::KeyPress(e)) if e.is_down() => match e.logical_key() {
+            }
+            Event::WindowEvent(_, WindowEvent::KeyPress(e)) if e.is_down() => match e.logical_key()
+            {
                 Some(LogicalKey::E) => {
                     fn area(size: PhysicalSize<u32>) -> u32 {
                         size.width * size.height
@@ -90,7 +93,10 @@ fn main() {
                 _ => (),
             },
             Event::WindowEvent(window_id, WindowEvent::CloseRequested)
-                if window_id == window.id() => *control_flow = ControlFlow::Exit,
+                if window_id == window.id() =>
+            {
+                *control_flow = ControlFlow::Exit
+            }
             _ => (),
         }
     });

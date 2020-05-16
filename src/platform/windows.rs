@@ -9,7 +9,7 @@ use winapi::shared::windef::HWND;
 
 use crate::{
     dpi::PhysicalSize,
-    event::{PointerDeviceId, KeyboardDeviceId},
+    event::{KeyboardDeviceId, PointerDeviceId},
     event_loop::EventLoop,
     monitor::MonitorHandle,
     platform_impl::{EventLoop as WindowsEventLoop, WinIcon},

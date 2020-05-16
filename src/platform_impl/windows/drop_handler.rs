@@ -127,7 +127,7 @@ impl FileDropHandler {
         if drop_handler.hovered_is_valid {
             drop_handler.send_event(Event::WindowEvent(
                 WindowId(drop_handler.window).into(),
-                WindowEvent::FileHoverCancelled
+                WindowEvent::FileHoverCancelled,
             ));
         }
 
