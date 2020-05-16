@@ -34,10 +34,13 @@
 //!
 //! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
-use std::{fmt, path::PathBuf};
+use std::{
+    path::PathBuf,
+    fmt,
+};
 
 use crate::{
-    dpi::{PhysicalDelta, PhysicalPosition, PhysicalSize, UnitlessDelta},
+    dpi::{PhysicalPosition, PhysicalSize, PhysicalDelta, UnitlessDelta},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -119,7 +122,6 @@ pub enum AppEvent {
 
 /// Describes an event from a `Window`.
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
@@ -264,10 +266,9 @@ impl<'a, T> Event<'a, T> {
         use self::Event::*;
         match self {
             NewEvents(cause) => Ok(NewEvents(cause)),
-            WindowEvent(window_id, event) => event
-                .to_static()
-                .map(|e| -> Event<'static, T> { WindowEvent(window_id, e) })
-                .map_err(|e| -> Event<'a, T> { WindowEvent(window_id, e) }),
+            WindowEvent(window_id, event) => event.to_static()
+                .map(|e| -> Event<'static, T> {WindowEvent(window_id, e)})
+                .map_err(|e| -> Event<'a, T> {WindowEvent(window_id, e)}),
             RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
             RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
             AppEvent(app_event) => Ok(AppEvent(app_event)),
@@ -308,9 +309,7 @@ impl Clone for WindowEvent<'static> {
             ScrollPixels(delta) => ScrollPixels(delta),
             ScrollEnded => ScrollEnded,
             ThemeChanged(theme) => ThemeChanged(theme),
-            ScaleFactorChanged(..) => {
-                unreachable!("Static event can't be about scale factor changing")
-            }
+            ScaleFactorChanged(..) => unreachable!("Static event can't be about scale factor changing")
         }
     }
 }
@@ -373,6 +372,7 @@ pub enum StartCause {
     /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
     Init,
 }
+
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct KeyPress {
@@ -527,45 +527,21 @@ impl PointerButton {
     pub const BUTTON_5: Self = Self(PointerButtonInner::Button5);
     // pub const BUTTON_6: Self = Self(PointerButtonInner::Button6);
 
-    pub fn as_u8(&self) -> u8 {
-        self.0 as u8
-    }
-    pub fn is_mouse_left(&self) -> bool {
-        *self == Self::MOUSE_LEFT
-    }
-    pub fn is_mouse_right(&self) -> bool {
-        *self == Self::MOUSE_RIGHT
-    }
-    pub fn is_mouse_middle(&self) -> bool {
-        *self == Self::MOUSE_MIDDLE
-    }
-    pub fn is_mouse_x1(&self) -> bool {
-        *self == Self::MOUSE_X1
-    }
-    pub fn is_mouse_x2(&self) -> bool {
-        *self == Self::MOUSE_X2
-    }
-    pub fn is_touch_contact(&self) -> bool {
-        *self == Self::TOUCH_CONTACT
-    }
+    pub fn as_u8(&self) -> u8 { self.0 as u8 }
+    pub fn is_mouse_left(&self) -> bool { *self == Self::MOUSE_LEFT }
+    pub fn is_mouse_right(&self) -> bool { *self == Self::MOUSE_RIGHT }
+    pub fn is_mouse_middle(&self) -> bool { *self == Self::MOUSE_MIDDLE }
+    pub fn is_mouse_x1(&self) -> bool { *self == Self::MOUSE_X1 }
+    pub fn is_mouse_x2(&self) -> bool { *self == Self::MOUSE_X2 }
+    pub fn is_touch_contact(&self) -> bool { *self == Self::TOUCH_CONTACT }
     // pub fn is_pen_contact(&self) -> bool { *self == Self::PEN_CONTACT }
     // pub fn is_pen_barrel(&self) -> bool { *self == Self::PEN_BARREL }
     // pub fn is_pen_eraser(&self) -> bool { *self == Self::PEN_ERASER }
-    pub fn is_button_1(&self) -> bool {
-        *self == Self::BUTTON_1
-    }
-    pub fn is_button_2(&self) -> bool {
-        *self == Self::BUTTON_2
-    }
-    pub fn is_button_3(&self) -> bool {
-        *self == Self::BUTTON_3
-    }
-    pub fn is_button_4(&self) -> bool {
-        *self == Self::BUTTON_4
-    }
-    pub fn is_button_5(&self) -> bool {
-        *self == Self::BUTTON_5
-    }
+    pub fn is_button_1(&self) -> bool { *self == Self::BUTTON_1 }
+    pub fn is_button_2(&self) -> bool { *self == Self::BUTTON_2 }
+    pub fn is_button_3(&self) -> bool { *self == Self::BUTTON_3 }
+    pub fn is_button_4(&self) -> bool { *self == Self::BUTTON_4 }
+    pub fn is_button_5(&self) -> bool { *self == Self::BUTTON_5 }
     // pub fn is_button_6(&self) -> bool { *self == Self::BUTTON_6 }
 }
 
