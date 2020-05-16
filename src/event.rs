@@ -280,7 +280,7 @@ pub struct KeyPress {
     pub(crate) logical_key: Option<LogicalKey>,
     pub(crate) scan_code: u32,
     pub(crate) is_down: bool,
-    pub(crate) repeat_count: u32,
+    pub(crate) is_repeat: bool,
     pub(crate) is_synthetic: bool,
 }
 
@@ -314,11 +314,8 @@ impl KeyPress {
     pub fn is_down(&self) -> bool {
         self.is_down
     }
-    /// The number of repeat events that have been generated from the user holding the key down. Is
-    /// `0` for the first event, and increments by `1` for every further event.
-    ///
-    /// TODO PHRASE BETTER
-    pub fn repeat_count(&self) -> u32 {
+    /// Is `true` if the user has held down the key long enough to send duplicate events.
+    pub fn is_repeat(&self) -> bool {
         self.repeat_count
     }
     /// If set, the event was generated synthetically by winit
@@ -354,8 +351,8 @@ impl PointerPress {
     pub fn is_down(&self) -> bool {
         self.is_down
     }
-    /// The number of clicks the user has made in the same spot. Is `1` for the first click, `2`
-    /// for the second click, etc.
+    /// The number of clicks the user has made in the same spot within the system's double-click
+    /// interval. `1` is emitted on the first click, `2` is emitted on the second click, etc.
     pub fn click_count(&self) -> u32 {
         self.click_count
     }
