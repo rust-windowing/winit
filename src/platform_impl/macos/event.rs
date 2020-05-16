@@ -14,9 +14,10 @@ use crate::{
     },
 };
 
+// TODO: remove?
 #[derive(Debug)]
 pub enum EventWrapper {
-    StaticEvent(Event<'static, Never>),
+    StaticEvent(Event<Never>),
     EventProxy(EventProxy),
 }
 
@@ -275,7 +276,7 @@ pub unsafe fn modifier_event(
     ns_event: id,
     keymask: NSEventModifierFlags,
     was_key_pressed: bool,
-) -> Option<WindowEvent<'static>> {
+) -> Option<WindowEvent> {
     if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
         || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask)
     {

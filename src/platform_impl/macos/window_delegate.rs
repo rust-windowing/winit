@@ -73,7 +73,7 @@ impl WindowDelegateState {
         self.window.upgrade().map(|ref window| callback(window))
     }
 
-    pub fn emit_event(&mut self, event: WindowEvent<'static>) {
+    pub fn emit_event(&mut self, event: WindowEvent) {
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event,

@@ -36,8 +36,8 @@ lazy_static! {
     static ref HANDLER: Handler = Default::default();
 }
 
-impl<'a, Never> Event<'a, Never> {
-    fn userify<T: 'static>(self) -> Event<'a, T> {
+impl Event<Never> {
+    fn userify<T: 'static>(self) -> Event<T> {
         self.map_nonuser_event()
             // `Never` can't be constructed, so the `UserEvent` variant can't
             // be present here.
@@ -47,12 +47,12 @@ impl<'a, Never> Event<'a, Never> {
 
 pub trait EventHandler: Debug {
     // Not sure probably it should accept Event<'static, Never>
-    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow);
+    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
 struct EventLoopHandler<T: 'static> {
-    callback: Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+    callback: Box<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
     will_exit: bool,
     window_target: Rc<RootWindowTarget<T>>,
 }
@@ -67,7 +67,7 @@ impl<T> Debug for EventLoopHandler<T> {
 }
 
 impl<T> EventHandler for EventLoopHandler<T> {
-    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
+    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
         (self.callback)(event.userify(), &self.window_target, control_flow);
         self.will_exit |= *control_flow == ControlFlow::Exit;
         if self.will_exit {
@@ -189,20 +189,21 @@ impl Handler {
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     ) {
-        let mut size = suggested_size.to_physical(scale_factor);
-        let new_inner_size = &mut size;
+        let (new_inner_size, new_inner_size_mut_owner) =
+            scoped_arc_cell::scoped_arc_cell(suggested_size.to_physical(scale_factor));
+
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*ns_window)),
             event: WindowEvent::ScaleFactorChanged {
                 scale_factor,
-                new_inner_size,
+                new_inner_size: new_inner_size.clone(),
             },
         };
 
         callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
+        std::mem::drop(new_inner_size_mut_owner);
 
-        let physical_size = *new_inner_size;
-        let logical_size = physical_size.to_logical(scale_factor);
+        let logical_size = new_inner_size.get().to_logical(scale_factor);
         let size = NSSize::new(logical_size.width, logical_size.height);
         unsafe { NSWindow::setContentSize_(*ns_window, size) };
     }
@@ -229,7 +230,7 @@ impl AppState {
     // This function extends lifetime of `callback` to 'static as its side effect
     pub unsafe fn set_callback<F, T>(callback: F, window_target: Rc<RootWindowTarget<T>>)
     where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
             // This transmute is always safe, in case it was reached through `run`, since our
@@ -237,8 +238,8 @@ impl AppState {
             // they passed to callback will actually outlive it, some apps just can't move
             // everything to event loop, so this is something that they should care about.
             callback: mem::transmute::<
-                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
-                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<T>, &RootWindowTarget<T>, &mut ControlFlow)>,
             >(Box::new(callback)),
             will_exit: false,
             window_target,
