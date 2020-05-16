@@ -120,70 +120,6 @@ pub enum AppEvent {
     Resumed,
 }
 
-impl<'a, T> Event<'a, T> {
-    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
-        use self::Event::*;
-        match self {
-            UserEvent(_) => Err(self),
-            WindowEvent(window_id, event) => Ok(WindowEvent(window_id, event)),
-            RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
-            RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
-            AppEvent(app_event) => Ok(AppEvent(app_event)),
-            NewEvents(cause) => Ok(NewEvents(cause)),
-            MainEventsCleared => Ok(MainEventsCleared),
-            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
-            RedrawEventsCleared => Ok(RedrawEventsCleared),
-            LoopDestroyed => Ok(LoopDestroyed),
-        }
-    }
-
-    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
-    /// Otherwise, return `None`.
-    pub fn to_static(self) -> Result<Event<'static, T>, Event<'a, T>> {
-        use self::Event::*;
-        match self {
-            NewEvents(cause) => Ok(NewEvents(cause)),
-            WindowEvent(window_id, event) => event.to_static()
-                .map(|e| -> Event<'static, T> {WindowEvent(window_id, e)})
-                .map_err(|e| -> Event<'a, T> {WindowEvent(window_id, e)}),
-            RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
-            RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
-            AppEvent(app_event) => Ok(AppEvent(app_event)),
-            UserEvent(e) => Ok(UserEvent(e)),
-            MainEventsCleared => Ok(MainEventsCleared),
-            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
-            RedrawEventsCleared => Ok(RedrawEventsCleared),
-            LoopDestroyed => Ok(LoopDestroyed),
-        }
-    }
-}
-
-/// Describes the reason the event loop is resuming.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StartCause {
-    /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
-    /// moment the timeout was requested and the requested resume time. The actual resume time is
-    /// guaranteed to be equal to or after the requested resume time.
-    ResumeTimeReached {
-        start: Instant,
-        requested_resume: Instant,
-    },
-
-    /// Sent if the OS has new events to send to the window, after a wait was requested. Contains
-    /// the moment the wait was requested and the resume time, if requested.
-    WaitCancelled {
-        start: Instant,
-        requested_resume: Option<Instant>,
-    },
-
-    /// Sent if the event loop is being resumed after the loop's control flow was set to
-    /// `ControlFlow::Poll`.
-    Poll,
-
-    /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
-    Init,
-}
-
 /// Describes an event from a `Window`.
 #[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -276,6 +212,76 @@ pub enum WindowEvent<'a> {
     ScaleFactorChanged(f64, &'a mut PhysicalSize<u32>),
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum RawPointerEvent {
+    /// A device has been added.
+    Added,
+    /// A device has been removed.
+    Removed,
+    Press(RawPointerPress),
+    /// Relative change in physical position of a pointing device.
+    ///
+    /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
+    /// the values provided here are the change in position of the mouse since the previous
+    /// `MovedRelative` event.
+    MovedRelative(PhysicalDelta<f64>),
+    /// Change in absolute position of a pointing device.
+    ///
+    /// The `PhysicalPosition` value is the new position of the cursor relative to the desktop. This
+    /// generally doesn't get output by standard mouse devices, but can get output from tablet devices.
+    MovedAbsolute(PhysicalPosition<f64>),
+    /// Change in rotation of mouse wheel.
+    Wheel(UnitlessDelta<f64>),
+}
+
+/// Raw keyboard events.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum RawKeyboardEvent {
+    /// A keyboard device has been added.
+    Added,
+    /// A keyboard device has been removed.
+    Removed,
+    Press(RawKeyPress),
+}
+
+impl<'a, T> Event<'a, T> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
+        use self::Event::*;
+        match self {
+            UserEvent(_) => Err(self),
+            WindowEvent(window_id, event) => Ok(WindowEvent(window_id, event)),
+            RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
+            RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
+            AppEvent(app_event) => Ok(AppEvent(app_event)),
+            NewEvents(cause) => Ok(NewEvents(cause)),
+            MainEventsCleared => Ok(MainEventsCleared),
+            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
+            RedrawEventsCleared => Ok(RedrawEventsCleared),
+            LoopDestroyed => Ok(LoopDestroyed),
+        }
+    }
+
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
+    pub fn to_static(self) -> Result<Event<'static, T>, Event<'a, T>> {
+        use self::Event::*;
+        match self {
+            NewEvents(cause) => Ok(NewEvents(cause)),
+            WindowEvent(window_id, event) => event.to_static()
+                .map(|e| -> Event<'static, T> {WindowEvent(window_id, e)})
+                .map_err(|e| -> Event<'a, T> {WindowEvent(window_id, e)}),
+            RawPointerEvent(pointer_id, event) => Ok(RawPointerEvent(pointer_id, event)),
+            RawKeyboardEvent(keyboard_id, event) => Ok(RawKeyboardEvent(keyboard_id, event)),
+            AppEvent(app_event) => Ok(AppEvent(app_event)),
+            UserEvent(e) => Ok(UserEvent(e)),
+            MainEventsCleared => Ok(MainEventsCleared),
+            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
+            RedrawEventsCleared => Ok(RedrawEventsCleared),
+            LoopDestroyed => Ok(LoopDestroyed),
+        }
+    }
+}
+
 impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
@@ -341,6 +347,33 @@ impl<'a> WindowEvent<'a> {
         }
     }
 }
+
+/// Describes the reason the event loop is resuming.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StartCause {
+    /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
+    /// moment the timeout was requested and the requested resume time. The actual resume time is
+    /// guaranteed to be equal to or after the requested resume time.
+    ResumeTimeReached {
+        start: Instant,
+        requested_resume: Instant,
+    },
+
+    /// Sent if the OS has new events to send to the window, after a wait was requested. Contains
+    /// the moment the wait was requested and the resume time, if requested.
+    WaitCancelled {
+        start: Instant,
+        requested_resume: Option<Instant>,
+    },
+
+    /// Sent if the event loop is being resumed after the loop's control flow was set to
+    /// `ControlFlow::Poll`.
+    Poll,
+
+    /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
+    Init,
+}
+
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct KeyPress {
@@ -443,36 +476,6 @@ impl RawPointerPress {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum PointerId {
-    MouseId(MouseId),
-    TouchId(TouchId),
-    // PenId(PenId),
-}
-
-impl PointerId {
-    pub fn is_mouse_id(&self) -> bool {
-        match *self {
-            PointerId::MouseId(_) => true,
-            _ => false,
-        }
-    }
-
-    pub fn is_touch_id(&self) -> bool {
-        match *self {
-            PointerId::TouchId(_) => true,
-            _ => false,
-        }
-    }
-
-    // pub fn is_pen_id(&self) -> bool {
-    //     match *self {
-    //         PointerId::PenId(_) => true,
-    //         _ => false,
-    //     }
-    // }
-}
-
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -531,39 +534,14 @@ impl PointerButton {
     // pub fn is_button_6(&self) -> bool { *self == Self::BUTTON_6 }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum RawPointerEvent {
-    /// A device has been added.
-    Added,
-    /// A device has been removed.
-    Removed,
-    Press(RawPointerPress),
-    /// Relative change in physical position of a pointing device.
-    ///
-    /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
-    /// the values provided here are the change in position of the mouse since the previous
-    /// `MovedRelative` event.
-    MovedRelative(PhysicalDelta<f64>),
-    /// Change in absolute position of a pointing device.
-    ///
-    /// The `PhysicalPosition` value is the new position of the cursor relative to the desktop. This
-    /// generally doesn't get output by standard mouse devices, but can get output from tablet devices.
-    MovedAbsolute(PhysicalPosition<f64>),
-    /// Change in rotation of mouse wheel.
-    Wheel(UnitlessDelta<f64>),
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PointerId {
+    MouseId(MouseId),
+    TouchId(TouchId),
+    // PenId(PenId),
 }
 
-/// Raw keyboard events.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum RawKeyboardEvent {
-    /// A keyboard device has been added.
-    Added,
-    /// A keyboard device has been removed.
-    Removed,
-    Press(RawKeyPress),
-}
-
-/// A typed identifier for a mouse device.
+/// A typed identifier for a pointer device.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MouseId(pub(crate) platform_impl::MouseId);
 
@@ -575,6 +553,29 @@ pub struct PointerDeviceId(pub(crate) platform_impl::PointerDeviceId);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct KeyboardDeviceId(pub(crate) platform_impl::KeyboardDeviceId);
+
+impl PointerId {
+    pub fn is_mouse_id(&self) -> bool {
+        match *self {
+            PointerId::MouseId(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_touch_id(&self) -> bool {
+        match *self {
+            PointerId::TouchId(_) => true,
+            _ => false,
+        }
+    }
+
+    // pub fn is_pen_id(&self) -> bool {
+    //     match *self {
+    //         PointerId::PenId(_) => true,
+    //         _ => false,
+    //     }
+    // }
+}
 
 impl MouseId {
     /// Returns a dummy `MouseId`, useful for unit testing. The only guarantee made about the return
@@ -890,25 +891,6 @@ pub enum LogicalKey {
     Cut,
 }
 
-impl ModifiersState {
-    /// Returns `true` if the shift key is pressed.
-    pub fn shift(&self) -> bool {
-        self.intersects(Self::SHIFT)
-    }
-    /// Returns `true` if the control key is pressed.
-    pub fn ctrl(&self) -> bool {
-        self.intersects(Self::CTRL)
-    }
-    /// Returns `true` if the alt key is pressed.
-    pub fn alt(&self) -> bool {
-        self.intersects(Self::ALT)
-    }
-    /// Returns `true` if the logo key is pressed.
-    pub fn logo(&self) -> bool {
-        self.intersects(Self::LOGO)
-    }
-}
-
 bitflags! {
     /// Represents the current state of the keyboard modifiers
     ///
@@ -933,6 +915,25 @@ bitflags! {
         const LOGO = 0b100 << 9;
         // const LLOGO = 0b010 << 9;
         // const RLOGO = 0b001 << 9;
+    }
+}
+
+impl ModifiersState {
+    /// Returns `true` if the shift key is pressed.
+    pub fn shift(&self) -> bool {
+        self.intersects(Self::SHIFT)
+    }
+    /// Returns `true` if the control key is pressed.
+    pub fn ctrl(&self) -> bool {
+        self.intersects(Self::CTRL)
+    }
+    /// Returns `true` if the alt key is pressed.
+    pub fn alt(&self) -> bool {
+        self.intersects(Self::ALT)
+    }
+    /// Returns `true` if the logo key is pressed.
+    pub fn logo(&self) -> bool {
+        self.intersects(Self::LOGO)
     }
 }
 
