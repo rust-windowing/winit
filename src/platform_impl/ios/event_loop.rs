@@ -29,9 +29,10 @@ use crate::platform_impl::platform::{
     monitor, view, MonitorHandle,
 };
 
+// TODO: remove?
 #[derive(Debug)]
 pub enum EventWrapper {
-    StaticEvent(Event<'static, Never>),
+    StaticEvent(Event<Never>),
     EventProxy(EventProxy),
 }
 
@@ -85,7 +86,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
             let application: *mut c_void = msg_send![class!(UIApplication), sharedApplication];
@@ -293,7 +294,7 @@ fn setup_control_flow_observers() {
 pub enum Never {}
 
 pub trait EventHandler: Debug {
-    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow);
+    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow);
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
@@ -312,10 +313,10 @@ impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
 
 impl<F, T> EventHandler for EventLoopHandler<F, T>
 where
-    F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+    F: 'static + FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     T: 'static,
 {
-    fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
+    fn handle_nonuser_event(&mut self, event: Event<Never>, control_flow: &mut ControlFlow) {
         (self.f)(
             event.map_nonuser_event().unwrap(),
             &self.event_loop,
