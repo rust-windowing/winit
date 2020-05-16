@@ -78,7 +78,7 @@ impl EventsSink {
         });
     }
 
-    pub fn send_window_event(&self, event: WindowEvent<'static>, window_id: WindowId) {
+    pub fn send_window_event(&self, event: WindowEvent, window_id: WindowId) {
         self.send_event(Event::WindowEvent {
             event,
             window_id: RootWindowId(PlatformWindowId::Wayland(window_id)),

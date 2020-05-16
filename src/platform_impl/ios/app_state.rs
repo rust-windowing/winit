@@ -872,7 +872,7 @@ fn handle_hidpi_proxy(
             },
         };
         event_handler.handle_nonuser_event(event, &mut control_flow);
-        new_inner_size.get();
+        new_inner_size.get()
     };
 
     let (view, screen_frame) = get_view_and_screen_frame(window_id);
