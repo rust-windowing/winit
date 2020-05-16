@@ -1703,28 +1703,29 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
             );
 
-            // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
-            // exiting fullscreen (the restored size is already DPI adjusted).
-            let (new_inner_size, new_inner_size_mut_owner) =
-                scoped_arc_cell::scoped_arc_cell(match allow_resize {
-                    // We calculate our own size because the default suggested rect doesn't do a great job
-                    // of preserving the window's logical size.
-                    true => old_physical_inner_size
-                        .to_logical::<f64>(old_scale_factor)
-                        .to_physical::<u32>(new_scale_factor),
-                    false => old_physical_inner_size,
+            let new_physical_inner_size = {
+                // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
+                // exiting fullscreen (the restored size is already DPI adjusted).
+                let (new_inner_size, _mut_owner) =
+                    scoped_arc_cell::scoped_arc_cell(match allow_resize {
+                        // We calculate our own size because the default suggested rect doesn't do a great job
+                        // of preserving the window's logical size.
+                        true => old_physical_inner_size
+                            .to_logical::<f64>(old_scale_factor)
+                            .to_physical::<u32>(new_scale_factor),
+                        false => old_physical_inner_size,
+                    });
+
+                let _ = subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: ScaleFactorChanged {
+                        scale_factor: new_scale_factor,
+                        new_inner_size: new_inner_size.clone(),
+                    },
                 });
 
-            let _ = subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: ScaleFactorChanged {
-                    scale_factor: new_scale_factor,
-                    new_inner_size: new_inner_size.clone(),
-                },
-            });
-            std::mem::drop(new_inner_size_mut_owner);
-
-            let new_physical_inner_size = new_inner_size.get();
+                new_inner_size.get()
+            };
 
             let dragging_window: bool;
 

@@ -861,19 +861,22 @@ fn handle_hidpi_proxy(
     scale_factor: f64,
     window_id: id,
 ) {
-    let (new_inner_size, new_inner_size_mut_owner) =
-        scoped_arc_cell::scoped_arc_cell(suggested_size.to_physical(scale_factor));
-    let event = Event::WindowEvent {
-        window_id: RootWindowId(window_id.into()),
-        event: WindowEvent::ScaleFactorChanged {
-            scale_factor,
-            new_inner_size: new_inner_size.clone(),
-        },
+    let new_inner_size = {
+        let (new_inner_size, _mut_owner) =
+            scoped_arc_cell::scoped_arc_cell(suggested_size.to_physical(scale_factor));
+        let event = Event::WindowEvent {
+            window_id: RootWindowId(window_id.into()),
+            event: WindowEvent::ScaleFactorChanged {
+                scale_factor,
+                new_inner_size: new_inner_size.clone(),
+            },
+        };
+        event_handler.handle_nonuser_event(event, &mut control_flow);
+        new_inner_size.get();
     };
-    event_handler.handle_nonuser_event(event, &mut control_flow);
-    std::mem::drop(new_inner_size_mut_owner);
+
     let (view, screen_frame) = get_view_and_screen_frame(window_id);
-    let logical_size = new_inner_size.get().to_logical(scale_factor);
+    let logical_size = new_inner_size.to_logical(scale_factor);
     let size = CGSize::new(logical_size);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
     unsafe {

@@ -189,21 +189,24 @@ impl Handler {
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     ) {
-        let (new_inner_size, new_inner_size_mut_owner) =
-            scoped_arc_cell::scoped_arc_cell(suggested_size.to_physical(scale_factor));
+        let new_inner_size = {
+            let (new_inner_size, _mut_owner) =
+                scoped_arc_cell::scoped_arc_cell(suggested_size.to_physical(scale_factor));
 
-        let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*ns_window)),
-            event: WindowEvent::ScaleFactorChanged {
-                scale_factor,
-                new_inner_size: new_inner_size.clone(),
-            },
+            let event = Event::WindowEvent {
+                window_id: WindowId(get_window_id(*ns_window)),
+                event: WindowEvent::ScaleFactorChanged {
+                    scale_factor,
+                    new_inner_size: new_inner_size.clone(),
+                },
+            };
+
+            callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
+
+            new_inner_size.get()
         };
 
-        callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
-        std::mem::drop(new_inner_size_mut_owner);
-
-        let logical_size = new_inner_size.get().to_logical(scale_factor);
+        let logical_size = new_inner_size.to_logical(scale_factor);
         let size = NSSize::new(logical_size.width, logical_size.height);
         unsafe { NSWindow::setContentSize_(*ns_window, size) };
     }
