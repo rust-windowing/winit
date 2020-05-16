@@ -1,5 +1,7 @@
 # Unreleased
 
+# 0.22.2 (2020-05-16)
+
 - Added Clone implementation for 'static events.
 - On Windows, fix window intermittently hanging when `ControlFlow` was set to `Poll`.
 - On Windows, fix `WindowBuilder::with_maximized` being ignored.
