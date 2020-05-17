@@ -2,11 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 use winit::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
-    event::{
-        ElementState, KeyboardInput, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
-        VirtualKeyCode,
-    },
+    dpi::{Pixel, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, PhysicalDelta, LogicalDelta, UnitlessDelta},
+    event::{ModifiersState, PointerButton, LogicalKey},
     window::CursorIcon,
 };
 
@@ -20,20 +17,17 @@ fn window_serde() {
 
 #[test]
 fn events_serde() {
-    needs_serde::<KeyboardInput>();
-    needs_serde::<TouchPhase>();
-    needs_serde::<ElementState>();
-    needs_serde::<MouseButton>();
-    needs_serde::<MouseScrollDelta>();
-    needs_serde::<VirtualKeyCode>();
     needs_serde::<ModifiersState>();
+    needs_serde::<PointerButton>();
+    needs_serde::<LogicalKey>();
 }
 
-#[test]
-fn dpi_serde() {
-    needs_serde::<LogicalPosition<f64>>();
-    needs_serde::<PhysicalPosition<i32>>();
-    needs_serde::<PhysicalPosition<f64>>();
-    needs_serde::<LogicalSize<f64>>();
-    needs_serde::<PhysicalSize<u32>>();
+pub fn dpi_serde<T: Pixel + Serialize + for<'a> Deserialize<'a>>() {
+    needs_serde::<LogicalPosition<T>>();
+    needs_serde::<PhysicalPosition<T>>();
+    needs_serde::<LogicalSize<T>>();
+    needs_serde::<PhysicalSize<T>>();
+    needs_serde::<LogicalDelta<T>>();
+    needs_serde::<PhysicalDelta<T>>();
+    needs_serde::<UnitlessDelta<T>>();
 }
