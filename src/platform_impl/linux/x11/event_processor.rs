@@ -1189,16 +1189,27 @@ impl<T: 'static> EventProcessor<T> {
                                                     );
                                                     let old_inner_size =
                                                         PhysicalSize::new(width, height);
-                                                    let mut new_inner_size =
-                                                        PhysicalSize::new(new_width, new_height);
+                                                    let new_inner_size = {
+                                                        let (new_inner_size, _mut_owner) =
+                                                            scoped_arc_cell::scoped_arc_cell(
+                                                                PhysicalSize::new(
+                                                                    new_width, new_height,
+                                                                ),
+                                                            );
 
-                                                    callback(Event::WindowEvent {
-                                                        window_id,
-                                                        event: WindowEvent::ScaleFactorChanged {
-                                                            scale_factor: new_monitor.scale_factor,
-                                                            new_inner_size: &mut new_inner_size,
-                                                        },
-                                                    });
+                                                        callback(Event::WindowEvent {
+                                                            window_id,
+                                                            event:
+                                                                WindowEvent::ScaleFactorChanged {
+                                                                    scale_factor: new_monitor
+                                                                        .scale_factor,
+                                                                    new_inner_size: new_inner_size
+                                                                        .clone(),
+                                                                },
+                                                        });
+
+                                                        new_inner_size.get()
+                                                    };
 
                                                     if new_inner_size != old_inner_size {
                                                         let (new_width, new_height) =
