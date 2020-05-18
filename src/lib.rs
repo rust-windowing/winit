@@ -102,6 +102,12 @@
 //! [`raw_window_handle`] method), which in turn allows you to create an
 //! OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
 //!
+//! Note that many platforms will display garbage data in the window's client area if the
+//! application doesn't render anything to the window by the time the desktop compositor is ready to
+//! display the window to the user. If you notice this happening, you should create the window with
+//! [`visible` set to `false`](crate::window::WindowBuilder::with_visible) and explicitly make the
+//! window visible only once you're ready to render into it.
+//!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoopExtDesktop::run_return`]: ./platform/desktop/trait.EventLoopExtDesktop.html#tymethod.run_return
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
