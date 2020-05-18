@@ -39,7 +39,10 @@ use crate::{
     window::{CursorIcon, WindowId as RootWindowId},
 };
 
-use super::{window::WindowStore, DeviceId, WindowId};
+use super::{
+    window::{DecorationsAction, WindowStore},
+    DeviceId, WindowId,
+};
 
 use smithay_client_toolkit::{
     output::OutputMgr,
@@ -90,6 +93,7 @@ pub struct CursorManager {
     locked_pointers: Vec<ZwpLockedPointerV1>,
     cursor_visible: bool,
     current_cursor: CursorIcon,
+    scale_factor: u32,
 }
 
 impl CursorManager {
@@ -101,6 +105,7 @@ impl CursorManager {
             locked_pointers: Vec::new(),
             cursor_visible: true,
             current_cursor: CursorIcon::default(),
+            scale_factor: 1,
         }
     }
 
@@ -143,6 +148,11 @@ impl CursorManager {
                 self.set_cursor_icon_impl(cursor);
             }
         }
+    }
+
+    pub fn update_scale_factor(&mut self, scale: u32) {
+        self.scale_factor = scale;
+        self.reload_cursor_style();
     }
 
     fn set_cursor_icon_impl(&mut self, cursor: CursorIcon) {
@@ -193,7 +203,7 @@ impl CursorManager {
         for pointer in self.pointers.iter() {
             // Ignore erros, since we don't want to fail hard in case we can't find a proper cursor
             // in a given theme.
-            let _ = pointer.set_cursor(cursor, None);
+            let _ = pointer.set_cursor_with_scale(cursor, self.scale_factor, None);
         }
     }
 
@@ -704,47 +714,70 @@ impl<T> EventLoop<T> {
         window_target.store.lock().unwrap().for_each(|window| {
             let window_id =
                 crate::window::WindowId(crate::platform_impl::WindowId::Wayland(window.wid));
-            if let Some(frame) = window.frame {
-                if let Some((w, h)) = window.newsize {
-                    // mutter (GNOME Wayland) relies on `set_geometry` to reposition window in case
-                    // it overlaps mutter's `bounding box`, so we can't avoid this resize call,
-                    // which calls `set_geometry` under the hood, for now.
-                    frame.resize(w, h);
-                    frame.refresh();
 
-                    // Don't send resize event downstream if the new size is identical to the
-                    // current one.
-                    if (w, h) != *window.size {
-                        let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                        let physical_size = logical_size
-                            .to_physical(window.new_dpi.unwrap_or(window.prev_dpi) as f64);
+            // Update window logical .size field (for callbacks using .inner_size)
+            let (old_logical_size, mut logical_size) = {
+                let mut window_size = window.size.lock().unwrap();
+                let old_logical_size = *window_size;
+                *window_size = window.new_size.unwrap_or(old_logical_size);
+                (old_logical_size, *window_size)
+            };
 
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Resized(physical_size),
-                        });
-                        *window.size = (w, h);
-                    }
-                }
-
-                if let Some(dpi) = window.new_dpi {
-                    let dpi = dpi as f64;
-                    let logical_size = LogicalSize::<f64>::from(*window.size);
-                    let mut new_inner_size = logical_size.to_physical(dpi);
-
+            if let Some(scale_factor) = window.new_scale_factor {
+                // Update cursor scale factor
+                self.cursor_manager
+                    .lock()
+                    .unwrap()
+                    .update_scale_factor(scale_factor as u32);
+                let new_logical_size = {
+                    let scale_factor = scale_factor as f64;
+                    let mut physical_size =
+                        LogicalSize::<f64>::from(logical_size).to_physical(scale_factor);
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ScaleFactorChanged {
-                            scale_factor: dpi,
-                            new_inner_size: &mut new_inner_size,
+                            scale_factor,
+                            new_inner_size: &mut physical_size,
                         },
                     });
-
-                    let (w, h) = new_inner_size.to_logical::<u32>(dpi).into();
-                    frame.resize(w, h);
-                    *window.size = (w, h);
+                    physical_size.to_logical::<u32>(scale_factor).into()
+                };
+                // Update size if changed by callback
+                if new_logical_size != logical_size {
+                    logical_size = new_logical_size;
+                    *window.size.lock().unwrap() = logical_size.into();
                 }
             }
+
+            if window.new_size.is_some() || window.new_scale_factor.is_some() {
+                if let Some(frame) = window.frame {
+                    // Update decorations state
+                    match window.decorations_action {
+                        Some(DecorationsAction::Hide) => frame.set_decorate(false),
+                        Some(DecorationsAction::Show) => frame.set_decorate(true),
+                        None => (),
+                    }
+
+                    // mutter (GNOME Wayland) relies on `set_geometry` to reposition window in case
+                    // it overlaps mutter's `bounding box`, so we can't avoid this resize call,
+                    // which calls `set_geometry` under the hood, for now.
+                    let (w, h) = logical_size;
+                    frame.resize(w, h);
+                    frame.refresh();
+                }
+                // Don't send resize event downstream if the new logical size and scale is identical to the
+                // current one
+                if logical_size != old_logical_size || window.new_scale_factor.is_some() {
+                    let physical_size = LogicalSize::<f64>::from(logical_size).to_physical(
+                        window.new_scale_factor.unwrap_or(window.prev_scale_factor) as f64,
+                    );
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Resized(physical_size),
+                    });
+                }
+            }
+
             if window.closed {
                 callback(Event::WindowEvent {
                     window_id,

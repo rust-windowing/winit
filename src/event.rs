@@ -81,10 +81,11 @@ pub enum Event<'a, T: 'static> {
     ///
     /// This event is useful as a place to put your code that should be run after all
     /// state-changing events have been handled and you want to do stuff (updating state, performing
-    /// calculations, etc) that happens as the "main body" of your event loop. If your program draws
-    /// graphics, it's usually better to do it in response to
+    /// calculations, etc) that happens as the "main body" of your event loop. If your program only draws
+    /// graphics when something changes, it's usually better to do it in response to
     /// [`Event::RedrawRequested`](crate::event::Event::RedrawRequested), which gets emitted
-    /// immediately after this event.
+    /// immediately after this event. Programs that draw graphics continuously, like most games,
+    /// can render here unconditionally for simplicity.
     MainEventsCleared,
 
     /// Emitted after `MainEventsCleared` when a window should be redrawn.
@@ -97,6 +98,9 @@ pub enum Event<'a, T: 'static> {
     ///
     /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
     /// into a single event, to help avoid duplicating rendering work.
+    ///
+    /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
+    /// something changes, like most non-game GUIs.
     RedrawRequested(WindowId),
 
     /// Emitted after all `RedrawRequested` events have been processed and control flow is about to
@@ -112,6 +116,30 @@ pub enum Event<'a, T: 'static> {
     /// This is irreversable - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as an "do on quit" event.
     LoopDestroyed,
+}
+
+impl<T: Clone> Clone for Event<'static, T> {
+    fn clone(&self) -> Self {
+        use self::Event::*;
+        match self {
+            WindowEvent { window_id, event } => WindowEvent {
+                window_id: *window_id,
+                event: event.clone(),
+            },
+            UserEvent(event) => UserEvent(event.clone()),
+            DeviceEvent { device_id, event } => DeviceEvent {
+                device_id: *device_id,
+                event: event.clone(),
+            },
+            NewEvents(cause) => NewEvents(cause.clone()),
+            MainEventsCleared => MainEventsCleared,
+            RedrawRequested(wid) => RedrawRequested(*wid),
+            RedrawEventsCleared => RedrawEventsCleared,
+            LoopDestroyed => LoopDestroyed,
+            Suspended => Suspended,
+            Resumed => Resumed,
+        }
+    }
 }
 
 impl<'a, T> Event<'a, T> {
@@ -139,7 +167,7 @@ impl<'a, T> Event<'a, T> {
             WindowEvent { window_id, event } => event
                 .to_static()
                 .map(|event| WindowEvent { window_id, event }),
-            UserEvent(_) => None,
+            UserEvent(event) => Some(UserEvent(event)),
             DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
             NewEvents(cause) => Some(NewEvents(cause)),
             MainEventsCleared => Some(MainEventsCleared),
@@ -185,7 +213,7 @@ pub enum WindowEvent<'a> {
     Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(PhysicalPosition<u32>),
+    Moved(PhysicalPosition<i32>),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -235,6 +263,13 @@ pub enum WindowEvent<'a> {
         is_synthetic: bool,
     },
 
+    /// The keyboard modifiers have changed.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    ///   issue, and it should get fixed - but it's the current state of the API.
+    ModifiersChanged(ModifiersState),
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -243,7 +278,7 @@ pub enum WindowEvent<'a> {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<f64>,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -258,7 +293,7 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -267,7 +302,7 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
-        #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -319,6 +354,97 @@ pub enum WindowEvent<'a> {
     ThemeChanged(Theme),
 }
 
+impl Clone for WindowEvent<'static> {
+    fn clone(&self) -> Self {
+        use self::WindowEvent::*;
+        return match self {
+            Resized(size) => Resized(size.clone()),
+            Moved(pos) => Moved(pos.clone()),
+            CloseRequested => CloseRequested,
+            Destroyed => Destroyed,
+            DroppedFile(file) => DroppedFile(file.clone()),
+            HoveredFile(file) => HoveredFile(file.clone()),
+            HoveredFileCancelled => HoveredFileCancelled,
+            ReceivedCharacter(c) => ReceivedCharacter(*c),
+            Focused(f) => Focused(*f),
+            KeyboardInput {
+                device_id,
+                input,
+                is_synthetic,
+            } => KeyboardInput {
+                device_id: *device_id,
+                input: *input,
+                is_synthetic: *is_synthetic,
+            },
+
+            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
+            #[allow(deprecated)]
+            CursorMoved {
+                device_id,
+                position,
+                modifiers,
+            } => CursorMoved {
+                device_id: *device_id,
+                position: *position,
+                modifiers: *modifiers,
+            },
+            CursorEntered { device_id } => CursorEntered {
+                device_id: *device_id,
+            },
+            CursorLeft { device_id } => CursorLeft {
+                device_id: *device_id,
+            },
+            #[allow(deprecated)]
+            MouseWheel {
+                device_id,
+                delta,
+                phase,
+                modifiers,
+            } => MouseWheel {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+                modifiers: *modifiers,
+            },
+            #[allow(deprecated)]
+            MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            } => MouseInput {
+                device_id: *device_id,
+                state: *state,
+                button: *button,
+                modifiers: *modifiers,
+            },
+            TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            } => TouchpadPressure {
+                device_id: *device_id,
+                pressure: *pressure,
+                stage: *stage,
+            },
+            AxisMotion {
+                device_id,
+                axis,
+                value,
+            } => AxisMotion {
+                device_id: *device_id,
+                axis: *axis,
+                value: *value,
+            },
+            Touch(touch) => Touch(*touch),
+            ThemeChanged(theme) => ThemeChanged(theme.clone()),
+            ScaleFactorChanged { .. } => {
+                unreachable!("Static event can't be about scale factor changing")
+            }
+        };
+    }
+}
+
 impl<'a> WindowEvent<'a> {
     pub fn to_static(self) -> Option<WindowEvent<'static>> {
         use self::WindowEvent::*;
@@ -341,6 +467,7 @@ impl<'a> WindowEvent<'a> {
                 input,
                 is_synthetic,
             }),
+            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -464,16 +591,6 @@ pub enum DeviceEvent {
 
     Key(KeyboardInput),
 
-    /// The keyboard modifiers have changed.
-    ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
-    ///   issue, and it should get fixed - but it's the current state of the API.
-    ModifiersChanged(ModifiersState),
-
     Text {
         codepoint: char,
     },
@@ -502,7 +619,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of DeviceEvent::ModifiersChanged"]
+    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
 }
 
@@ -807,8 +924,10 @@ pub enum VirtualKeyCode {
     Multiply,
     Mute,
     MyComputer,
-    NavigateForward,  // also called "Prior"
-    NavigateBackward, // also called "Next"
+    // also called "Next"
+    NavigateForward,
+    // also called "Prior"
+    NavigateBackward,
     NextTrack,
     NoConvert,
     NumpadComma,

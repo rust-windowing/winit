@@ -3,7 +3,7 @@ mod event;
 mod timeout;
 
 pub use self::canvas::Canvas;
-pub use self::timeout::Timeout;
+pub use self::timeout::{AnimationFrameRequest, Timeout};
 
 use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
@@ -37,6 +37,17 @@ pub fn on_unload(mut handler: impl FnMut() + 'static) {
 impl WindowExtWebSys for Window {
     fn canvas(&self) -> HtmlCanvasElement {
         self.window.canvas().raw().clone()
+    }
+
+    fn is_dark_mode(&self) -> bool {
+        let window = web_sys::window().expect("Failed to obtain window");
+
+        window
+            .match_media("(prefers-color-scheme: dark)")
+            .ok()
+            .flatten()
+            .map(|media| media.matches())
+            .unwrap_or(false)
     }
 }
 

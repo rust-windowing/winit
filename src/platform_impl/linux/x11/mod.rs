@@ -29,6 +29,7 @@ use std::{
     mem::{self, MaybeUninit},
     ops::Deref,
     os::raw::*,
+    ptr,
     rc::Rc,
     slice,
     sync::{mpsc, Arc, Mutex, Weak},
@@ -105,7 +106,25 @@ impl<T: 'static> EventLoop<T> {
         // Input methods will open successfully without setting the locale, but it won't be
         // possible to actually commit pre-edit sequences.
         unsafe {
+            // Remember default locale to restore it if target locale is unsupported
+            // by Xlib
+            let default_locale = setlocale(LC_CTYPE, ptr::null());
             setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
+
+            // Check if set locale is supported by Xlib.
+            // If not, calls to some Xlib functions like `XSetLocaleModifiers`
+            // will fail.
+            let locale_supported = (xconn.xlib.XSupportsLocale)() == 1;
+            if !locale_supported {
+                let unsupported_locale = setlocale(LC_CTYPE, ptr::null());
+                warn!(
+                    "Unsupported locale \"{}\". Restoring default locale \"{}\".",
+                    CStr::from_ptr(unsupported_locale).to_string_lossy(),
+                    CStr::from_ptr(default_locale).to_string_lossy()
+                );
+                // Restore default locale
+                setlocale(LC_CTYPE, default_locale);
+            }
         }
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
@@ -206,6 +225,7 @@ impl<T: 'static> EventLoop<T> {
             device_mod_state: Default::default(),
             num_touch: 0,
             first_touch: None,
+            active_window: None,
         };
 
         // Register for device hotplug events
@@ -248,14 +268,16 @@ impl<T: 'static> EventLoop<T> {
     {
         let mut control_flow = ControlFlow::default();
         let mut events = Events::with_capacity(8);
-
-        callback(
-            crate::event::Event::NewEvents(crate::event::StartCause::Init),
-            &self.target,
-            &mut control_flow,
-        );
+        let mut cause = StartCause::Init;
 
         loop {
+            sticky_exit_callback(
+                crate::event::Event::NewEvents(cause),
+                &self.target,
+                &mut control_flow,
+                &mut callback,
+            );
+
             // Process all pending events
             self.drain_events(&mut callback, &mut control_flow);
 
@@ -306,7 +328,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             let start = Instant::now();
-            let (mut cause, deadline, timeout);
+            let (deadline, timeout);
 
             match control_flow {
                 ControlFlow::Exit => break,
@@ -337,38 +359,20 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
 
-            if self.event_processor.poll() {
-                // If the XConnection already contains buffered events, we don't
-                // need to wait for data on the socket.
-                // However, we still need to check for user events.
-                self.poll
-                    .poll(&mut events, Some(Duration::from_millis(0)))
-                    .unwrap();
-                events.clear();
-
-                callback(
-                    crate::event::Event::NewEvents(cause),
-                    &self.target,
-                    &mut control_flow,
-                );
-            } else {
+            // If the XConnection already contains buffered events, we don't
+            // need to wait for data on the socket.
+            if !self.event_processor.poll() {
                 self.poll.poll(&mut events, timeout).unwrap();
                 events.clear();
+            }
 
-                let wait_cancelled = deadline.map_or(false, |deadline| Instant::now() < deadline);
+            let wait_cancelled = deadline.map_or(false, |deadline| Instant::now() < deadline);
 
-                if wait_cancelled {
-                    cause = StartCause::WaitCancelled {
-                        start,
-                        requested_resume: deadline,
-                    };
-                }
-
-                callback(
-                    crate::event::Event::NewEvents(cause),
-                    &self.target,
-                    &mut control_flow,
-                );
+            if wait_cancelled {
+                cause = StartCause::WaitCancelled {
+                    start,
+                    requested_resume: deadline,
+                };
             }
         }
 

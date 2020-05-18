@@ -21,7 +21,8 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
     // XSetLocaleModifiers returns...
     // * The current locale modifiers if it's given a NULL pointer.
     // * The new locale modifiers if we succeeded in setting them.
-    // * NULL if the locale modifiers string is malformed.
+    // * NULL if the locale modifiers string is malformed or if the
+    //   current locale is not supported by Xlib.
     (xconn.xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr());
 
     let im = (xconn.xlib.XOpenIM)(

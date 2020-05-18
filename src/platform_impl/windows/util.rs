@@ -116,7 +116,7 @@ pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
                 | winuser::SWP_NOMOVE
                 | winuser::SWP_NOACTIVATE,
         );
-        winuser::UpdateWindow(window);
+        winuser::InvalidateRgn(window, ptr::null_mut(), 0);
     }
 }
 

@@ -1,16 +1,19 @@
 #![cfg(target_os = "windows")]
 
 use std::os::raw::c_void;
+use std::path::Path;
 
 use libc;
+use winapi::shared::minwindef::WORD;
 use winapi::shared::windef::HWND;
 
 use crate::{
+    dpi::PhysicalSize,
     event::DeviceId,
     event_loop::EventLoop,
     monitor::MonitorHandle,
-    platform_impl::EventLoop as WindowsEventLoop,
-    window::{Icon, Window, WindowBuilder},
+    platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
+    window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -169,5 +172,42 @@ impl DeviceIdExtWindows for DeviceId {
     #[inline]
     fn persistent_identifier(&self) -> Option<String> {
         self.0.persistent_identifier()
+    }
+}
+
+/// Additional methods on `Icon` that are specific to Windows.
+pub trait IconExtWindows: Sized {
+    /// Create an icon from a file path.
+    ///
+    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
+    /// icon size from the file.
+    ///
+    /// In cases where the specified size does not exist in the file, Windows may perform scaling
+    /// to get an icon of the desired size.
+    fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>)
+        -> Result<Self, BadIcon>;
+
+    /// Create an icon from a resource embedded in this executable or library.
+    ///
+    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
+    /// icon size from the file.
+    ///
+    /// In cases where the specified size does not exist in the file, Windows may perform scaling
+    /// to get an icon of the desired size.
+    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
+}
+
+impl IconExtWindows for Icon {
+    fn from_path<P: AsRef<Path>>(
+        path: P,
+        size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self, BadIcon> {
+        let win_icon = WinIcon::from_path(path, size)?;
+        Ok(Icon { inner: win_icon })
+    }
+
+    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
+        let win_icon = WinIcon::from_resource(ordinal, size)?;
+        Ok(Icon { inner: win_icon })
     }
 }

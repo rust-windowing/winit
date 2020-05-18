@@ -50,11 +50,13 @@ impl Default for CursorState {
     }
 }
 
-struct ViewState {
+pub(super) struct ViewState {
     ns_window: id,
     pub cursor_state: Arc<Mutex<CursorState>>,
     ime_spot: Option<(f64, f64)>,
-    modifiers: ModifiersState,
+    raw_characters: Option<String>,
+    is_key_down: bool,
+    pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
     ignore_alt_modifier: bool,
 }
@@ -379,8 +381,13 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
     }
 }
 
-extern "C" fn has_marked_text(_this: &Object, _sel: Sel) -> BOOL {
-    YES
+extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
+    unsafe {
+        trace!("Triggered `hasMarkedText`");
+        let marked_text: id = *this.get_ivar("markedText");
+        trace!("Completed `hasMarkedText`");
+        (marked_text.length() > 0) as i8
+    }
 }
 
 extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
@@ -541,6 +548,19 @@ fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
     })
 }
 
+// Update `state.modifiers` if `event` has something different
+fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
+    let event_modifiers = event_mods(event);
+    if state.modifiers != event_modifiers {
+        state.modifiers = event_modifiers;
+
+        AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::ModifiersChanged(state.modifiers),
+        }));
+    }
+}
+
 extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
     trace!("Triggered `keyDown`");
     unsafe {
@@ -552,6 +572,10 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
+
+        let is_repeat = msg_send![event, isARepeat];
+
+        update_potentially_stale_modifiers(state, event);
 
         #[allow(deprecated)]
         let window_event = Event::WindowEvent {
@@ -587,6 +611,8 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
 
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
+
+        update_potentially_stale_modifiers(state, event);
 
         #[allow(deprecated)]
         let window_event = Event::WindowEvent {
@@ -652,16 +678,18 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
             events.push_back(window_event);
         }
 
+        let window_id = WindowId(get_window_id(state.ns_window));
+
         for event in events {
             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.ns_window)),
+                window_id,
                 event,
             }));
         }
 
-        AppState::queue_event(EventWrapper::StaticEvent(Event::DeviceEvent {
-            device_id: DEVICE_ID,
-            event: DeviceEvent::ModifiersChanged(state.modifiers),
+        AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            window_id,
+            event: WindowEvent::ModifiersChanged(state.modifiers),
         }));
     }
     trace!("Completed `flagsChanged`");
@@ -703,6 +731,8 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
 
         let event: id = msg_send![NSApp(), currentEvent];
 
+        update_potentially_stale_modifiers(state, event);
+
         #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
@@ -728,6 +758,8 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
+        update_potentially_stale_modifiers(state, event);
+
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::MouseInput {
@@ -743,26 +775,32 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
 }
 
 extern "C" fn mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Left, ElementState::Pressed);
 }
 
 extern "C" fn mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Left, ElementState::Released);
 }
 
 extern "C" fn right_mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Right, ElementState::Pressed);
 }
 
 extern "C" fn right_mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Right, ElementState::Released);
 }
 
 extern "C" fn other_mouse_down(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Middle, ElementState::Pressed);
 }
 
 extern "C" fn other_mouse_up(this: &Object, _sel: Sel, event: id) {
+    mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Middle, ElementState::Released);
 }
 
@@ -790,6 +828,8 @@ fn mouse_motion(this: &Object, event: id) {
         let x = view_point.x as f64;
         let y = view_rect.size.height as f64 - view_point.y as f64;
         let logical_position = LogicalPosition::new(x, y);
+
+        update_potentially_stale_modifiers(state, event);
 
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
@@ -820,7 +860,7 @@ extern "C" fn other_mouse_dragged(this: &Object, _sel: Sel, event: id) {
     mouse_motion(this, event);
 }
 
-extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
+extern "C" fn mouse_entered(this: &Object, _sel: Sel, _event: id) {
     trace!("Triggered `mouseEntered`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
@@ -834,7 +874,6 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, event: id) {
         };
 
         AppState::queue_event(EventWrapper::StaticEvent(enter_event));
-        mouse_motion(this, event);
     }
     trace!("Completed `mouseEntered`");
 }
@@ -859,6 +898,9 @@ extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
 
 extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
     trace!("Triggered `scrollWheel`");
+
+    mouse_motion(this, event);
+
     unsafe {
         let delta = {
             let (x, y) = (event.scrollingDeltaX(), event.scrollingDeltaY());
@@ -884,6 +926,8 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
+        update_potentially_stale_modifiers(state, event);
+
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::MouseWheel {
@@ -902,6 +946,9 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
 
 extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
     trace!("Triggered `pressureChangeWithEvent`");
+
+    mouse_motion(this, event);
+
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);

@@ -41,6 +41,13 @@ pub struct Window {
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
     cursor_grab_changed: Arc<Mutex<Option<bool>>>, // Update grab state
+    decorated: Arc<Mutex<bool>>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum DecorationsAction {
+    Hide,
+    Show,
 }
 
 impl Window {
@@ -52,15 +59,20 @@ impl Window {
         // Create the surface first to get initial DPI
         let window_store = evlp.store.clone();
         let cursor_manager = evlp.cursor_manager.clone();
-        let surface = evlp.env.create_surface(move |dpi, surface| {
-            window_store.lock().unwrap().dpi_change(&surface, dpi);
-            surface.set_buffer_scale(dpi);
+        let surface = evlp.env.create_surface(move |scale_factor, surface| {
+            window_store
+                .lock()
+                .unwrap()
+                .scale_factor_change(&surface, scale_factor);
+            surface.set_buffer_scale(scale_factor);
         });
 
-        let dpi = get_dpi_factor(&surface) as f64;
+        // Always 1.
+        let scale_factor = get_dpi_factor(&surface);
+
         let (width, height) = attributes
             .inner_size
-            .map(|size| size.to_logical::<f64>(dpi).into())
+            .map(|size| size.to_logical::<f64>(scale_factor as f64).into())
             .unwrap_or((800, 600));
 
         // Create the window
@@ -68,6 +80,9 @@ impl Window {
         let fullscreen = Arc::new(Mutex::new(false));
 
         let window_store = evlp.store.clone();
+
+        let decorated = Arc::new(Mutex::new(attributes.decorations));
+        let pending_decorations_action = Arc::new(Mutex::new(None));
 
         let my_surface = surface.clone();
         let mut frame = SWindow::<ConceptFrame>::init_from_env(
@@ -81,9 +96,25 @@ impl Window {
 
                     for window in &mut store.windows {
                         if window.surface.as_ref().equals(&my_surface.as_ref()) {
-                            window.newsize = new_size;
+                            window.new_size = new_size;
                             *(window.need_refresh.lock().unwrap()) = true;
-                            *(window.fullscreen.lock().unwrap()) = is_fullscreen;
+                            {
+                                // Get whether we're in fullscreen
+                                let mut fullscreen = window.fullscreen.lock().unwrap();
+                                // Fullscreen state was changed, so update decorations
+                                if *fullscreen != is_fullscreen {
+                                    let decorated = { *window.decorated.lock().unwrap() };
+                                    if decorated {
+                                        *window.pending_decorations_action.lock().unwrap() =
+                                            if is_fullscreen {
+                                                Some(DecorationsAction::Hide)
+                                            } else {
+                                                Some(DecorationsAction::Show)
+                                            };
+                                    }
+                                }
+                                *fullscreen = is_fullscreen;
+                            }
                             *(window.need_frame_refresh.lock().unwrap()) = true;
                             return;
                         }
@@ -147,12 +178,12 @@ impl Window {
         frame.set_min_size(
             attributes
                 .min_inner_size
-                .map(|size| size.to_logical::<f64>(dpi).into()),
+                .map(|size| size.to_logical::<f64>(scale_factor as f64).into()),
         );
         frame.set_max_size(
             attributes
                 .max_inner_size
-                .map(|size| size.to_logical::<f64>(dpi).into()),
+                .map(|size| size.to_logical::<f64>(scale_factor as f64).into()),
         );
 
         let kill_switch = Arc::new(Mutex::new(false));
@@ -163,7 +194,7 @@ impl Window {
 
         evlp.store.lock().unwrap().windows.push(InternalWindow {
             closed: false,
-            newsize: None,
+            new_size: None,
             size: size.clone(),
             need_refresh: need_refresh.clone(),
             fullscreen: fullscreen.clone(),
@@ -172,8 +203,10 @@ impl Window {
             surface: surface.clone(),
             kill_switch: kill_switch.clone(),
             frame: Arc::downgrade(&frame),
-            current_dpi: 1,
-            new_dpi: None,
+            current_scale_factor: scale_factor,
+            new_scale_factor: None,
+            decorated: decorated.clone(),
+            pending_decorations_action: pending_decorations_action.clone(),
         });
         evlp.evq.borrow_mut().sync_roundtrip().unwrap();
 
@@ -189,6 +222,7 @@ impl Window {
             cursor_manager,
             fullscreen,
             cursor_grab_changed,
+            decorated,
         })
     }
 
@@ -221,9 +255,9 @@ impl Window {
     }
 
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let dpi = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor() as f64;
         let size = LogicalSize::<f64>::from(*self.size.lock().unwrap());
-        size.to_physical(dpi)
+        size.to_physical(scale_factor)
     }
 
     pub fn request_redraw(&self) {
@@ -232,38 +266,38 @@ impl Window {
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        let dpi = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor() as f64;
         let (w, h) = self.size.lock().unwrap().clone();
         // let (w, h) = super::wayland_window::add_borders(w as i32, h as i32);
         let size = LogicalSize::<f64>::from((w, h));
-        size.to_physical(dpi)
+        size.to_physical(scale_factor)
     }
 
     #[inline]
     // NOTE: This will only resize the borders, the contents must be updated by the user
     pub fn set_inner_size(&self, size: Size) {
-        let dpi = self.scale_factor() as f64;
-        let (w, h) = size.to_logical::<u32>(dpi).into();
+        let scale_factor = self.scale_factor() as f64;
+        let (w, h) = size.to_logical::<u32>(scale_factor).into();
         self.frame.lock().unwrap().resize(w, h);
         *(self.size.lock().unwrap()) = (w, h);
     }
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
-        let dpi = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor() as f64;
         self.frame
             .lock()
             .unwrap()
-            .set_min_size(dimensions.map(|dim| dim.to_logical::<f64>(dpi).into()));
+            .set_min_size(dimensions.map(|dim| dim.to_logical::<f64>(scale_factor).into()));
     }
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
-        let dpi = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor() as f64;
         self.frame
             .lock()
             .unwrap()
-            .set_max_size(dimensions.map(|dim| dim.to_logical::<f64>(dpi).into()));
+            .set_max_size(dimensions.map(|dim| dim.to_logical::<f64>(scale_factor).into()));
     }
 
     #[inline]
@@ -277,6 +311,7 @@ impl Window {
     }
 
     pub fn set_decorations(&self, decorate: bool) {
+        *(self.decorated.lock().unwrap()) = decorate;
         self.frame.lock().unwrap().set_decorate(decorate);
         *(self.need_frame_refresh.lock().unwrap()) = true;
     }
@@ -398,7 +433,7 @@ impl Drop for Window {
 struct InternalWindow {
     surface: wl_surface::WlSurface,
     // TODO: CONVERT TO LogicalSize<u32>s
-    newsize: Option<(u32, u32)>,
+    new_size: Option<(u32, u32)>,
     size: Arc<Mutex<(u32, u32)>>,
     need_refresh: Arc<Mutex<bool>>,
     fullscreen: Arc<Mutex<bool>>,
@@ -407,8 +442,10 @@ struct InternalWindow {
     closed: bool,
     kill_switch: Arc<Mutex<bool>>,
     frame: Weak<Mutex<SWindow<ConceptFrame>>>,
-    current_dpi: i32,
-    new_dpi: Option<i32>,
+    current_scale_factor: i32,
+    new_scale_factor: Option<i32>,
+    decorated: Arc<Mutex<bool>>,
+    pending_decorations_action: Arc<Mutex<Option<DecorationsAction>>>,
 }
 
 pub struct WindowStore {
@@ -416,15 +453,16 @@ pub struct WindowStore {
 }
 
 pub struct WindowStoreForEach<'a> {
-    pub newsize: Option<(u32, u32)>,
-    pub size: &'a mut (u32, u32),
-    pub prev_dpi: i32,
-    pub new_dpi: Option<i32>,
+    pub new_size: Option<(u32, u32)>,
+    pub size: &'a Mutex<(u32, u32)>,
+    pub prev_scale_factor: i32,
+    pub new_scale_factor: Option<i32>,
     pub closed: bool,
     pub grab_cursor: Option<bool>,
     pub surface: &'a wl_surface::WlSurface,
     pub wid: WindowId,
     pub frame: Option<&'a mut SWindow<ConceptFrame>>,
+    pub decorations_action: Option<DecorationsAction>,
 }
 
 impl WindowStore {
@@ -466,10 +504,11 @@ impl WindowStore {
         }
     }
 
-    fn dpi_change(&mut self, surface: &wl_surface::WlSurface, new: i32) {
+    fn scale_factor_change(&mut self, surface: &wl_surface::WlSurface, new: i32) {
         for window in &mut self.windows {
             if surface.as_ref().equals(&window.surface.as_ref()) {
-                window.new_dpi = Some(new);
+                window.new_scale_factor = Some(new);
+                *(window.need_refresh.lock().unwrap()) = true;
             }
         }
     }
@@ -479,24 +518,25 @@ impl WindowStore {
         F: FnMut(WindowStoreForEach<'_>),
     {
         for window in &mut self.windows {
+            let prev_scale_factor = window.current_scale_factor;
+            if let Some(scale_factor) = window.new_scale_factor {
+                window.current_scale_factor = scale_factor;
+            }
             let opt_arc = window.frame.upgrade();
             let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
-            let mut size = { *window.size.lock().unwrap() };
+            let decorations_action = { window.pending_decorations_action.lock().unwrap().take() };
             f(WindowStoreForEach {
-                newsize: window.newsize.take(),
-                size: &mut size,
-                prev_dpi: window.current_dpi,
-                new_dpi: window.new_dpi,
+                new_size: window.new_size.take(),
+                size: &window.size,
+                prev_scale_factor,
+                new_scale_factor: window.new_scale_factor.take(),
                 closed: window.closed,
                 grab_cursor: window.cursor_grab_changed.lock().unwrap().take(),
                 surface: &window.surface,
                 wid: make_wid(&window.surface),
                 frame: opt_mutex_lock.as_mut().map(|m| &mut **m),
+                decorations_action,
             });
-            *window.size.lock().unwrap() = size;
-            if let Some(dpi) = window.new_dpi.take() {
-                window.current_dpi = dpi;
-            }
             // avoid re-spamming the event
             window.closed = false;
         }

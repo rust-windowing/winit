@@ -1,7 +1,42 @@
 # Unreleased
 
+# 0.22.2 (2020-05-16)
+
+- Added Clone implementation for 'static events.
+- On Windows, fix window intermittently hanging when `ControlFlow` was set to `Poll`.
+- On Windows, fix `WindowBuilder::with_maximized` being ignored.
+- On Android, minimal platform support.
+- On iOS, touch positions are now properly converted to physical pixels.
+- On macOS, updated core-* dependencies and cocoa
+
+# 0.22.1 (2020-04-16)
+
+- On X11, fix `ResumeTimeReached` being fired too early.
+- On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
+- On Web, fix a possible panic during event handling
+- On macOS, fix `EventLoopProxy` leaking memory for every instance.
+
+# 0.22.0 (2020-03-09)
+
+- On Windows, fix minor timing issue in wait_until_time_or_msg
+- On Windows, rework handling of request_redraw() to address panics.
+- On macOS, fix `set_simple_screen` to remember frame excluding title bar.
 - On Wayland, fix coordinates in touch events when scale factor isn't 1.
 - On Wayland, fix color from `close_button_icon_color` not applying.
+- Ignore locale if unsupported by X11 backend
+- On Wayland, Add HiDPI cursor support
+- On Web, add the ability to query "Light" or "Dark" system theme send `ThemeChanged` on change.
+- Fix `Event::to_static` returning `None` for user events.
+- On Wayland, Hide CSD for fullscreen windows.
+- On Windows, ignore spurious mouse move messages.
+- **Breaking:** Move `ModifiersChanged` variant from `DeviceEvent` to `WindowEvent`.
+- On Windows, add `IconExtWindows` trait which exposes creating an `Icon` from an external file or embedded resource
+- Add `BadIcon::OsError` variant for when OS icon functionality fails
+- On Windows, fix crash at startup on systems that do not properly support Windows' Dark Mode
+- Revert On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
+- on macOS, fix incorrect ReceivedCharacter events for some key combinations.
+- **Breaking:** Use `i32` instead of `u32` for position type in `WindowEvent::Moved`.
+- On macOS, a mouse motion event is now generated before every mouse click.
 
 # 0.21.0 (2020-02-04)
 
@@ -23,7 +58,6 @@
 # 0.20.0 (2020-01-05)
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
-
 - **Breaking**: Overhaul how Winit handles DPI:
   + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
   + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.

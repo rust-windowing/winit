@@ -9,7 +9,7 @@ jobs:
   Publish:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: stable

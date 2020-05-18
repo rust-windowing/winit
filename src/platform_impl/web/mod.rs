@@ -44,3 +44,5 @@ pub use self::window::{
     Id as WindowId, PlatformSpecificBuilderAttributes as PlatformSpecificWindowBuilderAttributes,
     Window,
 };
+
+pub(crate) use crate::icon::NoIcon as PlatformIcon;

@@ -73,14 +73,18 @@
 //!             // Application update code.
 //!
 //!             // Queue a RedrawRequested event.
+//!             //
+//!             // You only need to call this if you've determined that you need to redraw, in
+//!             // applications which do not always need to. Applications that redraw continuously
+//!             // can just render here instead.
 //!             window.request_redraw();
 //!         },
 //!         Event::RedrawRequested(_) => {
 //!             // Redraw the application.
 //!             //
-//!             // It's preferrable to render in this event rather than in MainEventsCleared, since
-//!             // rendering in here allows the program to gracefully handle redraws requested
-//!             // by the OS.
+//!             // It's preferable for applications that do not render continuously to render in
+//!             // this event rather than in MainEventsCleared, since rendering in here allows
+//!             // the program to gracefully handle redraws requested by the OS.
 //!         },
 //!         _ => ()
 //!     }
@@ -94,8 +98,15 @@
 //! # Drawing on the window
 //!
 //! Winit doesn't directly provide any methods for drawing on a [`Window`]. However it allows you to
-//! retrieve the raw handle of the window (see the [`platform`] module), which in turn allows you
-//! to create an OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
+//! retrieve the raw handle of the window (see the [`platform`] module and/or the
+//! [`raw_window_handle`] method), which in turn allows you to create an
+//! OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
+//!
+//! Note that many platforms will display garbage data in the window's client area if the
+//! application doesn't render anything to the window by the time the desktop compositor is ready to
+//! display the window to the user. If you notice this happening, you should create the window with
+//! [`visible` set to `false`](crate::window::WindowBuilder::with_visible) and explicitly make the
+//! window visible only once you're ready to render into it.
 //!
 //! [`EventLoop`]: event_loop::EventLoop
 //! [`EventLoopExtDesktop::run_return`]: ./platform/desktop/trait.EventLoopExtDesktop.html#tymethod.run_return
@@ -116,6 +127,7 @@
 //! [`UserEvent`]: event::Event::UserEvent
 //! [`LoopDestroyed`]: event::Event::LoopDestroyed
 //! [`platform`]: platform
+//! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 
 #![deny(rust_2018_idioms)]
 #![deny(intra_doc_link_resolution_failure)]

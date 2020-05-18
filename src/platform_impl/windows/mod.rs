@@ -4,11 +4,15 @@ use winapi::{self, shared::windef::HWND};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
+    icon::WinIcon,
     monitor::{MonitorHandle, VideoMode},
     window::Window,
 };
 
-use crate::{event::DeviceId as RootDeviceId, window::Icon};
+pub use self::icon::WinIcon as PlatformIcon;
+
+use crate::event::DeviceId as RootDeviceId;
+use crate::icon::Icon;
 
 #[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {

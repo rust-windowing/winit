@@ -1,4 +1,5 @@
-use std::{error::Error, fmt, mem};
+use crate::platform_impl::PlatformIcon;
+use std::{error::Error, fmt, io, mem};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -11,7 +12,7 @@ pub(crate) struct Pixel {
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug)]
 /// An error produced when using `Icon::from_rgba` with invalid arguments.
 pub enum BadIcon {
     /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
@@ -25,6 +26,8 @@ pub enum BadIcon {
         width_x_height: usize,
         pixel_count: usize,
     },
+    /// Produced when underlying OS functionality failed to create the icon
+    OsError(io::Error),
 }
 
 impl fmt::Display for BadIcon {
@@ -43,6 +46,7 @@ impl fmt::Display for BadIcon {
                 "The specified dimensions ({:?}x{:?}) don't match the number of pixels supplied by the `rgba` argument ({:?}). For those dimensions, the expected pixel count is {:?}.",
                 width, height, pixel_count, width_x_height,
             ),
+            BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {:?}", e),
         }
     }
 }
@@ -54,11 +58,68 @@ impl Error for BadIcon {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-/// An icon used for the window titlebar, taskbar, etc.
-pub struct Icon {
+pub(crate) struct RgbaIcon {
     pub(crate) rgba: Vec<u8>,
     pub(crate) width: u32,
     pub(crate) height: u32,
+}
+
+/// For platforms which don't have window icons (e.g. web)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct NoIcon;
+
+#[allow(dead_code)] // These are not used on every platform
+mod constructors {
+    use super::*;
+
+    impl RgbaIcon {
+        /// Creates an `Icon` from 32bpp RGBA data.
+        ///
+        /// The length of `rgba` must be divisible by 4, and `width * height` must equal
+        /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
+        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+            if rgba.len() % PIXEL_SIZE != 0 {
+                return Err(BadIcon::ByteCountNotDivisibleBy4 {
+                    byte_count: rgba.len(),
+                });
+            }
+            let pixel_count = rgba.len() / PIXEL_SIZE;
+            if pixel_count != (width * height) as usize {
+                Err(BadIcon::DimensionsVsPixelCount {
+                    width,
+                    height,
+                    width_x_height: (width * height) as usize,
+                    pixel_count,
+                })
+            } else {
+                Ok(RgbaIcon {
+                    rgba,
+                    width,
+                    height,
+                })
+            }
+        }
+    }
+
+    impl NoIcon {
+        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
+            // Create the rgba icon anyway to validate the input
+            let _ = RgbaIcon::from_rgba(rgba, width, height)?;
+            Ok(NoIcon)
+        }
+    }
+}
+
+/// An icon used for the window titlebar, taskbar, etc.
+#[derive(Clone)]
+pub struct Icon {
+    pub(crate) inner: PlatformIcon,
+}
+
+impl fmt::Debug for Icon {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        fmt::Debug::fmt(&self.inner, formatter)
+    }
 }
 
 impl Icon {
@@ -67,25 +128,8 @@ impl Icon {
     /// The length of `rgba` must be divisible by 4, and `width * height` must equal
     /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
     pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        if rgba.len() % PIXEL_SIZE != 0 {
-            return Err(BadIcon::ByteCountNotDivisibleBy4 {
-                byte_count: rgba.len(),
-            });
-        }
-        let pixel_count = rgba.len() / PIXEL_SIZE;
-        if pixel_count != (width * height) as usize {
-            Err(BadIcon::DimensionsVsPixelCount {
-                width,
-                height,
-                width_x_height: (width * height) as usize,
-                pixel_count,
-            })
-        } else {
-            Ok(Icon {
-                rgba,
-                width,
-                height,
-            })
-        }
+        Ok(Icon {
+            inner: PlatformIcon::from_rgba(rgba, width, height)?,
+        })
     }
 }

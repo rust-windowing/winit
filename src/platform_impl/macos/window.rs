@@ -341,7 +341,7 @@ impl UnownedWindow {
 
         let input_context = unsafe { util::create_input_context(*ns_view) };
 
-        let dpi_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
+        let scale_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
 
         unsafe {
             if win_attribs.transparent {
@@ -351,11 +351,11 @@ impl UnownedWindow {
 
             ns_app.activateIgnoringOtherApps_(YES);
             win_attribs.min_inner_size.map(|dim| {
-                let logical_dim = dim.to_logical(dpi_factor);
+                let logical_dim = dim.to_logical(scale_factor);
                 set_min_inner_size(*ns_window, logical_dim)
             });
             win_attribs.max_inner_size.map(|dim| {
-                let logical_dim = dim.to_logical(dpi_factor);
+                let logical_dim = dim.to_logical(scale_factor);
                 set_max_inner_size(*ns_window, logical_dim)
             });
 
@@ -379,7 +379,7 @@ impl UnownedWindow {
         let decorations = win_attribs.decorations;
         let inner_rect = win_attribs
             .inner_size
-            .map(|size| size.to_physical(dpi_factor));
+            .map(|size| size.to_physical(scale_factor));
 
         let window = Arc::new(UnownedWindow {
             ns_view,
@@ -451,8 +451,8 @@ impl UnownedWindow {
             frame_rect.origin.x as f64,
             util::bottom_left_to_top_left(frame_rect),
         );
-        let dpi_factor = self.scale_factor();
-        Ok(position.to_physical(dpi_factor))
+        let scale_factor = self.scale_factor();
+        Ok(position.to_physical(scale_factor))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
@@ -463,13 +463,13 @@ impl UnownedWindow {
             content_rect.origin.x as f64,
             util::bottom_left_to_top_left(content_rect),
         );
-        let dpi_factor = self.scale_factor();
-        Ok(position.to_physical(dpi_factor))
+        let scale_factor = self.scale_factor();
+        Ok(position.to_physical(scale_factor))
     }
 
     pub fn set_outer_position(&self, position: Position) {
-        let dpi_factor = self.scale_factor();
-        let position = position.to_logical(dpi_factor);
+        let scale_factor = self.scale_factor();
+        let position = position.to_logical(scale_factor);
         let dummy = NSRect::new(
             NSPoint::new(
                 position.x,
@@ -489,8 +489,8 @@ impl UnownedWindow {
         let view_frame = unsafe { NSView::frame(*self.ns_view) };
         let logical: LogicalSize<f64> =
             (view_frame.size.width as f64, view_frame.size.height as f64).into();
-        let dpi_factor = self.scale_factor();
-        logical.to_physical(dpi_factor)
+        let scale_factor = self.scale_factor();
+        logical.to_physical(scale_factor)
     }
 
     #[inline]
@@ -498,15 +498,15 @@ impl UnownedWindow {
         let view_frame = unsafe { NSWindow::frame(*self.ns_window) };
         let logical: LogicalSize<f64> =
             (view_frame.size.width as f64, view_frame.size.height as f64).into();
-        let dpi_factor = self.scale_factor();
-        logical.to_physical(dpi_factor)
+        let scale_factor = self.scale_factor();
+        logical.to_physical(scale_factor)
     }
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         unsafe {
-            let dpi_factor = self.scale_factor();
-            util::set_content_size_async(*self.ns_window, size.to_logical(dpi_factor));
+            let scale_factor = self.scale_factor();
+            util::set_content_size_async(*self.ns_window, size.to_logical(scale_factor));
         }
     }
 
@@ -516,8 +516,8 @@ impl UnownedWindow {
                 width: 0.0,
                 height: 0.0,
             }));
-            let dpi_factor = self.scale_factor();
-            set_min_inner_size(*self.ns_window, dimensions.to_logical(dpi_factor));
+            let scale_factor = self.scale_factor();
+            set_min_inner_size(*self.ns_window, dimensions.to_logical(scale_factor));
         }
     }
 
@@ -527,8 +527,8 @@ impl UnownedWindow {
                 width: std::f32::MAX as f64,
                 height: std::f32::MAX as f64,
             }));
-            let dpi_factor = self.scale_factor();
-            set_max_inner_size(*self.ns_window, dimensions.to_logical(dpi_factor));
+            let scale_factor = self.scale_factor();
+            set_max_inner_size(*self.ns_window, dimensions.to_logical(scale_factor));
         }
     }
 
@@ -595,9 +595,9 @@ impl UnownedWindow {
     #[inline]
     pub fn set_cursor_position(&self, cursor_position: Position) -> Result<(), ExternalError> {
         let physical_window_position = self.inner_position().unwrap();
-        let dpi_factor = self.scale_factor();
-        let window_position = physical_window_position.to_logical::<CGFloat>(dpi_factor);
-        let logical_cursor_position = cursor_position.to_logical::<CGFloat>(dpi_factor);
+        let scale_factor = self.scale_factor();
+        let window_position = physical_window_position.to_logical::<CGFloat>(scale_factor);
+        let logical_cursor_position = cursor_position.to_logical::<CGFloat>(scale_factor);
         let point = appkit::CGPoint {
             x: logical_cursor_position.x + window_position.x,
             y: logical_cursor_position.y + window_position.y,
@@ -934,8 +934,8 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_ime_position(&self, spot: Position) {
-        let dpi_factor = self.scale_factor();
-        let logical_spot = spot.to_logical(dpi_factor);
+        let scale_factor = self.scale_factor();
+        let logical_spot = spot.to_logical(scale_factor);
         unsafe {
             view::set_ime_position(
                 *self.ns_view,
@@ -1029,7 +1029,11 @@ impl WindowExtMacOS for UnownedWindow {
 
             if fullscreen {
                 // Remember the original window's settings
-                shared_state_lock.standard_frame = Some(NSWindow::frame(*self.ns_window));
+                // Exclude title bar
+                shared_state_lock.standard_frame = Some(NSWindow::contentRectForFrameRect_(
+                    *self.ns_window,
+                    NSWindow::frame(*self.ns_window),
+                ));
                 shared_state_lock.saved_style = Some(self.ns_window.styleMask());
                 shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
 

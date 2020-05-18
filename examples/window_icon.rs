@@ -45,13 +45,11 @@ fn main() {
 
 fn load_icon(path: &Path) -> Icon {
     let (icon_rgba, icon_width, icon_height) = {
-        let image = image::open(path).expect("Failed to open icon path");
-        use image::{GenericImageView, Pixel};
+        let image = image::open(path)
+            .expect("Failed to open icon path")
+            .into_rgba();
         let (width, height) = image.dimensions();
-        let mut rgba = Vec::with_capacity((width * height) as usize * 4);
-        for (_, _, pixel) in image.pixels() {
-            rgba.extend_from_slice(&pixel.to_rgba().data);
-        }
+        let rgba = image.into_raw();
         (rgba, width, height)
     };
     Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")

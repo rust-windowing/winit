@@ -136,23 +136,23 @@ impl UnownedWindow {
                 })
                 .unwrap_or_else(|| monitors.swap_remove(0))
         };
-        let dpi_factor = guessed_monitor.scale_factor();
+        let scale_factor = guessed_monitor.scale_factor();
 
-        info!("Guessed window scale factor: {}", dpi_factor);
+        info!("Guessed window scale factor: {}", scale_factor);
 
         let max_inner_size: Option<(u32, u32)> = window_attrs
             .max_inner_size
-            .map(|size| size.to_physical::<u32>(dpi_factor).into());
+            .map(|size| size.to_physical::<u32>(scale_factor).into());
         let min_inner_size: Option<(u32, u32)> = window_attrs
             .min_inner_size
-            .map(|size| size.to_physical::<u32>(dpi_factor).into());
+            .map(|size| size.to_physical::<u32>(scale_factor).into());
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
             // by the user, so we have to manually apply the initial constraints
             let mut dimensions: (u32, u32) = window_attrs
                 .inner_size
-                .map(|size| size.to_physical::<u32>(dpi_factor))
+                .map(|size| size.to_physical::<u32>(scale_factor))
                 .or_else(|| Some((800, 600).into()))
                 .map(Into::into)
                 .unwrap();
@@ -324,10 +324,10 @@ impl UnownedWindow {
             {
                 let mut min_inner_size = window_attrs
                     .min_inner_size
-                    .map(|size| size.to_physical::<u32>(dpi_factor));
+                    .map(|size| size.to_physical::<u32>(scale_factor));
                 let mut max_inner_size = window_attrs
                     .max_inner_size
-                    .map(|size| size.to_physical::<u32>(dpi_factor));
+                    .map(|size| size.to_physical::<u32>(scale_factor));
 
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
@@ -351,12 +351,12 @@ impl UnownedWindow {
                 normal_hints.set_resize_increments(
                     pl_attribs
                         .resize_increments
-                        .map(|size| size.to_physical::<u32>(dpi_factor).into()),
+                        .map(|size| size.to_physical::<u32>(scale_factor).into()),
                 );
                 normal_hints.set_base_size(
                     pl_attribs
                         .base_size
-                        .map(|size| size.to_physical::<u32>(dpi_factor).into()),
+                        .map(|size| size.to_physical::<u32>(scale_factor).into()),
                 );
                 xconn.set_normal_hints(window.xwindow, normal_hints).queue();
             }
@@ -1053,8 +1053,8 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        let dpi_factor = self.scale_factor();
-        let (width, height) = size.to_physical::<u32>(dpi_factor).into();
+        let scale_factor = self.scale_factor();
+        let (width, height) = size.to_physical::<u32>(scale_factor).into();
         self.set_inner_size_physical(width, height);
     }
 
@@ -1097,16 +1097,16 @@ impl UnownedWindow {
 
     pub(crate) fn adjust_for_dpi(
         &self,
-        old_dpi_factor: f64,
-        new_dpi_factor: f64,
+        old_scale_factor: f64,
+        new_scale_factor: f64,
         width: u32,
         height: u32,
         shared_state: &SharedState,
     ) -> (u32, u32) {
-        let scale_factor = new_dpi_factor / old_dpi_factor;
+        let scale_factor = new_scale_factor / old_scale_factor;
         self.update_normal_hints(|normal_hints| {
             let dpi_adjuster =
-                |size: Size| -> (u32, u32) { size.to_physical::<u32>(new_dpi_factor).into() };
+                |size: Size| -> (u32, u32) { size.to_physical::<u32>(new_scale_factor).into() };
             let max_size = shared_state.max_inner_size.map(&dpi_adjuster);
             let min_size = shared_state.min_inner_size.map(&dpi_adjuster);
             let resize_increments = shared_state.resize_increments.map(&dpi_adjuster);
@@ -1146,12 +1146,12 @@ impl UnownedWindow {
 
         self.set_maximizable_inner(resizable).queue();
 
-        let dpi_factor = self.scale_factor();
+        let scale_factor = self.scale_factor();
         let min_inner_size = min_size
-            .map(|size| size.to_physical::<u32>(dpi_factor))
+            .map(|size| size.to_physical::<u32>(scale_factor))
             .map(Into::into);
         let max_inner_size = max_size
-            .map(|size| size.to_physical::<u32>(dpi_factor))
+            .map(|size| size.to_physical::<u32>(scale_factor))
             .map(Into::into);
         self.update_normal_hints(|normal_hints| {
             normal_hints.set_min_size(min_inner_size);
