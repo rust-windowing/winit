@@ -117,6 +117,14 @@ pub struct Proxy<T> {
 
 unsafe impl<T: Send> Send for Proxy<T> {}
 
+impl<T> Drop for Proxy<T> {
+    fn drop(&mut self) {
+        unsafe {
+            CFRelease(self.source as _);
+        }
+    }
+}
+
 impl<T> Clone for Proxy<T> {
     fn clone(&self) -> Self {
         Proxy::new(self.sender.clone())
