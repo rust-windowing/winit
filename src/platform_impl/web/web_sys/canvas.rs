@@ -287,6 +287,7 @@ impl Canvas {
             {
                 let event_ref = event.as_ref();
                 event_ref.stop_propagation();
+                event_ref.prevent_default();
                 event_ref.cancel_bubble();
             }
 

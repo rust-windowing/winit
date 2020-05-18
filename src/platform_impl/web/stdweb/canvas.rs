@@ -265,6 +265,7 @@ impl Canvas {
         self.raw.add_event_listener(move |event: E| {
             event.stop_propagation();
             event.cancel_bubble();
+            event.prevent_default();
 
             handler(event);
         })
