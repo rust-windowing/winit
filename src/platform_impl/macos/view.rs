@@ -54,8 +54,6 @@ pub(super) struct ViewState {
     ns_window: id,
     pub cursor_state: Arc<Mutex<CursorState>>,
     ime_spot: Option<(f64, f64)>,
-    raw_characters: Option<String>,
-    is_key_down: bool,
     pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
     ignore_alt_modifier: bool,
@@ -572,8 +570,6 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
-
-        let is_repeat = msg_send![event, isARepeat];
 
         update_potentially_stale_modifiers(state, event);
 
