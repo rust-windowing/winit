@@ -37,7 +37,7 @@ fn main() {
                     // closing the window. How to close the window is detailed in the handler for
                     // the Y key.
                 }
-                WindowEvent::KeyPress(e) if e.is_up() => match e.logical_key() {
+                WindowEvent::Key(e) if e.is_up() => match e.logical_key() {
                     Some(LogicalKey::Y) => {
                         if close_requested {
                             // This is where you'll want to do any cleanup you need.

@@ -21,7 +21,7 @@ fn main() {
         match event {
             Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyPress(e) if e.is_down() => match e.logical_key() {
+                WindowEvent::Key(e) if e.is_down() => match e.logical_key() {
                     Some(LogicalKey::Escape) => *control_flow = ControlFlow::Exit,
                     Some(LogicalKey::G) => window.set_cursor_grab(!modifiers.shift()).unwrap(),
                     Some(LogicalKey::H) => window.set_cursor_visible(modifiers.shift()),

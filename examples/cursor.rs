@@ -17,7 +17,7 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent(_, WindowEvent::KeyPress(e)) if e.is_down() => {
+            Event::WindowEvent(_, WindowEvent::Key(e)) if e.is_down() => {
                 println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
                 window.set_cursor_icon(CURSORS[cursor_idx]);
                 if cursor_idx < CURSORS.len() - 1 {

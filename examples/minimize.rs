@@ -20,7 +20,7 @@ fn main() {
             Event::WindowEvent(_, WindowEvent::CloseRequested) => *control_flow = ControlFlow::Exit,
 
             // Keyboard input event to handle minimize via a hotkey
-            Event::WindowEvent(window_id, WindowEvent::KeyPress(e))
+            Event::WindowEvent(window_id, WindowEvent::Key(e))
                 if e.is_down() && e.logical_key_is(LogicalKey::M) && window_id == window.id() =>
             {
                 window.set_minimized(true)

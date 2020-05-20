@@ -24,7 +24,7 @@ fn main() {
         match event {
             Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyPress(e) if e.is_up() && e.logical_key_is(LogicalKey::Space) => {
+                WindowEvent::Key(e) if e.is_up() && e.logical_key_is(LogicalKey::Space) => {
                     resizable = !resizable;
                     println!("Resizable: {}", resizable);
                     window.set_resizable(resizable);

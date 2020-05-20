@@ -36,7 +36,7 @@ fn main() {
         match event {
             Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyPress(e) if e.is_down() => match e.logical_key() {
+                WindowEvent::Key(e) if e.is_down() => match e.logical_key() {
                     Some(LogicalKey::Escape) => *control_flow = ControlFlow::Exit,
                     Some(LogicalKey::F) => {
                         if window.fullscreen().is_some() {

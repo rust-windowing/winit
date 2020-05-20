@@ -32,8 +32,8 @@ use winapi::{
 use crate::{
     dpi::{PhysicalDelta, PhysicalPosition, PhysicalSize, UnitlessDelta},
     event::{
-        Event, Force, KeyPress, LogicalKey, ModifiersState, PointerButton, PointerId, PointerPress,
-        RawKeyPress, RawKeyboardEvent, RawPointerEvent, RawPointerPress, WindowEvent,
+        Event, Force, KeyEvent, LogicalKey, ModifiersState, PointerButton, PointerId, PointerPress,
+        RawKeyEvent, RawKeyboardEvent, RawPointerEvent, RawPointerPress, WindowEvent,
     },
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
@@ -1071,7 +1071,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                     subclass_input.send_event(Event::WindowEvent(
                         WindowId(window).into(),
-                        WindowEvent::KeyPress(KeyPress {
+                        WindowEvent::Key(KeyEvent {
                             logical_key,
                             scan_code,
                             is_down: true,
@@ -1098,7 +1098,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                 subclass_input.send_event(Event::WindowEvent(
                     WindowId(window).into(),
-                    WindowEvent::KeyPress(KeyPress {
+                    WindowEvent::Key(KeyEvent {
                         logical_key,
                         scan_code,
                         is_down: false,
@@ -1555,7 +1555,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                 subclass_input.send_event(Event::WindowEvent(
                     WindowId(window).into(),
-                    WindowEvent::KeyPress(KeyPress {
+                    WindowEvent::Key(KeyEvent {
                         logical_key,
                         scan_code,
                         is_down: true,
@@ -1583,7 +1583,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                 subclass_input.send_event(Event::WindowEvent(
                     WindowId(window).into(),
-                    WindowEvent::KeyPress(KeyPress {
+                    WindowEvent::Key(KeyEvent {
                         logical_key,
                         scan_code,
                         is_down: false,
@@ -2071,7 +2071,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
 
                             subclass_input.send_event(Event::RawKeyboardEvent(
                                 keyboard_id,
-                                RawKeyboardEvent::Press(RawKeyPress {
+                                RawKeyboardEvent::Key(RawKeyEvent {
                                     logical_key,
                                     scan_code,
                                     is_down,

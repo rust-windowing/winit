@@ -49,7 +49,7 @@ fn main() {
                 WindowEvent::CloseRequested => {
                     close_requested = true;
                 }
-                WindowEvent::KeyPress(e) if e.is_down() => match e.logical_key() {
+                WindowEvent::Key(e) if e.is_down() => match e.logical_key() {
                     Some(LogicalKey::Key1) => {
                         mode = Mode::Wait;
                         println!("\nmode: {:?}\n", mode);

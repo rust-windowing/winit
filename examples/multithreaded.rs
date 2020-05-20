@@ -50,7 +50,7 @@ fn main() {
                         }
                     }
                     WindowEvent::ModifiersChanged(mods) => modifiers = mods,
-                    WindowEvent::KeyPress(e) if e.is_up() => {
+                    WindowEvent::Key(e) if e.is_up() => {
                         if let Some(key) = e.logical_key() {
                             window.set_title(&format!("{:?}", key));
                             let state = !modifiers.shift();

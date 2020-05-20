@@ -33,7 +33,7 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::RawKeyboardEvent(_, RawKeyboardEvent::Press(e)) if e.is_down() => {
+            Event::RawKeyboardEvent(_, RawKeyboardEvent::Key(e)) if e.is_down() => {
                 match e.logical_key() {
                     Some(LogicalKey::M) => {
                         if minimized {
@@ -50,7 +50,7 @@ fn main() {
                     _ => (),
                 }
             }
-            Event::WindowEvent(_, WindowEvent::KeyPress(e)) if e.is_down() => match e.logical_key()
+            Event::WindowEvent(_, WindowEvent::Key(e)) if e.is_down() => match e.logical_key()
             {
                 Some(LogicalKey::E) => {
                     fn area(size: PhysicalSize<u32>) -> u32 {

@@ -162,7 +162,7 @@ pub enum WindowEvent<'a> {
     /// The window received a unicode character.
     CharReceived(char),
 
-    KeyPress(KeyPress),
+    Key(KeyEvent),
 
     /// The keyboard modifiers have changed.
     ///
@@ -240,7 +240,7 @@ pub enum RawKeyboardEvent {
     Added,
     /// A keyboard device has been removed.
     Removed,
-    Press(RawKeyPress),
+    Key(RawKeyEvent),
 }
 
 impl<'a, T> Event<'a, T> {
@@ -295,7 +295,7 @@ impl Clone for WindowEvent<'static> {
             FocusGained => FocusGained,
             FocusLost => FocusLost,
             CharReceived(char) => CharReceived(char),
-            KeyPress(key_press) => KeyPress(key_press),
+            Key(key_press) => Key(key_press),
             ModifiersChanged(state) => ModifiersChanged(state),
             PointerCreated(id) => PointerCreated(id),
             PointerForce(id, force) => PointerForce(id, force),
@@ -328,7 +328,7 @@ impl<'a> WindowEvent<'a> {
             FocusGained => Ok(FocusGained),
             FocusLost => Ok(FocusLost),
             CharReceived(char) => Ok(CharReceived(char)),
-            KeyPress(key_press) => Ok(KeyPress(key_press)),
+            Key(key_press) => Ok(Key(key_press)),
             ModifiersChanged(state) => Ok(ModifiersChanged(state)),
             PointerCreated(id) => Ok(PointerCreated(id)),
             PointerForce(id, force) => Ok(PointerForce(id, force)),
@@ -375,7 +375,7 @@ pub enum StartCause {
 
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct KeyPress {
+pub struct KeyEvent {
     pub(crate) logical_key: Option<LogicalKey>,
     pub(crate) scan_code: u32,
     pub(crate) is_down: bool,
@@ -384,7 +384,7 @@ pub struct KeyPress {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RawKeyPress {
+pub struct RawKeyEvent {
     pub(crate) logical_key: Option<LogicalKey>,
     pub(crate) scan_code: u32,
     pub(crate) is_down: bool,
@@ -403,7 +403,7 @@ pub struct RawPointerPress {
     pub(crate) is_down: bool,
 }
 
-impl KeyPress {
+impl KeyEvent {
     pub fn logical_key(&self) -> Option<LogicalKey> {
         self.logical_key
     }
@@ -441,7 +441,7 @@ impl KeyPress {
     }
 }
 
-impl RawKeyPress {
+impl RawKeyEvent {
     pub fn logical_key(&self) -> Option<LogicalKey> {
         self.logical_key
     }

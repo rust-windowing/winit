@@ -31,7 +31,7 @@ fn main() {
                             *control_flow = ControlFlow::Exit;
                         }
                     }
-                    WindowEvent::KeyPress(e) if e.is_down() => {
+                    WindowEvent::Key(e) if e.is_down() => {
                         let window = Window::new(&event_loop).unwrap();
                         windows.insert(window.id(), window);
                     }
