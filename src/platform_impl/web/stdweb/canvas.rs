@@ -10,9 +10,9 @@ use stdweb::js;
 use stdweb::traits::IPointerEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{
-    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, KeyDownEvent, KeyPressEvent,
-    KeyUpEvent, MouseWheelEvent, PointerDownEvent, PointerMoveEvent, PointerOutEvent,
-    PointerOverEvent, PointerUpEvent,
+    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, IEvent, KeyDownEvent,
+    KeyPressEvent, KeyUpEvent, MouseWheelEvent, PointerDownEvent, PointerMoveEvent,
+    PointerOutEvent, PointerOverEvent, PointerUpEvent,
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{
