@@ -177,7 +177,7 @@ pub enum WindowEvent<'a> {
     PointerCreated(PointerId),
     PointerForce(PointerId, Force),
     PointerMoved(PointerId, PhysicalPosition<f64>),
-    PointerPress(PointerId, PointerPress),
+    PointerButton(PointerId, PointerButtonEvent),
     PointerEntered(PointerId),
     PointerLeft(PointerId),
     PointerDestroyed(PointerId),
@@ -217,7 +217,7 @@ pub enum RawPointerEvent {
     Added,
     /// A device has been removed.
     Removed,
-    Press(RawPointerPress),
+    Button(RawPointerButtonEvent),
     /// Relative change in physical position of a pointing device.
     ///
     /// This represents raw, unfiltered physical motion, NOT the position of the mouse. Accordingly,
@@ -300,7 +300,7 @@ impl Clone for WindowEvent<'static> {
             PointerCreated(id) => PointerCreated(id),
             PointerForce(id, force) => PointerForce(id, force),
             PointerMoved(id, position) => PointerMoved(id, position),
-            PointerPress(id, pointer_press) => PointerPress(id, pointer_press),
+            PointerButton(id, pointer_button) => PointerButton(id, pointer_button),
             PointerEntered(id) => PointerEntered(id),
             PointerLeft(id) => PointerLeft(id),
             PointerDestroyed(id) => PointerDestroyed(id),
@@ -333,7 +333,7 @@ impl<'a> WindowEvent<'a> {
             PointerCreated(id) => Ok(PointerCreated(id)),
             PointerForce(id, force) => Ok(PointerForce(id, force)),
             PointerMoved(id, position) => Ok(PointerMoved(id, position)),
-            PointerPress(id, pointer_press) => Ok(PointerPress(id, pointer_press)),
+            PointerButton(id, pointer_button) => Ok(PointerButton(id, pointer_button)),
             PointerEntered(id) => Ok(PointerEntered(id)),
             PointerLeft(id) => Ok(PointerLeft(id)),
             PointerDestroyed(id) => Ok(PointerDestroyed(id)),
@@ -391,14 +391,14 @@ pub struct RawKeyEvent {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct PointerPress {
+pub struct PointerButtonEvent {
     pub(crate) button: PointerButton,
     pub(crate) is_down: bool,
     pub(crate) click_count: u32,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct RawPointerPress {
+pub struct RawPointerButtonEvent {
     pub(crate) button: PointerButton,
     pub(crate) is_down: bool,
 }
@@ -456,7 +456,7 @@ impl RawKeyEvent {
     }
 }
 
-impl PointerPress {
+impl PointerButtonEvent {
     pub fn button(&self) -> PointerButton {
         self.button
     }
@@ -475,7 +475,7 @@ impl PointerPress {
     }
 }
 
-impl RawPointerPress {
+impl RawPointerButtonEvent {
     pub fn button(&self) -> PointerButton {
         self.button
     }

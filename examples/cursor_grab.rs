@@ -35,10 +35,10 @@ fn main() {
                 RawPointerEvent::MovedAbsolute(position) => {
                     println!("pointer moved to: {:?}", position)
                 }
-                RawPointerEvent::Press(e) if e.is_down() => {
+                RawPointerEvent::Button(e) if e.is_down() => {
                     println!("pointer button {:?} pressed", e.button())
                 }
-                RawPointerEvent::Press(e) if e.is_up() => {
+                RawPointerEvent::Button(e) if e.is_up() => {
                     println!("pointer button {:?} released", e.button())
                 }
                 _ => (),

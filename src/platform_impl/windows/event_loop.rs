@@ -32,8 +32,8 @@ use winapi::{
 use crate::{
     dpi::{PhysicalDelta, PhysicalPosition, PhysicalSize, UnitlessDelta},
     event::{
-        Event, Force, KeyEvent, LogicalKey, ModifiersState, PointerButton, PointerId, PointerPress,
-        RawKeyEvent, RawKeyboardEvent, RawPointerEvent, RawPointerPress, WindowEvent,
+        Event, Force, KeyEvent, LogicalKey, ModifiersState, PointerButton, PointerId, PointerButtonEvent,
+        RawKeyEvent, RawKeyboardEvent, RawPointerEvent, RawPointerButtonEvent, WindowEvent,
     },
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
@@ -1116,9 +1116,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerPress(
+                WindowEvent::PointerButton(
                     PointerId::MOUSE_ID,
-                    PointerPress {
+                    PointerButtonEvent {
                         button: PointerButton::MOUSE_LEFT,
                         is_down: true,
                         click_count: {
@@ -1137,9 +1137,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerPress(
+                WindowEvent::PointerButton(
                     PointerId::MOUSE_ID,
-                    PointerPress {
+                    PointerButtonEvent {
                         button: PointerButton::MOUSE_LEFT,
                         is_down: false,
                         click_count: 0,
@@ -1155,9 +1155,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerPress(
+                WindowEvent::PointerButton(
                     PointerId::MOUSE_ID,
-                    PointerPress {
+                    PointerButtonEvent {
                         button: PointerButton::MOUSE_RIGHT,
                         is_down: true,
                         click_count: {
@@ -1176,9 +1176,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerPress(
+                WindowEvent::PointerButton(
                     PointerId::MOUSE_ID,
-                    PointerPress {
+                    PointerButtonEvent {
                         button: PointerButton::MOUSE_RIGHT,
                         is_down: false,
                         click_count: 0,
@@ -1194,9 +1194,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerPress(
+                WindowEvent::PointerButton(
                     PointerId::MOUSE_ID,
-                    PointerPress {
+                    PointerButtonEvent {
                         button: PointerButton::MOUSE_MIDDLE,
                         is_down: true,
                         click_count: {
@@ -1215,9 +1215,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerPress(
+                WindowEvent::PointerButton(
                     PointerId::MOUSE_ID,
-                    PointerPress {
+                    PointerButtonEvent {
                         button: PointerButton::MOUSE_MIDDLE,
                         is_down: false,
                         click_count: 0,
@@ -1242,9 +1242,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerPress(
+                WindowEvent::PointerButton(
                     PointerId::MOUSE_ID,
-                    PointerPress {
+                    PointerButtonEvent {
                         button,
                         is_down: true,
                         click_count: {
@@ -1272,9 +1272,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerPress(
+                WindowEvent::PointerButton(
                     PointerId::MOUSE_ID,
-                    PointerPress {
+                    PointerButtonEvent {
                         button,
                         is_down: false,
                         click_count: 0,
@@ -1328,9 +1328,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     if input.dwFlags & winuser::TOUCHEVENTF_DOWN != 0 {
                         subclass_input.send_event(Event::WindowEvent(
                             WindowId(window).into(),
-                            WindowEvent::PointerPress(
+                            WindowEvent::PointerButton(
                                 pointer_id,
-                                PointerPress {
+                                PointerButtonEvent {
                                     button: PointerButton::TOUCH_CONTACT,
                                     is_down: true,
                                     click_count: {
@@ -1345,9 +1345,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     if input.dwFlags & winuser::TOUCHEVENTF_UP != 0 {
                         subclass_input.send_event(Event::WindowEvent(
                             WindowId(window).into(),
-                            WindowEvent::PointerPress(
+                            WindowEvent::PointerButton(
                                 pointer_id,
-                                PointerPress {
+                                PointerButtonEvent {
                                     button: PointerButton::TOUCH_CONTACT,
                                     is_down: false,
                                     click_count: 0,
@@ -1504,9 +1504,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     if pointer_info.pointerFlags & winuser::POINTER_FLAG_DOWN != 0 {
                         subclass_input.send_event(Event::WindowEvent(
                             WindowId(window).into(),
-                            WindowEvent::PointerPress(
+                            WindowEvent::PointerButton(
                                 pointer_id,
-                                PointerPress {
+                                PointerButtonEvent {
                                     button: PointerButton::TOUCH_CONTACT,
                                     is_down: true,
                                     click_count: {
@@ -1521,9 +1521,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     if pointer_info.pointerFlags & winuser::POINTER_FLAG_UP != 0 {
                         subclass_input.send_event(Event::WindowEvent(
                             WindowId(window).into(),
-                            WindowEvent::PointerPress(
+                            WindowEvent::PointerButton(
                                 pointer_id,
-                                PointerPress {
+                                PointerButtonEvent {
                                     button: PointerButton::TOUCH_CONTACT,
                                     is_down: false,
                                     click_count: 0,
@@ -2045,7 +2045,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                     for (button, is_down) in button_state.iter().cloned().flatten() {
                         subclass_input.send_event(Event::RawPointerEvent(
                             pointer_id,
-                            RawPointerEvent::Press(RawPointerPress { button, is_down }),
+                            RawPointerEvent::Button(RawPointerButtonEvent { button, is_down }),
                         ));
                     }
                 } else if data.header.dwType == winuser::RIM_TYPEKEYBOARD {

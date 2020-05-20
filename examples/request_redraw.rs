@@ -21,7 +21,7 @@ fn main() {
         match event {
             Event::WindowEvent(_, event) => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::PointerPress(_, e) if e.is_up() => window.request_redraw(),
+                WindowEvent::PointerButton(_, e) if e.is_up() => window.request_redraw(),
                 _ => (),
             },
             Event::RedrawRequested(_) => {
