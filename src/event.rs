@@ -373,7 +373,7 @@ pub enum StartCause {
     Init,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct KeyEvent {
     pub(crate) logical_key: Option<LogicalKey>,
     pub(crate) scan_code: u32,
@@ -382,21 +382,21 @@ pub struct KeyEvent {
     pub(crate) is_synthetic: bool,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RawKeyEvent {
     pub(crate) logical_key: Option<LogicalKey>,
     pub(crate) scan_code: u32,
     pub(crate) is_down: bool,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PointerButtonEvent {
     pub(crate) button: PointerButton,
     pub(crate) is_down: bool,
     pub(crate) click_count: u32,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RawPointerButtonEvent {
     pub(crate) button: PointerButton,
     pub(crate) is_down: bool,
@@ -440,6 +440,33 @@ impl KeyEvent {
     }
 }
 
+impl KeyEvent {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_logical_key(&mut self, logical_key: Option<LogicalKey>) -> &mut Self {
+        self.logical_key = logical_key;
+        self
+    }
+    pub fn set_scan_code(&mut self, scan_code: u32) -> &mut Self {
+        self.scan_code = scan_code;
+        self
+    }
+    pub fn set_is_down(&mut self, is_down: bool) -> &mut Self {
+        self.is_down = is_down;
+        self
+    }
+    pub fn set_is_repeat(&mut self, is_repeat: bool) -> &mut Self {
+        self.is_repeat = is_repeat;
+        self
+    }
+    pub fn set_is_synthetic(&mut self, is_synthetic: bool) -> &mut Self {
+        self.is_synthetic = is_synthetic;
+        self
+    }
+}
+
 impl RawKeyEvent {
     pub fn logical_key(&self) -> Option<LogicalKey> {
         self.logical_key
@@ -452,6 +479,25 @@ impl RawKeyEvent {
     }
     pub fn is_up(&self) -> bool {
         !self.is_down
+    }
+}
+
+impl RawKeyEvent {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_logical_key(&mut self, logical_key: Option<LogicalKey>) -> &mut Self {
+        self.logical_key = logical_key;
+        self
+    }
+    pub fn set_scan_code(&mut self, scan_code: u32) -> &mut Self {
+        self.scan_code = scan_code;
+        self
+    }
+    pub fn set_is_down(&mut self, is_down: bool) -> &mut Self {
+        self.is_down = is_down;
+        self
     }
 }
 
@@ -474,6 +520,25 @@ impl PointerButtonEvent {
     }
 }
 
+impl PointerButtonEvent {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_button(&mut self, button: PointerButton) -> &mut Self {
+        self.button = button;
+        self
+    }
+    pub fn set_is_down(&mut self, is_down: bool) -> &mut Self {
+        self.is_down = is_down;
+        self
+    }
+    pub fn set_click_count(&mut self, click_count: u32) -> &mut Self {
+        self.click_count = click_count;
+        self
+    }
+}
+
 impl RawPointerButtonEvent {
     pub fn button(&self) -> PointerButton {
         self.button
@@ -486,7 +551,22 @@ impl RawPointerButtonEvent {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+impl RawPointerButtonEvent {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn set_button(&mut self, button: PointerButton) -> &mut Self {
+        self.button = button;
+        self
+    }
+    pub fn set_is_down(&mut self, is_down: bool) -> &mut Self {
+        self.is_down = is_down;
+        self
+    }
+}
+
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(transparent)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
@@ -504,6 +584,13 @@ enum PointerButtonInner {
     Button4,
     Button5,
     // Button6,
+}
+
+impl Default for PointerButtonInner {
+    #[inline(always)]
+    fn default() -> Self {
+        PointerButtonInner::Button1
+    }
 }
 
 impl PointerButton {
