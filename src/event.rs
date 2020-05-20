@@ -132,17 +132,17 @@ pub enum WindowEvent<'a> {
     /// The window has been destroyed.
     Destroyed,
 
-    /// A file has been dropped into the window.
-    ///
-    /// When the user drops multiple files at once, this event will be emitted for each file
-    /// separately.
-    FileDropped(PathBuf),
-
     /// A file is being hovered over the window.
     ///
     /// When the user hovers multiple files at once, this event will be emitted for each file
     /// separately.
     FileHovered(PathBuf),
+
+    /// A file has been dropped into the window.
+    ///
+    /// When the user drops multiple files at once, this event will be emitted for each file
+    /// separately.
+    FileDropped(PathBuf),
 
     /// A file was hovered, but has exited the window.
     ///
@@ -156,10 +156,10 @@ pub enum WindowEvent<'a> {
     /// The window lost focus.
     FocusLost,
 
+    Key(KeyEvent),
+
     /// The window received a unicode character.
     CharReceived(char),
-
-    Key(KeyEvent),
 
     /// The keyboard modifiers have changed.
     ///
