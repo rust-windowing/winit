@@ -2,8 +2,11 @@
 
 use serde::{Deserialize, Serialize};
 use winit::{
-    dpi::{Pixel, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, PhysicalDelta, LogicalDelta, UnitlessDelta},
-    event::{ModifiersState, PointerButton, LogicalKey},
+    dpi::{
+        LogicalDelta, LogicalPosition, LogicalSize, PhysicalDelta, PhysicalPosition, PhysicalSize,
+        Pixel, UnitlessDelta,
+    },
+    event::{LogicalKey, ModifiersState, PointerButton},
     window::CursorIcon,
 };
 

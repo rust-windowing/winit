@@ -50,8 +50,7 @@ fn main() {
                     _ => (),
                 }
             }
-            Event::WindowEvent(_, WindowEvent::Key(e)) if e.is_down() => match e.logical_key()
-            {
+            Event::WindowEvent(_, WindowEvent::Key(e)) if e.is_down() => match e.logical_key() {
                 Some(LogicalKey::E) => {
                     fn area(size: PhysicalSize<u32>) -> u32 {
                         size.width * size.height

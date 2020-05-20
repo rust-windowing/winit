@@ -32,8 +32,9 @@ use winapi::{
 use crate::{
     dpi::{PhysicalDelta, PhysicalPosition, PhysicalSize, UnitlessDelta},
     event::{
-        Event, Force, KeyEvent, LogicalKey, ModifiersState, PointerButton, PointerId, PointerButtonEvent,
-        RawKeyEvent, RawKeyboardEvent, RawPointerEvent, RawPointerButtonEvent, WindowEvent,
+        Event, Force, KeyEvent, LogicalKey, ModifiersState, PointerButton, PointerButtonEvent,
+        PointerId, RawKeyEvent, RawKeyboardEvent, RawPointerButtonEvent, RawPointerEvent,
+        WindowEvent,
     },
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
