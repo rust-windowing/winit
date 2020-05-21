@@ -577,19 +577,22 @@ pub struct PointerButton(PointerButtonInner);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename = "PointerButton"))]
+#[cfg_attr(feature = "serde", serde(try_from = "pointer_button_serde::PointerButtonSerialize"))]
+#[cfg_attr(feature = "serde", serde(into = "pointer_button_serde::PointerButtonSerialize"))]
+#[allow(non_camel_case_types)]
 enum PointerButtonInner {
-    Button1,
-    Button2,
-    Button3,
-    Button4,
-    Button5,
-    // Button6,
+    BUTTON_1,
+    BUTTON_2,
+    BUTTON_3,
+    BUTTON_4,
+    BUTTON_5,
+    // BUTTON_6,
 }
 
 impl Default for PointerButtonInner {
     #[inline(always)]
     fn default() -> Self {
-        PointerButtonInner::Button1
+        PointerButtonInner::BUTTON_1
     }
 }
 
@@ -606,12 +609,12 @@ impl PointerButton {
     // pub const PEN_BARREL: Self = Self::BUTTON_2;
     // pub const PEN_ERASER: Self = Self::BUTTON_6;
 
-    pub const BUTTON_1: Self = Self(PointerButtonInner::Button1);
-    pub const BUTTON_2: Self = Self(PointerButtonInner::Button2);
-    pub const BUTTON_3: Self = Self(PointerButtonInner::Button3);
-    pub const BUTTON_4: Self = Self(PointerButtonInner::Button4);
-    pub const BUTTON_5: Self = Self(PointerButtonInner::Button5);
-    // pub const BUTTON_6: Self = Self(PointerButtonInner::Button6);
+    pub const BUTTON_1: Self = Self(PointerButtonInner::BUTTON_1);
+    pub const BUTTON_2: Self = Self(PointerButtonInner::BUTTON_2);
+    pub const BUTTON_3: Self = Self(PointerButtonInner::BUTTON_3);
+    pub const BUTTON_4: Self = Self(PointerButtonInner::BUTTON_4);
+    pub const BUTTON_5: Self = Self(PointerButtonInner::BUTTON_5);
+    // pub const BUTTON_6: Self = Self(PointerButtonInner::BUTTON_6);
 
     pub fn as_u8(&self) -> u8 {
         self.0 as u8
@@ -653,6 +656,63 @@ impl PointerButton {
         *self == Self::BUTTON_5
     }
     // pub fn is_button_6(&self) -> bool { *self == Self::BUTTON_6 }
+
+    /// Serializes the `PointerButton` as the `BUTTON_*` constants. This is the default
+    /// serialization style, since it's pointer-type agnostic.
+    ///
+    /// For use with `#[serde(serialize_with = "path")]`
+    #[cfg(feature = "serde")]
+    pub fn serialize_agnostic<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer
+    {
+        serde::Serialize::serialize(&self.0.as_serialize_agnostic(), serializer)
+    }
+
+    /// Tries to serialize the `PointerButton` as the `MOUSE_*` constants, falling back to
+    /// the `BUTTON_{NUM}` constants if the value doesn't map onto a mouse constant.
+    ///
+    /// For use with `#[serde(serialize_with = "path")]`
+    #[cfg(feature = "serde")]
+    pub fn serialize_mouse<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer
+    {
+        serde::Serialize::serialize(&self.0.as_serialize_mouse(), serializer)
+    }
+
+    /// Tries to serialize the `PointerButton` as the `TOUCH_*` constants, falling back to
+    /// the `BUTTON_{NUM}` constants if the value doesn't map onto a touch constant.
+    ///
+    /// For use with `#[serde(serialize_with = "path")]`
+    #[cfg(feature = "serde")]
+    pub fn serialize_touch<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer
+    {
+        serde::Serialize::serialize(&self.0.as_serialize_touch(), serializer)
+    }
+
+    // /// Tries to serialize the `PointerButton` as the `PEN_*` constants, falling back to
+    // /// the `BUTTON_{NUM}` constants if the value doesn't map onto a pen constant.
+    // ///
+    // /// For use with `#[serde(serialize_with = "path")]`
+    // #[cfg(feature = "serde")]
+    // pub fn serialize_pen<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    //     where S: serde::Serializer
+    // {
+    //     serde::Serialize::serialize(&self.0.as_serialize_pen(), serializer)
+    // }
+
+    /// Serializes the `PointerButton` as a legacy Winit [`MouseButton`]. This is provided for
+    /// backwards-compatibility purposes.
+    ///
+    /// For use with `#[serde(serialize_with = "path")]`
+    ///
+    /// [`MouseButton`]: https://docs.rs/winit/0.22.2/winit/event/enum.MouseButton.html
+    #[cfg(feature = "serde")]
+    pub fn serialize_legacy<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer
+    {
+        serde::Serialize::serialize(&self.0.as_serialize_legacy(), serializer)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -1105,6 +1165,274 @@ mod modifiers_serde {
             m.set(ModifiersState::ALT, alt);
             m.set(ModifiersState::LOGO, logo);
             Ok(m)
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+mod pointer_button_serde {
+    use super::PointerButtonInner;
+    use std::{
+        convert::TryFrom,
+        fmt,
+    };
+    use serde::{Serialize, Deserialize};
+
+    #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+    #[derive(Serialize, Deserialize)]
+    #[serde(rename = "PointerButton")]
+    #[allow(non_camel_case_types)]
+    pub enum PointerButtonSerialize {
+        // legacy style
+        Left,
+        Right,
+        Middle,
+        Other(u8),
+
+        // input-agnostic style
+        BUTTON_1,
+        BUTTON_2,
+        BUTTON_3,
+        BUTTON_4,
+        BUTTON_5,
+        // BUTTON_6,
+
+        // mouse style
+        MOUSE_LEFT,
+        MOUSE_RIGHT,
+        MOUSE_MIDDLE,
+        MOUSE_X1,
+        MOUSE_X2,
+
+        // touch style
+        TOUCH_CONTACT,
+
+        // pen style
+        // PenDown,
+        // PenBarrel,
+        // PenEraser,
+    }
+
+
+    pub struct OtherConvertError(u8);
+
+    impl TryFrom<PointerButtonSerialize> for PointerButtonInner {
+        type Error = OtherConvertError;
+        fn try_from(serialize: PointerButtonSerialize) -> Result<PointerButtonInner, Self::Error> {
+            match serialize {
+                PointerButtonSerialize::TOUCH_CONTACT |
+                PointerButtonSerialize::BUTTON_1 |
+                PointerButtonSerialize::Left |
+                PointerButtonSerialize::MOUSE_LEFT => Ok(PointerButtonInner::BUTTON_1),
+
+                PointerButtonSerialize::BUTTON_2 |
+                PointerButtonSerialize::Right |
+                PointerButtonSerialize::MOUSE_RIGHT => Ok(PointerButtonInner::BUTTON_2),
+
+                PointerButtonSerialize::BUTTON_3 |
+                PointerButtonSerialize::Middle |
+                PointerButtonSerialize::MOUSE_MIDDLE => Ok(PointerButtonInner::BUTTON_3),
+
+                PointerButtonSerialize::BUTTON_4 |
+                PointerButtonSerialize::Other(0) |
+                PointerButtonSerialize::MOUSE_X1 => Ok(PointerButtonInner::BUTTON_4),
+
+                PointerButtonSerialize::BUTTON_5 |
+                PointerButtonSerialize::Other(1) |
+                PointerButtonSerialize::MOUSE_X2 => Ok(PointerButtonInner::BUTTON_5),
+
+                // PointerButtonSerialize::BUTTON_6 |
+                // PointerButtonSerialize::Other(2) => Ok(PointerButtonInner::BUTTON_6),
+
+                PointerButtonSerialize::Other(i) => Err(OtherConvertError(i)),
+            }
+        }
+    }
+
+    impl From<PointerButtonInner> for PointerButtonSerialize {
+        fn from(inner: PointerButtonInner) -> PointerButtonSerialize {
+            inner.as_serialize_agnostic()
+        }
+    }
+
+    impl PointerButtonInner {
+        pub fn as_serialize_agnostic(&self) -> PointerButtonSerialize {
+            match self {
+                PointerButtonInner::BUTTON_1 => PointerButtonSerialize::BUTTON_1,
+                PointerButtonInner::BUTTON_2 => PointerButtonSerialize::BUTTON_2,
+                PointerButtonInner::BUTTON_3 => PointerButtonSerialize::BUTTON_3,
+                PointerButtonInner::BUTTON_4 => PointerButtonSerialize::BUTTON_4,
+                PointerButtonInner::BUTTON_5 => PointerButtonSerialize::BUTTON_5,
+            }
+        }
+
+        pub fn as_serialize_legacy(&self) -> PointerButtonSerialize {
+            match self {
+                PointerButtonInner::BUTTON_1 => PointerButtonSerialize::Left,
+                PointerButtonInner::BUTTON_2 => PointerButtonSerialize::Right,
+                PointerButtonInner::BUTTON_3 => PointerButtonSerialize::Middle,
+                PointerButtonInner::BUTTON_4 => PointerButtonSerialize::Other(0),
+                PointerButtonInner::BUTTON_5 => PointerButtonSerialize::Other(1),
+            }
+        }
+
+        pub fn as_serialize_mouse(&self) -> PointerButtonSerialize {
+            match self {
+                PointerButtonInner::BUTTON_1 => PointerButtonSerialize::MOUSE_LEFT,
+                PointerButtonInner::BUTTON_2 => PointerButtonSerialize::MOUSE_RIGHT,
+                PointerButtonInner::BUTTON_3 => PointerButtonSerialize::MOUSE_MIDDLE,
+                PointerButtonInner::BUTTON_4 => PointerButtonSerialize::MOUSE_X1,
+                PointerButtonInner::BUTTON_5 => PointerButtonSerialize::MOUSE_X2,
+            }
+        }
+
+        pub fn as_serialize_touch(&self) -> PointerButtonSerialize {
+            match self {
+                PointerButtonInner::BUTTON_1 => PointerButtonSerialize::TOUCH_CONTACT,
+                PointerButtonInner::BUTTON_2 => PointerButtonSerialize::BUTTON_2,
+                PointerButtonInner::BUTTON_3 => PointerButtonSerialize::BUTTON_3,
+                PointerButtonInner::BUTTON_4 => PointerButtonSerialize::BUTTON_4,
+                PointerButtonInner::BUTTON_5 => PointerButtonSerialize::BUTTON_5,
+            }
+        }
+    }
+
+    impl fmt::Display for OtherConvertError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "could not deserialize Other({})", self.0)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use crate::event::PointerButton;
+        use serde::{Serialize, Deserialize};
+
+        /// legacy mouse button struct
+        #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+        #[derive(Serialize, Deserialize)]
+        enum MouseButton {
+            Left,
+            Right,
+            Middle,
+            Other(u8),
+        }
+
+        #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+        #[serde(rename = "Serde")]
+        struct LegacySerde(MouseButton);
+
+        #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+        #[serde(rename = "Serde")]
+        struct NewSerde(#[serde(serialize_with = "PointerButton::serialize_legacy")] PointerButton);
+
+        trait Serde {
+            type Error: std::fmt::Debug;
+            fn to_bytes<T>(value: &T) -> Result<Vec<u8>, Self::Error>
+            where
+                T: Serialize;
+            fn from_bytes<'a, T>(s: &'a [u8]) -> Result<T, Self::Error>
+            where
+                T: Deserialize<'a>;
+        }
+
+        struct Ron;
+        impl Serde for Ron {
+            type Error = ron::Error;
+            fn to_bytes<T>(value: &T) -> Result<Vec<u8>, Self::Error>
+            where
+                T: Serialize
+            {
+                ron::ser::to_string(value).map(|s| s.into_bytes())
+            }
+            fn from_bytes<'a, T>(s: &'a [u8]) -> Result<T, Self::Error>
+            where
+                T: Deserialize<'a>
+            {
+                ron::de::from_bytes(s)
+            }
+        }
+
+        struct Bincode;
+        impl Serde for Bincode {
+            type Error = bincode::Error;
+            fn to_bytes<T>(value: &T) -> Result<Vec<u8>, Self::Error>
+            where
+                T: Serialize
+            {
+                bincode::serialize(value)
+            }
+            fn from_bytes<'a, T>(s: &'a [u8]) -> Result<T, Self::Error>
+            where
+                T: Deserialize<'a>
+            {
+                bincode::deserialize(s)
+            }
+        }
+
+        struct Json;
+        impl Serde for Json {
+            type Error = serde_json::Error;
+            fn to_bytes<T>(value: &T) -> Result<Vec<u8>, Self::Error>
+            where
+                T: Serialize
+            {
+                serde_json::to_vec(value)
+            }
+            fn from_bytes<'a, T>(s: &'a [u8]) -> Result<T, Self::Error>
+            where
+                T: Deserialize<'a>
+            {
+                serde_json::from_slice(s)
+            }
+        }
+
+        fn serde<S: Serde>() {
+            let legacy = [
+                LegacySerde(MouseButton::Left),
+                LegacySerde(MouseButton::Right),
+                LegacySerde(MouseButton::Middle),
+                LegacySerde(MouseButton::Other(0)),
+                LegacySerde(MouseButton::Other(1)),
+            ];
+            let new = [
+                NewSerde(PointerButton::MOUSE_LEFT),
+                NewSerde(PointerButton::MOUSE_RIGHT),
+                NewSerde(PointerButton::MOUSE_MIDDLE),
+                NewSerde(PointerButton::MOUSE_X1),
+                NewSerde(PointerButton::MOUSE_X2),
+            ];
+
+            let try_to_utf8 = |b: &[u8]| format!("\n\tstr: {}\n\tbytes: {:?}", std::str::from_utf8(b).unwrap_or_else(|_| ""), b);
+            for (l, n) in legacy.iter().cloned().zip(new.iter().cloned()) {
+                println!("legacy: {:?}, new: {:?}", l, n);
+                let legacy_serialized: Vec<u8> = S::to_bytes(&l).unwrap();
+                let new_serialized: Vec<u8> = S::to_bytes(&n).unwrap();
+                println!("legacy serialized: {}", try_to_utf8(&legacy_serialized));
+                println!("new serialized: {}", try_to_utf8(&new_serialized));
+
+                let legacy_deserialized: LegacySerde = S::from_bytes(&new_serialized).unwrap();
+                let new_deserialized: NewSerde = S::from_bytes(&legacy_serialized).unwrap();
+
+                assert_eq!(&legacy_serialized, &new_serialized);
+                assert_eq!(legacy_deserialized, l);
+                assert_eq!(new_deserialized, n);
+            }
+        }
+
+        #[test]
+        fn serde_pointer_button_backwards_compatibility_ron() {
+            serde::<Ron>();
+        }
+
+        #[test]
+        fn serde_pointer_button_backwards_compatibility_bincode() {
+            serde::<Bincode>();
+        }
+
+        #[test]
+        fn serde_pointer_button_backwards_compatibility_json() {
+            serde::<Json>();
         }
     }
 }

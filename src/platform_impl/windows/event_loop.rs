@@ -776,7 +776,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
         winuser::WM_NCLBUTTONDOWN => {
-            if wparam == winuser::HTCAPTION as _ {
+            if wparam == winuser::HTCAPTION as WPARAM {
                 winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
             }
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
