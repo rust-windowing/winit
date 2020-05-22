@@ -44,7 +44,7 @@ use crate::{
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         monitor, raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
-        KeyboardDeviceId, PointerDeviceId, TouchId, WindowId,
+        KeyboardDeviceId, PointerDeviceId, TouchId, WindowId, PenId,
     },
     window::{Fullscreen, Theme},
 };
@@ -1451,14 +1451,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     let x = position.x as f64 + x.fract();
                     let y = position.y as f64 + y.fract();
                     let position = PhysicalPosition::new(x, y);
-                    let pointer_id = PointerId::TouchId(TouchId(pointer_info.pointerId).into());
-
-                    if pointer_info.pointerFlags & winuser::POINTER_FLAG_NEW != 0 {
-                        subclass_input.send_event(Event::WindowEvent(
-                            WindowId(window).into(),
-                            WindowEvent::PointerCreated(pointer_id),
-                        ));
-                    }
 
                     let pi = std::f64::consts::PI;
                     let deg_to_twist = |deg: u32| ((deg as f64 / 360.0) - 0.5) * pi;
@@ -1466,8 +1458,10 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     let mut tilt = None;
                     let mut twist = None;
                     let mut contact_area = None;
+                    let pointer_id: PointerId;
                     match pointer_info.pointerType {
                         winuser::PT_TOUCH => {
+                            pointer_id = PointerId::TouchId(TouchId(pointer_info.pointerId).into());
                             let mut touch_info = mem::MaybeUninit::uninit();
                             if let Some(GetPointerTouchInfo) = *GET_POINTER_TOUCH_INFO {
                                 let get_touch_info_result = GetPointerTouchInfo(
@@ -1490,6 +1484,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                             }
                         }
                         winuser::PT_PEN => {
+                            pointer_id = PointerId::PenId(PenId(pointer_info.pointerId).into());
                             let mut pen_info = mem::MaybeUninit::uninit();
                             if let Some(GetPointerPenInfo) = *GET_POINTER_PEN_INFO {
                                 let get_pen_info_result = GetPointerPenInfo(
@@ -1514,7 +1509,14 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                 }
                             }
                         }
-                        _ => (),
+                        _ => return 0,
+                    }
+
+                    if pointer_info.pointerFlags & winuser::POINTER_FLAG_NEW != 0 {
+                        subclass_input.send_event(Event::WindowEvent(
+                            WindowId(window).into(),
+                            WindowEvent::PointerCreated(pointer_id),
+                        ));
                     }
 
                     if let Some(force) = force {
