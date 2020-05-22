@@ -35,6 +35,7 @@ simple_logger = "1"
 ron = {version = "0.6"}
 serde_json = {version = "1"}
 bincode = {version = "1"}
+assert_approx_eq = "1"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ndk = "0.1.0"

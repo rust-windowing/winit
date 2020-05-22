@@ -93,6 +93,19 @@ impl From<TouchId> for crate::event::TouchId {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PenId(u32);
+impl PenId {
+    pub unsafe fn dummy() -> Self {
+        PenId(!0)
+    }
+}
+impl From<PenId> for crate::event::PenId {
+    fn from(platform_id: PenId) -> Self {
+        Self(platform_id)
+    }
+}
+
 pub type OsError = std::io::Error;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

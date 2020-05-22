@@ -173,6 +173,8 @@ pub enum WindowEvent<'a> {
 
     PointerCreated(PointerId),
     PointerForce(PointerId, Force),
+    PointerTilt(PointerId, PointerTiltEvent),
+    PointerTwist(PointerId, f64),
     PointerMoved(PointerId, PhysicalPosition<f64>),
     PointerButton(PointerId, PointerButtonEvent),
     PointerEntered(PointerId),
@@ -296,6 +298,8 @@ impl Clone for WindowEvent<'static> {
             Key(key_press) => Key(key_press),
             ModifiersChanged(state) => ModifiersChanged(state),
             PointerCreated(id) => PointerCreated(id),
+            PointerTilt(id, tilt) => PointerTilt(id, tilt),
+            PointerTwist(id, twist) => PointerTwist(id, twist),
             PointerForce(id, force) => PointerForce(id, force),
             PointerMoved(id, position) => PointerMoved(id, position),
             PointerButton(id, pointer_button) => PointerButton(id, pointer_button),
@@ -331,6 +335,8 @@ impl<'a> WindowEvent<'a> {
             Key(key_press) => Ok(Key(key_press)),
             ModifiersChanged(state) => Ok(ModifiersChanged(state)),
             PointerCreated(id) => Ok(PointerCreated(id)),
+            PointerTilt(id, tilt) => Ok(PointerTilt(id, tilt)),
+            PointerTwist(id, twist) => Ok(PointerTwist(id, twist)),
             PointerForce(id, force) => Ok(PointerForce(id, force)),
             PointerMoved(id, position) => Ok(PointerMoved(id, position)),
             PointerButton(id, pointer_button) => Ok(PointerButton(id, pointer_button)),
@@ -586,7 +592,7 @@ enum PointerButtonInner {
     BUTTON_3,
     BUTTON_4,
     BUTTON_5,
-    // BUTTON_6,
+    BUTTON_6,
 }
 
 impl Default for PointerButtonInner {
@@ -605,16 +611,16 @@ impl PointerButton {
 
     pub const TOUCH_CONTACT: Self = Self::BUTTON_1;
 
-    // pub const PEN_DOWN: Self = Self::BUTTON_1;
-    // pub const PEN_BARREL: Self = Self::BUTTON_2;
-    // pub const PEN_ERASER: Self = Self::BUTTON_6;
+    pub const PEN_CONTACT: Self = Self::BUTTON_1;
+    pub const PEN_BARREL: Self = Self::BUTTON_2;
+    pub const PEN_ERASER: Self = Self::BUTTON_6;
 
     pub const BUTTON_1: Self = Self(PointerButtonInner::BUTTON_1);
     pub const BUTTON_2: Self = Self(PointerButtonInner::BUTTON_2);
     pub const BUTTON_3: Self = Self(PointerButtonInner::BUTTON_3);
     pub const BUTTON_4: Self = Self(PointerButtonInner::BUTTON_4);
     pub const BUTTON_5: Self = Self(PointerButtonInner::BUTTON_5);
-    // pub const BUTTON_6: Self = Self(PointerButtonInner::BUTTON_6);
+    pub const BUTTON_6: Self = Self(PointerButtonInner::BUTTON_6);
 
     pub fn as_u8(&self) -> u8 {
         self.0 as u8
@@ -637,9 +643,9 @@ impl PointerButton {
     pub fn is_touch_contact(&self) -> bool {
         *self == Self::TOUCH_CONTACT
     }
-    // pub fn is_pen_contact(&self) -> bool { *self == Self::PEN_CONTACT }
-    // pub fn is_pen_barrel(&self) -> bool { *self == Self::PEN_BARREL }
-    // pub fn is_pen_eraser(&self) -> bool { *self == Self::PEN_ERASER }
+    pub fn is_pen_contact(&self) -> bool { *self == Self::PEN_CONTACT }
+    pub fn is_pen_barrel(&self) -> bool { *self == Self::PEN_BARREL }
+    pub fn is_pen_eraser(&self) -> bool { *self == Self::PEN_ERASER }
     pub fn is_button_1(&self) -> bool {
         *self == Self::BUTTON_1
     }
@@ -655,7 +661,7 @@ impl PointerButton {
     pub fn is_button_5(&self) -> bool {
         *self == Self::BUTTON_5
     }
-    // pub fn is_button_6(&self) -> bool { *self == Self::BUTTON_6 }
+    pub fn is_button_6(&self) -> bool { *self == Self::BUTTON_6 }
 
     /// Serializes the `PointerButton` as the `BUTTON_*` constants. This is the default
     /// serialization style, since it's pointer-type agnostic.
@@ -690,16 +696,16 @@ impl PointerButton {
         serde::Serialize::serialize(&self.0.as_serialize_touch(), serializer)
     }
 
-    // /// Tries to serialize the `PointerButton` as the `PEN_*` constants, falling back to
-    // /// the `BUTTON_{NUM}` constants if the value doesn't map onto a pen constant.
-    // ///
-    // /// For use with `#[serde(serialize_with = "path")]`
-    // #[cfg(feature = "serde")]
-    // pub fn serialize_pen<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    //     where S: serde::Serializer
-    // {
-    //     serde::Serialize::serialize(&self.0.as_serialize_pen(), serializer)
-    // }
+    /// Tries to serialize the `PointerButton` as the `PEN_*` constants, falling back to
+    /// the `BUTTON_{NUM}` constants if the value doesn't map onto a pen constant.
+    ///
+    /// For use with `#[serde(serialize_with = "path")]`
+    #[cfg(feature = "serde")]
+    pub fn serialize_pen<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer
+    {
+        serde::Serialize::serialize(&self.0.as_serialize_pen(), serializer)
+    }
 
     /// Serializes the `PointerButton` as a legacy Winit [`MouseButton`]. This is provided for
     /// backwards-compatibility purposes.
@@ -719,7 +725,7 @@ impl PointerButton {
 pub enum PointerId {
     MouseId(MouseId),
     TouchId(TouchId),
-    // PenId(PenId),
+    PenId(PenId),
 }
 
 /// A typed identifier for a pointer device.
@@ -728,6 +734,9 @@ pub struct MouseId(pub(crate) platform_impl::MouseId);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TouchId(pub(crate) platform_impl::TouchId);
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PenId(pub(crate) platform_impl::PenId);
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PointerDeviceId(pub(crate) platform_impl::PointerDeviceId);
@@ -750,12 +759,12 @@ impl PointerId {
         }
     }
 
-    // pub fn is_pen_id(&self) -> bool {
-    //     match *self {
-    //         PointerId::PenId(_) => true,
-    //         _ => false,
-    //     }
-    // }
+    pub fn is_pen_id(&self) -> bool {
+        match *self {
+            PointerId::PenId(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl MouseId {
@@ -815,6 +824,12 @@ impl fmt::Debug for TouchId {
     }
 }
 
+impl fmt::Debug for PenId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
+}
+
 /// Describes the force of a touch event
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Force {
@@ -868,6 +883,85 @@ impl Force {
             }
             Force::Normalized(force) => *force,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PointerTiltEvent {
+    tilt_angle_x: f64,
+    tilt_angle_y: f64,
+}
+
+impl PointerTiltEvent {
+    pub fn new_titlt_angle(tilt_angle_x: f64, tilt_angle_y: f64) -> PointerTiltEvent {
+        PointerTiltEvent {
+            tilt_angle_x,
+            tilt_angle_y,
+        }
+    }
+
+    #[inline(always)]
+    pub fn tilt_angle_x(&self) -> f64 {
+        self.tilt_angle_x
+    }
+
+    #[inline(always)]
+    pub fn tilt_angle_y(&self) -> f64 {
+        self.tilt_angle_y
+    }
+
+    #[inline(always)]
+    pub fn tilt_angle(&self) -> f64 {
+        let tilt = f64::sqrt(self.tilt_angle_x.sin().powi(2) + self.tilt_angle_y.sin().powi(2)).asin();
+        if tilt.is_nan() {
+            0.0
+        } else {
+            tilt
+        }
+    }
+
+    #[inline(always)]
+    pub fn altitude_angle(&self) -> f64 {
+        std::f64::consts::PI/2.0 - self.tilt_angle()
+    }
+
+    #[inline(always)]
+    pub fn tilt_vector_x(&self) -> f64 {
+        self.tilt_angle_x.sin()
+    }
+
+    #[inline(always)]
+    pub fn tilt_vector_y(&self) -> f64 {
+        self.tilt_angle_y.sin()
+    }
+
+    #[inline(always)]
+    pub fn tilt_vector_z(&self) -> f64 {
+        let z = f64::sqrt(1.0 - self.tilt_vector_x().powi(2) - self.tilt_vector_y().powi(2));
+        if z.is_nan() {
+            0.0
+        } else {
+            z
+        }
+    }
+
+    #[inline(always)]
+    pub fn azimuth_angle(&self) -> Option<f64> {
+        if self.tilt_angle_x == 0.0 && self.tilt_angle_y == 0.0 {
+            None
+        } else {
+            Some(f64::atan2(self.tilt_angle_x, self.tilt_angle_y))
+        }
+    }
+
+    #[inline(always)]
+    pub fn azimuth_vector_x(&self) -> f64 {
+        self.azimuth_angle().map(|a| a.sin()).unwrap_or(0.0)
+    }
+
+    #[inline(always)]
+    pub fn azimuth_vector_y(&self) -> f64 {
+        self.azimuth_angle().map(|a| a.cos()).unwrap_or(0.0)
     }
 }
 
@@ -1195,7 +1289,7 @@ mod pointer_button_serde {
         BUTTON_3,
         BUTTON_4,
         BUTTON_5,
-        // BUTTON_6,
+        BUTTON_6,
 
         // mouse style
         MOUSE_LEFT,
@@ -1208,9 +1302,9 @@ mod pointer_button_serde {
         TOUCH_CONTACT,
 
         // pen style
-        // PenDown,
-        // PenBarrel,
-        // PenEraser,
+        PEN_CONTACT,
+        PEN_BARREL,
+        PEN_ERASER,
     }
 
 
@@ -1221,11 +1315,13 @@ mod pointer_button_serde {
         fn try_from(serialize: PointerButtonSerialize) -> Result<PointerButtonInner, Self::Error> {
             match serialize {
                 PointerButtonSerialize::TOUCH_CONTACT |
+                PointerButtonSerialize::PEN_CONTACT |
                 PointerButtonSerialize::BUTTON_1 |
                 PointerButtonSerialize::Left |
                 PointerButtonSerialize::MOUSE_LEFT => Ok(PointerButtonInner::BUTTON_1),
 
                 PointerButtonSerialize::BUTTON_2 |
+                PointerButtonSerialize::PEN_BARREL |
                 PointerButtonSerialize::Right |
                 PointerButtonSerialize::MOUSE_RIGHT => Ok(PointerButtonInner::BUTTON_2),
 
@@ -1241,8 +1337,9 @@ mod pointer_button_serde {
                 PointerButtonSerialize::Other(1) |
                 PointerButtonSerialize::MOUSE_X2 => Ok(PointerButtonInner::BUTTON_5),
 
-                // PointerButtonSerialize::BUTTON_6 |
-                // PointerButtonSerialize::Other(2) => Ok(PointerButtonInner::BUTTON_6),
+                PointerButtonSerialize::BUTTON_6 |
+                PointerButtonSerialize::Other(2) |
+                PointerButtonSerialize::PEN_ERASER => Ok(PointerButtonInner::BUTTON_6),
 
                 PointerButtonSerialize::Other(i) => Err(OtherConvertError(i)),
             }
@@ -1263,6 +1360,7 @@ mod pointer_button_serde {
                 PointerButtonInner::BUTTON_3 => PointerButtonSerialize::BUTTON_3,
                 PointerButtonInner::BUTTON_4 => PointerButtonSerialize::BUTTON_4,
                 PointerButtonInner::BUTTON_5 => PointerButtonSerialize::BUTTON_5,
+                PointerButtonInner::BUTTON_6 => PointerButtonSerialize::BUTTON_6,
             }
         }
 
@@ -1273,6 +1371,7 @@ mod pointer_button_serde {
                 PointerButtonInner::BUTTON_3 => PointerButtonSerialize::Middle,
                 PointerButtonInner::BUTTON_4 => PointerButtonSerialize::Other(0),
                 PointerButtonInner::BUTTON_5 => PointerButtonSerialize::Other(1),
+                PointerButtonInner::BUTTON_6 => PointerButtonSerialize::BUTTON_6,
             }
         }
 
@@ -1283,6 +1382,7 @@ mod pointer_button_serde {
                 PointerButtonInner::BUTTON_3 => PointerButtonSerialize::MOUSE_MIDDLE,
                 PointerButtonInner::BUTTON_4 => PointerButtonSerialize::MOUSE_X1,
                 PointerButtonInner::BUTTON_5 => PointerButtonSerialize::MOUSE_X2,
+                PointerButtonInner::BUTTON_6 => PointerButtonSerialize::BUTTON_6,
             }
         }
 
@@ -1293,6 +1393,18 @@ mod pointer_button_serde {
                 PointerButtonInner::BUTTON_3 => PointerButtonSerialize::BUTTON_3,
                 PointerButtonInner::BUTTON_4 => PointerButtonSerialize::BUTTON_4,
                 PointerButtonInner::BUTTON_5 => PointerButtonSerialize::BUTTON_5,
+                PointerButtonInner::BUTTON_6 => PointerButtonSerialize::BUTTON_6,
+            }
+        }
+
+        pub fn as_serialize_pen(&self) -> PointerButtonSerialize {
+            match self {
+                PointerButtonInner::BUTTON_1 => PointerButtonSerialize::PEN_CONTACT,
+                PointerButtonInner::BUTTON_2 => PointerButtonSerialize::PEN_BARREL,
+                PointerButtonInner::BUTTON_3 => PointerButtonSerialize::BUTTON_3,
+                PointerButtonInner::BUTTON_4 => PointerButtonSerialize::BUTTON_4,
+                PointerButtonInner::BUTTON_5 => PointerButtonSerialize::BUTTON_5,
+                PointerButtonInner::BUTTON_6 => PointerButtonSerialize::PEN_ERASER,
             }
         }
     }
@@ -1434,5 +1546,291 @@ mod pointer_button_serde {
         fn serde_pointer_button_backwards_compatibility_json() {
             serde::<Json>();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PointerTiltEvent;
+    use std::f64::consts::PI;
+    use assert_approx_eq::assert_approx_eq;
+
+    #[test]
+    fn pointer_tilt_azimuth() {
+        let half_angle = 0.707107;
+
+        println!("up");
+        let up = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: 0.0,
+        };
+        assert_eq!(None, up.azimuth_angle());
+
+        println!("north");
+        let north = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: PI / 2.0,
+        };
+        assert_approx_eq!(0.0, north.azimuth_angle().unwrap());
+        assert_approx_eq!(0.0, north.azimuth_vector_x());
+        assert_approx_eq!(1.0, north.azimuth_vector_y());
+
+        println!("north_east");
+        let north_east = PointerTiltEvent {
+            tilt_angle_x: PI / 4.0,
+            tilt_angle_y: PI / 4.0,
+        };
+        assert_approx_eq!(PI / 4.0, north_east.azimuth_angle().unwrap());
+        assert_approx_eq!(half_angle, north_east.azimuth_vector_x());
+        assert_approx_eq!(half_angle, north_east.azimuth_vector_y());
+
+        println!("east");
+        let east = PointerTiltEvent {
+            tilt_angle_x: PI / 2.0,
+            tilt_angle_y: 0.0,
+        };
+        assert_approx_eq!(1.0 * PI / 2.0, east.azimuth_angle().unwrap());
+        assert_approx_eq!(1.0, east.azimuth_vector_x());
+        assert_approx_eq!(0.0, east.azimuth_vector_y());
+
+        println!("south_east");
+        let south_east = PointerTiltEvent {
+            tilt_angle_x: PI / 4.0,
+            tilt_angle_y: -PI / 4.0,
+        };
+        assert_approx_eq!(3.0 * PI / 4.0, south_east.azimuth_angle().unwrap());
+        assert_approx_eq!(half_angle, south_east.azimuth_vector_x());
+        assert_approx_eq!(-half_angle, south_east.azimuth_vector_y());
+
+        println!("south");
+        let south = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: -PI / 2.0,
+        };
+        assert_approx_eq!(2.0 * PI / 2.0, south.azimuth_angle().unwrap());
+        assert_approx_eq!(0.0, south.azimuth_vector_x());
+        assert_approx_eq!(-1.0, south.azimuth_vector_y());
+
+        println!("south_west");
+        let south_west = PointerTiltEvent {
+            tilt_angle_x: -PI / 4.0,
+            tilt_angle_y: -PI / 4.0,
+        };
+        assert_approx_eq!(-3.0 * PI / 4.0, south_west.azimuth_angle().unwrap());
+        assert_approx_eq!(-half_angle, south_west.azimuth_vector_x());
+        assert_approx_eq!(-half_angle, south_west.azimuth_vector_y());
+
+        println!("west");
+        let west = PointerTiltEvent {
+            tilt_angle_x: -PI / 2.0,
+            tilt_angle_y: 0.0,
+        };
+        assert_approx_eq!(-1.0 * PI / 2.0, west.azimuth_angle().unwrap());
+        assert_approx_eq!(-1.0, west.azimuth_vector_x());
+        assert_approx_eq!(0.0, west.azimuth_vector_y());
+
+        println!("north_west");
+        let north_west = PointerTiltEvent {
+            tilt_angle_x: -PI / 4.0,
+            tilt_angle_y: PI / 4.0,
+        };
+        assert_approx_eq!(-PI / 4.0, north_west.azimuth_angle().unwrap());
+        assert_approx_eq!(-half_angle, north_west.azimuth_vector_x());
+        assert_approx_eq!(half_angle, north_west.azimuth_vector_y());
+    }
+
+    #[test]
+    fn pointer_tilt_vector() {
+        let tilt_vector = |te: PointerTiltEvent| [te.tilt_vector_x(), te.tilt_vector_y(), te.tilt_vector_z()];
+
+        let eps = 1.0e-6;
+        let assert_normalized = |v: [f64; 3]| {
+            let length = (v[0].powi(2) + v[1].powi(2) + v[2].powi(2)).sqrt();
+            if (length - 1.0).abs() > eps {
+                assert_eq!(length, 1.0, "vector {:?} is not normalized", v);
+            }
+        };
+        let assert_approx_eq = |left: [f64; 3], right: [f64; 3]| {
+            println!("testing left normalized");
+            assert_normalized(left);
+            println!("testing right normalized");
+            assert_normalized(right);
+
+            let mut equals = true;
+            for i in 0..3 {
+                equals &= (left[i] - right[i]).abs() <= eps;
+            }
+            if !equals {
+                assert_eq!(left, right);
+            }
+        };
+
+        println!("up");
+        let up = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: 0.0,
+        };
+        assert_approx_eq([0.0, 0.0, 1.0], tilt_vector(up));
+
+        println!("east");
+        let east = PointerTiltEvent {
+            tilt_angle_x: PI / 2.0,
+            tilt_angle_y: 0.0,
+        };
+        assert_approx_eq([1.0, 0.0, 0.0], tilt_vector(east));
+
+        println!("west");
+        let west = PointerTiltEvent {
+            tilt_angle_x: -PI / 2.0,
+            tilt_angle_y: 0.0,
+        };
+        assert_approx_eq([-1.0, 0.0, 0.0], tilt_vector(west));
+
+        println!("north");
+        let north = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: PI / 2.0,
+        };
+        assert_approx_eq([0.0, 1.0, 0.0], tilt_vector(north));
+
+        println!("south");
+        let south = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: -PI / 2.0,
+        };
+        assert_approx_eq([0.0, -1.0, 0.0], tilt_vector(south));
+
+        let half_angle = 0.707107;
+        let circle_corner = PI/4.0;
+        println!("north_east");
+        let north_east = PointerTiltEvent {
+            tilt_angle_x: circle_corner,
+            tilt_angle_y: circle_corner,
+        };
+        assert_approx_eq([half_angle, half_angle, 0.0], tilt_vector(north_east));
+
+        println!("half_east");
+        let half_east = PointerTiltEvent {
+            tilt_angle_x: PI / 4.0,
+            tilt_angle_y: 0.0,
+        };
+        assert_approx_eq([half_angle, 0.0, half_angle], tilt_vector(half_east));
+
+        println!("half_north");
+        let half_north = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: PI / 4.0,
+        };
+        assert_approx_eq([0.0, half_angle, half_angle], tilt_vector(half_north));
+
+        println!("half_north_east");
+        let half_north_east = PointerTiltEvent {
+            tilt_angle_x: PI / 6.0,
+            tilt_angle_y: PI / 6.0,
+        };
+        assert_approx_eq([0.5, 0.5, half_angle], tilt_vector(half_north_east));
+    }
+
+    #[test]
+    fn pointer_tilt_angle() {
+        let angle_slight = PI / 6.0;
+        let angle_lots = PI / 3.0;
+        let angle_full = PI / 2.0;
+        let diagonal_angle = |a: f64| (a.sin().powi(2)/2.0).sqrt().asin();
+        let diagonal_slight = diagonal_angle(angle_slight);
+        let diagonal_lots = diagonal_angle(angle_lots);
+        let diagonal_full = diagonal_angle(angle_full);
+
+        println!("up");
+        let up = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: 0.0,
+        };
+        assert_approx_eq!(0.0, up.tilt_angle());
+
+        println!("north_slight");
+        let north_slight = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: angle_slight,
+        };
+        assert_approx_eq!(angle_slight, north_slight.tilt_angle());
+
+        println!("north_lots");
+        let north_lots = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: angle_lots,
+        };
+        assert_approx_eq!(angle_lots, north_lots.tilt_angle());
+
+        println!("north_full");
+        let north_full = PointerTiltEvent {
+            tilt_angle_x: 0.0,
+            tilt_angle_y: angle_full,
+        };
+        assert_approx_eq!(angle_full, north_full.tilt_angle());
+
+        println!("north_east_slight");
+        let north_east_slight = PointerTiltEvent {
+            tilt_angle_x: diagonal_slight,
+            tilt_angle_y: diagonal_slight,
+        };
+        assert_approx_eq!(angle_slight, north_east_slight.tilt_angle());
+
+        println!("north_east_lots");
+        let north_east_lots = PointerTiltEvent {
+            tilt_angle_x: -diagonal_lots,
+            tilt_angle_y: -diagonal_lots,
+        };
+        assert_approx_eq!(angle_lots, north_east_lots.tilt_angle());
+
+        println!("south_east_full");
+        let south_east_full = PointerTiltEvent {
+            tilt_angle_x: -diagonal_full,
+            tilt_angle_y: -diagonal_full,
+        };
+        assert_approx_eq!(angle_full, south_east_full.tilt_angle());
+
+
+        println!("south_slight");
+        let south_slight = PointerTiltEvent {
+            tilt_angle_x: -0.0,
+            tilt_angle_y: -angle_slight,
+        };
+        assert_approx_eq!(angle_slight, south_slight.tilt_angle());
+
+        println!("south_lots");
+        let south_lots = PointerTiltEvent {
+            tilt_angle_x: -0.0,
+            tilt_angle_y: -angle_lots,
+        };
+        assert_approx_eq!(angle_lots, south_lots.tilt_angle());
+
+        println!("south_full");
+        let south_full = PointerTiltEvent {
+            tilt_angle_x: -0.0,
+            tilt_angle_y: -angle_full,
+        };
+        assert_approx_eq!(angle_full, south_full.tilt_angle());
+
+        println!("south_west_slight");
+        let south_west_slight = PointerTiltEvent {
+            tilt_angle_x: -diagonal_slight,
+            tilt_angle_y: -diagonal_slight,
+        };
+        assert_approx_eq!(angle_slight, south_west_slight.tilt_angle());
+
+        println!("south_west_lots");
+        let south_west_lots = PointerTiltEvent {
+            tilt_angle_x: -diagonal_lots,
+            tilt_angle_y: -diagonal_lots,
+        };
+        assert_approx_eq!(angle_lots, south_west_lots.tilt_angle());
+
+        println!("south_west_full");
+        let south_west_full = PointerTiltEvent {
+            tilt_angle_x: -diagonal_full,
+            tilt_angle_y: -diagonal_full,
+        };
+        assert_approx_eq!(angle_full, south_west_full.tilt_angle());
     }
 }
