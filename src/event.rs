@@ -175,12 +175,14 @@ pub enum WindowEvent<'a> {
     PointerForce(PointerId, Force),
     PointerTilt(PointerId, PointerTiltEvent),
     PointerTwist(PointerId, f64),
+    PointerContactArea(PointerId, PhysicalSize<f64>),
     PointerMoved(PointerId, PhysicalPosition<f64>),
     PointerButton(PointerId, PointerButtonEvent),
     PointerEntered(PointerId),
     PointerLeft(PointerId),
     PointerDestroyed(PointerId),
 
+    // TODO: SHOULD SCROLL EVENTS BE ASSOCIATED WITH A POINTER?
     ScrollStarted,
     ScrollLines(UnitlessDelta<f64>),
     ScrollPixels(PhysicalDelta<f64>),
@@ -301,6 +303,7 @@ impl Clone for WindowEvent<'static> {
             PointerTilt(id, tilt) => PointerTilt(id, tilt),
             PointerTwist(id, twist) => PointerTwist(id, twist),
             PointerForce(id, force) => PointerForce(id, force),
+            PointerContactArea(id, contact_area) => PointerContactArea(id, contact_area),
             PointerMoved(id, position) => PointerMoved(id, position),
             PointerButton(id, pointer_button) => PointerButton(id, pointer_button),
             PointerEntered(id) => PointerEntered(id),
@@ -338,6 +341,7 @@ impl<'a> WindowEvent<'a> {
             PointerTilt(id, tilt) => Ok(PointerTilt(id, tilt)),
             PointerTwist(id, twist) => Ok(PointerTwist(id, twist)),
             PointerForce(id, force) => Ok(PointerForce(id, force)),
+            PointerContactArea(id, contact_area) => Ok(PointerContactArea(id, contact_area)),
             PointerMoved(id, position) => Ok(PointerMoved(id, position)),
             PointerButton(id, pointer_button) => Ok(PointerButton(id, pointer_button)),
             PointerEntered(id) => Ok(PointerEntered(id)),
@@ -893,7 +897,7 @@ pub struct PointerTiltEvent {
 }
 
 impl PointerTiltEvent {
-    pub fn new_titlt_angle(tilt_angle_x: f64, tilt_angle_y: f64) -> PointerTiltEvent {
+    pub fn new_tilt_angle(tilt_angle_x: f64, tilt_angle_y: f64) -> PointerTiltEvent {
         PointerTiltEvent {
             tilt_angle_x,
             tilt_angle_y,
@@ -912,7 +916,11 @@ impl PointerTiltEvent {
 
     #[inline(always)]
     pub fn tilt_angle(&self) -> f64 {
-        let tilt = f64::sqrt(self.tilt_angle_x.sin().powi(2) + self.tilt_angle_y.sin().powi(2)).asin();
+        // As shown by `tilt_vector_(x|y)`, the length of the tilt vector on the XY plane is
+        // trivially relatable to the tilt angle. This computes the length of the XY vector and uses
+        // that to get the axis-independent tilt angle.
+        let tilt_xy_distance_from_center = f64::sqrt(self.tilt_vector_x().powi(2) + self.tilt_vector_y().powi(2));
+        let tilt = f64::asin(tilt_xy_distance_from_center);
         if tilt.is_nan() {
             0.0
         } else {
@@ -937,6 +945,9 @@ impl PointerTiltEvent {
 
     #[inline(always)]
     pub fn tilt_vector_z(&self) -> f64 {
+        // The tilt vector is a normalized three-component vector. Since we know the X and Y
+        // components of that vector, we can use a transformed version of the pythagorean theorem
+        // to get the Z component.
         let z = f64::sqrt(1.0 - self.tilt_vector_x().powi(2) - self.tilt_vector_y().powi(2));
         if z.is_nan() {
             0.0

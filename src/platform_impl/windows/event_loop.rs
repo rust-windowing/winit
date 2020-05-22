@@ -34,7 +34,7 @@ use crate::{
     event::{
         Event, Force, KeyEvent, LogicalKey, ModifiersState, PointerButton, PointerButtonEvent,
         PointerId, RawKeyEvent, RawKeyboardEvent, RawPointerButtonEvent, RawPointerEvent,
-        WindowEvent,
+        WindowEvent, PointerTiltEvent,
     },
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::platform::{
@@ -641,7 +641,7 @@ pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>)
 
 fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
     match pressure {
-        1..=1024 => Some(Force::Normalized(pressure as f64 / 1024.0)),
+        0..=1024 => Some(Force::Normalized(pressure as f64 / 1024.0)),
         _ => None,
     }
 }
@@ -1446,37 +1446,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         continue;
                     }
 
-                    let force = match pointer_info.pointerType {
-                        winuser::PT_TOUCH => {
-                            let mut touch_info = mem::MaybeUninit::uninit();
-                            GET_POINTER_TOUCH_INFO.and_then(|GetPointerTouchInfo| {
-                                match GetPointerTouchInfo(
-                                    pointer_info.pointerId,
-                                    touch_info.as_mut_ptr(),
-                                ) {
-                                    0 => None,
-                                    _ => normalize_pointer_pressure(
-                                        touch_info.assume_init().pressure,
-                                    ),
-                                }
-                            })
-                        }
-                        winuser::PT_PEN => {
-                            let mut pen_info = mem::MaybeUninit::uninit();
-                            GET_POINTER_PEN_INFO.and_then(|GetPointerPenInfo| {
-                                match GetPointerPenInfo(
-                                    pointer_info.pointerId,
-                                    pen_info.as_mut_ptr(),
-                                ) {
-                                    0 => None,
-                                    _ => {
-                                        normalize_pointer_pressure(pen_info.assume_init().pressure)
-                                    }
-                                }
-                            })
-                        }
-                        _ => None,
-                    };
+
 
                     let x = position.x as f64 + x.fract();
                     let y = position.y as f64 + y.fract();
@@ -1490,10 +1460,85 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         ));
                     }
 
+                    let pi = std::f64::consts::PI;
+                    let deg_to_twist = |deg: u32| ((deg as f64 / 360.0) - 0.5) * pi;
+                    let mut force = None;
+                    let mut tilt = None;
+                    let mut twist = None;
+                    let mut contact_area = None;
+                    match pointer_info.pointerType {
+                        winuser::PT_TOUCH => {
+                            let mut touch_info = mem::MaybeUninit::uninit();
+                            if let Some(GetPointerTouchInfo) = *GET_POINTER_TOUCH_INFO {
+                                let get_touch_info_result = GetPointerTouchInfo(
+                                    pointer_info.pointerId,
+                                    touch_info.as_mut_ptr()
+                                );
+                                if 0 != get_touch_info_result {
+                                    let touch_info = touch_info.assume_init();
+                                    if touch_info.touchMask & winuser::TOUCH_MASK_PRESSURE != 0 {
+                                        force = normalize_pointer_pressure(touch_info.pressure);
+                                    }
+                                    if touch_info.touchMask & winuser::TOUCH_MASK_ORIENTATION != 0 {
+                                        twist = Some(deg_to_twist(touch_info.orientation));
+                                    }
+                                    if touch_info.touchMask & winuser::TOUCH_MASK_CONTACTAREA != 0 {
+                                        let rect = touch_info.rcContactRaw;
+                                        contact_area = Some(PhysicalSize::new(rect.right - rect.left, rect.bottom - rect.top).cast());
+                                    }
+                                }
+                            }
+                        }
+                        winuser::PT_PEN => {
+                            let mut pen_info = mem::MaybeUninit::uninit();
+                            if let Some(GetPointerPenInfo) = *GET_POINTER_PEN_INFO {
+                                let get_pen_info_result = GetPointerPenInfo(
+                                    pointer_info.pointerId,
+                                    pen_info.as_mut_ptr(),
+                                );
+                                if 0 != get_pen_info_result {
+                                    let pen_info = pen_info.assume_init();
+                                    if pen_info.penMask & winuser::PEN_MASK_PRESSURE != 0 {
+                                        force = normalize_pointer_pressure(pen_info.pressure);
+                                    }
+                                    if pen_info.penMask & winuser::PEN_MASK_ROTATION != 0 {
+                                        // TODO: WHAT DIRECTION IS 0?
+                                        twist = Some(deg_to_twist(pen_info.rotation));
+                                    }
+                                    if pen_info.penMask & (winuser::PEN_MASK_TILT_X | winuser::PEN_MASK_TILT_Y) != 0 {
+                                        tilt = Some(PointerTiltEvent::new_tilt_angle(
+                                            pen_info.tiltX as f64 / 90.0 * (pi / 2.0),
+                                            pen_info.tiltY as f64 / 90.0 * (pi / 2.0),
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        _ => (),
+                    }
+
                     if let Some(force) = force {
                         subclass_input.send_event(Event::WindowEvent(
                             WindowId(window).into(),
                             WindowEvent::PointerForce(pointer_id, force),
+                        ));
+                    }
+                    if let Some(tilt) = tilt {
+                        subclass_input.send_event(Event::WindowEvent(
+                            WindowId(window).into(),
+                            WindowEvent::PointerTilt(pointer_id, tilt),
+                        ));
+                    }
+                    if let Some(twist) = twist {
+                        subclass_input.send_event(Event::WindowEvent(
+                            WindowId(window).into(),
+                            WindowEvent::PointerTwist(pointer_id, twist),
+                        ));
+                    }
+                    if let Some(contact_area) = contact_area {
+                        subclass_input.send_event(Event::WindowEvent(
+                            WindowId(window).into(),
+                            WindowEvent::PointerContactArea(pointer_id, contact_area),
                         ));
                     }
 
