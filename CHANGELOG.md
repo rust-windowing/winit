@@ -1,4 +1,7 @@
 # Unreleased
+- On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
+
+- On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
 
 # 0.22.2 (2020-05-16)
 
