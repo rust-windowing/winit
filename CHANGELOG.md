@@ -2,6 +2,7 @@
 - On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
 
 - On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
+- On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
 
 # 0.22.2 (2020-05-16)
 
