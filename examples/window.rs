@@ -26,10 +26,10 @@ fn main() {
             }
             Event::WindowEvent(_, e) => match e {
                 WindowEvent::PointerCreated(..) |
-                // WindowEvent::PointerForce(..) |
+                WindowEvent::PointerForce(..) |
                 WindowEvent::PointerTilt(..) |
                 WindowEvent::PointerTwist(..) |
-                // WindowEvent::PointerContactArea(..) |
+                WindowEvent::PointerContactArea(..) |
                 WindowEvent::PointerMoved(..) |
                 WindowEvent::PointerButton(..) |
                 WindowEvent::PointerEntered(..) |

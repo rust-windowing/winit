@@ -1354,21 +1354,23 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 if GetPointerInfo(pointer_id, &mut pointer_info) == 0 {
                     return 0;
                 }
-                let pointer_id = match pointer_info.pointerType {
-                    winuser::PT_TOUCH => PointerId::TouchId(TouchId(pointer_id).into()),
-                    winuser::PT_PEN => PointerId::PenId(PenId(pointer_id).into()),
-                    _ => PointerId::MOUSE_ID,
-                };
+                if pointer_info.pointerFlags & winuser::POINTER_FLAG_INRANGE != 0 {
+                    let pointer_id = match pointer_info.pointerType {
+                        winuser::PT_TOUCH => PointerId::TouchId(TouchId(pointer_id).into()),
+                        winuser::PT_PEN => PointerId::PenId(PenId(pointer_id).into()),
+                        _ => PointerId::MOUSE_ID,
+                    };
 
-                subclass_input.lock_and_update_pointer_state(
-                    pointer_id,
-                    winuser::GetMessageTime(),
-                    window,
-                    |pointer_state| PointerState {
-                        in_window: util::point_in_window_client(window, pointer_info.ptPixelLocation).unwrap_or(false),
-                        ..pointer_state
-                    }
-                );
+                    subclass_input.lock_and_update_pointer_state(
+                        pointer_id,
+                        winuser::GetMessageTime(),
+                        window,
+                        |pointer_state| PointerState {
+                            in_window: util::point_in_window_client(window, pointer_info.ptPixelLocation).unwrap_or(false),
+                            ..pointer_state
+                        }
+                    );
+                }
             }
 
             0
