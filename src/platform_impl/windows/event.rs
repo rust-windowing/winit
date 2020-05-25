@@ -1,3 +1,5 @@
+#![allow(non_snake_case)]
+
 use std::{
     char,
     os::raw::c_int,
@@ -14,7 +16,7 @@ use std::collections::hash_map::{HashMap, Entry};
 use winapi::{
     shared::{
         windef::HWND,
-        minwindef::{HKL, HKL__, LPARAM, UINT, WPARAM, DWORD},
+        minwindef::{HKL, HKL__, LPARAM, UINT, WPARAM, DWORD, BOOL},
     },
     um::{winuser, winreg},
 };
@@ -484,6 +486,14 @@ impl Default for PointerState {
     }
 }
 
+type EnableMouseInPointer =
+    unsafe extern "system" fn(fEnable: BOOL) -> BOOL;
+
+lazy_static! {
+    static ref ENABLE_MOUSE_IN_POINTER: Option<EnableMouseInPointer> =
+        get_function!("user32.dll", EnableMouseInPointer);
+}
+
 #[derive(Clone)]
 pub struct PointerTracker {
     pointer_info: HashMap<PointerId, FullPointerState>,
@@ -494,7 +504,10 @@ impl PointerTracker {
     pub fn new() -> PointerTracker {
         PointerTracker {
             pointer_info: HashMap::new(),
-            call_legacy_capture_fns: true,
+            call_legacy_capture_fns: match *ENABLE_MOUSE_IN_POINTER {
+                Some(EnableMouseInPointer) => unsafe{ EnableMouseInPointer(1) == 0 },
+                None => true,
+            },
         }
     }
 

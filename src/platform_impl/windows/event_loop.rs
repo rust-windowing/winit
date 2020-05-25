@@ -32,7 +32,7 @@ use winapi::{
 use crate::{
     dpi::{PhysicalDelta, PhysicalPosition, PhysicalSize, UnitlessDelta},
     event::{
-        Event, Force, KeyEvent, LogicalKey, ModifiersState, PointerButton, PointerButtonEvent,
+        Event, Force, KeyEvent, LogicalKey, ModifiersState, PointerButton,
         PointerId, RawKeyEvent, RawKeyboardEvent, RawPointerButtonEvent, RawPointerEvent,
         WindowEvent, PointerTiltEvent,
     },
@@ -1460,7 +1460,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                     let x = position.x as f64 + x.fract();
                     let y = position.y as f64 + y.fract();
-                    let position = PhysicalPosition::new(x, y);
+                    let mut position = PhysicalPosition::new(x, y);
 
                     let pi = std::f64::consts::PI;
                     let deg_to_twist = |deg: u32| (deg as f64 / 360.0) * pi;
@@ -1471,14 +1471,16 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     let pointer_id: PointerId;
 
                     let mut buttons_down = ButtonsDown::empty();
-                    buttons_down.set(
-                        PointerButton::TOUCH_CONTACT.into_flags(),
-                        pointer_info.pointerFlags & winuser::POINTER_FLAG_INCONTACT != 0
-                    );
 
                     match pointer_info.pointerType {
                         winuser::PT_TOUCH => {
                             pointer_id = PointerId::TouchId(TouchId(pointer_info.pointerId).into());
+
+                            buttons_down.set(
+                                PointerButton::TOUCH_CONTACT.into_flags(),
+                                pointer_info.pointerFlags & winuser::POINTER_FLAG_INCONTACT != 0
+                            );
+
                             let mut touch_info = mem::MaybeUninit::uninit();
                             if let Some(GetPointerTouchInfo) = *GET_POINTER_TOUCH_INFO {
                                 let get_touch_info_result = GetPointerTouchInfo(
@@ -1502,6 +1504,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                         }
                         winuser::PT_PEN => {
                             pointer_id = PointerId::PenId(PenId(pointer_info.pointerId).into());
+
+                            buttons_down.set(
+                                PointerButton::PEN_CONTACT.into_flags(),
+                                pointer_info.pointerFlags & winuser::POINTER_FLAG_INCONTACT != 0
+                            );
+
                             let mut pen_info = mem::MaybeUninit::uninit();
                             if let Some(GetPointerPenInfo) = *GET_POINTER_PEN_INFO {
                                 let get_pen_info_result = GetPointerPenInfo(
@@ -1532,6 +1540,38 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                     );
                                 }
                             }
+                        }
+                        winuser::PT_MOUSE |
+                        winuser::PT_TOUCHPAD => {
+                            pointer_id = PointerId::MOUSE_ID;
+
+                            // There can be some rounding errors when doing the mouse hiMetric math,
+                            // and it doesn't make a whole lot of sense for a traditional mouse
+                            // pointer to be on a non-integer point, so round off any fractional
+                            // values that might've cropped up.
+                            position.x = position.x.round();
+                            position.y = position.y.round();
+
+                            buttons_down.set(
+                                PointerButton::MOUSE_LEFT.into_flags(),
+                                pointer_info.pointerFlags & winuser::POINTER_FLAG_FIRSTBUTTON != 0,
+                            );
+                            buttons_down.set(
+                                PointerButton::MOUSE_RIGHT.into_flags(),
+                                pointer_info.pointerFlags & winuser::POINTER_FLAG_SECONDBUTTON != 0,
+                            );
+                            buttons_down.set(
+                                PointerButton::MOUSE_MIDDLE.into_flags(),
+                                pointer_info.pointerFlags & winuser::POINTER_FLAG_THIRDBUTTON != 0,
+                            );
+                            buttons_down.set(
+                                PointerButton::MOUSE_X1.into_flags(),
+                                pointer_info.pointerFlags & winuser::POINTER_FLAG_FOURTHBUTTON != 0,
+                            );
+                            buttons_down.set(
+                                PointerButton::MOUSE_X2.into_flags(),
+                                pointer_info.pointerFlags & winuser::POINTER_FLAG_FIFTHBUTTON != 0,
+                            );
                         }
                         _ => return 0,
                     }

@@ -41,7 +41,9 @@ fn main() {
                 WindowEvent::PointerDestroyed(..) => println!("{:?}", e),
                 _ => ()
             },
-            Event::MainEventsCleared => window.request_redraw(),
+            Event::MainEventsCleared => {
+                window.request_redraw()
+            },
             _ => (),
         }
     });
