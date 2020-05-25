@@ -1050,15 +1050,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerScrollStarted(PointerId::MOUSE_ID),
+                WindowEvent::ScrollStarted,
             ));
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerScrollLines(PointerId::MOUSE_ID, UnitlessDelta::new(0.0, value)),
+                WindowEvent::ScrollLines(UnitlessDelta::new(0.0, value)),
             ));
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerScrollEnded(PointerId::MOUSE_ID),
+                WindowEvent::ScrollEnded,
             ));
 
             0
@@ -1073,15 +1073,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerScrollStarted(PointerId::MOUSE_ID),
+                WindowEvent::ScrollStarted,
             ));
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerScrollLines(PointerId::MOUSE_ID, UnitlessDelta::new(value, 0.0)),
+                WindowEvent::ScrollLines(UnitlessDelta::new(value, 0.0)),
             ));
             subclass_input.send_event(Event::WindowEvent(
                 WindowId(window).into(),
-                WindowEvent::PointerScrollEnded(PointerId::MOUSE_ID),
+                WindowEvent::ScrollEnded,
             ));
 
             0

@@ -181,12 +181,13 @@ pub enum WindowEvent<'a> {
     // TODO: IMPLEMENT. IS THIS REASONABLE TO IMPLEMENT ON NON-WINDOWS PLATFORMS?
     // PointerHovered(PointerId),
     PointerButton(PointerId, PointerButtonEvent),
-    PointerScrollStarted(PointerId),
-    PointerScrollLines(PointerId, UnitlessDelta<f64>),
-    PointerScrollPixels(PointerId, PhysicalDelta<f64>),
-    PointerScrollEnded(PointerId),
-    PointerLeft(PointerId),
     PointerDestroyed(PointerId),
+    PointerLeft(PointerId),
+
+    ScrollStarted,
+    ScrollLines(UnitlessDelta<f64>),
+    ScrollPixels(PhysicalDelta<f64>),
+    ScrollEnded,
 
     /// The system window theme has changed.
     ///
@@ -309,10 +310,10 @@ impl Clone for WindowEvent<'static> {
             PointerEntered(id) => PointerEntered(id),
             PointerLeft(id) => PointerLeft(id),
             PointerDestroyed(id) => PointerDestroyed(id),
-            PointerScrollStarted(id) => PointerScrollStarted(id),
-            PointerScrollLines(id, delta) => PointerScrollLines(id, delta),
-            PointerScrollPixels(id, delta) => PointerScrollPixels(id, delta),
-            PointerScrollEnded(id) => PointerScrollEnded(id),
+            ScrollStarted => ScrollStarted,
+            ScrollLines(delta) => ScrollLines(delta),
+            ScrollPixels(delta) => ScrollPixels(delta),
+            ScrollEnded => ScrollEnded,
             ThemeChanged(theme) => ThemeChanged(theme),
             ScaleFactorChanged(..) => {
                 unreachable!("Static event can't be about scale factor changing")
@@ -347,10 +348,10 @@ impl<'a> WindowEvent<'a> {
             PointerEntered(id) => Ok(PointerEntered(id)),
             PointerLeft(id) => Ok(PointerLeft(id)),
             PointerDestroyed(id) => Ok(PointerDestroyed(id)),
-            PointerScrollStarted(id) => Ok(PointerScrollStarted(id)),
-            PointerScrollLines(id, delta) => Ok(PointerScrollLines(id, delta)),
-            PointerScrollPixels(id, delta) => Ok(PointerScrollPixels(id, delta)),
-            PointerScrollEnded(id) => Ok(PointerScrollEnded(id)),
+            ScrollStarted => Ok(ScrollStarted),
+            ScrollLines(delta) => Ok(ScrollLines(delta)),
+            ScrollPixels(delta) => Ok(ScrollPixels(delta)),
+            ScrollEnded => Ok(ScrollEnded),
             ThemeChanged(theme) => Ok(ThemeChanged(theme)),
             ScaleFactorChanged(..) => Err(self),
         }
