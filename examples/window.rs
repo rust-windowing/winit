@@ -16,7 +16,7 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
-        println!("{:?}", event);
+        // println!("{:?}", event);
 
         match event {
             Event::WindowEvent(window_id, WindowEvent::CloseRequested)
@@ -24,6 +24,19 @@ fn main() {
             {
                 *control_flow = ControlFlow::Exit
             }
+            Event::WindowEvent(_, e) => match e {
+                WindowEvent::PointerCreated(..) |
+                // WindowEvent::PointerForce(..) |
+                WindowEvent::PointerTilt(..) |
+                WindowEvent::PointerTwist(..) |
+                // WindowEvent::PointerContactArea(..) |
+                WindowEvent::PointerMoved(..) |
+                WindowEvent::PointerButton(..) |
+                WindowEvent::PointerEntered(..) |
+                WindowEvent::PointerLeft(..) |
+                WindowEvent::PointerDestroyed(..) => println!("{:?}", e),
+                _ => ()
+            },
             Event::MainEventsCleared => window.request_redraw(),
             _ => (),
         }

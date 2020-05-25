@@ -172,21 +172,21 @@ pub enum WindowEvent<'a> {
     ModifiersChanged(ModifiersState),
 
     PointerCreated(PointerId),
+    PointerEntered(PointerId),
     PointerForce(PointerId, Force),
     PointerTilt(PointerId, PointerTiltEvent),
     PointerTwist(PointerId, f64),
     PointerContactArea(PointerId, PhysicalSize<f64>),
     PointerMoved(PointerId, PhysicalPosition<f64>),
+    // TODO: IMPLEMENT. IS THIS REASONABLE TO IMPLEMENT ON NON-WINDOWS PLATFORMS?
+    // PointerHovered(PointerId),
     PointerButton(PointerId, PointerButtonEvent),
-    PointerEntered(PointerId),
+    PointerScrollStarted(PointerId),
+    PointerScrollLines(PointerId, UnitlessDelta<f64>),
+    PointerScrollPixels(PointerId, PhysicalDelta<f64>),
+    PointerScrollEnded(PointerId),
     PointerLeft(PointerId),
     PointerDestroyed(PointerId),
-
-    // TODO: SHOULD SCROLL EVENTS BE ASSOCIATED WITH A POINTER?
-    ScrollStarted,
-    ScrollLines(UnitlessDelta<f64>),
-    ScrollPixels(PhysicalDelta<f64>),
-    ScrollEnded,
 
     /// The system window theme has changed.
     ///
@@ -309,10 +309,10 @@ impl Clone for WindowEvent<'static> {
             PointerEntered(id) => PointerEntered(id),
             PointerLeft(id) => PointerLeft(id),
             PointerDestroyed(id) => PointerDestroyed(id),
-            ScrollStarted => ScrollStarted,
-            ScrollLines(delta) => ScrollLines(delta),
-            ScrollPixels(delta) => ScrollPixels(delta),
-            ScrollEnded => ScrollEnded,
+            PointerScrollStarted(id) => PointerScrollStarted(id),
+            PointerScrollLines(id, delta) => PointerScrollLines(id, delta),
+            PointerScrollPixels(id, delta) => PointerScrollPixels(id, delta),
+            PointerScrollEnded(id) => PointerScrollEnded(id),
             ThemeChanged(theme) => ThemeChanged(theme),
             ScaleFactorChanged(..) => {
                 unreachable!("Static event can't be about scale factor changing")
@@ -347,10 +347,10 @@ impl<'a> WindowEvent<'a> {
             PointerEntered(id) => Ok(PointerEntered(id)),
             PointerLeft(id) => Ok(PointerLeft(id)),
             PointerDestroyed(id) => Ok(PointerDestroyed(id)),
-            ScrollStarted => Ok(ScrollStarted),
-            ScrollLines(delta) => Ok(ScrollLines(delta)),
-            ScrollPixels(delta) => Ok(ScrollPixels(delta)),
-            ScrollEnded => Ok(ScrollEnded),
+            PointerScrollStarted(id) => Ok(PointerScrollStarted(id)),
+            PointerScrollLines(id, delta) => Ok(PointerScrollLines(id, delta)),
+            PointerScrollPixels(id, delta) => Ok(PointerScrollPixels(id, delta)),
+            PointerScrollEnded(id) => Ok(PointerScrollEnded(id)),
             ThemeChanged(theme) => Ok(ThemeChanged(theme)),
             ScaleFactorChanged(..) => Err(self),
         }
@@ -403,7 +403,7 @@ pub struct RawKeyEvent {
 pub struct PointerButtonEvent {
     pub(crate) button: PointerButton,
     pub(crate) is_down: bool,
-    pub(crate) click_count: u32,
+    pub(crate) multi_click_count: u32,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -523,10 +523,8 @@ impl PointerButtonEvent {
     }
     /// The number of clicks the user has made in the same spot within the system's double-click
     /// interval. `1` is emitted on the first click, `2` is emitted on the second click, etc.
-    ///
-    /// Is always `0` if `is_down` is `false`.
-    pub fn click_count(&self) -> u32 {
-        self.click_count
+    pub fn multi_click_count(&self) -> u32 {
+        self.multi_click_count
     }
 }
 
@@ -543,8 +541,8 @@ impl PointerButtonEvent {
         self.is_down = is_down;
         self
     }
-    pub fn set_click_count(&mut self, click_count: u32) -> &mut Self {
-        self.click_count = click_count;
+    pub fn set_multi_click_count(&mut self, multi_click_count: u32) -> &mut Self {
+        self.multi_click_count = multi_click_count;
         self
     }
 }
@@ -580,7 +578,7 @@ impl RawPointerButtonEvent {
 #[repr(transparent)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(transparent))]
-pub struct PointerButton(PointerButtonInner);
+pub struct PointerButton(pub(crate) PointerButtonInner);
 
 /// We use an internal enum rather than exposing the variants directly so that the `BUTTON_n`
 /// constants are formatted and exposed in a similar style to the `{MOUSE|TOUCH|PEN}_n` constants.
@@ -590,7 +588,7 @@ pub struct PointerButton(PointerButtonInner);
 #[cfg_attr(feature = "serde", serde(try_from = "pointer_button_serde::PointerButtonSerialize"))]
 #[cfg_attr(feature = "serde", serde(into = "pointer_button_serde::PointerButtonSerialize"))]
 #[allow(non_camel_case_types)]
-enum PointerButtonInner {
+pub(crate) enum PointerButtonInner {
     BUTTON_1,
     BUTTON_2,
     BUTTON_3,

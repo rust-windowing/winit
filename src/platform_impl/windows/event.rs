@@ -5,11 +5,18 @@ use std::{
     sync::atomic::{AtomicBool, AtomicPtr, Ordering},
 };
 
-use crate::event::{LogicalKey, ModifiersState};
+use crate::{
+    dpi::{PhysicalSize, PhysicalPosition},
+    event::{LogicalKey, ModifiersState, Force, PointerTiltEvent, PointerButton, WindowEvent, PointerId, PointerButtonEvent},
+};
+use std::collections::hash_map::{HashMap, Entry};
 
 use winapi::{
-    shared::minwindef::{HKL, HKL__, LPARAM, UINT, WPARAM},
-    um::winuser,
+    shared::{
+        windef::HWND,
+        minwindef::{HKL, HKL__, LPARAM, UINT, WPARAM, DWORD},
+    },
+    um::{winuser, winreg},
 };
 
 fn key_pressed(vkey: c_int) -> bool {
@@ -410,5 +417,276 @@ fn map_text_keys(win_virtual_key: i32) -> Option<LogicalKey> {
         Some('\'') => Some(LogicalKey::Apostrophe),
         Some('\\') => Some(LogicalKey::Backslash),
         _ => None,
+    }
+}
+
+bitflags!{
+    pub struct ButtonsDown: u8 {
+        const BUTTON_1 = 1 << 1;
+        const BUTTON_2 = 1 << 2;
+        const BUTTON_3 = 1 << 3;
+        const BUTTON_4 = 1 << 4;
+        const BUTTON_5 = 1 << 5;
+        const BUTTON_6 = 1 << 6;
+    }
+}
+
+impl PointerButton {
+    pub(crate) fn into_flags(&self) -> ButtonsDown {
+        use crate::event::PointerButtonInner::*;
+        match self.0 {
+            BUTTON_1 => ButtonsDown::BUTTON_1,
+            BUTTON_2 => ButtonsDown::BUTTON_2,
+            BUTTON_3 => ButtonsDown::BUTTON_3,
+            BUTTON_4 => ButtonsDown::BUTTON_4,
+            BUTTON_5 => ButtonsDown::BUTTON_5,
+            BUTTON_6 => ButtonsDown::BUTTON_6,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PointerState {
+    pub in_window: bool,
+    pub force: Force,
+    pub tilt: PointerTiltEvent,
+    pub twist: f64,
+    pub contact_area: PhysicalSize<f64>,
+    pub position: PhysicalPosition<f64>,
+    pub buttons_down: ButtonsDown,
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+struct FullPointerState {
+    state: PointerState,
+    last_button_down: Option<LastButtonDown>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LastButtonDown {
+    button: PointerButton,
+    time: DWORD,
+    position: PhysicalPosition<f64>,
+    multi_click_count: u32,
+}
+
+impl Default for PointerState {
+    fn default() -> PointerState {
+        PointerState {
+            in_window: false,
+            force: Force::Normalized(0.0),
+            tilt: PointerTiltEvent::new_tilt_angle(0.0, 0.0),
+            twist: 0.0,
+            contact_area: PhysicalSize::new(1.0, 1.0),
+            position: PhysicalPosition::new(f64::NEG_INFINITY, f64::NEG_INFINITY),
+            buttons_down: ButtonsDown::empty(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct PointerTracker {
+    pointer_info: HashMap<PointerId, FullPointerState>,
+    call_legacy_capture_fns: bool,
+}
+
+impl PointerTracker {
+    pub fn new() -> PointerTracker {
+        PointerTracker {
+            pointer_info: HashMap::new(),
+            call_legacy_capture_fns: true,
+        }
+    }
+
+    pub fn update_pointer_state(
+        &mut self,
+        pointer_id: PointerId,
+        message_time: i32,
+        window: HWND,
+        new_state: impl FnOnce(PointerState) -> PointerState,
+        mut send_event: impl FnMut(WindowEvent<'static>)
+    ) {
+        let entry = self.pointer_info.entry(pointer_id);
+        if let Entry::Vacant(_) = entry {
+            send_event(WindowEvent::PointerCreated(pointer_id));
+        }
+        let message_time = message_time as DWORD;
+
+        let full_pointer_state = entry.or_default();
+        let new_state = new_state(full_pointer_state.state);
+
+        let &mut FullPointerState {
+           state: PointerState {
+                ref mut in_window,
+                ref mut force,
+                ref mut tilt,
+                ref mut twist,
+                ref mut contact_area,
+                ref mut position,
+                ref mut buttons_down,
+            },
+            ref mut last_button_down,
+        } = full_pointer_state;
+
+        if *in_window != new_state.in_window && new_state.in_window {
+            *in_window = new_state.in_window;
+            send_event(WindowEvent::PointerEntered(pointer_id));
+
+            if self.call_legacy_capture_fns {
+                unsafe {
+                    // Calling TrackMouseEvent in order to receive mouse leave events.
+                    winuser::TrackMouseEvent(&mut winuser::TRACKMOUSEEVENT {
+                        cbSize: std::mem::size_of::<winuser::TRACKMOUSEEVENT>() as DWORD,
+                        dwFlags: winuser::TME_LEAVE,
+                        hwndTrack: window,
+                        dwHoverTime: winuser::HOVER_DEFAULT,
+                    });
+                }
+            }
+        }
+        if *force != new_state.force {
+            *force = new_state.force;
+            send_event(WindowEvent::PointerForce(pointer_id, *force))
+        }
+        if *tilt != new_state.tilt {
+            *tilt = new_state.tilt;
+            send_event(WindowEvent::PointerTilt(pointer_id, *tilt))
+        }
+        if *twist != new_state.twist {
+            *twist = new_state.twist;
+            send_event(WindowEvent::PointerTwist(pointer_id, *twist))
+        }
+        if *contact_area != new_state.contact_area {
+            *contact_area = new_state.contact_area;
+            send_event(WindowEvent::PointerContactArea(pointer_id, *contact_area))
+        }
+        if *position != new_state.position {
+            *position = new_state.position;
+            send_event(WindowEvent::PointerMoved(pointer_id, *position))
+        }
+        if *buttons_down != new_state.buttons_down {
+            let diff = *buttons_down ^ new_state.buttons_down;
+            if diff != ButtonsDown::empty() {
+                *buttons_down = new_state.buttons_down;
+
+                if self.call_legacy_capture_fns && pointer_id == PointerId::MOUSE_ID {
+                    unsafe {
+                        match *buttons_down == ButtonsDown::empty() {
+                            // Capture mouse input, allowing `window` to receive mouse events when
+                            // the cursor is outside of the window.
+                            false => {winuser::SetCapture(window);}
+                            // Release mouse input, stopping windows on this thread from receiving
+                            // mouse input when the cursor is outside the window.
+                            true => {winuser::ReleaseCapture();}
+                        }
+                    }
+                }
+
+                let buttons = [
+                    (PointerButton::BUTTON_1, ButtonsDown::BUTTON_1),
+                    (PointerButton::BUTTON_2, ButtonsDown::BUTTON_2),
+                    (PointerButton::BUTTON_3, ButtonsDown::BUTTON_3),
+                    (PointerButton::BUTTON_4, ButtonsDown::BUTTON_4),
+                    (PointerButton::BUTTON_5, ButtonsDown::BUTTON_5),
+                    (PointerButton::BUTTON_6, ButtonsDown::BUTTON_6),
+                ];
+
+                let (double_click_time, cx_double_click, cy_double_click): (DWORD, f64, f64);
+                match pointer_id {
+                    PointerId::TouchId(_) |
+                    PointerId::PenId(_) => unsafe {
+                        let sub_key = "Software\\Microsoft\\Wisp\\Pen\\SysEventParameters\0";
+                        let dist_value = "DblDist\0";
+                        let time_value = "DblTime\0";
+
+                        let mut time: DWORD = 0;
+                        let result = winreg::RegGetValueA(
+                            winreg::HKEY_CURRENT_USER,
+                            sub_key.as_ptr() as *const _,
+                            time_value.as_ptr() as *const _,
+                            winreg::RRF_RT_REG_DWORD,
+                            ptr::null_mut(),
+                            &mut time as *mut DWORD as *mut _,
+                            &mut (std::mem::size_of::<DWORD>() as DWORD),
+                        );
+                        double_click_time = match result {
+                            0 => time,
+                            _ => winuser::GetDoubleClickTime(),
+                        };
+
+                        let mut dist: DWORD = 0;
+                        let result = winreg::RegGetValueA(
+                            winreg::HKEY_CURRENT_USER,
+                            sub_key.as_ptr() as *const _,
+                            dist_value.as_ptr() as *const _,
+                            winreg::RRF_RT_REG_DWORD,
+                            ptr::null_mut(),
+                            &mut dist as *mut DWORD as *mut _,
+                            &mut (std::mem::size_of::<DWORD>() as DWORD),
+                        );
+                        cx_double_click = match result {
+                            0 => dist as f64,
+                            _ => winuser::GetSystemMetrics(winuser::SM_CXDOUBLECLK) as f64,
+                        };
+                        cy_double_click = cx_double_click;
+                    },
+                    PointerId::MouseId(_) => unsafe {
+                        double_click_time = winuser::GetDoubleClickTime();
+                        cx_double_click = winuser::GetSystemMetrics(winuser::SM_CXDOUBLECLK) as f64;
+                        cy_double_click = winuser::GetSystemMetrics(winuser::SM_CYDOUBLECLK) as f64;
+                    }
+                }
+                let scale_factor = unsafe{ winuser::GetDpiForWindow(window) as f64 / 96.0 };
+                let cx_double_click = cx_double_click * scale_factor;
+                let cy_double_click = cy_double_click * scale_factor;
+
+                let mut last_click_set = false;
+                for (pointer_button, button_flag) in buttons.iter().cloned() {
+                    if diff.contains(button_flag) {
+                        let multi_click_count = match last_button_down {
+                            Some(lbd) if
+                                lbd.button == pointer_button &&
+                                (message_time.saturating_sub(lbd.time)) < double_click_time &&
+                                (lbd.position.x - position.x).abs() < cx_double_click &&
+                                (lbd.position.y - position.y).abs() < cy_double_click
+                            => {
+                                lbd.multi_click_count
+                            },
+                            _ => 0,
+                        };
+                        let is_down = buttons_down.contains(button_flag);
+
+                        send_event(WindowEvent::PointerButton(
+                            pointer_id,
+                            PointerButtonEvent {
+                                button: pointer_button,
+                                is_down,
+                                multi_click_count,
+                            },
+                        ));
+
+                        if !last_click_set && !is_down {
+                            last_click_set = true;
+                            *last_button_down = Some(LastButtonDown {
+                                button: pointer_button,
+                                time: message_time,
+                                position: *position,
+                                multi_click_count: multi_click_count + 1,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        if *in_window != new_state.in_window && !new_state.in_window {
+            *in_window = new_state.in_window;
+            send_event(WindowEvent::PointerLeft(pointer_id));
+        }
+    }
+
+    pub fn destroy_pointer(&mut self, pointer_id: PointerId, mut send_event: impl FnMut(WindowEvent<'static>)) {
+        if self.pointer_info.remove(&pointer_id).is_some() {
+            send_event(WindowEvent::PointerDestroyed(pointer_id));
+        }
     }
 }

@@ -11,7 +11,7 @@ use winapi::{
     ctypes::wchar_t,
     shared::{
         minwindef::{BOOL, DWORD, UINT},
-        windef::{DPI_AWARENESS_CONTEXT, HMONITOR, HWND, LPRECT, RECT},
+        windef::{DPI_AWARENESS_CONTEXT, HMONITOR, HWND, LPRECT, RECT, POINT},
     },
     um::{
         libloaderapi::{GetProcAddress, LoadLibraryA},
@@ -157,6 +157,27 @@ pub fn set_cursor_hidden(hidden: bool) {
     if changed {
         unsafe { winuser::ShowCursor(!hidden as BOOL) };
     }
+}
+
+pub fn get_cursor_position() -> Result<POINT, io::Error> {
+    unsafe {
+        let mut point: POINT = mem::zeroed();
+        win_to_err(|| winuser::GetCursorPos(&mut point)).map(|_| point)
+    }
+}
+
+pub fn point_in_rect(rect: RECT, point: POINT) -> bool {
+    unsafe {
+        winuser::PtInRect(&rect, point) != 0
+    }
+}
+
+pub fn point_in_window_client(window: HWND, point: POINT) -> Result<bool, io::Error> {
+    Ok(point_in_rect(get_client_rect(window)?, point))
+}
+
+pub fn cursor_in_window_client(window: HWND) -> Result<bool, io::Error> {
+    point_in_window_client(window, get_cursor_position()?)
 }
 
 pub fn get_cursor_clip() -> Result<RECT, io::Error> {

@@ -1,8 +1,8 @@
 use crate::{
-    dpi::{PhysicalPosition, Size},
+    dpi::Size,
     event::ModifiersState,
     icon::Icon,
-    platform_impl::platform::{event_loop, util},
+    platform_impl::platform::{event_loop, util, event::PointerTracker},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 use parking_lot::MutexGuard;
@@ -46,15 +46,14 @@ pub struct SavedWindow {
 pub struct MouseProperties {
     pub cursor: CursorIcon,
     pub buttons_down: u32,
+    pub pointer_tracker: PointerTracker,
     cursor_flags: CursorFlags,
-    pub last_position: Option<PhysicalPosition<f64>>,
 }
 
 bitflags! {
     pub struct CursorFlags: u8 {
         const GRABBED   = 1 << 0;
         const HIDDEN    = 1 << 1;
-        const IN_WINDOW = 1 << 2;
     }
 }
 bitflags! {
@@ -107,7 +106,7 @@ impl WindowState {
                 cursor: CursorIcon::default(),
                 buttons_down: 0,
                 cursor_flags: CursorFlags::empty(),
-                last_position: None,
+                pointer_tracker: PointerTracker::new(),
             },
 
             min_size: attributes.min_inner_size,
@@ -332,7 +331,7 @@ impl WindowFlags {
 }
 
 impl CursorFlags {
-    fn refresh_os_cursor(self, window: HWND) -> Result<(), io::Error> {
+    pub fn refresh_os_cursor(self, window: HWND) -> Result<(), io::Error> {
         let client_rect = util::get_client_rect(window)?;
 
         if util::is_focused(window) {
@@ -358,7 +357,7 @@ impl CursorFlags {
             }
         }
 
-        let cursor_in_client = self.contains(CursorFlags::IN_WINDOW);
+        let cursor_in_client = util::point_in_rect(client_rect, util::get_cursor_position()?);
         if cursor_in_client {
             util::set_cursor_hidden(self.contains(CursorFlags::HIDDEN));
         } else {
