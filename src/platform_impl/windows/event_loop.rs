@@ -1334,10 +1334,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                             ..pointer_state
                         }
                     );
-                    subclass_input.send_event(Event::WindowEvent(
-                        WindowId(window).into(),
-                        WindowEvent::PointerMoved(pointer_id, position),
-                    ));
 
                     if input.dwFlags & winuser::TOUCHEVENTF_INRANGE == 0 {
                         subclass_input.lock_and_destroy_pointer(pointer_id, window);
