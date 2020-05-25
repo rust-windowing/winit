@@ -34,6 +34,10 @@ fn main() {
                 WindowEvent::PointerButton(..) |
                 WindowEvent::PointerEntered(..) |
                 WindowEvent::PointerLeft(..) |
+                WindowEvent::PointerScrollStarted(..) |
+                WindowEvent::PointerScrollLines(..) |
+                WindowEvent::PointerScrollPixels(..) |
+                WindowEvent::PointerScrollEnded(..) |
                 WindowEvent::PointerDestroyed(..) => println!("{:?}", e),
                 _ => ()
             },
