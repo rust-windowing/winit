@@ -1,4 +1,5 @@
 # Unreleased
+- On X11, fix deadlock when calling `set_fullscreen_inner`.
 - On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
 
 - On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
