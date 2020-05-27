@@ -135,6 +135,7 @@ impl Canvas {
     {
         self.on_keyboard_release =
             Some(self.add_user_event("keyup", move |event: KeyboardEvent| {
+                event.prevent_default();
                 handler(
                     event::scan_code(&event),
                     event::virtual_key_code(&event),
@@ -149,6 +150,7 @@ impl Canvas {
     {
         self.on_keyboard_press =
             Some(self.add_user_event("keydown", move |event: KeyboardEvent| {
+                event.prevent_default();
                 handler(
                     event::scan_code(&event),
                     event::virtual_key_code(&event),
@@ -242,6 +244,7 @@ impl Canvas {
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
         self.on_mouse_wheel = Some(self.add_event("wheel", move |event: WheelEvent| {
+            event.prevent_default();
             if let Some(delta) = event::mouse_scroll_delta(&event) {
                 handler(0, delta, event::mouse_modifiers(&event));
             }

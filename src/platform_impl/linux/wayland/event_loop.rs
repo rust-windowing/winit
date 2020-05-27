@@ -667,6 +667,8 @@ impl<T> EventLoop<T> {
         window_target.store.lock().unwrap().for_each_redraw_trigger(
             |refresh, frame_refresh, wid, frame| {
                 if let Some(frame) = frame {
+                    let mut frame = frame.lock().unwrap();
+
                     if frame_refresh {
                         frame.refresh();
                         if !refresh {
@@ -752,6 +754,7 @@ impl<T> EventLoop<T> {
 
             if window.new_size.is_some() || window.new_scale_factor.is_some() {
                 if let Some(frame) = window.frame {
+                    let mut frame = frame.lock().unwrap();
                     // Update decorations state
                     match window.decorations_action {
                         Some(DecorationsAction::Hide) => frame.set_decorate(false),
