@@ -18,8 +18,8 @@ use crate::{
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
     platform_impl::platform::{
-        app_state::ENTERING_FULLSCREEN,
         app_state::AppState,
+        app_state::TRANSITION_FULLSCREEN_MODE,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
@@ -823,9 +823,7 @@ impl UnownedWindow {
 
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
-                unsafe {
-                    ENTERING_FULLSCREEN = true;
-                }
+                TRANSITION_FULLSCREEN_MODE = true;
                 util::toggle_full_screen_async(
                     *self.ns_window,
                     *self.ns_view,
@@ -834,9 +832,7 @@ impl UnownedWindow {
                 );
             },
             (&Some(Fullscreen::Borderless(_)), &None) => unsafe {
-                unsafe {
-                    ENTERING_FULLSCREEN = true;
-                }
+                TRANSITION_FULLSCREEN_MODE = true;
                 // State is restored by `window_did_exit_fullscreen`
                 util::toggle_full_screen_async(
                     *self.ns_window,
@@ -846,9 +842,7 @@ impl UnownedWindow {
                 );
             },
             (&Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })), &None) => unsafe {
-                unsafe {
-                    ENTERING_FULLSCREEN = true;
-                }
+                TRANSITION_FULLSCREEN_MODE = true;
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
                 // Rest of the state is restored by `window_did_exit_fullscreen`
                 util::toggle_full_screen_async(
@@ -859,9 +853,7 @@ impl UnownedWindow {
                 );
             },
             (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => unsafe {
-                unsafe {
-                    ENTERING_FULLSCREEN = true;
-                }
+                TRANSITION_FULLSCREEN_MODE = true;
                 // If we're already in fullscreen mode, calling
                 // `CGDisplayCapture` will place the shielding window on top of
                 // our window, which results in a black display and is not what
@@ -876,9 +868,7 @@ impl UnownedWindow {
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
                 &Some(Fullscreen::Borderless(_)),
             ) => unsafe {
-                unsafe {
-                    ENTERING_FULLSCREEN = true;
-                }
+                TRANSITION_FULLSCREEN_MODE = true;
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
             },
             _ => (),

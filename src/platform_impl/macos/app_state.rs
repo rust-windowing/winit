@@ -223,7 +223,7 @@ impl Handler {
     }
 }
 
-pub static mut ENTERING_FULLSCREEN: bool = false;
+pub static mut TRANSITION_FULLSCREEN_MODE: bool = false;
 
 pub enum AppState {}
 
@@ -338,7 +338,7 @@ impl AppState {
         }
         if HANDLER.should_exit() {
             unsafe {
-                if !ENTERING_FULLSCREEN {
+                if !TRANSITION_FULLSCREEN_MODE {
                     let _: () = msg_send![NSApp(), stop: nil];
                     let pool = NSAutoreleasePool::new(nil);
 

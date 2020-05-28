@@ -9,7 +9,6 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSUInteger},
 };
-
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
@@ -20,7 +19,7 @@ use crate::{
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
-        app_state::ENTERING_FULLSCREEN,
+        app_state::TRANSITION_FULLSCREEN_MODE,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
@@ -264,7 +263,6 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 
 extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
     trace!("Triggered `windowShouldClose:`");
-
     with_state(this, |state| state.emit_event(WindowEvent::CloseRequested));
     trace!("Completed `windowShouldClose:`");
     NO
@@ -290,7 +288,6 @@ extern "C" fn window_did_resize(this: &Object, _: Sel, _: id) {
         state.emit_resize_event();
         state.emit_move_event();
     });
-
     trace!("Completed `windowDidResize:`");
 }
 
@@ -435,7 +432,7 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillEnterFullscreen:`");
 
     unsafe {
-        ENTERING_FULLSCREEN = true;
+        TRANSITION_FULLSCREEN_MODE = true;
     }
 
     with_state(this, |state| {
@@ -470,7 +467,7 @@ extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillExitFullScreen:`");
 
     unsafe {
-        ENTERING_FULLSCREEN = true;
+        TRANSITION_FULLSCREEN_MODE = true;
     }
 
     with_state(this, |state| {
@@ -506,11 +503,10 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
-
     unsafe {
-        ENTERING_FULLSCREEN = false;
+        TRANSITION_FULLSCREEN_MODE = false;
     }
-    
+
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
         state.initial_fullscreen = false;
@@ -532,7 +528,7 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
     unsafe {
-        ENTERING_FULLSCREEN = false;
+        TRANSITION_FULLSCREEN_MODE = false;
     }
 
     trace!("Triggered `windowDidExitFullscreen:`");
