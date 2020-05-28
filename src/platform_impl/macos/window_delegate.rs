@@ -5,10 +5,11 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
+    appkit::{NSApp, self, NSApplicationPresentationOptions, NSView, NSWindow, NSEventType::NSApplicationDefined},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSUInteger},
+    foundation::{NSAutoreleasePool, NSUInteger, NSPoint},
 };
+
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
@@ -19,6 +20,7 @@ use crate::{
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
+        app_state::SHOULD_CLOSE,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
@@ -262,6 +264,11 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 
 extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
     trace!("Triggered `windowShouldClose:`");
+
+    unsafe {
+        SHOULD_CLOSE = true;
+    }
+        
     with_state(this, |state| state.emit_event(WindowEvent::CloseRequested));
     trace!("Completed `windowShouldClose:`");
     NO

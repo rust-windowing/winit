@@ -223,7 +223,11 @@ impl Handler {
     }
 }
 
-pub enum AppState {}
+pub static mut SHOULD_CLOSE: bool = false;
+
+pub enum AppState {
+    
+}
 
 impl AppState {
     // This function extends lifetime of `callback` to 'static as its side effect
@@ -337,28 +341,31 @@ impl AppState {
         if HANDLER.should_exit() {
             unsafe {
                 let _: () = msg_send![NSApp(), stop: nil];
+                if SHOULD_CLOSE
+                {
 
-                let pool = NSAutoreleasePool::new(nil);
+                    let pool = NSAutoreleasePool::new(nil);
+    
+                    let windows: id = msg_send![NSApp(), windows];
+                    let window: id = msg_send![windows, objectAtIndex:0];
+                    assert_ne!(window, nil);
 
-                let windows: id = msg_send![NSApp(), windows];
-                let window: id = msg_send![windows, objectAtIndex:0];
-                assert_ne!(window, nil);
+                    let dummy_event: id = msg_send![class!(NSEvent),
+                        otherEventWithType: NSApplicationDefined
+                        location: NSPoint::new(0.0, 0.0)
+                        modifierFlags: 0
+                        timestamp: 0
+                        windowNumber: 0
+                        context: nil
+                        subtype: 0
+                        data1: 0
+                        data2: 0
+                    ];
+                    // To stop event loop immediately, we need to post some event here.
+                    let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
+                    pool.drain(); // Already draining the pool in the run_return function.
+                }
 
-                let dummy_event: id = msg_send![class!(NSEvent),
-                    otherEventWithType: NSApplicationDefined
-                    location: NSPoint::new(0.0, 0.0)
-                    modifierFlags: 0
-                    timestamp: 0
-                    windowNumber: 0
-                    context: nil
-                    subtype: 0
-                    data1: 0
-                    data2: 0
-                ];
-                // To stop event loop immediately, we need to post some event here.
-                let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
-
-                pool.drain();
             };
         }
         HANDLER.update_start_time();
