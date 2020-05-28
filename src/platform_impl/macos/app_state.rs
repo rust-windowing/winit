@@ -359,7 +359,7 @@ impl AppState {
                     ];
                     // To stop event loop immediately, we need to post some event here.
                     let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
-                    
+
                     pool.drain();
                 }
             };
