@@ -20,7 +20,7 @@ use crate::{
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
-        app_state::SHOULD_CLOSE,
+        app_state::ENTERING_FULLSCREEN,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
@@ -265,10 +265,6 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
     trace!("Triggered `windowShouldClose:`");
 
-    unsafe {
-        SHOULD_CLOSE = true;
-    }
-
     with_state(this, |state| state.emit_event(WindowEvent::CloseRequested));
     trace!("Completed `windowShouldClose:`");
     NO
@@ -294,6 +290,7 @@ extern "C" fn window_did_resize(this: &Object, _: Sel, _: id) {
         state.emit_resize_event();
         state.emit_move_event();
     });
+
     trace!("Completed `windowDidResize:`");
 }
 
@@ -436,6 +433,11 @@ extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
 /// Invoked when before enter fullscreen
 extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillEnterFullscreen:`");
+
+    unsafe {
+        ENTERING_FULLSCREEN = true;
+    }
+
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_will_enter_fullscreen`");
@@ -466,6 +468,7 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
 /// Invoked when before exit fullscreen
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillExitFullScreen:`");
+
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_will_exit_fullscreen`");
@@ -499,6 +502,11 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
+
+    unsafe {
+        ENTERING_FULLSCREEN = false;
+    }
+    
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
         state.initial_fullscreen = false;

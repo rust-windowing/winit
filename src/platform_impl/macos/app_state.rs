@@ -223,7 +223,7 @@ impl Handler {
     }
 }
 
-pub static mut SHOULD_CLOSE: bool = false;
+pub static mut ENTERING_FULLSCREEN: bool = false;
 
 pub enum AppState {}
 
@@ -338,8 +338,8 @@ impl AppState {
         }
         if HANDLER.should_exit() {
             unsafe {
-                let _: () = msg_send![NSApp(), stop: nil];
-                if SHOULD_CLOSE {
+                if !ENTERING_FULLSCREEN {
+                    let _: () = msg_send![NSApp(), stop: nil];
                     let pool = NSAutoreleasePool::new(nil);
 
                     let windows: id = msg_send![NSApp(), windows];
