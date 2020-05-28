@@ -7,13 +7,13 @@ mod app_state;
 mod event;
 mod event_loop;
 mod ffi;
+mod menu;
 mod monitor;
 mod observer;
 mod util;
 mod view;
 mod window;
 mod window_delegate;
-mod menu;
 
 use std::{fmt, ops::Deref, sync::Arc};
 
