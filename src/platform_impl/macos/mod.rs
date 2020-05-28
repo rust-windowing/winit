@@ -13,6 +13,7 @@ mod util;
 mod view;
 mod window;
 mod window_delegate;
+mod menu;
 
 use std::{fmt, ops::Deref, sync::Arc};
 
@@ -69,6 +70,7 @@ impl Window {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         let (window, _delegate) = UnownedWindow::new(attributes, pl_attribs)?;
+        menu::initialize();
         Ok(Window { window, _delegate })
     }
 }
