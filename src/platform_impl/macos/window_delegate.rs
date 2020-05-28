@@ -469,6 +469,10 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillExitFullScreen:`");
 
+    unsafe {
+        ENTERING_FULLSCREEN = true;
+    }
+
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_will_exit_fullscreen`");
@@ -527,6 +531,10 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
 
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
+    unsafe {
+        ENTERING_FULLSCREEN = false;
+    }
+
     trace!("Triggered `windowDidExitFullscreen:`");
     with_state(this, |state| {
         state.with_window(|window| {
