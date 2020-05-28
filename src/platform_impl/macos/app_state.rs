@@ -225,9 +225,7 @@ impl Handler {
 
 pub static mut SHOULD_CLOSE: bool = false;
 
-pub enum AppState {
-    
-}
+pub enum AppState {}
 
 impl AppState {
     // This function extends lifetime of `callback` to 'static as its side effect
@@ -341,11 +339,9 @@ impl AppState {
         if HANDLER.should_exit() {
             unsafe {
                 let _: () = msg_send![NSApp(), stop: nil];
-                if SHOULD_CLOSE
-                {
-
+                if SHOULD_CLOSE {
                     let pool = NSAutoreleasePool::new(nil);
-    
+
                     let windows: id = msg_send![NSApp(), windows];
                     let window: id = msg_send![windows, objectAtIndex:0];
                     assert_ne!(window, nil);
@@ -365,7 +361,6 @@ impl AppState {
                     let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
                     pool.drain(); // Already draining the pool in the run_return function.
                 }
-
             };
         }
         HANDLER.update_start_time();

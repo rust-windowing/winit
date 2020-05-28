@@ -5,9 +5,9 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{NSApp, self, NSApplicationPresentationOptions, NSView, NSWindow, NSEventType::NSApplicationDefined},
+    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSUInteger, NSPoint},
+    foundation::{NSAutoreleasePool, NSUInteger},
 };
 
 use objc::{
@@ -268,7 +268,7 @@ extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
     unsafe {
         SHOULD_CLOSE = true;
     }
-        
+
     with_state(this, |state| state.emit_event(WindowEvent::CloseRequested));
     trace!("Completed `windowShouldClose:`");
     NO
