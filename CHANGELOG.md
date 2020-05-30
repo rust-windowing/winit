@@ -1,6 +1,18 @@
 # Unreleased
+- On X11, fix deadlock when calling `set_fullscreen_inner`.
+- On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
 
+- On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
+- On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
+
+# 0.22.2 (2020-05-16)
+
+- Added Clone implementation for 'static events.
+- On Windows, fix window intermittently hanging when `ControlFlow` was set to `Poll`.
 - On Windows, fix `WindowBuilder::with_maximized` being ignored.
+- On Android, minimal platform support.
+- On iOS, touch positions are now properly converted to physical pixels.
+- On macOS, updated core-* dependencies and cocoa
 
 # 0.22.1 (2020-04-16)
 
