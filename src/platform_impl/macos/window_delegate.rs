@@ -1,7 +1,7 @@
 use std::{
     f64,
     os::raw::c_void,
-    sync::{Arc, Weak},
+    sync::{atomic::Ordering, Arc, Weak},
 };
 
 use cocoa::{
@@ -431,9 +431,7 @@ extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
 extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillEnterFullscreen:`");
 
-    unsafe {
-        TRANSITION_FULLSCREEN_MODE = true;
-    }
+    TRANSITION_FULLSCREEN_MODE.store(true, Ordering::SeqCst);
 
     with_state(this, |state| {
         state.with_window(|window| {
@@ -466,9 +464,7 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillExitFullScreen:`");
 
-    unsafe {
-        TRANSITION_FULLSCREEN_MODE = true;
-    }
+    TRANSITION_FULLSCREEN_MODE.store(true, Ordering::SeqCst);
 
     with_state(this, |state| {
         state.with_window(|window| {
@@ -503,9 +499,7 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    unsafe {
-        TRANSITION_FULLSCREEN_MODE = false;
-    }
+    TRANSITION_FULLSCREEN_MODE.store(false, Ordering::SeqCst);
 
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
@@ -527,9 +521,7 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
 
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
-    unsafe {
-        TRANSITION_FULLSCREEN_MODE = false;
-    }
+    TRANSITION_FULLSCREEN_MODE.store(false, Ordering::SeqCst);
 
     trace!("Triggered `windowDidExitFullscreen:`");
     with_state(this, |state| {

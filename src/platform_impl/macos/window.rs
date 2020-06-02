@@ -821,9 +821,10 @@ impl UnownedWindow {
         shared_state_lock.fullscreen = fullscreen.clone();
         trace!("Unlocked shared state in `set_fullscreen`");
 
+        TRANSITION_FULLSCREEN_MODE.store(true, Ordering::SeqCst);
+
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
-                TRANSITION_FULLSCREEN_MODE = true;
                 util::toggle_full_screen_async(
                     *self.ns_window,
                     *self.ns_view,
@@ -832,7 +833,6 @@ impl UnownedWindow {
                 );
             },
             (&Some(Fullscreen::Borderless(_)), &None) => unsafe {
-                TRANSITION_FULLSCREEN_MODE = true;
                 // State is restored by `window_did_exit_fullscreen`
                 util::toggle_full_screen_async(
                     *self.ns_window,
@@ -842,7 +842,6 @@ impl UnownedWindow {
                 );
             },
             (&Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })), &None) => unsafe {
-                TRANSITION_FULLSCREEN_MODE = true;
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
                 // Rest of the state is restored by `window_did_exit_fullscreen`
                 util::toggle_full_screen_async(
@@ -853,7 +852,6 @@ impl UnownedWindow {
                 );
             },
             (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => unsafe {
-                TRANSITION_FULLSCREEN_MODE = true;
                 // If we're already in fullscreen mode, calling
                 // `CGDisplayCapture` will place the shielding window on top of
                 // our window, which results in a black display and is not what
@@ -868,10 +866,9 @@ impl UnownedWindow {
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
                 &Some(Fullscreen::Borderless(_)),
             ) => unsafe {
-                TRANSITION_FULLSCREEN_MODE = true;
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
             },
-            _ => (),
+            _ => TRANSITION_FULLSCREEN_MODE.store(false, Ordering::SeqCst),
         }
     }
 
