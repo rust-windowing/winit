@@ -340,7 +340,7 @@ impl AppState {
             unsafe {
                 if !TRANSITION_FULLSCREEN_MODE.load(Ordering::SeqCst) {
                     let _: () = msg_send![NSApp(), stop: nil];
-                    
+
                     let pool = NSAutoreleasePool::new(nil);
 
                     let windows: id = msg_send![NSApp(), windows];
