@@ -19,7 +19,7 @@ use crate::{
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
-        app_state::TRANSITION_FULLSCREEN_MODE,
+        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
@@ -431,7 +431,7 @@ extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
 extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillEnterFullscreen:`");
 
-    TRANSITION_FULLSCREEN_MODE.store(true, Ordering::SeqCst);
+    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
 
     with_state(this, |state| {
         state.with_window(|window| {
@@ -464,7 +464,7 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillExitFullScreen:`");
 
-    TRANSITION_FULLSCREEN_MODE.store(true, Ordering::SeqCst);
+    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
 
     with_state(this, |state| {
         state.with_window(|window| {
@@ -499,7 +499,7 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    TRANSITION_FULLSCREEN_MODE.store(false, Ordering::SeqCst);
+    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
 
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
@@ -521,7 +521,7 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
 
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
-    TRANSITION_FULLSCREEN_MODE.store(false, Ordering::SeqCst);
+    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
 
     trace!("Triggered `windowDidExitFullscreen:`");
     with_state(this, |state| {

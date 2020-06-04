@@ -223,7 +223,7 @@ impl Handler {
     }
 }
 
-pub static TRANSITION_FULLSCREEN_MODE: AtomicBool = AtomicBool::new(false);
+pub static INTERRUPT_EVENT_LOOP_EXIT: AtomicBool = AtomicBool::new(false);
 
 pub enum AppState {}
 
@@ -338,14 +338,26 @@ impl AppState {
         }
         if HANDLER.should_exit() {
             unsafe {
-                if !TRANSITION_FULLSCREEN_MODE.load(Ordering::SeqCst) {
-                    let _: () = msg_send![NSApp(), stop: nil];
+                let app: id = NSApp();
+                let windows: id = msg_send![app, windows];
+                let window: id = msg_send![windows, objectAtIndex:0];
+                assert_ne!(window, nil);
+
+                let result: usize = msg_send![windows, count];
+                
+                let dialog_open = if result > 1 {
+                    let ps: id = msg_send![windows, lastObject];
+                    let vis: bool = msg_send![ps, isVisible];
+
+                    vis
+                } else {
+                    false
+                };
+
+                if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst) && !dialog_open {
+                    let _: () = msg_send![app, stop: nil];
 
                     let pool = NSAutoreleasePool::new(nil);
-
-                    let windows: id = msg_send![NSApp(), windows];
-                    let window: id = msg_send![windows, objectAtIndex:0];
-                    assert_ne!(window, nil);
 
                     let dummy_event: id = msg_send![class!(NSEvent),
                         otherEventWithType: NSApplicationDefined
