@@ -341,15 +341,12 @@ impl AppState {
                 let app: id = NSApp();
                 let windows: id = msg_send![app, windows];
                 let window: id = msg_send![windows, objectAtIndex:0];
+                let window_count: usize = msg_send![windows, count];
                 assert_ne!(window, nil);
 
-                let result: usize = msg_send![windows, count];
-                
-                let dialog_open = if result > 1 {
-                    let ps: id = msg_send![windows, lastObject];
-                    let vis: bool = msg_send![ps, isVisible];
-
-                    vis
+                let dialog_open: bool = if window_count > 1 {
+                    let dialog: id = msg_send![windows, lastObject];
+                    msg_send![dialog, isVisible]
                 } else {
                     false
                 };
