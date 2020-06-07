@@ -1,20 +1,12 @@
-#![cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
+#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+
 #![cfg_attr(
     not(all(feature = "x11", feature = "wayland")),
-    allow(
-        unused_imports,
-        unused_variables,
-        unreachable_code,
-        dead_code,
-        unreachable_patterns
-    )
+    allow(unused_imports, unused_variables, unused_mut, unreachable_patterns, irrefutable_let_patterns)
 )]
+
+#[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
+compile_error!("Please select a feature to build for web: `w11`, `wayland`");
 
 use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
 
@@ -64,6 +56,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub override_redirect: bool,
     #[cfg(feature = "x11")]
     pub x11_window_types: Vec<XWindowType>,
+    #[cfg(feature = "x11")]
     pub gtk_theme_variant: Option<String>,
     pub app_id: Option<String>,
 }
@@ -80,6 +73,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             override_redirect: false,
             #[cfg(feature = "x11")]
             x11_window_types: vec![XWindowType::Normal],
+            #[cfg(feature = "x11")]
             gtk_theme_variant: None,
             app_id: None,
         }
@@ -122,8 +116,6 @@ pub enum WindowId {
     X(x11::WindowId),
     #[cfg(feature = "wayland")]
     Wayland(wayland::WindowId),
-    #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
-    Dummy,
 }
 
 impl WindowId {
@@ -132,8 +124,6 @@ impl WindowId {
         return WindowId::Wayland(wayland::WindowId::dummy());
         #[cfg(all(not(feature = "wayland"), feature = "x11"))]
         return WindowId::X(x11::WindowId::dummy());
-        #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
-        WindowId::Dummy
     }
 }
 
@@ -143,8 +133,6 @@ pub enum DeviceId {
     X(x11::DeviceId),
     #[cfg(feature = "wayland")]
     Wayland(wayland::DeviceId),
-    #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
-    Dummy,
 }
 
 impl DeviceId {
@@ -153,8 +141,6 @@ impl DeviceId {
         return DeviceId::Wayland(wayland::DeviceId::dummy());
         #[cfg(all(not(feature = "wayland"), feature = "x11"))]
         return DeviceId::X(x11::DeviceId::dummy());
-        #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
-        DeviceId::Dummy
     }
 }
 
@@ -182,8 +168,6 @@ macro_rules! x11_or_wayland {
             $enum::X($($c1)*) => $enum2::X($x),
             #[cfg(feature = "wayland")]
             $enum::Wayland($($c1)*) => $enum2::Wayland($x),
-            #[cfg(not(any(feature = "x11", feature = "wayland")))]
-            _ => panic!()
         }
     };
     (match $what:expr; $enum:ident ( $($c1:tt)* ) => $x:expr) => {
@@ -192,8 +176,6 @@ macro_rules! x11_or_wayland {
             $enum::X($($c1)*) => $x,
             #[cfg(feature = "wayland")]
             $enum::Wayland($($c1)*) => $x,
-            #[cfg(not(any(feature = "x11", feature = "wayland")))]
-            _ => panic!()
         }
     };
 }
@@ -500,16 +482,11 @@ unsafe extern "C" fn x_error_callback(
     0
 }
 
-#[cfg(not(any(feature = "x11", feature = "wayland")))]
-pub enum Never {}
-
 pub enum EventLoop<T: 'static> {
     #[cfg(feature = "wayland")]
     Wayland(wayland::EventLoop<T>),
     #[cfg(feature = "x11")]
     X(x11::EventLoop<T>),
-    #[cfg(not(any(feature = "x11", feature = "wayland")))]
-    Dummy(T, Never),
 }
 
 pub enum EventLoopProxy<T: 'static> {
@@ -517,8 +494,6 @@ pub enum EventLoopProxy<T: 'static> {
     X(x11::EventLoopProxy<T>),
     #[cfg(feature = "wayland")]
     Wayland(wayland::EventLoopProxy<T>),
-    #[cfg(not(any(feature = "x11", feature = "wayland")))]
-    Dummy(T, Never),
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
@@ -679,8 +654,6 @@ pub enum EventLoopWindowTarget<T> {
     Wayland(wayland::EventLoopWindowTarget<T>),
     #[cfg(feature = "x11")]
     X(x11::EventLoopWindowTarget<T>),
-    #[cfg(not(any(feature = "x11", feature = "wayland")))]
-    Dummy(T, Never),
 }
 
 impl<T> EventLoopWindowTarget<T> {
