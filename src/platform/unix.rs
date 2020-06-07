@@ -1,21 +1,21 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-#![cfg_attr(
-    not(all(feature = "x11", feature = "wayland")),
-    allow(unused_imports, unused_variables, unused_mut, unreachable_patterns, irrefutable_let_patterns)
-)]
+use std::os::raw;
 
-use std::{os::raw, ptr, sync::Arc};
+#[cfg(feature = "x11")]
+use std::{ptr, sync::Arc};
 
 #[cfg(feature = "wayland")]
 use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
 
 use crate::{
-    dpi::Size,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
+
+#[cfg(feature = "x11")]
+use crate::dpi::Size;
 
 #[cfg(feature = "x11")]
 use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
@@ -52,6 +52,7 @@ pub trait EventLoopWindowTargetExtUnix {
     /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
     ///
     /// The pointer will become invalid when the winit `EventLoop` is destroyed.
+    #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 }
 
@@ -74,17 +75,19 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.p {
             LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
+            #[cfg(feature = "wayland")]
             _ => None,
         }
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.p {
-            #[cfg(feature = "wayland")]
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
                 Some(p.display().get_display_ptr() as *mut _)
             }
+            #[cfg(feature = "x11")]
             _ => None,
         }
     }
@@ -258,6 +261,7 @@ impl WindowExtUnix for Window {
     fn xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_window()),
+            #[cfg(feature = "wayland")]
             _ => None,
         }
     }
@@ -267,6 +271,7 @@ impl WindowExtUnix for Window {
     fn xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_display()),
+            #[cfg(feature = "wayland")]
             _ => None,
         }
     }
@@ -276,6 +281,7 @@ impl WindowExtUnix for Window {
     fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
+            #[cfg(feature = "wayland")]
             _ => None,
         }
     }
@@ -286,6 +292,7 @@ impl WindowExtUnix for Window {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
+            #[cfg(feature = "wayland")]
             _ => None,
         }
     }
@@ -293,10 +300,9 @@ impl WindowExtUnix for Window {
     #[inline]
     #[cfg(feature = "x11")]
     fn set_urgent(&self, is_urgent: bool) {
-        {
-            if let LinuxWindow::X(ref w) = self.window {
-                w.set_urgent(is_urgent);
-            }
+        #[allow(irrefutable_let_patterns)]
+        if let LinuxWindow::X(ref w) = self.window {
+            w.set_urgent(is_urgent);
         }
     }
 
@@ -305,6 +311,7 @@ impl WindowExtUnix for Window {
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xcb_connection()),
+            #[cfg(feature = "wayland")]
             _ => None,
         }
     }
@@ -314,6 +321,7 @@ impl WindowExtUnix for Window {
     fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
+            #[cfg(feature = "x11")]
             _ => None,
         }
     }
@@ -323,6 +331,7 @@ impl WindowExtUnix for Window {
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.display().as_ref().c_ptr() as *mut _),
+            #[cfg(feature = "x11")]
             _ => None,
         }
     }
@@ -332,6 +341,7 @@ impl WindowExtUnix for Window {
     fn set_wayland_theme<T: Theme>(&self, theme: T) {
         match self.window {
             LinuxWindow::Wayland(ref w) => w.set_theme(WaylandTheme(theme)),
+            #[cfg(feature = "x11")]
             _ => {}
         }
     }

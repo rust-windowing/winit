@@ -1,15 +1,13 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-#![cfg_attr(
-    not(all(feature = "x11", feature = "wayland")),
-    allow(unused_imports, unused_variables, unused_mut, unreachable_patterns, irrefutable_let_patterns)
-)]
-
 #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
 compile_error!("Please select a feature to build for web: `w11`, `wayland`");
 
-use std::{collections::VecDeque, env, ffi::CStr, fmt, mem::MaybeUninit, os::raw::*, sync::Arc};
+use std::{collections::VecDeque, env, fmt};
+#[cfg(feature = "x11")]
+use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
+#[cfg(feature = "x11")]
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
 #[cfg(feature = "wayland")]
@@ -87,6 +85,7 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub enum OsError {
     #[cfg(feature = "x11")]
     XError(XError),
@@ -258,8 +257,6 @@ impl Window {
             EventLoopWindowTarget::X(ref window_target) => {
                 x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
             }
-            #[cfg(not(any(feature = "x11", feature = "wayland")))]
-            _ => panic!(),
         }
     }
 
@@ -374,28 +371,31 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_always_on_top(&self, always_on_top: bool) {
+    pub fn set_always_on_top(&self, _always_on_top: bool) {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.set_always_on_top(always_on_top),
+            &Window::X(ref w) => w.set_always_on_top(_always_on_top),
+            #[cfg(feature = "wayland")]
             _ => (),
         }
     }
 
     #[inline]
-    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+    pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.set_window_icon(window_icon),
+            &Window::X(ref w) => w.set_window_icon(_window_icon),
+            #[cfg(feature = "wayland")]
             _ => (),
         }
     }
 
     #[inline]
-    pub fn set_ime_position(&self, position: Position) {
+    pub fn set_ime_position(&self, _position: Position) {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.set_ime_position(position),
+            &Window::X(ref w) => w.set_ime_position(_position),
+            #[cfg(feature = "wayland")]
             _ => (),
         }
     }
@@ -427,8 +427,6 @@ impl Window {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            #[cfg(not(any(feature = "x11", feature = "wayland")))]
-            _ => panic!(),
         }
     }
 
@@ -443,8 +441,6 @@ impl Window {
             &Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
             #[cfg(feature = "wayland")]
             &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
-            #[cfg(not(any(feature = "x11", feature = "wayland")))]
-            _ => panic!(),
         }
     }
 }
@@ -603,8 +599,6 @@ impl<T: 'static> EventLoop<T> {
                 .into_iter()
                 .map(MonitorHandle::X)
                 .collect(),
-            #[cfg(not(any(feature = "x11", feature = "wayland")))]
-            _ => panic!(),
         }
     }
 
@@ -615,8 +609,6 @@ impl<T: 'static> EventLoop<T> {
             EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
             #[cfg(feature = "x11")]
             EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
-            #[cfg(not(any(feature = "x11", feature = "wayland")))]
-            _ => panic!(),
         }
     }
 
@@ -662,6 +654,7 @@ impl<T> EventLoopWindowTarget<T> {
         match *self {
             #[cfg(feature = "wayland")]
             EventLoopWindowTarget::Wayland(_) => true,
+            #[cfg(feature = "x11")]
             _ => false,
         }
     }

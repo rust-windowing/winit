@@ -426,6 +426,7 @@ impl<T: 'static> EventLoop<T> {
 pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
+        #[cfg(feature = "wayland")]
         _ => unreachable!(),
     }
 }

@@ -653,6 +653,7 @@ impl UnownedWindow {
                     Fullscreen::Borderless(RootMonitorHandle {
                         inner: PlatformMonitorHandle::X(ref monitor),
                     }) => (None, monitor),
+                    #[cfg(feature = "wayland")]
                     _ => unreachable!(),
                 };
 

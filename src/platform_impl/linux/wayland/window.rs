@@ -158,6 +158,7 @@ impl Window {
             Some(Fullscreen::Borderless(RootMonitorHandle {
                 inner: PlatformMonitorHandle::Wayland(ref monitor_id),
             })) => frame.set_fullscreen(Some(&monitor_id.proxy)),
+            #[cfg(feature = "x11")]
             Some(Fullscreen::Borderless(_)) => unreachable!(),
             None => {
                 if attributes.maximized {
@@ -354,6 +355,7 @@ impl Window {
                     .unwrap()
                     .set_fullscreen(Some(&monitor_id.proxy));
             }
+            #[cfg(feature = "x11")]
             Some(Fullscreen::Borderless(_)) => unreachable!(),
             None => self.frame.lock().unwrap().unset_fullscreen(),
         }
