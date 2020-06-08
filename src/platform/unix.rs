@@ -383,6 +383,7 @@ pub trait WindowBuilderExtUnix {
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
+    #[cfg(feature = "wayland")]
     fn with_app_id(self, app_id: String) -> Self;
 }
 
@@ -447,6 +448,7 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
     fn with_app_id(mut self, app_id: String) -> Self {
         self.platform_specific.app_id = Some(app_id);
         self

@@ -1,7 +1,13 @@
-#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#![cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 
 #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
-compile_error!("Please select a feature to build for web: `w11`, `wayland`");
+compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 use std::{collections::VecDeque, env, fmt};
 #[cfg(feature = "x11")]
@@ -47,15 +53,21 @@ const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
     pub visual_infos: Option<XVisualInfo>,
+    #[cfg(feature = "x11")]
     pub screen_id: Option<i32>,
+    #[cfg(feature = "x11")]
     pub resize_increments: Option<Size>,
+    #[cfg(feature = "x11")]
     pub base_size: Option<Size>,
+    #[cfg(feature = "x11")]
     pub class: Option<(String, String)>,
+    #[cfg(feature = "x11")]
     pub override_redirect: bool,
     #[cfg(feature = "x11")]
     pub x11_window_types: Vec<XWindowType>,
     #[cfg(feature = "x11")]
     pub gtk_theme_variant: Option<String>,
+    #[cfg(feature = "wayland")]
     pub app_id: Option<String>,
 }
 
@@ -64,15 +76,21 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
         Self {
             #[cfg(feature = "x11")]
             visual_infos: None,
+            #[cfg(feature = "x11")]
             screen_id: None,
+            #[cfg(feature = "x11")]
             resize_increments: None,
+            #[cfg(feature = "x11")]
             base_size: None,
+            #[cfg(feature = "x11")]
             class: None,
+            #[cfg(feature = "x11")]
             override_redirect: false,
             #[cfg(feature = "x11")]
             x11_window_types: vec![XWindowType::Normal],
             #[cfg(feature = "x11")]
             gtk_theme_variant: None,
+            #[cfg(feature = "wayland")]
             app_id: None,
         }
     }
@@ -85,19 +103,21 @@ lazy_static! {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub enum OsError {
     #[cfg(feature = "x11")]
     XError(XError),
+    #[cfg(feature = "x11")]
     XMisc(&'static str),
 }
 
 impl fmt::Display for OsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        #[cfg(not(feature = "x11"))]
+        panic!();
+        #[cfg(feature = "x11")]
         match self {
-            #[cfg(feature = "x11")]
-            OsError::XError(e) => f.pad(&e.description),
-            OsError::XMisc(e) => f.pad(e),
+            OsError::XError(e) => _f.pad(&e.description),
+            OsError::XMisc(e) => _f.pad(e),
         }
     }
 }
