@@ -92,6 +92,7 @@ impl<T> EventHandler for EventLoopHandler<T> {
 struct Handler {
     ready: AtomicBool,
     in_callback: AtomicBool,
+    dialog_is_closing: AtomicBool,
     control_flow: Mutex<ControlFlow>,
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
@@ -344,17 +345,19 @@ impl AppState {
                 let window_count: usize = msg_send![windows, count];
                 assert_ne!(window, nil);
 
-                let dialog_open: bool = if window_count > 1 {
+                let dialog_open = if window_count > 1 {
                     let dialog: id = msg_send![windows, lastObject];
-                    msg_send![dialog, isVisible]
+                    let is_main_window: bool =  msg_send![dialog, isMainWindow];
+                    msg_send![dialog, isVisible] && !is_main_window
                 } else {
                     false
                 };
 
-                if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst) && !dialog_open {
-                    let _: () = msg_send![app, stop: nil];
+                let dialog_is_closing = HANDLER.dialog_is_closing.load(Ordering::SeqCst);
+                let pool = NSAutoreleasePool::new(nil);
+                if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst) && !dialog_open && !dialog_is_closing {
 
-                    let pool = NSAutoreleasePool::new(nil);
+                    let _: () = msg_send![app, stop: nil];
 
                     let dummy_event: id = msg_send![class!(NSEvent),
                         otherEventWithType: NSApplicationDefined
@@ -369,8 +372,15 @@ impl AppState {
                     ];
                     // To stop event loop immediately, we need to post some event here.
                     let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
+                }
+                pool.drain();
 
-                    pool.drain();
+                let window_has_focus = msg_send![window, isKeyWindow];
+                if !dialog_open && window_has_focus && dialog_is_closing {
+                    HANDLER.dialog_is_closing.store(false, Ordering::SeqCst);
+                }
+                if dialog_open {
+                    HANDLER.dialog_is_closing.store(true, Ordering::SeqCst);
                 }
             };
         }
