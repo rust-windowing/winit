@@ -92,6 +92,7 @@ impl<T> EventHandler for EventLoopHandler<T> {
 struct Handler {
     ready: AtomicBool,
     in_callback: AtomicBool,
+    dialog_is_closing: AtomicBool,
     control_flow: Mutex<ControlFlow>,
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
@@ -223,6 +224,8 @@ impl Handler {
     }
 }
 
+pub static INTERRUPT_EVENT_LOOP_EXIT: AtomicBool = AtomicBool::new(false);
+
 pub enum AppState {}
 
 impl AppState {
@@ -336,29 +339,51 @@ impl AppState {
         }
         if HANDLER.should_exit() {
             unsafe {
-                let _: () = msg_send![NSApp(), stop: nil];
-
-                let pool = NSAutoreleasePool::new(nil);
-
-                let windows: id = msg_send![NSApp(), windows];
+                let app: id = NSApp();
+                let windows: id = msg_send![app, windows];
                 let window: id = msg_send![windows, objectAtIndex:0];
+                let window_count: usize = msg_send![windows, count];
                 assert_ne!(window, nil);
 
-                let dummy_event: id = msg_send![class!(NSEvent),
-                    otherEventWithType: NSApplicationDefined
-                    location: NSPoint::new(0.0, 0.0)
-                    modifierFlags: 0
-                    timestamp: 0
-                    windowNumber: 0
-                    context: nil
-                    subtype: 0
-                    data1: 0
-                    data2: 0
-                ];
-                // To stop event loop immediately, we need to post some event here.
-                let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
+                let dialog_open = if window_count > 1 {
+                    let dialog: id = msg_send![windows, lastObject];
+                    let is_main_window: bool = msg_send![dialog, isMainWindow];
+                    msg_send![dialog, isVisible] && !is_main_window
+                } else {
+                    false
+                };
 
+                let dialog_is_closing = HANDLER.dialog_is_closing.load(Ordering::SeqCst);
+                let pool = NSAutoreleasePool::new(nil);
+                if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst)
+                    && !dialog_open
+                    && !dialog_is_closing
+                {
+                    let _: () = msg_send![app, stop: nil];
+
+                    let dummy_event: id = msg_send![class!(NSEvent),
+                        otherEventWithType: NSApplicationDefined
+                        location: NSPoint::new(0.0, 0.0)
+                        modifierFlags: 0
+                        timestamp: 0
+                        windowNumber: 0
+                        context: nil
+                        subtype: 0
+                        data1: 0
+                        data2: 0
+                    ];
+                    // To stop event loop immediately, we need to post some event here.
+                    let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
+                }
                 pool.drain();
+
+                let window_has_focus = msg_send![window, isKeyWindow];
+                if !dialog_open && window_has_focus && dialog_is_closing {
+                    HANDLER.dialog_is_closing.store(false, Ordering::SeqCst);
+                }
+                if dialog_open {
+                    HANDLER.dialog_is_closing.store(true, Ordering::SeqCst);
+                }
             };
         }
         HANDLER.update_start_time();
