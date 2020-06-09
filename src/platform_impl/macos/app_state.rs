@@ -347,7 +347,7 @@ impl AppState {
 
                 let dialog_open = if window_count > 1 {
                     let dialog: id = msg_send![windows, lastObject];
-                    let is_main_window: bool =  msg_send![dialog, isMainWindow];
+                    let is_main_window: bool = msg_send![dialog, isMainWindow];
                     msg_send![dialog, isVisible] && !is_main_window
                 } else {
                     false
@@ -355,8 +355,10 @@ impl AppState {
 
                 let dialog_is_closing = HANDLER.dialog_is_closing.load(Ordering::SeqCst);
                 let pool = NSAutoreleasePool::new(nil);
-                if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst) && !dialog_open && !dialog_is_closing {
-
+                if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst)
+                    && !dialog_open
+                    && !dialog_is_closing
+                {
                     let _: () = msg_send![app, stop: nil];
 
                     let dummy_event: id = msg_send![class!(NSEvent),
