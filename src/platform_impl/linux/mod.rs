@@ -112,12 +112,11 @@ pub enum OsError {
 
 impl fmt::Display for OsError {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        #[cfg(not(feature = "x11"))]
-        panic!();
-        #[cfg(feature = "x11")]
-        match self {
-            OsError::XError(e) => _f.pad(&e.description),
-            OsError::XMisc(e) => _f.pad(e),
+        match *self {
+            #[cfg(feature = "x11")]
+            OsError::XError(ref e) => _f.pad(&e.description),
+            #[cfg(feature = "x11")]
+            OsError::XMisc(ref e) => _f.pad(e),
         }
     }
 }
