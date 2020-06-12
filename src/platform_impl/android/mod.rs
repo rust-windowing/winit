@@ -45,7 +45,6 @@ fn poll(poll: Poll) -> Option<EventSource> {
 pub struct EventLoop<T: 'static> {
     window_target: event_loop::EventLoopWindowTarget<T>,
     user_queue: Arc<Mutex<VecDeque<T>>>,
-    cf: Cell<ControlFlow>,
     first_event: Option<EventSource>,
     start_cause: event::StartCause,
     looper: ThreadLooper,
@@ -74,7 +73,6 @@ impl<T: 'static> EventLoop<T> {
                 _marker: std::marker::PhantomData,
             },
             user_queue: Default::default(),
-            cf: Cell::new(ControlFlow::default()),
             first_event: None,
             start_cause: event::StartCause::Init,
             looper: ThreadLooper::for_thread().unwrap(),
@@ -95,8 +93,7 @@ impl<T: 'static> EventLoop<T> {
         where
             F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
-
-        let mut control_flow = self.cf.take();
+        let mut control_flow = ControlFlow::default();
 
         'event_loop: loop {
             call_event_handler!(event_handler, self.window_target(), control_flow, event::Event::NewEvents(self.start_cause));
@@ -249,13 +246,6 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
         }
-
-        self.start_cause = event::StartCause::WaitCancelled {
-            start: Instant::now(),
-            requested_resume: None,
-        };
-        //self.start_cause = event::StartCause::Poll;
-        self.cf.set(ControlFlow::Wait);
     }
 
     pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
