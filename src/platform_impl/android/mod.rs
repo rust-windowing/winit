@@ -13,6 +13,7 @@ use ndk::{
 };
 use ndk_glue::{Event, Rect};
 use std::{
+    cell::Cell,
     collections::VecDeque,
     sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
@@ -44,6 +45,23 @@ fn poll(poll: Poll) -> Option<EventSource> {
 pub struct EventLoop<T: 'static> {
     window_target: event_loop::EventLoopWindowTarget<T>,
     user_queue: Arc<Mutex<VecDeque<T>>>,
+    cf: Cell<ControlFlow>,
+    first_event: Option<EventSource>,
+    start_cause: event::StartCause,
+    looper: ThreadLooper,
+    running: bool,
+}
+
+macro_rules! call_event_handler {
+    ( $event_handler:expr, $window_target:expr, $cf:expr, $event:expr ) => {
+        {
+            if $cf != ControlFlow::Exit {
+                $event_handler($event, $window_target, &mut $cf);
+            } else {
+                $event_handler($event, $window_target, &mut ControlFlow::Exit);
+            }
+        }
+    }
 }
 
 impl<T: 'static> EventLoop<T> {
@@ -56,42 +74,48 @@ impl<T: 'static> EventLoop<T> {
                 _marker: std::marker::PhantomData,
             },
             user_queue: Default::default(),
+            cf: Cell::new(ControlFlow::default()),
+            first_event: None,
+            start_cause: event::StartCause::Init,
+            looper: ThreadLooper::for_thread().unwrap(),
+            running: false,
         }
     }
 
-    pub fn run<F>(self, mut event_handler: F) -> !
+    pub fn run<F>(mut self, mut event_handler: F) -> !
     where
         F: 'static
             + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        let mut cf = ControlFlow::default();
-        let mut first_event = None;
-        let mut start_cause = event::StartCause::Init;
-        let looper = ThreadLooper::for_thread().unwrap();
-        let mut running = false;
+        self.run_return(event_handler);
+        ::std::process::exit(0);
+    }
 
-        loop {
-            event_handler(
-                event::Event::NewEvents(start_cause),
-                self.window_target(),
-                &mut cf,
-            );
+    pub fn run_return<F>(&mut self, mut event_handler: F)
+        where
+            F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+
+        let mut control_flow = self.cf.take();
+
+        'event_loop: loop {
+            call_event_handler!(event_handler, self.window_target(), control_flow, event::Event::NewEvents(self.start_cause));
 
             let mut redraw = false;
             let mut resized = false;
 
-            match first_event.take() {
-                Some(EventSource::Callback) => match ndk_glue::poll_events().unwrap() {
+            match self.first_event.take() {
+                Some(EventSource::Callback) =>  {println!("Callback event source"); match ndk_glue::poll_events().unwrap() {
                     Event::WindowCreated => {
-                        event_handler(event::Event::Resumed, self.window_target(), &mut cf);
+                        call_event_handler!(event_handler, self.window_target(), control_flow, event::Event::Resumed);
                     }
                     Event::WindowResized => resized = true,
                     Event::WindowRedrawNeeded => redraw = true,
                     Event::WindowDestroyed => {
-                        event_handler(event::Event::Suspended, self.window_target(), &mut cf);
+                        call_event_handler!(event_handler, self.window_target(), control_flow, event::Event::Suspended);
                     }
-                    Event::Pause => running = false,
-                    Event::Resume => running = true,
+                    Event::Pause => self.running = false,
+                    Event::Resume => self.running = true,
                     Event::ConfigChanged => {
                         let am = ndk_glue::native_activity().asset_manager();
                         let config = Configuration::from_asset_manager(&am);
@@ -107,11 +131,11 @@ impl<T: 'static> EventLoop<T> {
                                     scale_factor,
                                 },
                             };
-                            event_handler(event, self.window_target(), &mut cf);
+                            call_event_handler!(event_handler, self.window_target(), control_flow, event);
                         }
                     }
                     _ => {}
-                },
+                }},
                 Some(EventSource::InputQueue) => {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
                         while let Some(event) = input_queue.get_event() {
@@ -147,7 +171,7 @@ impl<T: 'static> EventLoop<T> {
                                                     force: None,
                                                 }),
                                             };
-                                            event_handler(event, self.window_target(), &mut cf);
+                                            call_event_handler!(event_handler, self.window_target(), control_flow, event);
                                         }
                                     }
                                     InputEvent::KeyEvent(_) => {} // TODO
@@ -160,50 +184,45 @@ impl<T: 'static> EventLoop<T> {
                 Some(EventSource::User) => {
                     let mut user_queue = self.user_queue.lock().unwrap();
                     while let Some(event) = user_queue.pop_front() {
-                        event_handler(
-                            event::Event::UserEvent(event),
-                            self.window_target(),
-                            &mut cf,
-                        );
+                        call_event_handler!(event_handler, self.window_target(), control_flow, event::Event::UserEvent(event));
                     }
                 }
-                None => {}
+                None => { control_flow = ControlFlow::Exit; }
             }
 
-            event_handler(
-                event::Event::MainEventsCleared,
-                self.window_target(),
-                &mut cf,
-            );
+            call_event_handler!(event_handler, self.window_target(), control_flow, event::Event::MainEventsCleared);
 
-            if resized && running {
+            if resized && self.running {
                 let size = MonitorHandle.size();
                 let event = event::Event::WindowEvent {
                     window_id: window::WindowId(WindowId),
                     event: event::WindowEvent::Resized(size),
                 };
-                event_handler(event, self.window_target(), &mut cf);
+                call_event_handler!(event_handler, self.window_target(), control_flow, event);
             }
 
-            if redraw && running {
+            if redraw && self.running {
                 let event = event::Event::RedrawRequested(window::WindowId(WindowId));
-                event_handler(event, self.window_target(), &mut cf);
+                call_event_handler!(event_handler, self.window_target(), control_flow, event);
             }
 
-            event_handler(
-                event::Event::RedrawEventsCleared,
-                self.window_target(),
-                &mut cf,
-            );
+            call_event_handler!(event_handler, self.window_target(), control_flow, event::Event::RedrawEventsCleared);
 
-            match cf {
-                ControlFlow::Exit => panic!(),
+            match control_flow {
+                ControlFlow::Exit => {
+                    self.first_event = poll(self.looper.poll_once_timeout(Duration::from_millis(0)).unwrap());
+                    self.start_cause = event::StartCause::WaitCancelled {
+                        start: Instant::now(),
+                        requested_resume: None,
+                    };
+                    break 'event_loop;
+                },
                 ControlFlow::Poll => {
-                    start_cause = event::StartCause::Poll;
+                    self.start_cause = event::StartCause::Poll;
                 }
                 ControlFlow::Wait => {
-                    first_event = poll(looper.poll_all().unwrap());
-                    start_cause = event::StartCause::WaitCancelled {
+                    self.first_event = poll(self.looper.poll_all().unwrap());
+                    self.start_cause = event::StartCause::WaitCancelled {
                         start: Instant::now(),
                         requested_resume: None,
                     }
@@ -215,8 +234,8 @@ impl<T: 'static> EventLoop<T> {
                     } else {
                         instant - start
                     };
-                    first_event = poll(looper.poll_all_timeout(duration).unwrap());
-                    start_cause = if first_event.is_some() {
+                    self.first_event = poll(self.looper.poll_all_timeout(duration).unwrap());
+                    self.start_cause = if self.first_event.is_some() {
                         event::StartCause::WaitCancelled {
                             start,
                             requested_resume: Some(instant),
@@ -230,6 +249,13 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
         }
+
+        self.start_cause = event::StartCause::WaitCancelled {
+            start: Instant::now(),
+            requested_resume: None,
+        };
+        //self.start_cause = event::StartCause::Poll;
+        self.cf.set(ControlFlow::Wait);
     }
 
     pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {

@@ -250,7 +250,8 @@ impl<T> EventLoopRunner<T> {
         loop {
             // We do this instead of using a `while let` loop because if we use a `while let`
             // loop the reference returned `borrow_mut()` doesn't get dropped until the end
-            // of the loop's body and attempts to add events to the event buffer while in
+            // of the loop's
+            // body and attempts to add events to the event buffer while in
             // `process_event` will fail.
             let buffered_event_opt = self.event_buffer.borrow_mut().pop_front();
             match buffered_event_opt {
