@@ -1,12 +1,10 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-use std::os::raw;
-
-#[cfg(feature = "x11")]
-use std::{ptr, sync::Arc};
-
 #[cfg(feature = "wayland")]
 use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
+use std::os::raw;
+#[cfg(feature = "x11")]
+use std::{ptr, sync::Arc};
 
 use crate::{
     event_loop::{EventLoop, EventLoopWindowTarget},
@@ -16,7 +14,6 @@ use crate::{
 
 #[cfg(feature = "x11")]
 use crate::dpi::Size;
-
 #[cfg(feature = "x11")]
 use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
 use crate::platform_impl::{
@@ -28,7 +25,6 @@ use crate::platform_impl::{
 #[cfg(feature = "x11")]
 #[doc(hidden)]
 pub use crate::platform_impl::x11;
-
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
@@ -37,7 +33,7 @@ pub trait EventLoopWindowTargetExtUnix {
     /// True if the `EventLoopWindowTarget` uses Wayland.
     #[cfg(feature = "wayland")]
     fn is_wayland(&self) -> bool;
-    ///
+
     /// True if the `EventLoopWindowTarget` uses X11.
     #[cfg(feature = "x11")]
     fn is_x11(&self) -> bool;
@@ -300,9 +296,10 @@ impl WindowExtUnix for Window {
     #[inline]
     #[cfg(feature = "x11")]
     fn set_urgent(&self, is_urgent: bool) {
-        #[allow(irrefutable_let_patterns)]
-        if let LinuxWindow::X(ref w) = self.window {
-            w.set_urgent(is_urgent);
+        match self.window {
+            LinuxWindow::X(ref w) => w.set_urgent(is_urgent),
+            #[cfg(feature = "wayland")]
+            _ => (),
         }
     }
 
