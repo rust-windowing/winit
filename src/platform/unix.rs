@@ -1,10 +1,11 @@
 #![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
 
-#[cfg(feature = "wayland")]
-use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
 use std::os::raw;
 #[cfg(feature = "x11")]
 use std::{ptr, sync::Arc};
+
+#[cfg(feature = "wayland")]
+use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
 
 use crate::{
     event_loop::{EventLoop, EventLoopWindowTarget},
