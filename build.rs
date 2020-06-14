@@ -9,13 +9,13 @@
     not(feature = "x11"),
     not(feature = "wayland")
 ))]
-compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
+compile_error!("at least one of the \"x11\"/\"wayland\" features must be enabled");
 
 #[cfg(all(
     target_arch = "wasm32",
     not(feature = "web-sys"),
     not(feature = "stdweb")
 ))]
-compile_error!("Please select a feature to build for web: `web-sys`, `stdweb`");
+compile_error!("at least one of the \"web-sys\"/\"stdweb\" features must be enabled");
 
 fn main() {}
