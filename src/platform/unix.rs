@@ -23,8 +23,8 @@ use crate::platform_impl::{
 };
 
 // TODO: stupid hack so that glutin can do its work
-#[cfg(feature = "x11")]
 #[doc(hidden)]
+#[cfg(feature = "x11")]
 pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
@@ -154,14 +154,14 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
         wrap_ev(LinuxEventLoop::new_any_thread())
     }
 
-    #[cfg(feature = "x11")]
     #[inline]
+    #[cfg(feature = "x11")]
     fn new_x11_any_thread() -> Result<Self, XNotSupported> {
         LinuxEventLoop::new_x11_any_thread().map(wrap_ev)
     }
 
-    #[cfg(feature = "wayland")]
     #[inline]
+    #[cfg(feature = "wayland")]
     fn new_wayland_any_thread() -> Self {
         wrap_ev(
             LinuxEventLoop::new_wayland_any_thread()
@@ -170,14 +170,14 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
         )
     }
 
-    #[cfg(feature = "x11")]
     #[inline]
+    #[cfg(feature = "x11")]
     fn new_x11() -> Result<Self, XNotSupported> {
         LinuxEventLoop::new_x11().map(wrap_ev)
     }
 
-    #[cfg(feature = "wayland")]
     #[inline]
+    #[cfg(feature = "wayland")]
     fn new_wayland() -> Self {
         wrap_ev(
             LinuxEventLoop::new_wayland()
@@ -466,8 +466,8 @@ impl MonitorHandleExtUnix for MonitorHandle {
     }
 }
 
-#[cfg(feature = "wayland")]
 /// Wrapper for implementing SCTK's theme trait.
+#[cfg(feature = "wayland")]
 struct WaylandTheme<T: Theme>(T);
 
 pub trait Theme: Send + 'static {
