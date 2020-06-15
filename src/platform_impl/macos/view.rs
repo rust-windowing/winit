@@ -58,6 +58,7 @@ pub(super) struct ViewState {
     is_key_down: bool,
     pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
+    mouse_buttons_down: u32,
 }
 
 impl ViewState {
@@ -77,6 +78,7 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         is_key_down: false,
         modifiers: Default::default(),
         tracking_rect: None,
+        mouse_buttons_down: 0,
     };
     unsafe {
         // This is free'd in `dealloc`
@@ -854,6 +856,15 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
 
         update_potentially_stale_modifiers(state, event);
 
+        match button_state {
+            ElementState::Pressed => {
+                state.mouse_buttons_down += 1;
+            }
+            ElementState::Released => {
+                state.mouse_buttons_down = state.mouse_buttons_down.saturating_sub(1);
+            }
+        }
+
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::MouseInput {
@@ -915,8 +926,10 @@ fn mouse_motion(this: &Object, event: id) {
             || view_point.x > view_rect.size.width
             || view_point.y > view_rect.size.height
         {
-            // Point is outside of the client area (view)
-            return;
+            if state.mouse_buttons_down == 0 {
+                // Point is outside of the client area (view) and no buttons are pressed
+                return;
+            }
         }
 
         let x = view_point.x as f64;
