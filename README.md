@@ -64,6 +64,8 @@ Winit is only officially supported on the latest stable version of the Rust comp
 
 Winit provides the following features, which can be enabled in your `Cargo.toml` file:
 * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
+* `x11` (enabled by default): On Unix platform, compiles with the X11 backend
+* `wayland` (enabled by default): On Unix platform, compiles with the Wayland backend
 
 ### Platform-specific usage
 
