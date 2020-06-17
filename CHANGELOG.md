@@ -1,10 +1,12 @@
 # Unreleased
+- On Unix, X11 and Wayland are now optional features (enabled by default)
 - On X11, fix deadlock when calling `set_fullscreen_inner`.
 - On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
 
 - On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
 - On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
 - On android added support for `run_return`.
+- On MacOS, Fixed fullscreen and dialog support for `run_return`.
 
 # 0.22.2 (2020-05-16)
 

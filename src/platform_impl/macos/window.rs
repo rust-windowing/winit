@@ -19,6 +19,7 @@ use crate::{
     platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
+        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
@@ -820,6 +821,8 @@ impl UnownedWindow {
         shared_state_lock.fullscreen = fullscreen.clone();
         trace!("Unlocked shared state in `set_fullscreen`");
 
+        INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
+
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
                 util::toggle_full_screen_async(
@@ -865,7 +868,7 @@ impl UnownedWindow {
             ) => unsafe {
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
             },
-            _ => (),
+            _ => INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst),
         }
     }
 

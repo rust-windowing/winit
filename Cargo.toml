@@ -17,8 +17,11 @@ default-target = "x86_64-unknown-linux-gnu"
 targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
 
 [features]
+default = ["x11", "wayland"]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
+x11 = ["x11-dl"]
+wayland = ["wayland-client", "smithay-client-toolkit"]
 
 [dependencies]
 instant = "0.1"
@@ -78,11 +81,11 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] }
+wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] , optional = true }
 mio = "0.6"
 mio-extras = "2.0"
-smithay-client-toolkit = "^0.6.6"
-x11-dl = "2.18.5"
+smithay-client-toolkit = { version = "^0.6.6", optional = true }
+x11-dl = { version = "2.18.5", optional = true }
 percent-encoding = "2.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]

@@ -554,6 +554,7 @@ impl<T: 'static> EventLoop<T> {
             let instant_wakeup = {
                 let window_target = match self.window_target.p {
                     crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+                    #[cfg(feature = "x11")]
                     _ => unreachable!(),
                 };
                 let dispatched = window_target
@@ -662,6 +663,7 @@ impl<T> EventLoop<T> {
     {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
         window_target.store.lock().unwrap().for_each_redraw_trigger(
@@ -689,6 +691,7 @@ impl<T> EventLoop<T> {
     {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
 
@@ -803,6 +806,7 @@ impl<T> EventLoop<T> {
 fn get_target<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+        #[cfg(feature = "x11")]
         _ => unreachable!(),
     }
 }
