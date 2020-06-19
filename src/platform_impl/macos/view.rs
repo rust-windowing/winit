@@ -910,13 +910,12 @@ fn mouse_motion(this: &Object, event: id) {
         let view_point = view.convertPoint_fromView_(window_point, nil);
         let view_rect = NSView::frame(view);
 
-        let mouse_buttons_down: NSInteger = msg_send![class!(NSEvent), pressedMouseButtons];
-
         if view_point.x.is_sign_negative()
             || view_point.y.is_sign_negative()
             || view_point.x > view_rect.size.width
             || view_point.y > view_rect.size.height
         {
+            let mouse_buttons_down: NSInteger = msg_send![class!(NSEvent), pressedMouseButtons];
             if mouse_buttons_down == 0 {
                 // Point is outside of the client area (view) and no buttons are pressed
                 return;
