@@ -915,8 +915,11 @@ fn mouse_motion(this: &Object, event: id) {
             || view_point.x > view_rect.size.width
             || view_point.y > view_rect.size.height
         {
-            // Point is outside of the client area (view)
-            return;
+            let mouse_buttons_down: NSInteger = msg_send![class!(NSEvent), pressedMouseButtons];
+            if mouse_buttons_down == 0 {
+                // Point is outside of the client area (view) and no buttons are pressed
+                return;
+            }
         }
 
         let x = view_point.x as f64;
