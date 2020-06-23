@@ -9,15 +9,22 @@ use winapi::shared::windef::HWND;
 
 use crate::{
     dpi::PhysicalSize,
-    event::DeviceId,
-    event_loop::EventLoop,
+    event::{DeviceId, Event},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
+    platform_impl::{
+        EventLoop as WindowsEventLoop, EventLoopEmbedded as WindowsEventLoopEmbedded, WinIcon,
+    },
     window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
+pub struct EventLoopEmbedded<'a, T: 'static> {
+    p: WindowsEventLoopEmbedded<'a, T>,
+}
+
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopExtWindows {
+    type UserEvent;
     /// Creates an event loop off of the main thread.
     ///
     /// # `Window` caveats
@@ -41,9 +48,29 @@ pub trait EventLoopExtWindows {
     fn new_dpi_unaware_any_thread() -> Self
     where
         Self: Sized;
+
+    /// Initialize an event loop that can run through somebody else's event pump.
+    ///
+    /// This does *not* dispatch events without external assistance! Other code must be running a
+    /// [Win32 message loop](https://docs.microsoft.com/en-us/windows/win32/learnwin32/window-messages),
+    /// and the `event_handler` closure will be called while the `EventLoopEmbedded` is in scope.
+    /// The loop can come from any code that calls the native Win32 message loop functions - for
+    /// example, this could be used to embed a Winit message loop in an SDL or GLFW application, or
+    /// create a DAW plugin.
+    ///
+    /// TODO: REWRITE `exit_requested` and `resume_panic_if_necessary` as trait functions.
+    fn run_embedded<'a, F>(self, event_handler: F) -> EventLoopEmbedded<'a, Self::UserEvent>
+    where
+        F: 'a
+            + FnMut(
+                Event<'_, Self::UserEvent>,
+                &EventLoopWindowTarget<Self::UserEvent>,
+                &mut ControlFlow,
+            );
 }
 
 impl<T> EventLoopExtWindows for EventLoop<T> {
+    type UserEvent = T;
     #[inline]
     fn new_any_thread() -> Self {
         EventLoop {
@@ -66,6 +93,81 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
             event_loop: WindowsEventLoop::new_dpi_unaware_any_thread(),
             _marker: ::std::marker::PhantomData,
         }
+    }
+
+    fn run_embedded<'a, F>(self, event_handler: F) -> EventLoopEmbedded<'a, Self::UserEvent>
+    where
+        F: 'a
+            + FnMut(
+                Event<'_, Self::UserEvent>,
+                &EventLoopWindowTarget<Self::UserEvent>,
+                &mut ControlFlow,
+            ),
+    {
+        EventLoopEmbedded {
+            p: self.event_loop.run_embedded(event_handler),
+        }
+    }
+}
+
+impl<T> EventLoopEmbedded<'_, T> {
+    pub fn exit_requested(&self) -> bool {
+        self.p.exit_requested()
+    }
+
+    pub fn resume_panic_if_necessary(&self) {
+        self.p.resume_panic_if_necessary()
+    }
+}
+
+/// Additional methods on `EventLoopWindowTarget` that are specific to Windows.
+pub trait EventLoopWindowTargetExtWindows {
+    /// Schedule a closure to be invoked after the current event handler returns.
+    ///
+    /// This is useful if you're calling one of the Windows API's many *modal functions*. Modal
+    /// functions take over control of the event loop for the duration of their execution, and don't
+    /// return control flow to the caller until the operation they perform has been completed.
+    /// They're typically used for popup windows that the user must click through to continue using
+    /// the program - the [`MessageBox`](https://docs.microsoft.com/en-us/windows/win32/dlgbox/using-dialog-boxes#displaying-a-message-box)
+    /// function is a good example of this.
+    ///
+    /// The reason this function is necessary is that, if you call a modal function inside of the
+    /// standard Winit event handler closure, Winit cannot dispatch OS events to that closure
+    /// while the modal loop is running since the closure is being borrowed by the closure
+    /// invocation that called the modal function. This function sidesteps that issue by allowing
+    /// you to call modal functions outside the scope of the normal event handler function, which
+    /// prevents the double-borrowing and allows event loop execution to continue as normal.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// event_loop_window_target.schedule_modal_fn(move || unsafe {
+    ///     println!("\n\t\tstart modal loop\n");
+    ///
+    ///     let msg_box_id = winuser::MessageBoxA(
+    ///         hwnd as _,
+    ///         "Please press Yes or No\0".as_ptr() as *const _,
+    ///         "Dialog Box\0".as_ptr() as *const _,
+    ///         winuser::MB_ICONEXCLAMATION | winuser::MB_YESNO
+    ///     );
+    ///
+    ///     println!("\n\t\tend modal loop\n");
+    ///
+    ///     if msg_box_id == winuser::IDYES {
+    ///         println!("Yes pressed!");
+    ///     } else {
+    ///         println!("No pressed!");
+    ///     }
+    /// });
+    /// ```
+    ///
+    /// See also the `win32_modal_dialog.rs` example.
+    fn schedule_modal_fn(&self, f: impl 'static + FnOnce());
+}
+
+impl<T> EventLoopWindowTargetExtWindows for EventLoopWindowTarget<T> {
+    fn schedule_modal_fn(&self, f: impl 'static + FnOnce()) {
+        self.p.schedule_modal_fn(f);
     }
 }
 

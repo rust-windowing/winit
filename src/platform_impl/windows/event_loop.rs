@@ -104,13 +104,18 @@ impl<T> ThreadMsgTargetSubclassInput<T> {
 
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
-    window_target: RootELW<T>,
+    window_target: Rc<RootELW<T>>,
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
     thread_id: DWORD,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
+}
+
+pub struct EventLoopEmbedded<'a, T: 'static> {
+    window_target: Rc<RootELW<T>>,
+    _function_lifetime: PhantomData<&'a ()>,
 }
 
 macro_rules! main_thread_check {
@@ -163,14 +168,14 @@ impl<T: 'static> EventLoop<T> {
 
         EventLoop {
             thread_msg_sender,
-            window_target: RootELW {
+            window_target: Rc::new(RootELW {
                 p: EventLoopWindowTarget {
                     thread_id,
                     thread_msg_target,
                     runner_shared,
                 },
                 _marker: PhantomData,
-            },
+            }),
         }
     }
 
@@ -186,27 +191,14 @@ impl<T: 'static> EventLoop<T> {
         ::std::process::exit(0);
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F)
+    pub fn run_return<F>(&mut self, event_handler: F)
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        let event_loop_windows_ref = &self.window_target;
-
         unsafe {
-            self.window_target
-                .p
-                .runner_shared
-                .set_event_handler(move |event, control_flow| {
-                    event_handler(event, event_loop_windows_ref, control_flow)
-                });
-        }
-
-        let runner = &self.window_target.p.runner_shared;
-
-        unsafe {
+            let runner = self.embedded_runner(event_handler);
             let mut msg = mem::zeroed();
 
-            runner.poll();
             'main: loop {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main;
@@ -214,27 +206,84 @@ impl<T: 'static> EventLoop<T> {
                 winuser::TranslateMessage(&mut msg);
                 winuser::DispatchMessageW(&mut msg);
 
-                if let Err(payload) = runner.take_panic_error() {
-                    runner.reset_runner();
-                    panic::resume_unwind(payload);
-                }
+                runner.resume_panic_if_necessary();
 
-                if runner.control_flow() == ControlFlow::Exit && !runner.handling_events() {
+                if runner.exit_requested() {
                     break 'main;
                 }
             }
         }
+    }
 
-        unsafe {
-            runner.call_event_handler(Event::LoopDestroyed);
+    pub fn run_embedded<'a, F>(mut self, event_handler: F) -> EventLoopEmbedded<'a, T>
+    where
+        F: 'a + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        unsafe { self.embedded_runner(event_handler) }
+    }
+
+    unsafe fn embedded_runner<'a, F>(&mut self, mut event_handler: F) -> EventLoopEmbedded<'a, T>
+    where
+        F: 'a + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    {
+        let window_target = self.window_target.clone();
+        let event_loop_windows_ptr = &*window_target as *const RootELW<T>;
+
+        window_target
+            .p
+            .runner_shared
+            .set_event_handler(move |event, control_flow| {
+                event_handler(event, &*event_loop_windows_ptr, control_flow)
+            });
+
+        window_target.p.runner_shared.poll();
+
+        EventLoopEmbedded {
+            window_target,
+            _function_lifetime: PhantomData,
         }
-        runner.reset_runner();
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             target_window: self.window_target.p.thread_msg_target,
             event_send: self.thread_msg_sender.clone(),
+        }
+    }
+}
+
+impl<T> EventLoopEmbedded<'_, T> {
+    pub fn exit_requested(&self) -> bool {
+        let runner = &self.window_target.p.runner_shared;
+        runner.control_flow() == ControlFlow::Exit && !runner.handling_events()
+    }
+
+    pub fn resume_panic_if_necessary(&self) {
+        let runner = &self.window_target.p.runner_shared;
+
+        if let Err(payload) = runner.take_panic_error() {
+            runner.reset_runner();
+            panic::resume_unwind(payload);
+        }
+    }
+}
+
+impl<T> Drop for EventLoopEmbedded<'_, T> {
+    fn drop(&mut self) {
+        unsafe {
+            self.window_target
+                .p
+                .runner_shared
+                .call_event_handler(Event::LoopDestroyed);
+            self.window_target.p.runner_shared.reset_runner();
+        }
+    }
+}
+
+impl<T> Drop for EventLoopWindowTarget<T> {
+    fn drop(&mut self) {
+        unsafe {
+            winuser::DestroyWindow(self.thread_msg_target);
         }
     }
 }
@@ -246,6 +295,10 @@ impl<T> EventLoopWindowTarget<T> {
             thread_id: self.thread_id,
             target_window: self.thread_msg_target,
         }
+    }
+
+    pub fn schedule_modal_fn(&self, f: impl 'static + FnOnce()) {
+        self.runner_shared.schedule_modal_fn(f);
     }
 }
 
@@ -374,14 +427,6 @@ fn dur2timeout(dur: Duration) -> DWORD {
             }
         })
         .unwrap_or(winbase::INFINITE)
-}
-
-impl<T> Drop for EventLoop<T> {
-    fn drop(&mut self) {
-        unsafe {
-            winuser::DestroyWindow(self.window_target.p.thread_msg_target);
-        }
-    }
 }
 
 pub(crate) struct EventLoopThreadExecutor {
@@ -590,7 +635,7 @@ fn subclass_event_target_window<T>(
             event_loop_runner,
             user_event_receiver: rx,
         };
-        let input_ptr = Box::into_raw(Box::new(subclass_input));
+        let input_ptr = Rc::into_raw(Rc::new(subclass_input));
         let subclass_result = commctrl::SetWindowSubclass(
             window,
             Some(thread_event_target_callback::<T>),
@@ -623,7 +668,7 @@ const WINDOW_SUBCLASS_ID: UINT_PTR = 0;
 const THREAD_EVENT_TARGET_SUBCLASS_ID: UINT_PTR = 1;
 pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>) {
     subclass_input.event_loop_runner.register_window(window);
-    let input_ptr = Box::into_raw(Box::new(subclass_input));
+    let input_ptr = Rc::into_raw(Rc::new(subclass_input));
     let subclass_result = unsafe {
         commctrl::SetWindowSubclass(
             window,
@@ -633,6 +678,23 @@ pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>)
         )
     };
     assert_eq!(subclass_result, 1);
+}
+
+/// Get a subclass input `Rc` and increment the reference count.
+unsafe fn get_subclass_input_rc<S>(t: *const S) -> Rc<S> {
+    let rc = Rc::from_raw(t);
+    let rc_cloned = rc.clone();
+    mem::forget(rc);
+    rc_cloned
+}
+
+/// Destroy the original subclass input `Rc` and decrements the reference count.
+///
+/// This should only be called in the `WM_DESTROY` handler. If the event handler function isn't
+/// re-entrant, this will destroy the subclass data immediately. If it *is* re-entrant, the subclass
+/// data will be destroyed when the highest-level event handler returns.
+unsafe fn destroy_subclass_input_rc<S>(t: *const S) {
+    Rc::from_raw(t);
 }
 
 fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
@@ -740,7 +802,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
     _: UINT_PTR,
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
-    let subclass_input = &*(subclass_input_ptr as *const SubclassInput<T>);
+    let subclass_input_ptr = subclass_input_ptr as *const SubclassInput<T>;
+    let subclass_input_rc = get_subclass_input_rc(subclass_input_ptr);
+    let subclass_input = &*subclass_input_rc;
 
     winuser::RedrawWindow(
         subclass_input.event_loop_runner.thread_msg_target(),
@@ -753,6 +817,23 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
+        // We use WM_NCDESTROY instead of WM_DESTROY because WM_NCDESTROY is dispatched after
+        // WM_DESTROY, and de-allocating the subclass data in WM_DESTROY causes the above
+        // subclass_input fields to point to uninitialized memory, which triggers undefined
+        // behavior.
+        winuser::WM_NCDESTROY => {
+            use crate::event::WindowEvent::Destroyed;
+            ole2::RevokeDragDrop(window);
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: Destroyed,
+            });
+            subclass_input.event_loop_runner.remove_window(window);
+
+            destroy_subclass_input_rc(subclass_input_ptr);
+            0
+        }
+
         winuser::WM_ENTERSIZEMOVE => {
             subclass_input
                 .window_state
@@ -786,20 +867,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 window_id: RootWindowId(WindowId(window)),
                 event: CloseRequested,
             });
-            0
-        }
-
-        winuser::WM_DESTROY => {
-            use crate::event::WindowEvent::Destroyed;
-            ole2::RevokeDragDrop(window);
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: Destroyed,
-            });
-            subclass_input.event_loop_runner.remove_window(window);
-
-            drop(subclass_input);
-            Box::from_raw(subclass_input_ptr as *mut SubclassInput<T>);
             0
         }
 
@@ -1904,7 +1971,9 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     _: UINT_PTR,
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
-    let subclass_input = &mut *(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
+    let subclass_input_ptr = subclass_input_ptr as *const ThreadMsgTargetSubclassInput<T>;
+    let subclass_input_rc = get_subclass_input_rc(subclass_input_ptr);
+    let subclass_input = &*subclass_input_rc;
     let runner = subclass_input.event_loop_runner.clone();
 
     if msg != winuser::WM_PAINT {
@@ -1920,9 +1989,12 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
-        winuser::WM_DESTROY => {
-            Box::from_raw(subclass_input);
-            drop(subclass_input);
+        // We use WM_NCDESTROY instead of WM_DESTROY because WM_NCDESTROY is dispatched after
+        // WM_DESTROY, and de-allocating the subclass data in WM_DESTROY causes the above
+        // subclass_input fields to point to uninitialized memory, which triggers undefined
+        // behavior.
+        winuser::WM_NCDESTROY => {
+            destroy_subclass_input_rc(subclass_input_ptr);
             0
         }
         // Because WM_PAINT comes after all other messages, we use it during modal loops to detect
