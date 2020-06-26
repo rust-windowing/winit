@@ -37,20 +37,24 @@ jobs:
           - { target: i686-pc-windows-gnu,      os: windows-latest, host: -i686-pc-windows-gnu }
           - { target: i686-unknown-linux-gnu,   os: ubuntu-latest,   }
           - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest,   }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: x11 }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest, options: --no-default-features, features: wayland }
+          - { target: aarch64-linux-android,    os: ubuntu-latest,  cmd: 'apk --' }
           - { target: x86_64-apple-darwin,      os: macos-latest,    }
           - { target: x86_64-apple-ios,         os: macos-latest,    }
           - { target: aarch64-apple-ios,        os: macos-latest,    }
           # We're using Windows rather than Ubuntu to run the wasm tests because caching cargo-web
           # doesn't currently work on Linux.
-          - { target: wasm32-unknown-unknown,   os: windows-latest, features: stdweb,  web: web }
-          - { target: wasm32-unknown-unknown,   os: windows-latest, features: web-sys, web: web }
+          - { target: wasm32-unknown-unknown,   os: windows-latest, features: stdweb,  cmd: web }
+          - { target: wasm32-unknown-unknown,   os: windows-latest, features: web-sys, cmd: web }
 
     env:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
       RUSTFLAGS: "-C debuginfo=0"
+      OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
-      WEB: ${{ matrix.platform.web }}
+      CMD: ${{ matrix.platform.cmd }}
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -70,6 +74,9 @@ jobs:
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
+    - name: Install cargo-apk
+      if: contains(matrix.platform.target, 'android')
+      run: cargo install cargo-apk
     - name: Install cargo-web
       continue-on-error: true
       if: contains(matrix.platform.target, 'wasm32')
@@ -78,29 +85,35 @@ jobs:
     - name: Check documentation
       shell: bash
       if: matrix.platform.target != 'wasm32-unknown-unknown'
-      run: cargo doc --no-deps --target ${{ matrix.platform.target }} --features $FEATURES
+      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Build
       shell: bash
-      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features $FEATURES
+      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Build tests
       shell: bash
-      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features $FEATURES
+      run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
     - name: Run tests
       shell: bash
-      if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
-      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features $FEATURES
+      if: (
+        !contains(matrix.platform.target, 'android') &&
+        !contains(matrix.platform.target, 'ios') &&
+        !contains(matrix.platform.target, 'wasm32'))
+      run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
 
     - name: Build with serde enabled
       shell: bash
-      run: cargo $WEB build --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
 
     - name: Build tests with serde enabled
       shell: bash
-      run: cargo $WEB test --no-run --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
     - name: Run tests with serde enabled
       shell: bash
-      if: (!contains(matrix.platform.target, 'ios') && !contains(matrix.platform.target, 'wasm32'))
-      run: cargo $WEB test --verbose --target ${{ matrix.platform.target }} --features serde,$FEATURES
+      if: (
+        !contains(matrix.platform.target, 'android') &&
+        !contains(matrix.platform.target, 'ios') &&
+        !contains(matrix.platform.target, 'wasm32'))
+      run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES

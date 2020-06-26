@@ -728,8 +728,6 @@ unsafe fn init<T: 'static>(
         }
     }
 
-    window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
-
     // If the system theme is dark, we need to set the window theme now
     // before we update the window flags (and possibly show the
     // window for the first time).
@@ -757,6 +755,11 @@ unsafe fn init<T: 'static>(
         .inner_size
         .unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
     win.set_inner_size(dimensions);
+    if attributes.maximized {
+        // Need to set MAXIMIZED after setting `inner_size` as
+        // `Window::set_inner_size` changes MAXIMIZED to false.
+        win.set_maximized(true);
+    }
     win.set_visible(attributes.visible);
 
     if let Some(_) = attributes.fullscreen {

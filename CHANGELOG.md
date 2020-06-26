@@ -1,6 +1,28 @@
 # Unreleased
+- On Unix, X11 and Wayland are now optional features (enabled by default)
+- On X11, fix deadlock when calling `set_fullscreen_inner`.
+- On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
+
+- On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
+- On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
+- On android added support for `run_return`.
+- On MacOS, Fixed fullscreen and dialog support for `run_return`.
+
+# 0.22.2 (2020-05-16)
+
+- Added Clone implementation for 'static events.
+- On Windows, fix window intermittently hanging when `ControlFlow` was set to `Poll`.
+- On Windows, fix `WindowBuilder::with_maximized` being ignored.
+- On Android, minimal platform support.
+- On iOS, touch positions are now properly converted to physical pixels.
+- On macOS, updated core-* dependencies and cocoa
+
+# 0.22.1 (2020-04-16)
 
 - On X11, fix `ResumeTimeReached` being fired too early.
+- On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
+- On Web, fix a possible panic during event handling
+- On macOS, fix `EventLoopProxy` leaking memory for every instance.
 
 # 0.22.0 (2020-03-09)
 
@@ -22,6 +44,7 @@
 - Revert On macOS, fix not sending ReceivedCharacter event for specific keys combinations.
 - on macOS, fix incorrect ReceivedCharacter events for some key combinations.
 - **Breaking:** Use `i32` instead of `u32` for position type in `WindowEvent::Moved`.
+- On macOS, a mouse motion event is now generated before every mouse click.
 
 # 0.21.0 (2020-02-04)
 

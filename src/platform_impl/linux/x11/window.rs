@@ -640,6 +640,7 @@ impl UnownedWindow {
                 let flusher = self.set_fullscreen_hint(false);
                 let mut shared_state_lock = self.shared_state.lock();
                 if let Some(position) = shared_state_lock.restore_position.take() {
+                    drop(shared_state_lock);
                     self.set_position_inner(position.0, position.1).queue();
                 }
                 Some(flusher)
@@ -652,6 +653,7 @@ impl UnownedWindow {
                     Fullscreen::Borderless(RootMonitorHandle {
                         inner: PlatformMonitorHandle::X(ref monitor),
                     }) => (None, monitor),
+                    #[cfg(feature = "wayland")]
                     _ => unreachable!(),
                 };
 

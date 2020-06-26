@@ -81,10 +81,11 @@ pub enum Event<'a, T: 'static> {
     ///
     /// This event is useful as a place to put your code that should be run after all
     /// state-changing events have been handled and you want to do stuff (updating state, performing
-    /// calculations, etc) that happens as the "main body" of your event loop. If your program draws
-    /// graphics, it's usually better to do it in response to
+    /// calculations, etc) that happens as the "main body" of your event loop. If your program only draws
+    /// graphics when something changes, it's usually better to do it in response to
     /// [`Event::RedrawRequested`](crate::event::Event::RedrawRequested), which gets emitted
-    /// immediately after this event.
+    /// immediately after this event. Programs that draw graphics continuously, like most games,
+    /// can render here unconditionally for simplicity.
     MainEventsCleared,
 
     /// Emitted after `MainEventsCleared` when a window should be redrawn.
@@ -97,6 +98,9 @@ pub enum Event<'a, T: 'static> {
     ///
     /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
     /// into a single event, to help avoid duplicating rendering work.
+    ///
+    /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
+    /// something changes, like most non-game GUIs.
     RedrawRequested(WindowId),
 
     /// Emitted after all `RedrawRequested` events have been processed and control flow is about to
@@ -112,6 +116,30 @@ pub enum Event<'a, T: 'static> {
     /// This is irreversable - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as an "do on quit" event.
     LoopDestroyed,
+}
+
+impl<T: Clone> Clone for Event<'static, T> {
+    fn clone(&self) -> Self {
+        use self::Event::*;
+        match self {
+            WindowEvent { window_id, event } => WindowEvent {
+                window_id: *window_id,
+                event: event.clone(),
+            },
+            UserEvent(event) => UserEvent(event.clone()),
+            DeviceEvent { device_id, event } => DeviceEvent {
+                device_id: *device_id,
+                event: event.clone(),
+            },
+            NewEvents(cause) => NewEvents(cause.clone()),
+            MainEventsCleared => MainEventsCleared,
+            RedrawRequested(wid) => RedrawRequested(*wid),
+            RedrawEventsCleared => RedrawEventsCleared,
+            LoopDestroyed => LoopDestroyed,
+            Suspended => Suspended,
+            Resumed => Resumed,
+        }
+    }
 }
 
 impl<'a, T> Event<'a, T> {
@@ -327,6 +355,97 @@ pub enum WindowEvent<'a> {
     ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
+}
+
+impl Clone for WindowEvent<'static> {
+    fn clone(&self) -> Self {
+        use self::WindowEvent::*;
+        return match self {
+            Resized(size) => Resized(size.clone()),
+            Moved(pos) => Moved(pos.clone()),
+            CloseRequested => CloseRequested,
+            Destroyed => Destroyed,
+            DroppedFile(file) => DroppedFile(file.clone()),
+            HoveredFile(file) => HoveredFile(file.clone()),
+            HoveredFileCancelled => HoveredFileCancelled,
+            ReceivedCharacter(c) => ReceivedCharacter(*c),
+            Focused(f) => Focused(*f),
+            KeyboardInput {
+                device_id,
+                input,
+                is_synthetic,
+            } => KeyboardInput {
+                device_id: *device_id,
+                input: *input,
+                is_synthetic: *is_synthetic,
+            },
+
+            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
+            #[allow(deprecated)]
+            CursorMoved {
+                device_id,
+                position,
+                modifiers,
+            } => CursorMoved {
+                device_id: *device_id,
+                position: *position,
+                modifiers: *modifiers,
+            },
+            CursorEntered { device_id } => CursorEntered {
+                device_id: *device_id,
+            },
+            CursorLeft { device_id } => CursorLeft {
+                device_id: *device_id,
+            },
+            #[allow(deprecated)]
+            MouseWheel {
+                device_id,
+                delta,
+                phase,
+                modifiers,
+            } => MouseWheel {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+                modifiers: *modifiers,
+            },
+            #[allow(deprecated)]
+            MouseInput {
+                device_id,
+                state,
+                button,
+                modifiers,
+            } => MouseInput {
+                device_id: *device_id,
+                state: *state,
+                button: *button,
+                modifiers: *modifiers,
+            },
+            TouchpadPressure {
+                device_id,
+                pressure,
+                stage,
+            } => TouchpadPressure {
+                device_id: *device_id,
+                pressure: *pressure,
+                stage: *stage,
+            },
+            AxisMotion {
+                device_id,
+                axis,
+                value,
+            } => AxisMotion {
+                device_id: *device_id,
+                axis: *axis,
+                value: *value,
+            },
+            Touch(touch) => Touch(*touch),
+            ThemeChanged(theme) => ThemeChanged(theme.clone()),
+            ScaleFactorChanged { .. } => {
+                unreachable!("Static event can't be about scale factor changing")
+            }
+        };
+    }
 }
 
 impl<'a> WindowEvent<'a> {
@@ -817,8 +936,10 @@ pub enum VirtualKeyCode {
     Multiply,
     Mute,
     MyComputer,
-    NavigateForward,  // also called "Prior"
-    NavigateBackward, // also called "Next"
+    // also called "Next"
+    NavigateForward,
+    // also called "Prior"
+    NavigateBackward,
     NextTrack,
     NoConvert,
     NumpadComma,

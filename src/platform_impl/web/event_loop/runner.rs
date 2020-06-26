@@ -202,7 +202,6 @@ impl<T: 'static> Shared<T> {
     // It should only ever be called from send_event
     fn handle_event(&self, event: Event<'static, T>, control: &mut root::ControlFlow) {
         let is_closed = self.is_closed();
-
         match *self.0.runner.borrow_mut() {
             Some(ref mut runner) => {
                 // An event is being processed, so the runner should be marked busy
@@ -227,7 +226,9 @@ impl<T: 'static> Shared<T> {
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
         if !is_closed && self.0.runner.borrow().is_some() {
             // Take an event out of the queue and handle it
-            if let Some(event) = self.0.events.borrow_mut().pop_front() {
+            // Make sure not to let the borrow_mut live during the next handle_event
+            let event = { self.0.events.borrow_mut().pop_front() };
+            if let Some(event) = event {
                 self.handle_event(event, control);
             }
         }
@@ -240,7 +241,7 @@ impl<T: 'static> Shared<T> {
             root::ControlFlow::Poll => {
                 let cloned = self.clone();
                 State::Poll {
-                    timeout: backend::Timeout::new(move || cloned.poll(), Duration::from_millis(0)),
+                    request: backend::AnimationFrameRequest::new(move || cloned.poll()),
                 }
             }
             root::ControlFlow::Wait => State::Wait {

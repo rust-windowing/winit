@@ -554,6 +554,7 @@ impl<T: 'static> EventLoop<T> {
             let instant_wakeup = {
                 let window_target = match self.window_target.p {
                     crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+                    #[cfg(feature = "x11")]
                     _ => unreachable!(),
                 };
                 let dispatched = window_target
@@ -662,11 +663,14 @@ impl<T> EventLoop<T> {
     {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
         window_target.store.lock().unwrap().for_each_redraw_trigger(
             |refresh, frame_refresh, wid, frame| {
                 if let Some(frame) = frame {
+                    let mut frame = frame.lock().unwrap();
+
                     if frame_refresh {
                         frame.refresh();
                         if !refresh {
@@ -687,6 +691,7 @@ impl<T> EventLoop<T> {
     {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
 
@@ -714,8 +719,44 @@ impl<T> EventLoop<T> {
         window_target.store.lock().unwrap().for_each(|window| {
             let window_id =
                 crate::window::WindowId(crate::platform_impl::WindowId::Wayland(window.wid));
-            if let Some(frame) = window.frame {
-                if let Some((w, h)) = window.newsize {
+
+            // Update window logical .size field (for callbacks using .inner_size)
+            let (old_logical_size, mut logical_size) = {
+                let mut window_size = window.size.lock().unwrap();
+                let old_logical_size = *window_size;
+                *window_size = window.new_size.unwrap_or(old_logical_size);
+                (old_logical_size, *window_size)
+            };
+
+            if let Some(scale_factor) = window.new_scale_factor {
+                // Update cursor scale factor
+                self.cursor_manager
+                    .lock()
+                    .unwrap()
+                    .update_scale_factor(scale_factor as u32);
+                let new_logical_size = {
+                    let scale_factor = scale_factor as f64;
+                    let mut physical_size =
+                        LogicalSize::<f64>::from(logical_size).to_physical(scale_factor);
+                    callback(Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::ScaleFactorChanged {
+                            scale_factor,
+                            new_inner_size: &mut physical_size,
+                        },
+                    });
+                    physical_size.to_logical::<u32>(scale_factor).into()
+                };
+                // Update size if changed by callback
+                if new_logical_size != logical_size {
+                    logical_size = new_logical_size;
+                    *window.size.lock().unwrap() = logical_size.into();
+                }
+            }
+
+            if window.new_size.is_some() || window.new_scale_factor.is_some() {
+                if let Some(frame) = window.frame {
+                    let mut frame = frame.lock().unwrap();
                     // Update decorations state
                     match window.decorations_action {
                         Some(DecorationsAction::Hide) => frame.set_decorate(false),
@@ -726,51 +767,23 @@ impl<T> EventLoop<T> {
                     // mutter (GNOME Wayland) relies on `set_geometry` to reposition window in case
                     // it overlaps mutter's `bounding box`, so we can't avoid this resize call,
                     // which calls `set_geometry` under the hood, for now.
+                    let (w, h) = logical_size;
                     frame.resize(w, h);
                     frame.refresh();
-
-                    // Don't send resize event downstream if the new size is identical to the
-                    // current one.
-                    if (w, h) != *window.size {
-                        let logical_size = crate::dpi::LogicalSize::new(w as f64, h as f64);
-                        let physical_size = logical_size
-                            .to_physical(window.new_dpi.unwrap_or(window.prev_dpi) as f64);
-
-                        callback(Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Resized(physical_size),
-                        });
-                        *window.size = (w, h);
-                    }
                 }
-
-                if let Some(dpi) = window.new_dpi {
-                    // Update cursor scale factor
-                    {
-                        self.cursor_manager
-                            .lock()
-                            .unwrap()
-                            .update_scale_factor(dpi as u32);
-                    };
-                    let dpi = dpi as f64;
-                    let logical_size = LogicalSize::<f64>::from(*window.size);
-                    let mut new_inner_size = logical_size.to_physical(dpi);
-
+                // Don't send resize event downstream if the new logical size and scale is identical to the
+                // current one
+                if logical_size != old_logical_size || window.new_scale_factor.is_some() {
+                    let physical_size = LogicalSize::<f64>::from(logical_size).to_physical(
+                        window.new_scale_factor.unwrap_or(window.prev_scale_factor) as f64,
+                    );
                     callback(Event::WindowEvent {
                         window_id,
-                        event: WindowEvent::ScaleFactorChanged {
-                            scale_factor: dpi,
-                            new_inner_size: &mut new_inner_size,
-                        },
+                        event: WindowEvent::Resized(physical_size),
                     });
-
-                    let (w, h) = new_inner_size.to_logical::<u32>(dpi).into();
-                    frame.resize(w, h);
-                    // Refresh frame to rescale decorations
-                    frame.refresh();
-                    *window.size = (w, h);
                 }
             }
+
             if window.closed {
                 callback(Event::WindowEvent {
                     window_id,
@@ -793,6 +806,7 @@ impl<T> EventLoop<T> {
 fn get_target<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+        #[cfg(feature = "x11")]
         _ => unreachable!(),
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.22.0"
+version = "0.22.2"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2018"
@@ -12,11 +12,16 @@ documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [package.metadata.docs.rs]
-features = ["serde"]
+features = ["serde", "web-sys"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
 
 [features]
+default = ["x11", "wayland"]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
+x11 = ["x11-dl"]
+wayland = ["wayland-client", "smithay-client-toolkit"]
 
 [dependencies]
 instant = "0.1"
@@ -31,21 +36,23 @@ bitflags = "1"
 image = "0.23"
 simple_logger = "1"
 
-[target.'cfg(target_os = "android")'.dependencies.android_glue]
-version = "0.2"
+[target.'cfg(target_os = "android")'.dependencies]
+ndk = "0.1.0"
+ndk-sys = "0.1.0"
+ndk-glue = "0.1.0"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc = "0.2.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.19.1"
-core-foundation = "0.6"
-core-graphics = "0.17.3"
+cocoa = "0.20"
+core-foundation = "0.7"
+core-graphics = "0.19"
 dispatch = "0.2.0"
 objc = "0.2.6"
 
 [target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
-version = "0.1.3"
+version = "0.1.4"
 default_features = false
 features = ["display_link"]
 
@@ -74,11 +81,11 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] }
+wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] , optional = true }
 mio = "0.6"
 mio-extras = "2.0"
-smithay-client-toolkit = "^0.6.6"
-x11-dl = "2.18.5"
+smithay-client-toolkit = { version = "^0.6.6", optional = true }
+x11-dl = { version = "2.18.5", optional = true }
 percent-encoding = "2.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
