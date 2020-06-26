@@ -379,6 +379,7 @@ impl Clone for WindowEvent<'static> {
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
+            Composition(e) => Composition(e.clone()),
 
             ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
             #[allow(deprecated)]
