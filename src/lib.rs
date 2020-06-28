@@ -24,9 +24,10 @@
 //! Once a [`Window`] has been created, it will generate different *events*. A [`Window`] object can
 //! generate [`WindowEvent`]s when certain input events occur, such as a cursor moving over the
 //! window or a key getting pressed while the window is focused. Devices can generate
-//! [`DeviceEvent`]s, which contain unfiltered event data that isn't specific to a certain window.
-//! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
-//! [`DeviceEvent`]. You can also create and handle your own custom [`UserEvent`]s, if desired.
+//! [`RawPointerEvent`]s and [`RawKeyboardEvent`]s, which contain unfiltered event data that isn't
+//! specific to a certain window. Some user activity, like mouse movement, can generate both
+//! [`WindowEvent`]s *and* raw events. You can also create and handle your own custom
+//! [`UserEvent`]s, if desired.
 //!
 //! You can retreive events by calling [`EventLoop::run`][event_loop_run]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
@@ -62,10 +63,7 @@
 //!     *control_flow = ControlFlow::Wait;
 //!
 //!     match event {
-//!         Event::WindowEvent {
-//!             event: WindowEvent::CloseRequested,
-//!             ..
-//!         } => {
+//!         Event::WindowEvent(_, WindowEvent::CloseRequested) => {
 //!             println!("The close button was pressed; stopping");
 //!             *control_flow = ControlFlow::Exit
 //!         },
@@ -123,7 +121,8 @@
 //! [window_id_fn]: window::Window::id
 //! [`Event`]: event::Event
 //! [`WindowEvent`]: event::WindowEvent
-//! [`DeviceEvent`]: event::DeviceEvent
+//! [`RawKeyboardEvent`]: event::RawKeyboardEvent
+//! [`RawPointerEvent`]: event::RawPointerEvent
 //! [`UserEvent`]: event::Event::UserEvent
 //! [`LoopDestroyed`]: event::Event::LoopDestroyed
 //! [`platform`]: platform

@@ -26,10 +26,7 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                _ => (),
-            },
+            Event::WindowEvent(_, WindowEvent::CloseRequested) => *control_flow = ControlFlow::Exit,
             Event::RedrawRequested(_) => {
                 println!("\nredrawing!\n");
             }

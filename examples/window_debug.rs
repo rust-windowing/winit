@@ -2,7 +2,7 @@
 
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{Event, LogicalKey, RawKeyboardEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{Fullscreen, WindowBuilder},
 };
@@ -33,84 +33,69 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::DeviceEvent {
-                event:
-                    DeviceEvent::Key(KeyboardInput {
-                        virtual_keycode: Some(key),
-                        state: ElementState::Pressed,
-                        ..
-                    }),
-                ..
-            } => match key {
-                VirtualKeyCode::M => {
-                    if minimized {
-                        minimized = !minimized;
-                        window.set_minimized(minimized);
-                    }
-                }
-                VirtualKeyCode::V => {
-                    if !visible {
-                        visible = !visible;
-                        window.set_visible(visible);
-                    }
-                }
-                _ => (),
-            },
-            Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
-                ..
-            } => match input {
-                KeyboardInput {
-                    virtual_keycode: Some(key),
-                    state: ElementState::Pressed,
-                    ..
-                } => match key {
-                    VirtualKeyCode::E => {
-                        fn area(size: PhysicalSize<u32>) -> u32 {
-                            size.width * size.height
-                        }
-
-                        let monitor = window.current_monitor();
-                        if let Some(mode) = monitor
-                            .video_modes()
-                            .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
-                        {
-                            window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
-                        } else {
-                            eprintln!("no video modes available");
+            Event::RawKeyboardEvent(_, RawKeyboardEvent::Key(e)) if e.is_down() => {
+                match e.logical_key() {
+                    Some(LogicalKey::M) => {
+                        if minimized {
+                            minimized = !minimized;
+                            window.set_minimized(minimized);
                         }
                     }
-                    VirtualKeyCode::F => {
-                        if window.fullscreen().is_some() {
-                            window.set_fullscreen(None);
-                        } else {
-                            let monitor = window.current_monitor();
-                            window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
+                    Some(LogicalKey::V) => {
+                        if !visible {
+                            visible = !visible;
+                            window.set_visible(visible);
                         }
-                    }
-                    VirtualKeyCode::M => {
-                        minimized = !minimized;
-                        window.set_minimized(minimized);
-                    }
-                    VirtualKeyCode::Q => {
-                        *control_flow = ControlFlow::Exit;
-                    }
-                    VirtualKeyCode::V => {
-                        visible = !visible;
-                        window.set_visible(visible);
-                    }
-                    VirtualKeyCode::X => {
-                        maximized = !maximized;
-                        window.set_maximized(maximized);
                     }
                     _ => (),
-                },
+                }
+            }
+            Event::WindowEvent(_, WindowEvent::Key(e)) if e.is_down() => match e.logical_key() {
+                Some(LogicalKey::E) => {
+                    fn area(size: PhysicalSize<u32>) -> u32 {
+                        size.width * size.height
+                    }
+
+                    let monitor = window.current_monitor();
+                    if let Some(mode) = monitor
+                        .video_modes()
+                        .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
+                    {
+                        window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
+                    } else {
+                        eprintln!("no video modes available");
+                    }
+                }
+                Some(LogicalKey::F) => {
+                    if window.fullscreen().is_some() {
+                        window.set_fullscreen(None);
+                    } else {
+                        let monitor = window.current_monitor();
+                        window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
+                    }
+                }
+                Some(LogicalKey::M) => {
+                    minimized = !minimized;
+                    window.set_minimized(minimized);
+                }
+                Some(LogicalKey::Q) => {
+                    *control_flow = ControlFlow::Exit;
+                }
+                Some(LogicalKey::V) => {
+                    visible = !visible;
+                    window.set_visible(visible);
+                }
+                Some(LogicalKey::X) => {
+                    maximized = !maximized;
+                    window.set_maximized(maximized);
+                }
                 _ => (),
             },
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            Event::WindowEvent(window_id, WindowEvent::CloseRequested)
+                if window_id == window.id() =>
+            {
+                *control_flow = ControlFlow::Exit
+            }
             _ => (),
         }
     });

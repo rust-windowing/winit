@@ -16,16 +16,34 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
-        println!("{:?}", event);
+        // println!("{:?}", event);
 
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
-            Event::MainEventsCleared => {
-                window.request_redraw();
+            Event::WindowEvent(window_id, WindowEvent::CloseRequested)
+                if window_id == window.id() =>
+            {
+                *control_flow = ControlFlow::Exit
             }
+            Event::WindowEvent(_, e) => match e {
+                WindowEvent::PointerCreated(..) |
+                WindowEvent::PointerForce(..) |
+                WindowEvent::PointerTilt(..) |
+                WindowEvent::PointerTwist(..) |
+                WindowEvent::PointerContactArea(..) |
+                WindowEvent::PointerMoved(..) |
+                WindowEvent::PointerButton(..) |
+                WindowEvent::PointerEntered(..) |
+                WindowEvent::PointerLeft(..) |
+                WindowEvent::ScrollStarted |
+                WindowEvent::ScrollLines(..) |
+                WindowEvent::ScrollPixels(..) |
+                WindowEvent::ScrollEnded |
+                WindowEvent::PointerDestroyed(..) => println!("{:?}", e),
+                _ => ()
+            },
+            Event::MainEventsCleared => {
+                window.request_redraw()
+            },
             _ => (),
         }
     });

@@ -4,7 +4,7 @@ fn main() {
 
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-        event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+        event::{Event, ModifiersState, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
@@ -23,6 +23,7 @@ fn main() {
 
         let mut video_modes: Vec<_> = window.current_monitor().video_modes().collect();
         let mut video_mode_id = 0usize;
+        let mut modifiers = ModifiersState::empty();
 
         let (tx, rx) = mpsc::channel();
         window_senders.insert(window.id(), tx);
@@ -48,97 +49,90 @@ fn main() {
                             );
                         }
                     }
-                    #[allow(deprecated)]
-                    WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Released,
-                                virtual_keycode: Some(key),
-                                modifiers,
-                                ..
-                            },
-                        ..
-                    } => {
-                        window.set_title(&format!("{:?}", key));
-                        let state = !modifiers.shift();
-                        use VirtualKeyCode::*;
-                        match key {
-                            A => window.set_always_on_top(state),
-                            C => window.set_cursor_icon(match state {
-                                true => CursorIcon::Progress,
-                                false => CursorIcon::Default,
-                            }),
-                            D => window.set_decorations(!state),
-                            // Cycle through video modes
-                            Right | Left => {
-                                video_mode_id = match key {
-                                    Left => video_mode_id.saturating_sub(1),
-                                    Right => (video_modes.len() - 1).min(video_mode_id + 1),
-                                    _ => unreachable!(),
-                                };
-                                println!(
-                                    "Picking video mode: {}",
-                                    video_modes.iter().nth(video_mode_id).unwrap()
-                                );
-                            }
-                            F => window.set_fullscreen(match (state, modifiers.alt()) {
-                                (true, false) => {
-                                    Some(Fullscreen::Borderless(window.current_monitor()))
+                    WindowEvent::ModifiersChanged(mods) => modifiers = mods,
+                    WindowEvent::Key(e) if e.is_up() => {
+                        if let Some(key) = e.logical_key() {
+                            window.set_title(&format!("{:?}", key));
+                            let state = !modifiers.shift();
+                            use winit::event::LogicalKey::*;
+                            match key {
+                                A => window.set_always_on_top(state),
+                                C => window.set_cursor_icon(match state {
+                                    true => CursorIcon::Progress,
+                                    false => CursorIcon::Default,
+                                }),
+                                D => window.set_decorations(!state),
+                                // Cycle through video modes
+                                Right | Left => {
+                                    video_mode_id = match key {
+                                        Left => video_mode_id.saturating_sub(1),
+                                        Right => (video_modes.len() - 1).min(video_mode_id + 1),
+                                        _ => unreachable!(),
+                                    };
+                                    println!(
+                                        "Picking video mode: {}",
+                                        video_modes.iter().nth(video_mode_id).unwrap()
+                                    );
                                 }
-                                (true, true) => Some(Fullscreen::Exclusive(
-                                    video_modes.iter().nth(video_mode_id).unwrap().clone(),
-                                )),
-                                (false, _) => None,
-                            }),
-                            G => window.set_cursor_grab(state).unwrap(),
-                            H => window.set_cursor_visible(!state),
-                            I => {
-                                println!("Info:");
-                                println!("-> outer_position : {:?}", window.outer_position());
-                                println!("-> inner_position : {:?}", window.inner_position());
-                                println!("-> outer_size     : {:?}", window.outer_size());
-                                println!("-> inner_size     : {:?}", window.inner_size());
-                                println!("-> fullscreen     : {:?}", window.fullscreen());
-                            }
-                            L => window.set_min_inner_size(match state {
-                                true => Some(WINDOW_SIZE),
-                                false => None,
-                            }),
-                            M => window.set_maximized(state),
-                            P => window.set_outer_position({
-                                let mut position = window.outer_position().unwrap();
-                                let sign = if state { 1 } else { -1 };
-                                position.x += 10 * sign;
-                                position.y += 10 * sign;
-                                position
-                            }),
-                            Q => window.request_redraw(),
-                            R => window.set_resizable(state),
-                            S => window.set_inner_size(match state {
-                                true => PhysicalSize::new(
-                                    WINDOW_SIZE.width + 100,
-                                    WINDOW_SIZE.height + 100,
-                                ),
-                                false => WINDOW_SIZE,
-                            }),
-                            W => {
-                                if let Size::Physical(size) = WINDOW_SIZE.into() {
-                                    window
-                                        .set_cursor_position(Position::Physical(
-                                            PhysicalPosition::new(
-                                                size.width as i32 / 2,
-                                                size.height as i32 / 2,
-                                            ),
-                                        ))
-                                        .unwrap()
+                                F => window.set_fullscreen(match (state, modifiers.alt()) {
+                                    (true, false) => {
+                                        Some(Fullscreen::Borderless(window.current_monitor()))
+                                    }
+                                    (true, true) => Some(Fullscreen::Exclusive(
+                                        video_modes.iter().nth(video_mode_id).unwrap().clone(),
+                                    )),
+                                    (false, _) => None,
+                                }),
+                                G => window.set_cursor_grab(state).unwrap(),
+                                H => window.set_cursor_visible(!state),
+                                I => {
+                                    println!("Info:");
+                                    println!("-> outer_position : {:?}", window.outer_position());
+                                    println!("-> inner_position : {:?}", window.inner_position());
+                                    println!("-> outer_size     : {:?}", window.outer_size());
+                                    println!("-> inner_size     : {:?}", window.inner_size());
+                                    println!("-> fullscreen     : {:?}", window.fullscreen());
                                 }
+                                L => window.set_min_inner_size(match state {
+                                    true => Some(WINDOW_SIZE),
+                                    false => None,
+                                }),
+                                M => window.set_maximized(state),
+                                P => window.set_outer_position({
+                                    let mut position = window.outer_position().unwrap();
+                                    let sign = if state { 1 } else { -1 };
+                                    position.x += 10 * sign;
+                                    position.y += 10 * sign;
+                                    position
+                                }),
+                                Q => window.request_redraw(),
+                                R => window.set_resizable(state),
+                                S => window.set_inner_size(match state {
+                                    true => PhysicalSize::new(
+                                        WINDOW_SIZE.width + 100,
+                                        WINDOW_SIZE.height + 100,
+                                    ),
+                                    false => WINDOW_SIZE,
+                                }),
+                                W => {
+                                    if let Size::Physical(size) = WINDOW_SIZE.into() {
+                                        window
+                                            .set_cursor_position(Position::Physical(
+                                                PhysicalPosition::new(
+                                                    size.width as i32 / 2,
+                                                    size.height as i32 / 2,
+                                                ),
+                                            ))
+                                            .unwrap()
+                                    }
+                                }
+                                Z => {
+                                    window.set_visible(false);
+                                    thread::sleep(Duration::from_secs(1));
+                                    window.set_visible(true);
+                                }
+                                _ => (),
                             }
-                            Z => {
-                                window.set_visible(false);
-                                thread::sleep(Duration::from_secs(1));
-                                window.set_visible(true);
-                            }
-                            _ => (),
                         }
                     }
                     _ => (),
@@ -152,23 +146,13 @@ fn main() {
             false => ControlFlow::Exit,
         };
         match event {
-            Event::WindowEvent { event, window_id } => match event {
-                WindowEvent::CloseRequested
-                | WindowEvent::Destroyed
-                | WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Released,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
-                            ..
-                        },
-                    ..
-                } => {
+            Event::WindowEvent(window_id, event) => match event {
+                WindowEvent::CloseRequested | WindowEvent::Destroyed => {
                     window_senders.remove(&window_id);
                 }
                 _ => {
                     if let Some(tx) = window_senders.get(&window_id) {
-                        if let Some(event) = event.to_static() {
+                        if let Ok(event) = event.to_static() {
                             tx.send(event).unwrap();
                         }
                     }

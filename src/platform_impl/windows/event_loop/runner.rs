@@ -376,15 +376,11 @@ impl<T> EventLoopRunner<T> {
 impl<T> BufferedEvent<T> {
     pub fn from_event(event: Event<'_, T>) -> BufferedEvent<T> {
         match event {
-            Event::WindowEvent {
-                event:
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size,
-                    },
+            Event::WindowEvent(
                 window_id,
-            } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
-            event => BufferedEvent::Event(event.to_static().unwrap()),
+                WindowEvent::ScaleFactorChanged(scale_factor, new_inner_size),
+            ) => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
+            event => BufferedEvent::Event(event.to_static().ok().unwrap()),
         }
     }
 
@@ -392,13 +388,10 @@ impl<T> BufferedEvent<T> {
         match self {
             Self::Event(event) => dispatch(event),
             Self::ScaleFactorChanged(window_id, scale_factor, mut new_inner_size) => {
-                dispatch(Event::WindowEvent {
+                dispatch(Event::WindowEvent(
                     window_id,
-                    event: WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size: &mut new_inner_size,
-                    },
-                });
+                    WindowEvent::ScaleFactorChanged(scale_factor, &mut new_inner_size),
+                ));
                 util::set_inner_size_physical(
                     (window_id.0).0,
                     new_inner_size.width as _,

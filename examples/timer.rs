@@ -28,10 +28,7 @@ fn main() {
                 *control_flow = ControlFlow::WaitUntil(Instant::now() + timer_length);
                 println!("\nTimer\n");
             }
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
+            Event::WindowEvent(_, WindowEvent::CloseRequested) => *control_flow = ControlFlow::Exit,
             _ => (),
         }
     });
