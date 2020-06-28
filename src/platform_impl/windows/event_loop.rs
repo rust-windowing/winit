@@ -82,7 +82,7 @@ lazy_static! {
 pub(crate) struct SubclassInput<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
-    pub file_drop_handler: FileDropHandler,
+    pub file_drop_handler: Option<FileDropHandler>,
 }
 
 impl<T> SubclassInput<T> {
