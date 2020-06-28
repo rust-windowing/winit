@@ -2,7 +2,7 @@
 - On Unix, X11 and Wayland are now optional features (enabled by default)
 - On X11, fix deadlock when calling `set_fullscreen_inner`.
 - On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
-
+- On Windows, drag and drop is now optional and must be enabled with `WindowBuilderExtWindows::with_drag_and_drop(true)`.
 - On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
 - On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
 - On android added support for `run_return`.
@@ -23,7 +23,6 @@
 - On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
 - On Web, fix a possible panic during event handling
 - On macOS, fix `EventLoopProxy` leaking memory for every instance.
-- On Windows, drag and drop is now optional and must be enabled with `WindowBuilderExtWindows::with_drag_and_drop(true)`.
 - On Windows, drag and drop can now be disabled with `WindowBuilderExtWindows::with_drag_and_drop(false)`.
 
 # 0.22.0 (2020-03-09)
