@@ -20,7 +20,7 @@ use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
 use winapi::{
     shared::{
         minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WPARAM},
-        windef::{HWND, POINT, RECT},
+        windef::{HWND, HCURSOR, POINT, RECT},
         windowsx, winerror,
     },
     um::{
@@ -41,7 +41,7 @@ use crate::{
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         monitor::{self, MonitorHandle},
         raw_input, util,
-        window_state::{CursorFlags, WindowFlags, WindowState},
+        window_state::{Cursor, CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
     window::{Fullscreen, WindowId as RootWindowId},
@@ -1598,7 +1598,13 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     .cursor_flags()
                     .contains(CursorFlags::IN_WINDOW)
                 {
-                    Some(window_state.mouse.cursor)
+                    Some(match &window_state.mouse.cursor {
+                        Cursor::WindowsIcon(cursor) => winuser::LoadCursorW(
+                            ptr::null_mut(),
+                            cursor.to_windows_cursor()
+                        ),
+                        Cursor::CustomIcon(cursor) => cursor.inner.as_raw_handle() as HCURSOR,
+                    })
                 } else {
                     None
                 }
@@ -1606,7 +1612,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             match set_cursor_to {
                 Some(cursor) => {
-                    let cursor = winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor());
                     winuser::SetCursor(cursor);
                     0
                 }

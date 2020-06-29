@@ -4,6 +4,7 @@ use winit::{
     event::Event,
     event_loop::{ControlFlow, EventLoop},
     window::{Icon, WindowBuilder},
+    platform::windows::WindowExtWindows,
 };
 
 fn main() {
@@ -15,7 +16,7 @@ fn main() {
     // you'll be bitten by the low-quality downscaling built into the WM.
     let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icon.png");
 
-    let icon = load_icon(Path::new(path));
+    let icon = load_icon(Path::new(&path));
 
     let event_loop = EventLoop::new();
 
@@ -26,6 +27,7 @@ fn main() {
         .with_window_icon(Some(icon))
         .build(&event_loop)
         .unwrap();
+    window.set_cursor_custom_icon(load_icon(Path::new(&path)));
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
