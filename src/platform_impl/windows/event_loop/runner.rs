@@ -290,7 +290,9 @@ impl<T> EventLoopRunner<T> {
     /// runner state machine (e.g. `self.runner_state == HandlingMainEvents` and
     /// `new_runner_state == Idle`), the intermediate state transitions will still be executed.
     unsafe fn move_state_to(&self, new_runner_state: RunnerState) {
-        use RunnerState::{HandlingMainEvents, HandlingRedrawEvents, Idle, Uninitialized, Destroyed};
+        use RunnerState::{
+            Destroyed, HandlingMainEvents, HandlingRedrawEvents, Idle, Uninitialized,
+        };
 
         match (
             self.runner_state.replace(new_runner_state),
@@ -362,7 +364,7 @@ impl<T> EventLoopRunner<T> {
                 self.call_event_handler(Event::LoopDestroyed);
             }
 
-            (Destroyed, _)  => panic!("cannot move state from Destroyed"),
+            (Destroyed, _) => panic!("cannot move state from Destroyed"),
         }
     }
 
