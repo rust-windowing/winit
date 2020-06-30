@@ -1934,6 +1934,8 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             // `RedrawEventsCleared` event.
             if subclass_input.event_loop_runner.handling_events() {
                 if subclass_input.event_loop_runner.should_buffer() {
+                    // This branch can be triggered when a nested win32 event loop is triggered
+                    // inside of the `event_handler` callback.
                     winuser::RedrawWindow(
                         window,
                         ptr::null(),
