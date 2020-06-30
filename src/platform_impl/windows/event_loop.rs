@@ -226,7 +226,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         unsafe {
-            runner.call_event_handler(Event::LoopDestroyed);
+            runner.loop_destroyed();
         }
         runner.reset_runner();
     }
