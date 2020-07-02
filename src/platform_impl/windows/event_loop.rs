@@ -226,7 +226,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         unsafe {
-            runner.call_event_handler(Event::LoopDestroyed);
+            runner.loop_destroyed();
         }
         runner.reset_runner();
     }
@@ -1933,14 +1933,25 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             // events, `handling_events` will return false and we won't emit a second
             // `RedrawEventsCleared` event.
             if subclass_input.event_loop_runner.handling_events() {
-                // This WM_PAINT handler will never be re-entrant because `flush_paint_messages`
-                // doesn't call WM_PAINT for the thread event target (i.e. this window).
-                assert!(flush_paint_messages(
-                    None,
-                    &subclass_input.event_loop_runner
-                ));
-                subclass_input.event_loop_runner.redraw_events_cleared();
-                process_control_flow(&subclass_input.event_loop_runner);
+                if subclass_input.event_loop_runner.should_buffer() {
+                    // This branch can be triggered when a nested win32 event loop is triggered
+                    // inside of the `event_handler` callback.
+                    winuser::RedrawWindow(
+                        window,
+                        ptr::null(),
+                        ptr::null_mut(),
+                        winuser::RDW_INTERNALPAINT,
+                    );
+                } else {
+                    // This WM_PAINT handler will never be re-entrant because `flush_paint_messages`
+                    // doesn't call WM_PAINT for the thread event target (i.e. this window).
+                    assert!(flush_paint_messages(
+                        None,
+                        &subclass_input.event_loop_runner
+                    ));
+                    subclass_input.event_loop_runner.redraw_events_cleared();
+                    process_control_flow(&subclass_input.event_loop_runner);
+                }
             }
 
             0
