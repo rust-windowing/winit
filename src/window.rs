@@ -758,7 +758,7 @@ impl Window {
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as `EventLoop::available_monitors`, and is provided for convenience.
+    /// This is the same as `EventLoopWindowTarget::available_monitors`, and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
@@ -773,7 +773,7 @@ impl Window {
 
     /// Returns the primary monitor of the system.
     ///
-    /// This is the same as `EventLoop::primary_monitor`, and is provided for convenience.
+    /// This is the same as `EventLoopWindowTarget::primary_monitor`, and is provided for convenience.
     ///
     /// ## Platform-specific
     ///

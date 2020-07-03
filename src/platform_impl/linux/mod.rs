@@ -672,9 +672,13 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> MonitorHandle {
         match *self {
             #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
+            EventLoopWindowTarget::Wayland(ref evlp) => {
+                MonitorHandle::Wayland(evlp.primary_monitor())
+            }
             #[cfg(feature = "x11")]
-            EventLoopWindowTarget::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
+            EventLoopWindowTarget::X(ref evlp) => {
+                MonitorHandle::X(evlp.x_connection().primary_monitor())
+            }
         }
     }
 }

@@ -59,7 +59,6 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         // guaranteed to be on main thread
         unsafe { monitor::main_uiscreen() }
     }
-
 }
 
 pub struct EventLoop<T: 'static> {

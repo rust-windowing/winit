@@ -126,9 +126,6 @@ pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
     MonitorHandle::new(hmonitor)
 }
 
-impl<T> EventLoop<T> {
-}
-
 impl Window {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         available_monitors()
