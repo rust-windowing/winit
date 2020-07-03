@@ -4,6 +4,7 @@ mod runner;
 
 use parking_lot::Mutex;
 use std::{
+    collections::VecDeque,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
@@ -13,7 +14,6 @@ use std::{
     },
     thread,
     time::{Duration, Instant},
-    collections::VecDeque,
 };
 use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
 
@@ -34,6 +34,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    monitor::MonitorHandle,
     platform_impl::platform::{
         dark_mode::try_dark_mode,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
@@ -44,7 +45,6 @@ use crate::{
         wrap_device_id, WindowId, DEVICE_ID,
     },
     window::{Fullscreen, WindowId as RootWindowId},
-    monitor::MonitorHandle,
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
@@ -862,7 +862,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                 window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
                             }
                             *fullscreen_monitor = MonitorHandle {
-                                inner: MonitorHandle::new(new_monitor),
+                                inner: monitor::MonitorHandle::new(new_monitor),
                             };
                         }
                     }
