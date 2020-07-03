@@ -13,6 +13,7 @@ use std::{
     },
     thread,
     time::{Duration, Instant},
+    collections::VecDeque,
 };
 use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
 
@@ -43,6 +44,7 @@ use crate::{
         wrap_device_id, WindowId, DEVICE_ID,
     },
     window::{Fullscreen, WindowId as RootWindowId},
+    monitor::MonitorHandle,
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
@@ -859,8 +861,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                 window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
                                 window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
                             }
-                            *fullscreen_monitor = crate::monitor::MonitorHandle {
-                                inner: monitor::MonitorHandle::new(new_monitor),
+                            *fullscreen_monitor = MonitorHandle {
+                                inner: MonitorHandle::new(new_monitor),
                             };
                         }
                     }
