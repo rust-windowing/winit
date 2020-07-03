@@ -11,7 +11,7 @@ use std::{
     io, mem, ptr,
 };
 
-use super::{util, EventLoop};
+use super::util;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
