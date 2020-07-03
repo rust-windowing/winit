@@ -49,6 +49,19 @@ pub struct EventLoopWindowTarget<T: 'static> {
     sender_to_clone: Sender<T>,
 }
 
+impl<T: 'static> EventLoopWindowTarget<T> {
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        // guaranteed to be on main thread
+        unsafe { monitor::uiscreens() }
+    }
+
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        // guaranteed to be on main thread
+        unsafe { monitor::main_uiscreen() }
+    }
+
+}
+
 pub struct EventLoop<T: 'static> {
     window_target: RootEventLoopWindowTarget<T>,
 }
@@ -113,16 +126,6 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy::new(self.window_target.p.sender_to_clone.clone())
-    }
-
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        // guaranteed to be on main thread
-        unsafe { monitor::uiscreens() }
-    }
-
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        // guaranteed to be on main thread
-        unsafe { monitor::main_uiscreen() }
     }
 
     pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {

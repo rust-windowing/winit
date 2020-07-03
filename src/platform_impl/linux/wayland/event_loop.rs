@@ -245,8 +245,6 @@ pub struct EventLoop<T: 'static> {
     poll: Poll,
     // The wayland display
     pub display: Arc<Display>,
-    // The output manager
-    pub outputs: OutputMgr,
     // The cursor manager
     cursor_manager: Arc<Mutex<CursorManager>>,
     kbd_channel: Receiver<Event<'static, ()>>,
@@ -277,6 +275,8 @@ pub struct EventLoopWindowTarget<T> {
     pub display: Arc<Display>,
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
+    // The output manager
+    pub outputs: OutputMgr,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -418,10 +418,10 @@ impl<T: 'static> EventLoop<T> {
         .unwrap();
 
         let cursor_manager_clone = cursor_manager.clone();
+        let outputs = env.outputs.clone();
         Ok(EventLoop {
             poll,
             display: display.clone(),
-            outputs: env.outputs.clone(),
             user_sender,
             user_channel,
             kbd_channel,
@@ -435,6 +435,7 @@ impl<T: 'static> EventLoop<T> {
                     cleanup_needed: Arc::new(Mutex::new(false)),
                     seats,
                     display,
+                    outputs,
                     _marker: ::std::marker::PhantomData,
                 }),
                 _marker: ::std::marker::PhantomData,
@@ -633,14 +634,6 @@ impl<T: 'static> EventLoop<T> {
         callback(Event::LoopDestroyed, &self.window_target, &mut control_flow);
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor(&self.outputs)
-    }
-
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        available_monitors(&self.outputs)
-    }
-
     pub fn window_target(&self) -> &RootELW<T> {
         &self.window_target
     }
@@ -649,6 +642,14 @@ impl<T: 'static> EventLoop<T> {
 impl<T> EventLoopWindowTarget<T> {
     pub fn display(&self) -> &Display {
         &*self.display
+    }
+
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        available_monitors(&self.outputs)
+    }
+
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        primary_monitor(&self.outputs)
     }
 }
 

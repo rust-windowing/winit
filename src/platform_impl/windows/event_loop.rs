@@ -247,6 +247,15 @@ impl<T> EventLoopWindowTarget<T> {
             target_window: self.thread_msg_target,
         }
     }
+
+    // TODO: Investigate opportunities for caching
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        available_monitors()
+    }
+
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        primary_monitor()
+    }
 }
 
 fn main_thread_id() -> DWORD {

@@ -127,14 +127,6 @@ pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
 }
 
 impl<T> EventLoop<T> {
-    // TODO: Investigate opportunities for caching
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        available_monitors()
-    }
-
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor()
-    }
 }
 
 impl Window {

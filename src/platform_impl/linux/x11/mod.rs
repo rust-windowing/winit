@@ -258,10 +258,6 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
-        get_xtarget(&self.target).x_connection()
-    }
-
     pub fn run_return<F>(&mut self, mut callback: F)
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),

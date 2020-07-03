@@ -213,4 +213,12 @@ impl<T> WindowTarget<T> {
             });
         });
     }
+
+    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
+        VecDeque::new().into_iter()
+    }
+
+    pub fn primary_monitor(&self) -> monitor::Handle {
+        monitor::Handle
+    }
 }
