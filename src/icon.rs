@@ -1,4 +1,7 @@
-use crate::platform_impl::PlatformIcon;
+use crate::{
+    dpi::PhysicalSize,
+    platform_impl::PlatformIcon,
+};
 use std::{fmt, io, mem};
 
 #[repr(C)]
@@ -33,7 +36,8 @@ mod constructors {
         /// ## Panics
         /// Panics if the length of `rgba` must be divisible by 4, and `width * height` must equal
         /// `rgba.len() / 4`.
-        pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Self {
+        pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Self {
+            let PhysicalSize{ width, height } = size;
             if rgba.len() % PIXEL_SIZE != 0 {
                 panic!(
                     "The length of the `rgba` argument ({:?}) isn't divisible by 4, making \
@@ -60,7 +64,7 @@ mod constructors {
     }
 
     impl NoIcon {
-        pub fn from_rgba(_rgba: Vec<u8>, _width: u32, _height: u32) -> Self {
+        pub fn from_rgba(_rgba: Vec<u8>, _size: PhysicalSize<u32>) -> Self {
             NoIcon
         }
     }
@@ -84,9 +88,9 @@ impl Icon {
     /// ## Panics
     /// Panics if the length of `rgba` must be divisible by 4, and `width * height` must equal
     /// `rgba.len() / 4`.
-    pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, io::Error> {
+    pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
         Ok(Icon {
-            inner: PlatformIcon::from_rgba(rgba, width, height)?,
+            inner: PlatformIcon::from_rgba(rgba, size)?,
         })
     }
 }

@@ -127,8 +127,8 @@ impl WinIcon {
         }
     }
 
-    pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, io::Error> {
-        RgbaIcon::from_rgba(rgba, width, height)
+    pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
+        RgbaIcon::from_rgba(rgba, size)
             .into_windows_icon()
     }
 
