@@ -18,6 +18,7 @@ impl From<CursorIcon> for Cursor {
     fn from(cursor: CursorIcon) -> Self {
         // See native cursors at https://developer.apple.com/documentation/appkit/nscursor?language=objc.
         match cursor {
+            CursorIcon::Custom(_) |
             CursorIcon::Arrow | CursorIcon::Default => Cursor::Native("arrowCursor"),
             CursorIcon::Hand => Cursor::Native("pointingHandCursor"),
             CursorIcon::Grab => Cursor::Native("openHandCursor"),
