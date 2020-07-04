@@ -1,13 +1,20 @@
 use crate::window::CursorIcon;
+use std::mem;
 
 use super::*;
 
 impl XConnection {
     pub fn set_cursor_icon(&self, window: ffi::Window, cursor: Option<CursorIcon>) {
+        // ignore custom cursors for now
+        let cursor = match cursor {
+            Some(CursorIcon::Custom(_)) => Some(CursorIcon::default()),
+            _ => cursor,
+        };
+
         let cursor = *self
             .cursor_cache
             .lock()
-            .entry(cursor)
+            .entry(cursor.as_ref().map(|c| mem::discriminant(c)))
             .or_insert_with(|| self.get_cursor(cursor));
 
         self.update_cursor(window, cursor);
@@ -116,6 +123,7 @@ impl XConnection {
 
             CursorIcon::ZoomIn => load(b"zoom-in\0"),
             CursorIcon::ZoomOut => load(b"zoom-out\0"),
+            CursorIcon::Custom(_) => unreachable!()
         }
     }
 

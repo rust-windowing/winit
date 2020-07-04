@@ -225,7 +225,7 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalPosition<P> {
 }
 
 /// A position represented in physical pixels.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalPosition<P> {
     pub x: P,

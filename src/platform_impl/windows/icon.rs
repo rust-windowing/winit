@@ -19,7 +19,7 @@ impl Pixel {
     }
 }
 
-impl RgbaIcon {
+impl RgbaIcon<Box<[u8]>> {
     fn into_windows_icon(self) -> Result<WinIcon, io::Error> {
         unsafe {
             let mut rgba = self.rgba;
@@ -148,17 +148,17 @@ impl WinIcon {
         }
     }
 
-    pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
-        RgbaIcon::from_rgba(rgba, size)?
+    pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
+        RgbaIcon::from_rgba(Box::from(rgba), size)?
             .into_windows_icon()
     }
 
     pub fn from_rgba_with_hot_spot(
-        rgba: Vec<u8>,
+        rgba: &[u8],
         size: PhysicalSize<u32>,
         hot_spot: PhysicalPosition<u32>
     ) -> Result<Self, io::Error> {
-        RgbaIcon::from_rgba_with_hot_spot(rgba, size, hot_spot)?
+        RgbaIcon::from_rgba_with_hot_spot(Box::from(rgba), size, hot_spot)?
             .into_windows_icon()
     }
 

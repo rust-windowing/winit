@@ -127,7 +127,7 @@ impl CursorManager {
                 (**pointer).set_cursor(0, None, 0, 0);
             }
         } else {
-            self.set_cursor_icon_impl(self.current_cursor);
+            self.set_cursor_icon_impl(self.current_cursor.clone());
         }
         self.cursor_visible = visible;
     }
@@ -137,13 +137,13 @@ impl CursorManager {
         if !self.cursor_visible {
             self.set_cursor_visible(false);
         } else {
-            self.set_cursor_icon_impl(self.current_cursor);
+            self.set_cursor_icon_impl(self.current_cursor.clone());
         }
     }
 
     pub fn set_cursor_icon(&mut self, cursor: CursorIcon) {
         if cursor != self.current_cursor {
-            self.current_cursor = cursor;
+            self.current_cursor = cursor.clone();
             if self.cursor_visible {
                 self.set_cursor_icon_impl(cursor);
             }
@@ -162,6 +162,7 @@ impl CursorManager {
             CursorIcon::Cell => "plus",
             CursorIcon::Copy => "copy",
             CursorIcon::Crosshair => "crosshair",
+            CursorIcon::Custom(_) |
             CursorIcon::Default => "left_ptr",
             CursorIcon::Hand => "hand",
             CursorIcon::Help => "question_arrow",

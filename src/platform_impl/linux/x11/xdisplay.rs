@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, fmt, os::raw::c_int, ptr};
+use std::{collections::HashMap, error::Error, fmt, os::raw::c_int, ptr, mem::Discriminant};
 
 use libc;
 use parking_lot::Mutex;
@@ -21,7 +21,10 @@ pub struct XConnection {
     pub display: *mut ffi::Display,
     pub x11_fd: c_int,
     pub latest_error: Mutex<Option<XError>>,
-    pub cursor_cache: Mutex<HashMap<Option<CursorIcon>, ffi::Cursor>>,
+    /// We're using `Discriminant<CursorIcon>` here to work around the fact that you can't hash
+    /// `CursorIcon::Custom`. The discriminant for `CursorIcon::Custom` should *not* be stored in
+    /// this map.
+    pub cursor_cache: Mutex<HashMap<Option<Discriminant<CursorIcon>>, ffi::Cursor>>,
 }
 
 unsafe impl Send for XConnection {}

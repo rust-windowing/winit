@@ -21,10 +21,10 @@ impl Icon {
         let rgba_icon = &self.inner;
         assert_eq!(rgba_icon.rgba.len() % PIXEL_SIZE, 0);
         let pixel_count = rgba_icon.rgba.len() / PIXEL_SIZE;
-        assert_eq!(pixel_count, (rgba_icon.width * rgba_icon.height) as usize);
+        assert_eq!(pixel_count, (rgba_icon.size.width * rgba_icon.size.height) as usize);
         let mut data = Vec::with_capacity(pixel_count);
-        data.push(rgba_icon.width as Cardinal);
-        data.push(rgba_icon.height as Cardinal);
+        data.push(rgba_icon.size.width as Cardinal);
+        data.push(rgba_icon.size.height as Cardinal);
         let pixels = rgba_icon.rgba.as_ptr() as *const Pixel;
         for pixel_index in 0..pixel_count {
             let pixel = unsafe { &*pixels.offset(pixel_index as isize) };

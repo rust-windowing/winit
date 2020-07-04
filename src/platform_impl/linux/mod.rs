@@ -33,7 +33,7 @@ use crate::{
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
-pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
+pub(crate) type PlatformIcon = crate::icon::RgbaIcon<Arc<[u8]>>;
 
 #[cfg(feature = "wayland")]
 pub mod wayland;

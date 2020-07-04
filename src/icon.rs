@@ -2,7 +2,7 @@ use crate::{
     dpi::{PhysicalSize, PhysicalPosition},
     platform_impl::PlatformIcon,
 };
-use std::{fmt, io, mem};
+use std::{fmt, io, mem, ops::Deref};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -15,9 +15,9 @@ pub(crate) struct Pixel {
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RgbaIcon {
-    pub(crate) rgba: Vec<u8>,
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct RgbaIcon<I: Deref<Target=[u8]>> {
+    pub(crate) rgba: I,
     pub(crate) size: PhysicalSize<u32>,
     pub(crate) hot_spot: PhysicalPosition<u32>,
 }
@@ -30,7 +30,7 @@ pub(crate) struct NoIcon;
 mod constructors {
     use super::*;
 
-    impl RgbaIcon {
+    impl<I: Deref<Target=[u8]>> RgbaIcon<I> {
         /// Creates an `Icon` from 32bpp RGBA data.
         ///
         /// This function will never fails, but returns a `Result` for `PlatformIcon::from_rgba`
@@ -39,7 +39,7 @@ mod constructors {
         /// ## Panics
         /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't
         /// equal `rgba.len() / 4`.
-        pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
+        pub fn from_rgba(rgba: I, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
             Self::from_rgba_with_hot_spot(
                 rgba,
                 size,
@@ -48,7 +48,7 @@ mod constructors {
         }
 
         pub fn from_rgba_with_hot_spot(
-            rgba: Vec<u8>,
+            rgba: I,
             size: PhysicalSize<u32>,
             hot_spot: PhysicalPosition<u32>
         ) -> Result<Self, io::Error> {
@@ -111,9 +111,9 @@ impl Icon {
     /// ## Panics
     /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't equal
     /// `rgba.len() / 4`.
-    pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
+    pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
         Ok(Icon {
-            inner: PlatformIcon::from_rgba(rgba, size)?,
+            inner: PlatformIcon::from_rgba(rgba.into(), size)?,
         })
     }
 
@@ -125,12 +125,12 @@ impl Icon {
     /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't equal
     /// `rgba.len() / 4`.
     pub fn from_rgba_with_hot_spot(
-        rgba: Vec<u8>,
+        rgba: &[u8],
         size: PhysicalSize<u32>,
         hot_spot: PhysicalPosition<u32>
     ) -> Result<Self, io::Error> {
         Ok(Icon {
-            inner: PlatformIcon::from_rgba_with_hot_spot(rgba, size, hot_spot)?,
+            inner: PlatformIcon::from_rgba_with_hot_spot(rgba.into(), size, hot_spot)?,
         })
     }
 }
