@@ -149,7 +149,7 @@ impl WinIcon {
     }
 
     pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
-        RgbaIcon::from_rgba(rgba, size)
+        RgbaIcon::from_rgba(rgba, size)?
             .into_windows_icon()
     }
 
@@ -158,7 +158,7 @@ impl WinIcon {
         size: PhysicalSize<u32>,
         hot_spot: PhysicalPosition<u32>
     ) -> Result<Self, io::Error> {
-        RgbaIcon::from_rgba_with_hot_spot(rgba, size, hot_spot)
+        RgbaIcon::from_rgba_with_hot_spot(rgba, size, hot_spot)?
             .into_windows_icon()
     }
 

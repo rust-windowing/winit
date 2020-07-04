@@ -33,10 +33,13 @@ mod constructors {
     impl RgbaIcon {
         /// Creates an `Icon` from 32bpp RGBA data.
         ///
+        /// This function will never fails, but returns a `Result` for `PlatformIcon::from_rgba`
+        /// compatibility.
+        ///
         /// ## Panics
-        /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't equal
-        /// `rgba.len() / 4`.
-        pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Self {
+        /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't
+        /// equal `rgba.len() / 4`.
+        pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
             Self::from_rgba_with_hot_spot(
                 rgba,
                 size,
@@ -48,7 +51,7 @@ mod constructors {
             rgba: Vec<u8>,
             size: PhysicalSize<u32>,
             hot_spot: PhysicalPosition<u32>
-        ) -> Self {
+        ) -> Result<Self, io::Error> {
             let PhysicalSize{ width, height } = size;
             if rgba.len() % PIXEL_SIZE != 0 {
                 panic!(
@@ -67,17 +70,25 @@ mod constructors {
                 )
             }
 
-            RgbaIcon {
+            Ok(RgbaIcon {
                 rgba,
                 size,
                 hot_spot,
-            }
+            })
         }
     }
 
     impl NoIcon {
-        pub fn from_rgba(_rgba: Vec<u8>, _size: PhysicalSize<u32>) -> Self {
-            NoIcon
+        pub fn from_rgba(_rgba: Vec<u8>, _size: PhysicalSize<u32>) -> Result<Self, io::Error> {
+            Ok(NoIcon)
+        }
+
+        pub fn from_rgba_with_hot_spot(
+            _rgba: Vec<u8>,
+            _size: PhysicalSize<u32>,
+            _hot_spot: PhysicalPosition<u32>
+        ) -> Result<Self, io::Error> {
+            Ok(NoIcon)
         }
     }
 }
