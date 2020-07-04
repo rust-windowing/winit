@@ -53,5 +53,5 @@ fn load_icon(path: &Path) -> Icon {
 
         (rgba, PhysicalSize::new(info.width, info.height))
     };
-    Icon::from_rgba(icon_rgba, icon_size).expect("Failed to open icon")
+    Icon::from_rgba(&icon_rgba, icon_size).expect("Failed to open icon")
 }

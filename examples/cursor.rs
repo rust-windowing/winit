@@ -28,7 +28,7 @@ fn main() {
             (rgba, PhysicalSize::new(info.width, info.height))
         };
         Icon::from_rgba_with_hot_spot(
-            icon_rgba,
+            &icon_rgba,
             icon_size,
             PhysicalPosition::new(2, 10),
         ).expect("Failed to open icon")
