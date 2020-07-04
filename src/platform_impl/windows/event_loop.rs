@@ -4,6 +4,7 @@ mod runner;
 
 use parking_lot::Mutex;
 use std::{
+    collections::VecDeque,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
@@ -38,7 +39,8 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-        monitor, raw_input, util,
+        monitor::{self, MonitorHandle},
+        raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
@@ -246,6 +248,15 @@ impl<T> EventLoopWindowTarget<T> {
             thread_id: self.thread_id,
             target_window: self.thread_msg_target,
         }
+    }
+
+    // TODO: Investigate opportunities for caching
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        monitor::available_monitors()
+    }
+
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        monitor::primary_monitor()
     }
 }
 
@@ -851,7 +862,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                 window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
                             }
                             *fullscreen_monitor = crate::monitor::MonitorHandle {
-                                inner: monitor::MonitorHandle::new(new_monitor),
+                                inner: MonitorHandle::new(new_monitor),
                             };
                         }
                     }

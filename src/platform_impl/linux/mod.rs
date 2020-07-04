@@ -602,35 +602,6 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))
     }
 
-    #[inline]
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        match *self {
-            #[cfg(feature = "wayland")]
-            EventLoop::Wayland(ref evlp) => evlp
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::Wayland)
-                .collect(),
-            #[cfg(feature = "x11")]
-            EventLoop::X(ref evlp) => evlp
-                .x_connection()
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::X)
-                .collect(),
-        }
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        match *self {
-            #[cfg(feature = "wayland")]
-            EventLoop::Wayland(ref evlp) => MonitorHandle::Wayland(evlp.primary_monitor()),
-            #[cfg(feature = "x11")]
-            EventLoop::X(ref evlp) => MonitorHandle::X(evlp.x_connection().primary_monitor()),
-        }
-    }
-
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
@@ -675,6 +646,39 @@ impl<T> EventLoopWindowTarget<T> {
             EventLoopWindowTarget::Wayland(_) => true,
             #[cfg(feature = "x11")]
             _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        match *self {
+            #[cfg(feature = "wayland")]
+            EventLoopWindowTarget::Wayland(ref evlp) => evlp
+                .available_monitors()
+                .into_iter()
+                .map(MonitorHandle::Wayland)
+                .collect(),
+            #[cfg(feature = "x11")]
+            EventLoopWindowTarget::X(ref evlp) => evlp
+                .x_connection()
+                .available_monitors()
+                .into_iter()
+                .map(MonitorHandle::X)
+                .collect(),
+        }
+    }
+
+    #[inline]
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        match *self {
+            #[cfg(feature = "wayland")]
+            EventLoopWindowTarget::Wayland(ref evlp) => {
+                MonitorHandle::Wayland(evlp.primary_monitor())
+            }
+            #[cfg(feature = "x11")]
+            EventLoopWindowTarget::X(ref evlp) => {
+                MonitorHandle::X(evlp.x_connection().primary_monitor())
+            }
         }
     }
 }

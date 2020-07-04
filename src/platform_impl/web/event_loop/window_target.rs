@@ -1,9 +1,10 @@
-use super::{backend, device, proxy::Proxy, runner, window};
+use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
 use crate::window::{Theme, WindowId};
 use std::clone::Clone;
+use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
@@ -212,5 +213,13 @@ impl<T> WindowTarget<T> {
                 event: WindowEvent::ThemeChanged(theme),
             });
         });
+    }
+
+    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
+        VecDeque::new().into_iter()
+    }
+
+    pub fn primary_monitor(&self) -> monitor::Handle {
+        monitor::Handle
     }
 }

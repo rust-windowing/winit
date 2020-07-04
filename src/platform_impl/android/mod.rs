@@ -295,16 +295,6 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
-    }
-
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        let mut v = VecDeque::with_capacity(1);
-        v.push_back(self.primary_monitor());
-        v
-    }
-
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             queue: self.user_queue.clone(),
@@ -337,6 +327,18 @@ impl<T> Clone for EventLoopProxy<T> {
 
 pub struct EventLoopWindowTarget<T: 'static> {
     _marker: std::marker::PhantomData<T>,
+}
+
+impl<T: 'static> EventLoopWindowTarget<T> {
+    pub fn primary_monitor(&self) -> MonitorHandle {
+        MonitorHandle
+    }
+
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        let mut v = VecDeque::with_capacity(1);
+        v.push_back(self.primary_monitor());
+        v
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]

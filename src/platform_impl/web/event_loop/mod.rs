@@ -27,14 +27,6 @@ impl<T> EventLoop<T> {
         }
     }
 
-    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
-        VecDeque::new().into_iter()
-    }
-
-    pub fn primary_monitor(&self) -> monitor::Handle {
-        monitor::Handle
-    }
-
     pub fn run<F>(self, mut event_handler: F) -> !
     where
         F: 'static

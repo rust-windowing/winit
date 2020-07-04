@@ -155,11 +155,20 @@ impl<T> EventLoop<T> {
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }
+}
 
+impl<T> Deref for EventLoop<T> {
+    type Target = EventLoopWindowTarget<T>;
+    fn deref(&self) -> &EventLoopWindowTarget<T> {
+        self.event_loop.window_target()
+    }
+}
+
+impl<T> EventLoopWindowTarget<T> {
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.event_loop
+        self.p
             .available_monitors()
             .into_iter()
             .map(|inner| MonitorHandle { inner })
@@ -169,15 +178,8 @@ impl<T> EventLoop<T> {
     #[inline]
     pub fn primary_monitor(&self) -> MonitorHandle {
         MonitorHandle {
-            inner: self.event_loop.primary_monitor(),
+            inner: self.p.primary_monitor(),
         }
-    }
-}
-
-impl<T> Deref for EventLoop<T> {
-    type Target = EventLoopWindowTarget<T>;
-    fn deref(&self) -> &EventLoopWindowTarget<T> {
-        self.event_loop.window_target()
     }
 }
 
