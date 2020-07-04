@@ -1,7 +1,10 @@
 #![cfg(target_os = "windows")]
 
-use std::os::raw::c_void;
-use std::path::Path;
+use std::{
+    os::raw::c_void,
+    path::Path,
+    io,
+};
 
 use libc;
 use winapi::shared::minwindef::WORD;
@@ -13,7 +16,7 @@ use crate::{
     event_loop::EventLoop,
     monitor::MonitorHandle,
     platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
-    window::{BadIcon, Icon, Window, WindowBuilder},
+    window::{Icon, Window, WindowBuilder},
 };
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -199,7 +202,7 @@ pub trait IconExtWindows: Sized {
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
     fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>)
-        -> Result<Self, BadIcon>;
+        -> Result<Self, io::Error>;
 
     /// Create an icon from a resource embedded in this executable or library.
     ///
@@ -208,19 +211,19 @@ pub trait IconExtWindows: Sized {
     ///
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
+    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, io::Error>;
 }
 
 impl IconExtWindows for Icon {
     fn from_path<P: AsRef<Path>>(
         path: P,
         size: Option<PhysicalSize<u32>>,
-    ) -> Result<Self, BadIcon> {
+    ) -> Result<Self, io::Error> {
         let win_icon = WinIcon::from_path(path, size)?;
         Ok(Icon { inner: win_icon })
     }
 
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
+    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, io::Error> {
         let win_icon = WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
     }

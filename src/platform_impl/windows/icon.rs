@@ -20,7 +20,7 @@ impl Pixel {
 }
 
 impl RgbaIcon {
-    fn into_windows_icon(self) -> Result<WinIcon, BadIcon> {
+    fn into_windows_icon(self) -> Result<WinIcon, io::Error> {
         let mut rgba = self.rgba;
         let pixel_count = rgba.len() / PIXEL_SIZE;
         let mut and_mask = Vec::with_capacity(pixel_count);
@@ -45,7 +45,7 @@ impl RgbaIcon {
         if !handle.is_null() {
             Ok(WinIcon::from_handle(handle))
         } else {
-            Err(BadIcon::OsError(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 }
@@ -76,7 +76,7 @@ impl WinIcon {
     pub fn from_path<P: AsRef<Path>>(
         path: P,
         size: Option<PhysicalSize<u32>>,
-    ) -> Result<Self, BadIcon> {
+    ) -> Result<Self, io::Error> {
         let wide_path: Vec<u16> = path
             .as_ref()
             .as_os_str()
@@ -100,14 +100,14 @@ impl WinIcon {
         if !handle.is_null() {
             Ok(WinIcon::from_handle(handle))
         } else {
-            Err(BadIcon::OsError(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 
     pub fn from_resource(
         resource_id: WORD,
         size: Option<PhysicalSize<u32>>,
-    ) -> Result<Self, BadIcon> {
+    ) -> Result<Self, io::Error> {
         // width / height of 0 along with LR_DEFAULTSIZE tells windows to load the default icon size
         let (width, height) = size.map(Into::into).unwrap_or((0, 0));
         let handle = unsafe {
@@ -123,13 +123,13 @@ impl WinIcon {
         if !handle.is_null() {
             Ok(WinIcon::from_handle(handle))
         } else {
-            Err(BadIcon::OsError(io::Error::last_os_error()))
+            Err(io::Error::last_os_error())
         }
     }
 
-    pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        let rgba_icon = RgbaIcon::from_rgba(rgba, width, height)?;
-        rgba_icon.into_windows_icon()
+    pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, io::Error> {
+        RgbaIcon::from_rgba(rgba, width, height)
+            .into_windows_icon()
     }
 
     pub fn set_for_window(&self, hwnd: HWND, icon_type: IconType) {
