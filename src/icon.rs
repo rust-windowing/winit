@@ -15,11 +15,26 @@ pub(crate) struct Pixel {
 
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) struct RgbaIcon<I: Deref<Target = [u8]>> {
     pub(crate) rgba: I,
     pub(crate) size: PhysicalSize<u32>,
     pub(crate) hot_spot: PhysicalPosition<u32>,
+}
+
+impl<I: Deref<Target = [u8]>> fmt::Debug for RgbaIcon<I> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        let RgbaIcon {
+            rgba,
+            size,
+            hot_spot,
+        } = self;
+        f.debug_struct("RgbaIcon")
+            .field("size", &size)
+            .field("hot_spot", &hot_spot)
+            .field("rgba", &(&**rgba as *const [u8]))
+            .finish()
+    }
 }
 
 /// For platforms which don't have window icons (e.g. web)
