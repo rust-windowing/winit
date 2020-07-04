@@ -1,5 +1,5 @@
 use crate::{
-    dpi::{PhysicalSize, PhysicalPosition},
+    dpi::{PhysicalPosition, PhysicalSize},
     platform_impl::PlatformIcon,
 };
 use std::{fmt, io, mem, ops::Deref};
@@ -16,7 +16,7 @@ pub(crate) struct Pixel {
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub(crate) struct RgbaIcon<I: Deref<Target=[u8]>> {
+pub(crate) struct RgbaIcon<I: Deref<Target = [u8]>> {
     pub(crate) rgba: I,
     pub(crate) size: PhysicalSize<u32>,
     pub(crate) hot_spot: PhysicalPosition<u32>,
@@ -30,7 +30,7 @@ pub(crate) struct NoIcon;
 mod constructors {
     use super::*;
 
-    impl<I: Deref<Target=[u8]>> RgbaIcon<I> {
+    impl<I: Deref<Target = [u8]>> RgbaIcon<I> {
         /// Creates an `Icon` from 32bpp RGBA data.
         ///
         /// This function will never fails, but returns a `Result` for `PlatformIcon::from_rgba`
@@ -50,9 +50,9 @@ mod constructors {
         pub fn from_rgba_with_hot_spot(
             rgba: I,
             size: PhysicalSize<u32>,
-            hot_spot: PhysicalPosition<u32>
+            hot_spot: PhysicalPosition<u32>,
         ) -> Result<Self, io::Error> {
-            let PhysicalSize{ width, height } = size;
+            let PhysicalSize { width, height } = size;
             if rgba.len() % PIXEL_SIZE != 0 {
                 panic!(
                     "The length of the `rgba` argument ({:?}) isn't divisible by 4, making \
@@ -66,7 +66,10 @@ mod constructors {
                     "The specified dimensions ({:?}x{:?}) don't match the number of pixels \
                     supplied by the `rgba` argument ({:?}). For those dimensions, the expected \
                     pixel count is {:?}.",
-                    width, height, pixel_count, width * height,
+                    width,
+                    height,
+                    pixel_count,
+                    width * height,
                 )
             }
 
@@ -86,7 +89,7 @@ mod constructors {
         pub fn from_rgba_with_hot_spot(
             _rgba: Vec<u8>,
             _size: PhysicalSize<u32>,
-            _hot_spot: PhysicalPosition<u32>
+            _hot_spot: PhysicalPosition<u32>,
         ) -> Result<Self, io::Error> {
             Ok(NoIcon)
         }
@@ -127,7 +130,7 @@ impl Icon {
     pub fn from_rgba_with_hot_spot(
         rgba: &[u8],
         size: PhysicalSize<u32>,
-        hot_spot: PhysicalPosition<u32>
+        hot_spot: PhysicalPosition<u32>,
     ) -> Result<Self, io::Error> {
         Ok(Icon {
             inner: PlatformIcon::from_rgba_with_hot_spot(rgba.into(), size, hot_spot)?,

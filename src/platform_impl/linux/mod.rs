@@ -9,10 +9,10 @@
 #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+use std::sync::Arc;
 use std::{collections::VecDeque, env, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*};
-use std::sync::Arc;
 
 #[cfg(feature = "x11")]
 use parking_lot::Mutex;

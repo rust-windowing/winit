@@ -10,7 +10,7 @@ use winapi::{
     um::{wingdi, winuser},
 };
 
-use crate::dpi::{PhysicalSize, PhysicalPosition};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
 use crate::icon::*;
 
 impl Pixel {
@@ -36,13 +36,15 @@ impl RgbaIcon<Box<[u8]>> {
             let width = self.size.width as c_int;
             let height = self.size.height as c_int;
             let and_bitmap = wingdi::CreateBitmap(
-                width, height,
+                width,
+                height,
                 1,
                 (PIXEL_SIZE * 8) as UINT,
                 and_mask.as_ptr() as *const _,
             );
             let color_bitmap = wingdi::CreateBitmap(
-                width, height,
+                width,
+                height,
                 1,
                 (PIXEL_SIZE * 8) as UINT,
                 rgba.as_ptr() as *const _,
@@ -149,17 +151,15 @@ impl WinIcon {
     }
 
     pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
-        RgbaIcon::from_rgba(Box::from(rgba), size)?
-            .into_windows_icon()
+        RgbaIcon::from_rgba(Box::from(rgba), size)?.into_windows_icon()
     }
 
     pub fn from_rgba_with_hot_spot(
         rgba: &[u8],
         size: PhysicalSize<u32>,
-        hot_spot: PhysicalPosition<u32>
+        hot_spot: PhysicalPosition<u32>,
     ) -> Result<Self, io::Error> {
-        RgbaIcon::from_rgba_with_hot_spot(Box::from(rgba), size, hot_spot)?
-            .into_windows_icon()
+        RgbaIcon::from_rgba_with_hot_spot(Box::from(rgba), size, hot_spot)?.into_windows_icon()
     }
 
     pub fn set_for_window(&self, hwnd: HWND, icon_type: IconType) {

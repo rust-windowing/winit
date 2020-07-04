@@ -230,7 +230,7 @@ impl CursorIcon {
 
         hcursor.map_or_else(
             |icon| icon.inner.as_raw_handle() as HCURSOR,
-            |cursor_name| unsafe{ winuser::LoadCursorW(ptr::null_mut(), cursor_name) }
+            |cursor_name| unsafe { winuser::LoadCursorW(ptr::null_mut(), cursor_name) },
         )
     }
 }

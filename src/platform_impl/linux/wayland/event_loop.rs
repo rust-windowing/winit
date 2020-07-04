@@ -162,8 +162,7 @@ impl CursorManager {
             CursorIcon::Cell => "plus",
             CursorIcon::Copy => "copy",
             CursorIcon::Crosshair => "crosshair",
-            CursorIcon::Custom(_) |
-            CursorIcon::Default => "left_ptr",
+            CursorIcon::Custom(_) | CursorIcon::Default => "left_ptr",
             CursorIcon::Hand => "hand",
             CursorIcon::Help => "question_arrow",
             CursorIcon::Move => "move",

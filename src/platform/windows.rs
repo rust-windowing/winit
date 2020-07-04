@@ -1,10 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use std::{
-    os::raw::c_void,
-    path::Path,
-    io,
-};
+use std::{io, os::raw::c_void, path::Path};
 
 use libc;
 use winapi::shared::minwindef::WORD;
@@ -201,8 +197,10 @@ pub trait IconExtWindows: Sized {
     ///
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
-    fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>)
-        -> Result<Self, io::Error>;
+    fn from_path<P: AsRef<Path>>(
+        path: P,
+        size: Option<PhysicalSize<u32>>,
+    ) -> Result<Self, io::Error>;
 
     /// Create an icon from a resource embedded in this executable or library.
     ///

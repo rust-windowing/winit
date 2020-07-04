@@ -126,8 +126,7 @@ impl Window {
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let text = match cursor {
-            CursorIcon::Custom(_) |
-            CursorIcon::Default => "auto",
+            CursorIcon::Custom(_) | CursorIcon::Default => "auto",
             CursorIcon::Crosshair => "crosshair",
             CursorIcon::Hand => "pointer",
             CursorIcon::Arrow => "default",

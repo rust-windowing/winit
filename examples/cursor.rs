@@ -1,6 +1,6 @@
 use std::fs::File;
 use winit::{
-    dpi::{PhysicalSize, PhysicalPosition},
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{CursorIcon, Icon, WindowBuilder},
@@ -27,11 +27,8 @@ fn main() {
 
             (rgba, PhysicalSize::new(info.width, info.height))
         };
-        Icon::from_rgba_with_hot_spot(
-            &icon_rgba,
-            icon_size,
-            PhysicalPosition::new(2, 10),
-        ).expect("Failed to open icon")
+        Icon::from_rgba_with_hot_spot(&icon_rgba, icon_size, PhysicalPosition::new(2, 10))
+            .expect("Failed to open icon")
     };
 
     let cursors = vec![

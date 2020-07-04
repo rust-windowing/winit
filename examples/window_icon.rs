@@ -1,4 +1,4 @@
-use std::{path::Path, fs::File};
+use std::{fs::File, path::Path};
 use winit::{
     dpi::PhysicalSize,
     event::Event,

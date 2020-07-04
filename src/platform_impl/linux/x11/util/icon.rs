@@ -21,7 +21,10 @@ impl Icon {
         let rgba_icon = &self.inner;
         assert_eq!(rgba_icon.rgba.len() % PIXEL_SIZE, 0);
         let pixel_count = rgba_icon.rgba.len() / PIXEL_SIZE;
-        assert_eq!(pixel_count, (rgba_icon.size.width * rgba_icon.size.height) as usize);
+        assert_eq!(
+            pixel_count,
+            (rgba_icon.size.width * rgba_icon.size.height) as usize
+        );
         let mut data = Vec::with_capacity(pixel_count);
         data.push(rgba_icon.size.width as Cardinal);
         data.push(rgba_icon.size.height as Cardinal);
