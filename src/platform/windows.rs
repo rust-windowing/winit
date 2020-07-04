@@ -81,9 +81,6 @@ pub trait WindowExtWindows {
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
-    /// Sets the cursor to a custom icon.
-    fn set_cursor_custom_icon(&self, icon: Icon);
-
     /// Whether the system theme is currently Windows 10's "Dark Mode".
     fn is_dark_mode(&self) -> bool;
 }
@@ -102,11 +99,6 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         self.window.set_taskbar_icon(taskbar_icon)
-    }
-    
-    #[inline]
-    fn set_cursor_custom_icon(&self, icon: Icon) {
-        self.window.set_cursor_custom_icon(icon);
     }
 
     #[inline]

@@ -11,7 +11,7 @@ use winapi::{
     ctypes::wchar_t,
     shared::{
         minwindef::{BOOL, DWORD, UINT},
-        windef::{DPI_AWARENESS_CONTEXT, HMONITOR, HWND, LPRECT, RECT},
+        windef::{DPI_AWARENESS_CONTEXT, HCURSOR, HMONITOR, HWND, LPRECT, RECT},
     },
     um::{
         libloaderapi::{GetProcAddress, LoadLibraryA},
@@ -197,35 +197,41 @@ pub fn is_focused(window: HWND) -> bool {
 }
 
 impl CursorIcon {
-    pub(crate) fn to_windows_cursor(self) -> *const wchar_t {
-        match self {
-            CursorIcon::Arrow | CursorIcon::Default => winuser::IDC_ARROW,
-            CursorIcon::Hand => winuser::IDC_HAND,
-            CursorIcon::Crosshair => winuser::IDC_CROSS,
-            CursorIcon::Text | CursorIcon::VerticalText => winuser::IDC_IBEAM,
-            CursorIcon::NotAllowed | CursorIcon::NoDrop => winuser::IDC_NO,
+    pub(crate) fn to_windows_cursor(&self) -> HCURSOR {
+        let hcursor = match self {
+            CursorIcon::Arrow | CursorIcon::Default => Ok(winuser::IDC_ARROW),
+            CursorIcon::Hand => Ok(winuser::IDC_HAND),
+            CursorIcon::Crosshair => Ok(winuser::IDC_CROSS),
+            CursorIcon::Text | CursorIcon::VerticalText => Ok(winuser::IDC_IBEAM),
+            CursorIcon::NotAllowed | CursorIcon::NoDrop => Ok(winuser::IDC_NO),
             CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
-                winuser::IDC_SIZEALL
+                Ok(winuser::IDC_SIZEALL)
             }
             CursorIcon::EResize
             | CursorIcon::WResize
             | CursorIcon::EwResize
-            | CursorIcon::ColResize => winuser::IDC_SIZEWE,
+            | CursorIcon::ColResize => Ok(winuser::IDC_SIZEWE),
             CursorIcon::NResize
             | CursorIcon::SResize
             | CursorIcon::NsResize
-            | CursorIcon::RowResize => winuser::IDC_SIZENS,
+            | CursorIcon::RowResize => Ok(winuser::IDC_SIZENS),
             CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => {
-                winuser::IDC_SIZENESW
+                Ok(winuser::IDC_SIZENESW)
             }
             CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => {
-                winuser::IDC_SIZENWSE
+                Ok(winuser::IDC_SIZENWSE)
             }
-            CursorIcon::Wait => winuser::IDC_WAIT,
-            CursorIcon::Progress => winuser::IDC_APPSTARTING,
-            CursorIcon::Help => winuser::IDC_HELP,
-            _ => winuser::IDC_ARROW, // use arrow for the missing cases.
-        }
+            CursorIcon::Wait => Ok(winuser::IDC_WAIT),
+            CursorIcon::Progress => Ok(winuser::IDC_APPSTARTING),
+            CursorIcon::Help => Ok(winuser::IDC_HELP),
+            CursorIcon::Custom(icon) => Err(icon),
+            _ => Ok(winuser::IDC_ARROW), // use arrow for the missing cases).
+        };
+
+        hcursor.map_or_else(
+            |icon| icon.inner.as_raw_handle() as HCURSOR,
+            |cursor_name| unsafe{ winuser::LoadCursorW(ptr::null_mut(), cursor_name) }
+        )
     }
 }
 

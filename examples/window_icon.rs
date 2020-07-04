@@ -4,7 +4,6 @@ use winit::{
     event::Event,
     event_loop::{ControlFlow, EventLoop},
     window::{Icon, WindowBuilder},
-    platform::windows::WindowExtWindows,
 };
 
 fn main() {
@@ -27,7 +26,6 @@ fn main() {
         .with_window_icon(Some(icon))
         .build(&event_loop)
         .unwrap();
-    window.set_cursor_custom_icon(load_icon(Path::new(&path)));
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;

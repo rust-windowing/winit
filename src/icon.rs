@@ -111,7 +111,7 @@ mod constructors {
 }
 
 /// An icon used for the window titlebar, taskbar, etc.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Icon {
     pub(crate) inner: PlatformIcon,
 }

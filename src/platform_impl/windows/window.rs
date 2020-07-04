@@ -41,7 +41,7 @@ use crate::{
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
         monitor, util,
-        window_state::{Cursor,CursorFlags, SavedWindow, WindowFlags, WindowState},
+        window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{CursorIcon, Fullscreen, WindowAttributes},
@@ -290,21 +290,21 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state.lock().mouse.cursor = Cursor::WindowsIcon(cursor);
+        self.window_state.lock().mouse.cursor = cursor.clone();
         self.thread_executor.execute_in_thread(move || unsafe {
-            let cursor = winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor());
+            let cursor = cursor.to_windows_cursor();
             winuser::SetCursor(cursor);
         });
     }
-    
-    #[inline]
-    pub fn set_cursor_custom_icon(&self, cursor: Icon) {
-        let raw_cursor = cursor.inner.as_raw_handle() as usize;
-        self.window_state.lock().mouse.cursor = Cursor::CustomIcon(cursor);
-        self.thread_executor.execute_in_thread(move || unsafe {
-            winuser::SetCursor(raw_cursor as _);
-        });
-    }
+
+    // #[inline]
+    // pub fn set_cursor_custom_icon(&self, cursor: Icon) {
+    //     let raw_cursor = cursor.inner.as_raw_handle() as usize;
+    //     self.window_state.lock().mouse.cursor = Cursor::CustomIcon(cursor);
+    //     self.thread_executor.execute_in_thread(move || unsafe {
+    //         winuser::SetCursor(raw_cursor as _);
+    //     });
+    // }
 
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {

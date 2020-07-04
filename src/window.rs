@@ -793,7 +793,7 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Window {
 }
 
 /// Describes the appearance of the mouse cursor.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorIcon {
     /// The platform-dependent default cursor.
@@ -849,6 +849,8 @@ pub enum CursorIcon {
     NwseResize,
     ColResize,
     RowResize,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    Custom(Icon),
 }
 
 impl Default for CursorIcon {
