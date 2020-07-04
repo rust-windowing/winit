@@ -3,14 +3,14 @@ use std::{fmt, io, iter::once, mem, os::windows::ffi::OsStrExt, path::Path, ptr,
 use winapi::{
     ctypes::{c_int, wchar_t},
     shared::{
-        minwindef::{BYTE, LPARAM, WORD, WPARAM},
+        minwindef::{LPARAM, UINT, WORD, WPARAM},
         windef::{HICON, HWND},
     },
     um::libloaderapi,
-    um::winuser,
+    um::{wingdi, winuser},
 };
 
-use crate::dpi::PhysicalSize;
+use crate::dpi::{PhysicalSize, PhysicalPosition};
 use crate::icon::*;
 
 impl Pixel {
@@ -21,31 +21,52 @@ impl Pixel {
 
 impl RgbaIcon {
     fn into_windows_icon(self) -> Result<WinIcon, io::Error> {
-        let mut rgba = self.rgba;
-        let pixel_count = rgba.len() / PIXEL_SIZE;
-        let mut and_mask = Vec::with_capacity(pixel_count);
-        let pixels =
-            unsafe { std::slice::from_raw_parts_mut(rgba.as_mut_ptr() as *mut Pixel, pixel_count) };
-        for pixel in pixels {
-            and_mask.push(pixel.a.wrapping_sub(std::u8::MAX)); // invert alpha channel
-            pixel.to_bgra();
-        }
-        assert_eq!(and_mask.len(), pixel_count);
-        let handle = unsafe {
-            winuser::CreateIcon(
-                ptr::null_mut(),
-                self.width as c_int,
-                self.height as c_int,
+        unsafe {
+            let mut rgba = self.rgba;
+            let pixel_count = rgba.len() / PIXEL_SIZE;
+            let mut and_mask = Vec::with_capacity(pixel_count);
+            let pixels =
+                std::slice::from_raw_parts_mut(rgba.as_mut_ptr() as *mut Pixel, pixel_count);
+            for pixel in pixels {
+                and_mask.push(pixel.a.wrapping_sub(std::u8::MAX)); // invert alpha channel
+                pixel.to_bgra();
+            }
+            assert_eq!(and_mask.len(), pixel_count);
+
+            let width = self.size.width as c_int;
+            let height = self.size.height as c_int;
+            let and_bitmap = wingdi::CreateBitmap(
+                width, height,
                 1,
-                (PIXEL_SIZE * 8) as BYTE,
-                and_mask.as_ptr() as *const BYTE,
-                rgba.as_ptr() as *const BYTE,
-            ) as HICON
-        };
-        if !handle.is_null() {
-            Ok(WinIcon::from_handle(handle))
-        } else {
-            Err(io::Error::last_os_error())
+                (PIXEL_SIZE * 8) as UINT,
+                and_mask.as_ptr() as *const _,
+            );
+            let color_bitmap = wingdi::CreateBitmap(
+                width, height,
+                1,
+                (PIXEL_SIZE * 8) as UINT,
+                rgba.as_ptr() as *const _,
+            );
+
+            let mut icon_info = winuser::ICONINFO {
+                // technically a value of 0 means this is always a cursor even for window icons
+                // but it doesn't seem to cause any issues so ¯\_(ツ)_/¯
+                fIcon: 0,
+                xHotspot: self.hot_spot.x,
+                yHotspot: self.hot_spot.y,
+                hbmMask: and_bitmap,
+                hbmColor: color_bitmap,
+            };
+            let handle = winuser::CreateIconIndirect(&mut icon_info);
+
+            wingdi::DeleteObject(and_bitmap as _);
+            wingdi::DeleteObject(color_bitmap as _);
+
+            if !handle.is_null() {
+                Ok(WinIcon::from_handle(handle))
+            } else {
+                Err(io::Error::last_os_error())
+            }
         }
     }
 }
@@ -129,6 +150,15 @@ impl WinIcon {
 
     pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
         RgbaIcon::from_rgba(rgba, size)
+            .into_windows_icon()
+    }
+
+    pub fn from_rgba_with_hot_spot(
+        rgba: Vec<u8>,
+        size: PhysicalSize<u32>,
+        hot_spot: PhysicalPosition<u32>
+    ) -> Result<Self, io::Error> {
+        RgbaIcon::from_rgba_with_hot_spot(rgba, size, hot_spot)
             .into_windows_icon()
     }
 

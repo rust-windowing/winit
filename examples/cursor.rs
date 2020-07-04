@@ -1,5 +1,6 @@
-use std::path::Path;
+use std::fs::File;
 use winit::{
+    dpi::{PhysicalSize, PhysicalPosition},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{CursorIcon, Icon, WindowBuilder},
@@ -15,20 +16,26 @@ fn main() {
     let mut cursor_idx = 0;
 
     let custom_cursor_icon = {
-        let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icon.png"));
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icon.png");
 
-        let (icon_rgba, icon_width, icon_height) = {
-            let image = image::open(path)
-                .expect("Failed to open icon path")
-                .into_rgba();
-            let (width, height) = image.dimensions();
-            let rgba = image.into_raw();
-            (rgba, width, height)
+        let (icon_rgba, icon_size) = {
+            let decoder = png::Decoder::new(File::open(path).expect("Failed to open icon path"));
+            let (info, mut reader) = decoder.read_info().expect("Failed to decode icon PNG");
+
+            let mut rgba = vec![0; info.buffer_size()];
+            reader.next_frame(&mut rgba).unwrap();
+
+            (rgba, PhysicalSize::new(info.width, info.height))
         };
-        Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
+        Icon::from_rgba_with_hot_spot(
+            icon_rgba,
+            icon_size,
+            PhysicalPosition::new(2, 10),
+        ).expect("Failed to open icon")
     };
 
     let cursors = vec![
+        CursorIcon::Custom(custom_cursor_icon),
         CursorIcon::Default,
         CursorIcon::Crosshair,
         CursorIcon::Hand,
@@ -64,7 +71,6 @@ fn main() {
         CursorIcon::NwseResize,
         CursorIcon::ColResize,
         CursorIcon::RowResize,
-        CursorIcon::Custom(custom_cursor_icon),
     ];
 
     event_loop.run(move |event, _, control_flow| {

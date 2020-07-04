@@ -1,6 +1,6 @@
-extern crate image;
-use std::path::Path;
+use std::{path::Path, fs::File};
 use winit::{
+    dpi::PhysicalSize,
     event::Event,
     event_loop::{ControlFlow, EventLoop},
     window::{Icon, WindowBuilder},
@@ -44,13 +44,14 @@ fn main() {
 }
 
 fn load_icon(path: &Path) -> Icon {
-    let (icon_rgba, icon_width, icon_height) = {
-        let image = image::open(path)
-            .expect("Failed to open icon path")
-            .into_rgba();
-        let (width, height) = image.dimensions();
-        let rgba = image.into_raw();
-        (rgba, width, height)
+    let (icon_rgba, icon_size) = {
+        let decoder = png::Decoder::new(File::open(path).expect("Failed to open icon path"));
+        let (info, mut reader) = decoder.read_info().expect("Failed to decode icon PNG");
+
+        let mut rgba = vec![0; info.buffer_size()];
+        reader.next_frame(&mut rgba).unwrap();
+
+        (rgba, PhysicalSize::new(info.width, info.height))
     };
-    Icon::from_rgba(icon_rgba, icon_width, icon_height).expect("Failed to open icon")
+    Icon::from_rgba(icon_rgba, icon_size).expect("Failed to open icon")
 }

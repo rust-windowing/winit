@@ -1,5 +1,5 @@
 use crate::{
-    dpi::PhysicalSize,
+    dpi::{PhysicalSize, PhysicalPosition},
     platform_impl::PlatformIcon,
 };
 use std::{fmt, io, mem};
@@ -18,8 +18,8 @@ pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RgbaIcon {
     pub(crate) rgba: Vec<u8>,
-    pub(crate) width: u32,
-    pub(crate) height: u32,
+    pub(crate) size: PhysicalSize<u32>,
+    pub(crate) hot_spot: PhysicalPosition<u32>,
 }
 
 /// For platforms which don't have window icons (e.g. web)
@@ -34,9 +34,21 @@ mod constructors {
         /// Creates an `Icon` from 32bpp RGBA data.
         ///
         /// ## Panics
-        /// Panics if the length of `rgba` must be divisible by 4, and `width * height` must equal
+        /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't equal
         /// `rgba.len() / 4`.
         pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Self {
+            Self::from_rgba_with_hot_spot(
+                rgba,
+                size,
+                PhysicalPosition::new(size.width / 2, size.height / 2),
+            )
+        }
+
+        pub fn from_rgba_with_hot_spot(
+            rgba: Vec<u8>,
+            size: PhysicalSize<u32>,
+            hot_spot: PhysicalPosition<u32>
+        ) -> Self {
             let PhysicalSize{ width, height } = size;
             if rgba.len() % PIXEL_SIZE != 0 {
                 panic!(
@@ -53,12 +65,12 @@ mod constructors {
                     pixel count is {:?}.",
                     width, height, pixel_count, width * height,
                 )
-            } else {
-                RgbaIcon {
-                    rgba,
-                    width,
-                    height,
-                }
+            }
+
+            RgbaIcon {
+                rgba,
+                size,
+                hot_spot,
             }
         }
     }
@@ -86,11 +98,28 @@ impl Icon {
     /// Creates an `Icon` from 32bpp RGBA data.
     ///
     /// ## Panics
-    /// Panics if the length of `rgba` must be divisible by 4, and `width * height` must equal
+    /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't equal
     /// `rgba.len() / 4`.
     pub fn from_rgba(rgba: Vec<u8>, size: PhysicalSize<u32>) -> Result<Self, io::Error> {
         Ok(Icon {
             inner: PlatformIcon::from_rgba(rgba, size)?,
+        })
+    }
+
+    /// Creates an `Icon` from 32bpp RGBA data, with a defined cursor hot spot. The hot spot is
+    /// the exact pixel in the icon image where the cursor clicking point is, and is ignored when
+    /// the icon is used as a window icon.
+    ///
+    /// ## Panics
+    /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't equal
+    /// `rgba.len() / 4`.
+    pub fn from_rgba_with_hot_spot(
+        rgba: Vec<u8>,
+        size: PhysicalSize<u32>,
+        hot_spot: PhysicalPosition<u32>
+    ) -> Result<Self, io::Error> {
+        Ok(Icon {
+            inner: PlatformIcon::from_rgba_with_hot_spot(rgba, size, hot_spot)?,
         })
     }
 }

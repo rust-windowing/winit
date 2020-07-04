@@ -297,15 +297,6 @@ impl Window {
         });
     }
 
-    // #[inline]
-    // pub fn set_cursor_custom_icon(&self, cursor: Icon) {
-    //     let raw_cursor = cursor.inner.as_raw_handle() as usize;
-    //     self.window_state.lock().mouse.cursor = Cursor::CustomIcon(cursor);
-    //     self.thread_executor.execute_in_thread(move || unsafe {
-    //         winuser::SetCursor(raw_cursor as _);
-    //     });
-    // }
-
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         let window = self.window.clone();
