@@ -1,7 +1,7 @@
 //! Types useful for interacting with a user's monitors.
 //!
 //! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_handle]
-//! type. This is retreived from one of the following methods, which return an iterator of
+//! type. This is retrieved from one of the following methods, which return an iterator of
 //! [`MonitorHandle`][monitor_handle]:
 //! - [`EventLoopWindowTarget::available_monitors`][loop_get]
 //! - [`Window::available_monitors`][window_get].
