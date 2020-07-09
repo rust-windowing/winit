@@ -28,7 +28,7 @@
 //! Some user activity, like mouse movement, can generate both a [`WindowEvent`] *and* a
 //! [`DeviceEvent`]. You can also create and handle your own custom [`UserEvent`]s, if desired.
 //!
-//! You can retreive events by calling [`EventLoop::run`][event_loop_run]. This function will
+//! You can retrieve events by calling [`EventLoop::run`][event_loop_run]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
 //! will run until the `control_flow` argument given to the closure is set to
 //! [`ControlFlow`]`::`[`Exit`], at which point [`Event`]`::`[`LoopDestroyed`] is emitted and the

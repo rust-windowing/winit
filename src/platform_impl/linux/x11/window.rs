@@ -227,7 +227,7 @@ impl UnownedWindow {
                 // is > 0, like we do in glutin.
                 //
                 // It is non obvious which masks, if any, we should pass to
-                // `XGetVisualInfo`. winit doesn't recieve any info about what
+                // `XGetVisualInfo`. winit doesn't receive any info about what
                 // properties the user wants. Users should consider choosing the
                 // visual themselves as glutin does.
                 match pl_attribs.visual_infos {
