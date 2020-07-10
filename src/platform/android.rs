@@ -4,6 +4,9 @@ use crate::{
     event_loop::{EventLoop, EventLoopWindowTarget},
     window::{Window, WindowBuilder},
 };
+
+pub use crate::platform_impl::EventLoop as AndroidEventLoop;
+
 use ndk::configuration::Configuration;
 use ndk_glue::Rect;
 
