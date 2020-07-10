@@ -271,7 +271,7 @@ pub enum WindowEvent<'a> {
     ModifiersChanged(ModifiersState),
 
     /// An event from IME
-    Composition(CompositionEvent),
+    IME(IMEEvent),
 
     /// The cursor has moved on the window.
     CursorMoved {
@@ -379,7 +379,7 @@ impl Clone for WindowEvent<'static> {
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
-            Composition(composition) => Composition(composition.clone()),
+            IME(preedit_state) => IME(preedit_state.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
             #[allow(deprecated)]
             CursorMoved {
@@ -471,7 +471,7 @@ impl<'a> WindowEvent<'a> {
                 is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
-            Composition(event) => Some(Composition(event)),
+            IME(event) => Some(IME(event)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -629,10 +629,22 @@ pub struct KeyboardInput {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum CompositionEvent {
-    CompositionStart(String),
-    CompositionUpdate(String, usize),
-    CompositionEnd(String),
+pub enum IMEEvent {
+    /// The user enables IME
+    Enabled,
+    /// Preedit session is going to begin with the value
+    PreeditStart(String),
+
+    /// The user updates preedit status on IME.
+    ///
+    /// The value represents a pair of the preedit string and the cursor position.
+    /// The cursor position is byte-wise indexed.
+    Preedit(String, Option<usize>, Option<usize>),
+
+    /// The user completes the current IME session with the value.
+    Commit(String),
+    /// The user disables IME
+    Disabled,
 }
 
 /// Describes touch-screen input state.

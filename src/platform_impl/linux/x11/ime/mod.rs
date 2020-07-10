@@ -22,6 +22,7 @@ use self::{
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImeEvent {
+    Enabled,
     Start,
     Update(String, usize),
     End,
@@ -105,6 +106,7 @@ impl Ime {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
+            self.inner.event_sender.send((window, ImeEvent::Enabled)).expect("Failed to send enabled event");
             Some(unsafe {
                 ImeContext::new(
                     &self.inner.xconn,

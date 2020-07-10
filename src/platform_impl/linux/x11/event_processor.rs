@@ -16,8 +16,8 @@ use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{
-        CompositionEvent, DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState,
-        TouchPhase, WindowEvent,
+        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, IMEEvent, TouchPhase,
+        WindowEvent,
     },
     event_loop::EventLoopWindowTarget as RootELW,
 };
@@ -1238,23 +1238,25 @@ impl<T: 'static> EventProcessor<T> {
         }
         match self.ime_event_receiver.try_recv() {
             Ok((window, event)) => match event {
+                ImeEvent::Enabled => {
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::IME(IMEEvent::Enabled),
+                    });
+                }
                 ImeEvent::Start => {
                     self.is_composing = true;
                     self.composed_text = None;
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
-                        event: WindowEvent::Composition(CompositionEvent::CompositionStart(
-                            "".to_owned(),
-                        )),
+                        event: WindowEvent::IME(IMEEvent::Preedit("".to_owned(), None, None)),
                     });
                 }
                 ImeEvent::Update(text, position) => {
                     if self.is_composing {
                         callback(Event::WindowEvent {
                             window_id: mkwid(window),
-                            event: WindowEvent::Composition(CompositionEvent::CompositionUpdate(
-                                text, position,
-                            )),
+                            event: WindowEvent::IME(IMEEvent::Preedit(text, Some(position), None)),
                         });
                     }
                 }
@@ -1262,7 +1264,7 @@ impl<T: 'static> EventProcessor<T> {
                     self.is_composing = false;
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
-                        event: WindowEvent::Composition(CompositionEvent::CompositionEnd(
+                        event: WindowEvent::IME(IMEEvent::Commit(
                             self.composed_text.take().unwrap_or("".to_owned()),
                         )),
                     });

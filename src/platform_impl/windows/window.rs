@@ -83,8 +83,8 @@ impl Window {
                     } else if ole_init_result == RPC_E_CHANGED_MODE {
                         panic!(
                             "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. \
-                            Make sure other crates are not using multithreaded COM library \
-                            on the same thread or disable drag and drop support."
+                             Make sure other crates are not using multithreaded COM library \
+                             on the same thread or disable drag and drop support."
                         );
                     }
 
