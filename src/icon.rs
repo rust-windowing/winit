@@ -111,7 +111,7 @@ mod constructors {
     }
 }
 
-/// An icon used for the window titlebar, taskbar, etc.
+/// An icon used for the window titlebar, taskbar, or cursor.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Icon {
     pub(crate) inner: PlatformIcon,
