@@ -7,7 +7,6 @@ use winapi::shared::minwindef::WORD;
 use winapi::shared::windef::HWND;
 
 use crate::{
-    dpi::PhysicalSize,
     event::DeviceId,
     event_loop::EventLoop,
     monitor::MonitorHandle,
@@ -192,37 +191,21 @@ impl DeviceIdExtWindows for DeviceId {
 pub trait IconExtWindows: Sized {
     /// Create an icon from a file path.
     ///
-    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
-    /// icon size from the file.
-    ///
-    /// In cases where the specified size does not exist in the file, Windows may perform scaling
-    /// to get an icon of the desired size.
-    fn from_path<P: AsRef<Path>>(
-        path: P,
-        size: Option<PhysicalSize<u32>>,
-    ) -> Result<Self, io::Error>;
+    /// Winit will lazily load images at different sizes from the file as needed by Windows.
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error>;
 
     /// Create an icon from a resource embedded in this executable or library.
-    ///
-    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
-    /// icon size from the file.
-    ///
-    /// In cases where the specified size does not exist in the file, Windows may perform scaling
-    /// to get an icon of the desired size.
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, io::Error>;
+    fn from_resource(ordinal: WORD) -> Result<Self, io::Error>;
 }
 
 impl IconExtWindows for Icon {
-    fn from_path<P: AsRef<Path>>(
-        path: P,
-        size: Option<PhysicalSize<u32>>,
-    ) -> Result<Self, io::Error> {
-        let win_icon = WinIcon::from_path(path, size)?;
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+        let win_icon = WinIcon::from_path(path)?;
         Ok(Icon { inner: win_icon })
     }
 
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, io::Error> {
-        let win_icon = WinIcon::from_resource(ordinal, size)?;
+    fn from_resource(ordinal: WORD) -> Result<Self, io::Error> {
+        let win_icon = WinIcon::from_resource(ordinal)?;
         Ok(Icon { inner: win_icon })
     }
 }

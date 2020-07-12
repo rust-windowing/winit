@@ -6,7 +6,11 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::{dpi::PhysicalSize, window::CursorIcon};
+use crate::{
+    dpi::{PhysicalSize, PhysicalPosition},
+    window::CursorIcon,
+    platform_impl::platform::{monitor, icon::IconSize},
+};
 use winapi::{
     ctypes::wchar_t,
     shared::{
@@ -159,6 +163,14 @@ pub fn set_cursor_hidden(hidden: bool) {
     }
 }
 
+pub fn get_cursor_position() -> PhysicalPosition<i32> {
+    unsafe {
+        let mut pos = mem::zeroed();
+        winuser::GetCursorPos(&mut pos);
+        PhysicalPosition::new(pos.x, pos.y)
+    }
+}
+
 pub fn get_cursor_clip() -> Result<RECT, io::Error> {
     unsafe {
         let mut rect: RECT = mem::zeroed();
@@ -197,7 +209,7 @@ pub fn is_focused(window: HWND) -> bool {
 }
 
 impl CursorIcon {
-    pub(crate) fn to_windows_cursor(&self) -> HCURSOR {
+    pub(crate) fn to_windows_cursor_scaled(&self) -> HCURSOR {
         let hcursor = match self {
             CursorIcon::Arrow | CursorIcon::Default => Ok(winuser::IDC_ARROW),
             CursorIcon::Hand => Ok(winuser::IDC_HAND),
@@ -229,7 +241,16 @@ impl CursorIcon {
         };
 
         hcursor.map_or_else(
-            |icon| icon.inner.as_raw_handle() as HCURSOR,
+            |icon| {
+                let cursor_position = get_cursor_position();
+                let monitor = monitor::monitor_from_position(cursor_position);
+                let scale_factor = monitor.scale_factor();
+                let icon_size = IconSize::I32;
+                println!("{:?} adjusted for {} is {:?}", IconSize::I32, scale_factor, icon_size);
+                icon.inner.as_raw_handle(icon_size)
+                    .map(|cursor| cursor  as HCURSOR)
+                    .unwrap_or(unsafe{ winuser::LoadCursorW(ptr::null_mut(), winuser::IDC_ARROW) })
+            },
             |cursor_name| unsafe { winuser::LoadCursorW(ptr::null_mut(), cursor_name) },
         )
     }

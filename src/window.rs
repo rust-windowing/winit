@@ -9,7 +9,7 @@ use crate::{
     platform_impl,
 };
 
-pub use crate::icon::Icon;
+pub use crate::icon::{Icon, RgbaIcon};
 
 /// Represents a window.
 ///

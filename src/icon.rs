@@ -16,7 +16,7 @@ pub(crate) struct Pixel {
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub(crate) struct RgbaIcon<I: Deref<Target = [u8]>> {
+pub struct RgbaIcon<I: Deref<Target = [u8]>> {
     pub(crate) rgba: I,
     pub(crate) size: PhysicalSize<u32>,
     pub(crate) hot_spot: PhysicalPosition<u32>,
@@ -149,6 +149,22 @@ impl Icon {
     ) -> Result<Self, io::Error> {
         Ok(Icon {
             inner: PlatformIcon::from_rgba_with_hot_spot(rgba.into(), size, hot_spot)?,
+        })
+    }
+
+    pub fn from_rgba_fn<F, B>(mut get_icon: F) -> Result<Self, io::Error>
+        where F: 'static + FnMut(PhysicalSize<u32>) -> RgbaIcon<B>,
+              B: Deref<Target=[u8]> + Into<Box<[u8]>>,
+    {
+        Ok(Icon {
+            inner: PlatformIcon::from_rgba_fn(move |size| {
+                let icon = get_icon(size);
+                RgbaIcon {
+                    rgba: icon.rgba.into(),
+                    size: icon.size,
+                    hot_spot: icon.hot_spot,
+                }
+            })?
         })
     }
 }

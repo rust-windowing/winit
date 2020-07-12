@@ -39,6 +39,7 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+        icon::{IconType, IconSize},
         monitor::{self, MonitorHandle},
         raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
@@ -1598,7 +1599,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     .cursor_flags()
                     .contains(CursorFlags::IN_WINDOW)
                 {
-                    Some(window_state.mouse.cursor.to_windows_cursor())
+                    Some(window_state.mouse.cursor.to_windows_cursor_scaled())
                 } else {
                     None
                 }
@@ -1665,6 +1666,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                 if new_scale_factor == old_scale_factor {
                     return 0;
+                }
+
+                if let Some(window_icon) = &window_state.window_icon {
+                    window_icon
+                        .inner
+                        .set_for_window(window, IconType::Small, IconSize::I16.adjust_for_scale_factor(new_scale_factor));
+                    window_icon
+                        .inner
+                        .set_for_window(window, IconType::Big, IconSize::I24.adjust_for_scale_factor(new_scale_factor));
                 }
 
                 window_state.fullscreen.is_none()
@@ -1773,11 +1783,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 // relative horizontal position in the title bar is preserved.
                 if dragging_window {
                     let bias = {
-                        let cursor_pos = {
-                            let mut pos = mem::zeroed();
-                            winuser::GetCursorPos(&mut pos);
-                            pos
-                        };
+                        let cursor_pos = util::get_cursor_position();
                         let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left)
                             as f64
                             / (suggested_rect.right - suggested_rect.left) as f64;

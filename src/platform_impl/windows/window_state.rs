@@ -3,7 +3,7 @@ use crate::{
     event::ModifiersState,
     icon::Icon,
     platform_impl::platform::{event_loop, util},
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen},
 };
 use parking_lot::MutexGuard;
 use std::{io, ptr};
@@ -97,8 +97,8 @@ bitflags! {
 
 impl WindowState {
     pub fn new(
-        attributes: &WindowAttributes,
-        taskbar_icon: Option<Icon>,
+        min_size: Option<Size>,
+        max_size: Option<Size>,
         scale_factor: f64,
         is_dark_mode: bool,
     ) -> WindowState {
@@ -110,11 +110,11 @@ impl WindowState {
                 last_position: None,
             },
 
-            min_size: attributes.min_inner_size,
-            max_size: attributes.max_inner_size,
+            min_size,
+            max_size,
 
-            window_icon: attributes.window_icon.clone(),
-            taskbar_icon,
+            window_icon: None,
+            taskbar_icon: None,
 
             saved_window: None,
             scale_factor,
