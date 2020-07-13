@@ -1,23 +1,31 @@
-use std::{
-    fmt, io, iter::once, mem,
-    os::windows::ffi::OsStrExt, path::Path, ptr,
-    sync::{Arc, atomic::{AtomicPtr, Ordering}},
-    cmp::{PartialEq, Eq}, ffi::OsStr,
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    icon::{Pixel, RgbaIcon, PIXEL_SIZE},
+    platform_impl::platform::{monitor, util},
 };
 use parking_lot::Mutex;
+use std::{
+    cmp::{Eq, PartialEq},
+    ffi::OsStr,
+    fmt, io,
+    iter::once,
+    mem,
+    os::windows::ffi::OsStrExt,
+    path::Path,
+    ptr,
+    sync::{
+        atomic::{AtomicPtr, Ordering},
+        Arc,
+    },
+};
 use winapi::{
     ctypes::{c_int, wchar_t},
     shared::{
         minwindef::{LPARAM, UINT, WORD, WPARAM},
-        windef::{HICON, HCURSOR, HICON__, HWND},
+        windef::{HCURSOR, HICON, HICON__, HWND},
     },
     um::libloaderapi,
     um::{wingdi, winuser},
-};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    icon::{Pixel, PIXEL_SIZE, RgbaIcon},
-    platform_impl::platform::{util, monitor},
 };
 
 impl Pixel {
@@ -103,7 +111,15 @@ struct ResourceIcon {
 }
 
 struct FunctionIcon {
-    get_icon: Box<Mutex<dyn FnMut(PhysicalSize<u32>, f64) -> Result<RgbaIcon<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>>>,
+    get_icon: Box<
+        Mutex<
+            dyn FnMut(
+                PhysicalSize<u32>,
+                f64,
+            )
+                -> Result<RgbaIcon<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>,
+        >,
+    >,
     icon_set: LazyIconSet,
 }
 
@@ -184,56 +200,31 @@ impl IconSize {
         };
         let scaled_num = (num as f64 * scale_factor) as u32;
         match scaled_num / 8 {
-            0 |
-            1 |
-            2 => I16,
+            0 | 1 | 2 => I16,
             3 => I24,
-            4 |
-            5 => I32,
-            6 |
-            7 => I48,
-            8 |
-            9 |
-            10 |
-            11 => I64,
-            12 |
-            13 |
-            14 |
-            15 => I96,
-            16 |
-            17 |
-            18 |
-            19 |
-            20 |
-            21 |
-            22 |
-            23 |
-            24 => I128,
-            25 |
-            26 |
-            27 |
-            28 |
-            29 |
-            30 |
-            31 |
-            32 |
-            _ => I256,
+            4 | 5 => I32,
+            6 | 7 => I48,
+            8 | 9 | 10 | 11 => I64,
+            12 | 13 | 14 | 15 => I96,
+            16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 => I128,
+            25 | 26 | 27 | 28 | 29 | 30 | 31 | 32 | _ => I256,
         }
     }
 }
 
 impl LazyIconSet {
     fn load_icon<F>(&self, icon_size: IconSize, mut load_icon: F) -> Result<HICON, io::Error>
-        where F: FnMut(c_int) -> Result<HICON, io::Error>,
+    where
+        F: FnMut(c_int) -> Result<HICON, io::Error>,
     {
         use IconSize::*;
         let attempt_order = match icon_size {
-            I16  => [I16, I24, I32, I48, I64, I96, I128, I256],
-            I24  => [I24, I16, I32, I48, I64, I96, I128, I256],
-            I32  => [I32, I24, I16, I48, I64, I96, I128, I256],
-            I48  => [I48, I32, I24, I16, I64, I96, I128, I256],
-            I64  => [I64, I48, I32, I24, I16, I96, I128, I256],
-            I96  => [I96, I64, I48, I32, I24, I16, I128, I256],
+            I16 => [I16, I24, I32, I48, I64, I96, I128, I256],
+            I24 => [I24, I16, I32, I48, I64, I96, I128, I256],
+            I32 => [I32, I24, I16, I48, I64, I96, I128, I256],
+            I48 => [I48, I32, I24, I16, I64, I96, I128, I256],
+            I64 => [I64, I48, I32, I24, I16, I96, I128, I256],
+            I96 => [I96, I64, I48, I32, I24, I16, I128, I256],
             I128 => [I128, I96, I64, I48, I32, I24, I16, I256],
             I256 => [I256, I128, I96, I64, I48, I32, I24, I16],
         };
@@ -258,16 +249,16 @@ impl LazyIconSet {
                     Ok(icon_loaded) => {
                         let old_icon = hicon.swap(icon_loaded, Ordering::SeqCst);
                         if is_valid(old_icon) {
-                            unsafe{ winuser::DestroyIcon(old_icon) };
+                            unsafe { winuser::DestroyIcon(old_icon) };
                         }
-                        return Ok(icon_loaded)
-                    },
+                        return Ok(icon_loaded);
+                    }
                     Err(e) => {
                         warn!("could not load icon at size {0}x{0}: {1}", dim, e);
                         error = Some(e);
                         let old_icon = hicon.swap(1 as HICON, Ordering::SeqCst);
                         if is_valid(old_icon) {
-                            unsafe{ winuser::DestroyIcon(old_icon) };
+                            unsafe { winuser::DestroyIcon(old_icon) };
                         }
                         continue;
                     }
@@ -278,116 +269,117 @@ impl LazyIconSet {
                 return Ok(current_icon);
             }
         }
-        Err(error.unwrap_or_else(|| io::Error::new(io::ErrorKind::Other, "icon loading alreay failed")))
+        Err(error
+            .unwrap_or_else(|| io::Error::new(io::ErrorKind::Other, "icon loading alreay failed")))
     }
 }
 
 impl PathIcon {
     fn load_icon(&self, icon_size: IconSize) -> Result<HICON, io::Error> {
-        self.window_icon_set.load_icon(
-            icon_size,
-            |dim| {
-                let icon = unsafe{ winuser::LoadImageW(
+        self.window_icon_set.load_icon(icon_size, |dim| {
+            let icon = unsafe {
+                winuser::LoadImageW(
                     libloaderapi::GetModuleHandleW(ptr::null_mut()),
                     self.wide_path.as_ptr() as *const wchar_t,
                     winuser::IMAGE_ICON,
-                    dim, dim,
+                    dim,
+                    dim,
                     winuser::LR_LOADFROMFILE,
-                ) as HICON };
-                if icon.is_null() {
-                    Err(io::Error::last_os_error())
-                } else {
-                    Ok(icon)
-                }
+                ) as HICON
+            };
+            if icon.is_null() {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(icon)
             }
-        )
+        })
     }
 
     fn load_cursor(&self, icon_size: IconSize) -> Result<HCURSOR, io::Error> {
-        self.window_icon_set.load_icon(
-            icon_size,
-            |_| {
-                // Windows will automatically select an appropriately-scaled cursor from the cursor
-                // file based on where the cursor is on the screen. Passing in a size manually
-                // actually interferes with that, so we don't do that.
-                let cursor = unsafe{ winuser::LoadImageW(
+        self.window_icon_set.load_icon(icon_size, |_| {
+            // Windows will automatically select an appropriately-scaled cursor from the cursor
+            // file based on where the cursor is on the screen. Passing in a size manually
+            // actually interferes with that, so we don't do that.
+            let cursor = unsafe {
+                winuser::LoadImageW(
                     libloaderapi::GetModuleHandleW(ptr::null_mut()),
                     self.wide_path.as_ptr() as *const wchar_t,
                     winuser::IMAGE_CURSOR,
-                    0, 0,
+                    0,
+                    0,
                     winuser::LR_LOADFROMFILE | winuser::LR_DEFAULTSIZE,
-                ) as HCURSOR };
-                if cursor.is_null() {
-                    Err(io::Error::last_os_error())
-                } else {
-                    Ok(cursor)
-                }
+                ) as HCURSOR
+            };
+            if cursor.is_null() {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(cursor)
             }
-        )
+        })
     }
 }
 
 impl ResourceIcon {
     fn load_icon(&self, icon_size: IconSize) -> Result<HICON, io::Error> {
-        self.window_icon_set.load_icon(
-            icon_size,
-            |dim| {
-                let icon = unsafe{ winuser::LoadImageW(
+        self.window_icon_set.load_icon(icon_size, |dim| {
+            let icon = unsafe {
+                winuser::LoadImageW(
                     libloaderapi::GetModuleHandleW(ptr::null_mut()),
                     winuser::MAKEINTRESOURCEW(self.resource_id),
                     winuser::IMAGE_ICON,
-                    dim, dim,
+                    dim,
+                    dim,
                     0,
-                ) as HICON };
-                if icon.is_null() {
-                    Err(io::Error::last_os_error())
-                } else {
-                    Ok(icon)
-                }
+                ) as HICON
+            };
+            if icon.is_null() {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(icon)
             }
-        )
+        })
     }
 
     fn load_cursor(&self, icon_size: IconSize) -> Result<HCURSOR, io::Error> {
-        self.window_icon_set.load_icon(
-            icon_size,
-            |_| {
-                // Windows will automatically select an appropriately-scaled cursor from the cursor
-                // file based on where the cursor is on the screen. Passing in a size manually
-                // actually interferes with that, so we don't do that.
-                let icon = unsafe{ winuser::LoadImageW(
+        self.window_icon_set.load_icon(icon_size, |_| {
+            // Windows will automatically select an appropriately-scaled cursor from the cursor
+            // file based on where the cursor is on the screen. Passing in a size manually
+            // actually interferes with that, so we don't do that.
+            let icon = unsafe {
+                winuser::LoadImageW(
                     libloaderapi::GetModuleHandleW(ptr::null_mut()),
                     winuser::MAKEINTRESOURCEW(self.resource_id),
                     winuser::IMAGE_CURSOR,
-                    0, 0,
+                    0,
+                    0,
                     winuser::LR_DEFAULTSIZE,
-                ) as HICON };
-                if icon.is_null() {
-                    Err(io::Error::last_os_error())
-                } else {
-                    Ok(icon)
-                }
+                ) as HICON
+            };
+            if icon.is_null() {
+                Err(io::Error::last_os_error())
+            } else {
+                Ok(icon)
             }
-        )
+        })
     }
 }
 
 impl FunctionIcon {
     fn load_icon(&self, icon_size: IconSize, scale_factor: f64) -> Result<HICON, io::Error> {
-        self.icon_set.load_icon(
-            icon_size,
-            |dim| {
-                let mut get_icon = self.get_icon.lock();
-                let rgba_icon = (&mut *get_icon)(PhysicalSize::new(dim as u32, dim as u32), scale_factor);
-                rgba_icon
-                    .map_err(|mut e| if let Some(ioe) = e.downcast_mut::<io::Error>() {
+        self.icon_set.load_icon(icon_size, |dim| {
+            let mut get_icon = self.get_icon.lock();
+            let rgba_icon =
+                (&mut *get_icon)(PhysicalSize::new(dim as u32, dim as u32), scale_factor);
+            rgba_icon
+                .map_err(|mut e| {
+                    if let Some(ioe) = e.downcast_mut::<io::Error>() {
                         mem::replace(ioe, io::Error::from_raw_os_error(0))
                     } else {
                         io::Error::new(io::ErrorKind::Other, e)
-                    })
-                    .and_then(|i| i.into_windows_icon())
-            }
-        )
+                    }
+                })
+                .and_then(|i| i.into_windows_icon())
+        })
     }
 }
 
@@ -423,30 +415,26 @@ impl WinIcon {
 
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
         let path = path.as_ref();
-        let wide_path: Vec<u16> = path
-            .as_os_str()
-            .encode_wide()
-            .chain(once(0))
-            .collect();
+        let wide_path: Vec<u16> = path.as_os_str().encode_wide().chain(once(0)).collect();
 
         let path_icon = PathIcon {
             wide_path,
             cursor_icon_set: LazyIconSet::default(),
             window_icon_set: LazyIconSet::default(),
         };
-        if path.extension() == Some(OsStr::new("cur")) || path.extension() == Some(OsStr::new("ani")) {
+        if path.extension() == Some(OsStr::new("cur"))
+            || path.extension() == Some(OsStr::new("ani"))
+        {
             path_icon.load_cursor(IconSize::I32.adjust_for_scale_factor(cursor_scale_factor()))?;
         } else {
             path_icon.load_icon(IconSize::I24.adjust_for_scale_factor(cursor_scale_factor()))?;
         }
         Ok(WinIcon {
-            inner: Arc::new(RaiiIcon::Path(path_icon))
+            inner: Arc::new(RaiiIcon::Path(path_icon)),
         })
     }
 
-    pub fn from_resource(
-        resource_id: WORD,
-    ) -> Result<Self, io::Error> {
+    pub fn from_resource(resource_id: WORD) -> Result<Self, io::Error> {
         let resource_icon = ResourceIcon {
             resource_id,
             cursor_icon_set: LazyIconSet::default(),
@@ -454,13 +442,15 @@ impl WinIcon {
         };
         resource_icon.load_icon(IconSize::I24.adjust_for_scale_factor(cursor_scale_factor()))?;
         Ok(WinIcon {
-            inner: Arc::new(RaiiIcon::Resource(resource_icon))
+            inner: Arc::new(RaiiIcon::Resource(resource_icon)),
         })
     }
 
     pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
         Ok(WinIcon {
-            inner: Arc::new(RaiiIcon::Single(RgbaIcon::from_rgba(Box::from(rgba), size).into_windows_icon()?))
+            inner: Arc::new(RaiiIcon::Single(
+                RgbaIcon::from_rgba(Box::from(rgba), size).into_windows_icon()?,
+            )),
         })
     }
 
@@ -470,26 +460,41 @@ impl WinIcon {
         hot_spot: PhysicalPosition<u32>,
     ) -> Result<Self, io::Error> {
         Ok(WinIcon {
-            inner: Arc::new(RaiiIcon::Single(RgbaIcon::from_rgba_with_hot_spot(Box::from(rgba), size, hot_spot).into_windows_icon()?))
+            inner: Arc::new(RaiiIcon::Single(
+                RgbaIcon::from_rgba_with_hot_spot(Box::from(rgba), size, hot_spot)
+                    .into_windows_icon()?,
+            )),
         })
     }
 
     pub fn from_rgba_fn<F>(get_icon: F) -> Self
-        where F: 'static + FnMut(PhysicalSize<u32>, f64) -> Result<RgbaIcon<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>,
+    where
+        F: 'static
+            + FnMut(
+                PhysicalSize<u32>,
+                f64,
+            )
+                -> Result<RgbaIcon<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>,
     {
         let function_icon = FunctionIcon {
             get_icon: Box::new(Mutex::new(get_icon)),
             icon_set: LazyIconSet::default(),
         };
         WinIcon {
-            inner: Arc::new(RaiiIcon::Function(function_icon))
+            inner: Arc::new(RaiiIcon::Function(function_icon)),
         }
     }
 
     pub fn set_for_window(&self, hwnd: HWND, scale_factor: f64) {
         unsafe {
-            let small_icon = self.as_raw_icon_handle(IconSize::I16, scale_factor).map(|i| i as LPARAM).unwrap_or(0);
-            let big_icon = self.as_raw_icon_handle(IconSize::I24, scale_factor).map(|i| i as LPARAM).unwrap_or(0);
+            let small_icon = self
+                .as_raw_icon_handle(IconSize::I16, scale_factor)
+                .map(|i| i as LPARAM)
+                .unwrap_or(0);
+            let big_icon = self
+                .as_raw_icon_handle(IconSize::I24, scale_factor)
+                .map(|i| i as LPARAM)
+                .unwrap_or(0);
             winuser::SendMessageW(
                 hwnd,
                 winuser::WM_SETICON,
@@ -521,21 +526,37 @@ impl Drop for LazyIconSet {
             } = self;
 
             let i_16 = i_16.load(Ordering::SeqCst);
-            if !i_16.is_null() { winuser::DestroyIcon(i_16); }
+            if !i_16.is_null() {
+                winuser::DestroyIcon(i_16);
+            }
             let i_24 = i_24.load(Ordering::SeqCst);
-            if !i_24.is_null() { winuser::DestroyIcon(i_24); }
+            if !i_24.is_null() {
+                winuser::DestroyIcon(i_24);
+            }
             let i_32 = i_32.load(Ordering::SeqCst);
-            if !i_32.is_null() { winuser::DestroyIcon(i_32); }
+            if !i_32.is_null() {
+                winuser::DestroyIcon(i_32);
+            }
             let i_48 = i_48.load(Ordering::SeqCst);
-            if !i_48.is_null() { winuser::DestroyIcon(i_48); }
+            if !i_48.is_null() {
+                winuser::DestroyIcon(i_48);
+            }
             let i_64 = i_64.load(Ordering::SeqCst);
-            if !i_64.is_null() { winuser::DestroyIcon(i_64); }
+            if !i_64.is_null() {
+                winuser::DestroyIcon(i_64);
+            }
             let i_96 = i_96.load(Ordering::SeqCst);
-            if !i_96.is_null() { winuser::DestroyIcon(i_96); }
+            if !i_96.is_null() {
+                winuser::DestroyIcon(i_96);
+            }
             let i_128 = i_128.load(Ordering::SeqCst);
-            if !i_128.is_null() { winuser::DestroyIcon(i_128); }
+            if !i_128.is_null() {
+                winuser::DestroyIcon(i_128);
+            }
             let i_256 = i_256.load(Ordering::SeqCst);
-            if !i_256.is_null() { winuser::DestroyIcon(i_256); }
+            if !i_256.is_null() {
+                winuser::DestroyIcon(i_256);
+            }
         }
     }
 }
@@ -548,17 +569,7 @@ impl fmt::Debug for WinIcon {
 
 pub fn unset_for_window(hwnd: HWND) {
     unsafe {
-        winuser::SendMessageW(
-            hwnd,
-            winuser::WM_SETICON,
-            winuser::ICON_SMALL as WPARAM,
-            0,
-        );
-        winuser::SendMessageW(
-            hwnd,
-            winuser::WM_SETICON,
-            winuser::ICON_BIG as WPARAM,
-            0,
-        );
+        winuser::SendMessageW(hwnd, winuser::WM_SETICON, winuser::ICON_SMALL as WPARAM, 0);
+        winuser::SendMessageW(hwnd, winuser::WM_SETICON, winuser::ICON_BIG as WPARAM, 0);
     }
 }

@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path, ffi::OsStr};
+use std::{ffi::OsStr, fs::File, path::Path};
 use winit::{
     dpi::PhysicalSize,
     event::Event,
@@ -9,7 +9,10 @@ use winit::{
 fn main() {
     simple_logger::init().unwrap();
 
-    let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icons/icon_folder/"));
+    let path = Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/examples/icons/icon_folder/"
+    ));
 
     let icon = load_icon(&path);
 

@@ -1668,9 +1668,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 }
 
                 if let Some(window_icon) = &window_state.window_icon {
-                    window_icon
-                        .inner
-                        .set_for_window(window, new_scale_factor);
+                    window_icon.inner.set_for_window(window, new_scale_factor);
                 }
 
                 window_state.fullscreen.is_none()

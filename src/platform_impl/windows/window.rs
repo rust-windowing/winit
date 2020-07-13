@@ -39,8 +39,7 @@ use crate::{
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
-        icon,
-        monitor, util,
+        icon, monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
@@ -766,7 +765,7 @@ unsafe fn init<T: 'static>(
     Ok(win)
 }
 
-lazy_static!{
+lazy_static! {
     static ref WINDOW_CLASS: Vec<u16> = unsafe {
         let class_name: Vec<_> = OsStr::new("Winit Window Class")
             .encode_wide()

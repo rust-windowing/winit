@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    dpi::{PhysicalSize, PhysicalPosition},
+    dpi::{PhysicalPosition, PhysicalSize},
     window::CursorIcon,
 };
 use winapi::{
@@ -240,8 +240,11 @@ impl CursorIcon {
         };
 
         hcursor.map_or_else(
-            |icon| icon.inner.as_raw_scaled_cursor_handle()
-                    .unwrap_or(unsafe{ winuser::LoadCursorW(ptr::null_mut(), winuser::IDC_ARROW) }),
+            |icon| {
+                icon.inner
+                    .as_raw_scaled_cursor_handle()
+                    .unwrap_or(unsafe { winuser::LoadCursorW(ptr::null_mut(), winuser::IDC_ARROW) })
+            },
             |cursor_name| unsafe { winuser::LoadCursorW(ptr::null_mut(), cursor_name) },
         )
     }

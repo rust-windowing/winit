@@ -129,9 +129,9 @@ pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
 pub fn monitor_from_position(position: PhysicalPosition<i32>) -> MonitorHandle {
     let point = POINT {
         x: position.x,
-        y: position.y
+        y: position.y,
     };
-    let hmonitor = unsafe{ winuser::MonitorFromPoint(point, winuser::MONITOR_DEFAULTTONEAREST) };
+    let hmonitor = unsafe { winuser::MonitorFromPoint(point, winuser::MONITOR_DEFAULTTONEAREST) };
     MonitorHandle::new(hmonitor)
 }
 

@@ -1,9 +1,9 @@
-use std::{path::Path, fs::File};
+use std::{fs::File, path::Path};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, RgbaIcon, Icon, WindowBuilder},
+    window::{CursorIcon, Icon, RgbaIcon, WindowBuilder},
 };
 
 fn main() {
@@ -16,7 +16,10 @@ fn main() {
     let mut cursor_idx = 0;
 
     let custom_cursor_icon = {
-        let base_path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icons/icon_folder/"));
+        let base_path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/icons/icon_folder/"
+        ));
 
         Icon::from_rgba_fn(move |size, _| {
             let path = base_path.join(format!("{}.png", size.width));
@@ -29,7 +32,11 @@ fn main() {
 
                 (rgba, PhysicalSize::new(info.width, info.height))
             };
-            Ok(RgbaIcon::from_rgba_with_hot_spot(icon_rgba, icon_size, PhysicalPosition::new(0, 0)))
+            Ok(RgbaIcon::from_rgba_with_hot_spot(
+                icon_rgba,
+                icon_size,
+                PhysicalPosition::new(0, 0),
+            ))
         })
     };
 
