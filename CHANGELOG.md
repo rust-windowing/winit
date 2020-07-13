@@ -13,6 +13,7 @@
 - On Windows, `set_ime_position` is now a no-op instead of a runtime crash.
 - On Android, `set_fullscreen` is now a no-op instead of a runtime crash.
 - On iOS and Android, `set_inner_size` is now a no-op instead of a runtime crash.
+- On Android, the native window handle returned by `raw_window_handle` might be null instead of panicking
 - **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
 - **Breaking:** `PixelDelta` scroll events now return a `PhysicalPosition`.
 

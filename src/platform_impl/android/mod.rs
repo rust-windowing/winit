@@ -473,10 +473,18 @@ impl Window {
     pub fn set_cursor_visible(&self, _: bool) {}
 
     pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
+        // The native window is only available between `Resume` and `Suspend` events, otherwise it will be null.
+        // The returned handle may differ between calls after receiving a `Resume` event.
+
         let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
             unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
         } else {
-            panic!("native window null");
+            // The handle to the native window is not available at the time of the call
+            // but rather return null instead of panicking.
+            // Surface creation on Vulkan requires enabling platform specific extensions
+            // which might be derived from the **type** of the RawWindowHandle but the content
+            // is not relevant at this point.
+            std::ptr::null_mut()
         };
         let mut handle = raw_window_handle::android::AndroidHandle::empty();
         handle.a_native_window = a_native_window;
