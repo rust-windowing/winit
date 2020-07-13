@@ -24,7 +24,6 @@ pub struct WindowState {
     pub max_size: Option<Size>,
 
     pub window_icon: Option<Icon>,
-    pub taskbar_icon: Option<Icon>,
 
     pub saved_window: Option<SavedWindow>,
     pub scale_factor: f64,
@@ -114,7 +113,6 @@ impl WindowState {
             max_size,
 
             window_icon: None,
-            taskbar_icon: None,
 
             saved_window: None,
             scale_factor,

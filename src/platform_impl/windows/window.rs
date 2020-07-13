@@ -39,14 +39,13 @@ use crate::{
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
-        icon::{self, IconType},
+        icon,
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
-use icon::IconSize;
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
@@ -589,26 +588,11 @@ impl Window {
         if let Some(ref window_icon) = window_icon {
             window_icon
                 .inner
-                .set_for_window(self.window.0, IconType::Small, IconSize::I16.adjust_for_scale_factor(self.scale_factor()));
-            window_icon
-                .inner
-                .set_for_window(self.window.0, IconType::Big, IconSize::I24.adjust_for_scale_factor(self.scale_factor()));
+                .set_for_window(self.window.0, self.scale_factor());
         } else {
-            icon::unset_for_window(self.window.0, IconType::Small);
+            icon::unset_for_window(self.window.0);
         }
         self.window_state.lock().window_icon = window_icon;
-    }
-
-    #[inline]
-    pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        // if let Some(ref taskbar_icon) = taskbar_icon {
-        //     taskbar_icon
-        //         .inner
-        //         .set_for_window(self.window.0, IconType::Big, IconSize::I24.adjust_for_scale_factor(self.scale_factor()));
-        // } else {
-        //     icon::unset_for_window(self.window.0, IconType::Big);
-        // }
-        // self.window_state.lock().taskbar_icon = taskbar_icon;
     }
 
     #[inline]
@@ -772,7 +756,6 @@ unsafe fn init<T: 'static>(
         win.set_maximized(true);
     }
     win.set_window_icon(attributes.window_icon);
-    win.set_taskbar_icon(pl_attribs.taskbar_icon);
     win.set_visible(attributes.visible);
 
     if let Some(_) = attributes.fullscreen {

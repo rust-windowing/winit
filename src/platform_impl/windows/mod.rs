@@ -12,12 +12,10 @@ pub use self::{
 pub use self::icon::WinIcon as PlatformIcon;
 
 use crate::event::DeviceId as RootDeviceId;
-use crate::icon::Icon;
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub parent: Option<HWND>,
-    pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
 }
@@ -26,7 +24,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
             parent: None,
-            taskbar_icon: None,
             no_redirection_bitmap: false,
             drag_and_drop: true,
         }

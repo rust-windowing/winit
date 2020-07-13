@@ -39,7 +39,6 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-        icon::{IconType, IconSize},
         monitor::{self, MonitorHandle},
         raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
@@ -1671,10 +1670,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 if let Some(window_icon) = &window_state.window_icon {
                     window_icon
                         .inner
-                        .set_for_window(window, IconType::Small, IconSize::I16.adjust_for_scale_factor(new_scale_factor));
-                    window_icon
-                        .inner
-                        .set_for_window(window, IconType::Big, IconSize::I24.adjust_for_scale_factor(new_scale_factor));
+                        .set_for_window(window, new_scale_factor);
                 }
 
                 window_state.fullscreen.is_none()

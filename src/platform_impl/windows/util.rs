@@ -9,7 +9,6 @@ use std::{
 use crate::{
     dpi::{PhysicalSize, PhysicalPosition},
     window::CursorIcon,
-    platform_impl::platform::{monitor, icon::IconSize},
 };
 use winapi::{
     ctypes::wchar_t,
@@ -241,16 +240,8 @@ impl CursorIcon {
         };
 
         hcursor.map_or_else(
-            |icon| {
-                let cursor_position = get_cursor_position();
-                let monitor = monitor::monitor_from_position(cursor_position);
-                let scale_factor = monitor.scale_factor();
-                let icon_size = IconSize::I32;
-                println!("{:?} adjusted for {} is {:?}", IconSize::I32, scale_factor, icon_size);
-                icon.inner.as_raw_handle(icon_size)
-                    .map(|cursor| cursor  as HCURSOR)
-                    .unwrap_or(unsafe{ winuser::LoadCursorW(ptr::null_mut(), winuser::IDC_ARROW) })
-            },
+            |icon| icon.inner.as_raw_scaled_cursor_handle()
+                    .unwrap_or(unsafe{ winuser::LoadCursorW(ptr::null_mut(), winuser::IDC_ARROW) }),
             |cursor_name| unsafe { winuser::LoadCursorW(ptr::null_mut(), cursor_name) },
         )
     }

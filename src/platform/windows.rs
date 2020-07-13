@@ -76,7 +76,10 @@ pub trait WindowExtWindows {
     /// The pointer will become invalid when the native window was destroyed.
     fn hwnd(&self) -> *mut libc::c_void;
 
-    /// This sets `ICON_BIG`. A good ceiling here is 256x256.
+    #[deprecated(
+        note = "Deprecated. `with_window_icon` now sets the taskbar icon via automatic icon scaling."
+    )]
+    /// Deprecated in favor of automatic icon scaling via `Icon::from_rgba_fn` or `IconExtWindows::from_(path|resource)`
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
     /// Whether the system theme is currently Windows 10's "Dark Mode".
@@ -95,8 +98,8 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
-    fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        self.window.set_taskbar_icon(taskbar_icon)
+    fn set_taskbar_icon(&self, _taskbar_icon: Option<Icon>) {
+        warn!("set_taskbar_icon has been deprecated in favor of automatic icon scaling, and currently does nothing");
     }
 
     #[inline]
@@ -110,7 +113,10 @@ pub trait WindowBuilderExtWindows {
     /// Sets a parent to the window to be created.
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
 
-    /// This sets `ICON_BIG`. A good ceiling here is 256x256.
+    #[deprecated(
+        note = "Deprecated. `with_window_icon` now sets the taskbar icon via automatic icon scaling."
+    )]
+    /// Deprecated in favor of automatic icon scaling via `Icon::from_rgba_fn` or `IconExtWindows::from_(path|resource)`
     fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> WindowBuilder;
 
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
@@ -133,8 +139,8 @@ impl WindowBuilderExtWindows for WindowBuilder {
     }
 
     #[inline]
-    fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> WindowBuilder {
-        self.platform_specific.taskbar_icon = taskbar_icon;
+    fn with_taskbar_icon(self, _taskbar_icon: Option<Icon>) -> WindowBuilder {
+        warn!("with_taskbar_icon icon has been deprecated in favor of automatic icon scaling, and currently does nothing");
         self
     }
 

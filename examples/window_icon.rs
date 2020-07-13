@@ -1,21 +1,17 @@
-use std::{fs::File, path::Path};
+use std::{fs::File, path::Path, ffi::OsStr};
 use winit::{
     dpi::PhysicalSize,
     event::Event,
     event_loop::{ControlFlow, EventLoop},
-    window::{Icon, WindowBuilder},
+    window::{Icon, RgbaIcon, WindowBuilder},
 };
 
 fn main() {
     simple_logger::init().unwrap();
 
-    // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
-    // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
-    // since it seems to work well enough in most cases. Be careful about going too high, or
-    // you'll be bitten by the low-quality downscaling built into the WM.
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icon.png");
+    let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icons/icon_folder/"));
 
-    let icon = load_icon(Path::new(&path));
+    let icon = load_icon(&path);
 
     let event_loop = EventLoop::new();
 
@@ -44,14 +40,30 @@ fn main() {
 }
 
 fn load_icon(path: &Path) -> Icon {
-    let (icon_rgba, icon_size) = {
-        let decoder = png::Decoder::new(File::open(path).expect("Failed to open icon path"));
-        let (info, mut reader) = decoder.read_info().expect("Failed to decode icon PNG");
+    let decode_png = |path: &Path| {
+        let decoder = png::Decoder::new(File::open(path).unwrap());
+        let (info, mut reader) = decoder.read_info().unwrap();
 
         let mut rgba = vec![0; info.buffer_size()];
         reader.next_frame(&mut rgba).unwrap();
 
         (rgba, PhysicalSize::new(info.width, info.height))
     };
-    Icon::from_rgba(&icon_rgba, icon_size).expect("Failed to open icon")
+    if path.is_file() {
+        if path.extension() == Some(OsStr::new("png")) {
+            let (icon_rgba, icon_size) = decode_png(path);
+            Icon::from_rgba(&icon_rgba, icon_size).unwrap()
+        } else {
+            panic!("unsupported file extension: {:?}", path.extension());
+        }
+    } else if path.is_dir() {
+        let path = path.to_owned();
+        Icon::from_rgba_fn(move |size, _| {
+            let path = path.join(format!("{}.png", size.width));
+            let (icon_rgba, icon_size) = decode_png(&path);
+            Ok(RgbaIcon::from_rgba(icon_rgba, icon_size))
+        })
+    } else {
+        panic!("path {} is neither file nor directory", path.display());
+    }
 }

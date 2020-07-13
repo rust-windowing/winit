@@ -1,9 +1,9 @@
-use std::fs::File;
+use std::{path::Path, fs::File};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, Icon, WindowBuilder},
+    window::{CursorIcon, RgbaIcon, Icon, WindowBuilder},
 };
 
 fn main() {
@@ -16,19 +16,21 @@ fn main() {
     let mut cursor_idx = 0;
 
     let custom_cursor_icon = {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icon.png");
+        let base_path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/icons/icon_folder/"));
 
-        let (icon_rgba, icon_size) = {
-            let decoder = png::Decoder::new(File::open(path).expect("Failed to open icon path"));
-            let (info, mut reader) = decoder.read_info().expect("Failed to decode icon PNG");
+        Icon::from_rgba_fn(move |size, _| {
+            let path = base_path.join(format!("{}.png", size.width));
+            let (icon_rgba, icon_size) = {
+                let decoder = png::Decoder::new(File::open(path)?);
+                let (info, mut reader) = decoder.read_info()?;
 
-            let mut rgba = vec![0; info.buffer_size()];
-            reader.next_frame(&mut rgba).unwrap();
+                let mut rgba = vec![0; info.buffer_size()];
+                reader.next_frame(&mut rgba).unwrap();
 
-            (rgba, PhysicalSize::new(info.width, info.height))
-        };
-        Icon::from_rgba_with_hot_spot(&icon_rgba, icon_size, PhysicalPosition::new(2, 10))
-            .expect("Failed to open icon")
+                (rgba, PhysicalSize::new(info.width, info.height))
+            };
+            Ok(RgbaIcon::from_rgba_with_hot_spot(icon_rgba, icon_size, PhysicalPosition::new(0, 0)))
+        })
     };
 
     let cursors = vec![
