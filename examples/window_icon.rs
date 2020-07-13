@@ -66,6 +66,7 @@ fn load_icon(path: &Path) -> Icon {
             let (icon_rgba, icon_size) = decode_png(&path);
             Ok(RgbaIcon::from_rgba(icon_rgba, icon_size))
         })
+        .unwrap()
     } else {
         panic!("path {} is neither file nor directory", path.display());
     }

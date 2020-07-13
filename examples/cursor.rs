@@ -38,6 +38,7 @@ fn main() {
                 PhysicalPosition::new(0, 0),
             ))
         })
+        .unwrap()
     };
 
     let cursors = vec![

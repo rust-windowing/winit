@@ -48,6 +48,18 @@ mod constructors {
         ) -> Result<Self, io::Error> {
             Ok(NoIcon)
         }
+
+        pub fn from_rgba_fn<F>(_get_icon: F) -> Result<Self, io::Error>
+        where
+            F: 'static
+                + FnMut(
+                    PhysicalSize<u32>,
+                    f64,
+                )
+                    -> Result<RgbaIcon<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>,
+        {
+            Ok(NoIcon)
+        }
     }
 }
 
@@ -165,7 +177,7 @@ impl Icon {
     ///
     /// If `get_icon` returns `Err(e)` for a given size, Winit will invoke `warn!` on the returned
     /// error and will try to retrieve a differently-sized icon from `get_icon`.
-    pub fn from_rgba_fn<F, B>(mut get_icon: F) -> Self
+    pub fn from_rgba_fn<F, B>(mut get_icon: F) -> Result<Self, std::io::Error>
     where
         F: 'static
             + FnMut(
@@ -175,7 +187,7 @@ impl Icon {
                 -> Result<RgbaIcon<B>, Box<dyn 'static + std::error::Error + Send + Sync>>,
         B: Deref<Target = [u8]> + Into<Box<[u8]>>,
     {
-        Icon {
+        Ok(Icon {
             inner: PlatformIcon::from_rgba_fn(move |size, scale_factor| {
                 let icon = get_icon(size, scale_factor)?;
                 Ok(RgbaIcon {
@@ -183,7 +195,7 @@ impl Icon {
                     size: icon.size,
                     hot_spot: icon.hot_spot,
                 })
-            }),
-        }
+            })?,
+        })
     }
 }

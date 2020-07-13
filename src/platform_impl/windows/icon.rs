@@ -467,7 +467,7 @@ impl WinIcon {
         })
     }
 
-    pub fn from_rgba_fn<F>(get_icon: F) -> Self
+    pub fn from_rgba_fn<F>(get_icon: F) -> Result<Self, io::Error>
     where
         F: 'static
             + FnMut(
@@ -480,9 +480,9 @@ impl WinIcon {
             get_icon: Box::new(Mutex::new(get_icon)),
             icon_set: LazyIconSet::default(),
         };
-        WinIcon {
+        Ok(WinIcon {
             inner: Arc::new(RaiiIcon::Function(function_icon)),
-        }
+        })
     }
 
     pub fn set_for_window(&self, hwnd: HWND, scale_factor: f64) {

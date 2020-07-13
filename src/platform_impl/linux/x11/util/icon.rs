@@ -18,7 +18,7 @@ impl Pixel {
 
 impl Icon {
     pub(crate) fn to_cardinals(&self) -> Vec<Cardinal> {
-        let rgba_icon = &self.inner;
+        let rgba_icon = &self.inner.icon;
         assert_eq!(rgba_icon.rgba.len() % PIXEL_SIZE, 0);
         let pixel_count = rgba_icon.rgba.len() / PIXEL_SIZE;
         assert_eq!(
