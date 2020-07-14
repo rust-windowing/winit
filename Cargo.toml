@@ -37,9 +37,9 @@ image = "0.23"
 simple_logger = "1"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ndk = "0.1.0"
-ndk-sys = "0.1.0"
-ndk-glue = "0.1.0"
+ndk = { git = "https://github.com/Kaiser1989/android-ndk-rs" }
+ndk-sys = { git = "https://github.com/Kaiser1989/android-ndk-rs" }
+ndk-glue = { git = "https://github.com/Kaiser1989/android-ndk-rs" }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc = "0.2.3"
