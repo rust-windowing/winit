@@ -149,6 +149,14 @@ impl<T> EventLoop<T> {
         self.event_loop.run(event_handler)
     }
 
+    #[inline]
+    pub fn run_return<F>(&mut self, event_handler: F)
+    where
+        F: FnMut(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        self.event_loop.run_return(event_handler)
+    }
+
     /// Creates an `EventLoopProxy` that can be used to dispatch user events to the main event loop.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
