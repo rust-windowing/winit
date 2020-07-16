@@ -401,6 +401,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Android:** Unsupported.
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()
@@ -420,8 +421,10 @@ impl Window {
     ///   window's [safe area] in the screen space coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns the
     ///    same value as `outer_position`._
+    /// - **Android / Wayland:** Always returns [`NotSupportedError`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    /// [`NotSupportedError`]: error/struct.NotSupportedError.html
     #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.inner_position()
@@ -442,6 +445,9 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window in the screen space coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
+    /// - **Android / Wayland:** Always returns [`NotSupportedError`].
+    ///
+    /// [`NotSupportedError`]: error/struct.NotSupportedError.html
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.outer_position()
@@ -457,6 +463,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
     /// - **Web:** Sets the top-left coordinates relative to the viewport.
+    /// - **Android / Wayland:** Unsupported.
     #[inline]
     pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
         self.window.set_outer_position(position.into())
@@ -485,8 +492,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
-    ///   would mean for iOS.
+    /// - **iOS / Android:** Unsupported.
     /// - **Web:** Sets the size of the canvas element.
     #[inline]
     pub fn set_inner_size<S: Into<Size>>(&self, size: S) {
@@ -513,8 +519,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_min_inner_size<S: Into<Size>>(&self, min_size: Option<S>) {
         self.window.set_min_inner_size(min_size.map(|s| s.into()))
@@ -524,8 +529,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Andraid / Web:** Unsupported.
     #[inline]
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
         self.window.set_max_inner_size(max_size.map(|s| s.into()))
@@ -538,7 +542,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - Has no effect on iOS.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title)
@@ -549,9 +553,8 @@ impl Window {
     /// If `false`, this will hide the window. If `true`, this will show the window.
     /// ## Platform-specific
     ///
-    /// - **Android:** Has no effect.
+    /// - **Android / Wayland / Web:** Unsupported.
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_visible(&self, visible: bool) {
         self.window.set_visible(visible)
@@ -570,8 +573,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
@@ -581,7 +583,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect
+    /// - **iOS / Android / Web:** Unsupported.
+    /// - **Wayland:** Un-minimize is unsupported.
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         self.window.set_minimized(minimized);
@@ -591,8 +594,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window.set_maximized(maximized)
@@ -617,6 +619,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    /// - **Android:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.window.set_fullscreen(fullscreen)
@@ -627,6 +630,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Android:** Will always return `None`.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
@@ -635,9 +639,8 @@ impl Window {
     /// Turn window decorations on or off.
     ///
     /// ## Platform-specific
-    /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
-    ///   via [`setPrefersStatusBarHidden`].
-    /// - **Web:** Has no effect.
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
     ///
     /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
@@ -649,8 +652,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         self.window.set_always_on_top(always_on_top)
@@ -661,7 +663,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// This only has an effect on Windows and X11.
+    /// - **iOS / Android / Web / Wayland / macOS:** Unsupported.
     ///
     /// On Windows, this sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     /// recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
@@ -677,8 +679,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
     #[inline]
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
@@ -691,8 +692,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Android:** Has no effect.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window.set_cursor_icon(cursor);
@@ -702,8 +702,9 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Always returns an `Err`.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web / Wayland:** Always returns an [`ExternalError::NotSupportedError`].
+    ///
+    /// [`ExternalError::NotSupportedError`]: error/enum.ExternalError.html#variant.NotSupported
     #[inline]
     pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
         self.window.set_cursor_position(position.into())
@@ -713,13 +714,10 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
-    ///   awkward.
-    /// - **Wayland:** This presently merely locks the cursor in a fixed location, which looks visually
-    ///   awkward.
-    /// - **Android:** Has no effect.
-    /// - **iOS:** Always returns an Err.
-    /// - **Web:** Has no effect.
+    /// - **macOS / Wayland:** This locks the cursor in a fixed location, which looks visually awkward.
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupportedError`].
+    ///
+    /// [`ExternalError::NotSupportedError`]: error/enum.ExternalError.html#variant.NotSupported
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_grab(grab)
@@ -736,8 +734,7 @@ impl Window {
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
-    /// - **iOS:** Has no effect.
-    /// - **Android:** Has no effect.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window.set_cursor_visible(visible)

@@ -609,7 +609,7 @@ impl Window {
 
     #[inline]
     pub fn set_ime_position(&self, _position: Position) {
-        unimplemented!();
+        warn!("`Window::set_ime_position` is ignored on Windows")
     }
 
     #[inline]

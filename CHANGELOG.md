@@ -49,6 +49,7 @@
 - on macOS, fix incorrect ReceivedCharacter events for some key combinations.
 - **Breaking:** Use `i32` instead of `u32` for position type in `WindowEvent::Moved`.
 - On macOS, a mouse motion event is now generated before every mouse click.
+- On Windows, `set_ime_position` is now a no-op instead of a runtime crash.
 
 # 0.21.0 (2020-02-04)
 

@@ -142,7 +142,7 @@ impl Inner {
     }
 
     pub fn set_inner_size(&self, _size: Size) {
-        unimplemented!("not clear what `Window::set_inner_size` means on iOS");
+        warn!("not clear what `Window::set_inner_size` means on iOS");
     }
 
     pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
