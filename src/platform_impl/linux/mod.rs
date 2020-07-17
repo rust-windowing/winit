@@ -9,6 +9,8 @@
 #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+#[cfg(feature = "wayland")]
+use std::error::Error;
 use std::{collections::VecDeque, env, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
@@ -16,8 +18,6 @@ use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 #[cfg(feature = "x11")]
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
-#[cfg(feature = "wayland")]
-use smithay_client_toolkit::reexports::client::ConnectError;
 
 #[cfg(feature = "x11")]
 pub use self::x11::XNotSupported;
@@ -108,6 +108,8 @@ pub enum OsError {
     XError(XError),
     #[cfg(feature = "x11")]
     XMisc(&'static str),
+    #[cfg(feature = "wayland")]
+    WaylandMisc(&'static str),
 }
 
 impl fmt::Display for OsError {
@@ -117,6 +119,8 @@ impl fmt::Display for OsError {
             OsError::XError(ref e) => _f.pad(&e.description),
             #[cfg(feature = "x11")]
             OsError::XMisc(ref e) => _f.pad(e),
+            #[cfg(feature = "wayland")]
+            OsError::WaylandMisc(ref e) => _f.pad(e),
         }
     }
 }
@@ -597,14 +601,14 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(feature = "wayland")]
-    pub fn new_wayland() -> Result<EventLoop<T>, ConnectError> {
+    pub fn new_wayland() -> Result<EventLoop<T>, Box<dyn Error>> {
         assert_is_main_thread("new_wayland_any_thread");
 
         EventLoop::new_wayland_any_thread()
     }
 
     #[cfg(feature = "wayland")]
-    pub fn new_wayland_any_thread() -> Result<EventLoop<T>, ConnectError> {
+    pub fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
         wayland::EventLoop::new().map(EventLoop::Wayland)
     }
 

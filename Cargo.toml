@@ -21,7 +21,7 @@ default = ["x11", "wayland"]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
 x11 = ["x11-dl"]
-wayland = ["wayland-client", "smithay-client-toolkit"]
+wayland = ["wayland-client", "sctk"]
 
 [dependencies]
 instant = "0.1"
@@ -81,10 +81,10 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] , optional = true }
+wayland-client = { version = "0.27", features = [ "dlopen"] , optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.11", optional = true }
 mio = "0.6"
 mio-extras = "2.0"
-smithay-client-toolkit = { version = "^0.6.6", optional = true }
 x11-dl = { version = "2.18.5", optional = true }
 percent-encoding = "2.0"
 

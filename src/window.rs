@@ -708,9 +708,12 @@ impl Window {
 
     /// Grabs the cursor, preventing it from leaving the window.
     ///
+    /// There's no guarantee that the cursor will be hidden. You should
+    /// hide it by yourself if you want so.
+    ///
     /// ## Platform-specific
     ///
-    /// - **macOS / Wayland:** This locks the cursor in a fixed location, which looks visually awkward.
+    /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
     /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
