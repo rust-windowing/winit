@@ -9,8 +9,8 @@ use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, PointerEvent,
-    WheelEvent, MouseEvent,
+    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, MouseEvent,
+    PointerEvent, WheelEvent,
 };
 
 pub struct Canvas {
@@ -192,9 +192,10 @@ impl Canvas {
         F: 'static + FnMut(i32),
     {
         if has_pointer_event() {
-            self.on_cursor_leave = Some(self.add_event("pointerout", move |event: PointerEvent| {
-                handler(event.pointer_id());
-            }));
+            self.on_cursor_leave =
+                Some(self.add_event("pointerout", move |event: PointerEvent| {
+                    handler(event.pointer_id());
+                }));
         } else {
             self.on_mouse_leave = Some(self.add_event("mouseout", move |event: MouseEvent| {
                 handler(0);
@@ -207,9 +208,10 @@ impl Canvas {
         F: 'static + FnMut(i32),
     {
         if has_pointer_event() {
-            self.on_cursor_enter = Some(self.add_event("pointerover", move |event: PointerEvent| {
-                handler(event.pointer_id());
-            }));
+            self.on_cursor_enter =
+                Some(self.add_event("pointerover", move |event: PointerEvent| {
+                    handler(event.pointer_id());
+                }));
         } else {
             self.on_mouse_enter = Some(self.add_event("mouseover", move |event: MouseEvent| {
                 handler(0);
@@ -233,16 +235,14 @@ impl Canvas {
                 },
             ));
         } else {
-            self.on_mouse_release = Some(self.add_user_event(
-                "mouseup",
-                move |event: MouseEvent| {
+            self.on_mouse_release =
+                Some(self.add_user_event("mouseup", move |event: MouseEvent| {
                     handler(
                         0,
                         event::mouse_button(&event),
                         event::mouse_modifiers(&event),
                     );
-                },
-            ));
+                }));
         }
     }
 
@@ -262,16 +262,14 @@ impl Canvas {
                 },
             ));
         } else {
-            self.on_mouse_press = Some(self.add_user_event(
-                "mousedown",
-                move |event: MouseEvent| {
+            self.on_mouse_press =
+                Some(self.add_user_event("mousedown", move |event: MouseEvent| {
                     handler(
                         0,
                         event::mouse_button(&event),
                         event::mouse_modifiers(&event),
                     );
-                },
-            ));
+                }));
         }
     }
 
@@ -280,13 +278,14 @@ impl Canvas {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
     {
         if has_pointer_event() {
-            self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
-                handler(
-                    event.pointer_id(),
-                    event::mouse_position(&event).to_physical(super::scale_factor()),
-                    event::mouse_modifiers(&event),
-                );
-            }));
+            self.on_cursor_move =
+                Some(self.add_event("pointermove", move |event: PointerEvent| {
+                    handler(
+                        event.pointer_id(),
+                        event::mouse_position(&event).to_physical(super::scale_factor()),
+                        event::mouse_modifiers(&event),
+                    );
+                }));
         } else {
             self.on_mouse_move = Some(self.add_event("mousemove", move |event: MouseEvent| {
                 handler(
