@@ -359,7 +359,7 @@ pub struct CFRunLoopSourceContext {
     pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
-pub trait NSString: Sized {
+pub trait NSStringRust: Sized {
     unsafe fn alloc(_: Self) -> id {
         msg_send![class!(NSString), alloc]
     }
@@ -370,7 +370,7 @@ pub trait NSString: Sized {
     unsafe fn UTF8String(self) -> *const c_char;
 }
 
-impl NSString for id {
+impl NSStringRust for id {
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id {
         msg_send![self, initWithUTF8String: c_string as id]
     }

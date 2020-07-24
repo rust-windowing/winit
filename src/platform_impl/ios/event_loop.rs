@@ -24,7 +24,8 @@ use crate::platform_impl::platform::{
         CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
         CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext,
         CFRunLoopSourceCreate, CFRunLoopSourceInvalidate, CFRunLoopSourceRef,
-        CFRunLoopSourceSignal, CFRunLoopWakeUp, NSString, UIApplicationMain, UIUserInterfaceIdiom,
+        CFRunLoopSourceSignal, CFRunLoopWakeUp, NSStringRust, UIApplicationMain,
+        UIUserInterfaceIdiom,
     },
     monitor, view, MonitorHandle,
 };
@@ -117,7 +118,7 @@ impl<T: 'static> EventLoop<T> {
                 0,
                 ptr::null(),
                 nil,
-                NSString::alloc(nil).init_str("AppDelegate"),
+                NSStringRust::alloc(nil).init_str("AppDelegate"),
             );
             unreachable!()
         }
