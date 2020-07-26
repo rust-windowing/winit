@@ -49,6 +49,10 @@
 - on macOS, fix incorrect ReceivedCharacter events for some key combinations.
 - **Breaking:** Use `i32` instead of `u32` for position type in `WindowEvent::Moved`.
 - On macOS, a mouse motion event is now generated before every mouse click.
+- On Windows, `set_ime_position` is now a no-op instead of a runtime crash.
+- On Android, `set_fullscreen` is now a no-op instead of a runtime crash.
+- On iOS and Android, `set_inner_size` is now a no-op instead of a runtime crash.
+- **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
 
 # 0.21.0 (2020-02-04)
 

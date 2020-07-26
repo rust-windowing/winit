@@ -419,7 +419,7 @@ impl Window {
     }
 
     pub fn set_inner_size(&self, _size: Size) {
-        panic!("Cannot set window size on Android");
+        warn!("Cannot set window size on Android");
     }
 
     pub fn outer_size(&self) -> PhysicalSize<u32> {
@@ -441,7 +441,7 @@ impl Window {
     pub fn set_maximized(&self, _maximized: bool) {}
 
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
-        panic!("Cannot set fullscreen on Android");
+        warn!("Cannot set fullscreen on Android");
     }
 
     pub fn fullscreen(&self) -> Option<window::Fullscreen> {
