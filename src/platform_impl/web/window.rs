@@ -171,7 +171,6 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        // Intentionally a no-op, as the web does not support setting cursor positions
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
