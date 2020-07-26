@@ -999,10 +999,14 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
     mouse_motion(this, event);
 
     unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
         let delta = {
             let (x, y) = (event.scrollingDeltaX(), event.scrollingDeltaY());
             if event.hasPreciseScrollingDeltas() == YES {
-                MouseScrollDelta::PixelDelta((x as f64, y as f64).into())
+                let delta = LogicalPosition::new(x, y).to_physical(state.get_scale_factor());
+                MouseScrollDelta::PixelDelta(delta)
             } else {
                 MouseScrollDelta::LineDelta(x as f32, y as f32)
             }

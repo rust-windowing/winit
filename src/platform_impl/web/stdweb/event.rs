@@ -36,7 +36,10 @@ pub fn mouse_scroll_delta(event: &MouseWheelEvent) -> Option<MouseScrollDelta> {
 
     match event.delta_mode() {
         MouseWheelDeltaMode::Line => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
-        MouseWheelDeltaMode::Pixel => Some(MouseScrollDelta::PixelDelta(LogicalPosition { x, y })),
+        MouseWheelDeltaMode::Pixel => {
+            let delta = LogicalPosition::new(x, y).to_physical(super::scale_factor());
+            Some(MouseScrollDelta::PixelDelta(delta))
+        }
         MouseWheelDeltaMode::Page => None,
     }
 }
