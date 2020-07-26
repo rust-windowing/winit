@@ -50,6 +50,8 @@
 - **Breaking:** Use `i32` instead of `u32` for position type in `WindowEvent::Moved`.
 - On macOS, a mouse motion event is now generated before every mouse click.
 - On Windows, `set_ime_position` is now a no-op instead of a runtime crash.
+- On Android, `set_fullscreen` is now a no-op instead of a runtime crash.
+- On iOS and Android, `set_inner_size` is now a no-op instead of a runtime crash.
 
 # 0.21.0 (2020-02-04)
 
