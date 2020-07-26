@@ -424,7 +424,6 @@ impl Window {
     /// - **Android / Wayland:** Always returns [`NotSupportedError`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
-    /// [`NotSupportedError`]: error/struct.NotSupportedError.html
     #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.inner_position()
@@ -446,8 +445,6 @@ impl Window {
     ///   window in the screen space coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport.
     /// - **Android / Wayland:** Always returns [`NotSupportedError`].
-    ///
-    /// [`NotSupportedError`]: error/struct.NotSupportedError.html
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.outer_position()
@@ -702,9 +699,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland:** Always returns an [`ExternalError::NotSupportedError`].
-    ///
-    /// [`ExternalError::NotSupportedError`]: error/enum.ExternalError.html#variant.NotSupported
+    /// - **iOS / Android / Web / Wayland:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
         self.window.set_cursor_position(position.into())
@@ -715,9 +710,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS / Wayland:** This locks the cursor in a fixed location, which looks visually awkward.
-    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupportedError`].
-    ///
-    /// [`ExternalError::NotSupportedError`]: error/enum.ExternalError.html#variant.NotSupported
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_grab(grab)
