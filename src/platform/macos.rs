@@ -56,6 +56,12 @@ pub trait WindowExtMacOS {
     /// And allows the user to have a fullscreen window without using another
     /// space or taking control over the entire monitor.
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
+
+    /// Returns whether or not the window has shadow.
+    fn has_shadow(&self) -> bool;
+
+    /// Set the window whether or not has shadow.
+    fn set_has_shadow(&self, has_shadow: bool);
 }
 
 impl WindowExtMacOS for Window {
@@ -82,6 +88,16 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         self.window.set_simple_fullscreen(fullscreen)
+    }
+
+    #[inline]
+    fn has_shadow(&self) -> bool {
+        self.window.has_shadow()
+    }
+
+    #[inline]
+    fn set_has_shadow(&self, has_shadow: bool) {
+        self.window.set_has_shadow(has_shadow)
     }
 }
 
@@ -131,6 +147,7 @@ pub trait WindowBuilderExtMacOS {
     /// Build window with `resizeIncrements` property. Values must not be 0.
     fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
+    fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -188,6 +205,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_disallow_hidpi(mut self, disallow_hidpi: bool) -> WindowBuilder {
         self.platform_specific.disallow_hidpi = disallow_hidpi;
+        self
+    }
+
+    #[inline]
+    fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
+        self.platform_specific.has_shadow = has_shadow;
         self
     }
 }
