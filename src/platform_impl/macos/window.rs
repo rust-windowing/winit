@@ -87,7 +87,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             fullsize_content_view: false,
             resize_increments: None,
             disallow_hidpi: false,
-            has_shadow: true
+            has_shadow: true,
         }
     }
 }
