@@ -142,7 +142,7 @@ impl Icon {
     /// Creates an `Icon` from 32bpp RGBA data.
     ///
     /// ## Panics
-    /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't equal
+    /// Panics if the length of `rgba` is not divisible by 4, or if `width * height` doesn't equal
     /// `rgba.len() / 4`.
     pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
         Ok(Icon {
