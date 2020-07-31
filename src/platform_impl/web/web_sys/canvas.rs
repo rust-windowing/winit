@@ -197,7 +197,7 @@ impl Canvas {
                     handler(event.pointer_id());
                 }));
         } else {
-            self.on_mouse_leave = Some(self.add_event("mouseout", move |event: MouseEvent| {
+            self.on_mouse_leave = Some(self.add_event("mouseout", move |_: MouseEvent| {
                 handler(0);
             }));
         }
@@ -213,7 +213,7 @@ impl Canvas {
                     handler(event.pointer_id());
                 }));
         } else {
-            self.on_mouse_enter = Some(self.add_event("mouseover", move |event: MouseEvent| {
+            self.on_mouse_enter = Some(self.add_event("mouseover", move |_: MouseEvent| {
                 handler(0);
             }));
         }
