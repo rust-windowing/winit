@@ -5,12 +5,6 @@ use super::*;
 
 impl XConnection {
     pub fn set_cursor_icon(&self, window: ffi::Window, cursor: Option<CursorIcon>) {
-        // ignore custom cursors for now
-        let cursor = match cursor {
-            Some(CursorIcon::Custom(_)) => Some(CursorIcon::default()),
-            _ => cursor,
-        };
-
         let cursor = *self
             .cursor_cache
             .lock()
@@ -87,6 +81,7 @@ impl XConnection {
             CursorIcon::Cell => load(b"plus\0"),
             CursorIcon::Copy => load(b"copy\0"),
             CursorIcon::Crosshair => load(b"crosshair\0"),
+            CursorIcon::Custom(_) |
             CursorIcon::Default => load(b"left_ptr\0"),
             CursorIcon::Hand => loadn(&[b"hand2\0", b"hand1\0"]),
             CursorIcon::Help => load(b"question_arrow\0"),
@@ -123,7 +118,6 @@ impl XConnection {
 
             CursorIcon::ZoomIn => load(b"zoom-in\0"),
             CursorIcon::ZoomOut => load(b"zoom-out\0"),
-            CursorIcon::Custom(_) => unreachable!(),
         }
     }
 
