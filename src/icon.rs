@@ -81,7 +81,7 @@ impl<I: Deref<Target = [u8]>> RgbaIcon<I> {
     /// Creates a `RgbaIcon` from 32bpp RGBA data.
     ///
     /// ## Panics
-    /// Panics if the length of `rgba` must be divisible by 4, or if `width * height` doesn't
+    /// Panics if the length of `rgba` is not divisible by 4, or if `width * height` doesn't
     /// equal `rgba.len() / 4`.
     pub fn from_rgba(rgba: I, size: PhysicalSize<u32>) -> Self {
         Self::from_rgba_with_hot_spot(
