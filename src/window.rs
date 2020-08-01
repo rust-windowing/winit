@@ -251,8 +251,8 @@ impl WindowBuilder {
     ///
     /// [`Window::set_fullscreen`]: crate::window::Window::set_fullscreen
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = monitor;
+    pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
+        self.window.fullscreen = fullscreen;
         self
     }
 
