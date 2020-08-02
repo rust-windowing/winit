@@ -170,14 +170,15 @@ pub fn implement_pointer(
                                     wl_pointer::Axis::HorizontalScroll => x += value as f32,
                                     _ => unreachable!(),
                                 }
+                                let scale_factor = surface::get_dpi_factor(&surface) as f64;
+                                let delta = LogicalPosition::new(x as f64, y as f64)
+                                    .to_physical(scale_factor);
                                 sink.send_window_event(
                                     WindowEvent::MouseWheel {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Wayland(DeviceId),
                                         ),
-                                        delta: MouseScrollDelta::PixelDelta(
-                                            (x as f64, y as f64).into(),
-                                        ),
+                                        delta: MouseScrollDelta::PixelDelta(delta),
                                         phase: TouchPhase::Moved,
                                         modifiers: modifiers_tracker.lock().unwrap().clone(),
                                     },
@@ -210,21 +211,21 @@ pub fn implement_pointer(
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Wayland(DeviceId),
                                         ),
-                                        delta: MouseScrollDelta::LineDelta(x as f32, y as f32),
+                                        delta: MouseScrollDelta::LineDelta(x, y),
                                         phase: axis_state,
                                         modifiers: modifiers_tracker.lock().unwrap().clone(),
                                     },
                                     wid,
                                 );
                             } else if let Some((x, y)) = axis_buffer {
+                                let scale_factor = surface::get_dpi_factor(&surface) as f64;
+                                let delta = LogicalPosition::new(x, y).to_physical(scale_factor);
                                 sink.send_window_event(
                                     WindowEvent::MouseWheel {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Wayland(DeviceId),
                                         ),
-                                        delta: MouseScrollDelta::PixelDelta(
-                                            (x as f64, y as f64).into(),
-                                        ),
+                                        delta: MouseScrollDelta::PixelDelta(delta),
                                         phase: axis_state,
                                         modifiers: modifiers_tracker.lock().unwrap().clone(),
                                     },
@@ -238,11 +239,11 @@ pub fn implement_pointer(
                         axis_state = TouchPhase::Ended;
                     }
                     PtrEvent::AxisDiscrete { axis, discrete } => {
-                        let (mut x, mut y) = axis_discrete_buffer.unwrap_or((0, 0));
+                        let (mut x, mut y) = axis_discrete_buffer.unwrap_or((0.0, 0.0));
                         match axis {
                             // wayland vertical sign convention is the inverse of winit
-                            wl_pointer::Axis::VerticalScroll => y -= discrete,
-                            wl_pointer::Axis::HorizontalScroll => x += discrete,
+                            wl_pointer::Axis::VerticalScroll => y -= discrete as f32,
+                            wl_pointer::Axis::HorizontalScroll => x += discrete as f32,
                             _ => unreachable!(),
                         }
                         axis_discrete_buffer = Some((x, y));

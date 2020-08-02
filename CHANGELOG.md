@@ -11,6 +11,11 @@
 - On MacOS, Fixed fullscreen and dialog support for `run_return`.
 - On Windows, fix bug where we'd try to emit `MainEventsCleared` events during nested win32 event loops.
 - On Web, use mouse events if pointer events aren't supported. This affects Safari.
+- On Windows, `set_ime_position` is now a no-op instead of a runtime crash.
+- On Android, `set_fullscreen` is now a no-op instead of a runtime crash.
+- On iOS and Android, `set_inner_size` is now a no-op instead of a runtime crash.
+- **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
+- **Breaking:** `PixelDelta` scroll events now return a `PhysicalPosition`.
 
 # 0.22.2 (2020-05-16)
 

@@ -171,14 +171,12 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        // Intentionally a no-op, as the web does not support setting cursor positions
-        Ok(())
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
     pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        // Intentionally a no-op, as the web does not (properly) support grabbing the cursor
-        Ok(())
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
