@@ -1,7 +1,7 @@
 use crate::{
     dpi::{PhysicalPosition, Size},
     event::ModifiersState,
-    icon::Icon,
+    icon::CustomWindowIcon,
     platform_impl::platform::{event_loop, util},
     window::{CursorIcon, Fullscreen},
 };
@@ -23,7 +23,7 @@ pub struct WindowState {
     pub min_size: Option<Size>,
     pub max_size: Option<Size>,
 
-    pub window_icon: Option<Icon>,
+    pub window_icon: Option<CustomWindowIcon>,
 
     pub saved_window: Option<SavedWindow>,
     pub scale_factor: f64,

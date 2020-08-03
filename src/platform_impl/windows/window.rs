@@ -32,7 +32,7 @@ use winapi::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    icon::Icon,
+    icon::CustomWindowIcon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_dark_mode,
@@ -583,7 +583,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+    pub fn set_window_icon(&self, window_icon: Option<CustomWindowIcon>) {
         if let Some(ref window_icon) = window_icon {
             window_icon
                 .inner

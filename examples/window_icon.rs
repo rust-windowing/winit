@@ -3,7 +3,7 @@ use winit::{
     dpi::PhysicalSize,
     event::Event,
     event_loop::{ControlFlow, EventLoop},
-    window::{Icon, RgbaIcon, WindowBuilder},
+    window::{CustomWindowIcon, RgbaBuffer, WindowBuilder},
 };
 
 fn main() {
@@ -42,7 +42,7 @@ fn main() {
     });
 }
 
-fn load_icon(path: &Path) -> Icon {
+fn load_icon(path: &Path) -> CustomWindowIcon {
     let decode_png = |path: &Path| {
         let decoder = png::Decoder::new(File::open(path).unwrap());
         let (info, mut reader) = decoder.read_info().unwrap();
@@ -55,18 +55,17 @@ fn load_icon(path: &Path) -> Icon {
     if path.is_file() {
         if path.extension() == Some(OsStr::new("png")) {
             let (icon_rgba, icon_size) = decode_png(path);
-            Icon::from_rgba(&icon_rgba, icon_size).unwrap()
+            CustomWindowIcon::from_rgba(&icon_rgba, icon_size).unwrap()
         } else {
             panic!("unsupported file extension: {:?}", path.extension());
         }
     } else if path.is_dir() {
         let path = path.to_owned();
-        Icon::from_rgba_fn(move |size, _| {
+        CustomWindowIcon::from_rgba_fn(move |size, _| {
             let path = path.join(format!("{}.png", size.width));
             let (icon_rgba, icon_size) = decode_png(&path);
-            Ok(RgbaIcon::from_rgba(icon_rgba, icon_size))
+            Ok(RgbaBuffer::from_rgba(icon_rgba, icon_size))
         })
-        .unwrap()
     } else {
         panic!("path {} is neither file nor directory", path.display());
     }

@@ -28,7 +28,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    icon::{Icon, RgbaIcon},
+    icon::{Icon, RgbaBuffer},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
@@ -683,13 +683,13 @@ impl<T> EventLoopWindowTarget<T> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PlatformIcon {
-    icon: RgbaIcon<Arc<[u8]>>,
+    icon: RgbaBuffer<Arc<[u8]>>,
 }
 
 impl PlatformIcon {
     pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
         Ok(PlatformIcon {
-            icon: RgbaIcon::from_rgba(rgba.into(), size),
+            icon: RgbaBuffer::from_rgba(rgba.into(), size),
         })
     }
 
@@ -699,7 +699,7 @@ impl PlatformIcon {
         hot_spot: PhysicalPosition<u32>,
     ) -> Result<Self, io::Error> {
         Ok(PlatformIcon {
-            icon: RgbaIcon::from_rgba_with_hot_spot(rgba.into(), size, hot_spot),
+            icon: RgbaBuffer::from_rgba_with_hot_spot(rgba.into(), size, hot_spot),
         })
     }
 
@@ -710,7 +710,7 @@ impl PlatformIcon {
                 PhysicalSize<u32>,
                 f64,
             )
-                -> Result<RgbaIcon<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>,
+                -> Result<RgbaBuffer<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>,
     {
         let icon = get_icon(PhysicalSize::new(32, 32), 1.0).map_err(|mut e| {
             if let Some(ioe) = e.downcast_mut::<io::Error>() {
@@ -721,7 +721,7 @@ impl PlatformIcon {
         })?;
         Ok(PlatformIcon {
             // TODO: IMPLEMENT ACTUAL LAZY ICON SCALING
-            icon: RgbaIcon {
+            icon: RgbaBuffer {
                 rgba: icon.rgba.into(),
                 size: icon.size,
                 hot_spot: icon.hot_spot,

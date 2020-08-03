@@ -3,7 +3,7 @@ use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, Icon, RgbaIcon, WindowBuilder},
+    window::{CursorIcon, CustomCursorIcon, RgbaBuffer, WindowBuilder},
 };
 
 fn main() {
@@ -21,7 +21,7 @@ fn main() {
             "/examples/icons/icon_folder/"
         ));
 
-        Icon::from_rgba_fn(move |size, _| {
+        CustomCursorIcon::from_rgba_fn(move |size, _| {
             let path = base_path.join(format!("{}.png", size.width));
             let (icon_rgba, icon_size) = {
                 let decoder = png::Decoder::new(File::open(path)?);
@@ -32,13 +32,14 @@ fn main() {
 
                 (rgba, PhysicalSize::new(info.width, info.height))
             };
-            Ok(RgbaIcon::from_rgba_with_hot_spot(
-                icon_rgba,
-                icon_size,
+            Ok((
+                RgbaBuffer::from_rgba(
+                    icon_rgba,
+                    icon_size,
+                ),
                 PhysicalPosition::new(0, 0),
             ))
         })
-        .unwrap()
     };
 
     let cursors = vec![

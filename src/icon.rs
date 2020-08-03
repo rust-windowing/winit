@@ -1,8 +1,8 @@
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl::PlatformIcon,
+    platform_impl::{PlatformCustomWindowIcon, PlatformCustomCursorIcon},
 };
-use std::{fmt, io, mem, ops::Deref};
+use std::{error::Error, fmt, io, mem, ops::Deref};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -16,10 +16,9 @@ pub(crate) struct Pixel {
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct RgbaIcon<I: Deref<Target = [u8]>> {
+pub struct RgbaBuffer<I: Deref<Target = [u8]>> {
     pub(crate) rgba: I,
     pub(crate) size: PhysicalSize<u32>,
-    pub(crate) hot_spot: PhysicalPosition<u32>,
 }
 
 /// For platforms which don't have window icons (e.g. web)
@@ -28,8 +27,13 @@ pub(crate) struct NoIcon;
 
 /// An icon used for the window titlebar, taskbar, or cursor.
 #[derive(Clone, PartialEq, Eq)]
-pub struct Icon {
-    pub(crate) inner: PlatformIcon,
+pub struct CustomWindowIcon {
+    pub(crate) inner: PlatformCustomWindowIcon,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct CustomCursorIcon {
+    pub(crate) inner: PlatformCustomCursorIcon,
 }
 
 #[allow(dead_code)] // These are not used on every platform
@@ -56,53 +60,32 @@ mod constructors {
                     PhysicalSize<u32>,
                     f64,
                 )
-                    -> Result<RgbaIcon<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>,
+                    -> Result<RgbaBuffer<Box<[u8]>>, Box<dyn Error + Send + Sync>>,
         {
             Ok(NoIcon)
         }
     }
 }
 
-impl<I: Deref<Target = [u8]>> fmt::Debug for RgbaIcon<I> {
+impl<I: Deref<Target = [u8]>> fmt::Debug for RgbaBuffer<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        let RgbaIcon {
+        let RgbaBuffer {
             rgba,
             size,
-            hot_spot,
         } = self;
-        f.debug_struct("RgbaIcon")
+        f.debug_struct("RgbaBuffer")
             .field("size", &size)
-            .field("hot_spot", &hot_spot)
             .field("rgba", &(&**rgba as *const [u8]))
             .finish()
     }
 }
-impl<I: Deref<Target = [u8]>> RgbaIcon<I> {
-    /// Creates a `RgbaIcon` from 32bpp RGBA data.
+impl<I: Deref<Target = [u8]>> RgbaBuffer<I> {
+    /// Creates a `RgbaBuffer` from 32bpp RGBA data.
     ///
     /// ## Panics
     /// Panics if the length of `rgba` is not divisible by 4, or if `width * height` doesn't
     /// equal `rgba.len() / 4`.
     pub fn from_rgba(rgba: I, size: PhysicalSize<u32>) -> Self {
-        Self::from_rgba_with_hot_spot(
-            rgba,
-            size,
-            PhysicalPosition::new(size.width / 2, size.height / 2),
-        )
-    }
-
-    /// Creates a `RgbaIcon` from 32bpp RGBA data, with a defined cursor hot spot. The hot spot is
-    /// the exact pixel in the icon image where the cursor clicking point is, and is ignored when
-    /// the icon is used as a window icon.
-    ///
-    /// ## Panics
-    /// Panics if the length of `rgba` is not divisible by 4, or if `width * height` doesn't equal
-    /// `rgba.len() / 4`.
-    pub fn from_rgba_with_hot_spot(
-        rgba: I,
-        size: PhysicalSize<u32>,
-        hot_spot: PhysicalPosition<u32>,
-    ) -> Self {
         let PhysicalSize { width, height } = size;
         if rgba.len() % PIXEL_SIZE != 0 {
             panic!(
@@ -124,46 +107,42 @@ impl<I: Deref<Target = [u8]>> RgbaIcon<I> {
             )
         }
 
-        RgbaIcon {
+        RgbaBuffer {
             rgba,
             size,
-            hot_spot,
         }
+    }
+
+    pub fn into_custom_window_icon(self) -> Result<CustomWindowIcon, io::Error> {
+        CustomWindowIcon::from_rgba(&*self.rgba, self.size)
+    }
+
+    pub fn into_custom_cursor_icon(self, hot_spot: PhysicalPosition<u32>) -> Result<CustomCursorIcon, io::Error> {
+        CustomCursorIcon::from_rgba(&*self.rgba, self.size, hot_spot)
     }
 }
 
-impl fmt::Debug for Icon {
+impl fmt::Debug for CustomWindowIcon {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         fmt::Debug::fmt(&self.inner, formatter)
     }
 }
 
-impl Icon {
+impl fmt::Debug for CustomCursorIcon {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        fmt::Debug::fmt(&self.inner, formatter)
+    }
+}
+
+impl CustomWindowIcon {
     /// Creates an `Icon` from 32bpp RGBA data.
     ///
     /// ## Panics
     /// Panics if the length of `rgba` is not divisible by 4, or if `width * height` doesn't equal
     /// `rgba.len() / 4`.
     pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
-        Ok(Icon {
-            inner: PlatformIcon::from_rgba(rgba.into(), size)?,
-        })
-    }
-
-    /// Creates an `Icon` from 32bpp RGBA data, with a defined cursor hot spot. The hot spot is
-    /// the exact pixel in the icon image where the cursor clicking point is, and is ignored when
-    /// the icon is used as a window icon.
-    ///
-    /// ## Panics
-    /// Panics if the length of `rgba` is not divisible by 4, or if `width * height` doesn't equal
-    /// `rgba.len() / 4`.
-    pub fn from_rgba_with_hot_spot(
-        rgba: &[u8],
-        size: PhysicalSize<u32>,
-        hot_spot: PhysicalPosition<u32>,
-    ) -> Result<Self, io::Error> {
-        Ok(Icon {
-            inner: PlatformIcon::from_rgba_with_hot_spot(rgba.into(), size, hot_spot)?,
+        Ok(CustomWindowIcon {
+            inner: PlatformCustomWindowIcon::from_rgba(rgba.into(), size)?,
         })
     }
 
@@ -177,25 +156,64 @@ impl Icon {
     ///
     /// If `get_icon` returns `Err(e)` for a given size, Winit will invoke `warn!` on the returned
     /// error and will try to retrieve a differently-sized icon from `get_icon`.
-    pub fn from_rgba_fn<F, B>(mut get_icon: F) -> Result<Self, std::io::Error>
+    pub fn from_rgba_fn<F, B>(mut get_icon: F) -> Self
     where
         F: 'static
             + FnMut(
                 PhysicalSize<u32>,
                 f64,
             )
-                -> Result<RgbaIcon<B>, Box<dyn 'static + std::error::Error + Send + Sync>>,
+                -> Result<RgbaBuffer<B>, Box<dyn 'static + Error + Send + Sync>>,
         B: Deref<Target = [u8]> + Into<Box<[u8]>>,
     {
-        Ok(Icon {
-            inner: PlatformIcon::from_rgba_fn(move |size, scale_factor| {
+        CustomWindowIcon {
+            inner: PlatformCustomWindowIcon::from_rgba_fn(move |size, scale_factor| {
                 let icon = get_icon(size, scale_factor)?;
-                Ok(RgbaIcon {
+                Ok(RgbaBuffer {
                     rgba: icon.rgba.into(),
                     size: icon.size,
-                    hot_spot: icon.hot_spot,
                 })
-            })?,
+            }),
+        }
+    }
+}
+
+impl CustomCursorIcon {
+    /// Creates an `Icon` from 32bpp RGBA data, with a defined cursor hot spot. The hot spot is
+    /// the exact pixel in the icon image where the cursor clicking point is, and is ignored when
+    /// the icon is used as a window icon.
+    ///
+    /// ## Panics
+    /// Panics if the length of `rgba` is not divisible by 4, or if `width * height` doesn't equal
+    /// `rgba.len() / 4`.
+    pub fn from_rgba(
+        rgba: &[u8],
+        size: PhysicalSize<u32>,
+        hot_spot: PhysicalPosition<u32>,
+    ) -> Result<Self, io::Error> {
+        Ok(CustomCursorIcon {
+            inner: PlatformCustomCursorIcon::from_rgba(rgba.into(), size, hot_spot)?,
         })
+    }
+
+    pub fn from_rgba_fn<F, B>(mut get_icon: F) -> Self
+    where
+        F: 'static
+            + FnMut(
+                PhysicalSize<u32>,
+                f64,
+            )
+                -> Result<(RgbaBuffer<B>, PhysicalPosition<u32>), Box<dyn Error + Send + Sync>>,
+        B: Deref<Target = [u8]> + Into<Box<[u8]>>,
+    {
+        CustomCursorIcon {
+            inner: PlatformCustomCursorIcon::from_rgba_fn(move |size, scale_factor| {
+                let (icon, hot_spot) = get_icon(size, scale_factor)?;
+                Ok((RgbaBuffer {
+                    rgba: icon.rgba.into(),
+                    size: icon.size,
+                }, hot_spot))
+            }),
+        }
     }
 }

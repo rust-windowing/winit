@@ -4,12 +4,15 @@ use winapi::{self, shared::windef::HWND};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
-    icon::WinIcon,
+    icon::CustomWindowIcon,
     monitor::{MonitorHandle, VideoMode},
     window::Window,
 };
 
-pub use self::icon::WinIcon as PlatformIcon;
+pub use self::icon::{
+    CustomWindowIcon as PlatformCustomWindowIcon,
+    CustomCursorIcon as PlatformCustomCursorIcon,
+};
 
 use crate::event::DeviceId as RootDeviceId;
 
