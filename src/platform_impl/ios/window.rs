@@ -4,6 +4,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use dispatch::Queue;
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 
 use crate::{
@@ -25,19 +26,32 @@ use crate::{
     window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
 
+#[derive(Copy, Clone)]
+struct MainThreadSafe<T>(T);
+
+unsafe impl<T> Sync for MainThreadSafe<T> {}
+unsafe impl<T> Send for MainThreadSafe<T> {}
+
+impl<T> Deref for MainThreadSafe<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.0
+    }
+}
+
 pub struct Inner {
-    pub window: id,
-    pub view_controller: id,
-    pub view: id,
+    window: MainThreadSafe<id>,
+    view_controller: MainThreadSafe<id>,
+    view: MainThreadSafe<id>,
     gl_or_metal_backed: bool,
 }
 
 impl Drop for Inner {
     fn drop(&mut self) {
         unsafe {
-            let () = msg_send![self.view, release];
-            let () = msg_send![self.view_controller, release];
-            let () = msg_send![self.window, release];
+            let () = msg_send![*self.view, release];
+            let () = msg_send![*self.view_controller, release];
+            let () = msg_send![*self.window, release];
         }
     }
 }
@@ -50,10 +64,10 @@ impl Inner {
     pub fn set_visible(&self, visible: bool) {
         match visible {
             true => unsafe {
-                let () = msg_send![self.window, setHidden: NO];
+                let () = msg_send![*self.window, setHidden: NO];
             },
             false => unsafe {
-                let () = msg_send![self.window, setHidden: YES];
+                let () = msg_send![*self.window, setHidden: YES];
             },
         }
     }
@@ -69,9 +83,9 @@ impl Inner {
                 // testing.
                 //
                 // https://developer.apple.com/documentation/uikit/uiview/1622437-setneedsdisplay?language=objc
-                app_state::queue_gl_or_metal_redraw(self.window);
+                app_state::queue_gl_or_metal_redraw(*self.window);
             } else {
-                let () = msg_send![self.view, setNeedsDisplay];
+                let () = msg_send![*self.view, setNeedsDisplay];
             }
         }
     }
@@ -113,7 +127,7 @@ impl Inner {
                 size: screen_frame.size,
             };
             let bounds = self.from_screen_space(new_screen_frame);
-            let () = msg_send![self.window, setBounds: bounds];
+            let () = msg_send![*self.window, setBounds: bounds];
         }
     }
 
@@ -159,7 +173,7 @@ impl Inner {
 
     pub fn scale_factor(&self) -> f64 {
         unsafe {
-            let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
+            let hidpi: CGFloat = msg_send![*self.view, contentScaleFactor];
             hidpi as _
         }
     }
@@ -204,13 +218,13 @@ impl Inner {
             };
 
             // this is pretty slow on iOS, so avoid doing it if we can
-            let current: id = msg_send![self.window, screen];
+            let current: id = msg_send![*self.window, screen];
             if uiscreen != current {
-                let () = msg_send![self.window, setScreen: uiscreen];
+                let () = msg_send![*self.window, setScreen: uiscreen];
             }
 
             let bounds: CGRect = msg_send![uiscreen, bounds];
-            let () = msg_send![self.window, setFrame: bounds];
+            let () = msg_send![*self.window, setFrame: bounds];
 
             // For external displays, we must disable overscan compensation or
             // the displayed image will have giant black bars surrounding it on
@@ -260,7 +274,7 @@ impl Inner {
 
     pub fn current_monitor(&self) -> RootMonitorHandle {
         unsafe {
-            let uiscreen: id = msg_send![self.window, screen];
+            let uiscreen: id = msg_send![*self.window, screen];
             RootMonitorHandle {
                 inner: MonitorHandle::retained_new(uiscreen),
             }
@@ -276,14 +290,14 @@ impl Inner {
     }
 
     pub fn id(&self) -> WindowId {
-        self.window.into()
+        (*self.window).into()
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let handle = IOSHandle {
-            ui_window: self.window as _,
-            ui_view: self.view as _,
-            ui_view_controller: self.view_controller as _,
+            ui_window: *self.window as _,
+            ui_view: *self.view as _,
+            ui_view_controller: *self.view_controller as _,
             ..IOSHandle::empty()
         };
         RawWindowHandle::IOS(handle)
@@ -294,14 +308,6 @@ pub struct Window {
     pub inner: Inner,
 }
 
-impl Drop for Window {
-    fn drop(&mut self) {
-        unsafe {
-            assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
-        }
-    }
-}
-
 unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
@@ -309,18 +315,12 @@ impl Deref for Window {
     type Target = Inner;
 
     fn deref(&self) -> &Inner {
-        unsafe {
-            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
-        }
-        &self.inner
+       &self.inner
     }
 }
 
 impl DerefMut for Window {
     fn deref_mut(&mut self) -> &mut Inner {
-        unsafe {
-            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
-        }
         &mut self.inner
     }
 }
@@ -331,6 +331,10 @@ impl Window {
         window_attributes: WindowAttributes,
         platform_attributes: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Window, RootOsError> {
+        unsafe {
+            assert_main_thread!("`Window::new` can only be called on the main thread");
+        }
+
         if let Some(_) = window_attributes.min_inner_size {
             warn!("`WindowAttributes::min_inner_size` is ignored on iOS");
         }
@@ -390,9 +394,9 @@ impl Window {
 
             let result = Window {
                 inner: Inner {
-                    window,
-                    view_controller,
-                    view,
+                    window: MainThreadSafe(window),
+                    view_controller: MainThreadSafe(view_controller),
+                    view: MainThreadSafe(view),
                     gl_or_metal_backed,
                 },
             };
@@ -435,13 +439,13 @@ impl Window {
 // WindowExtIOS
 impl Inner {
     pub fn ui_window(&self) -> id {
-        self.window
+        *self.window
     }
     pub fn ui_view_controller(&self) -> id {
-        self.view_controller
+        *self.view_controller
     }
     pub fn ui_view(&self) -> id {
-        self.view
+        *self.view
     }
 
     pub fn set_scale_factor(&self, scale_factor: f64) {
@@ -451,7 +455,7 @@ impl Inner {
                 "`WindowExtIOS::set_scale_factor` received an invalid hidpi factor"
             );
             let scale_factor = scale_factor as CGFloat;
-            let () = msg_send![self.view, setContentScaleFactor: scale_factor];
+            let () = msg_send![*self.view, setContentScaleFactor: scale_factor];
         }
     }
 
@@ -463,7 +467,7 @@ impl Inner {
                 idiom,
             );
             msg_send![
-                self.view_controller,
+                *self.view_controller,
                 setSupportedInterfaceOrientations: supported_orientations
             ]
         }
@@ -473,7 +477,7 @@ impl Inner {
         unsafe {
             let prefers_home_indicator_hidden = if hidden { YES } else { NO };
             let () = msg_send![
-                self.view_controller,
+                *self.view_controller,
                 setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
             ];
         }
@@ -483,7 +487,7 @@ impl Inner {
         let edges: UIRectEdge = edges.into();
         unsafe {
             let () = msg_send![
-                self.view_controller,
+                *self.view_controller,
                 setPreferredScreenEdgesDeferringSystemGestures: edges
             ];
         }
@@ -493,7 +497,7 @@ impl Inner {
         unsafe {
             let status_bar_hidden = if hidden { YES } else { NO };
             let () = msg_send![
-                self.view_controller,
+                *self.view_controller,
                 setPrefersStatusBarHidden: status_bar_hidden
             ];
         }
@@ -501,78 +505,96 @@ impl Inner {
 }
 
 impl Inner {
-    // requires main thread
+    // executed on main thread
     unsafe fn screen_frame(&self) -> CGRect {
-        self.to_screen_space(msg_send![self.window, bounds])
+        let window = self.window;
+        Queue::main().exec_sync(move || {
+            let window: id = *window;
+            self.to_screen_space(msg_send![window, bounds])
+        })
     }
 
-    // requires main thread
+    // executed on main thread
     unsafe fn to_screen_space(&self, rect: CGRect) -> CGRect {
-        let screen: id = msg_send![self.window, screen];
-        if !screen.is_null() {
-            let screen_space: id = msg_send![screen, coordinateSpace];
-            msg_send![self.window, convertRect:rect toCoordinateSpace:screen_space]
-        } else {
-            rect
-        }
+        let window = self.window;
+        Queue::main().exec_sync(move || {
+            let window: id = *window;
+            let screen: id = msg_send![window, screen];
+            if !screen.is_null() {
+                let screen_space: id = msg_send![screen, coordinateSpace];
+                msg_send![window, convertRect:rect toCoordinateSpace:screen_space]
+            } else {
+                rect
+            }
+        })
     }
 
-    // requires main thread
+    // executed on main thread
     unsafe fn from_screen_space(&self, rect: CGRect) -> CGRect {
-        let screen: id = msg_send![self.window, screen];
-        if !screen.is_null() {
-            let screen_space: id = msg_send![screen, coordinateSpace];
-            msg_send![self.window, convertRect:rect fromCoordinateSpace:screen_space]
-        } else {
-            rect
-        }
+        let window = self.window;
+        Queue::main().exec_sync(move || {
+            let window: id = *window;
+            let screen: id = msg_send![window, screen];
+            if !screen.is_null() {
+                let screen_space: id = msg_send![screen, coordinateSpace];
+                msg_send![window, convertRect:rect fromCoordinateSpace:screen_space]
+            } else {
+                rect
+            }
+        })
     }
 
-    // requires main thread
+    // executed on main thread
     unsafe fn safe_area_screen_space(&self) -> CGRect {
-        let bounds: CGRect = msg_send![self.window, bounds];
-        if app_state::os_capabilities().safe_area {
-            let safe_area: UIEdgeInsets = msg_send![self.window, safeAreaInsets];
-            let safe_bounds = CGRect {
-                origin: CGPoint {
-                    x: bounds.origin.x + safe_area.left,
-                    y: bounds.origin.y + safe_area.top,
-                },
-                size: CGSize {
-                    width: bounds.size.width - safe_area.left - safe_area.right,
-                    height: bounds.size.height - safe_area.top - safe_area.bottom,
-                },
-            };
-            self.to_screen_space(safe_bounds)
-        } else {
-            let screen_frame = self.to_screen_space(bounds);
-            let status_bar_frame: CGRect = {
-                let app: id = msg_send![class!(UIApplication), sharedApplication];
-                assert!(
+        let window = self.window;
+        Queue::main().exec_sync(move || {
+            let window: id = *window;
+            let bounds: CGRect = msg_send![window, bounds];
+            
+            if app_state::os_capabilities().safe_area {
+                let safe_area: UIEdgeInsets = msg_send![window, safeAreaInsets];
+                let safe_bounds = CGRect {
+                    origin: CGPoint {
+                        x: bounds.origin.x + safe_area.left,
+                        y: bounds.origin.y + safe_area.top,
+                    },
+                    size: CGSize {
+                        width: bounds.size.width - safe_area.left - safe_area.right,
+                        height: bounds.size.height - safe_area.top - safe_area.bottom,
+                    },
+                };
+                self.to_screen_space(safe_bounds)
+            } else {
+                let screen_frame = self.to_screen_space(bounds);
+
+                let status_bar_frame: CGRect = {
+                    let app: id = msg_send![class!(UIApplication), sharedApplication];
+                    assert!(
                     !app.is_null(),
                     "`Window::get_inner_position` cannot be called before `EventLoop::run` on iOS"
                 );
-                msg_send![app, statusBarFrame]
-            };
-            let (y, height) = if screen_frame.origin.y > status_bar_frame.size.height {
-                (screen_frame.origin.y, screen_frame.size.height)
-            } else {
-                let y = status_bar_frame.size.height;
-                let height = screen_frame.size.height
-                    - (status_bar_frame.size.height - screen_frame.origin.y);
-                (y, height)
-            };
-            CGRect {
-                origin: CGPoint {
-                    x: screen_frame.origin.x,
-                    y,
-                },
-                size: CGSize {
-                    width: screen_frame.size.width,
-                    height,
-                },
+                    msg_send![app, statusBarFrame]
+                };
+                let (y, height) = if screen_frame.origin.y > status_bar_frame.size.height {
+                    (screen_frame.origin.y, screen_frame.size.height)
+                } else {
+                    let y = status_bar_frame.size.height;
+                    let height = screen_frame.size.height
+                        - (status_bar_frame.size.height - screen_frame.origin.y);
+                    (y, height)
+                };
+                CGRect {
+                    origin: CGPoint {
+                        x: screen_frame.origin.x,
+                        y,
+                    },
+                    size: CGSize {
+                        width: screen_frame.size.width,
+                        height,
+                    },
+                }
             }
-        }
+        })
     }
 }
 

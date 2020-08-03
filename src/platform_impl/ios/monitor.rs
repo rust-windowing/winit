@@ -129,22 +129,12 @@ impl Deref for MonitorHandle {
     type Target = Inner;
 
     fn deref(&self) -> &Inner {
-        unsafe {
-            assert_main_thread!(
-                "`MonitorHandle` methods can only be run on the main thread on iOS"
-            );
-        }
         &self.inner
     }
 }
 
 impl DerefMut for MonitorHandle {
     fn deref_mut(&mut self) -> &mut Inner {
-        unsafe {
-            assert_main_thread!(
-                "`MonitorHandle` methods can only be run on the main thread on iOS"
-            );
-        }
         &mut self.inner
     }
 }
@@ -155,14 +145,6 @@ unsafe impl Sync for MonitorHandle {}
 impl Clone for MonitorHandle {
     fn clone(&self) -> MonitorHandle {
         MonitorHandle::retained_new(self.uiscreen)
-    }
-}
-
-impl Drop for MonitorHandle {
-    fn drop(&mut self) {
-        unsafe {
-            assert_main_thread!("`MonitorHandle` can only be dropped on the main thread on iOS");
-        }
     }
 }
 
@@ -190,9 +172,9 @@ impl fmt::Debug for MonitorHandle {
 impl MonitorHandle {
     pub fn retained_new(uiscreen: id) -> MonitorHandle {
         unsafe {
-            assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
             let () = msg_send![uiscreen, retain];
         }
+        
         MonitorHandle {
             inner: Inner { uiscreen },
         }
