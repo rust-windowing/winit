@@ -1,5 +1,5 @@
 use super::*;
-use crate::icon::{Icon, Pixel, PIXEL_SIZE};
+use crate::icon::{CustomWindowIcon, Pixel, PIXEL_SIZE};
 
 impl Pixel {
     pub fn to_packed_argb(&self) -> Cardinal {
@@ -16,7 +16,7 @@ impl Pixel {
     }
 }
 
-impl Icon {
+impl CustomWindowIcon {
     pub(crate) fn to_cardinals(&self) -> Vec<Cardinal> {
         let rgba_icon = &self.inner.icon;
         assert_eq!(rgba_icon.rgba.len() % PIXEL_SIZE, 0);

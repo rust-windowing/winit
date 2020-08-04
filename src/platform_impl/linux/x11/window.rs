@@ -23,7 +23,7 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, CustomWindowIcon, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -871,7 +871,7 @@ impl UnownedWindow {
             .expect("Failed to set always-on-top state");
     }
 
-    fn set_icon_inner(&self, icon: Icon) -> util::Flusher<'_> {
+    fn set_icon_inner(&self, icon: CustomWindowIcon) -> util::Flusher<'_> {
         let icon_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
         let data = icon.to_cardinals();
         self.xconn.change_property(
@@ -896,7 +896,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, icon: Option<Icon>) {
+    pub fn set_window_icon(&self, icon: Option<CustomWindowIcon>) {
         match icon {
             Some(icon) => self.set_icon_inner(icon),
             None => self.unset_icon_inner(),
