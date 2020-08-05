@@ -174,7 +174,7 @@ impl MonitorHandle {
         unsafe {
             let () = msg_send![uiscreen, retain];
         }
-        
+
         MonitorHandle {
             inner: Inner { uiscreen },
         }

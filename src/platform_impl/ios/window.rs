@@ -315,7 +315,7 @@ impl Deref for Window {
     type Target = Inner;
 
     fn deref(&self) -> &Inner {
-       &self.inner
+        &self.inner
     }
 }
 
@@ -550,7 +550,7 @@ impl Inner {
         Queue::main().exec_sync(move || {
             let window: id = *window;
             let bounds: CGRect = msg_send![window, bounds];
-            
+
             if app_state::os_capabilities().safe_area {
                 let safe_area: UIEdgeInsets = msg_send![window, safeAreaInsets];
                 let safe_bounds = CGRect {
