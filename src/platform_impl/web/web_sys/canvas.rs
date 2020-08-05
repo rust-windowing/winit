@@ -9,8 +9,8 @@ use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, PointerEvent,
-    WheelEvent,
+    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, MouseEvent,
+    PointerEvent, WheelEvent,
 };
 
 pub struct Canvas {
@@ -24,8 +24,14 @@ pub struct Canvas {
     on_cursor_leave: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_cursor_enter: Option<Closure<dyn FnMut(PointerEvent)>>,
     on_cursor_move: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_press: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_pointer_press: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_pointer_release: Option<Closure<dyn FnMut(PointerEvent)>>,
+    // Fallback events when pointer event support is missing
+    on_mouse_leave: Option<Closure<dyn FnMut(MouseEvent)>>,
+    on_mouse_enter: Option<Closure<dyn FnMut(MouseEvent)>>,
+    on_mouse_move: Option<Closure<dyn FnMut(MouseEvent)>>,
+    on_mouse_press: Option<Closure<dyn FnMut(MouseEvent)>>,
+    on_mouse_release: Option<Closure<dyn FnMut(MouseEvent)>>,
     on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
@@ -76,8 +82,13 @@ impl Canvas {
             on_cursor_leave: None,
             on_cursor_enter: None,
             on_cursor_move: None,
-            on_mouse_release: None,
+            on_pointer_release: None,
+            on_pointer_press: None,
+            on_mouse_leave: None,
+            on_mouse_enter: None,
+            on_mouse_move: None,
             on_mouse_press: None,
+            on_mouse_release: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
@@ -180,63 +191,110 @@ impl Canvas {
     where
         F: 'static + FnMut(i32),
     {
-        self.on_cursor_leave = Some(self.add_event("pointerout", move |event: PointerEvent| {
-            handler(event.pointer_id());
-        }));
+        if has_pointer_event() {
+            self.on_cursor_leave =
+                Some(self.add_event("pointerout", move |event: PointerEvent| {
+                    handler(event.pointer_id());
+                }));
+        } else {
+            self.on_mouse_leave = Some(self.add_event("mouseout", move |_: MouseEvent| {
+                handler(0);
+            }));
+        }
     }
 
     pub fn on_cursor_enter<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32),
     {
-        self.on_cursor_enter = Some(self.add_event("pointerover", move |event: PointerEvent| {
-            handler(event.pointer_id());
-        }));
+        if has_pointer_event() {
+            self.on_cursor_enter =
+                Some(self.add_event("pointerover", move |event: PointerEvent| {
+                    handler(event.pointer_id());
+                }));
+        } else {
+            self.on_mouse_enter = Some(self.add_event("mouseover", move |_: MouseEvent| {
+                handler(0);
+            }));
+        }
     }
 
     pub fn on_mouse_release<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, MouseButton, ModifiersState),
     {
-        self.on_mouse_release = Some(self.add_user_event(
-            "pointerup",
-            move |event: PointerEvent| {
-                handler(
-                    event.pointer_id(),
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
-                );
-            },
-        ));
+        if has_pointer_event() {
+            self.on_pointer_release = Some(self.add_user_event(
+                "pointerup",
+                move |event: PointerEvent| {
+                    handler(
+                        event.pointer_id(),
+                        event::mouse_button(&event),
+                        event::mouse_modifiers(&event),
+                    );
+                },
+            ));
+        } else {
+            self.on_mouse_release =
+                Some(self.add_user_event("mouseup", move |event: MouseEvent| {
+                    handler(
+                        0,
+                        event::mouse_button(&event),
+                        event::mouse_modifiers(&event),
+                    );
+                }));
+        }
     }
 
     pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, MouseButton, ModifiersState),
     {
-        self.on_mouse_press = Some(self.add_user_event(
-            "pointerdown",
-            move |event: PointerEvent| {
-                handler(
-                    event.pointer_id(),
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
-                );
-            },
-        ));
+        if has_pointer_event() {
+            self.on_pointer_press = Some(self.add_user_event(
+                "pointerdown",
+                move |event: PointerEvent| {
+                    handler(
+                        event.pointer_id(),
+                        event::mouse_button(&event),
+                        event::mouse_modifiers(&event),
+                    );
+                },
+            ));
+        } else {
+            self.on_mouse_press =
+                Some(self.add_user_event("mousedown", move |event: MouseEvent| {
+                    handler(
+                        0,
+                        event::mouse_button(&event),
+                        event::mouse_modifiers(&event),
+                    );
+                }));
+        }
     }
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
     {
-        self.on_cursor_move = Some(self.add_event("pointermove", move |event: PointerEvent| {
-            handler(
-                event.pointer_id(),
-                event::mouse_position(&event).to_physical(super::scale_factor()),
-                event::mouse_modifiers(&event),
-            );
-        }));
+        if has_pointer_event() {
+            self.on_cursor_move =
+                Some(self.add_event("pointermove", move |event: PointerEvent| {
+                    handler(
+                        event.pointer_id(),
+                        event::mouse_position(&event).to_physical(super::scale_factor()),
+                        event::mouse_modifiers(&event),
+                    );
+                }));
+        } else {
+            self.on_mouse_move = Some(self.add_event("mousemove", move |event: MouseEvent| {
+                handler(
+                    0,
+                    event::mouse_position(&event).to_physical(super::scale_factor()),
+                    event::mouse_modifiers(&event),
+                );
+            }));
+        }
     }
 
     pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
@@ -332,5 +390,17 @@ impl Canvas {
 
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
+    }
+}
+
+/// Returns whether pointer events are supported.
+/// Used to decide whether to use pointer events
+/// or plain mouse events. Note that Safari
+/// doesn't support pointer events now.
+fn has_pointer_event() -> bool {
+    if let Some(window) = web_sys::window() {
+        window.get("PointerEvent").is_some()
+    } else {
+        false
     }
 }

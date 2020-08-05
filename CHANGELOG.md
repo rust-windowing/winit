@@ -10,6 +10,7 @@
 - On android added support for `run_return`.
 - On MacOS, Fixed fullscreen and dialog support for `run_return`.
 - On Windows, fix bug where we'd try to emit `MainEventsCleared` events during nested win32 event loops.
+- On Web, use mouse events if pointer events aren't supported. This affects Safari.
 - On Windows, `set_ime_position` is now a no-op instead of a runtime crash.
 - On Android, `set_fullscreen` is now a no-op instead of a runtime crash.
 - On iOS and Android, `set_inner_size` is now a no-op instead of a runtime crash.
