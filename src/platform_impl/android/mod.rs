@@ -8,7 +8,7 @@ use crate::{
 };
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, MotionAction},
+    event::{InputEvent, MotionAction, KeyAction, Keycode},
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
@@ -221,7 +221,41 @@ impl<T: 'static> EventLoop<T> {
                                             );
                                         }
                                     }
-                                    InputEvent::KeyEvent(_) => {} // TODO
+                                    InputEvent::KeyEvent(key_event) => {
+                                        let scancode = key_event.scan_code() as u32;
+                                        let state = match key_event.action() {
+                                            KeyAction::Down => Some(event::ElementState::Pressed),
+                                            KeyAction::Up => Some(event::ElementState::Released),
+                                            _ => None,
+                                        };
+                                        let virtual_keycode = match key_event.key_code() {
+                                            Keycode::Back => Some(event::VirtualKeyCode::Back),
+                                            _ =>  None, // TODO match KeyCode to VirtualKeyCodes
+                                        };
+                                        let modifiers = event::ModifiersState::empty();
+                                        if let Some(state) = state {
+                                            let input = event::KeyboardInput {
+                                                scancode,
+                                                state,
+                                                virtual_keycode,
+                                                modifiers,
+                                            };
+                                            let event = event::Event::WindowEvent {
+                                                window_id,
+                                                event: event::WindowEvent::KeyboardInput{
+                                                    device_id,
+                                                    input,
+                                                    is_synthetic: false,
+                                                }
+                                            };
+                                            call_event_handler!(
+                                                event_handler,
+                                                self.window_target(),
+                                                control_flow,
+                                                event
+                                            );
+                                        }
+                                    }
                                 };
                                 input_queue.finish_event(event, true);
                             }
