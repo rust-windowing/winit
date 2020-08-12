@@ -211,9 +211,7 @@ impl<T: 'static> EventLoop<T> {
                         );
                     }
                 }
-                None => {
-                    control_flow = ControlFlow::Exit;
-                }
+                None => {}
             }
 
             call_event_handler!(
@@ -258,6 +256,11 @@ impl<T: 'static> EventLoop<T> {
                     break 'event_loop;
                 }
                 ControlFlow::Poll => {
+                    self.first_event = poll(
+                        self.looper
+                            .poll_all_timeout(Duration::from_millis(0))
+                            .unwrap(),
+                    );
                     self.start_cause = event::StartCause::Poll;
                 }
                 ControlFlow::Wait => {
