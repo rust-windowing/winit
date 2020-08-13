@@ -60,7 +60,7 @@ pub trait WindowExtMacOS {
     /// Returns whether or not the window has shadow.
     fn has_shadow(&self) -> bool;
 
-    /// Set the window whether or not has shadow.
+    /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
 }
 
