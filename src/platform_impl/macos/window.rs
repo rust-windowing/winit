@@ -77,7 +77,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     #[inline]
     fn default() -> Self {
-        PlatformSpecificWindowBuilderAttributes {
+        Self {
             activation_policy: Default::default(),
             movable_by_window_background: false,
             titlebar_transparent: false,
