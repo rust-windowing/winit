@@ -1125,7 +1125,10 @@ impl WindowExtMacOS for UnownedWindow {
 
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
-        unsafe { self.ns_window.setHasShadow_(if has_shadow { YES } else { NO }) }
+        unsafe {
+            self.ns_window
+                .setHasShadow_(if has_shadow { YES } else { NO })
+        }
     }
 }
 
