@@ -359,6 +359,9 @@ pub struct CFRunLoopSourceContext {
     pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
+// This is named NSStringRust rather than NSString because the "Debug View Heirarchy" feature of
+// Xcode requires a non-ambiguous reference to NSString for unclear reasons. This makes Xcode happy
+// so please test if you change the name back to NSString.
 pub trait NSStringRust: Sized {
     unsafe fn alloc(_: Self) -> id {
         msg_send![class!(NSString), alloc]
