@@ -1,5 +1,6 @@
 # Unreleased
 
+- On iOS, fixed support for the "Debug View Heirarchy" feature in Xcode.
 - On all platforms, `available_monitors` and `primary_monitor` are now on `EventLoopWindowTarget` rather than `EventLoop` to list monitors event in the event loop.
 - On Unix, X11 and Wayland are now optional features (enabled by default)
 - On X11, fix deadlock when calling `set_fullscreen_inner`.
