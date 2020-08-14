@@ -67,9 +67,13 @@ pub fn set_canvas_size(raw: &CanvasElement, size: Size) {
     raw.set_width(physical_size.width);
     raw.set_height(physical_size.height);
 
+    set_canvas_style_property(raw, "width", &format!("{}px", logical_size.width));
+    set_canvas_style_property(raw, "height", &format!("{}px", logical_size.height));
+}
+
+pub fn set_canvas_style_property(raw: &CanvasElement, style_attribute: &str, value: &str) {
     js! {
-        @{raw.as_ref()}.style.width = @{logical_size.width} + "px";
-        @{raw.as_ref()}.style.height = @{logical_size.height} + "px";
+        @{raw.as_ref()}.style[@{style_attribute}] = @{value};
     }
 }
 

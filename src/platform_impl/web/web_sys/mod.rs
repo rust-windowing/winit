@@ -81,13 +81,15 @@ pub fn set_canvas_size(raw: &HtmlCanvasElement, size: Size) {
     raw.set_width(physical_size.width);
     raw.set_height(physical_size.height);
 
+    set_canvas_style_property(raw, "width", &format!("{}px", logical_size.width));
+    set_canvas_style_property(raw, "height", &format!("{}px", logical_size.height));
+}
+
+pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value: &str) {
     let style = raw.style();
     style
-        .set_property("width", &format!("{}px", logical_size.width))
-        .expect("Failed to set canvas width");
-    style
-        .set_property("height", &format!("{}px", logical_size.height))
-        .expect("Failed to set canvas height");
+        .set_property(property, value)
+        .expect(&format!("Failed to set {}", property));
 }
 
 pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
