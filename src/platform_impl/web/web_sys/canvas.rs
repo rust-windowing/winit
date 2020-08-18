@@ -9,8 +9,8 @@ use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, MouseEvent,
-    PointerEvent, WheelEvent,
+    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryList, MediaQueryListEvent,
+    MouseEvent, PointerEvent, WheelEvent,
 };
 
 pub struct Canvas {
@@ -36,6 +36,7 @@ pub struct Canvas {
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
     on_dark_mode: Option<Closure<dyn FnMut(MediaQueryListEvent)>>,
+    dpr_change_detector: Option<Rc<RefCell<DevicePixelRatioChangeDetector>>>,
 }
 
 impl Drop for Canvas {
@@ -93,6 +94,7 @@ impl Canvas {
             on_fullscreen_change: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
             on_dark_mode: None,
+            dpr_change_detector: None,
         })
     }
 
@@ -339,6 +341,13 @@ impl Canvas {
             });
     }
 
+    pub fn on_device_pixel_ratio_change<F>(&mut self, handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.dpr_change_detector = Some(DevicePixelRatioChangeDetector::new(handler));
+    }
+
     fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
@@ -402,5 +411,95 @@ fn has_pointer_event() -> bool {
         window.get("PointerEvent").is_some()
     } else {
         false
+    }
+}
+
+/// This is a helper type to help manage the `MediaQueryList` used for detecting
+/// changes of the `devicePixelRatio`.
+struct DevicePixelRatioChangeDetector {
+    callback: Box<dyn FnMut()>,
+    closure: Option<Closure<dyn FnMut(MediaQueryListEvent)>>,
+    mql: Option<MediaQueryList>,
+}
+
+impl DevicePixelRatioChangeDetector {
+    fn new<F>(handler: F) -> Rc<RefCell<Self>>
+    where
+        F: 'static + FnMut(),
+    {
+        let new_self = Rc::new(RefCell::new(Self {
+            callback: Box::new(handler),
+            closure: None,
+            mql: None,
+        }));
+
+        let cloned_self = new_self.clone();
+        let closure = Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
+            cloned_self.borrow_mut().handler(event)
+        }) as Box<dyn FnMut(_)>);
+
+        let mql = Self::create_mql(&closure);
+        {
+            let mut borrowed_self = new_self.borrow_mut();
+            borrowed_self.closure = Some(closure);
+            borrowed_self.mql = mql;
+        }
+        new_self
+    }
+
+    fn create_mql(closure: &Closure<dyn FnMut(MediaQueryListEvent)>) -> Option<MediaQueryList> {
+        let window = web_sys::window().expect("Failed to obtain window");
+        let current_dpr = window.device_pixel_ratio();
+        // This media query initially matches the current `devicePixelRatio`.
+        // We add 0.0001 to the lower and upper bounds such that it won't fail
+        // due to floating point precision limitations.
+        let media_query = format!(
+            "(min-resolution: {:.4}dppx) and (max-resolution: {:.4}dppx)",
+            current_dpr - 0.0001,
+            current_dpr + 0.0001,
+        );
+        web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
+            "DevicePixelRatioChangeDetector: new media query '{}'",
+            media_query,
+        )));
+        window
+            .match_media(&media_query)
+            .ok()
+            .flatten()
+            .and_then(|mql| {
+                assert_eq!(mql.matches(), true);
+                mql.add_listener_with_opt_callback(Some(&closure.as_ref().unchecked_ref()))
+                    .map(|_| mql)
+                    .ok()
+            })
+    }
+
+    fn handler(&mut self, event: MediaQueryListEvent) {
+        assert_eq!(event.matches(), false);
+        let closure = self
+            .closure
+            .as_ref()
+            .expect("DevicePixelRatioChangeDetector::closure should not be None");
+        let mql = self
+            .mql
+            .take()
+            .expect("DevicePixelRatioChangeDetector::mql should not be None");
+        mql.remove_listener_with_opt_callback(Some(closure.as_ref().unchecked_ref()))
+            .expect("Failed to remove listener from MediaQueryList");
+        (self.callback)();
+        let new_mql = Self::create_mql(closure);
+        self.mql = new_mql;
+    }
+}
+
+impl Drop for DevicePixelRatioChangeDetector {
+    fn drop(&mut self) {
+        match (self.closure.as_ref(), self.mql.as_ref()) {
+            (Some(closure), Some(mql)) => {
+                let _ =
+                    mql.remove_listener_with_opt_callback(Some(closure.as_ref().unchecked_ref()));
+            }
+            _ => {}
+        }
     }
 }

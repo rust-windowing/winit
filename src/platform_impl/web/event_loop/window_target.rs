@@ -213,6 +213,42 @@ impl<T> WindowTarget<T> {
                 event: WindowEvent::ThemeChanged(theme),
             });
         });
+
+        let runner = self.runner.clone();
+        let raw = canvas.raw().clone();
+        let mut old_dpr = backend::scale_factor();
+        canvas.on_device_pixel_ratio_change(move || {
+            let new_dpr = backend::scale_factor();
+            let current_size = PhysicalSize {
+                width: raw.width() as u32,
+                height: raw.height() as u32,
+            };
+            let logical_size = current_size.to_logical::<f64>(old_dpr);
+            let new_size = logical_size.to_physical(new_dpr);
+
+            web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
+                "devicePixelRatio changed from {:?} to {:?}",
+                old_dpr, new_dpr,
+            )));
+            web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
+                "old size {:?} -> new size {:?}",
+                current_size, new_size,
+            )));
+
+            backend::set_canvas_size(&raw, Size::Physical(new_size));
+
+            // TODO: How to handle the `new_inner_size`?
+            let size = Box::leak(Box::new(new_size.clone()));
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::ScaleFactorChanged {
+                    scale_factor: new_dpr,
+                    new_inner_size: size,
+                },
+            });
+            runner.request_redraw(WindowId(id));
+            old_dpr = new_dpr;
+        })
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
