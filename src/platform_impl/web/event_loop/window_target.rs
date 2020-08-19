@@ -246,6 +246,10 @@ impl<T> WindowTarget<T> {
                     new_inner_size: size,
                 },
             });
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::Resized(new_size),
+            });
             runner.request_redraw(WindowId(id));
             old_dpr = new_dpr;
         })
