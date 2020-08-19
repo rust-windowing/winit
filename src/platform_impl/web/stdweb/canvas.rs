@@ -260,6 +260,13 @@ impl Canvas {
         }
     }
 
+    pub fn on_device_pixel_ratio_change<F>(&mut self, handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        // TODO: Stub, unimplemented (see web_sys for reference).
+    }
+
     fn add_event<E, F>(&self, mut handler: F) -> EventListenerHandle
     where
         E: ConcreteEvent,
