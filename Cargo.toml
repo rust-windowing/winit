@@ -18,7 +18,7 @@ targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux
 
 [features]
 default = ["x11", "wayland"]
-web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
+web-sys = ["web_sys", "js-sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
 x11 = ["x11-dl"]
 wayland = ["wayland-client", "smithay-client-toolkit"]
@@ -116,6 +116,10 @@ features = [
     'Window',
     'WheelEvent'
 ]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.js-sys]
+version = "0.3.22"
+optional = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
 version = "0.2.45"

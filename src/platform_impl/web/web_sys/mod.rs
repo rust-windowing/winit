@@ -1,5 +1,6 @@
 mod canvas;
 mod event;
+mod bindings;
 mod timeout;
 
 pub use self::canvas::Canvas;
