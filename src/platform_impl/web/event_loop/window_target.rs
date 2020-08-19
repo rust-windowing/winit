@@ -226,14 +226,18 @@ impl<T> WindowTarget<T> {
             let logical_size = current_size.to_logical::<f64>(old_dpr);
             let new_size = logical_size.to_physical(new_dpr);
 
-            web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
-                "devicePixelRatio changed from {:?} to {:?}",
-                old_dpr, new_dpr,
-            )));
-            web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
-                "old size {:?} -> new size {:?}",
-                current_size, new_size,
-            )));
+            // TODO: Remove debugging output
+            #[cfg(feature = "web-sys")]
+            {
+                web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
+                    "devicePixelRatio changed from {:?} to {:?}",
+                    old_dpr, new_dpr,
+                )));
+                web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
+                    "old size {:?} -> new size {:?}",
+                    current_size, new_size,
+                )));
+            }
 
             backend::set_canvas_size(&raw, Size::Physical(new_size));
 
@@ -252,7 +256,7 @@ impl<T> WindowTarget<T> {
             });
             runner.request_redraw(WindowId(id));
             old_dpr = new_dpr;
-        })
+        });
     }
 
     pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
