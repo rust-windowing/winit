@@ -20,6 +20,7 @@
 - On macOS, add `NSWindow.hasShadow` support.
 - **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
 - **Breaking:** `PixelDelta` scroll events now return a `PhysicalPosition`.
+- On NetBSD, fixed crash due to incorrect detection of the main thread.
 
 # 0.22.2 (2020-05-16)
 
