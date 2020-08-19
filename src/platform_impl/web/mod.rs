@@ -46,3 +46,16 @@ pub use self::window::{
 };
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum CanvasResizeChangedFlag {
+    SizeChanged,
+    SizeAndDevicePixelRatioChanged,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(crate) struct CanvasResizedArgs {
+    pub(crate) size: crate::dpi::PhysicalSize<u32>,
+    pub(crate) device_pixel_ratio: f64,
+    pub(crate) changed_flag: CanvasResizeChangedFlag,
+}

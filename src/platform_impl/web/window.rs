@@ -100,7 +100,9 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        backend::set_canvas_size(self.canvas.raw(), size);
+        if !self.canvas.auto_parent_size {
+            backend::set_canvas_size(self.canvas.raw(), size);
+        }
     }
 
     #[inline]
@@ -281,4 +283,5 @@ impl Id {
 #[derive(Default, Clone)]
 pub struct PlatformSpecificBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
+    pub(crate) auto_parent_size: bool,
 }

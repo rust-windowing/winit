@@ -47,6 +47,7 @@ impl WindowBuilderExtStdweb for WindowBuilder {
 #[cfg(feature = "web-sys")]
 pub trait WindowBuilderExtWebSys {
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
+    fn with_auto_parent_size(self) -> Self;
 }
 
 #[cfg(feature = "web-sys")]
@@ -54,6 +55,11 @@ impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
         self.platform_specific.canvas = canvas;
 
+        self
+    }
+
+    fn with_auto_parent_size(mut self) -> Self {
+        self.platform_specific.auto_parent_size = true;
         self
     }
 }

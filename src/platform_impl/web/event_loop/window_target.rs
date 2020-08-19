@@ -2,7 +2,10 @@ use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::window::{Theme, WindowId};
+use crate::{
+    platform_impl::CanvasResizeChangedFlag,
+    window::{Theme, WindowId},
+};
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 
@@ -173,6 +176,7 @@ impl<T> WindowTarget<T> {
 
         let runner = self.runner.clone();
         let raw = canvas.raw().clone();
+        let is_auto_parent_size = canvas.auto_parent_size;
 
         // The size to restore to after exiting fullscreen.
         let mut intended_size = PhysicalSize {
@@ -256,6 +260,33 @@ impl<T> WindowTarget<T> {
             });
             runner.request_redraw(WindowId(id));
             old_dpr = new_dpr;
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_size_or_scale_change(move |args| {
+            if args.changed_flag == CanvasResizeChangedFlag::SizeAndDevicePixelRatioChanged {
+                web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
+                    "devicePixelRatio changed to {:?}",
+                    args.device_pixel_ratio
+                )));
+                // TODO: How to handle the `new_inner_size`?
+                let size = Box::leak(Box::new(args.size));
+                runner.send_event(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::ScaleFactorChanged {
+                        scale_factor: args.device_pixel_ratio,
+                        new_inner_size: size,
+                    },
+                });
+            }
+            web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(
+                &format!("canvas resized",),
+            ));
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::Resized(args.size),
+            });
+            runner.request_redraw(WindowId(id));
         });
     }
 
