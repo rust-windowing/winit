@@ -265,6 +265,8 @@ impl<T> WindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_size_or_scale_change(move |args| {
             if args.changed_flag == CanvasResizeChangedFlag::SizeAndDevicePixelRatioChanged {
+                // TODO: Remove debugging output
+                #[cfg(feature = "web-sys")]
                 web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(&format!(
                     "devicePixelRatio changed to {:?}",
                     args.device_pixel_ratio
@@ -279,6 +281,7 @@ impl<T> WindowTarget<T> {
                     },
                 });
             }
+            #[cfg(feature = "web-sys")]
             web_sys::console::log_1(&wasm_bindgen::JsValue::from_str(
                 &format!("canvas resized",),
             ));

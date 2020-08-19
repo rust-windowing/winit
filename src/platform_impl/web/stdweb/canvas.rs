@@ -2,7 +2,7 @@ use super::event;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
-use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::platform_impl::{CanvasResizedArgs, OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -263,6 +263,13 @@ impl Canvas {
     pub fn on_device_pixel_ratio_change<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(),
+    {
+        // TODO: Stub, unimplemented (see web_sys for reference).
+    }
+
+    pub(crate) fn on_size_or_scale_change<F>(&mut self, handler: F)
+    where
+        F: 'static + FnMut(CanvasResizedArgs),
     {
         // TODO: Stub, unimplemented (see web_sys for reference).
     }
