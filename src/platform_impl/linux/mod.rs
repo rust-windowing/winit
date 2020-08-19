@@ -730,7 +730,5 @@ fn is_main_thread() -> bool {
 
 #[cfg(target_os = "netbsd")]
 fn is_main_thread() -> bool {
-    use libc::_lwp_self;
-
-    unsafe { _lwp_self() == 1 }
+    std::thread::current().name() == Some("main")
 }
