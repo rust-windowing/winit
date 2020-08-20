@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, added `with_blurred_background` to make the window semi-transparent and blur the background.
 - On iOS, fixed support for the "Debug View Heirarchy" feature in Xcode.
 - On all platforms, `available_monitors` and `primary_monitor` are now on `EventLoopWindowTarget` rather than `EventLoop` to list monitors event in the event loop.
 - On Unix, X11 and Wayland are now optional features (enabled by default)

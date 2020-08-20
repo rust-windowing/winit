@@ -390,7 +390,7 @@ impl UnownedWindow {
                     let _: () = msg_send![blurred_view, setState:0];
                     let _: () = msg_send![*ns_view, addSubview: blurred_view positioned:    NSWindowOrderingMode::NSWindowBelow relativeTo: 0];
                 }
-            }    
+            }
 
             ns_app.activateIgnoringOtherApps_(YES);
             win_attribs.min_inner_size.map(|dim| {

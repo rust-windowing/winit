@@ -126,6 +126,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Hidden titlebar
 * Hidden titlebar buttons
 * Full-size content view
+* Blurred background
 
 ### Unix
 * Window urgency
