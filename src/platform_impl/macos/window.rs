@@ -41,8 +41,8 @@ use cocoa::{
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
-    rc::StrongPtr,
     declare::ClassDecl,
+    rc::StrongPtr,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 
