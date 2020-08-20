@@ -14,7 +14,7 @@ use crate::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
     },
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    icon::Icon,
+    icon::CustomWindowIcon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
     platform_impl::platform::{
@@ -923,7 +923,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, _icon: Option<Icon>) {
+    pub fn set_window_icon(&self, _icon: Option<CustomWindowIcon>) {
         // macOS doesn't have window icons. Though, there is
         // `setRepresentedFilename`, but that's semantically distinct and should
         // only be used when the window is in some way representing a specific

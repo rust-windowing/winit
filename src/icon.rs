@@ -23,7 +23,11 @@ pub struct RgbaBuffer<I: Deref<Target = [u8]>> {
 
 /// For platforms which don't have window icons (e.g. web)
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct NoIcon;
+pub(crate) struct NoWindowIcon;
+
+/// For platforms which don't have cursor icons
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct NoCursorIcon;
 
 /// An icon used for the window titlebar, taskbar, or cursor.
 #[derive(Clone, PartialEq, Eq)]
@@ -40,20 +44,12 @@ pub struct CustomCursorIcon {
 mod constructors {
     use super::*;
 
-    impl NoIcon {
+    impl NoWindowIcon {
         pub fn from_rgba(_rgba: Vec<u8>, _size: PhysicalSize<u32>) -> Result<Self, io::Error> {
-            Ok(NoIcon)
+            Ok(Self)
         }
 
-        pub fn from_rgba_with_hot_spot(
-            _rgba: Vec<u8>,
-            _size: PhysicalSize<u32>,
-            _hot_spot: PhysicalPosition<u32>,
-        ) -> Result<Self, io::Error> {
-            Ok(NoIcon)
-        }
-
-        pub fn from_rgba_fn<F>(_get_icon: F) -> Result<Self, io::Error>
+        pub fn from_rgba_fn<F>(_get_icon: F) -> Self
         where
             F: 'static
                 + FnMut(
@@ -62,7 +58,29 @@ mod constructors {
                 )
                     -> Result<RgbaBuffer<Box<[u8]>>, Box<dyn Error + Send + Sync>>,
         {
-            Ok(NoIcon)
+            Self
+        }
+    }
+
+    impl NoCursorIcon {
+        pub fn from_rgba(
+            _rgba: Vec<u8>,
+            _size: PhysicalSize<u32>,
+            _hot_spot: PhysicalPosition<u32>,
+        ) -> Result<Self, io::Error> {
+            Ok(Self)
+        }
+
+        pub fn from_rgba_fn<F>(_get_icon: F) -> Self
+        where
+            F: 'static
+                + FnMut(
+                    PhysicalSize<u32>,
+                    f64,
+                )
+                    -> Result<(RgbaBuffer<Box<[u8]>>, PhysicalPosition<u32>), Box<dyn Error + Send + Sync>>,
+        {
+            Self
         }
     }
 }
