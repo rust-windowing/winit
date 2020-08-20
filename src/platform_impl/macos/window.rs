@@ -41,6 +41,7 @@ use cocoa::{
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
+    rc::StrongPtr,
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
@@ -329,6 +330,7 @@ lazy_static! {
 pub struct UnownedWindow {
     pub ns_window: IdRef, // never changes
     pub ns_view: IdRef,   // never changes
+    pub ns_visual_effect_view: Option<StrongPtr>,
     input_context: IdRef, // never changes
     pub shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
@@ -372,6 +374,8 @@ impl UnownedWindow {
 
         let scale_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
 
+        let mut ns_visual_effect_view = None;
+
         unsafe {
             if win_attribs.transparent {
                 ns_window.setOpaque_(NO);
@@ -381,14 +385,18 @@ impl UnownedWindow {
             if pl_attribs.blurred_background {
                 // As per https://stackoverflow.com/a/26194538
                 if let Some(visual_effect_class) = *NSVISUALEFFECTVIEW {
-                    let blurred_view: *mut Object = msg_send![visual_effect_class, alloc];
+                    let blurred_view = StrongPtr::new(msg_send![visual_effect_class, alloc]);
                     let bounds = ns_view.bounds();
-                    let _: () = msg_send![blurred_view, initWithFrame: bounds];
+                    let _: () = msg_send![*blurred_view, initWithFrame: bounds];
                     // Blur external background
-                    let _: () = msg_send![blurred_view, setBlendingMode:0];
+                    let _: () = msg_send![*blurred_view, setBlendingMode:0];
                     // Blur when the window is active
-                    let _: () = msg_send![blurred_view, setState:0];
-                    let _: () = msg_send![*ns_view, addSubview: blurred_view positioned:    NSWindowOrderingMode::NSWindowBelow relativeTo: 0];
+                    let _: () = msg_send![*blurred_view, setState:0];
+                    // Autoresizing: Adapt to superview
+                    let _: () = msg_send![*blurred_view, setAutoresizingMask: 0x3e];
+                    let _: () = msg_send![*ns_view, addSubview: blurred_view.clone() positioned:    NSWindowOrderingMode::NSWindowBelow relativeTo: 0];
+
+                    ns_visual_effect_view = Some(blurred_view);
                 }
             }
 
@@ -427,6 +435,7 @@ impl UnownedWindow {
         let window = Arc::new(UnownedWindow {
             ns_view,
             ns_window,
+            ns_visual_effect_view,
             input_context,
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
