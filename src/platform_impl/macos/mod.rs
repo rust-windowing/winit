@@ -25,8 +25,8 @@ use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
 };
 
-pub type PlatformCustomWindowIcon = crate::icon::NoWindowIcon;
-pub type PlatformCustomCursorIcon = crate::icon::NoCursorIcon;
+pub(crate) type PlatformCustomWindowIcon = crate::icon::NoWindowIcon;
+pub(crate) type PlatformCustomCursorIcon = crate::icon::NoCursorIcon;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
