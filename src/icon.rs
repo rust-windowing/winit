@@ -1,6 +1,6 @@
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl::{PlatformCustomWindowIcon, PlatformCustomCursorIcon},
+    platform_impl::{PlatformCustomCursorIcon, PlatformCustomWindowIcon},
 };
 use std::{error::Error, fmt, io, mem, ops::Deref};
 
@@ -77,8 +77,10 @@ mod constructors {
                 + FnMut(
                     PhysicalSize<u32>,
                     f64,
-                )
-                    -> Result<(RgbaBuffer<Box<[u8]>>, PhysicalPosition<u32>), Box<dyn Error + Send + Sync>>,
+                ) -> Result<
+                    (RgbaBuffer<Box<[u8]>>, PhysicalPosition<u32>),
+                    Box<dyn Error + Send + Sync>,
+                >,
         {
             Self
         }
@@ -87,10 +89,7 @@ mod constructors {
 
 impl<I: Deref<Target = [u8]>> fmt::Debug for RgbaBuffer<I> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        let RgbaBuffer {
-            rgba,
-            size,
-        } = self;
+        let RgbaBuffer { rgba, size } = self;
         f.debug_struct("RgbaBuffer")
             .field("size", &size)
             .field("rgba", &(&**rgba as *const [u8]))
@@ -125,17 +124,17 @@ impl<I: Deref<Target = [u8]>> RgbaBuffer<I> {
             )
         }
 
-        RgbaBuffer {
-            rgba,
-            size,
-        }
+        RgbaBuffer { rgba, size }
     }
 
     pub fn into_custom_window_icon(self) -> Result<CustomWindowIcon, io::Error> {
         CustomWindowIcon::from_rgba(&*self.rgba, self.size)
     }
 
-    pub fn into_custom_cursor_icon(self, hot_spot: PhysicalPosition<u32>) -> Result<CustomCursorIcon, io::Error> {
+    pub fn into_custom_cursor_icon(
+        self,
+        hot_spot: PhysicalPosition<u32>,
+    ) -> Result<CustomCursorIcon, io::Error> {
         CustomCursorIcon::from_rgba(&*self.rgba, self.size, hot_spot)
     }
 }
@@ -180,8 +179,7 @@ impl CustomWindowIcon {
             + FnMut(
                 PhysicalSize<u32>,
                 f64,
-            )
-                -> Result<RgbaBuffer<B>, Box<dyn 'static + Error + Send + Sync>>,
+            ) -> Result<RgbaBuffer<B>, Box<dyn 'static + Error + Send + Sync>>,
         B: Deref<Target = [u8]> + Into<Box<[u8]>>,
     {
         CustomWindowIcon {
@@ -227,10 +225,13 @@ impl CustomCursorIcon {
         CustomCursorIcon {
             inner: PlatformCustomCursorIcon::from_rgba_fn(move |size, scale_factor| {
                 let (icon, hot_spot) = get_icon(size, scale_factor)?;
-                Ok((RgbaBuffer {
-                    rgba: icon.rgba.into(),
-                    size: icon.size,
-                }, hot_spot))
+                Ok((
+                    RgbaBuffer {
+                        rgba: icon.rgba.into(),
+                        size: icon.size,
+                    },
+                    hot_spot,
+                ))
             }),
         }
     }

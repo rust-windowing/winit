@@ -9,7 +9,7 @@ use crate::{
     platform_impl,
 };
 
-pub use crate::icon::{CustomWindowIcon, CustomCursorIcon, RgbaBuffer};
+pub use crate::icon::{CustomCursorIcon, CustomWindowIcon, RgbaBuffer};
 
 /// Represents a window.
 ///

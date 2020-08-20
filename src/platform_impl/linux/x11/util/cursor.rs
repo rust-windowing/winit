@@ -81,8 +81,7 @@ impl XConnection {
             CursorIcon::Cell => load(b"plus\0"),
             CursorIcon::Copy => load(b"copy\0"),
             CursorIcon::Crosshair => load(b"crosshair\0"),
-            CursorIcon::Custom(_) |
-            CursorIcon::Default => load(b"left_ptr\0"),
+            CursorIcon::Custom(_) | CursorIcon::Default => load(b"left_ptr\0"),
             CursorIcon::Hand => loadn(&[b"hand2\0", b"hand1\0"]),
             CursorIcon::Help => load(b"question_arrow\0"),
             CursorIcon::Move => load(b"move\0"),

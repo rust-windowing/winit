@@ -35,7 +35,10 @@ impl Pixel {
 }
 
 impl RgbaBuffer<Box<[u8]>> {
-    fn into_windows_icon(self, hot_spot: Option<PhysicalPosition<u32>>) -> Result<HICON, io::Error> {
+    fn into_windows_icon(
+        self,
+        hot_spot: Option<PhysicalPosition<u32>>,
+    ) -> Result<HICON, io::Error> {
         unsafe {
             let mut rgba = self.rgba;
             let pixel_count = rgba.len() / PIXEL_SIZE;
@@ -113,8 +116,10 @@ struct FunctionIcon {
             dyn FnMut(
                 PhysicalSize<u32>,
                 f64,
-            )
-                -> Result<(RgbaBuffer<Box<[u8]>>, Option<PhysicalPosition<u32>>), Box<dyn Error + Send + Sync>>,
+            ) -> Result<
+                (RgbaBuffer<Box<[u8]>>, Option<PhysicalPosition<u32>>),
+                Box<dyn Error + Send + Sync>,
+            >,
         >,
     >,
     icon_set: LazyIconSet,
@@ -331,17 +336,15 @@ impl FunctionIcon {
     fn load_icon(&self, icon_size: IconSize, scale_factor: f64) -> Result<HICON, io::Error> {
         self.icon_set.load_icon(icon_size, |dim| {
             let mut get_icon = self.get_icon.lock();
-            let icon =
-                (&mut *get_icon)(PhysicalSize::new(dim as u32, dim as u32), scale_factor);
-            icon
-                .map_err(|mut e| {
-                    if let Some(ioe) = e.downcast_mut::<io::Error>() {
-                        mem::replace(ioe, io::Error::from_raw_os_error(0))
-                    } else {
-                        io::Error::new(io::ErrorKind::Other, e)
-                    }
-                })
-                .and_then(|(rgba_icon, hot_spot)| rgba_icon.into_windows_icon(hot_spot))
+            let icon = (&mut *get_icon)(PhysicalSize::new(dim as u32, dim as u32), scale_factor);
+            icon.map_err(|mut e| {
+                if let Some(ioe) = e.downcast_mut::<io::Error>() {
+                    mem::replace(ioe, io::Error::from_raw_os_error(0))
+                } else {
+                    io::Error::new(io::ErrorKind::Other, e)
+                }
+            })
+            .and_then(|(rgba_icon, hot_spot)| rgba_icon.into_windows_icon(hot_spot))
         })
     }
 }
@@ -410,11 +413,12 @@ impl RaiiIcon {
             + FnMut(
                 PhysicalSize<u32>,
                 f64,
-            )
-                -> Result<RgbaBuffer<Box<[u8]>>, Box<dyn Error + Send + Sync>>,
+            ) -> Result<RgbaBuffer<Box<[u8]>>, Box<dyn Error + Send + Sync>>,
     {
         let function_icon = FunctionIcon {
-            get_icon: Box::new(Mutex::new(move |size, scale_factor| Ok((get_icon(size, scale_factor)?, None)))),
+            get_icon: Box::new(Mutex::new(move |size, scale_factor| {
+                Ok((get_icon(size, scale_factor)?, None))
+            })),
             icon_set: LazyIconSet::default(),
         };
         RaiiIcon::Function(function_icon)
@@ -426,8 +430,10 @@ impl RaiiIcon {
             + FnMut(
                 PhysicalSize<u32>,
                 f64,
-            )
-                -> Result<(RgbaBuffer<Box<[u8]>>, PhysicalPosition<u32>), Box<dyn Error + Send + Sync>>,
+            ) -> Result<
+                (RgbaBuffer<Box<[u8]>>, PhysicalPosition<u32>),
+                Box<dyn Error + Send + Sync>,
+            >,
     {
         let function_icon = FunctionIcon {
             get_icon: Box::new(Mutex::new(move |size, scale_factor| {
@@ -442,9 +448,7 @@ impl RaiiIcon {
 
 impl CustomWindowIcon {
     pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
-        RaiiIcon::from_rgba(rgba, size).map(|i| CustomWindowIcon {
-            inner: Arc::new(i),
-        })
+        RaiiIcon::from_rgba(rgba, size).map(|i| CustomWindowIcon { inner: Arc::new(i) })
     }
 
     pub fn from_rgba_fn<F>(get_icon: F) -> Self
@@ -453,8 +457,7 @@ impl CustomWindowIcon {
             + FnMut(
                 PhysicalSize<u32>,
                 f64,
-            )
-                -> Result<RgbaBuffer<Box<[u8]>>, Box<dyn Error + Send + Sync>>,
+            ) -> Result<RgbaBuffer<Box<[u8]>>, Box<dyn Error + Send + Sync>>,
     {
         CustomWindowIcon {
             inner: Arc::new(RaiiIcon::from_rgba_fn(get_icon)),
@@ -462,15 +465,13 @@ impl CustomWindowIcon {
     }
 
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
-        RaiiIcon::from_path(path, IconType::WindowIcon).map(|i| CustomWindowIcon {
-            inner: Arc::new(i),
-        })
+        RaiiIcon::from_path(path, IconType::WindowIcon)
+            .map(|i| CustomWindowIcon { inner: Arc::new(i) })
     }
 
     pub fn from_resource(resource_id: WORD) -> Result<Self, io::Error> {
-        RaiiIcon::from_resource(resource_id, IconType::WindowIcon).map(|i| CustomWindowIcon {
-            inner: Arc::new(i),
-        })
+        RaiiIcon::from_resource(resource_id, IconType::WindowIcon)
+            .map(|i| CustomWindowIcon { inner: Arc::new(i) })
     }
 
     fn as_raw_icon_handle(&self, icon_size: IconSize, scale_factor: f64) -> Option<HICON> {
@@ -513,11 +514,10 @@ impl CustomCursorIcon {
     pub fn from_rgba(
         rgba: &[u8],
         size: PhysicalSize<u32>,
-        hot_spot: PhysicalPosition<u32>
+        hot_spot: PhysicalPosition<u32>,
     ) -> Result<Self, io::Error> {
-        RaiiIcon::from_rgba_with_hot_spot(rgba, size, hot_spot).map(|i| CustomCursorIcon {
-            inner: Arc::new(i),
-        })
+        RaiiIcon::from_rgba_with_hot_spot(rgba, size, hot_spot)
+            .map(|i| CustomCursorIcon { inner: Arc::new(i) })
     }
 
     pub fn from_rgba_fn<F>(get_icon: F) -> Self
@@ -526,8 +526,10 @@ impl CustomCursorIcon {
             + FnMut(
                 PhysicalSize<u32>,
                 f64,
-            )
-                -> Result<(RgbaBuffer<Box<[u8]>>, PhysicalPosition<u32>), Box<dyn Error + Send + Sync>>,
+            ) -> Result<
+                (RgbaBuffer<Box<[u8]>>, PhysicalPosition<u32>),
+                Box<dyn Error + Send + Sync>,
+            >,
     {
         CustomCursorIcon {
             inner: Arc::new(RaiiIcon::from_rgba_fn_with_hot_spot(get_icon)),
@@ -535,15 +537,13 @@ impl CustomCursorIcon {
     }
 
     pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
-        RaiiIcon::from_path(path, IconType::CursorIcon).map(|i| CustomCursorIcon {
-            inner: Arc::new(i),
-        })
+        RaiiIcon::from_path(path, IconType::CursorIcon)
+            .map(|i| CustomCursorIcon { inner: Arc::new(i) })
     }
 
     pub fn from_resource(resource_id: WORD) -> Result<Self, io::Error> {
-        RaiiIcon::from_resource(resource_id, IconType::CursorIcon).map(|i| CustomCursorIcon {
-            inner: Arc::new(i),
-        })
+        RaiiIcon::from_resource(resource_id, IconType::CursorIcon)
+            .map(|i| CustomCursorIcon { inner: Arc::new(i) })
     }
 
     pub fn as_raw_scaled_cursor_handle(&self) -> Option<HCURSOR> {

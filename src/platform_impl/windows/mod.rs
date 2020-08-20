@@ -10,8 +10,7 @@ pub use self::{
 };
 
 pub use self::icon::{
-    CustomWindowIcon as PlatformCustomWindowIcon,
-    CustomCursorIcon as PlatformCustomCursorIcon,
+    CustomCursorIcon as PlatformCustomCursorIcon, CustomWindowIcon as PlatformCustomWindowIcon,
 };
 
 use crate::event::DeviceId as RootDeviceId;

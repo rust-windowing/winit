@@ -33,10 +33,7 @@ fn main() {
                 (rgba, PhysicalSize::new(info.width, info.height))
             };
             Ok((
-                RgbaBuffer::from_rgba(
-                    icon_rgba,
-                    icon_size,
-                ),
+                RgbaBuffer::from_rgba(icon_rgba, icon_size),
                 PhysicalPosition::new(0, 0),
             ))
         })

@@ -11,8 +11,7 @@ use crate::{
     event_loop::EventLoop,
     monitor::MonitorHandle,
     platform_impl::{
-        EventLoop as WindowsEventLoop, PlatformCustomWindowIcon,
-        PlatformCustomCursorIcon,
+        EventLoop as WindowsEventLoop, PlatformCustomCursorIcon, PlatformCustomWindowIcon,
     },
     window::{CustomCursorIcon, CustomWindowIcon, Window, WindowBuilder},
 };
