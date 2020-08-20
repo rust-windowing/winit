@@ -7,7 +7,7 @@
 - On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
 - On Web, calling `window.set_cursor_icon` no longer breaks HiDPI scaling
 - On Windows, drag and drop is now optional and must be enabled with `WindowBuilderExtWindows::with_drag_and_drop(true)`.
-- On Windows, force themes now with `WindowBuilderExtWindows::with_theme(Theme::...)`.
+- On Windows, force themes now with `WindowBuilderExtWindows::with_theme(Theme::)`.
 - On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
 - On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
 - On android added support for `run_return`.
