@@ -14,6 +14,8 @@ use winapi::{
     um::{libloaderapi, uxtheme, winuser},
 };
 
+use crate::window::Theme;
+
 lazy_static! {
     static ref WIN10_BUILD_VERSION: Option<DWORD> = {
         // FIXME: RtlGetVersion is a documented windows API,
@@ -72,9 +74,13 @@ lazy_static! {
 
 /// Attempt to set dark mode on a window, if necessary.
 /// Returns true if dark mode was set, false if not.
-pub fn try_dark_mode(hwnd: HWND) -> bool {
+pub fn try_dark_mode(hwnd: HWND, forced_theme: Option<Theme>) -> bool {
     if *DARK_MODE_SUPPORTED {
-        let is_dark_mode = should_use_dark_mode();
+        let is_dark_mode: bool = if let Some(theme) = forced_theme {
+            theme == Theme::Dark
+        } else {
+            should_use_dark_mode()
+        };
 
         let theme_name = if is_dark_mode {
             DARK_THEME_NAME.as_ptr()

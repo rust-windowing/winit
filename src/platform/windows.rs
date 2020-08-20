@@ -13,7 +13,7 @@ use crate::{
     event_loop::EventLoop,
     monitor::MonitorHandle,
     platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
-    window::{BadIcon, Icon, Window, WindowBuilder},
+    window::{BadIcon, Icon, Window, WindowBuilder, Theme},
 };
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -125,6 +125,9 @@ pub trait WindowBuilderExtWindows {
     /// If you need COM API with `COINIT_MULTITHREADED` you must initialize it before calling any winit functions.
     /// See https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks for more information.
     fn with_drag_and_drop(self, flag: bool) -> WindowBuilder;
+
+    /// Forces either Dark or Light theme no matter the system settings.
+    fn with_theme(self, theme: Theme) -> WindowBuilder;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -149,6 +152,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_drag_and_drop(mut self, flag: bool) -> WindowBuilder {
         self.platform_specific.drag_and_drop = flag;
+        self
+    }
+
+    #[inline]
+    fn with_theme(mut self, theme: Theme) -> WindowBuilder {
+        self.platform_specific.force_theme = Some(theme);
         self
     }
 }
