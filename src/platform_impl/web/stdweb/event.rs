@@ -32,7 +32,7 @@ pub fn mouse_position(event: &impl IMouseEvent) -> LogicalPosition<f64> {
 
 pub fn mouse_scroll_delta(event: &MouseWheelEvent) -> Option<MouseScrollDelta> {
     let x = event.delta_x();
-    let y = event.delta_y();
+    let y = -event.delta_y();
 
     match event.delta_mode() {
         MouseWheelDeltaMode::Line => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
