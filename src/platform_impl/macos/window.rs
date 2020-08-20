@@ -34,7 +34,7 @@ use cocoa::{
     appkit::{
         self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
         NSApplicationPresentationOptions, NSColor, NSRequestUserAttentionType, NSScreen, NSView,
-        NSWindow, NSWindowButton, NSWindowStyleMask,
+        NSWindow, NSWindowButton, NSWindowOrderingMode, NSWindowStyleMask,
     },
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
@@ -72,6 +72,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub blurred_background: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -88,6 +89,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
+            blurred_background: false,
         }
     }
 }
@@ -320,6 +322,10 @@ impl From<WindowAttributes> for SharedState {
     }
 }
 
+lazy_static! {
+    static ref NSVISUALEFFECTVIEW: Option<&'static Class> = Class::get("NSVisualEffectView");
+}
+
 pub struct UnownedWindow {
     pub ns_window: IdRef, // never changes
     pub ns_view: IdRef,   // never changes
@@ -371,6 +377,20 @@ impl UnownedWindow {
                 ns_window.setOpaque_(NO);
                 ns_window.setBackgroundColor_(NSColor::clearColor(nil));
             }
+
+            if pl_attribs.blurred_background {
+                // As per https://stackoverflow.com/a/26194538
+                if let Some(visual_effect_class) = *NSVISUALEFFECTVIEW {
+                    let blurred_view: *mut Object = msg_send![visual_effect_class, alloc];
+                    let bounds = ns_view.bounds();
+                    let _: () = msg_send![blurred_view, initWithFrame: bounds];
+                    // Blur external background
+                    let _: () = msg_send![blurred_view, setBlendingMode:0];
+                    // Blur when the window is active
+                    let _: () = msg_send![blurred_view, setState:0];
+                    let _: () = msg_send![*ns_view, addSubview: blurred_view positioned:    NSWindowOrderingMode::NSWindowBelow relativeTo: 0];
+                }
+            }    
 
             ns_app.activateIgnoringOtherApps_(YES);
             win_attribs.min_inner_size.map(|dim| {
