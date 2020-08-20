@@ -738,7 +738,7 @@ unsafe fn init<T: 'static>(
     // If the system theme is dark, we need to set the window theme now
     // before we update the window flags (and possibly show the
     // window for the first time).
-    let dark_mode = try_dark_mode(real_window.0, pl_attribs.force_theme.clone());
+    let dark_mode = try_dark_mode(real_window.0, pl_attribs.forced_theme.clone());
 
     let window_state = {
         let window_state = WindowState::new(
@@ -746,7 +746,7 @@ unsafe fn init<T: 'static>(
             pl_attribs.taskbar_icon,
             scale_factor,
             dark_mode,
-            pl_attribs.force_theme,
+            pl_attribs.forced_theme,
         );
         let window_state = Arc::new(Mutex::new(window_state));
         WindowState::set_window_flags(window_state.lock(), real_window.0, |f| *f = window_flags);

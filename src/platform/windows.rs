@@ -157,7 +157,7 @@ impl WindowBuilderExtWindows for WindowBuilder {
 
     #[inline]
     fn with_theme(mut self, theme: Theme) -> WindowBuilder {
-        self.platform_specific.force_theme = Some(theme);
+        self.platform_specific.forced_theme = Some(theme);
         self
     }
 }
