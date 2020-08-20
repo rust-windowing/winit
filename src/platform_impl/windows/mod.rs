@@ -21,7 +21,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
-    pub forced_theme: Option<Theme>
+    pub forced_theme: Option<Theme>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {

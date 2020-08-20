@@ -3,7 +3,7 @@ use crate::{
     event::ModifiersState,
     icon::Icon,
     platform_impl::platform::{event_loop, util},
-    window::{CursorIcon, Fullscreen, WindowAttributes, Theme},
+    window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
 };
 use parking_lot::MutexGuard;
 use std::{io, ptr};
