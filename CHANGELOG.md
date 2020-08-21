@@ -18,6 +18,7 @@
 - On iOS and Android, `set_inner_size` is now a no-op instead of a runtime crash.
 - On Android, fix `ControlFlow::Poll` not polling the Android event queue.
 - On macOS, add `NSWindow.hasShadow` support.
+- On Web, fix vertical mouse wheel scrolling being inverted.
 - **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
 - **Breaking:** `PixelDelta` scroll events now return a `PhysicalPosition`.
 - On NetBSD, fixed crash due to incorrect detection of the main thread.
