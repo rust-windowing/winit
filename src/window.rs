@@ -624,6 +624,10 @@ impl Window {
 
     /// Gets the window's current fullscreen state.
     ///
+    /// If `None` in `Fullscreen::Borderless` was returned it means
+    /// that the window is in a `Fullscreen` state, however there's
+    /// no monitor information available.
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
@@ -850,10 +854,15 @@ impl Default for CursorIcon {
     }
 }
 
+/// Fullscreen mode to be set on certain output.
+///
+/// Providing `None` to `Borderless` will result in fullscreen
+/// being set on a system preferred monitor. In general it'll be
+/// the current monitor.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fullscreen {
     Exclusive(VideoMode),
-    Borderless(MonitorHandle),
+    Borderless(Option<MonitorHandle>),
 }
 
 #[derive(Clone, Debug, PartialEq)]

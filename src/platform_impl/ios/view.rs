@@ -519,7 +519,15 @@ pub unsafe fn create_window(
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
         Some(Fullscreen::Borderless(ref monitor)) => {
-            msg_send![window, setScreen:monitor.ui_screen()]
+            let uiscreen: id = match monitor {
+                Some(ref monitor) => monitor.ui_screen() as id,
+                None => {
+                    let uiscreen: id = msg_send![window, screen];
+                    uiscreen
+                }
+            };
+
+            msg_send![window, setScreen: uiscreen]
         }
         None => (),
     }

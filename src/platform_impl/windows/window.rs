@@ -498,7 +498,10 @@ impl Window {
                 Some(fullscreen) => {
                     let monitor = match fullscreen {
                         Fullscreen::Exclusive(ref video_mode) => video_mode.monitor(),
-                        Fullscreen::Borderless(ref monitor) => monitor.clone(),
+                        Fullscreen::Borderless(Some(ref monitor)) => monitor.clone(),
+                        Fullscreen::Borderless(None) => RootMonitorHandle {
+                            inner: monitor::current_monitor(window.0),
+                        },
                     };
 
                     let position: (i32, i32) = monitor.position().into();
