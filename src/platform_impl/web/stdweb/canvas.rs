@@ -200,11 +200,12 @@ impl Canvas {
 
     pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
         self.on_mouse_press = Some(self.add_user_event(move |event: PointerDownEvent| {
             handler(
                 event.pointer_id(),
+                event::mouse_position(&event).to_physical(super::scale_factor()),
                 event::mouse_button(&event),
                 event::mouse_modifiers(&event),
             );
