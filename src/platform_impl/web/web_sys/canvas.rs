@@ -248,7 +248,7 @@ impl Canvas {
 
     pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
         if has_pointer_event() {
             self.on_pointer_press = Some(self.add_user_event(
@@ -256,6 +256,7 @@ impl Canvas {
                 move |event: PointerEvent| {
                     handler(
                         event.pointer_id(),
+                        event::mouse_position(&event).to_physical(super::scale_factor()),
                         event::mouse_button(&event),
                         event::mouse_modifiers(&event),
                     );
@@ -266,6 +267,7 @@ impl Canvas {
                 Some(self.add_user_event("mousedown", move |event: MouseEvent| {
                     handler(
                         0,
+                        event::mouse_position(&event).to_physical(super::scale_factor()),
                         event::mouse_button(&event),
                         event::mouse_modifiers(&event),
                     );

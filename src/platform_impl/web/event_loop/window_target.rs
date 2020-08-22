@@ -133,7 +133,18 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_press(move |pointer_id, button, modifiers| {
+        canvas.on_mouse_press(move |pointer_id, position, button, modifiers| {
+            // A mouse down event may come in without any prior CursorMoved events,
+            // therefore we should send a CursorMoved event to make sure that the
+            // user code has the correct cursor position.
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::CursorMoved {
+                    device_id: DeviceId(device::Id(pointer_id)),
+                    position,
+                    modifiers,
+                },
+            });
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::MouseInput {
