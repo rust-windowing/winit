@@ -201,7 +201,7 @@ impl Window {
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.is_fullscreen() {
-            Some(Fullscreen::Borderless(self.current_monitor()))
+            Some(Fullscreen::Borderless(self.current_monitor_inner()))
         } else {
             None
         }
@@ -237,10 +237,16 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMH {
+    // Allow directly accessing the current monitor internally without unwrapping.
+    fn current_monitor_inner(&self) -> RootMH {
         RootMH {
             inner: monitor::Handle,
         }
+    }
+
+    #[inline]
+    pub fn current_monitor(&self) -> Option<RootMH> {
+        Some(self.current_monitor_inner())
     }
 
     #[inline]

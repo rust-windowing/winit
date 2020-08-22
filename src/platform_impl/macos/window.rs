@@ -972,7 +972,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
+    // Allow directly accessing the current monitor internally without unwrapping.
+    pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
             let screen: id = msg_send![*self.ns_window, screen];
             let desc = NSScreen::deviceDescription(screen);
@@ -983,6 +984,11 @@ impl UnownedWindow {
                 inner: MonitorHandle::new(display_id),
             }
         }
+    }
+
+    #[inline]
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(self.current_monitor_inner())
     }
 
     #[inline]

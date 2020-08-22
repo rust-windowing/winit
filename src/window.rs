@@ -736,13 +736,15 @@ impl Window {
 
 /// Monitor info functions.
 impl Window {
-    /// Returns the monitor on which the window currently resides
+    /// Returns the monitor on which the window currently resides.
+    ///
+    /// Returns `None` if current monitor can't be detected.
     ///
     /// ## Platform-specific
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn current_monitor(&self) -> MonitorHandle {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         self.window.current_monitor()
     }
 

@@ -25,9 +25,10 @@
 - **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
 - **Breaking:** `PixelDelta` scroll events now return a `PhysicalPosition`.
 - On NetBSD, fixed crash due to incorrect detection of the main thread.
-- **Breaking:** The virtual key code `Subtract` has been renamed to `NumpadSubtract`
-- **Breaking:** On X11, `-` key is mapped to the `Minus` virtual key code, instead of `Subtract`
+- **Breaking:** The virtual key code `Subtract` has been renamed to `NumpadSubtract`.
+- **Breaking:** On X11, `-` key is mapped to the `Minus` virtual key code, instead of `Subtract`.
 - On macOS, fix inverted horizontal scroll.
+- **Breaking:** `current_monitor` now returns `Option<MonitorHandle>`.
 
 # 0.22.2 (2020-05-16)
 

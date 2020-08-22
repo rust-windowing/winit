@@ -21,7 +21,7 @@ fn main() {
             .build(&event_loop)
             .unwrap();
 
-        let mut video_modes: Vec<_> = window.current_monitor().video_modes().collect();
+        let mut video_modes: Vec<_> = window.current_monitor().unwrap().video_modes().collect();
         let mut video_mode_id = 0usize;
 
         let (tx, rx) = mpsc::channel();
@@ -34,7 +34,7 @@ fn main() {
                         // was moved to an another monitor, so that the window
                         // appears on this monitor instead when we go fullscreen
                         let previous_video_mode = video_modes.iter().cloned().nth(video_mode_id);
-                        video_modes = window.current_monitor().video_modes().collect();
+                        video_modes = window.current_monitor().unwrap().video_modes().collect();
                         video_mode_id = video_mode_id.min(video_modes.len());
                         let video_mode = video_modes.iter().nth(video_mode_id);
 
@@ -83,7 +83,7 @@ fn main() {
                             }
                             F => window.set_fullscreen(match (state, modifiers.alt()) {
                                 (true, false) => {
-                                    Some(Fullscreen::Borderless(window.current_monitor()))
+                                    Some(Fullscreen::Borderless(window.current_monitor().unwrap()))
                                 }
                                 (true, true) => Some(Fullscreen::Exclusive(
                                     video_modes.iter().nth(video_mode_id).unwrap().clone(),

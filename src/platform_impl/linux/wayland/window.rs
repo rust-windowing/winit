@@ -334,8 +334,10 @@ impl Window {
 
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         if *(self.fullscreen.lock().unwrap()) {
+            // If the monitor cannot be determined, we cannot report any fullscreen mode.
+            let current_monitor = self.current_monitor()?;
             Some(Fullscreen::Borderless(RootMonitorHandle {
-                inner: PlatformMonitorHandle::Wayland(self.current_monitor()),
+                inner: PlatformMonitorHandle::Wayland(current_monitor),
             }))
         } else {
             None
@@ -396,12 +398,12 @@ impl Window {
         &self.surface
     }
 
-    pub fn current_monitor(&self) -> MonitorHandle {
-        let output = get_outputs(&self.surface).last().unwrap().clone();
-        MonitorHandle {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        let output = get_outputs(&self.surface).last()?.clone();
+        Some(MonitorHandle {
             proxy: output,
             mgr: self.outputs.clone(),
-        }
+        })
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {

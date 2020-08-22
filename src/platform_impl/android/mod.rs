@@ -391,10 +391,10 @@ impl Window {
         v
     }
 
-    pub fn current_monitor(&self) -> monitor::MonitorHandle {
-        monitor::MonitorHandle {
+    pub fn current_monitor(&self) -> Option<monitor::MonitorHandle> {
+        Some(monitor::MonitorHandle {
             inner: MonitorHandle,
-        }
+        })
     }
 
     pub fn scale_factor(&self) -> f64 {

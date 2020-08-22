@@ -450,7 +450,8 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    shared_state.fullscreen = Some(Fullscreen::Borderless(window.current_monitor()))
+                    let current_monitor = window.current_monitor_inner();
+                    shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
                 }
             }
             shared_state.in_fullscreen_transition = true;

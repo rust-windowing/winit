@@ -577,10 +577,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(RootMonitorHandle {
             inner: monitor::current_monitor(self.window.0),
-        }
+        })
     }
 
     #[inline]
