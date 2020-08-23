@@ -9,8 +9,8 @@ use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, MediaQueryListEvent, MouseEvent,
-    PointerEvent, WheelEvent,
+    AddEventListenerOptions, Event, EventTarget, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    MediaQueryListEvent, MouseEvent, PointerEvent, WheelEvent,
 };
 
 pub struct Canvas {
@@ -36,6 +36,7 @@ pub struct Canvas {
     on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
     on_dark_mode: Option<Closure<dyn FnMut(MediaQueryListEvent)>>,
+    mouse_state: MouseState,
 }
 
 impl Drop for Canvas {
@@ -72,6 +73,15 @@ impl Canvas {
             .set_attribute("tabindex", "0")
             .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
+        let mouse_state = if has_pointer_event() {
+            MouseState::HasPointerEvent
+        } else {
+            MouseState::NoPointerEvent {
+                on_mouse_leave_handler: Rc::new(RefCell::new(None)),
+                mouse_capture_state: Rc::new(RefCell::new(MouseCaptureState::NotCaptured)),
+            }
+        };
+
         Ok(Canvas {
             raw: canvas,
             on_blur: None,
@@ -93,6 +103,7 @@ impl Canvas {
             on_fullscreen_change: None,
             wants_fullscreen: Rc::new(RefCell::new(false)),
             on_dark_mode: None,
+            mouse_state,
         })
     }
 
@@ -191,15 +202,32 @@ impl Canvas {
     where
         F: 'static + FnMut(i32),
     {
-        if has_pointer_event() {
-            self.on_cursor_leave =
-                Some(self.add_event("pointerout", move |event: PointerEvent| {
-                    handler(event.pointer_id());
+        match &self.mouse_state {
+            MouseState::HasPointerEvent => {
+                self.on_cursor_leave =
+                    Some(self.add_event("pointerout", move |event: PointerEvent| {
+                        handler(event.pointer_id());
+                    }));
+            }
+            MouseState::NoPointerEvent {
+                on_mouse_leave_handler,
+                mouse_capture_state,
+                ..
+            } => {
+                *on_mouse_leave_handler.borrow_mut() = Some(Box::new(handler));
+                let on_mouse_leave_handler = on_mouse_leave_handler.clone();
+                let mouse_capture_state = mouse_capture_state.clone();
+                self.on_mouse_leave = Some(self.add_event("mouseout", move |_: MouseEvent| {
+                    // If the mouse is being captured, it is always considered
+                    // to be "within" the the canvas, until the capture has been
+                    // released, therefore we don't send cursor leave events.
+                    if *mouse_capture_state.borrow() != MouseCaptureState::Captured {
+                        if let Some(handler) = on_mouse_leave_handler.borrow_mut().as_mut() {
+                            handler(0);
+                        }
+                    }
                 }));
-        } else {
-            self.on_mouse_leave = Some(self.add_event("mouseout", move |_: MouseEvent| {
-                handler(0);
-            }));
+            }
         }
     }
 
@@ -207,15 +235,26 @@ impl Canvas {
     where
         F: 'static + FnMut(i32),
     {
-        if has_pointer_event() {
-            self.on_cursor_enter =
-                Some(self.add_event("pointerover", move |event: PointerEvent| {
-                    handler(event.pointer_id());
+        match &self.mouse_state {
+            MouseState::HasPointerEvent => {
+                self.on_cursor_enter =
+                    Some(self.add_event("pointerover", move |event: PointerEvent| {
+                        handler(event.pointer_id());
+                    }));
+            }
+            MouseState::NoPointerEvent {
+                mouse_capture_state,
+                ..
+            } => {
+                let mouse_capture_state = mouse_capture_state.clone();
+                self.on_mouse_enter = Some(self.add_event("mouseover", move |_: MouseEvent| {
+                    // We don't send cursor leave events when the mouse is being
+                    // captured, therefore we do the same with cursor enter events.
+                    if *mouse_capture_state.borrow() != MouseCaptureState::Captured {
+                        handler(0);
+                    }
                 }));
-        } else {
-            self.on_mouse_enter = Some(self.add_event("mouseover", move |_: MouseEvent| {
-                handler(0);
-            }));
+            }
         }
     }
 
@@ -223,26 +262,70 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, MouseButton, ModifiersState),
     {
-        if has_pointer_event() {
-            self.on_pointer_release = Some(self.add_user_event(
-                "pointerup",
-                move |event: PointerEvent| {
-                    handler(
-                        event.pointer_id(),
-                        event::mouse_button(&event),
-                        event::mouse_modifiers(&event),
-                    );
-                },
-            ));
-        } else {
-            self.on_mouse_release =
-                Some(self.add_user_event("mouseup", move |event: MouseEvent| {
-                    handler(
-                        0,
-                        event::mouse_button(&event),
-                        event::mouse_modifiers(&event),
-                    );
-                }));
+        match &self.mouse_state {
+            MouseState::HasPointerEvent => {
+                self.on_pointer_release = Some(self.add_user_event(
+                    "pointerup",
+                    move |event: PointerEvent| {
+                        handler(
+                            event.pointer_id(),
+                            event::mouse_button(&event),
+                            event::mouse_modifiers(&event),
+                        );
+                    },
+                ));
+            }
+            MouseState::NoPointerEvent {
+                on_mouse_leave_handler,
+                mouse_capture_state,
+                ..
+            } => {
+                let on_mouse_leave_handler = on_mouse_leave_handler.clone();
+                let mouse_capture_state = mouse_capture_state.clone();
+                let canvas = self.raw.clone();
+                self.on_mouse_release = Some(self.add_window_mouse_event(
+                    "mouseup",
+                    move |event: MouseEvent| {
+                        let canvas = canvas.clone();
+                        let mut mouse_capture_state = mouse_capture_state.borrow_mut();
+                        match &*mouse_capture_state {
+                            // Shouldn't happen but we'll just ignore it.
+                            MouseCaptureState::NotCaptured => return,
+                            MouseCaptureState::OtherElement => {
+                                if event.buttons() == 0 {
+                                    // No buttons are pressed anymore so reset
+                                    // the capturing state.
+                                    *mouse_capture_state = MouseCaptureState::NotCaptured;
+                                }
+                                return;
+                            }
+                            MouseCaptureState::Captured => {}
+                        }
+                        event.stop_propagation();
+                        handler(
+                            0,
+                            event::mouse_button(&event),
+                            event::mouse_modifiers(&event),
+                        );
+                        if event
+                            .target()
+                            .map_or(false, |target| target != EventTarget::from(canvas))
+                        {
+                            // Since we do not send cursor leave events while the
+                            // cursor is being captured, we instead send it after
+                            // the capture has been released.
+                            if let Some(handler) = on_mouse_leave_handler.borrow_mut().as_mut() {
+                                handler(0);
+                            }
+                        }
+                        if event.buttons() == 0 {
+                            // No buttons are pressed anymore so reset
+                            // the capturing state.
+                            *mouse_capture_state = MouseCaptureState::NotCaptured;
+                        }
+                    },
+                ));
+            }
         }
     }
 
@@ -250,32 +333,60 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
-        if has_pointer_event() {
-            let canvas = self.raw.clone();
-            self.on_pointer_press = Some(self.add_user_event(
-                "pointerdown",
-                move |event: PointerEvent| {
-                    handler(
-                        event.pointer_id(),
-                        event::mouse_position(&event).to_physical(super::scale_factor()),
-                        event::mouse_button(&event),
-                        event::mouse_modifiers(&event),
-                    );
-                    canvas
-                        .set_pointer_capture(event.pointer_id())
-                        .expect("Failed to set pointer capture");
-                },
-            ));
-        } else {
-            self.on_mouse_press =
-                Some(self.add_user_event("mousedown", move |event: MouseEvent| {
-                    handler(
-                        0,
-                        event::mouse_position(&event).to_physical(super::scale_factor()),
-                        event::mouse_button(&event),
-                        event::mouse_modifiers(&event),
-                    );
-                }));
+        match &self.mouse_state {
+            MouseState::HasPointerEvent => {
+                let canvas = self.raw.clone();
+                self.on_pointer_press = Some(self.add_user_event(
+                    "pointerdown",
+                    move |event: PointerEvent| {
+                        handler(
+                            event.pointer_id(),
+                            event::mouse_position(&event).to_physical(super::scale_factor()),
+                            event::mouse_button(&event),
+                            event::mouse_modifiers(&event),
+                        );
+                        canvas
+                            .set_pointer_capture(event.pointer_id())
+                            .expect("Failed to set pointer capture");
+                    },
+                ));
+            }
+            MouseState::NoPointerEvent {
+                mouse_capture_state,
+                ..
+            } => {
+                let mouse_capture_state = mouse_capture_state.clone();
+                let canvas = self.raw.clone();
+                self.on_mouse_press = Some(self.add_window_mouse_event(
+                    "mousedown",
+                    move |event: MouseEvent| {
+                        let canvas = canvas.clone();
+                        let mut mouse_capture_state = mouse_capture_state.borrow_mut();
+                        match &*mouse_capture_state {
+                            MouseCaptureState::NotCaptured
+                                if event.target().map_or(false, |target| {
+                                    target != EventTarget::from(canvas)
+                                }) =>
+                            {
+                                // The target isn't our canvas which means the
+                                // mouse is pressed outside of it.
+                                *mouse_capture_state = MouseCaptureState::OtherElement;
+                                return;
+                            }
+                            MouseCaptureState::OtherElement => return,
+                            _ => {}
+                        }
+                        *mouse_capture_state = MouseCaptureState::Captured;
+                        event.stop_propagation();
+                        handler(
+                            0,
+                            event::mouse_position(&event).to_physical(super::scale_factor()),
+                            event::mouse_button(&event),
+                            event::mouse_modifiers(&event),
+                        );
+                    },
+                ));
+            }
         }
     }
 
@@ -283,23 +394,59 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
     {
-        if has_pointer_event() {
-            self.on_cursor_move =
-                Some(self.add_event("pointermove", move |event: PointerEvent| {
-                    handler(
-                        event.pointer_id(),
-                        event::mouse_position(&event).to_physical(super::scale_factor()),
-                        event::mouse_modifiers(&event),
-                    );
-                }));
-        } else {
-            self.on_mouse_move = Some(self.add_event("mousemove", move |event: MouseEvent| {
-                handler(
-                    0,
-                    event::mouse_position(&event).to_physical(super::scale_factor()),
-                    event::mouse_modifiers(&event),
-                );
-            }));
+        match &self.mouse_state {
+            MouseState::HasPointerEvent => {
+                self.on_cursor_move =
+                    Some(self.add_event("pointermove", move |event: PointerEvent| {
+                        handler(
+                            event.pointer_id(),
+                            event::mouse_position(&event).to_physical(super::scale_factor()),
+                            event::mouse_modifiers(&event),
+                        );
+                    }));
+            }
+            MouseState::NoPointerEvent {
+                mouse_capture_state,
+                ..
+            } => {
+                let mouse_capture_state = mouse_capture_state.clone();
+                let canvas = self.raw.clone();
+                self.on_mouse_move = Some(self.add_window_mouse_event(
+                    "mousemove",
+                    move |event: MouseEvent| {
+                        let canvas = canvas.clone();
+                        let mouse_capture_state = mouse_capture_state.borrow();
+                        let is_over_canvas = event
+                            .target()
+                            .map_or(false, |target| target == EventTarget::from(canvas.clone()));
+                        match &*mouse_capture_state {
+                            // Don't handle hover events outside of canvas.
+                            MouseCaptureState::NotCaptured if !is_over_canvas => return,
+                            MouseCaptureState::OtherElement if !is_over_canvas => return,
+                            // If hovering over the canvas, just send the cursor move event.
+                            MouseCaptureState::NotCaptured
+                            | MouseCaptureState::OtherElement
+                            | MouseCaptureState::Captured => {
+                                if *mouse_capture_state == MouseCaptureState::Captured {
+                                    event.stop_propagation();
+                                }
+                                let mouse_pos = if is_over_canvas {
+                                    event::mouse_position(&event)
+                                } else {
+                                    // Since the mouse is not on the canvas, we cannot
+                                    // use `offsetX`/`offsetY`.
+                                    event::mouse_position_by_client(&event, &canvas)
+                                };
+                                handler(
+                                    0,
+                                    mouse_pos.to_physical(super::scale_factor()),
+                                    event::mouse_modifiers(&event),
+                                );
+                            }
+                        }
+                    },
+                ));
+            }
         }
     }
 
@@ -390,6 +537,44 @@ impl Canvas {
         })
     }
 
+    // This function is used exclusively for mouse events (not pointer events).
+    // Due to the need for mouse capturing, the mouse event handlers are added
+    // to the window instead of the canvas element, which requires special
+    // handling to control event propagation.
+    fn add_window_mouse_event<F>(
+        &self,
+        event_name: &str,
+        mut handler: F,
+    ) -> Closure<dyn FnMut(MouseEvent)>
+    where
+        F: 'static + FnMut(MouseEvent),
+    {
+        let wants_fullscreen = self.wants_fullscreen.clone();
+        let canvas = self.raw.clone();
+        let window = web_sys::window().expect("Failed to obtain window");
+
+        let closure = Closure::wrap(Box::new(move |event: MouseEvent| {
+            handler(event);
+
+            if *wants_fullscreen.borrow() {
+                canvas
+                    .request_fullscreen()
+                    .expect("Failed to enter fullscreen");
+                *wants_fullscreen.borrow_mut() = false;
+            }
+        }) as Box<dyn FnMut(_)>);
+
+        window
+            .add_event_listener_with_callback_and_add_event_listener_options(
+                event_name,
+                &closure.as_ref().unchecked_ref(),
+                AddEventListenerOptions::new().capture(true),
+            )
+            .expect("Failed to add event listener with callback and options");
+
+        closure
+    }
+
     pub fn request_fullscreen(&self) {
         *self.wants_fullscreen.borrow_mut() = true;
     }
@@ -397,6 +582,21 @@ impl Canvas {
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
     }
+}
+
+enum MouseState {
+    HasPointerEvent,
+    NoPointerEvent {
+        on_mouse_leave_handler: Rc<RefCell<Option<Box<dyn FnMut(i32)>>>>,
+        mouse_capture_state: Rc<RefCell<MouseCaptureState>>,
+    },
+}
+
+#[derive(PartialEq, Eq)]
+enum MouseCaptureState {
+    NotCaptured,
+    Captured,
+    OtherElement,
 }
 
 /// Returns whether pointer events are supported.
