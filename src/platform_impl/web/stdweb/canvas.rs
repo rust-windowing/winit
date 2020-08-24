@@ -202,6 +202,7 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
+        let canvas = self.raw.clone();
         self.on_mouse_press = Some(self.add_user_event(move |event: PointerDownEvent| {
             handler(
                 event.pointer_id(),
@@ -209,6 +210,9 @@ impl Canvas {
                 event::mouse_button(&event),
                 event::mouse_modifiers(&event),
             );
+            canvas
+                .set_pointer_capture(event.pointer_id())
+                .expect("Failed to set pointer capture");
         }));
     }
 
