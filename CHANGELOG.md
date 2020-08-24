@@ -19,6 +19,7 @@
 - On Android, fix `ControlFlow::Poll` not polling the Android event queue.
 - On macOS, add `NSWindow.hasShadow` support.
 - On Web, fix vertical mouse wheel scrolling being inverted.
+- On Web, implement mouse capturing for click-dragging out of the canvas.
 - **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
 - **Breaking:** `PixelDelta` scroll events now return a `PhysicalPosition`.
 - On NetBSD, fixed crash due to incorrect detection of the main thread.
