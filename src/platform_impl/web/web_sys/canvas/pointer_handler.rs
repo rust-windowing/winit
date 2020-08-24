@@ -1,0 +1,103 @@
+use super::event;
+use crate::dpi::PhysicalPosition;
+use crate::event::{ModifiersState, MouseButton};
+
+use wasm_bindgen::closure::Closure;
+use web_sys::PointerEvent;
+
+pub(super) struct PointerHandler {
+    on_cursor_leave: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_cursor_enter: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_cursor_move: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_pointer_press: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_pointer_release: Option<Closure<dyn FnMut(PointerEvent)>>,
+}
+
+impl PointerHandler {
+    pub fn new() -> Self {
+        Self {
+            on_cursor_leave: None,
+            on_cursor_enter: None,
+            on_cursor_move: None,
+            on_pointer_press: None,
+            on_pointer_release: None,
+        }
+    }
+
+    pub fn on_cursor_leave<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32),
+    {
+        self.on_cursor_leave = Some(canvas_common.add_event(
+            "pointerout",
+            move |event: PointerEvent| {
+                handler(event.pointer_id());
+            },
+        ));
+    }
+
+    pub fn on_cursor_enter<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32),
+    {
+        self.on_cursor_enter = Some(canvas_common.add_event(
+            "pointerover",
+            move |event: PointerEvent| {
+                handler(event.pointer_id());
+            },
+        ));
+    }
+
+    pub fn on_mouse_release<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+    {
+        self.on_pointer_release = Some(canvas_common.add_user_event(
+            "pointerup",
+            move |event: PointerEvent| {
+                handler(
+                    event.pointer_id(),
+                    event::mouse_button(&event),
+                    event::mouse_modifiers(&event),
+                );
+            },
+        ));
+    }
+
+    pub fn on_mouse_press<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
+    {
+        let canvas = canvas_common.raw.clone();
+        self.on_pointer_press = Some(canvas_common.add_user_event(
+            "pointerdown",
+            move |event: PointerEvent| {
+                handler(
+                    event.pointer_id(),
+                    event::mouse_position(&event).to_physical(super::super::scale_factor()),
+                    event::mouse_button(&event),
+                    event::mouse_modifiers(&event),
+                );
+                canvas
+                    .set_pointer_capture(event.pointer_id())
+                    .expect("Failed to set pointer capture");
+            },
+        ));
+    }
+
+    pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
+    {
+        self.on_cursor_move = Some(canvas_common.add_event(
+            "pointermove",
+            move |event: PointerEvent| {
+                handler(
+                    event.pointer_id(),
+                    event::mouse_position(&event).to_physical(super::super::scale_factor()),
+                    event::mouse_modifiers(&event),
+                );
+            },
+        ));
+    }
+}
