@@ -28,6 +28,7 @@
 - **Breaking:** The virtual key code `Subtract` has been renamed to `NumpadSubtract`
 - **Breaking:** On X11, `-` key is mapped to the `Minus` virtual key code, instead of `Subtract`
 - On macOS, fix inverted horizontal scroll.
+- **Breaking:** On Windows, include prefix byte in scancodes.
 
 # 0.22.2 (2020-05-16)
 

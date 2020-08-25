@@ -343,6 +343,7 @@ pub fn handle_extended_keys(
     extended: bool,
 ) -> Option<(c_int, UINT)> {
     // Welcome to hell https://blog.molecular-matters.com/2011/09/05/properly-handling-keyboard-input/
+    scancode = if extended { 0xE000 } else { 0x0000 } | scancode;
     let vkey = match vkey {
         winuser::VK_SHIFT => unsafe {
             winuser::MapVirtualKeyA(scancode, winuser::MAPVK_VSC_TO_VK_EX) as _
