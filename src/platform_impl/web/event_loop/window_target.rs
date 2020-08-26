@@ -137,23 +137,25 @@ impl<T> WindowTarget<T> {
             // A mouse down event may come in without any prior CursorMoved events,
             // therefore we should send a CursorMoved event to make sure that the
             // user code has the correct cursor position.
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::CursorMoved {
-                    device_id: DeviceId(device::Id(pointer_id)),
-                    position,
-                    modifiers,
-                },
-            });
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::MouseInput {
-                    device_id: DeviceId(device::Id(pointer_id)),
-                    state: ElementState::Pressed,
-                    button,
-                    modifiers,
-                },
-            });
+            runner.send_events(
+                std::iter::once(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::CursorMoved {
+                        device_id: DeviceId(device::Id(pointer_id)),
+                        position,
+                        modifiers,
+                    },
+                })
+                .chain(std::iter::once(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::MouseInput {
+                        device_id: DeviceId(device::Id(pointer_id)),
+                        state: ElementState::Pressed,
+                        button,
+                        modifiers,
+                    },
+                })),
+            );
         });
 
         let runner = self.runner.clone();
