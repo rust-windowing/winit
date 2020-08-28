@@ -262,7 +262,7 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
         winuser::VK_MULTIPLY => Some(VirtualKeyCode::Multiply),
         winuser::VK_ADD => Some(VirtualKeyCode::Add),
         //winuser::VK_SEPARATOR => Some(VirtualKeyCode::Separator),
-        winuser::VK_SUBTRACT => Some(VirtualKeyCode::Subtract),
+        winuser::VK_SUBTRACT => Some(VirtualKeyCode::NumpadSubtract),
         winuser::VK_DECIMAL => Some(VirtualKeyCode::Decimal),
         winuser::VK_DIVIDE => Some(VirtualKeyCode::Divide),
         winuser::VK_F1 => Some(VirtualKeyCode::F1),

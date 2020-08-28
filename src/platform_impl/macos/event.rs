@@ -169,7 +169,7 @@ pub fn scancode_to_keycode(scancode: c_ushort) -> Option<VirtualKeyCode> {
         0x4b => VirtualKeyCode::Divide,
         0x4c => VirtualKeyCode::NumpadEnter,
         //0x4d => unkown,
-        0x4e => VirtualKeyCode::Subtract,
+        0x4e => VirtualKeyCode::NumpadSubtract,
         0x4f => VirtualKeyCode::F18,
         0x50 => VirtualKeyCode::F19,
         0x51 => VirtualKeyCode::NumpadEquals,
