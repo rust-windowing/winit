@@ -41,6 +41,41 @@ impl<T: 'static> Runner<T> {
             event_handler,
         }
     }
+
+    /// Returns the cooresponding `StartCause` for the current `state`, or `None`
+    /// when in `Exit` state.
+    fn maybe_start_cause(&self) -> Option<StartCause> {
+        Some(match self.state {
+            State::Init => StartCause::Init,
+            State::Poll { .. } => StartCause::Poll,
+            State::Wait { start } => StartCause::WaitCancelled {
+                start,
+                requested_resume: None,
+            },
+            State::WaitUntil { start, end, .. } => StartCause::WaitCancelled {
+                start,
+                requested_resume: Some(end),
+            },
+            State::Exit => return None,
+        })
+    }
+
+    fn handle_single_event(&mut self, event: Event<'_, T>, control: &mut root::ControlFlow) {
+        let is_closed = *control == root::ControlFlow::Exit;
+
+        // An event is being processed, so the runner should be marked busy
+        self.is_busy = true;
+
+        (self.event_handler)(event, control);
+
+        // Maintain closed state, even if the callback changes it
+        if is_closed {
+            *control = root::ControlFlow::Exit;
+        }
+
+        // An event is no longer being processed
+        self.is_busy = false;
+    }
 }
 
 impl<T: 'static> Shared<T> {
@@ -138,25 +173,15 @@ impl<T: 'static> Shared<T> {
         }
         // At this point, we know this is a fresh set of events
         // Now we determine why new events are incoming, and handle the events
-        let start_cause = if let Some(runner) = &*self.0.runner.borrow() {
-            match runner.state {
-                State::Init => StartCause::Init,
-                State::Poll { .. } => StartCause::Poll,
-                State::Wait { start } => StartCause::WaitCancelled {
-                    start,
-                    requested_resume: None,
-                },
-                State::WaitUntil { start, end, .. } => StartCause::WaitCancelled {
-                    start,
-                    requested_resume: Some(end),
-                },
-                State::Exit => {
-                    // If we're in the exit state, don't do event processing
-                    return;
-                }
-            }
-        } else {
-            unreachable!("The runner cannot process events when it is not attached");
+        let start_cause = match (self.0.runner.borrow().as_ref())
+            .unwrap_or_else(|| {
+                unreachable!("The runner cannot process events when it is not attached")
+            })
+            .maybe_start_cause()
+        {
+            Some(c) => c,
+            // If we're in the exit state, don't do event processing
+            None => return,
         };
         // Take the start event, then the events provided to this function, and run an iteration of
         // the event loop
@@ -201,26 +226,19 @@ impl<T: 'static> Shared<T> {
     //
     // It should only ever be called from send_event
     fn handle_event(&self, event: Event<'static, T>, control: &mut root::ControlFlow) {
-        let is_closed = self.is_closed();
+        if self.is_closed() {
+            *control = root::ControlFlow::Exit;
+        }
         match *self.0.runner.borrow_mut() {
             Some(ref mut runner) => {
-                // An event is being processed, so the runner should be marked busy
-                runner.is_busy = true;
-
-                (runner.event_handler)(event, control);
-
-                // Maintain closed state, even if the callback changes it
-                if is_closed {
-                    *control = root::ControlFlow::Exit;
-                }
-
-                // An event is no longer being processed
-                runner.is_busy = false;
+                runner.handle_single_event(event, control);
             }
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
             _ => self.0.events.borrow_mut().push_back(event),
         }
+
+        let is_closed = *control == root::ControlFlow::Exit;
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
