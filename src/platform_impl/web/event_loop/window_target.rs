@@ -29,7 +29,7 @@ impl<T> WindowTarget<T> {
         Proxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'static, T>, &mut ControlFlow)>) {
+    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
         self.runner.set_listener(event_handler);
     }
 

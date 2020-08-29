@@ -30,11 +30,11 @@ pub struct Execution<T: 'static> {
 struct Runner<T: 'static> {
     state: State,
     is_busy: bool,
-    event_handler: Box<dyn FnMut(Event<'static, T>, &mut root::ControlFlow)>,
+    event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>,
 }
 
 impl<T: 'static> Runner<T> {
-    pub fn new(event_handler: Box<dyn FnMut(Event<'static, T>, &mut root::ControlFlow)>) -> Self {
+    pub fn new(event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>) -> Self {
         Runner {
             state: State::Init,
             is_busy: false,
@@ -58,7 +58,7 @@ impl<T: 'static> Shared<T> {
     // over a RootEventLoopWindowTarget reference
     pub fn set_listener(
         &self,
-        event_handler: Box<dyn FnMut(Event<'static, T>, &mut root::ControlFlow)>,
+        event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>,
     ) {
         self.0.runner.replace(Some(Runner::new(event_handler)));
         self.init();
