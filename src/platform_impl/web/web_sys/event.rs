@@ -204,7 +204,7 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "Slash" => VirtualKeyCode::Slash,
         "Sleep" => VirtualKeyCode::Sleep,
         "Stop" => VirtualKeyCode::Stop,
-        "NumpadSubtract" => VirtualKeyCode::Subtract,
+        "NumpadSubtract" => VirtualKeyCode::NumpadSubtract,
         "Sysrq" => VirtualKeyCode::Sysrq,
         "Tab" => VirtualKeyCode::Tab,
         "Underline" => VirtualKeyCode::Underline,
