@@ -1,8 +1,10 @@
 mod canvas;
 mod event;
+mod scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
+pub use self::scaling::ScaleChangeDetector;
 pub use self::timeout::{AnimationFrameRequest, Timeout};
 
 use crate::dpi::{LogicalSize, Size};

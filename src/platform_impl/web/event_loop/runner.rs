@@ -1,4 +1,4 @@
-use super::{backend, state::State};
+use super::{super::ScaleChangeArgs, backend, state::State};
 use crate::event::{Event, StartCause};
 use crate::event_loop as root;
 use crate::window::WindowId;
@@ -24,7 +24,9 @@ pub struct Execution<T: 'static> {
     runner: RefCell<Option<Runner<T>>>,
     events: RefCell<VecDeque<Event<'static, T>>>,
     id: RefCell<u32>,
+    all_canvases: RefCell<Vec<(WindowId, backend::RawCanvasType)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
+    scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
 }
 
 struct Runner<T: 'static> {
@@ -84,8 +86,14 @@ impl<T: 'static> Shared<T> {
             runner: RefCell::new(None),
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
+            all_canvases: RefCell::new(Vec::new()),
             redraw_pending: RefCell::new(HashSet::new()),
+            scale_change_detector: RefCell::new(None),
         }))
+    }
+
+    pub fn add_canvas(&self, id: WindowId, canvas: backend::RawCanvasType) {
+        self.0.all_canvases.borrow_mut().push((id, canvas));
     }
 
     // Set the event callback to use for the event loop runner
@@ -100,6 +108,14 @@ impl<T: 'static> Shared<T> {
 
         let close_instance = self.clone();
         backend::on_unload(move || close_instance.handle_unload());
+    }
+
+    pub(crate) fn set_on_scale_change<F>(&self, handler: F)
+    where
+        F: 'static + FnMut(ScaleChangeArgs),
+    {
+        *self.0.scale_change_detector.borrow_mut() =
+            Some(backend::ScaleChangeDetector::new(handler));
     }
 
     // Generate a strictly increasing ID
@@ -216,15 +232,92 @@ impl<T: 'static> Shared<T> {
         }
     }
 
+    pub fn handle_scale_changed(&self, old_scale: f64, new_scale: f64) {
+        let start_cause = match (self.0.runner.borrow().as_ref())
+            .unwrap_or_else(|| unreachable!("`scale_changed` should not happen without a runner"))
+            .maybe_start_cause()
+        {
+            Some(c) => c,
+            // If we're in the exit state, don't do event processing
+            None => return,
+        };
+        let mut control = self.current_control_flow();
+
+        // Handle the start event and all other events in the queue.
+        self.handle_event(Event::NewEvents(start_cause), &mut control);
+
+        // Now handle the `ScaleFactorChanged` events.
+        for &(id, ref canvas) in &*self.0.all_canvases.borrow() {
+            // First, we send the `ScaleFactorChanged` event:
+            let current_size = crate::dpi::PhysicalSize {
+                width: canvas.width() as u32,
+                height: canvas.height() as u32,
+            };
+            let logical_size = current_size.to_logical::<f64>(old_scale);
+            let mut new_size = logical_size.to_physical(new_scale);
+            self.handle_single_event_sync(
+                Event::WindowEvent {
+                    window_id: id,
+                    event: crate::event::WindowEvent::ScaleFactorChanged {
+                        scale_factor: new_scale,
+                        new_inner_size: &mut new_size,
+                    },
+                },
+                &mut control,
+            );
+
+            // Then we resize the canvas to the new size and send a `Resized` event:
+            backend::set_canvas_size(canvas, crate::dpi::Size::Physical(new_size));
+            self.handle_single_event_sync(
+                Event::WindowEvent {
+                    window_id: id,
+                    event: crate::event::WindowEvent::Resized(new_size),
+                },
+                &mut control,
+            );
+        }
+
+        self.handle_event(Event::MainEventsCleared, &mut control);
+
+        // Discard all the pending redraw as we shall just redraw all windows.
+        self.0.redraw_pending.borrow_mut().clear();
+        for &(window_id, _) in &*self.0.all_canvases.borrow() {
+            self.handle_event(Event::RedrawRequested(window_id), &mut control);
+        }
+        self.handle_event(Event::RedrawEventsCleared, &mut control);
+
+        self.apply_control_flow(control);
+        // If the event loop is closed, it has been closed this iteration and now the closing
+        // event should be emitted
+        if self.is_closed() {
+            self.handle_event(Event::LoopDestroyed, &mut control);
+        }
+    }
+
     fn handle_unload(&self) {
         self.apply_control_flow(root::ControlFlow::Exit);
         let mut control = self.current_control_flow();
         self.handle_event(Event::LoopDestroyed, &mut control);
     }
 
+    // handle_single_event_sync takes in an event and handles it synchronously.
+    //
+    // It should only ever be called from `scale_changed`.
+    fn handle_single_event_sync(&self, event: Event<'_, T>, control: &mut root::ControlFlow) {
+        if self.is_closed() {
+            *control = root::ControlFlow::Exit;
+        }
+        match *self.0.runner.borrow_mut() {
+            Some(ref mut runner) => {
+                runner.handle_single_event(event, control);
+            }
+            _ => panic!("Cannot handle event synchronously without a runner"),
+        }
+    }
+
     // handle_event takes in events and either queues them or applies a callback
     //
-    // It should only ever be called from send_event
+    // It should only ever be called from `run_until_cleared` and `scale_changed`.
     fn handle_event(&self, event: Event<'static, T>, control: &mut root::ControlFlow) {
         if self.is_closed() {
             *control = root::ControlFlow::Exit;
