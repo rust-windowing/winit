@@ -97,6 +97,7 @@ version = "0.3.22"
 optional = true
 features = [
     'console',
+    "AddEventListenerOptions",
     'CssStyleDeclaration',
     'BeforeUnloadEvent',
     'Document',

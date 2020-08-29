@@ -2,7 +2,7 @@ use crate::dpi::LogicalPosition;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
 use std::convert::TryInto;
-use web_sys::{KeyboardEvent, MouseEvent, WheelEvent};
+use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
 
 pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     match event.button() {
@@ -26,6 +26,17 @@ pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     LogicalPosition {
         x: event.offset_x() as f64,
         y: event.offset_y() as f64,
+    }
+}
+
+pub fn mouse_position_by_client(
+    event: &MouseEvent,
+    canvas: &HtmlCanvasElement,
+) -> LogicalPosition<f64> {
+    let bounding_client_rect = canvas.get_bounding_client_rect();
+    LogicalPosition {
+        x: event.client_x() as f64 - bounding_client_rect.x(),
+        y: event.client_y() as f64 - bounding_client_rect.y(),
     }
 }
 
