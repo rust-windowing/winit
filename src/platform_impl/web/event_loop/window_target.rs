@@ -29,8 +29,12 @@ impl<T> WindowTarget<T> {
         Proxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'static, T>, &mut ControlFlow)>) {
+    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
         self.runner.set_listener(event_handler);
+        let runner = self.runner.clone();
+        self.runner.set_on_scale_change(move |arg| {
+            runner.handle_scale_changed(arg.old_scale, arg.new_scale)
+        });
     }
 
     pub fn generate_id(&self) -> window::Id {
@@ -40,6 +44,7 @@ impl<T> WindowTarget<T> {
     pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
         let runner = self.runner.clone();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
+        runner.add_canvas(WindowId(id), canvas.raw().clone());
 
         canvas.on_blur(move || {
             runner.send_event(Event::WindowEvent {
