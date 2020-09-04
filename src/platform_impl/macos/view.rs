@@ -1003,7 +1003,8 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
         let state = &mut *(state_ptr as *mut ViewState);
 
         let delta = {
-            let (x, y) = (event.scrollingDeltaX(), event.scrollingDeltaY());
+            // macos horizontal sign convention is the inverse of winit
+            let (x, y) = (event.scrollingDeltaX() * -1.0, event.scrollingDeltaY());
             if event.hasPreciseScrollingDeltas() == YES {
                 let delta = LogicalPosition::new(x, y).to_physical(state.get_scale_factor());
                 MouseScrollDelta::PixelDelta(delta)
