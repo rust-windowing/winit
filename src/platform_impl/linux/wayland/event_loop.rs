@@ -648,8 +648,9 @@ impl<T> EventLoopWindowTarget<T> {
         available_monitors(&self.outputs)
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor(&self.outputs)
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        // Wayland doesn't have a notion of primary monitor.
+        None
     }
 }
 
@@ -1119,19 +1120,6 @@ impl MonitorHandle {
                 }),
             })
     }
-}
-
-pub fn primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
-    outputs.with_all(|list| {
-        if let Some(&(_, ref proxy, _)) = list.first() {
-            MonitorHandle {
-                proxy: proxy.clone(),
-                mgr: outputs.clone(),
-            }
-        } else {
-            panic!("No monitor is available.")
-        }
-    })
 }
 
 pub fn available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {

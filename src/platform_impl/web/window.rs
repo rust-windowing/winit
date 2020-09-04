@@ -255,8 +255,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> monitor::Handle {
-        monitor::Handle
+    pub fn primary_monitor(&self) -> Option<RootMH> {
+        Some(RootMH {
+            inner: monitor::Handle,
+        })
     }
 
     #[inline]

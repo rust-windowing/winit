@@ -178,11 +178,15 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     /// Returns the primary monitor of the system.
+    ///
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Wayland:** Always returns `None`.
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle {
-            inner: self.p.primary_monitor(),
-        }
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.p.primary_monitor()
     }
 }
 

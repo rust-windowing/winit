@@ -29,6 +29,7 @@
 - **Breaking:** On X11, `-` key is mapped to the `Minus` virtual key code, instead of `Subtract`.
 - On macOS, fix inverted horizontal scroll.
 - **Breaking:** `current_monitor` now returns `Option<MonitorHandle>`.
+- **Breaking:** `primary_monitor` now returns `Option<MonitorHandle>`.
 
 # 0.22.2 (2020-05-16)
 
