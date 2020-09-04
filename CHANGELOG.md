@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
+- On Unix, fix cross-compiling to wasm32 without enabling X11 or Wayland.
 
 # 0.23.0 (2020-10-02)
 
