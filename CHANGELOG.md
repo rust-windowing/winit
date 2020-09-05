@@ -9,7 +9,7 @@
 - On Windows, drag and drop is now optional and must be enabled with `WindowBuilderExtWindows::with_drag_and_drop(true)`.
 - On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
 - On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
-- On macOS - fix inverted horizontal scroll
+- On macOS, fix inverted horizontal scroll.
 - On android added support for `run_return`.
 - On MacOS, Fixed fullscreen and dialog support for `run_return`.
 - On Windows, fix bug where we'd try to emit `MainEventsCleared` events during nested win32 event loops.
