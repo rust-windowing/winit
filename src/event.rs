@@ -748,30 +748,22 @@ pub enum MouseButton {
     Other(u8),
 }
 
-/// A measured distance as the user scrolls.
-///
-/// Many modern compositors will express touchpad drags and tablet surface touches in units of
-/// `PixelDelta`, while mouse wheel rotation will be expressed in `LineDelta`. However some
-/// backends (e.g. x11) will express all scrolling as `LineDelta` — touchpad drags will simply be
-/// scaled to some presumed equivalent number of lines.
+/// Describes a difference in the mouse scroll wheel state.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum MouseScrollDelta {
-    /// Amount in lines or rows to scroll in the horizontal and vertical direction.
+    /// Amount in lines or rows to scroll in the horizontal
+    /// and vertical directions.
     ///
-    /// With "Reverse" scrolling, positive values indicate upward or rightward scrolling. With
-    /// "Natural" scrolling, it's the opposite.
-    ///
-    /// Traditionally each "line" corresponds to one "click" of a scrollable mouse wheel and
-    /// indicates that the application should scroll one line of text. However, anymore "a line"
-    /// must usually be considered an abstract unit of measurement, because of things like
-    /// configurable scroll sensitivity, variable text size, and the advent of touchpads.
+    /// Positive values indicate movement forward
+    /// (away from the user) or rightwards.
     LineDelta(f32, f32),
-
-    /// Amount in pixels to scroll in the horizontal and vertical direction.
+    /// Amount in pixels to scroll in the horizontal and
+    /// vertical direction.
     ///
-    /// With "Reverse" scrolling, positive values indicate upward or rightward scrolling. With
-    /// "Natural" scrolling, it's the opposite.
+    /// Scroll events are expressed as a PixelDelta if
+    /// supported by the device (eg. a touchpad) and
+    /// platform.
     PixelDelta(PhysicalPosition<f64>),
 }
 
