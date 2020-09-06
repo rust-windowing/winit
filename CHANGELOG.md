@@ -27,6 +27,7 @@
 - On NetBSD, fixed crash due to incorrect detection of the main thread.
 - **Breaking:** The virtual key code `Subtract` has been renamed to `NumpadSubtract`
 - **Breaking:** On X11, `-` key is mapped to the `Minus` virtual key code, instead of `Subtract`
+- On macOS, fix inverted horizontal scroll.
 
 # 0.22.2 (2020-05-16)
 
