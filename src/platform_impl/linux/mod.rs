@@ -425,9 +425,22 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: x11_or_wayland!(match self; Window(window) => window.current_monitor(); as MonitorHandle),
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        match self {
+            #[cfg(feature = "x11")]
+            &Window::X(ref window) => {
+                let current_monitor = MonitorHandle::X(window.current_monitor());
+                Some(RootMonitorHandle {
+                    inner: current_monitor,
+                })
+            }
+            #[cfg(feature = "wayland")]
+            &Window::Wayland(ref window) => {
+                let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
+                Some(RootMonitorHandle {
+                    inner: current_monitor,
+                })
+            }
         }
     }
 

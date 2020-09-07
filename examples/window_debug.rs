@@ -70,7 +70,7 @@ fn main() {
                             size.width * size.height
                         }
 
-                        let monitor = window.current_monitor();
+                        let monitor = window.current_monitor().unwrap();
                         if let Some(mode) = monitor
                             .video_modes()
                             .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
@@ -84,7 +84,7 @@ fn main() {
                         if window.fullscreen().is_some() {
                             window.set_fullscreen(None);
                         } else {
-                            let monitor = window.current_monitor();
+                            let monitor = window.current_monitor().unwrap();
                             window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
                         }
                     }

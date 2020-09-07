@@ -224,7 +224,7 @@ impl Inner {
 
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
-            let monitor = self.current_monitor();
+            let monitor = self.current_monitor_inner();
             let uiscreen = monitor.inner.ui_screen();
             let screen_space_bounds = self.screen_frame();
             let screen_bounds: CGRect = msg_send![uiscreen, bounds];
@@ -258,13 +258,18 @@ impl Inner {
         warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
-    pub fn current_monitor(&self) -> RootMonitorHandle {
+    // Allow directly accessing the current monitor internally without unwrapping.
+    fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
             let uiscreen: id = msg_send![self.window, screen];
             RootMonitorHandle {
                 inner: MonitorHandle::retained_new(uiscreen),
             }
         }
+    }
+
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(self.current_monitor_inner())
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
