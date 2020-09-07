@@ -30,6 +30,7 @@
 - On macOS, fix inverted horizontal scroll.
 - **Breaking:** `current_monitor` now returns `Option<MonitorHandle>`.
 - **Breaking:** `primary_monitor` now returns `Option<MonitorHandle>`.
+- On macOS, updated core-* dependencies and cocoa.
 
 # 0.22.2 (2020-05-16)
 
