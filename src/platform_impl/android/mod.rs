@@ -333,13 +333,15 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
+    pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
+        Some(monitor::MonitorHandle {
+            inner: MonitorHandle,
+        })
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut v = VecDeque::with_capacity(1);
-        v.push_back(self.primary_monitor());
+        v.push_back(MonitorHandle);
         v
     }
 }
@@ -381,8 +383,10 @@ impl Window {
         WindowId
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
+    pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
+        Some(monitor::MonitorHandle {
+            inner: MonitorHandle,
+        })
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {

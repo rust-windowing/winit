@@ -997,8 +997,9 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        monitor::primary_monitor()
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = monitor::primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
     }
 
     #[inline]

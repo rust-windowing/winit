@@ -276,8 +276,9 @@ impl Inner {
         unsafe { monitor::uiscreens() }
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        unsafe { monitor::main_uiscreen() }
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = unsafe { monitor::main_uiscreen() };
+        Some(RootMonitorHandle { inner: monitor })
     }
 
     pub fn id(&self) -> WindowId {

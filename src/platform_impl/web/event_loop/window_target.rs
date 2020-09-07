@@ -2,6 +2,7 @@ use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
+use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId};
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
@@ -237,7 +238,9 @@ impl<T> WindowTarget<T> {
         VecDeque::new().into_iter()
     }
 
-    pub fn primary_monitor(&self) -> monitor::Handle {
-        monitor::Handle
+    pub fn primary_monitor(&self) -> Option<RootMH> {
+        Some(RootMH {
+            inner: monitor::Handle,
+        })
     }
 }

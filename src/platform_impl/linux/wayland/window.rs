@@ -10,8 +10,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
-        platform::wayland::event_loop::{available_monitors, primary_monitor},
-        MonitorHandle as PlatformMonitorHandle,
+        platform::wayland::event_loop::available_monitors, MonitorHandle as PlatformMonitorHandle,
         PlatformSpecificWindowBuilderAttributes as PlAttributes,
     },
     window::{CursorIcon, Fullscreen, WindowAttributes},
@@ -410,8 +409,9 @@ impl Window {
         available_monitors(&self.outputs)
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor(&self.outputs)
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        // Wayland doesn't have a notion of primary monitor.
+        None
     }
 
     pub fn raw_window_handle(&self) -> WaylandHandle {

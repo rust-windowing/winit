@@ -12,6 +12,7 @@ use cocoa::{
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
+    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         app::APP_CLASS,
         app_delegate::APP_DELEGATE_CLASS,
@@ -41,8 +42,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        monitor::primary_monitor()
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = monitor::primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
     }
 }
 
