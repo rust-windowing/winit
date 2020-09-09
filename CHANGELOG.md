@@ -31,6 +31,7 @@
 - **Breaking:** `current_monitor` now returns `Option<MonitorHandle>`.
 - **Breaking:** `primary_monitor` now returns `Option<MonitorHandle>`.
 - On macOS, updated core-* dependencies and cocoa.
+- Bump `parking_lot` to 0.11
 
 # 0.22.2 (2020-05-16)
 
