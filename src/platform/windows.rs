@@ -1,19 +1,19 @@
 #![cfg(target_os = "windows")]
 
-use std::os::raw::c_void;
-use std::path::Path;
+use std::{io, os::raw::c_void, path::Path};
 
 use libc;
 use winapi::shared::minwindef::WORD;
 use winapi::shared::windef::HWND;
 
 use crate::{
-    dpi::PhysicalSize,
     event::DeviceId,
     event_loop::EventLoop,
     monitor::MonitorHandle,
-    platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
-    window::{BadIcon, Icon, Window, WindowBuilder},
+    platform_impl::{
+        EventLoop as WindowsEventLoop, PlatformCustomCursorIcon, PlatformCustomWindowIcon,
+    },
+    window::{CustomCursorIcon, CustomWindowIcon, Window, WindowBuilder},
 };
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -78,8 +78,11 @@ pub trait WindowExtWindows {
     /// The pointer will become invalid when the native window was destroyed.
     fn hwnd(&self) -> *mut libc::c_void;
 
-    /// This sets `ICON_BIG`. A good ceiling here is 256x256.
-    fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
+    #[deprecated(
+        note = "Deprecated. `with_window_icon` now sets the taskbar icon via automatic icon scaling."
+    )]
+    /// Deprecated in favor of automatic icon scaling via `Icon::from_rgba_fn` or `IconExtWindows::from_(path|resource)`
+    fn set_taskbar_icon(&self, taskbar_icon: Option<CustomWindowIcon>);
 
     /// Whether the system theme is currently Windows 10's "Dark Mode".
     fn is_dark_mode(&self) -> bool;
@@ -97,8 +100,8 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
-    fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        self.window.set_taskbar_icon(taskbar_icon)
+    fn set_taskbar_icon(&self, _taskbar_icon: Option<CustomWindowIcon>) {
+        warn!("set_taskbar_icon has been deprecated in favor of automatic icon scaling, and currently does nothing");
     }
 
     #[inline]
@@ -112,8 +115,11 @@ pub trait WindowBuilderExtWindows {
     /// Sets a parent to the window to be created.
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
 
-    /// This sets `ICON_BIG`. A good ceiling here is 256x256.
-    fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> WindowBuilder;
+    #[deprecated(
+        note = "Deprecated. `with_window_icon` now sets the taskbar icon via automatic icon scaling."
+    )]
+    /// Deprecated in favor of automatic icon scaling via `Icon::from_rgba_fn` or `IconExtWindows::from_(path|resource)`
+    fn with_taskbar_icon(self, taskbar_icon: Option<CustomWindowIcon>) -> WindowBuilder;
 
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
     fn with_no_redirection_bitmap(self, flag: bool) -> WindowBuilder;
@@ -135,8 +141,8 @@ impl WindowBuilderExtWindows for WindowBuilder {
     }
 
     #[inline]
-    fn with_taskbar_icon(mut self, taskbar_icon: Option<Icon>) -> WindowBuilder {
-        self.platform_specific.taskbar_icon = taskbar_icon;
+    fn with_taskbar_icon(self, _taskbar_icon: Option<CustomWindowIcon>) -> WindowBuilder {
+        warn!("with_taskbar_icon icon has been deprecated in favor of automatic icon scaling, and currently does nothing");
         self
     }
 
@@ -190,38 +196,47 @@ impl DeviceIdExtWindows for DeviceId {
 }
 
 /// Additional methods on `Icon` that are specific to Windows.
-pub trait IconExtWindows: Sized {
+pub trait CustomWindowIconExtWindows: Sized {
     /// Create an icon from a file path.
     ///
-    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
-    /// icon size from the file.
-    ///
-    /// In cases where the specified size does not exist in the file, Windows may perform scaling
-    /// to get an icon of the desired size.
-    fn from_path<P: AsRef<Path>>(path: P, size: Option<PhysicalSize<u32>>)
-        -> Result<Self, BadIcon>;
+    /// Winit will lazily load images at different sizes from the file as needed by Windows.
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error>;
 
     /// Create an icon from a resource embedded in this executable or library.
-    ///
-    /// Specify `size` to load a specific icon size from the file, or `None` to load the default
-    /// icon size from the file.
-    ///
-    /// In cases where the specified size does not exist in the file, Windows may perform scaling
-    /// to get an icon of the desired size.
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
+    fn from_resource(ordinal: WORD) -> Result<Self, io::Error>;
 }
 
-impl IconExtWindows for Icon {
-    fn from_path<P: AsRef<Path>>(
-        path: P,
-        size: Option<PhysicalSize<u32>>,
-    ) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_path(path, size)?;
-        Ok(Icon { inner: win_icon })
+impl CustomWindowIconExtWindows for CustomWindowIcon {
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+        let win_icon = PlatformCustomWindowIcon::from_path(path)?;
+        Ok(CustomWindowIcon { inner: win_icon })
     }
 
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
-        let win_icon = WinIcon::from_resource(ordinal, size)?;
-        Ok(Icon { inner: win_icon })
+    fn from_resource(ordinal: WORD) -> Result<Self, io::Error> {
+        let win_icon = PlatformCustomWindowIcon::from_resource(ordinal)?;
+        Ok(CustomWindowIcon { inner: win_icon })
+    }
+}
+
+/// Additional methods on `Icon` that are specific to Windows.
+pub trait CustomCursorIconExtWindows: Sized {
+    /// Create an icon from a file path.
+    ///
+    /// Winit will lazily load images at different sizes from the file as needed by Windows.
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error>;
+
+    /// Create an icon from a resource embedded in this executable or library.
+    fn from_resource(ordinal: WORD) -> Result<Self, io::Error>;
+}
+
+impl CustomCursorIconExtWindows for CustomCursorIcon {
+    fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, io::Error> {
+        let win_icon = PlatformCustomCursorIcon::from_path(path)?;
+        Ok(CustomCursorIcon { inner: win_icon })
+    }
+
+    fn from_resource(ordinal: WORD) -> Result<Self, io::Error> {
+        let win_icon = PlatformCustomCursorIcon::from_resource(ordinal)?;
+        Ok(CustomCursorIcon { inner: win_icon })
     }
 }

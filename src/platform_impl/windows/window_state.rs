@@ -1,9 +1,9 @@
 use crate::{
     dpi::{PhysicalPosition, Size},
     event::ModifiersState,
-    icon::Icon,
+    icon::CustomWindowIcon,
     platform_impl::platform::{event_loop, util},
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen},
 };
 use parking_lot::MutexGuard;
 use std::{io, ptr};
@@ -23,8 +23,7 @@ pub struct WindowState {
     pub min_size: Option<Size>,
     pub max_size: Option<Size>,
 
-    pub window_icon: Option<Icon>,
-    pub taskbar_icon: Option<Icon>,
+    pub window_icon: Option<CustomWindowIcon>,
 
     pub saved_window: Option<SavedWindow>,
     pub scale_factor: f64,
@@ -97,8 +96,8 @@ bitflags! {
 
 impl WindowState {
     pub fn new(
-        attributes: &WindowAttributes,
-        taskbar_icon: Option<Icon>,
+        min_size: Option<Size>,
+        max_size: Option<Size>,
         scale_factor: f64,
         is_dark_mode: bool,
     ) -> WindowState {
@@ -110,11 +109,10 @@ impl WindowState {
                 last_position: None,
             },
 
-            min_size: attributes.min_inner_size,
-            max_size: attributes.max_inner_size,
+            min_size,
+            max_size,
 
-            window_icon: attributes.window_icon.clone(),
-            taskbar_icon,
+            window_icon: None,
 
             saved_window: None,
             scale_factor,

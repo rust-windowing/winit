@@ -32,15 +32,14 @@ use winapi::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    icon::Icon,
+    icon::CustomWindowIcon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_dark_mode,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
-        icon::{self, IconType},
-        monitor, util,
+        icon, monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
@@ -290,9 +289,9 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state.lock().mouse.cursor = cursor;
+        self.window_state.lock().mouse.cursor = cursor.clone();
         self.thread_executor.execute_in_thread(move || unsafe {
-            let cursor = winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor());
+            let cursor = cursor.to_windows_cursor_scaled();
             winuser::SetCursor(cursor);
         });
     }
@@ -584,27 +583,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+    pub fn set_window_icon(&self, window_icon: Option<CustomWindowIcon>) {
         if let Some(ref window_icon) = window_icon {
             window_icon
                 .inner
-                .set_for_window(self.window.0, IconType::Small);
+                .set_for_window(self.window.0, self.scale_factor());
         } else {
-            icon::unset_for_window(self.window.0, IconType::Small);
+            icon::unset_for_window(self.window.0);
         }
         self.window_state.lock().window_icon = window_icon;
-    }
-
-    #[inline]
-    pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
-        if let Some(ref taskbar_icon) = taskbar_icon {
-            taskbar_icon
-                .inner
-                .set_for_window(self.window.0, IconType::Big);
-        } else {
-            icon::unset_for_window(self.window.0, IconType::Big);
-        }
-        self.window_state.lock().taskbar_icon = taskbar_icon;
     }
 
     #[inline]
@@ -652,7 +639,7 @@ unsafe fn init<T: 'static>(
         .collect::<Vec<_>>();
 
     // registering the window class
-    let class_name = register_window_class(&attributes.window_icon, &pl_attribs.taskbar_icon);
+    let class_name = &*WINDOW_CLASS;
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::DECORATIONS, attributes.decorations);
@@ -742,8 +729,8 @@ unsafe fn init<T: 'static>(
 
     let window_state = {
         let window_state = WindowState::new(
-            &attributes,
-            pl_attribs.taskbar_icon,
+            attributes.min_inner_size,
+            attributes.max_inner_size,
             scale_factor,
             dark_mode,
         );
@@ -767,6 +754,7 @@ unsafe fn init<T: 'static>(
         // `Window::set_inner_size` changes MAXIMIZED to false.
         win.set_maximized(true);
     }
+    win.set_window_icon(attributes.window_icon);
     win.set_visible(attributes.visible);
 
     if let Some(_) = attributes.fullscreen {
@@ -777,46 +765,36 @@ unsafe fn init<T: 'static>(
     Ok(win)
 }
 
-unsafe fn register_window_class(
-    window_icon: &Option<Icon>,
-    taskbar_icon: &Option<Icon>,
-) -> Vec<u16> {
-    let class_name: Vec<_> = OsStr::new("Window Class")
-        .encode_wide()
-        .chain(Some(0).into_iter())
-        .collect();
+lazy_static! {
+    static ref WINDOW_CLASS: Vec<u16> = unsafe {
+        let class_name: Vec<_> = OsStr::new("Winit Window Class")
+            .encode_wide()
+            .chain(Some(0).into_iter())
+            .collect();
 
-    let h_icon = taskbar_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(ptr::null_mut());
-    let h_icon_small = window_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(ptr::null_mut());
+        let class = winuser::WNDCLASSEXW {
+            cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
+            style: winuser::CS_HREDRAW | winuser::CS_VREDRAW | winuser::CS_OWNDC,
+            lpfnWndProc: Some(winuser::DefWindowProcW),
+            cbClsExtra: 0,
+            cbWndExtra: 0,
+            hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
+            hIcon: ptr::null_mut(),
+            hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
+            hbrBackground: ptr::null_mut(),
+            lpszMenuName: ptr::null(),
+            lpszClassName: class_name.as_ptr(),
+            hIconSm: ptr::null_mut(),
+        };
 
-    let class = winuser::WNDCLASSEXW {
-        cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
-        style: winuser::CS_HREDRAW | winuser::CS_VREDRAW | winuser::CS_OWNDC,
-        lpfnWndProc: Some(winuser::DefWindowProcW),
-        cbClsExtra: 0,
-        cbWndExtra: 0,
-        hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
-        hIcon: h_icon,
-        hCursor: ptr::null_mut(), // must be null in order for cursor state to work properly
-        hbrBackground: ptr::null_mut(),
-        lpszMenuName: ptr::null(),
-        lpszClassName: class_name.as_ptr(),
-        hIconSm: h_icon_small,
+        // We ignore errors because registering the same window class twice would trigger
+        //  an error, and because errors here are detected during CreateWindowEx anyway.
+        // Also since there is no weird element in the struct, there is no reason for this
+        //  call to fail.
+        winuser::RegisterClassExW(&class);
+
+        class_name
     };
-
-    // We ignore errors because registering the same window class twice would trigger
-    //  an error, and because errors here are detected during CreateWindowEx anyway.
-    // Also since there is no weird element in the struct, there is no reason for this
-    //  call to fail.
-    winuser::RegisterClassExW(&class);
-
-    class_name
 }
 
 struct ComInitialized(*mut ());

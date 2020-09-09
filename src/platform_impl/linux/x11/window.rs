@@ -23,7 +23,7 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
+    window::{CursorIcon, CustomWindowIcon, Fullscreen, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -871,7 +871,7 @@ impl UnownedWindow {
             .expect("Failed to set always-on-top state");
     }
 
-    fn set_icon_inner(&self, icon: Icon) -> util::Flusher<'_> {
+    fn set_icon_inner(&self, icon: CustomWindowIcon) -> util::Flusher<'_> {
         let icon_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_ICON\0") };
         let data = icon.to_cardinals();
         self.xconn.change_property(
@@ -896,7 +896,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, icon: Option<Icon>) {
+    pub fn set_window_icon(&self, icon: Option<CustomWindowIcon>) {
         match icon {
             Some(icon) => self.set_icon_inner(icon),
             None => self.unset_icon_inner(),
@@ -1189,7 +1189,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        let old_cursor = replace(&mut *self.cursor.lock(), cursor);
+        let old_cursor = replace(&mut *self.cursor.lock(), cursor.clone());
         if cursor != old_cursor && *self.cursor_visible.lock() {
             self.xconn.set_cursor_icon(self.xwindow, Some(cursor));
         }
@@ -1264,7 +1264,7 @@ impl UnownedWindow {
             return;
         }
         let cursor = if visible {
-            Some(*self.cursor.lock())
+            Some(self.cursor.lock().clone())
         } else {
             None
         };

@@ -9,7 +9,7 @@ use crate::{
     platform_impl,
 };
 
-pub use crate::icon::{BadIcon, Icon};
+pub use crate::icon::{CustomCursorIcon, CustomWindowIcon, RgbaBuffer};
 
 /// Represents a window.
 ///
@@ -160,7 +160,7 @@ pub struct WindowAttributes {
     /// The window icon.
     ///
     /// The default is `None`.
-    pub window_icon: Option<Icon>,
+    pub window_icon: Option<CustomWindowIcon>,
 }
 
 impl Default for WindowAttributes {
@@ -313,7 +313,7 @@ impl WindowBuilder {
     ///
     /// [`Window::set_window_icon`]: crate::window::Window::set_window_icon
     #[inline]
-    pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
+    pub fn with_window_icon(mut self, window_icon: Option<CustomWindowIcon>) -> Self {
         self.window.window_icon = window_icon;
         self
     }
@@ -668,7 +668,7 @@ impl Window {
     /// X11 has no universal guidelines for icon sizes, so you're at the whims of the WM. That
     /// said, it's usually in the same ballpark as on Windows.
     #[inline]
-    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
+    pub fn set_window_icon(&self, window_icon: Option<CustomWindowIcon>) {
         self.window.set_window_icon(window_icon)
     }
 
@@ -786,7 +786,7 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Window {
 }
 
 /// Describes the appearance of the mouse cursor.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorIcon {
     /// The platform-dependent default cursor.
@@ -842,6 +842,8 @@ pub enum CursorIcon {
     NwseResize,
     ColResize,
     RowResize,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    Custom(CustomCursorIcon),
 }
 
 impl Default for CursorIcon {

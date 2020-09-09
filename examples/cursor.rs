@@ -1,7 +1,9 @@
+use std::{fs::File, path::Path};
 use winit::{
+    dpi::{PhysicalPosition, PhysicalSize},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::{CursorIcon, WindowBuilder},
+    window::{CursorIcon, CustomCursorIcon, RgbaBuffer, WindowBuilder},
 };
 
 fn main() {
@@ -12,6 +14,69 @@ fn main() {
     window.set_title("A fantastic window!");
 
     let mut cursor_idx = 0;
+
+    let custom_cursor_icon = {
+        let base_path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/examples/icons/icon_folder/"
+        ));
+
+        CustomCursorIcon::from_rgba_fn(move |size, _| {
+            let path = base_path.join(format!("{}.png", size.width));
+            let (icon_rgba, icon_size) = {
+                let decoder = png::Decoder::new(File::open(path)?);
+                let (info, mut reader) = decoder.read_info()?;
+
+                let mut rgba = vec![0; info.buffer_size()];
+                reader.next_frame(&mut rgba).unwrap();
+
+                (rgba, PhysicalSize::new(info.width, info.height))
+            };
+            Ok((
+                RgbaBuffer::from_rgba(icon_rgba, icon_size),
+                PhysicalPosition::new(0, 0),
+            ))
+        })
+    };
+
+    let cursors = vec![
+        CursorIcon::Custom(custom_cursor_icon),
+        CursorIcon::Default,
+        CursorIcon::Crosshair,
+        CursorIcon::Hand,
+        CursorIcon::Arrow,
+        CursorIcon::Move,
+        CursorIcon::Text,
+        CursorIcon::Wait,
+        CursorIcon::Help,
+        CursorIcon::Progress,
+        CursorIcon::NotAllowed,
+        CursorIcon::ContextMenu,
+        CursorIcon::Cell,
+        CursorIcon::VerticalText,
+        CursorIcon::Alias,
+        CursorIcon::Copy,
+        CursorIcon::NoDrop,
+        CursorIcon::Grab,
+        CursorIcon::Grabbing,
+        CursorIcon::AllScroll,
+        CursorIcon::ZoomIn,
+        CursorIcon::ZoomOut,
+        CursorIcon::EResize,
+        CursorIcon::NResize,
+        CursorIcon::NeResize,
+        CursorIcon::NwResize,
+        CursorIcon::SResize,
+        CursorIcon::SeResize,
+        CursorIcon::SwResize,
+        CursorIcon::WResize,
+        CursorIcon::EwResize,
+        CursorIcon::NsResize,
+        CursorIcon::NeswResize,
+        CursorIcon::NwseResize,
+        CursorIcon::ColResize,
+        CursorIcon::RowResize,
+    ];
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -29,9 +94,9 @@ fn main() {
                     },
                 ..
             } => {
-                println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
-                window.set_cursor_icon(CURSORS[cursor_idx]);
-                if cursor_idx < CURSORS.len() - 1 {
+                println!("Setting cursor to \"{:?}\"", cursors[cursor_idx]);
+                window.set_cursor_icon(cursors[cursor_idx].clone());
+                if cursor_idx < cursors.len() - 1 {
                     cursor_idx += 1;
                 } else {
                     cursor_idx = 0;
@@ -48,41 +113,3 @@ fn main() {
         }
     });
 }
-
-const CURSORS: &[CursorIcon] = &[
-    CursorIcon::Default,
-    CursorIcon::Crosshair,
-    CursorIcon::Hand,
-    CursorIcon::Arrow,
-    CursorIcon::Move,
-    CursorIcon::Text,
-    CursorIcon::Wait,
-    CursorIcon::Help,
-    CursorIcon::Progress,
-    CursorIcon::NotAllowed,
-    CursorIcon::ContextMenu,
-    CursorIcon::Cell,
-    CursorIcon::VerticalText,
-    CursorIcon::Alias,
-    CursorIcon::Copy,
-    CursorIcon::NoDrop,
-    CursorIcon::Grab,
-    CursorIcon::Grabbing,
-    CursorIcon::AllScroll,
-    CursorIcon::ZoomIn,
-    CursorIcon::ZoomOut,
-    CursorIcon::EResize,
-    CursorIcon::NResize,
-    CursorIcon::NeResize,
-    CursorIcon::NwResize,
-    CursorIcon::SResize,
-    CursorIcon::SeResize,
-    CursorIcon::SwResize,
-    CursorIcon::WResize,
-    CursorIcon::EwResize,
-    CursorIcon::NsResize,
-    CursorIcon::NeswResize,
-    CursorIcon::NwseResize,
-    CursorIcon::ColResize,
-    CursorIcon::RowResize,
-];

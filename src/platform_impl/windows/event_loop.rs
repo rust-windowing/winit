@@ -1600,7 +1600,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     .cursor_flags()
                     .contains(CursorFlags::IN_WINDOW)
                 {
-                    Some(window_state.mouse.cursor)
+                    Some(window_state.mouse.cursor.to_windows_cursor_scaled())
                 } else {
                     None
                 }
@@ -1608,7 +1608,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             match set_cursor_to {
                 Some(cursor) => {
-                    let cursor = winuser::LoadCursorW(ptr::null_mut(), cursor.to_windows_cursor());
                     winuser::SetCursor(cursor);
                     0
                 }
@@ -1668,6 +1667,10 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                 if new_scale_factor == old_scale_factor {
                     return 0;
+                }
+
+                if let Some(window_icon) = &window_state.window_icon {
+                    window_icon.inner.set_for_window(window, new_scale_factor);
                 }
 
                 window_state.fullscreen.is_none()
@@ -1776,11 +1779,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 // relative horizontal position in the title bar is preserved.
                 if dragging_window {
                     let bias = {
-                        let cursor_pos = {
-                            let mut pos = mem::zeroed();
-                            winuser::GetCursorPos(&mut pos);
-                            pos
-                        };
+                        let cursor_pos = util::get_cursor_position();
                         let suggested_cursor_horizontal_ratio = (cursor_pos.x - suggested_rect.left)
                             as f64
                             / (suggested_rect.right - suggested_rect.left) as f64;

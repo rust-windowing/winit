@@ -4,20 +4,20 @@ use winapi::{self, shared::windef::HWND};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
-    icon::WinIcon,
+    icon::CustomWindowIcon,
     monitor::{MonitorHandle, VideoMode},
     window::Window,
 };
 
-pub use self::icon::WinIcon as PlatformIcon;
+pub use self::icon::{
+    CustomCursorIcon as PlatformCustomCursorIcon, CustomWindowIcon as PlatformCustomWindowIcon,
+};
 
 use crate::event::DeviceId as RootDeviceId;
-use crate::icon::Icon;
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub parent: Option<HWND>,
-    pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
 }
@@ -26,7 +26,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
             parent: None,
-            taskbar_icon: None,
             no_redirection_bitmap: false,
             drag_and_drop: true,
         }

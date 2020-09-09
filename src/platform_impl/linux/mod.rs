@@ -9,9 +9,9 @@
 #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
-use std::{collections::VecDeque, env, fmt};
+use std::{collections::VecDeque, env, error::Error, fmt, io, sync::Arc};
 #[cfg(feature = "x11")]
-use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
+use std::{ffi::CStr, mem::MaybeUninit, os::raw::*};
 
 #[cfg(feature = "x11")]
 use parking_lot::Mutex;
@@ -28,12 +28,10 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    icon::Icon,
+    icon::{CustomWindowIcon, RgbaBuffer},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
-
-pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 
 #[cfg(feature = "wayland")]
 pub mod wayland;
@@ -400,7 +398,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
+    pub fn set_window_icon(&self, _window_icon: Option<CustomWindowIcon>) {
         match self {
             #[cfg(feature = "x11")]
             &Window::X(ref w) => w.set_window_icon(_window_icon),
@@ -703,6 +701,117 @@ impl<T> EventLoopWindowTarget<T> {
                     inner: primary_monitor,
                 })
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PlatformCustomWindowIcon {
+    icon: RgbaBuffer<Arc<[u8]>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PlatformCustomCursorIcon {
+    icon: RgbaBuffer<Arc<[u8]>>,
+    hot_spot: PhysicalPosition<u32>,
+}
+
+impl PlatformCustomWindowIcon {
+    pub fn from_rgba(rgba: &[u8], size: PhysicalSize<u32>) -> Result<Self, io::Error> {
+        Ok(PlatformCustomWindowIcon {
+            icon: RgbaBuffer::from_rgba(rgba.into(), size),
+        })
+    }
+
+    pub fn from_rgba_fn<F>(mut get_icon: F) -> Self
+    where
+        F: 'static
+            + FnMut(
+                PhysicalSize<u32>,
+                f64,
+            )
+                -> Result<RgbaBuffer<Box<[u8]>>, Box<dyn std::error::Error + Send + Sync>>,
+    {
+        let mut get_icon =
+            |size, scale_factor| match get_icon(PhysicalSize::new(size, size), scale_factor) {
+                Ok(i) => Some(i),
+                Err(e) => {
+                    warn!("could not load icon at size {0}x{0}: {1}", size, e);
+                    None
+                }
+            };
+        let icon = get_icon(32, 1.0)
+            .or_else(|| get_icon(32, 1.0))
+            .or_else(|| get_icon(24, 1.0))
+            .or_else(|| get_icon(16, 1.0))
+            .or_else(|| get_icon(48, 1.0))
+            .or_else(|| get_icon(64, 1.0))
+            .or_else(|| get_icon(96, 1.0))
+            .or_else(|| get_icon(128, 1.0))
+            .or_else(|| get_icon(256, 1.0))
+            .unwrap_or_else(|| RgbaBuffer::from_rgba(Box::new([]), PhysicalSize::new(0, 0)));
+        PlatformCustomWindowIcon {
+            // TODO: IMPLEMENT ACTUAL LAZY ICON SCALING
+            icon: RgbaBuffer {
+                rgba: icon.rgba.into(),
+                size: icon.size,
+            },
+        }
+    }
+}
+
+impl PlatformCustomCursorIcon {
+    pub fn from_rgba(
+        rgba: &[u8],
+        size: PhysicalSize<u32>,
+        hot_spot: PhysicalPosition<u32>,
+    ) -> Result<Self, io::Error> {
+        Ok(PlatformCustomCursorIcon {
+            icon: RgbaBuffer::from_rgba(rgba.into(), size),
+            hot_spot,
+        })
+    }
+
+    pub fn from_rgba_fn<F>(mut get_icon: F) -> Self
+    where
+        F: 'static
+            + FnMut(
+                PhysicalSize<u32>,
+                f64,
+            ) -> Result<
+                (RgbaBuffer<Box<[u8]>>, PhysicalPosition<u32>),
+                Box<dyn Error + Send + Sync>,
+            >,
+    {
+        let mut get_icon =
+            |size, scale_factor| match get_icon(PhysicalSize::new(size, size), scale_factor) {
+                Ok(i) => Some(i),
+                Err(e) => {
+                    warn!("could not load icon at size {0}x{0}: {1}", size, e);
+                    None
+                }
+            };
+        let (icon, hot_spot) = get_icon(32, 1.0)
+            .or_else(|| get_icon(32, 1.0))
+            .or_else(|| get_icon(24, 1.0))
+            .or_else(|| get_icon(16, 1.0))
+            .or_else(|| get_icon(48, 1.0))
+            .or_else(|| get_icon(64, 1.0))
+            .or_else(|| get_icon(96, 1.0))
+            .or_else(|| get_icon(128, 1.0))
+            .or_else(|| get_icon(256, 1.0))
+            .unwrap_or_else(|| {
+                (
+                    RgbaBuffer::from_rgba(Box::new([]), PhysicalSize::new(0, 0)),
+                    PhysicalPosition::new(0, 0),
+                )
+            });
+        PlatformCustomCursorIcon {
+            icon: RgbaBuffer {
+                rgba: icon.rgba.into(),
+                size: icon.size,
+            },
+            hot_spot,
         }
     }
 }
