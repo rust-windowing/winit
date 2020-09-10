@@ -1,5 +1,6 @@
 // This example is used by developers to test various window functions.
 
+use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -8,7 +9,7 @@ use winit::{
 };
 
 fn main() {
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
