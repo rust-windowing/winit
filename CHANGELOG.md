@@ -33,6 +33,7 @@
 - On macOS, updated core-* dependencies and cocoa.
 - Bump `parking_lot` to 0.11
 - On Android, bump `ndk`, `ndk-sys` and `ndk-glue` to 0.2. Checkout the new ndk-glue main proc attribute.
+- On iOS, fixed starting the app in landscape where the view still had portrait dimensions.
 
 # 0.22.2 (2020-05-16)
 
