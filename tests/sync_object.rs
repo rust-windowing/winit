@@ -7,3 +7,8 @@ fn window_sync() {
     // ensures that `winit::Window` implements `Sync`
     needs_sync::<winit::window::Window>();
 }
+
+#[test]
+fn misc_sync() {
+    needs_sync::<winit::window::CursorIcon>();
+}

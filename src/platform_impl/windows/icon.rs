@@ -98,6 +98,9 @@ enum RaiiIcon {
     Function(FunctionIcon),
 }
 
+unsafe impl Send for RaiiIcon {}
+unsafe impl Sync for RaiiIcon {}
+
 #[derive(Debug)]
 struct PathIcon {
     wide_path: Vec<u16>,
@@ -353,13 +356,11 @@ impl FunctionIcon {
 pub struct CustomWindowIcon {
     inner: Arc<RaiiIcon>,
 }
-unsafe impl Send for CustomWindowIcon {}
 
 #[derive(Clone, PartialEq, Eq)]
 pub struct CustomCursorIcon {
     inner: Arc<RaiiIcon>,
 }
-unsafe impl Send for CustomCursorIcon {}
 
 impl RaiiIcon {
     fn from_path<P: AsRef<Path>>(path: P, icon_type: IconType) -> Result<Self, io::Error> {

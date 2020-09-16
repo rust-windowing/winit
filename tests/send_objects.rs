@@ -25,3 +25,8 @@ fn ids_send() {
     needs_send::<winit::event::DeviceId>();
     needs_send::<winit::monitor::MonitorHandle>();
 }
+
+#[test]
+fn misc_send() {
+    needs_send::<winit::window::CursorIcon>();
+}
