@@ -1,19 +1,19 @@
 use super::event;
+use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
 use crate::event::{ModifiersState, MouseButton};
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use wasm_bindgen::closure::Closure;
 use web_sys::{EventTarget, MouseEvent};
 
 pub(super) struct MouseHandler {
-    on_mouse_leave: Option<Closure<dyn FnMut(MouseEvent)>>,
-    on_mouse_enter: Option<Closure<dyn FnMut(MouseEvent)>>,
-    on_mouse_move: Option<Closure<dyn FnMut(MouseEvent)>>,
-    on_mouse_press: Option<Closure<dyn FnMut(MouseEvent)>>,
-    on_mouse_release: Option<Closure<dyn FnMut(MouseEvent)>>,
+    on_mouse_leave: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
+    on_mouse_enter: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
+    on_mouse_move: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
+    on_mouse_press: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
+    on_mouse_release: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_mouse_leave_handler: Rc<RefCell<Option<Box<dyn FnMut(i32)>>>>,
     mouse_capture_state: Rc<RefCell<MouseCaptureState>>,
 }

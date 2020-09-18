@@ -1,5 +1,6 @@
 mod canvas;
 mod event;
+mod event_handle;
 mod scaling;
 mod timeout;
 

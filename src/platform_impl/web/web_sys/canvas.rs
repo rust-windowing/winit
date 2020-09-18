@@ -1,4 +1,5 @@
 use super::event;
+use super::event_handle::EventListenerHandle;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
@@ -18,13 +19,13 @@ mod pointer_handler;
 
 pub struct Canvas {
     common: Common,
-    on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
-    on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
-    on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_keyboard_press: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_received_character: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
-    on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
+    on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
+    on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
+    on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
+    on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<Closure<dyn FnMut(MediaQueryListEvent)>>,
     mouse_state: MouseState,
 }
@@ -292,7 +293,11 @@ impl Canvas {
 }
 
 impl Common {
-    fn add_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
+    fn add_event<E, F>(
+        &self,
+        event_name: &'static str,
+        mut handler: F,
+    ) -> EventListenerHandle<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
@@ -307,17 +312,19 @@ impl Common {
             handler(event);
         }) as Box<dyn FnMut(E)>);
 
-        self.raw
-            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
-            .expect("Failed to add event listener with callback");
+        let listener = EventListenerHandle::new(&self.raw, event_name, closure);
 
-        closure
+        listener
     }
 
     // The difference between add_event and add_user_event is that the latter has a special meaning
     // for browser security. A user event is a deliberate action by the user (like a mouse or key
     // press) and is the only time things like a fullscreen request may be successfully completed.)
-    fn add_user_event<E, F>(&self, event_name: &str, mut handler: F) -> Closure<dyn FnMut(E)>
+    fn add_user_event<E, F>(
+        &self,
+        event_name: &'static str,
+        mut handler: F,
+    ) -> EventListenerHandle<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
@@ -343,9 +350,9 @@ impl Common {
     // handling to control event propagation.
     fn add_window_mouse_event<F>(
         &self,
-        event_name: &str,
+        event_name: &'static str,
         mut handler: F,
-    ) -> Closure<dyn FnMut(MouseEvent)>
+    ) -> EventListenerHandle<dyn FnMut(MouseEvent)>
     where
         F: 'static + FnMut(MouseEvent),
     {
@@ -364,15 +371,14 @@ impl Common {
             }
         }) as Box<dyn FnMut(_)>);
 
-        window
-            .add_event_listener_with_callback_and_add_event_listener_options(
-                event_name,
-                &closure.as_ref().unchecked_ref(),
-                AddEventListenerOptions::new().capture(true),
-            )
-            .expect("Failed to add event listener with callback and options");
+        let listener = EventListenerHandle::with_options(
+            &window,
+            event_name,
+            closure,
+            AddEventListenerOptions::new().capture(true),
+        );
 
-        closure
+        listener
     }
 
     pub fn request_fullscreen(&self) {

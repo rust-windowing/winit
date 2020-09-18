@@ -1,16 +1,16 @@
 use super::event;
+use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
 use crate::event::{ModifiersState, MouseButton};
 
-use wasm_bindgen::closure::Closure;
 use web_sys::PointerEvent;
 
 pub(super) struct PointerHandler {
-    on_cursor_leave: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_cursor_enter: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_cursor_move: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_pointer_press: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_pointer_release: Option<Closure<dyn FnMut(PointerEvent)>>,
+    on_cursor_leave: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_cursor_enter: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_cursor_move: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_pointer_press: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_pointer_release: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
 }
 
 impl PointerHandler {
