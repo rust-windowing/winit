@@ -92,8 +92,10 @@ crate-type = ["cdylib"]
 
 And add this to the example file to add the native activity glue:
 ```rust
-#[cfg(target_os = "android")]
-ndk_glue::ndk_glue!(main);
+#[cfg_attr(target_os = "android", ndk_glue::main(backtrace = "on"))]
+fn main() {
+  // Already existing main function
+}
 ```
 
 And run the application with `cargo apk run --example request_redraw_threaded`

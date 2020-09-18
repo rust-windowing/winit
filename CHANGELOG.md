@@ -32,6 +32,7 @@
 - **Breaking:** `primary_monitor` now returns `Option<MonitorHandle>`.
 - On macOS, updated core-* dependencies and cocoa.
 - Bump `parking_lot` to 0.11
+- Bump `ndk`, `ndk-sys` and `ndk-glue` to 0.2.0
 
 # 0.22.2 (2020-05-16)
 
