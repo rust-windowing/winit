@@ -392,16 +392,6 @@ impl Window {
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
-        let fullscreen = match fullscreen {
-            Some(Fullscreen::Borderless(None)) => {
-                let current_monitor = Some(RootMonitorHandle {
-                    inner: monitor::current_monitor(window.0),
-                });
-
-                Some(Fullscreen::Borderless(current_monitor))
-            }
-            _ => fullscreen,
-        };
 
         let mut window_state_lock = window_state.lock();
         let old_fullscreen = window_state_lock.fullscreen.clone();
@@ -506,10 +496,11 @@ impl Window {
             // Update window bounds
             match &fullscreen {
                 Some(fullscreen) => {
-                    let monitor = match fullscreen {
-                        Fullscreen::Exclusive(ref video_mode) => video_mode.monitor(),
+                    let monitor = match &fullscreen {
+                        Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
                         // We explicitly map `None` eaerlier, so unwrap is safe.
-                        Fullscreen::Borderless(ref monitor) => monitor.as_ref().unwrap().clone(),
+                        Fullscreen::Borderless(Some(monitor)) => monitor.as_ref().clone(),
+                        Fullscreen::Borderless(None) => monitor::current_monitor(window.0),
                     };
 
                     let position: (i32, i32) = monitor.position().into();

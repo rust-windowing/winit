@@ -853,9 +853,14 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
                 match fullscreen {
                     Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        // Unwrap is safe, since we explicitly map `None` to current monitor
-                        // when we're setting fullscreen state.
-                        if new_monitor != fullscreen_monitor.as_ref().unwrap().inner.hmonitor()
+                        if new_monitor
+                            != fullscreen_monitor
+                                .as_ref()
+                                .unwrap_or_else(|| RootMonitorHandle {
+                                    inner: monitor::current_monitor(window),
+                                })
+                                .inner
+                                .hmonitor()
                             && new_monitor != ptr::null_mut()
                         {
                             if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
