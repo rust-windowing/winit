@@ -1,5 +1,6 @@
 use super::event;
 use super::event_handle::EventListenerHandle;
+use super::media_query_handle::MediaQueryListHandle;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
@@ -26,7 +27,7 @@ pub struct Canvas {
     on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
-    on_dark_mode: Option<Closure<dyn FnMut(MediaQueryListEvent)>>,
+    on_dark_mode: Option<MediaQueryListHandle>,
     mouse_state: MouseState,
 }
 
@@ -265,22 +266,12 @@ impl Canvas {
     where
         F: 'static + FnMut(bool),
     {
-        let window = web_sys::window().expect("Failed to obtain window");
-
-        self.on_dark_mode = window
-            .match_media("(prefers-color-scheme: dark)")
-            .ok()
-            .flatten()
-            .and_then(|media| {
-                let closure = Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
-                    handler(event.matches())
-                }) as Box<dyn FnMut(_)>);
-
-                media
-                    .add_listener_with_opt_callback(Some(&closure.as_ref().unchecked_ref()))
-                    .map(|_| closure)
-                    .ok()
-            });
+        let closure =
+            Closure::wrap(
+                Box::new(move |event: MediaQueryListEvent| handler(event.matches()))
+                    as Box<dyn FnMut(_)>,
+            );
+        self.on_dark_mode = MediaQueryListHandle::new("(prefers-color-scheme: dark)", closure);
     }
 
     pub fn request_fullscreen(&self) {
