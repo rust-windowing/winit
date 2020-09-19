@@ -29,6 +29,10 @@ mod backend;
 
 #[cfg(feature = "stdweb")]
 #[path = "stdweb/mod.rs"]
+#[cfg_attr(feature = "stdweb", deprecated (
+    since = "0.23.0",
+    note = "Please migrate to web-sys over stdweb"
+))]
 mod backend;
 
 #[cfg(not(any(feature = "web-sys", feature = "stdweb")))]
