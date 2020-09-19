@@ -17,6 +17,7 @@ pub struct Window {
     previous_pointer: RefCell<&'static str>,
     id: Id,
     register_redraw_request: Box<dyn Fn()>,
+    destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
 impl Window {
@@ -35,11 +36,15 @@ impl Window {
 
         target.register(&mut canvas, id);
 
+        let runner = target.runner.clone();
+        let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
+
         let window = Window {
             canvas,
             previous_pointer: RefCell::new("auto"),
             id,
             register_redraw_request,
+            destroy_fn: Some(destroy_fn),
         };
 
         window.set_inner_size(attr.inner_size.unwrap_or(Size::Logical(LogicalSize {
@@ -274,6 +279,14 @@ impl Window {
         };
 
         raw_window_handle::RawWindowHandle::Web(handle)
+    }
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        if let Some(destroy_fn) = self.destroy_fn.take() {
+            destroy_fn();
+        }
     }
 }
 

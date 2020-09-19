@@ -26,6 +26,7 @@ pub struct Execution<T: 'static> {
     id: RefCell<u32>,
     all_canvases: RefCell<Vec<(WindowId, backend::RawCanvasType)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
+    destroy_pending: RefCell<VecDeque<WindowId>>,
     scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
 }
 
@@ -88,12 +89,17 @@ impl<T: 'static> Shared<T> {
             id: RefCell::new(0),
             all_canvases: RefCell::new(Vec::new()),
             redraw_pending: RefCell::new(HashSet::new()),
+            destroy_pending: RefCell::new(VecDeque::new()),
             scale_change_detector: RefCell::new(None),
         }))
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: backend::RawCanvasType) {
         self.0.all_canvases.borrow_mut().push((id, canvas));
+    }
+
+    pub fn notify_destroy_window(&self, id: WindowId) {
+        self.0.destroy_pending.borrow_mut().push_back(id);
     }
 
     // Set the event callback to use for the event loop runner
@@ -206,6 +212,26 @@ impl<T: 'static> Shared<T> {
         self.run_until_cleared(events);
     }
 
+    // Process the destroy-pending windows. This should only be called from
+    // `run_until_cleared` and `handle_scale_changed`, somewhere between emitting
+    // `NewEvents` and `MainEventsCleared`.
+    fn process_destroy_pending_windows(&self, control: &mut root::ControlFlow) {
+        while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
+            self.0
+                .all_canvases
+                .borrow_mut()
+                .retain(|&(item_id, _)| item_id != id);
+            self.handle_event(
+                Event::WindowEvent {
+                    window_id: id,
+                    event: crate::event::WindowEvent::Destroyed,
+                },
+                control,
+            );
+            self.0.redraw_pending.borrow_mut().remove(&id);
+        }
+    }
+
     // Given the set of new events, run the event loop until the main events and redraw events are
     // cleared
     //
@@ -215,6 +241,7 @@ impl<T: 'static> Shared<T> {
         for event in events {
             self.handle_event(event, &mut control);
         }
+        self.process_destroy_pending_windows(&mut control);
         self.handle_event(Event::MainEventsCleared, &mut control);
 
         // Collect all of the redraw events to avoid double-locking the RefCell
@@ -233,6 +260,11 @@ impl<T: 'static> Shared<T> {
     }
 
     pub fn handle_scale_changed(&self, old_scale: f64, new_scale: f64) {
+        // If there aren't any windows, then there is nothing to do here.
+        if self.0.all_canvases.borrow().is_empty() {
+            return;
+        }
+
         let start_cause = match (self.0.runner.borrow().as_ref())
             .unwrap_or_else(|| unreachable!("`scale_changed` should not happen without a runner"))
             .maybe_start_cause()
@@ -245,6 +277,11 @@ impl<T: 'static> Shared<T> {
 
         // Handle the start event and all other events in the queue.
         self.handle_event(Event::NewEvents(start_cause), &mut control);
+
+        // It is possible for windows to be dropped before this point. We don't
+        // want to send `ScaleFactorChanged` for destroyed windows, so we process
+        // the destroy-pending windows here.
+        self.process_destroy_pending_windows(&mut control);
 
         // Now handle the `ScaleFactorChanged` events.
         for &(id, ref canvas) in &*self.0.all_canvases.borrow() {
@@ -277,6 +314,8 @@ impl<T: 'static> Shared<T> {
             );
         }
 
+        // Process the destroy-pending windows again.
+        self.process_destroy_pending_windows(&mut control);
         self.handle_event(Event::MainEventsCleared, &mut control);
 
         // Discard all the pending redraw as we shall just redraw all windows.
