@@ -197,7 +197,7 @@ impl Inner {
                     uiscreen
                 }
                 Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen() as id,
-                Some(Fullscreen::Borderless(None)) => self.current_monitor().ui_screen() as id,
+                Some(Fullscreen::Borderless(None)) => self.current_monitor_inner().ui_screen() as id,
                 None => {
                     warn!("`Window::set_fullscreen(None)` ignored on iOS");
                     return;

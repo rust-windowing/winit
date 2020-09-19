@@ -853,7 +853,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
                 match fullscreen {
                     Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        // FIXME This should be properly implemented.
+                        // Unwrap is safe, since we explicitly map `None` to current monitor
+                        // when we're setting fullscreen state.
                         if new_monitor != fullscreen_monitor.as_ref().unwrap().inner.hmonitor()
                             && new_monitor != ptr::null_mut()
                         {

@@ -585,6 +585,16 @@ impl UnownedWindow {
 
     fn set_fullscreen_inner(&self, fullscreen: Option<Fullscreen>) -> Option<util::Flusher<'_>> {
         let mut shared_state_lock = self.shared_state.lock();
+        // Map Borderless(`None`) to current monitor.
+        let fullscreen = match fullscreen {
+            Some(Fullscreen::Borderless(None)) => {
+                let current_monitor = Some(RootMonitorHandle {
+                    inner: PlatformMonitorHandle::X(self.current_monitor()),
+                });
+                Some(Fullscreen::Borderless(current_monitor))
+            }
+            _ => fullscreen,
+        };
 
         match shared_state_lock.visibility {
             // Setting fullscreen on a window that is not visible will generate an error.
@@ -653,7 +663,8 @@ impl UnownedWindow {
                     Fullscreen::Borderless(Some(RootMonitorHandle {
                         inner: PlatformMonitorHandle::X(monitor),
                     })) => (None, monitor),
-                    Fullscreen::Borderless(None) => (None, self.current_monitor()),
+                    // We've mapped `None` in borderless earlier.
+                    Fullscreen::Borderless(None) => unreachable!(),
                     #[cfg(feature = "wayland")]
                     _ => unreachable!(),
                 };

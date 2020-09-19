@@ -758,7 +758,7 @@ impl UnownedWindow {
             let new_screen = match fullscreen {
                 Fullscreen::Borderless(borderless) => {
                     let RootMonitorHandle { inner: monitor } =
-                        borderless.clone().unwrap_or_else(|| self.current_monitor());
+                        borderless.clone().unwrap_or_else(|| self.current_monitor_inner());
                     monitor
                 }
                 Fullscreen::Exclusive(RootVideoMode {
