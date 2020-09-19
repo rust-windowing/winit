@@ -393,6 +393,17 @@ impl Window {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
 
+        let fullscreen = match fullscreen {
+            Some(Fullscreen::Borderless(None)) => {
+                let current_monitor = Some(RootMonitorHandle {
+                    inner: monitor::current_monitor(window.0),
+                });
+
+                Some(Fullscreen::Borderless(current_monitor))
+            }
+            _ => fullscreen,
+        };
+
         let mut window_state_lock = window_state.lock();
         let old_fullscreen = window_state_lock.fullscreen.clone();
         if window_state_lock.fullscreen == fullscreen {
@@ -499,8 +510,7 @@ impl Window {
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
                         // We explicitly map `None` eaerlier, so unwrap is safe.
-                        Fullscreen::Borderless(Some(monitor)) => monitor.as_ref().clone(),
-                        Fullscreen::Borderless(None) => monitor::current_monitor(window.0),
+                        Fullscreen::Borderless(monitor) => monitor.as_ref().unwrap().clone(),
                     };
 
                     let position: (i32, i32) = monitor.position().into();
