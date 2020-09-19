@@ -509,7 +509,7 @@ impl Window {
                     let monitor = match fullscreen {
                         Fullscreen::Exclusive(ref video_mode) => video_mode.monitor(),
                         // We explicitly map `None` eaerlier, so unwrap is safe.
-                        Fullscreen::Borderless(ref monitor) => monitor.unwrap().clone(),
+                        Fullscreen::Borderless(ref monitor) => monitor.as_ref().unwrap().clone(),
                     };
 
                     let position: (i32, i32) = monitor.position().into();
