@@ -37,12 +37,6 @@ pub struct Canvas {
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
-impl Drop for Canvas {
-    fn drop(&mut self) {
-        self.raw.remove();
-    }
-}
-
 impl Canvas {
     pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
         let canvas = match attr.canvas {
