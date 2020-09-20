@@ -36,9 +36,11 @@ impl ScaleChangeDetectorInternal {
             last_scale: current_scale,
         }));
 
-        let cloned_self = new_self.clone();
+        let weak_self = Rc::downgrade(&new_self);
         let closure = Closure::wrap(Box::new(move |event: MediaQueryListEvent| {
-            cloned_self.borrow_mut().handler(event)
+            if let Some(rc_self) = weak_self.upgrade() {
+                rc_self.borrow_mut().handler(event);
+            }
         }) as Box<dyn FnMut(_)>);
 
         let mql = Self::create_mql(closure);

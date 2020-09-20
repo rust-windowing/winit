@@ -200,4 +200,13 @@ impl MouseHandler {
             },
         ));
     }
+
+    pub fn remove_listeners(&mut self) {
+        self.on_mouse_leave = None;
+        self.on_mouse_enter = None;
+        self.on_mouse_move = None;
+        self.on_mouse_press = None;
+        self.on_mouse_release = None;
+        *self.on_mouse_leave_handler.borrow_mut() = None;
+    }
 }

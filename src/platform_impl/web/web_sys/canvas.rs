@@ -281,6 +281,21 @@ impl Canvas {
     pub fn is_fullscreen(&self) -> bool {
         self.common.is_fullscreen()
     }
+
+    pub fn remove_listeners(&mut self) {
+        self.on_focus = None;
+        self.on_blur = None;
+        self.on_keyboard_release = None;
+        self.on_keyboard_press = None;
+        self.on_received_character = None;
+        self.on_mouse_wheel = None;
+        self.on_fullscreen_change = None;
+        self.on_dark_mode = None;
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => h.remove_listeners(),
+            MouseState::NoPointerEvent(h) => h.remove_listeners(),
+        }
+    }
 }
 
 impl Common {

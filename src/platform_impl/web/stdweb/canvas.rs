@@ -306,4 +306,8 @@ impl Canvas {
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
     }
+
+    pub fn remove_listeners(&mut self) {
+        // TODO: Stub, unimplemented (see web_sys for reference).
+    }
 }

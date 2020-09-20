@@ -9,7 +9,7 @@ use std::{
     clone::Clone,
     collections::{HashSet, VecDeque},
     iter,
-    rc::Rc,
+    rc::{Rc, Weak},
 };
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
@@ -21,14 +21,34 @@ impl<T> Clone for Shared<T> {
 }
 
 pub struct Execution<T: 'static> {
-    runner: RefCell<Option<Runner<T>>>,
+    runner: RefCell<RunnerEnum<T>>,
     events: RefCell<VecDeque<Event<'static, T>>>,
     id: RefCell<u32>,
-    all_canvases: RefCell<Vec<(WindowId, backend::RawCanvasType)>>,
+    all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
     unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
+}
+
+enum RunnerEnum<T: 'static> {
+    /// The `EventLoop` is created but not being run.
+    Pending,
+    /// The `EventLoop` is being run.
+    Running(Runner<T>),
+    /// The `EventLoop` is exited after being started with `EventLoop::run`. Since
+    /// `EventLoop::run` takes ownership of the `EventLoop`, we can be certain
+    /// that this event loop will never be run again.
+    Destroyed,
+}
+
+impl<T: 'static> RunnerEnum<T> {
+    fn maybe_runner(&self) -> Option<&Runner<T>> {
+        match self {
+            RunnerEnum::Running(runner) => Some(runner),
+            _ => None,
+        }
+    }
 }
 
 struct Runner<T: 'static> {
@@ -85,7 +105,7 @@ impl<T: 'static> Runner<T> {
 impl<T: 'static> Shared<T> {
     pub fn new() -> Self {
         Shared(Rc::new(Execution {
-            runner: RefCell::new(None),
+            runner: RefCell::new(RunnerEnum::Pending),
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
             all_canvases: RefCell::new(Vec::new()),
@@ -96,8 +116,11 @@ impl<T: 'static> Shared<T> {
         }))
     }
 
-    pub fn add_canvas(&self, id: WindowId, canvas: backend::RawCanvasType) {
-        self.0.all_canvases.borrow_mut().push((id, canvas));
+    pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
+        self.0
+            .all_canvases
+            .borrow_mut()
+            .push((id, Rc::downgrade(canvas)));
     }
 
     pub fn notify_destroy_window(&self, id: WindowId) {
@@ -111,7 +134,11 @@ impl<T: 'static> Shared<T> {
         &self,
         event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>,
     ) {
-        self.0.runner.replace(Some(Runner::new(event_handler)));
+        {
+            let mut runner = self.0.runner.borrow_mut();
+            assert!(matches!(*runner, RunnerEnum::Pending));
+            *runner = RunnerEnum::Running(Runner::new(event_handler));
+        }
         self.init();
 
         let close_instance = self.clone();
@@ -178,18 +205,23 @@ impl<T: 'static> Shared<T> {
         }
         // If we can run the event processing right now, or need to queue this and wait for later
         let mut process_immediately = true;
-        if let Some(ref runner) = &*self.0.runner.borrow() {
-            // If we're currently polling, queue this and wait for the poll() method to be called
-            if let State::Poll { .. } = runner.state {
+        match &*self.0.runner.borrow() {
+            RunnerEnum::Running(ref runner) => {
+                // If we're currently polling, queue this and wait for the poll() method to be called
+                if let State::Poll { .. } = runner.state {
+                    process_immediately = false;
+                }
+                // If the runner is busy, queue this and wait for it to process it later
+                if runner.is_busy {
+                    process_immediately = false;
+                }
+            }
+            RunnerEnum::Pending => {
+                // The runner still hasn't been attached: queue this event and wait for it to be
                 process_immediately = false;
             }
-            // If the runner is busy, queue this and wait for it to process it later
-            if runner.is_busy {
-                process_immediately = false;
-            }
-        } else {
-            // The runner still hasn't been attached: queue this event and wait for it to be
-            process_immediately = false;
+            // This is unreachable since `self.is_closed() == true`.
+            RunnerEnum::Destroyed => unreachable!(),
         }
         if !process_immediately {
             // Queue these events to look at later
@@ -198,7 +230,7 @@ impl<T: 'static> Shared<T> {
         }
         // At this point, we know this is a fresh set of events
         // Now we determine why new events are incoming, and handle the events
-        let start_cause = match (self.0.runner.borrow().as_ref())
+        let start_cause = match (self.0.runner.borrow().maybe_runner())
             .unwrap_or_else(|| {
                 unreachable!("The runner cannot process events when it is not attached")
             })
@@ -258,7 +290,7 @@ impl<T: 'static> Shared<T> {
         // If the event loop is closed, it has been closed this iteration and now the closing
         // event should be emitted
         if self.is_closed() {
-            self.handle_event(Event::LoopDestroyed, &mut control);
+            self.handle_loop_destroyed(&mut control);
         }
     }
 
@@ -268,7 +300,7 @@ impl<T: 'static> Shared<T> {
             return;
         }
 
-        let start_cause = match (self.0.runner.borrow().as_ref())
+        let start_cause = match (self.0.runner.borrow().maybe_runner())
             .unwrap_or_else(|| unreachable!("`scale_changed` should not happen without a runner"))
             .maybe_start_cause()
         {
@@ -288,6 +320,11 @@ impl<T: 'static> Shared<T> {
 
         // Now handle the `ScaleFactorChanged` events.
         for &(id, ref canvas) in &*self.0.all_canvases.borrow() {
+            let canvas = match canvas.upgrade() {
+                Some(rc) => rc.borrow().raw().clone(),
+                // This shouldn't happen, but just in case...
+                None => continue,
+            };
             // First, we send the `ScaleFactorChanged` event:
             let current_size = crate::dpi::PhysicalSize {
                 width: canvas.width() as u32,
@@ -307,7 +344,7 @@ impl<T: 'static> Shared<T> {
             );
 
             // Then we resize the canvas to the new size and send a `Resized` event:
-            backend::set_canvas_size(canvas, crate::dpi::Size::Physical(new_size));
+            backend::set_canvas_size(&canvas, crate::dpi::Size::Physical(new_size));
             self.handle_single_event_sync(
                 Event::WindowEvent {
                     window_id: id,
@@ -332,13 +369,15 @@ impl<T: 'static> Shared<T> {
         // If the event loop is closed, it has been closed this iteration and now the closing
         // event should be emitted
         if self.is_closed() {
-            self.handle_event(Event::LoopDestroyed, &mut control);
+            self.handle_loop_destroyed(&mut control);
         }
     }
 
     fn handle_unload(&self) {
         self.apply_control_flow(root::ControlFlow::Exit);
         let mut control = self.current_control_flow();
+        // We don't call `handle_loop_destroyed` here because we don't need to
+        // perform cleanup when the web browser is going to destroy the page.
         self.handle_event(Event::LoopDestroyed, &mut control);
     }
 
@@ -350,7 +389,7 @@ impl<T: 'static> Shared<T> {
             *control = root::ControlFlow::Exit;
         }
         match *self.0.runner.borrow_mut() {
-            Some(ref mut runner) => {
+            RunnerEnum::Running(ref mut runner) => {
                 runner.handle_single_event(event, control);
             }
             _ => panic!("Cannot handle event synchronously without a runner"),
@@ -365,19 +404,21 @@ impl<T: 'static> Shared<T> {
             *control = root::ControlFlow::Exit;
         }
         match *self.0.runner.borrow_mut() {
-            Some(ref mut runner) => {
+            RunnerEnum::Running(ref mut runner) => {
                 runner.handle_single_event(event, control);
             }
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
-            _ => self.0.events.borrow_mut().push_back(event),
+            RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event),
+            // If the Runner has been destroyed, there is nothing to do.
+            RunnerEnum::Destroyed => return,
         }
 
         let is_closed = *control == root::ControlFlow::Exit;
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
-        if !is_closed && self.0.runner.borrow().is_some() {
+        if !is_closed && self.0.runner.borrow().maybe_runner().is_some() {
             // Take an event out of the queue and handle it
             // Make sure not to let the borrow_mut live during the next handle_event
             let event = { self.0.events.borrow_mut().pop_front() };
@@ -424,26 +465,58 @@ impl<T: 'static> Shared<T> {
         };
 
         match *self.0.runner.borrow_mut() {
-            Some(ref mut runner) => {
+            RunnerEnum::Running(ref mut runner) => {
                 runner.state = new_state;
             }
-            None => (),
+            _ => (),
         }
+    }
+
+    fn handle_loop_destroyed(&self, control: &mut root::ControlFlow) {
+        self.handle_event(Event::LoopDestroyed, control);
+        let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
+        *self.0.scale_change_detector.borrow_mut() = None;
+        *self.0.unload_event_handle.borrow_mut() = None;
+        // Dropping the `Runner` drops the event handler closure, which will in
+        // turn drop all `Window`s moved into the closure.
+        *self.0.runner.borrow_mut() = RunnerEnum::Destroyed;
+        for (_, canvas) in all_canvases {
+            // In case any remaining `Window`s are still not dropped, we will need
+            // to explicitly remove the event handlers associated with their canvases.
+            if let Some(canvas) = canvas.upgrade() {
+                let mut canvas = canvas.borrow_mut();
+                canvas.remove_listeners();
+            }
+        }
+        // At this point, the `self.0` `Rc` should only be strongly referenced
+        // by the following:
+        // * `self`, i.e. the item which triggered this event loop wakeup, which
+        //   is usually a `wasm-bindgen` `Closure`, which will be dropped after
+        //   returning to the JS glue code.
+        // * The `EventLoopWindowTarget` leaked inside `EventLoop::run` due to the
+        //   JS exception thrown at the end.
+        // * For each undropped `Window`:
+        //     * The `register_redraw_request` closure.
+        //     * The `destroy_fn` closure.
     }
 
     // Check if the event loop is currently closed
     fn is_closed(&self) -> bool {
         match *self.0.runner.borrow() {
-            Some(ref runner) => runner.state.is_exit(),
-            None => false, // If the event loop is None, it has not been intialised yet, so it cannot be closed
+            RunnerEnum::Running(ref runner) => runner.state.is_exit(),
+            // The event loop is not closed since it is not initialized.
+            RunnerEnum::Pending => false,
+            // The event loop is closed since it has been destroyed.
+            RunnerEnum::Destroyed => true,
         }
     }
 
     // Get the current control flow state
     fn current_control_flow(&self) -> root::ControlFlow {
         match *self.0.runner.borrow() {
-            Some(ref runner) => runner.state.control_flow(),
-            None => root::ControlFlow::Poll,
+            RunnerEnum::Running(ref runner) => runner.state.control_flow(),
+            RunnerEnum::Pending => root::ControlFlow::Poll,
+            RunnerEnum::Destroyed => root::ControlFlow::Exit,
         }
     }
 }

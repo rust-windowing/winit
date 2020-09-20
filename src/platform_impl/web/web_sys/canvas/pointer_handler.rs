@@ -100,4 +100,12 @@ impl PointerHandler {
             },
         ));
     }
+
+    pub fn remove_listeners(&mut self) {
+        self.on_cursor_leave = None;
+        self.on_cursor_enter = None;
+        self.on_cursor_move = None;
+        self.on_pointer_press = None;
+        self.on_pointer_release = None;
+    }
 }

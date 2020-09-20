@@ -8,12 +8,13 @@ use raw_window_handle::web::WebHandle;
 
 use super::{backend, monitor, EventLoopWindowTarget};
 
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::collections::VecDeque;
+use std::rc::Rc;
 
 pub struct Window {
-    canvas: backend::Canvas,
+    canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
     id: Id,
     register_redraw_request: Box<dyn Fn()>,
@@ -30,7 +31,8 @@ impl Window {
 
         let id = target.generate_id();
 
-        let mut canvas = backend::Canvas::create(platform_attr)?;
+        let canvas = backend::Canvas::create(platform_attr)?;
+        let mut canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
@@ -59,12 +61,12 @@ impl Window {
         Ok(window)
     }
 
-    pub fn canvas(&self) -> &backend::Canvas {
-        &self.canvas
+    pub fn canvas<'a>(&'a self) -> Ref<'a, backend::Canvas> {
+        self.canvas.borrow()
     }
 
     pub fn set_title(&self, title: &str) {
-        self.canvas.set_attribute("alt", title);
+        self.canvas.borrow().set_attribute("alt", title);
     }
 
     pub fn set_visible(&self, _visible: bool) {
@@ -76,7 +78,11 @@ impl Window {
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Ok(self.canvas.position().to_physical(self.scale_factor()))
+        Ok(self
+            .canvas
+            .borrow()
+            .position()
+            .to_physical(self.scale_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
@@ -87,14 +93,15 @@ impl Window {
     pub fn set_outer_position(&self, position: Position) {
         let position = position.to_logical::<f64>(self.scale_factor());
 
-        self.canvas.set_attribute("position", "fixed");
-        self.canvas.set_attribute("left", &position.x.to_string());
-        self.canvas.set_attribute("top", &position.y.to_string());
+        let canvas = self.canvas.borrow();
+        canvas.set_attribute("position", "fixed");
+        canvas.set_attribute("left", &position.x.to_string());
+        canvas.set_attribute("top", &position.y.to_string());
     }
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.canvas.size()
+        self.canvas.borrow().size()
     }
 
     #[inline]
@@ -105,7 +112,7 @@ impl Window {
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        backend::set_canvas_size(self.canvas.raw(), size);
+        backend::set_canvas_size(self.canvas.borrow().raw(), size);
     }
 
     #[inline]
@@ -170,7 +177,7 @@ impl Window {
             CursorIcon::RowResize => "row-resize",
         };
         *self.previous_pointer.borrow_mut() = text;
-        backend::set_canvas_style_property(self.canvas.raw(), "cursor", text);
+        backend::set_canvas_style_property(self.canvas.borrow().raw(), "cursor", text);
     }
 
     #[inline]
@@ -186,9 +193,10 @@ impl Window {
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         if !visible {
-            self.canvas.set_attribute("cursor", "none");
+            self.canvas.borrow().set_attribute("cursor", "none");
         } else {
             self.canvas
+                .borrow()
                 .set_attribute("cursor", *self.previous_pointer.borrow());
         }
     }
@@ -205,7 +213,7 @@ impl Window {
 
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        if self.canvas.is_fullscreen() {
+        if self.canvas.borrow().is_fullscreen() {
             Some(Fullscreen::Borderless(self.current_monitor_inner()))
         } else {
             None
@@ -215,8 +223,8 @@ impl Window {
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         if monitor.is_some() {
-            self.canvas.request_fullscreen();
-        } else if self.canvas.is_fullscreen() {
+            self.canvas.borrow().request_fullscreen();
+        } else if self.canvas.borrow().is_fullscreen() {
             backend::exit_fullscreen();
         }
     }
