@@ -1,3 +1,5 @@
+#![deprecated(since = "0.23.0", note = "Please migrate to web-sys over stdweb")]
+
 mod canvas;
 mod event;
 mod scaling;

@@ -32,6 +32,7 @@
 - On macOS, updated core-* dependencies and cocoa.
 - Bump `parking_lot` to 0.11
 - On Android, bump `ndk`, `ndk-sys` and `ndk-glue` to 0.2. Checkout the new ndk-glue main proc attribute.
+- Deprecate the stdweb backend, to be removed in a future release
 - **Breaking:** Prefixed virtual key codes `Add`, `Multiply`, `Divide`, `Decimal`, and `Subtract` with `Numpad`.
 - Added `Asterisk` and `Plus` virtual key codes.
 
