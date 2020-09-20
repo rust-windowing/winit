@@ -34,6 +34,11 @@
 - On Android, bump `ndk`, `ndk-sys` and `ndk-glue` to 0.2. Checkout the new ndk-glue main proc attribute.
 - **Breaking:** Prefixed virtual key codes `Add`, `Multiply`, `Divide`, `Decimal`, and `Subtract` with `Numpad`.
 - Added `Asterisk` and `Plus` virtual key codes.
+- On Web (web-sys only), the `Event::LoopDestroyed` event is correctly emitted when leaving the page.
+- On Web, the `WindowEvent::Destroyed` event now gets emitted when a `Window` is dropped.
+- On Web (web-sys only), the event listeners are now removed when a `Window` is dropped or when the event loop is destroyed.
+- On Web, the event handler closure passed to `EventLoop::run` now gets dropped after the event loop is destroyed.
+- **Breaking:** On Web, the canvas element associated to a `Window` is no longer removed from the DOM when the `Window` is dropped.
 
 # 0.22.2 (2020-05-16)
 
