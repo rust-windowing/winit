@@ -32,7 +32,7 @@
 - On macOS, updated core-* dependencies and cocoa.
 - Bump `parking_lot` to 0.11
 - On Android, bump `ndk`, `ndk-sys` and `ndk-glue` to 0.2. Checkout the new ndk-glue main proc attribute.
-- **Breaking:** The virtual key code `Add`, `Multiply`, `Divide`, `Decimal`, and `Subtract` now prefixed with `Numpad`.
+- **Breaking:** Prefixed virtual key codes `Add`, `Multiply`, `Divide`, `Decimal`, and `Subtract` with `Numpad`.
 - Added `Asterisk` and `Plus` virtual key codes.
 
 # 0.22.2 (2020-05-16)
