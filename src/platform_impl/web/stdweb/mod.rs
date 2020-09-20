@@ -26,7 +26,9 @@ pub fn exit_fullscreen() {
     document().exit_fullscreen();
 }
 
-pub fn on_unload(mut handler: impl FnMut() + 'static) {
+pub type UnloadEventHandle = ();
+
+pub fn on_unload(mut handler: impl FnMut() + 'static) -> UnloadEventHandle {
     window().add_event_listener(move |_: BeforeUnloadEvent| handler());
 }
 

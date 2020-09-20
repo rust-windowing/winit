@@ -28,6 +28,7 @@ pub struct Execution<T: 'static> {
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
+    unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
 }
 
 struct Runner<T: 'static> {
@@ -91,6 +92,7 @@ impl<T: 'static> Shared<T> {
             redraw_pending: RefCell::new(HashSet::new()),
             destroy_pending: RefCell::new(VecDeque::new()),
             scale_change_detector: RefCell::new(None),
+            unload_event_handle: RefCell::new(None),
         }))
     }
 
@@ -113,7 +115,8 @@ impl<T: 'static> Shared<T> {
         self.init();
 
         let close_instance = self.clone();
-        backend::on_unload(move || close_instance.handle_unload());
+        *self.0.unload_event_handle.borrow_mut() =
+            Some(backend::on_unload(move || close_instance.handle_unload()));
     }
 
     pub(crate) fn set_on_scale_change<F>(&self, handler: F)
