@@ -43,6 +43,7 @@
 - On Web, `WindowEvent::Resized` is now emitted when `Window::set_inner_size` is called.
 - **Breaking:** `Fullscreen` enum now uses `Option<Borderless>` instead of `Borderless` to pick system preferred monitor.
 - **Breaking:** `Fullscreen` enum now uses `Borderless<Option<MonitorHandle>>` instead of `Borderless<MonitorHandle>` to pick system's preferred monitor.
+- **Breaking:** `Fullscreen` enum now uses `Borderless<Option<MonitorHandle>>` instead of `Borderless<MonitorHandle>` to allow picking the current monitor.
 
 # 0.22.2 (2020-05-16)
 

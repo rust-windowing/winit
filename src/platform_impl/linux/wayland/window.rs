@@ -155,14 +155,14 @@ impl Window {
                 panic!("Wayland doesn't support exclusive fullscreen")
             }
             Some(Fullscreen::Borderless(monitor)) => {
-                let monitor = if let Some(RootMonitorHandle {
-                    inner: PlatformMonitorHandle::Wayland(monitor),
-                }) = monitor
-                {
-                    Some(monitor.proxy)
-                } else {
-                    None
-                };
+                let monitor = monitor.map(|monitor| {
+                    let RootMonitorHandle { inner: monitor } = monitor;
+                    match monitor {
+                        PlatformMonitorHandle::Wayland(monitor) => monitor.proxy,
+                        #[cfg(feature = "x11")]
+                        PlatformMonitorHandle::X(_) => unreachable!(),
+                    }
+                });
 
                 frame.set_fullscreen(monitor.as_ref())
             }
@@ -358,14 +358,14 @@ impl Window {
                 panic!("Wayland doesn't support exclusive fullscreen")
             }
             Some(Fullscreen::Borderless(monitor)) => {
-                let monitor = if let Some(RootMonitorHandle {
-                    inner: PlatformMonitorHandle::Wayland(monitor),
-                }) = monitor
-                {
-                    Some(monitor.proxy)
-                } else {
-                    None
-                };
+                let monitor = monitor.map(|monitor| {
+                    let RootMonitorHandle { inner: monitor } = monitor;
+                    match monitor {
+                        PlatformMonitorHandle::Wayland(monitor) => monitor.proxy,
+                        #[cfg(feature = "x11")]
+                        PlatformMonitorHandle::X(_) => unreachable!(),
+                    }
+                });
 
                 self.frame.lock().unwrap().set_fullscreen(monitor.as_ref());
             }
