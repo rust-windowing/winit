@@ -859,7 +859,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
                         let current_monitor = fullscreen_monitor
                             .as_ref()
-                            .map(inner.hmonitor())
+                            .map(|monitor| monitor.inner.hmonitor())
                             .unwrap_or(new_monitor);
 
                         if new_monitor != current_monitor {
