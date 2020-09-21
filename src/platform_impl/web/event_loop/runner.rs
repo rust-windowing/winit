@@ -9,6 +9,7 @@ use std::{
     clone::Clone,
     collections::{HashSet, VecDeque},
     iter,
+    ops::Deref,
     rc::{Rc, Weak},
 };
 
@@ -53,7 +54,6 @@ impl<T: 'static> RunnerEnum<T> {
 
 struct Runner<T: 'static> {
     state: State,
-    is_busy: bool,
     event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>,
 }
 
@@ -61,7 +61,6 @@ impl<T: 'static> Runner<T> {
     pub fn new(event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>) -> Self {
         Runner {
             state: State::Init,
-            is_busy: false,
             event_handler,
         }
     }
@@ -87,18 +86,12 @@ impl<T: 'static> Runner<T> {
     fn handle_single_event(&mut self, event: Event<'_, T>, control: &mut root::ControlFlow) {
         let is_closed = *control == root::ControlFlow::Exit;
 
-        // An event is being processed, so the runner should be marked busy
-        self.is_busy = true;
-
         (self.event_handler)(event, control);
 
         // Maintain closed state, even if the callback changes it
         if is_closed {
             *control = root::ControlFlow::Exit;
         }
-
-        // An event is no longer being processed
-        self.is_busy = false;
     }
 }
 
@@ -205,23 +198,25 @@ impl<T: 'static> Shared<T> {
         }
         // If we can run the event processing right now, or need to queue this and wait for later
         let mut process_immediately = true;
-        match &*self.0.runner.borrow() {
-            RunnerEnum::Running(ref runner) => {
+        match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
+            Ok(RunnerEnum::Running(ref runner)) => {
                 // If we're currently polling, queue this and wait for the poll() method to be called
                 if let State::Poll { .. } = runner.state {
                     process_immediately = false;
                 }
-                // If the runner is busy, queue this and wait for it to process it later
-                if runner.is_busy {
-                    process_immediately = false;
-                }
             }
-            RunnerEnum::Pending => {
+            Ok(RunnerEnum::Pending) => {
                 // The runner still hasn't been attached: queue this event and wait for it to be
                 process_immediately = false;
             }
+            // Some other code is mutating the runner, which most likely means
+            // the event loop is running and busy. So we queue this event for
+            // it to be processed later.
+            Err(_) => {
+                process_immediately = false;
+            }
             // This is unreachable since `self.is_closed() == true`.
-            RunnerEnum::Destroyed => unreachable!(),
+            Ok(RunnerEnum::Destroyed) => unreachable!(),
         }
         if !process_immediately {
             // Queue these events to look at later
@@ -502,12 +497,15 @@ impl<T: 'static> Shared<T> {
 
     // Check if the event loop is currently closed
     fn is_closed(&self) -> bool {
-        match *self.0.runner.borrow() {
-            RunnerEnum::Running(ref runner) => runner.state.is_exit(),
+        match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
+            Ok(RunnerEnum::Running(runner)) => runner.state.is_exit(),
             // The event loop is not closed since it is not initialized.
-            RunnerEnum::Pending => false,
+            Ok(RunnerEnum::Pending) => false,
             // The event loop is closed since it has been destroyed.
-            RunnerEnum::Destroyed => true,
+            Ok(RunnerEnum::Destroyed) => true,
+            // Some other code is mutating the runner, which most likely means
+            // the event loop is running and busy.
+            Err(_) => false,
         }
     }
 
