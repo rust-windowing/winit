@@ -853,14 +853,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
                 match fullscreen {
                     Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        if new_monitor == ptr::null_mut() {
-                            return 0;
-                        }
-
-                        if fullscreen_monitor
-                            .as_ref()
-                            .map(|monitor| new_monitor != monitor.inner.hmonitor())
-                            .unwrap_or(true)
+                        if new_monitor != ptr::null_mut()
+                            && fullscreen_monitor
+                                .as_ref()
+                                .map(|monitor| new_monitor != monitor.inner.hmonitor())
+                                .unwrap_or(true)
                         {
                             if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
                                 let new_monitor_rect = new_monitor_info.rcMonitor;
