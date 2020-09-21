@@ -40,6 +40,7 @@
 - On Web (web-sys only), the event listeners are now removed when a `Window` is dropped or when the event loop is destroyed.
 - On Web, the event handler closure passed to `EventLoop::run` now gets dropped after the event loop is destroyed.
 - **Breaking:** On Web, the canvas element associated to a `Window` is no longer removed from the DOM when the `Window` is dropped.
+- On Web, `WindowEvent::Resized` is now emitted when `Window::set_inner_size` is called.
 
 # 0.22.2 (2020-05-16)
 
