@@ -857,12 +857,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                             return 0;
                         }
 
-                        let current_monitor = fullscreen_monitor
+                        if fullscreen_monitor
                             .as_ref()
-                            .map(|monitor| monitor.inner.hmonitor())
-                            .unwrap_or(new_monitor);
-
-                        if new_monitor != current_monitor {
+                            .map(|monitor| new_monitor != monitor.inner.hmonitor())
+                            .unwrap_or(true)
+                        {
                             if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
                                 let new_monitor_rect = new_monitor_info.rcMonitor;
                                 window_pos.x = new_monitor_rect.left;
