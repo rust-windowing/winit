@@ -83,9 +83,7 @@ fn main() {
                                 );
                             }
                             F => window.set_fullscreen(match (state, modifiers.alt()) {
-                                (true, false) => {
-                                    Some(Fullscreen::Borderless(window.current_monitor().unwrap()))
-                                }
+                                (true, false) => Some(Fullscreen::Borderless(None)),
                                 (true, true) => Some(Fullscreen::Exclusive(
                                     video_modes.iter().nth(video_mode_id).unwrap().clone(),
                                 )),

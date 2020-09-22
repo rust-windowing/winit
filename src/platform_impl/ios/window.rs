@@ -196,7 +196,9 @@ impl Inner {
                     let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
                     uiscreen
                 }
-                Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(monitor)) => monitor
+                    .unwrap_or_else(|| self.current_monitor_inner())
+                    .ui_screen() as id,
                 None => {
                     warn!("`Window::set_fullscreen(None)` ignored on iOS");
                     return;
@@ -235,7 +237,7 @@ impl Inner {
                 && screen_space_bounds.size.width == screen_bounds.size.width
                 && screen_space_bounds.size.height == screen_bounds.size.height
             {
-                Some(Fullscreen::Borderless(monitor))
+                Some(Fullscreen::Borderless(Some(monitor)))
             } else {
                 None
             }
@@ -353,8 +355,10 @@ impl Window {
                 Some(Fullscreen::Exclusive(ref video_mode)) => {
                     video_mode.video_mode.monitor.ui_screen() as id
                 }
-                Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
-                None => monitor::main_uiscreen().ui_screen(),
+                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.inner.ui_screen(),
+                Some(Fullscreen::Borderless(None)) | None => {
+                    monitor::main_uiscreen().ui_screen() as id
+                }
             };
 
             let screen_bounds: CGRect = msg_send![screen, bounds];

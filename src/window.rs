@@ -628,6 +628,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread.
     /// - **Android:** Will always return `None`.
+    /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
@@ -850,10 +851,13 @@ impl Default for CursorIcon {
     }
 }
 
+/// Fullscreen modes.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fullscreen {
     Exclusive(VideoMode),
-    Borderless(MonitorHandle),
+
+    /// Providing `None` to `Borderless` will fullscreen on the current monitor.
+    Borderless(Option<MonitorHandle>),
 }
 
 #[derive(Clone, Debug, PartialEq)]

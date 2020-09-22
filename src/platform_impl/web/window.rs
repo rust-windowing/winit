@@ -233,7 +233,7 @@ impl Window {
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
-            Some(Fullscreen::Borderless(self.current_monitor_inner()))
+            Some(Fullscreen::Borderless(Some(self.current_monitor_inner())))
         } else {
             None
         }
