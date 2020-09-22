@@ -37,12 +37,6 @@ pub struct Canvas {
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
-impl Drop for Canvas {
-    fn drop(&mut self) {
-        self.raw.remove();
-    }
-}
-
 impl Canvas {
     pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
         let canvas = match attr.canvas {
@@ -305,5 +299,9 @@ impl Canvas {
 
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
+    }
+
+    pub fn remove_listeners(&mut self) {
+        // TODO: Stub, unimplemented (see web_sys for reference).
     }
 }

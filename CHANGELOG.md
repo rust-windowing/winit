@@ -25,7 +25,6 @@
 - **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
 - **Breaking:** `PixelDelta` scroll events now return a `PhysicalPosition`.
 - On NetBSD, fixed crash due to incorrect detection of the main thread.
-- **Breaking:** The virtual key code `Subtract` has been renamed to `NumpadSubtract`.
 - **Breaking:** On X11, `-` key is mapped to the `Minus` virtual key code, instead of `Subtract`.
 - On macOS, fix inverted horizontal scroll.
 - **Breaking:** `current_monitor` now returns `Option<MonitorHandle>`.
@@ -34,6 +33,16 @@
 - Bump `parking_lot` to 0.11
 - On Android, bump `ndk`, `ndk-sys` and `ndk-glue` to 0.2. Checkout the new ndk-glue main proc attribute.
 - On iOS, fixed starting the app in landscape where the view still had portrait dimensions.
+- Deprecate the stdweb backend, to be removed in a future release
+- **Breaking:** Prefixed virtual key codes `Add`, `Multiply`, `Divide`, `Decimal`, and `Subtract` with `Numpad`.
+- Added `Asterisk` and `Plus` virtual key codes.
+- On Web (web-sys only), the `Event::LoopDestroyed` event is correctly emitted when leaving the page.
+- On Web, the `WindowEvent::Destroyed` event now gets emitted when a `Window` is dropped.
+- On Web (web-sys only), the event listeners are now removed when a `Window` is dropped or when the event loop is destroyed.
+- On Web, the event handler closure passed to `EventLoop::run` now gets dropped after the event loop is destroyed.
+- **Breaking:** On Web, the canvas element associated to a `Window` is no longer removed from the DOM when the `Window` is dropped.
+- On Web, `WindowEvent::Resized` is now emitted when `Window::set_inner_size` is called.
+- **Breaking:** `Fullscreen` enum now uses `Borderless(Option<MonitorHandle>)` instead of `Borderless(MonitorHandle)` to allow picking the current monitor.
 
 # 0.22.2 (2020-05-16)
 

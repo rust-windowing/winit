@@ -21,6 +21,7 @@ fn main() {
     eprintln!("debugging keys:");
     eprintln!("  (E) Enter exclusive fullscreen");
     eprintln!("  (F) Toggle borderless fullscreen");
+    eprintln!("  (P) Toggle borderless fullscreen on system's preffered monitor");
     eprintln!("  (M) Toggle minimized");
     eprintln!("  (Q) Quit event loop");
     eprintln!("  (V) Toggle visibility");
@@ -85,8 +86,15 @@ fn main() {
                         if window.fullscreen().is_some() {
                             window.set_fullscreen(None);
                         } else {
-                            let monitor = window.current_monitor().unwrap();
+                            let monitor = window.current_monitor();
                             window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
+                        }
+                    }
+                    VirtualKeyCode::P => {
+                        if window.fullscreen().is_some() {
+                            window.set_fullscreen(None);
+                        } else {
+                            window.set_fullscreen(Some(Fullscreen::Borderless(None)));
                         }
                     }
                     VirtualKeyCode::M => {
