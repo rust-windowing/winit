@@ -5,11 +5,12 @@ use sctk::reexports::client::protocol::wl_output::WlOutput;
 
 use sctk::window::{ConceptConfig, ConceptFrame, Decorations, Window};
 
-use crate::dpi::LogicalSize;
+use crate::dpi::{LogicalPosition, LogicalSize};
 
 use crate::event::WindowEvent;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
+use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
 use crate::window::CursorIcon;
 
@@ -56,6 +57,9 @@ pub enum WindowRequest {
 
     /// New frame size.
     FrameSize(LogicalSize<u32>),
+
+    /// Set IME window position.
+    IMEPosition(LogicalPosition<u32>),
 
     /// Redraw was requested.
     Redraw,
@@ -143,6 +147,9 @@ pub struct WindowHandle {
 
     /// Pointers over the current surface.
     pointers: Vec<WinitPointer>,
+
+    /// Text inputs on the current surface.
+    text_inputs: Vec<TextInputHandler>,
 }
 
 impl WindowHandle {
@@ -159,6 +166,7 @@ impl WindowHandle {
             confined: Cell::new(false),
             cursor_visible: Cell::new(true),
             pointers: Vec::new(),
+            text_inputs: Vec::new(),
         }
     }
 
@@ -210,6 +218,33 @@ impl WindowHandle {
         }
     }
 
+    pub fn text_input_entered(&mut self, text_input: TextInputHandler) {
+        if self
+            .text_inputs
+            .iter()
+            .find(|t| *t == &text_input)
+            .is_none()
+        {
+            self.text_inputs.push(text_input);
+        }
+    }
+
+    pub fn text_input_left(&mut self, text_input: TextInputHandler) {
+        if let Some(position) = self.text_inputs.iter().position(|t| *t == text_input) {
+            self.text_inputs.remove(position);
+        }
+    }
+
+    pub fn set_ime_position(&self, position: LogicalPosition<u32>) {
+        // XXX This won't fly unless user will have a way to request IME window per seat, since
+        // the ime windows will be overlapping, but winit doesn't expose API to specify for
+        // which seat we're setting IME position.
+        let (x, y) = (position.x as i32, position.y as i32);
+        for text_input in self.text_inputs.iter() {
+            text_input.set_ime_position(x, y);
+        }
+    }
+
     pub fn set_cursor_visible(&self, visible: bool) {
         self.cursor_visible.replace(visible);
         let cursor_icon = match visible {
@@ -257,6 +292,9 @@ pub fn handle_window_requsts(winit_state: &WinitState) {
                 }
                 WindowRequest::NewCursorIcon(cursor_icon) => {
                     window_handle.set_cursor_icon(cursor_icon);
+                }
+                WindowRequest::IMEPosition(position) => {
+                    window_handle.set_ime_position(position);
                 }
                 WindowRequest::GrabCursor(grab) => {
                     window_handle.set_cursor_grab(grab);

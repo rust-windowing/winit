@@ -584,6 +584,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_position(&self, position: Position) {
+        let scale_factor = self.scale_factor() as f64;
+        let position = position.to_logical(scale_factor);
+        let ime_position_request = WindowRequest::IMEPosition(position);
+        self.window_requests
+            .lock()
+            .unwrap()
+            .push(ime_position_request);
+        self.event_loop_awakener.ping();
+    }
+
+    #[inline]
     pub fn display(&self) -> &Display {
         &self.display
     }

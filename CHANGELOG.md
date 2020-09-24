@@ -60,6 +60,7 @@
 - On Wayland, on kwin, fix space between window and decorations on startup.
 - On Wayland, added `title_font` and `title_color` methods on a `Theme` trait.
 - On Wayland, disable maximize button for non-resizable window.
+- On Wayland, added support for `set_ime_position`.
 
 # 0.22.2 (2020-05-16)
 

@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1;
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::ZwpPointerConstraintsV1;
+use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
@@ -20,10 +21,12 @@ use crate::event::ModifiersState;
 
 mod keyboard;
 pub mod pointer;
+pub mod text_input;
 mod touch;
 
 use keyboard::Keyboard;
 use pointer::Pointers;
+use text_input::TextInput;
 use touch::Touch;
 
 pub struct SeatManager {
@@ -39,11 +42,13 @@ impl SeatManager {
     ) -> Self {
         let relative_pointer_manager = env.get_global::<ZwpRelativePointerManagerV1>();
         let pointer_constraints = env.get_global::<ZwpPointerConstraintsV1>();
+        let text_input_manager = env.get_global::<ZwpTextInputManagerV3>();
 
         let mut inner = SeatManagerInner::new(
             theme_manager,
             relative_pointer_manager,
             pointer_constraints,
+            text_input_manager,
             loop_handle,
         );
 
@@ -81,6 +86,9 @@ struct SeatManagerInner {
     /// Pointer constraints.
     pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
 
+    /// Text input manager.
+    text_input_manager: Option<Attached<ZwpTextInputManagerV3>>,
+
     /// A theme manager.
     theme_manager: ThemeManager,
 }
@@ -90,14 +98,16 @@ impl SeatManagerInner {
         theme_manager: ThemeManager,
         relative_pointer_manager: Option<Attached<ZwpRelativePointerManagerV1>>,
         pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
+        text_input_manager: Option<Attached<ZwpTextInputManagerV3>>,
         loop_handle: LoopHandle<WinitState>,
     ) -> Self {
         Self {
             seats: Vec::new(),
-            theme_manager,
+            loop_handle,
             relative_pointer_manager,
             pointer_constraints,
-            loop_handle,
+            text_input_manager,
+            theme_manager,
         }
     }
 
@@ -107,8 +117,7 @@ impl SeatManagerInner {
 
         let position = self.seats.iter().position(|si| si.seat == detached_seat);
         let index = position.unwrap_or_else(|| {
-            self.seats
-                .push(SeatInfo::new(detached_seat, None, None, None));
+            self.seats.push(SeatInfo::new(detached_seat));
             self.seats.len() - 1
         });
 
@@ -150,6 +159,15 @@ impl SeatManagerInner {
         } else {
             seat_info.touch = None;
         }
+
+        // Handle text input.
+        if let Some(text_input_manager) = self.text_input_manager.as_ref() {
+            if seat_data.defunct {
+                seat_info.text_input = None;
+            } else if seat_info.text_input.is_none() {
+                seat_info.text_input = Some(TextInput::new(&seat, &text_input_manager));
+            }
+        }
     }
 }
 
@@ -167,6 +185,9 @@ struct SeatInfo {
     /// Touch handling.
     touch: Option<Touch>,
 
+    /// Text input handling aka IME.
+    text_input: Option<TextInput>,
+
     /// The current state of modifiers observed in keyboard handler.
     ///
     /// We keep modifiers state on a seat, since it's being used by pointer events as well.
@@ -174,17 +195,13 @@ struct SeatInfo {
 }
 
 impl SeatInfo {
-    pub fn new(
-        seat: WlSeat,
-        keyboard: Option<Keyboard>,
-        pointer: Option<Pointers>,
-        touch: Option<Touch>,
-    ) -> Self {
+    pub fn new(seat: WlSeat) -> Self {
         Self {
             seat,
-            keyboard,
-            pointer,
-            touch,
+            keyboard: None,
+            pointer: None,
+            touch: None,
+            text_input: None,
             modifiers_state: Rc::new(RefCell::new(ModifiersState::default())),
         }
     }

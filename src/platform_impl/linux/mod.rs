@@ -414,13 +414,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _position: Position) {
-        match self {
-            #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.set_ime_position(_position),
-            #[cfg(feature = "wayland")]
-            _ => (),
-        }
+    pub fn set_ime_position(&self, position: Position) {
+        x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
     }
 
     #[inline]

@@ -12,6 +12,7 @@ use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::protocols::xdg_shell::client::xdg_wm_base::XdgWmBase;
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1;
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::ZwpPointerConstraintsV1;
+use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 
 use sctk::environment::{Environment, SimpleGlobal};
 use sctk::output::{OutputHandler, OutputHandling, OutputInfo, OutputStatusListener};
@@ -48,6 +49,7 @@ sctk::environment!(WinitEnv,
         ZxdgDecorationManagerV1 => decoration_manager,
         ZwpRelativePointerManagerV1 => relative_pointer_manager,
         ZwpPointerConstraintsV1 => pointer_constraints,
+        ZwpTextInputManagerV3 => text_input_manager,
     ],
     multis = [
         WlSeat => seats,
@@ -72,6 +74,8 @@ pub struct WinitEnv {
     relative_pointer_manager: SimpleGlobal<ZwpRelativePointerManagerV1>,
 
     pointer_constraints: SimpleGlobal<ZwpPointerConstraintsV1>,
+
+    text_input_manager: SimpleGlobal<ZwpTextInputManagerV3>,
 
     decoration_manager: SimpleGlobal<ZxdgDecorationManagerV1>,
 }
@@ -102,6 +106,9 @@ impl WinitEnv {
         // Pointer grab functionality.
         let pointer_constraints = SimpleGlobal::new();
 
+        // IME handling.
+        let text_input_manager = SimpleGlobal::new();
+
         Self {
             seats,
             outputs,
@@ -112,6 +119,7 @@ impl WinitEnv {
             decoration_manager,
             relative_pointer_manager,
             pointer_constraints,
+            text_input_manager,
         }
     }
 }
