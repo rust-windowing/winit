@@ -164,7 +164,7 @@ impl Window {
         // Set fullscreen/maximized if so was requested.
         match attributes.fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
-                panic!("Wayland doesn't support exclusive fullscreen.")
+                warn!("`Fullscreen::Exclusive` is ignored on Wayland")
             }
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor =
@@ -389,7 +389,8 @@ impl Window {
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let fullscreen_request = match fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
-                panic!("Wayland doesn't support exclusive fullscreen.")
+                warn!("`Fullscreen::Exclusive` is ignored on Wayland");
+                return;
             }
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor =

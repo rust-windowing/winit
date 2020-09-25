@@ -313,9 +313,7 @@ pub(super) fn init_confined_pointer(
     let confined_pointer =
         pointer_constraints.confine_pointer(surface, pointer, None, Lifetime::Persistent.to_raw());
 
-    confined_pointer.quick_assign(move |_, _, _| {
-        // This space intentionally left blank.
-    });
+    confined_pointer.quick_assign(move |_, _, _| {});
 
     confined_pointer.detach()
 }

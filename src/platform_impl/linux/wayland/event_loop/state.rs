@@ -6,21 +6,20 @@ use super::EventSink;
 use crate::platform_impl::wayland::window::shim::{WindowHandle, WindowUpdate};
 use crate::platform_impl::wayland::WindowId;
 
-/// Wrapper to carry winit's mutable internal state.
+/// Wrapper to carry winit's state.
 pub struct WinitState {
-    /// A sink for various events that is being filled during dispatching
-    /// event loop and forwarded as window and device events to the users
-    /// of the crate afterwards.
+    /// A sink for window and device events that is being filled during dispatching
+    /// event loop and forwarded downstream afterwards.
     pub event_sink: EventSink,
 
-    /// Window updates, which are coming from SCTK or compositor, those require
-    /// calling back to the winit's user, and so handled right in event loop, unlike
-    /// the ones in coming from `window_requests_sender`.
+    /// Window updates, which are coming from SCTK or the compositor, which require
+    /// calling back to the winit's downstream. They are handled right in the event loop,
+    /// unlike the ones coming from buffers on the `WindowHandle`'s.
     pub window_updates: HashMap<WindowId, WindowUpdate>,
 
-    /// Window map containing all sctk's windows, since those windows
-    /// aren't allowed to be send to other threads they live on event loop's thread,
+    /// Window map containing all SCTK windows. Since those windows aren't allowed
+    /// to be sent to other threads, they live on the event loop's thread
     /// and requests from winit's windows are being forwarded to them either via
-    /// `WindowUpdate` or `window_requests_sender` channel.
+    /// `WindowUpdate` or buffer on the associated with it `WindowHandle`.
     pub window_map: HashMap<WindowId, WindowHandle>,
 }

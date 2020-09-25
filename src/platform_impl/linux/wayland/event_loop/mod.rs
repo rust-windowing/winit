@@ -30,8 +30,9 @@ mod sink;
 mod state;
 
 pub use proxy::EventLoopProxy;
-use sink::EventSink;
 pub use state::WinitState;
+
+use sink::EventSink;
 
 pub struct EventLoopWindowTarget<T> {
     /// Wayland display.
@@ -106,6 +107,7 @@ impl<T: 'static> EventLoop<T> {
         // Setup environment.
         let env = Environment::init(&display_proxy, WinitEnv::new());
 
+        // Issue 2 sync roundtrips to initialize environment.
         event_queue.sync_roundtrip(&mut (), |_, _, _| unreachable!())?;
         event_queue.sync_roundtrip(&mut (), |_, _, _| unreachable!())?;
 

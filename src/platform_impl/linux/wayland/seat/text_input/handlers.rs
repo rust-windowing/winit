@@ -73,8 +73,6 @@ pub(super) fn handle_text_input(
                 event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
             }
         }
-        _ => {
-            // This space intentionally left blank.
-        }
+        _ => (),
     }
 }

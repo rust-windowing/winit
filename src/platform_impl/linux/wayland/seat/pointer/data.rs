@@ -1,4 +1,4 @@
-//! The data which is used in pointer callbacks.
+//! Data which is used in pointer callbacks.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -12,7 +12,7 @@ use crate::event::{ModifiersState, TouchPhase};
 
 /// A data being used by pointer handlers.
 pub(super) struct PointerData {
-    /// A current winit's surface the pointer is being on.
+    /// Winit's surface the pointer is currently over.
     pub surface: Option<WlSurface>,
 
     /// Current modifiers state.
@@ -21,7 +21,7 @@ pub(super) struct PointerData {
     /// the given seat.
     pub modifiers_state: Rc<RefCell<ModifiersState>>,
 
-    /// Pointer constrains.
+    /// Pointer constraints.
     pub pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
 
     pub confined_pointer: Rc<RefCell<Option<ZwpConfinedPointerV1>>>,

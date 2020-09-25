@@ -117,8 +117,6 @@ pub(super) fn handle_touch(
                 );
             }
         }
-        _ => {
-            // This space intentionally left blank.
-        }
+        _ => (),
     }
 }
