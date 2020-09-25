@@ -24,7 +24,7 @@ pub(super) fn handle_pointer(
     pointer_data: &Rc<RefCell<PointerData>>,
     winit_state: &mut WinitState,
 ) {
-    let mut event_sink = winit_state.event_sink.borrow_mut();
+    let event_sink = &mut winit_state.event_sink;
     let mut pointer_data = pointer_data.borrow_mut();
     match event {
         PointerEvent::Enter {
@@ -37,11 +37,10 @@ pub(super) fn handle_pointer(
             pointer_data.latest_serial.replace(serial);
 
             let window_id = wayland::make_wid(&surface);
-            if !winit_state.window_map.borrow().contains_key(&window_id) {
+            if !winit_state.window_map.contains_key(&window_id) {
                 return;
             }
-            let mut window_map = winit_state.window_map.borrow_mut();
-            let window_handle = match window_map.get_mut(&window_id) {
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
                 Some(window_handle) => window_handle,
                 None => return,
             };
@@ -86,8 +85,7 @@ pub(super) fn handle_pointer(
 
             let window_id = wayland::make_wid(&surface);
 
-            let mut window_map = winit_state.window_map.borrow_mut();
-            let window_handle = match window_map.get_mut(&window_id) {
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
                 Some(window_handle) => window_handle,
                 None => return,
             };
@@ -291,8 +289,9 @@ pub(super) fn handle_pointer(
 
 #[inline]
 pub(super) fn handle_relative_pointer(event: RelativePointerEvent, winit_state: &mut WinitState) {
-    let mut event_sink = winit_state.event_sink.borrow_mut();
     if let RelativePointerEvent::RelativeMotion { dx, dy, .. } = event {
-        event_sink.push_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
+        winit_state
+            .event_sink
+            .push_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
     }
 }

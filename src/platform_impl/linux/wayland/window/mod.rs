@@ -74,8 +74,7 @@ impl Window {
 
                 // Get the window that receiced the event.
                 let window_id = super::make_wid(&surface);
-                let mut window_updates = winit_state.window_updates.borrow_mut();
-                let mut window_update = window_updates.get_mut(&window_id).unwrap();
+                let mut window_update = winit_state.window_updates.get_mut(&window_id).unwrap();
 
                 // Set pending scale factor.
                 window_update.scale_factor = Some(scale);
@@ -107,8 +106,7 @@ impl Window {
                     use sctk::window::{Event, State};
 
                     let winit_state = dispatch_data.get::<WinitState>().unwrap();
-                    let mut window_updates = winit_state.window_updates.borrow_mut();
-                    let mut window_update = window_updates.get_mut(&window_id).unwrap();
+                    let mut window_update = winit_state.window_updates.get_mut(&window_id).unwrap();
 
                     match event {
                         Event::Refresh => {
@@ -198,33 +196,29 @@ impl Window {
         // Create a handle that performs all the requests on underlying sctk a window.
         let window_handle = WindowHandle::new(window, size.clone(), window_requests.clone());
 
-        event_loop_window_target
-            .window_map
-            .borrow_mut()
-            .insert(window_id, window_handle);
+        let mut winit_state = event_loop_window_target.state.borrow_mut();
 
-        event_loop_window_target
+        winit_state.window_map.insert(window_id, window_handle);
+
+        winit_state
             .window_updates
-            .borrow_mut()
             .insert(window_id, WindowUpdate::new());
 
         let windowing_features = event_loop_window_target.windowing_features;
 
         // Send all updates to the server.
         let wayland_source = &event_loop_window_target.wayland_source;
-        let mut winit_state = event_loop_window_target.get_winit_state();
         let event_loop_handle = &event_loop_window_target.event_loop_handle;
 
         event_loop_handle.with_source(&wayland_source, |event_queue| {
             let event_queue = event_queue.queue();
-            let _ = event_queue.sync_roundtrip(&mut winit_state, |_, _, _| unreachable!());
+            let _ = event_queue.sync_roundtrip(&mut *winit_state, |_, _, _| unreachable!());
         });
 
         // We all praise GNOME for these 3 lines of pure magic. If we don't do that,
         // GNOME will shrink our window a bit for the size of the decorations. I guess it
         // happens because we haven't committed them with buffers to a server.
-        let mut window_map = event_loop_window_target.window_map.borrow_mut();
-        let window_handle = window_map.get_mut(&window_id).unwrap();
+        let window_handle = winit_state.window_map.get_mut(&window_id).unwrap();
         window_handle.window.refresh();
 
         let output_manager_handle = event_loop_window_target.output_manager.handle();

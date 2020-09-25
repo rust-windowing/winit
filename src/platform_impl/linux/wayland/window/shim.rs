@@ -271,9 +271,9 @@ impl WindowHandle {
 }
 
 #[inline]
-pub fn handle_window_requsts(winit_state: &WinitState) {
-    let mut window_map = winit_state.window_map.borrow_mut();
-    let mut window_updates = winit_state.window_updates.borrow_mut();
+pub fn handle_window_requsts(winit_state: &mut WinitState) {
+    let window_map = &mut winit_state.window_map;
+    let window_updates = &mut winit_state.window_updates;
     let mut windows_to_close: Vec<WindowId> = Vec::new();
 
     // Process the rest of the events.
@@ -373,7 +373,7 @@ pub fn handle_window_requsts(winit_state: &WinitState) {
                     windows_to_close.push(*window_id);
 
                     // Send event that the window was destroyed.
-                    let mut event_sink = winit_state.event_sink.borrow_mut();
+                    let event_sink = &mut winit_state.event_sink;
                     event_sink.push_window_event(WindowEvent::Destroyed, *window_id);
                 }
             };

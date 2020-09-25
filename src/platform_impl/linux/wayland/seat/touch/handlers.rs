@@ -17,14 +17,14 @@ pub(super) fn handle_touch(
     inner: &mut TouchInner,
     winit_state: &mut WinitState,
 ) {
-    let mut event_sink = winit_state.event_sink.borrow_mut();
+    let event_sink = &mut winit_state.event_sink;
 
     match event {
         TouchEvent::Down {
             surface, id, x, y, ..
         } => {
             let window_id = wayland::make_wid(&surface);
-            if !winit_state.window_map.borrow().contains_key(&window_id) {
+            if !winit_state.window_map.contains_key(&window_id) {
                 return;
             }
 

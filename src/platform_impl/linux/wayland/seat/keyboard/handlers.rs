@@ -17,7 +17,7 @@ pub(super) fn handle_keyboard(
     inner: &mut KeyboardInner,
     winit_state: &mut WinitState,
 ) {
-    let mut event_sink = winit_state.event_sink.borrow_mut();
+    let event_sink = &mut winit_state.event_sink;
     match event {
         KeyboardEvent::Enter { surface, .. } => {
             let window_id = wayland::make_wid(&surface);

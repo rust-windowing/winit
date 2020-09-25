@@ -130,7 +130,7 @@
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 
 #![deny(rust_2018_idioms)]
-#![deny(broken_intra_doc_links)]
+#![deny(intra_doc_link_resolution_failure)]
 
 #[allow(unused_imports)]
 #[macro_use]

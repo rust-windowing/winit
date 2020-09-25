@@ -16,15 +16,14 @@ pub(super) fn handle_text_input(
     text_input: Main<ZwpTextInputV3>,
     inner: &mut TextInputInner,
     event: TextInputEvent,
-    winit_state: &WinitState,
+    winit_state: &mut WinitState,
 ) {
-    let mut event_sink = winit_state.event_sink.borrow_mut();
+    let event_sink = &mut winit_state.event_sink;
     match event {
         TextInputEvent::Enter { surface } => {
             let window_id = wayland::make_wid(&surface);
-            let mut window_map = winit_state.window_map.borrow_mut();
 
-            let window_handle = match window_map.get_mut(&window_id) {
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
                 Some(window_handle) => window_handle,
                 None => return,
             };
@@ -46,9 +45,8 @@ pub(super) fn handle_text_input(
             text_input.commit();
 
             let window_id = wayland::make_wid(&surface);
-            let mut window_map = winit_state.window_map.borrow_mut();
 
-            let window_handle = match window_map.get_mut(&window_id) {
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
                 Some(window_handle) => window_handle,
                 None => return,
             };
