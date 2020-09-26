@@ -210,6 +210,9 @@ impl Window {
         let wayland_source = &event_loop_window_target.wayland_source;
         let event_loop_handle = &event_loop_window_target.event_loop_handle;
 
+        // To make our window usable for drawing right away we must `ack` a `configure`
+        // from the server, the acking part here is done by SCTK window frame, so we just
+        // need to sync with server so it'll be done automatically for us.
         event_loop_handle.with_source(&wayland_source, |event_queue| {
             let event_queue = event_queue.queue();
             let _ = event_queue.sync_roundtrip(&mut *winit_state, |_, _, _| unreachable!());
@@ -217,7 +220,7 @@ impl Window {
 
         // We all praise GNOME for these 3 lines of pure magic. If we don't do that,
         // GNOME will shrink our window a bit for the size of the decorations. I guess it
-        // happens because we haven't committed them with buffers to a server.
+        // happens because we haven't committed them with buffers to the server.
         let window_handle = winit_state.window_map.get_mut(&window_id).unwrap();
         window_handle.window.refresh();
 

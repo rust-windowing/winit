@@ -614,7 +614,7 @@ impl Window {
     ///
     ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Wayland:** Does not support exclusive fullscreen mode.
+    /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android:** Unsupported.
     #[inline]

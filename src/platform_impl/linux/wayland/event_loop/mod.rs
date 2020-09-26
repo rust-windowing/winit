@@ -222,29 +222,54 @@ impl<T: 'static> EventLoop<T> {
             &mut control_flow,
         );
 
+        let mut window_updates: Vec<(WindowId, WindowUpdate)> = Vec::new();
         let mut event_sink_back_buffer = Vec::new();
+
         // NOTE We break on errors from dispatches, since if we've got protocol error
         // libwayland-client/wayland-rs will inform us anyway, but crashing downstream is not
         // really an option. Instead we inform that the event loop got destroyed. We may
         // communicate an error that something was terminated, but winit doesn't provide us
         // with an API to do that via some event.
         loop {
-            // We have to do that to avoid double borrow. That could happen if a user
-            // decided to create a window during some of those callbacks, so that's why
-            // we clone things here and ensure that none of the Mutex/RefCell is being held.
-            let mut window_updates = self.with_state(|state| {
+            // Handle pending user events. We don't need back buffer, since we can't dispatch
+            // user events indirectly via callback to the user.
+            for user_event in pending_user_events.borrow_mut().drain(..) {
+                sticky_exit_callback(
+                    Event::UserEvent(user_event),
+                    &self.window_target,
+                    &mut control_flow,
+                    &mut callback,
+                );
+            }
+
+            // Process 'new' pending updates.
+            self.with_state(|state| {
+                let current_number_updates = window_updates.len();
+
+                // Process updates that we'll change in place, since we've already allocated place
+                // for them.
                 state
                     .window_updates
                     .iter_mut()
-                    .map(|(window_id, update)| (*window_id, update.take()))
-                    .collect::<Vec<(WindowId, WindowUpdate)>>()
+                    .enumerate()
+                    .take(current_number_updates)
+                    .for_each(|(index, (window_id, window_update))| {
+                        window_updates[index].0 = *window_id;
+                        window_updates[index].1 = window_update.take();
+                    });
+
+                // Handle 'new' updates if anything is left.
+                state
+                    .window_updates
+                    .iter_mut()
+                    .skip(current_number_updates)
+                    .for_each(|(window_id, window_update)| {
+                        window_updates.push((*window_id, window_update.take()));
+                    });
             });
 
             for (window_id, window_update) in window_updates.iter_mut() {
-                let new_scale_factor = window_update.scale_factor.take();
-
-                if let Some(scale_factor) = new_scale_factor.as_ref() {
-                    let scale_factor = *scale_factor as f64;
+                if let Some(scale_factor) = window_update.scale_factor.map(|f| f as f64) {
                     let mut physical_size = self.with_state(|state| {
                         let window_handle = state.window_map.get(&window_id).unwrap();
                         let mut size = window_handle.size.lock().unwrap();
@@ -283,16 +308,17 @@ impl<T: 'static> EventLoop<T> {
                         let mut window_size = window_handle.size.lock().unwrap();
 
                         // Always issue resize event on scale factor change.
-                        let physical_size = if new_scale_factor.is_none() && *window_size == size {
-                            // The size hasn't changed, don't inform downstream about that.
-                            None
-                        } else {
-                            *window_size = size;
-                            let scale_factor =
-                                sctk::get_surface_scale_factor(&window_handle.window.surface());
-                            let physical_size = size.to_physical(scale_factor as f64);
-                            Some(physical_size)
-                        };
+                        let physical_size =
+                            if window_update.scale_factor.is_none() && *window_size == size {
+                                // The size hasn't changed, don't inform downstream about that.
+                                None
+                            } else {
+                                *window_size = size;
+                                let scale_factor =
+                                    sctk::get_surface_scale_factor(&window_handle.window.surface());
+                                let physical_size = size.to_physical(scale_factor as f64);
+                                Some(physical_size)
+                            };
 
                         // We still perform all of those resize related logic even if the size
                         // hasn't changed, since GNOME relies on `set_geometry` calls after
@@ -352,17 +378,6 @@ impl<T: 'static> EventLoop<T> {
                 sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
             }
 
-            // Handle pending user events. We don't need back buffer, since we can't dispatch
-            // user events indirectly via callback to the user.
-            for user_event in pending_user_events.borrow_mut().drain(..) {
-                sticky_exit_callback(
-                    Event::UserEvent(user_event),
-                    &self.window_target,
-                    &mut control_flow,
-                    &mut callback,
-                );
-            }
-
             // Send events cleared.
             sticky_exit_callback(
                 Event::MainEventsCleared,
@@ -372,7 +387,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
             // Handle RedrawRequested events.
-            for (window_id, window_update) in window_updates.iter_mut() {
+            for (window_id, window_update) in window_updates.iter() {
                 // Handle refresh of the frame.
                 if window_update.refresh_frame {
                     self.with_state(|state| {
@@ -413,7 +428,8 @@ impl<T: 'static> EventLoop<T> {
             // is the case, some events may have been enqueued in our event queue.
             //
             // If some messages are there, the event loop needs to behave as if it was instantly
-            // woken up by messages arriving from the Wayland socket, to avoid getting stuck.
+            // woken up by messages arriving from the Wayland socket, to avoid delaying the
+            // dispatch of these events until we're woken up again.
             let instant_wakeup = {
                 let handle = self.event_loop.handle();
                 let source = self.wayland_source.clone();
