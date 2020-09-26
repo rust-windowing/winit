@@ -473,18 +473,15 @@ impl MonitorHandleExtUnix for MonitorHandle {
 #[cfg(feature = "wayland")]
 pub trait Theme: Send + 'static {
     /// Title bar color.
-    fn titlebar_element_color(&self, element: TitleBarElement, window_active: bool) -> ARGBColor;
+    fn element_color(&self, element: Element, window_active: bool) -> ARGBColor;
 
     /// Color for a given button part.
-    ///
-    /// When `is_icon` is `true` the returned color is applied to a button's icon.
-    /// When `is_icon` is `false` the returned color is applied to a button's background.
     fn button_color(
         &self,
         button: Button,
-        is_icon: bool,
-        window_active: bool,
         state: ButtonState,
+        foreground: bool,
+        window_active: bool,
     ) -> ARGBColor;
 
     /// Font name and the size for the title bar.
@@ -492,7 +489,7 @@ pub trait Theme: Send + 'static {
     /// By default the font is `sans-serif` at the size of 11.
     ///
     /// Returning `None` means that title won't be drawn.
-    fn titlebar_font(&self) -> Option<(String, f32)> {
+    fn font(&self) -> Option<(String, f32)> {
         // Not having any title isn't something desirable for the users, so setting it to
         // something generic.
         Some((String::from("sans-serif"), 11.))
@@ -527,7 +524,7 @@ pub enum ButtonState {
 
 #[cfg(feature = "wayland")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TitleBarElement {
+pub enum Element {
     /// Bar itself.
     Bar,
 

@@ -93,8 +93,8 @@ impl KeyboardInner {
     }
 }
 
-impl ModifiersState {
-    pub(crate) fn from_wayland(mods: keyboard::ModifiersState) -> ModifiersState {
+impl From<keyboard::ModifiersState> for ModifiersState {
+    fn from(mods: keyboard::ModifiersState) -> ModifiersState {
         let mut wl_mods = ModifiersState::empty();
         wl_mods.set(ModifiersState::SHIFT, mods.shift);
         wl_mods.set(ModifiersState::CTRL, mods.ctrl);

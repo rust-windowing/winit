@@ -16,9 +16,7 @@ use raw_window_handle::unix::WaylandHandle;
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::monitor::MonitorHandle as RootMonitorHandle;
-use crate::platform::unix::{
-    ARGBColor as LocalARGBColor, Button, ButtonState, Theme, TitleBarElement,
-};
+use crate::platform::unix::{ARGBColor as LocalARGBColor, Button, ButtonState, Element, Theme};
 use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
@@ -426,17 +424,17 @@ impl Window {
                 .map(|button| {
                     let button = *button;
                     let idle_active_bg = theme
-                        .button_color(button, false, true, ButtonState::Idle)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Idle, false, true)
+                        .into();
                     let idle_inactive_bg = theme
-                        .button_color(button, false, false, ButtonState::Idle)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Idle, false, false)
+                        .into();
                     let idle_active_icon = theme
-                        .button_color(button, true, true, ButtonState::Idle)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Idle, true, true)
+                        .into();
                     let idle_inactive_icon = theme
-                        .button_color(button, true, false, ButtonState::Idle)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Idle, true, false)
+                        .into();
                     let idle_bg = ColorSpec {
                         active: idle_active_bg,
                         inactive: idle_inactive_bg,
@@ -447,17 +445,17 @@ impl Window {
                     };
 
                     let hovered_active_bg = theme
-                        .button_color(button, false, true, ButtonState::Hovered)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Hovered, false, true)
+                        .into();
                     let hovered_inactive_bg = theme
-                        .button_color(button, false, false, ButtonState::Hovered)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Hovered, false, false)
+                        .into();
                     let hovered_active_icon = theme
-                        .button_color(button, true, true, ButtonState::Hovered)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Hovered, true, true)
+                        .into();
                     let hovered_inactive_icon = theme
-                        .button_color(button, true, false, ButtonState::Hovered)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Hovered, true, false)
+                        .into();
                     let hovered_bg = ColorSpec {
                         active: hovered_active_bg,
                         inactive: hovered_inactive_bg,
@@ -468,17 +466,17 @@ impl Window {
                     };
 
                     let disabled_active_bg = theme
-                        .button_color(button, false, true, ButtonState::Disabled)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Disabled, false, true)
+                        .into();
                     let disabled_inactive_bg = theme
-                        .button_color(button, false, false, ButtonState::Disabled)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Disabled, false, false)
+                        .into();
                     let disabled_active_icon = theme
-                        .button_color(button, true, true, ButtonState::Disabled)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Disabled, true, true)
+                        .into();
                     let disabled_inactive_icon = theme
-                        .button_color(button, true, false, ButtonState::Disabled)
-                        .into_sctk();
+                        .button_color(button, ButtonState::Disabled, true, false)
+                        .into();
                     let disabled_bg = ColorSpec {
                         active: disabled_active_bg,
                         inactive: disabled_inactive_bg,
@@ -508,26 +506,22 @@ impl Window {
         let close_button = Some(buttons[2]);
 
         // The first color is bar, then separator, and then text color.
-        let titlebar_colors: Vec<ColorSpec> = [
-            TitleBarElement::Bar,
-            TitleBarElement::Separator,
-            TitleBarElement::Text,
-        ]
-        .iter()
-        .map(|element| {
-            let element = *element;
-            let active = theme.titlebar_element_color(element, true).into_sctk();
-            let inactive = theme.titlebar_element_color(element, false).into_sctk();
+        let titlebar_colors: Vec<ColorSpec> = [Element::Bar, Element::Separator, Element::Text]
+            .iter()
+            .map(|element| {
+                let element = *element;
+                let active = theme.element_color(element, true).into();
+                let inactive = theme.element_color(element, false).into();
 
-            ColorSpec { active, inactive }
-        })
-        .collect();
+                ColorSpec { active, inactive }
+            })
+            .collect();
 
         let primary_color = titlebar_colors[0];
         let secondary_color = titlebar_colors[1];
         let title_color = titlebar_colors[2];
 
-        let title_font = theme.titlebar_font();
+        let title_font = theme.font();
 
         let concept_config = ConceptConfig {
             primary_color,
@@ -643,14 +637,13 @@ impl Window {
     }
 }
 
-impl LocalARGBColor {
-    pub(crate) fn into_sctk(self) -> ARGBColor {
-        ARGBColor {
-            a: self.a,
-            r: self.r,
-            g: self.g,
-            b: self.b,
-        }
+impl From<LocalARGBColor> for ARGBColor {
+    fn from(color: LocalARGBColor) -> Self {
+        let a = color.a;
+        let r = color.r;
+        let g = color.g;
+        let b = color.b;
+        Self { a, r, g, b }
     }
 }
 

@@ -135,7 +135,7 @@ pub(super) fn handle_keyboard(
             }
         }
         KeyboardEvent::Modifiers { modifiers } => {
-            let modifiers = ModifiersState::from_wayland(modifiers);
+            let modifiers = ModifiersState::from(modifiers);
             if let Some(window_id) = inner.target_window_id {
                 *inner.modifiers_state.borrow_mut() = modifiers;
 
