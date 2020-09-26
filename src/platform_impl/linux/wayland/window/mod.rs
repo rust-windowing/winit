@@ -517,7 +517,7 @@ impl Window {
         .map(|element| {
             let element = *element;
             let active = theme.titlebar_element_color(element, true).into_sctk();
-            let inactive = theme.titlebar_element_color(element, true).into_sctk();
+            let inactive = theme.titlebar_element_color(element, false).into_sctk();
 
             ColorSpec { active, inactive }
         })

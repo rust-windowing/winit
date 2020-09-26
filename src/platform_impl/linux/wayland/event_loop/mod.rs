@@ -78,17 +78,11 @@ pub struct EventLoop<T: 'static> {
     /// Pending user events.
     pending_user_events: Rc<RefCell<Vec<T>>>,
 
-    /// Source of user events.
-    _user_events_source: calloop::Source<calloop::channel::Channel<T>>,
-
     /// Sender of user events.
     user_events_sender: calloop::channel::Sender<T>,
 
     /// Wayland source of events.
     wayland_source: Rc<calloop::Source<WaylandSource>>,
-
-    /// Source of event loop wake ups, where we handle pending window requests.
-    _event_loop_awakener_source: calloop::Source<calloop::ping::PingSource>,
 
     /// Window target.
     window_target: RootEventLoopWindowTarget<T>,
@@ -135,23 +129,22 @@ impl<T: 'static> EventLoop<T> {
         let (user_events_sender, user_events_channel) = calloop::channel::channel();
 
         // User events channel.
-        let user_events_source =
-            event_loop
-                .handle()
-                .insert_source(user_events_channel, move |event, _, _| {
-                    if let calloop::channel::Event::Msg(msg) = event {
-                        pending_user_events_clone.borrow_mut().push(msg);
-                    }
-                })?;
+        event_loop
+            .handle()
+            .insert_source(user_events_channel, move |event, _, _| {
+                if let calloop::channel::Event::Msg(msg) = event {
+                    pending_user_events_clone.borrow_mut().push(msg);
+                }
+            })?;
 
         // An event's loop awakener to wake up for window events from winit's windows.
         let (event_loop_awakener, event_loop_awakener_source) = calloop::ping::make_ping()?;
 
         // Handler of window requests.
-        let event_loop_awakener_source = event_loop.handle().insert_source(
+        event_loop.handle().insert_source(
             event_loop_awakener_source,
             move |_, _, winit_state| {
-                shim::handle_window_requsts(winit_state);
+                shim::handle_window_requests(winit_state);
             },
         )?;
 
@@ -184,9 +177,7 @@ impl<T: 'static> EventLoop<T> {
             display,
             pending_user_events,
             wayland_source,
-            _user_events_source: user_events_source,
             _seat_manager: seat_manager,
-            _event_loop_awakener_source: event_loop_awakener_source,
             user_events_sender,
             window_target: RootEventLoopWindowTarget {
                 p: crate::platform_impl::EventLoopWindowTarget::Wayland(event_loop_window_target),
@@ -244,28 +235,13 @@ impl<T: 'static> EventLoop<T> {
 
             // Process 'new' pending updates.
             self.with_state(|state| {
-                let current_number_updates = window_updates.len();
-
-                // Process updates that we'll change in place, since we've already allocated place
-                // for them.
-                state
-                    .window_updates
-                    .iter_mut()
-                    .enumerate()
-                    .take(current_number_updates)
-                    .for_each(|(index, (window_id, window_update))| {
-                        window_updates[index].0 = *window_id;
-                        window_updates[index].1 = window_update.take();
-                    });
-
-                // Handle 'new' updates if anything is left.
-                state
-                    .window_updates
-                    .iter_mut()
-                    .skip(current_number_updates)
-                    .for_each(|(window_id, window_update)| {
-                        window_updates.push((*window_id, window_update.take()));
-                    });
+                window_updates.clear();
+                window_updates.extend(
+                    state
+                        .window_updates
+                        .iter_mut()
+                        .map(|(wid, window_update)| (*wid, window_update.take())),
+                );
             });
 
             for (window_id, window_update) in window_updates.iter_mut() {

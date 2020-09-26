@@ -271,7 +271,7 @@ impl WindowHandle {
 }
 
 #[inline]
-pub fn handle_window_requsts(winit_state: &mut WinitState) {
+pub fn handle_window_requests(winit_state: &mut WinitState) {
     let window_map = &mut winit_state.window_map;
     let window_updates = &mut winit_state.window_updates;
     let mut windows_to_close: Vec<WindowId> = Vec::new();

@@ -25,10 +25,8 @@ impl<T: 'static> EventLoopProxy<T> {
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.user_events_sender.send(event).map_err(|error| {
-            let SendError(error) = error;
-
-            EventLoopClosed(error)
-        })
+        self.user_events_sender
+            .send(event)
+            .map_err(|SendError(error)| EventLoopClosed(error))
     }
 }

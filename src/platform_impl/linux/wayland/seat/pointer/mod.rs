@@ -59,132 +59,55 @@ impl WinitPointer {
             }
         };
 
-        let cursor = match cursor_icon {
-            CursorIcon::Alias => "link",
-            CursorIcon::Arrow => "arrow",
-            CursorIcon::Cell => "plus",
-            CursorIcon::Copy => "copy",
-            CursorIcon::Crosshair => "crosshair",
-            CursorIcon::Default => "left_ptr",
-            CursorIcon::Hand => "hand",
-            CursorIcon::Help => "question_arrow",
-            CursorIcon::Move => "move",
-            CursorIcon::Grab => {
-                if self
-                    .pointer
-                    .set_cursor("openhand", Some(self.latest_serial.get()))
-                    .is_ok()
-                {
-                    return;
-                }
+        let cursors: &[&str] = match cursor_icon {
+            CursorIcon::Alias => &["link"],
+            CursorIcon::Arrow => &["arrow"],
+            CursorIcon::Cell => &["plus"],
+            CursorIcon::Copy => &["copy"],
+            CursorIcon::Crosshair => &["crosshair"],
+            CursorIcon::Default => &["left_ptr"],
+            CursorIcon::Hand => &["hand"],
+            CursorIcon::Help => &["question_arrow"],
+            CursorIcon::Move => &["move"],
+            CursorIcon::Grab => &["openhand", "grab"],
+            CursorIcon::Grabbing => &["closedhand", "grabbing"],
+            CursorIcon::Progress => &["progress"],
+            CursorIcon::AllScroll => &["all-scroll"],
+            CursorIcon::ContextMenu => &["context-menu"],
 
-                "grab"
-            }
-            CursorIcon::Grabbing => {
-                if self
-                    .pointer
-                    .set_cursor("closedhand", Some(self.latest_serial.get()))
-                    .is_ok()
-                {
-                    return;
-                }
-
-                "grabbing"
-            }
-            CursorIcon::Progress => "progress",
-            CursorIcon::AllScroll => "all-scroll",
-            CursorIcon::ContextMenu => "context-menu",
-
-            CursorIcon::NoDrop => {
-                if self
-                    .pointer
-                    .set_cursor("no-drop", Some(self.latest_serial.get()))
-                    .is_ok()
-                {
-                    return;
-                }
-
-                "circle"
-            }
-            CursorIcon::NotAllowed => "crossed_circle",
+            CursorIcon::NoDrop => &["no-drop", "circle"],
+            CursorIcon::NotAllowed => &["crossed_circle"],
 
             // Resize cursors
-            CursorIcon::EResize => "right_side",
-            CursorIcon::NResize => "top_side",
-            CursorIcon::NeResize => "top_right_corner",
-            CursorIcon::NwResize => "top_left_corner",
-            CursorIcon::SResize => "bottom_side",
-            CursorIcon::SeResize => "bottom_right_corner",
-            CursorIcon::SwResize => "bottom_left_corner",
-            CursorIcon::WResize => "left_side",
-            CursorIcon::EwResize => "h_double_arrow",
-            CursorIcon::NsResize => "v_double_arrow",
-            CursorIcon::NwseResize => {
-                if self
-                    .pointer
-                    .set_cursor("bd_double_arrow", Some(self.latest_serial.get()))
-                    .is_ok()
-                {
-                    return;
-                }
+            CursorIcon::EResize => &["right_side"],
+            CursorIcon::NResize => &["top_side"],
+            CursorIcon::NeResize => &["top_right_corner"],
+            CursorIcon::NwResize => &["top_left_corner"],
+            CursorIcon::SResize => &["bottom_side"],
+            CursorIcon::SeResize => &["bottom_right_corner"],
+            CursorIcon::SwResize => &["bottom_left_corner"],
+            CursorIcon::WResize => &["left_side"],
+            CursorIcon::EwResize => &["h_double_arrow"],
+            CursorIcon::NsResize => &["v_double_arrow"],
+            CursorIcon::NwseResize => &["bd_double_arrow", "size_bdiag"],
+            CursorIcon::NeswResize => &["fd_double_arrow", "size_fdiag"],
+            CursorIcon::ColResize => &["split_h", "h_double_arrow"],
+            CursorIcon::RowResize => &["split_v", "v_double_arrow"],
+            CursorIcon::Text => &["text", "xterm"],
+            CursorIcon::VerticalText => &["vertical-text"],
 
-                "size_bdiag"
-            }
-            CursorIcon::NeswResize => {
-                if self
-                    .pointer
-                    .set_cursor("fd_double_arrow", Some(self.latest_serial.get()))
-                    .is_ok()
-                {
-                    return;
-                }
+            CursorIcon::Wait => &["watch"],
 
-                "size_fdiag"
-            }
-            CursorIcon::ColResize => {
-                if self
-                    .pointer
-                    .set_cursor("split_h", Some(self.latest_serial.get()))
-                    .is_ok()
-                {
-                    return;
-                }
-
-                "h_double_arrow"
-            }
-            CursorIcon::RowResize => {
-                if self
-                    .pointer
-                    .set_cursor("split_v", Some(self.latest_serial.get()))
-                    .is_ok()
-                {
-                    return;
-                }
-
-                "v_double_arrow"
-            }
-            CursorIcon::Text => {
-                if self
-                    .pointer
-                    .set_cursor("text", Some(self.latest_serial.get()))
-                    .is_ok()
-                {
-                    return;
-                }
-
-                "xterm"
-            }
-            CursorIcon::VerticalText => "vertical-text",
-
-            CursorIcon::Wait => "watch",
-
-            CursorIcon::ZoomIn => "zoom-in",
-            CursorIcon::ZoomOut => "zoom-out",
+            CursorIcon::ZoomIn => &["zoom-in"],
+            CursorIcon::ZoomOut => &["zoom-out"],
         };
 
-        let _ = self
-            .pointer
-            .set_cursor(cursor, Some(self.latest_serial.get()));
+        let serial = Some(self.latest_serial.get());
+        for cursor in cursors {
+            if self.pointer.set_cursor(cursor, serial).is_ok() {
+                break;
+            }
+        }
     }
 
     /// Confine the pointer to a surface.
