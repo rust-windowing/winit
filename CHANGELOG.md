@@ -58,7 +58,7 @@
 - On Wayland, fix crash when `XCURSOR_SIZE` is `0`.
 - On Wayland, fix pointer getting created in some cases without pointer capability.
 - On Wayland, on kwin, fix space between window and decorations on startup.
-- On Wayland, added `title_font` and `title_color` methods on a `Theme` trait.
+- **Breaking:** On Wayland, `Theme` trait was reworked.
 - On Wayland, disable maximize button for non-resizable window.
 - On Wayland, added support for `set_ime_position`.
 

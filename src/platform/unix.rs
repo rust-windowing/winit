@@ -470,62 +470,52 @@ impl MonitorHandleExtUnix for MonitorHandle {
 }
 
 /// A theme for a Wayland's client side decorations.
-///
-/// The colors are in ARGB format.
+#[cfg(feature = "wayland")]
 pub trait Theme: Send + 'static {
-    /// Primary color of the scheme.
-    fn primary_color(&self, window_active: bool) -> [u8; 4];
+    /// Title bar color.
+    fn titlebar_element_color(&self, element: TitleBarElement, window_active: bool) -> ARGBColor;
 
-    /// Secondary color of the scheme.
-    fn secondary_color(&self, window_active: bool) -> [u8; 4];
-
-    /// Color for the close button.
-    fn close_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the close button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn close_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.title_color(true)
-    }
-
-    /// Background color for the maximize button.
-    fn maximize_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the maximize button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn maximize_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.title_color(true)
-    }
-
-    /// Background color for the minimize button.
-    fn minimize_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the minimize button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn minimize_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.title_color(true)
-    }
+    /// Color for a given button part.
+    ///
+    /// When `is_icon` is `true` the returned color is applied to a button's icon.
+    /// When `is_icon` is `false` the returned color is applied to a button's background.
+    fn button_color(
+        &self,
+        button: Button,
+        is_icon: bool,
+        window_active: bool,
+        state: ButtonState,
+    ) -> ARGBColor;
 
     /// Font name and the size for the title bar.
     ///
     /// By default the font is `sans-serif` at the size of 11.
     ///
     /// Returning `None` means that title won't be drawn.
-    fn title_font(&self) -> Option<(String, f32)> {
+    fn titlebar_font(&self) -> Option<(String, f32)> {
         // Not having any title isn't something desirable for the users, so setting it to
         // something generic.
         Some((String::from("sans-serif"), 11.))
     }
-
-    /// Title text color.
-    ///
-    /// By default it uses the same color as `secondary_color`.
-    fn title_color(&self, window_active: bool) -> [u8; 4] {
-        // This is done for compatibility reasons.
-        self.secondary_color(window_active)
-    }
 }
 
+/// A button on Wayland's client side decorations.
+#[cfg(feature = "wayland")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Button {
+    /// Button that maximizes the window.
+    Maximize,
+
+    /// Button that minimizes the window.
+    Minimize,
+
+    /// Button that closes the window.
+    Close,
+}
+
+/// A button state of the button on Wayland's client side decorations.
+#[cfg(feature = "wayland")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ButtonState {
     /// Button is being hovered over by pointer.
     Hovered,
@@ -533,4 +523,26 @@ pub enum ButtonState {
     Idle,
     /// Button is disabled.
     Disabled,
+}
+
+#[cfg(feature = "wayland")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TitleBarElement {
+    /// Bar itself.
+    Bar,
+
+    /// Separator between window and title bar.
+    Separator,
+
+    /// Title bar text.
+    Text,
+}
+
+#[cfg(feature = "wayland")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ARGBColor {
+    pub a: u8,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }

@@ -16,7 +16,9 @@ use raw_window_handle::unix::WaylandHandle;
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::monitor::MonitorHandle as RootMonitorHandle;
-use crate::platform::unix::{ButtonState, Theme};
+use crate::platform::unix::{
+    ARGBColor as LocalARGBColor, Button, ButtonState, Theme, TitleBarElement,
+};
 use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
@@ -417,115 +419,124 @@ impl Window {
 
     #[inline]
     pub fn set_theme<T: Theme>(&self, theme: T) {
-        let button_element_color =
-            |theme: &dyn Theme,
-             button_element_color: fn(&dyn Theme, ButtonState) -> [u8; 4]|
-             -> ButtonColorSpec {
-                let idle_color = button_element_color(theme, ButtonState::Idle);
-                let hovered_color = button_element_color(theme, ButtonState::Hovered);
-                let disabled_color = button_element_color(theme, ButtonState::Disabled);
+        // First buttons is minimize, then maximize, and then close.
+        let buttons: Vec<(ButtonColorSpec, ButtonColorSpec)> =
+            [Button::Minimize, Button::Maximize, Button::Close]
+                .iter()
+                .map(|button| {
+                    let button = *button;
+                    let idle_active_bg = theme
+                        .button_color(button, false, true, ButtonState::Idle)
+                        .into_sctk();
+                    let idle_inactive_bg = theme
+                        .button_color(button, false, false, ButtonState::Idle)
+                        .into_sctk();
+                    let idle_active_icon = theme
+                        .button_color(button, true, true, ButtonState::Idle)
+                        .into_sctk();
+                    let idle_inactive_icon = theme
+                        .button_color(button, true, false, ButtonState::Idle)
+                        .into_sctk();
+                    let idle_bg = ColorSpec {
+                        active: idle_active_bg,
+                        inactive: idle_inactive_bg,
+                    };
+                    let idle_icon = ColorSpec {
+                        active: idle_active_icon,
+                        inactive: idle_inactive_icon,
+                    };
 
-                let idle = ARGBColor {
-                    a: idle_color[0],
-                    r: idle_color[1],
-                    g: idle_color[2],
-                    b: idle_color[3],
-                };
-                let idle = ColorSpec {
-                    active: idle,
-                    inactive: idle,
-                };
+                    let hovered_active_bg = theme
+                        .button_color(button, false, true, ButtonState::Hovered)
+                        .into_sctk();
+                    let hovered_inactive_bg = theme
+                        .button_color(button, false, false, ButtonState::Hovered)
+                        .into_sctk();
+                    let hovered_active_icon = theme
+                        .button_color(button, true, true, ButtonState::Hovered)
+                        .into_sctk();
+                    let hovered_inactive_icon = theme
+                        .button_color(button, true, false, ButtonState::Hovered)
+                        .into_sctk();
+                    let hovered_bg = ColorSpec {
+                        active: hovered_active_bg,
+                        inactive: hovered_inactive_bg,
+                    };
+                    let hovered_icon = ColorSpec {
+                        active: hovered_active_icon,
+                        inactive: hovered_inactive_icon,
+                    };
 
-                let hovered = ARGBColor {
-                    a: hovered_color[0],
-                    r: hovered_color[1],
-                    g: hovered_color[2],
-                    b: hovered_color[3],
-                };
-                let hovered = ColorSpec {
-                    active: hovered,
-                    inactive: hovered,
-                };
+                    let disabled_active_bg = theme
+                        .button_color(button, false, true, ButtonState::Disabled)
+                        .into_sctk();
+                    let disabled_inactive_bg = theme
+                        .button_color(button, false, false, ButtonState::Disabled)
+                        .into_sctk();
+                    let disabled_active_icon = theme
+                        .button_color(button, true, true, ButtonState::Disabled)
+                        .into_sctk();
+                    let disabled_inactive_icon = theme
+                        .button_color(button, true, false, ButtonState::Disabled)
+                        .into_sctk();
+                    let disabled_bg = ColorSpec {
+                        active: disabled_active_bg,
+                        inactive: disabled_inactive_bg,
+                    };
+                    let disabled_icon = ColorSpec {
+                        active: disabled_active_icon,
+                        inactive: disabled_inactive_icon,
+                    };
 
-                let disabled = ARGBColor {
-                    a: disabled_color[0],
-                    r: disabled_color[1],
-                    g: disabled_color[2],
-                    b: disabled_color[3],
-                };
-                let disabled = ColorSpec {
-                    active: disabled,
-                    inactive: disabled,
-                };
+                    let button_bg = ButtonColorSpec {
+                        idle: idle_bg,
+                        hovered: hovered_bg,
+                        disabled: disabled_bg,
+                    };
+                    let button_icon = ButtonColorSpec {
+                        idle: idle_icon,
+                        hovered: hovered_icon,
+                        disabled: disabled_icon,
+                    };
 
-                ButtonColorSpec {
-                    idle,
-                    hovered,
-                    disabled,
-                }
-            };
+                    (button_icon, button_bg)
+                })
+                .collect();
 
-        let primary_element_color = |theme: &dyn Theme,
-                                     primary_element_color: fn(&dyn Theme, bool) -> [u8; 4]|
-         -> ColorSpec {
-            let active = primary_element_color(theme, true);
-            let inactive = primary_element_color(theme, false);
+        let minimize_button = Some(buttons[0]);
+        let maximize_button = Some(buttons[1]);
+        let close_button = Some(buttons[2]);
 
-            let active = ARGBColor {
-                a: active[0],
-                r: active[1],
-                g: active[2],
-                b: active[3],
-            };
-
-            let inactive = ARGBColor {
-                a: inactive[0],
-                r: inactive[1],
-                g: inactive[2],
-                b: inactive[3],
-            };
+        // The first color is bar, then separator, and then text color.
+        let titlebar_colors: Vec<ColorSpec> = [
+            TitleBarElement::Bar,
+            TitleBarElement::Separator,
+            TitleBarElement::Text,
+        ]
+        .iter()
+        .map(|element| {
+            let element = *element;
+            let active = theme.titlebar_element_color(element, true).into_sctk();
+            let inactive = theme.titlebar_element_color(element, true).into_sctk();
 
             ColorSpec { active, inactive }
-        };
+        })
+        .collect();
 
-        let primary_color = primary_element_color(&theme, Theme::primary_color);
-        let secondary_color = primary_element_color(&theme, Theme::secondary_color);
-        let title_color = primary_element_color(&theme, Theme::title_color);
+        let primary_color = titlebar_colors[0];
+        let secondary_color = titlebar_colors[1];
+        let title_color = titlebar_colors[2];
 
-        let close_button = {
-            let close_button_icon_color =
-                button_element_color(&theme, Theme::close_button_icon_color);
-            let close_button_color = button_element_color(&theme, Theme::close_button_color);
-
-            Some((close_button_icon_color, close_button_color))
-        };
-
-        let maximize_button = {
-            let maximize_button_icon_color =
-                button_element_color(&theme, Theme::maximize_button_icon_color);
-            let maximize_button_color = button_element_color(&theme, Theme::maximize_button_color);
-
-            Some((maximize_button_icon_color, maximize_button_color))
-        };
-
-        let minimize_button = {
-            let minimize_button_icon_color =
-                button_element_color(&theme, Theme::minimize_button_icon_color);
-            let minimize_button_color = button_element_color(&theme, Theme::minimize_button_color);
-
-            Some((minimize_button_icon_color, minimize_button_color))
-        };
-
-        let title_font = theme.title_font();
+        let title_font = theme.titlebar_font();
 
         let concept_config = ConceptConfig {
             primary_color,
             secondary_color,
             title_color,
             title_font,
-            close_button,
-            maximize_button,
             minimize_button,
+            maximize_button,
+            close_button,
         };
 
         let theme_request = WindowRequest::Theme(concept_config);
@@ -628,6 +639,17 @@ impl Window {
             display,
             surface,
             ..WaylandHandle::empty()
+        }
+    }
+}
+
+impl LocalARGBColor {
+    pub(crate) fn into_sctk(self) -> ARGBColor {
+        ARGBColor {
+            a: self.a,
+            r: self.r,
+            g: self.g,
+            b: self.b,
         }
     }
 }
