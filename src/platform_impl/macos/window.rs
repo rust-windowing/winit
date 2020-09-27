@@ -89,6 +89,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
+            ignore_alt_modifier: false,
         }
     }
 }
