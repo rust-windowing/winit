@@ -31,8 +31,7 @@ use crate::{
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
-        PlatformSpecificWindowBuilderAttributes,
-        DEVICE_ID,
+        PlatformSpecificWindowBuilderAttributes, DEVICE_ID,
     },
     window::WindowId,
 };
