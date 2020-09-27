@@ -258,10 +258,6 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
-        get_xtarget(&self.target).x_connection()
-    }
-
     pub fn run_return<F>(&mut self, mut callback: F)
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
@@ -426,6 +422,7 @@ impl<T: 'static> EventLoop<T> {
 pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
+        #[cfg(feature = "wayland")]
         _ => unreachable!(),
     }
 }
@@ -493,8 +490,20 @@ impl<'a> Deref for DeviceInfo<'a> {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(ffi::Window);
 
+impl WindowId {
+    pub unsafe fn dummy() -> Self {
+        WindowId(0)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
+
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId(0)
+    }
+}
 
 pub struct Window(Arc<UnownedWindow>);
 

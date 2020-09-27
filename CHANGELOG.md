@@ -1,5 +1,50 @@
 # Unreleased
 
+- On iOS, fixed support for the "Debug View Heirarchy" feature in Xcode.
+- On all platforms, `available_monitors` and `primary_monitor` are now on `EventLoopWindowTarget` rather than `EventLoop` to list monitors event in the event loop.
+- On Unix, X11 and Wayland are now optional features (enabled by default)
+- On X11, fix deadlock when calling `set_fullscreen_inner`.
+- On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
+- On Web, calling `window.set_cursor_icon` no longer breaks HiDPI scaling
+- On Windows, drag and drop is now optional and must be enabled with `WindowBuilderExtWindows::with_drag_and_drop(true)`.
+- On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
+- On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
+- On android added support for `run_return`.
+- On MacOS, Fixed fullscreen and dialog support for `run_return`.
+- On Windows, fix bug where we'd try to emit `MainEventsCleared` events during nested win32 event loops.
+- On Web, use mouse events if pointer events aren't supported. This affects Safari.
+- On Windows, `set_ime_position` is now a no-op instead of a runtime crash.
+- On Android, `set_fullscreen` is now a no-op instead of a runtime crash.
+- On iOS and Android, `set_inner_size` is now a no-op instead of a runtime crash.
+- On Android, fix `ControlFlow::Poll` not polling the Android event queue.
+- On macOS, add `NSWindow.hasShadow` support.
+- On Web, fix vertical mouse wheel scrolling being inverted.
+- On Web, implement mouse capturing for click-dragging out of the canvas.
+- On Web, fix `ControlFlow::Exit` not properly handled.
+- On Web (web-sys only), send `WindowEvent::ScaleFactorChanged` event when `window.devicePixelRatio` is changed.
+- **Breaking:** On Web, `set_cursor_position` and `set_cursor_grab` will now always return an error.
+- **Breaking:** `PixelDelta` scroll events now return a `PhysicalPosition`.
+- On NetBSD, fixed crash due to incorrect detection of the main thread.
+- **Breaking:** On X11, `-` key is mapped to the `Minus` virtual key code, instead of `Subtract`.
+- On macOS, fix inverted horizontal scroll.
+- **Breaking:** `current_monitor` now returns `Option<MonitorHandle>`.
+- **Breaking:** `primary_monitor` now returns `Option<MonitorHandle>`.
+- On macOS, updated core-* dependencies and cocoa.
+- Bump `parking_lot` to 0.11
+- On Android, bump `ndk`, `ndk-sys` and `ndk-glue` to 0.2. Checkout the new ndk-glue main proc attribute.
+- On iOS, fixed starting the app in landscape where the view still had portrait dimensions.
+- Deprecate the stdweb backend, to be removed in a future release
+- **Breaking:** Prefixed virtual key codes `Add`, `Multiply`, `Divide`, `Decimal`, and `Subtract` with `Numpad`.
+- Added `Asterisk` and `Plus` virtual key codes.
+- On Web (web-sys only), the `Event::LoopDestroyed` event is correctly emitted when leaving the page.
+- On Web, the `WindowEvent::Destroyed` event now gets emitted when a `Window` is dropped.
+- On Web (web-sys only), the event listeners are now removed when a `Window` is dropped or when the event loop is destroyed.
+- On Web, the event handler closure passed to `EventLoop::run` now gets dropped after the event loop is destroyed.
+- **Breaking:** On Web, the canvas element associated to a `Window` is no longer removed from the DOM when the `Window` is dropped.
+- On Web, `WindowEvent::Resized` is now emitted when `Window::set_inner_size` is called.
+- **Breaking:** `Fullscreen` enum now uses `Borderless(Option<MonitorHandle>)` instead of `Borderless(MonitorHandle)` to allow picking the current monitor.
+- On MacOS, fix `WindowEvent::Moved` ignoring the scale factor.
+
 # 0.22.2 (2020-05-16)
 
 - Added Clone implementation for 'static events.
@@ -15,6 +60,7 @@
 - On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
 - On Web, fix a possible panic during event handling
 - On macOS, fix `EventLoopProxy` leaking memory for every instance.
+- On Windows, drag and drop can now be disabled with `WindowBuilderExtWindows::with_drag_and_drop(false)`.
 
 # 0.22.0 (2020-03-09)
 

@@ -10,9 +10,9 @@ use stdweb::js;
 use stdweb::traits::IPointerEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{
-    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, KeyDownEvent, KeyPressEvent,
-    KeyUpEvent, MouseWheelEvent, PointerDownEvent, PointerMoveEvent, PointerOutEvent,
-    PointerOverEvent, PointerUpEvent,
+    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, IEvent, KeyDownEvent,
+    KeyPressEvent, KeyUpEvent, MouseWheelEvent, PointerDownEvent, PointerMoveEvent,
+    PointerOutEvent, PointerOverEvent, PointerUpEvent,
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{
@@ -35,12 +35,6 @@ pub struct Canvas {
     on_mouse_wheel: Option<EventListenerHandle>,
     on_fullscreen_change: Option<EventListenerHandle>,
     wants_fullscreen: Rc<RefCell<bool>>,
-}
-
-impl Drop for Canvas {
-    fn drop(&mut self) {
-        self.raw.remove();
-    }
 }
 
 impl Canvas {
@@ -130,6 +124,7 @@ impl Canvas {
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
         self.on_keyboard_release = Some(self.add_user_event(move |event: KeyUpEvent| {
+            event.prevent_default();
             handler(
                 event::scan_code(&event),
                 event::virtual_key_code(&event),
@@ -143,6 +138,7 @@ impl Canvas {
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
         self.on_keyboard_press = Some(self.add_user_event(move |event: KeyDownEvent| {
+            event.prevent_default();
             handler(
                 event::scan_code(&event),
                 event::virtual_key_code(&event),
@@ -198,14 +194,19 @@ impl Canvas {
 
     pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
+        let canvas = self.raw.clone();
         self.on_mouse_press = Some(self.add_user_event(move |event: PointerDownEvent| {
             handler(
                 event.pointer_id(),
+                event::mouse_position(&event).to_physical(super::scale_factor()),
                 event::mouse_button(&event),
                 event::mouse_modifiers(&event),
             );
+            canvas
+                .set_pointer_capture(event.pointer_id())
+                .expect("Failed to set pointer capture");
         }));
     }
 
@@ -228,6 +229,7 @@ impl Canvas {
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
         self.on_mouse_wheel = Some(self.add_event(move |event: MouseWheelEvent| {
+            event.prevent_default();
             if let Some(delta) = event::mouse_scroll_delta(&event) {
                 handler(0, delta, event::mouse_modifiers(&event));
             }
@@ -297,5 +299,9 @@ impl Canvas {
 
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
+    }
+
+    pub fn remove_listeners(&mut self) {
+        // TODO: Stub, unimplemented (see web_sys for reference).
     }
 }

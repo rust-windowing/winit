@@ -142,7 +142,7 @@ impl Inner {
     }
 
     pub fn set_inner_size(&self, _size: Size) {
-        unimplemented!("not clear what `Window::set_inner_size` means on iOS");
+        warn!("not clear what `Window::set_inner_size` means on iOS");
     }
 
     pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
@@ -196,7 +196,9 @@ impl Inner {
                     let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
                     uiscreen
                 }
-                Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(monitor)) => monitor
+                    .unwrap_or_else(|| self.current_monitor_inner())
+                    .ui_screen() as id,
                 None => {
                     warn!("`Window::set_fullscreen(None)` ignored on iOS");
                     return;
@@ -224,7 +226,7 @@ impl Inner {
 
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
-            let monitor = self.current_monitor();
+            let monitor = self.current_monitor_inner();
             let uiscreen = monitor.inner.ui_screen();
             let screen_space_bounds = self.screen_frame();
             let screen_bounds: CGRect = msg_send![uiscreen, bounds];
@@ -235,7 +237,7 @@ impl Inner {
                 && screen_space_bounds.size.width == screen_bounds.size.width
                 && screen_space_bounds.size.height == screen_bounds.size.height
             {
-                Some(Fullscreen::Borderless(monitor))
+                Some(Fullscreen::Borderless(Some(monitor)))
             } else {
                 None
             }
@@ -258,7 +260,8 @@ impl Inner {
         warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
-    pub fn current_monitor(&self) -> RootMonitorHandle {
+    // Allow directly accessing the current monitor internally without unwrapping.
+    fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
             let uiscreen: id = msg_send![self.window, screen];
             RootMonitorHandle {
@@ -267,12 +270,17 @@ impl Inner {
         }
     }
 
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(self.current_monitor_inner())
+    }
+
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         unsafe { monitor::uiscreens() }
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        unsafe { monitor::main_uiscreen() }
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = unsafe { monitor::main_uiscreen() };
+        Some(RootMonitorHandle { inner: monitor })
     }
 
     pub fn id(&self) -> WindowId {
@@ -347,8 +355,10 @@ impl Window {
                 Some(Fullscreen::Exclusive(ref video_mode)) => {
                     video_mode.video_mode.monitor.ui_screen() as id
                 }
-                Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
-                None => monitor::main_uiscreen().ui_screen(),
+                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.inner.ui_screen(),
+                Some(Fullscreen::Borderless(None)) | None => {
+                    monitor::main_uiscreen().ui_screen() as id
+                }
             };
 
             let screen_bounds: CGRect = msg_send![screen, bounds];

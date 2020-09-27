@@ -1,7 +1,7 @@
 use std::{
     f64,
     os::raw::c_void,
-    sync::{Arc, Weak},
+    sync::{atomic::Ordering, Arc, Weak},
 };
 
 use cocoa::{
@@ -15,10 +15,11 @@ use objc::{
 };
 
 use crate::{
-    dpi::LogicalSize,
+    dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
+        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
@@ -111,7 +112,9 @@ impl WindowDelegateState {
         let moved = self.previous_position != Some((x, y));
         if moved {
             self.previous_position = Some((x, y));
-            self.emit_event(WindowEvent::Moved((x, y).into()));
+            let scale_factor = self.get_scale_factor();
+            let physical_pos = LogicalPosition::<f64>::from((x, y)).to_physical(scale_factor);
+            self.emit_event(WindowEvent::Moved(physical_pos));
         }
     }
 
@@ -429,6 +432,9 @@ extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
 /// Invoked when before enter fullscreen
 extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillEnterFullscreen:`");
+
+    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
+
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_will_enter_fullscreen`");
@@ -446,7 +452,8 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    shared_state.fullscreen = Some(Fullscreen::Borderless(window.current_monitor()))
+                    let current_monitor = Some(window.current_monitor_inner());
+                    shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
                 }
             }
             shared_state.in_fullscreen_transition = true;
@@ -459,6 +466,9 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
 /// Invoked when before exit fullscreen
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillExitFullScreen:`");
+
+    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
+
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_will_exit_fullscreen`");
@@ -492,6 +502,8 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
+    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
+
     trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
         state.initial_fullscreen = false;
@@ -512,6 +524,8 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
 
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
+    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
+
     trace!("Triggered `windowDidExitFullscreen:`");
     with_state(this, |state| {
         state.with_window(|window| {

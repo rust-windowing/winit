@@ -10,8 +10,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{
-        platform::wayland::event_loop::{available_monitors, primary_monitor},
-        MonitorHandle as PlatformMonitorHandle,
+        platform::wayland::event_loop::available_monitors, MonitorHandle as PlatformMonitorHandle,
         PlatformSpecificWindowBuilderAttributes as PlAttributes,
     },
     window::{CursorIcon, Fullscreen, WindowAttributes},
@@ -155,10 +154,16 @@ impl Window {
             Some(Fullscreen::Exclusive(_)) => {
                 panic!("Wayland doesn't support exclusive fullscreen")
             }
-            Some(Fullscreen::Borderless(RootMonitorHandle {
-                inner: PlatformMonitorHandle::Wayland(ref monitor_id),
-            })) => frame.set_fullscreen(Some(&monitor_id.proxy)),
-            Some(Fullscreen::Borderless(_)) => unreachable!(),
+            Some(Fullscreen::Borderless(monitor)) => {
+                let monitor =
+                    monitor.and_then(|RootMonitorHandle { inner: monitor }| match monitor {
+                        PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
+                        #[cfg(feature = "x11")]
+                        PlatformMonitorHandle::X(_) => None,
+                    });
+
+                frame.set_fullscreen(monitor.as_ref())
+            }
             None => {
                 if attributes.maximized {
                     frame.set_maximized();
@@ -333,9 +338,13 @@ impl Window {
 
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         if *(self.fullscreen.lock().unwrap()) {
-            Some(Fullscreen::Borderless(RootMonitorHandle {
-                inner: PlatformMonitorHandle::Wayland(self.current_monitor()),
-            }))
+            let current_monitor = self
+                .current_monitor()
+                .map(|current_monitor| RootMonitorHandle {
+                    inner: PlatformMonitorHandle::Wayland(current_monitor),
+                });
+
+            Some(Fullscreen::Borderless(current_monitor))
         } else {
             None
         }
@@ -346,15 +355,16 @@ impl Window {
             Some(Fullscreen::Exclusive(_)) => {
                 panic!("Wayland doesn't support exclusive fullscreen")
             }
-            Some(Fullscreen::Borderless(RootMonitorHandle {
-                inner: PlatformMonitorHandle::Wayland(ref monitor_id),
-            })) => {
-                self.frame
-                    .lock()
-                    .unwrap()
-                    .set_fullscreen(Some(&monitor_id.proxy));
+            Some(Fullscreen::Borderless(monitor)) => {
+                let monitor =
+                    monitor.and_then(|RootMonitorHandle { inner: monitor }| match monitor {
+                        PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
+                        #[cfg(feature = "x11")]
+                        PlatformMonitorHandle::X(_) => None,
+                    });
+
+                self.frame.lock().unwrap().set_fullscreen(monitor.as_ref());
             }
-            Some(Fullscreen::Borderless(_)) => unreachable!(),
             None => self.frame.lock().unwrap().unset_fullscreen(),
         }
     }
@@ -394,20 +404,21 @@ impl Window {
         &self.surface
     }
 
-    pub fn current_monitor(&self) -> MonitorHandle {
-        let output = get_outputs(&self.surface).last().unwrap().clone();
-        MonitorHandle {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        let output = get_outputs(&self.surface).last()?.clone();
+        Some(MonitorHandle {
             proxy: output,
             mgr: self.outputs.clone(),
-        }
+        })
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         available_monitors(&self.outputs)
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor(&self.outputs)
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        // Wayland doesn't have a notion of primary monitor.
+        None
     }
 
     pub fn raw_window_handle(&self) -> WaylandHandle {
@@ -461,7 +472,7 @@ pub struct WindowStoreForEach<'a> {
     pub grab_cursor: Option<bool>,
     pub surface: &'a wl_surface::WlSurface,
     pub wid: WindowId,
-    pub frame: Option<&'a mut SWindow<ConceptFrame>>,
+    pub frame: Option<Arc<Mutex<SWindow<ConceptFrame>>>>,
     pub decorations_action: Option<DecorationsAction>,
 }
 
@@ -522,8 +533,7 @@ impl WindowStore {
             if let Some(scale_factor) = window.new_scale_factor {
                 window.current_scale_factor = scale_factor;
             }
-            let opt_arc = window.frame.upgrade();
-            let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
+            let frame = window.frame.upgrade();
             let decorations_action = { window.pending_decorations_action.lock().unwrap().take() };
             f(WindowStoreForEach {
                 new_size: window.new_size.take(),
@@ -534,7 +544,7 @@ impl WindowStore {
                 grab_cursor: window.cursor_grab_changed.lock().unwrap().take(),
                 surface: &window.surface,
                 wid: make_wid(&window.surface),
-                frame: opt_mutex_lock.as_mut().map(|m| &mut **m),
+                frame,
                 decorations_action,
             });
             // avoid re-spamming the event
@@ -544,16 +554,15 @@ impl WindowStore {
 
     pub fn for_each_redraw_trigger<F>(&mut self, mut f: F)
     where
-        F: FnMut(bool, bool, WindowId, Option<&mut SWindow<ConceptFrame>>),
+        F: FnMut(bool, bool, WindowId, Option<Arc<Mutex<SWindow<ConceptFrame>>>>),
     {
         for window in &mut self.windows {
-            let opt_arc = window.frame.upgrade();
-            let mut opt_mutex_lock = opt_arc.as_ref().map(|m| m.lock().unwrap());
+            let frame = window.frame.upgrade();
             f(
                 replace(&mut *window.need_refresh.lock().unwrap(), false),
                 replace(&mut *window.need_frame_refresh.lock().unwrap(), false),
                 make_wid(&window.surface),
-                opt_mutex_lock.as_mut().map(|m| &mut **m),
+                frame,
             );
         }
     }

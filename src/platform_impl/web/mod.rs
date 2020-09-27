@@ -46,3 +46,9 @@ pub use self::window::{
 };
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+
+#[derive(Clone, Copy)]
+pub(crate) struct ScaleChangeArgs {
+    old_scale: f64,
+    new_scale: f64,
+}

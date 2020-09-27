@@ -19,6 +19,7 @@ use crate::{
     platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
+        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
@@ -59,7 +60,7 @@ pub fn get_window_id(window_cocoa_id: id) -> Id {
     Id(window_cocoa_id as *const Object as _)
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
@@ -70,7 +71,26 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub fullsize_content_view: bool,
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
+    pub has_shadow: bool,
     pub ignore_alt_modifier: bool,
+}
+
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            activation_policy: Default::default(),
+            movable_by_window_background: false,
+            titlebar_transparent: false,
+            title_hidden: false,
+            titlebar_hidden: false,
+            titlebar_buttons_hidden: false,
+            fullsize_content_view: false,
+            resize_increments: None,
+            disallow_hidpi: false,
+            has_shadow: true,
+        }
+    }
 }
 
 fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
@@ -123,13 +143,14 @@ fn create_window(
     unsafe {
         let pool = NSAutoreleasePool::new(nil);
         let screen = match attrs.fullscreen {
-            Some(Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }))
+            Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
             | Some(Fullscreen::Exclusive(RootVideoMode {
                 video_mode: VideoMode { ref monitor, .. },
             })) => {
                 let monitor_screen = monitor.ns_screen();
                 Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
             }
+            Some(Fullscreen::Borderless(None)) => Some(appkit::NSScreen::mainScreen(nil)),
             None => None,
         };
         let frame = match screen {
@@ -222,6 +243,10 @@ fn create_window(
                     let size = NSSize::new(x as CGFloat, y as CGFloat);
                     ns_window.setResizeIncrements_(size);
                 }
+            }
+
+            if !pl_attrs.has_shadow {
+                ns_window.setHasShadow_(NO);
             }
 
             ns_window.center();
@@ -732,10 +757,15 @@ impl UnownedWindow {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }) => monitor,
+                Fullscreen::Borderless(borderless) => {
+                    let RootMonitorHandle { inner: monitor } = borderless
+                        .clone()
+                        .unwrap_or_else(|| self.current_monitor_inner());
+                    monitor
+                }
                 Fullscreen::Exclusive(RootVideoMode {
                     video_mode: VideoMode { ref monitor, .. },
-                }) => monitor,
+                }) => monitor.clone(),
             }
             .ns_screen()
             .unwrap();
@@ -821,6 +851,8 @@ impl UnownedWindow {
         shared_state_lock.fullscreen = fullscreen.clone();
         trace!("Unlocked shared state in `set_fullscreen`");
 
+        INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
+
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
                 util::toggle_full_screen_async(
@@ -866,7 +898,7 @@ impl UnownedWindow {
             ) => unsafe {
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
             },
-            _ => (),
+            _ => INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst),
         }
     }
 
@@ -947,7 +979,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
+    // Allow directly accessing the current monitor internally without unwrapping.
+    pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
             let screen: id = msg_send![*self.ns_window, screen];
             let desc = NSScreen::deviceDescription(screen);
@@ -961,13 +994,19 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(self.current_monitor_inner())
+    }
+
+    #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::available_monitors()
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        monitor::primary_monitor()
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = monitor::primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
     }
 
     #[inline]
@@ -1090,6 +1129,19 @@ impl WindowExtMacOS for UnownedWindow {
 
                 true
             }
+        }
+    }
+
+    #[inline]
+    fn has_shadow(&self) -> bool {
+        unsafe { self.ns_window.hasShadow() == YES }
+    }
+
+    #[inline]
+    fn set_has_shadow(&self, has_shadow: bool) {
+        unsafe {
+            self.ns_window
+                .setHasShadow_(if has_shadow { YES } else { NO })
         }
     }
 

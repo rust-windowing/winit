@@ -2,7 +2,7 @@ use crate::dpi::LogicalPosition;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
 use std::convert::TryInto;
-use web_sys::{KeyboardEvent, MouseEvent, WheelEvent};
+use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
 
 pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     match event.button() {
@@ -29,13 +29,27 @@ pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     }
 }
 
+pub fn mouse_position_by_client(
+    event: &MouseEvent,
+    canvas: &HtmlCanvasElement,
+) -> LogicalPosition<f64> {
+    let bounding_client_rect = canvas.get_bounding_client_rect();
+    LogicalPosition {
+        x: event.client_x() as f64 - bounding_client_rect.x(),
+        y: event.client_y() as f64 - bounding_client_rect.y(),
+    }
+}
+
 pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
     let x = event.delta_x();
-    let y = event.delta_y();
+    let y = -event.delta_y();
 
     match event.delta_mode() {
         WheelEvent::DOM_DELTA_LINE => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
-        WheelEvent::DOM_DELTA_PIXEL => Some(MouseScrollDelta::PixelDelta(LogicalPosition { x, y })),
+        WheelEvent::DOM_DELTA_PIXEL => {
+            let delta = LogicalPosition::new(x, y).to_physical(super::scale_factor());
+            Some(MouseScrollDelta::PixelDelta(delta))
+        }
         _ => None,
     }
 }
@@ -141,7 +155,7 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "Numpad9" => VirtualKeyCode::Numpad9,
         "AbntC1" => VirtualKeyCode::AbntC1,
         "AbntC2" => VirtualKeyCode::AbntC2,
-        "NumpadAdd" => VirtualKeyCode::Add,
+        "NumpadAdd" => VirtualKeyCode::NumpadAdd,
         "Quote" => VirtualKeyCode::Apostrophe,
         "Apps" => VirtualKeyCode::Apps,
         "At" => VirtualKeyCode::At,
@@ -152,8 +166,8 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "Semicolon" => VirtualKeyCode::Semicolon,
         "Comma" => VirtualKeyCode::Comma,
         "Convert" => VirtualKeyCode::Convert,
-        "NumpadDecimal" => VirtualKeyCode::Decimal,
-        "NumpadDivide" => VirtualKeyCode::Divide,
+        "NumpadDecimal" => VirtualKeyCode::NumpadDecimal,
+        "NumpadDivide" => VirtualKeyCode::NumpadDivide,
         "Equal" => VirtualKeyCode::Equals,
         "Backquote" => VirtualKeyCode::Grave,
         "Kana" => VirtualKeyCode::Kana,
@@ -167,7 +181,7 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "MediaSelect" => VirtualKeyCode::MediaSelect,
         "MediaStop" => VirtualKeyCode::MediaStop,
         "Minus" => VirtualKeyCode::Minus,
-        "NumpadMultiply" => VirtualKeyCode::Multiply,
+        "NumpadMultiply" => VirtualKeyCode::NumpadMultiply,
         "Mute" => VirtualKeyCode::Mute,
         "LaunchMyComputer" => VirtualKeyCode::MyComputer,
         "NavigateForward" => VirtualKeyCode::NavigateForward,
@@ -190,7 +204,7 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "Slash" => VirtualKeyCode::Slash,
         "Sleep" => VirtualKeyCode::Sleep,
         "Stop" => VirtualKeyCode::Stop,
-        "NumpadSubtract" => VirtualKeyCode::Subtract,
+        "NumpadSubtract" => VirtualKeyCode::NumpadSubtract,
         "Sysrq" => VirtualKeyCode::Sysrq,
         "Tab" => VirtualKeyCode::Tab,
         "Underline" => VirtualKeyCode::Underline,

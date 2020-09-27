@@ -245,8 +245,6 @@ pub struct EventLoop<T: 'static> {
     poll: Poll,
     // The wayland display
     pub display: Arc<Display>,
-    // The output manager
-    pub outputs: OutputMgr,
     // The cursor manager
     cursor_manager: Arc<Mutex<CursorManager>>,
     kbd_channel: Receiver<Event<'static, ()>>,
@@ -277,6 +275,8 @@ pub struct EventLoopWindowTarget<T> {
     pub display: Arc<Display>,
     // The list of seats
     pub seats: Arc<Mutex<Vec<(u32, wl_seat::WlSeat)>>>,
+    // The output manager
+    pub outputs: OutputMgr,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -418,10 +418,10 @@ impl<T: 'static> EventLoop<T> {
         .unwrap();
 
         let cursor_manager_clone = cursor_manager.clone();
+        let outputs = env.outputs.clone();
         Ok(EventLoop {
             poll,
             display: display.clone(),
-            outputs: env.outputs.clone(),
             user_sender,
             user_channel,
             kbd_channel,
@@ -435,6 +435,7 @@ impl<T: 'static> EventLoop<T> {
                     cleanup_needed: Arc::new(Mutex::new(false)),
                     seats,
                     display,
+                    outputs,
                     _marker: ::std::marker::PhantomData,
                 }),
                 _marker: ::std::marker::PhantomData,
@@ -554,6 +555,7 @@ impl<T: 'static> EventLoop<T> {
             let instant_wakeup = {
                 let window_target = match self.window_target.p {
                     crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+                    #[cfg(feature = "x11")]
                     _ => unreachable!(),
                 };
                 let dispatched = window_target
@@ -632,14 +634,6 @@ impl<T: 'static> EventLoop<T> {
         callback(Event::LoopDestroyed, &self.window_target, &mut control_flow);
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor(&self.outputs)
-    }
-
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        available_monitors(&self.outputs)
-    }
-
     pub fn window_target(&self) -> &RootELW<T> {
         &self.window_target
     }
@@ -648,6 +642,15 @@ impl<T: 'static> EventLoop<T> {
 impl<T> EventLoopWindowTarget<T> {
     pub fn display(&self) -> &Display {
         &*self.display
+    }
+
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        available_monitors(&self.outputs)
+    }
+
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        // Wayland doesn't have a notion of primary monitor.
+        None
     }
 }
 
@@ -662,11 +665,14 @@ impl<T> EventLoop<T> {
     {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
         window_target.store.lock().unwrap().for_each_redraw_trigger(
             |refresh, frame_refresh, wid, frame| {
                 if let Some(frame) = frame {
+                    let mut frame = frame.lock().unwrap();
+
                     if frame_refresh {
                         frame.refresh();
                         if !refresh {
@@ -687,6 +693,7 @@ impl<T> EventLoop<T> {
     {
         let window_target = match self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+            #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
 
@@ -751,6 +758,7 @@ impl<T> EventLoop<T> {
 
             if window.new_size.is_some() || window.new_scale_factor.is_some() {
                 if let Some(frame) = window.frame {
+                    let mut frame = frame.lock().unwrap();
                     // Update decorations state
                     match window.decorations_action {
                         Some(DecorationsAction::Hide) => frame.set_decorate(false),
@@ -800,6 +808,7 @@ impl<T> EventLoop<T> {
 fn get_target<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         crate::platform_impl::EventLoopWindowTarget::Wayland(ref wt) => wt,
+        #[cfg(feature = "x11")]
         _ => unreachable!(),
     }
 }
@@ -1111,19 +1120,6 @@ impl MonitorHandle {
                 }),
             })
     }
-}
-
-pub fn primary_monitor(outputs: &OutputMgr) -> MonitorHandle {
-    outputs.with_all(|list| {
-        if let Some(&(_, ref proxy, _)) = list.first() {
-            MonitorHandle {
-                proxy: proxy.clone(),
-                mgr: outputs.clone(),
-            }
-        } else {
-            panic!("No monitor is available.")
-        }
-    })
 }
 
 pub fn available_monitors(outputs: &OutputMgr) -> VecDeque<MonitorHandle> {
