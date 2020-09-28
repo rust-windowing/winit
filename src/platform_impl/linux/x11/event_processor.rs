@@ -920,10 +920,13 @@ impl<T: 'static> EventProcessor<T> {
                                 },
                             });
 
-                            // Issue key press events for all pressed keys
-                            self.handle_pressed_keys(
+                            // Issue key press events for all pressed keys.
+                            Self::handle_pressed_keys(
+                                &wt,
                                 window_id,
                                 ElementState::Pressed,
+                                &self.mod_keymap,
+                                &mut self.device_mod_state,
                                 &mut callback,
                             );
                         }
@@ -942,9 +945,12 @@ impl<T: 'static> EventProcessor<T> {
                             let window_id = mkwid(xev.event);
 
                             // Issue key release events for all pressed keys
-                            self.handle_pressed_keys(
+                            Self::handle_pressed_keys(
+                                &wt,
                                 window_id,
                                 ElementState::Released,
+                                &self.mod_keymap,
+                                &mut self.device_mod_state,
                                 &mut callback,
                             );
 
@@ -1221,29 +1227,32 @@ impl<T: 'static> EventProcessor<T> {
     }
 
     fn handle_pressed_keys<F>(
-        &self,
+        wt: &super::EventLoopWindowTarget<T>,
         window_id: crate::window::WindowId,
         state: ElementState,
+        mod_keymap: &ModifierKeymap,
+        device_mod_state: &mut ModifierKeyState,
         callback: &mut F,
     ) where
         F: FnMut(Event<'_, T>),
     {
-        let wt = get_xtarget(&self.target);
-
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-        let modifiers = self.device_mod_state.modifiers();
+        let modifiers = device_mod_state.modifiers();
 
-        // Get the set of keys currently pressed and apply Key events to each
-        let keys = wt.xconn.query_keymap();
-
-        for keycode in &keys {
-            if keycode < 8 {
-                continue;
-            }
-
+        // Get the set of keys currently pressed and apply Key events to each and also updating
+        // the pressed modifiers.
+        for keycode in wt.xconn.query_keymap().into_iter().filter(|k| *k >= 8) {
             let scancode = (keycode - 8) as u32;
             let keysym = wt.xconn.keycode_to_keysym(keycode);
             let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+
+            if let Some(modifier) = mod_keymap.get_modifier(keycode as ffi::KeyCode) {
+                device_mod_state.key_event(
+                    ElementState::Pressed,
+                    keycode as ffi::KeyCode,
+                    modifier,
+                );
+            }
 
             #[allow(deprecated)]
             callback(Event::WindowEvent {
