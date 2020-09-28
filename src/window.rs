@@ -614,7 +614,7 @@ impl Window {
     ///
     ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Wayland:** Does not support exclusive fullscreen mode.
+    /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android:** Unsupported.
     #[inline]
@@ -677,7 +677,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    /// - **iOS / Android / Web / Windows:** Unsupported.
     #[inline]
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
@@ -708,9 +708,12 @@ impl Window {
 
     /// Grabs the cursor, preventing it from leaving the window.
     ///
+    /// There's no guarantee that the cursor will be hidden. You should
+    /// hide it by yourself if you want so.
+    ///
     /// ## Platform-specific
     ///
-    /// - **macOS / Wayland:** This locks the cursor in a fixed location, which looks visually awkward.
+    /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
     /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {

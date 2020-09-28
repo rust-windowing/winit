@@ -44,6 +44,23 @@
 - On Web, `WindowEvent::Resized` is now emitted when `Window::set_inner_size` is called.
 - **Breaking:** `Fullscreen` enum now uses `Borderless(Option<MonitorHandle>)` instead of `Borderless(MonitorHandle)` to allow picking the current monitor.
 - On MacOS, fix `WindowEvent::Moved` ignoring the scale factor.
+- On Wayland, add missing virtual keycodes.
+- On Wayland, implement proper `set_cursor_grab`.
+- On Wayland, the cursor will use similar icons if the requested one isn't available.
+- On Wayland, right clicking on client side decorations will request application menu.
+- On Wayland, fix tracking of window size after state changes.
+- On Wayland, fix client side decorations not being hidden properly in fullscreen.
+- On Wayland, fix incorrect size event when entering fullscreen with client side decorations.
+- On Wayland, fix `resizable` attribute not being applied properly on startup.
+- On Wayland, fix disabled repeat rate not being handled.
+- On Wayland, fix decoration buttons not working after tty switch.
+- On Wayland, fix scaling not being applied on output re-enable.
+- On Wayland, fix crash when `XCURSOR_SIZE` is `0`.
+- On Wayland, fix pointer getting created in some cases without pointer capability.
+- On Wayland, on kwin, fix space between window and decorations on startup.
+- **Breaking:** On Wayland, `Theme` trait was reworked.
+- On Wayland, disable maximize button for non-resizable window.
+- On Wayland, added support for `set_ime_position`.
 
 # 0.22.2 (2020-05-16)
 
