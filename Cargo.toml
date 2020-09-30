@@ -81,8 +81,8 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.27", features = [ "dlopen"] , optional = true }
-sctk = { package = "smithay-client-toolkit", version = "0.11", optional = true }
+wayland-client = { version = "0.28", features = [ "dlopen"] , optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.12", optional = true }
 mio = "0.6"
 mio-extras = "2.0"
 x11-dl = { version = "2.18.5", optional = true }

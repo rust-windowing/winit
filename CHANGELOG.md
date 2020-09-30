@@ -61,6 +61,7 @@
 - **Breaking:** On Wayland, `Theme` trait was reworked.
 - On Wayland, disable maximize button for non-resizable window.
 - On Wayland, added support for `set_ime_position`.
+- On Wayland, fix crash on startup since GNOME 3.37.90.
 
 # 0.22.2 (2020-05-16)
 

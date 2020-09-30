@@ -99,11 +99,7 @@ impl<T: 'static> EventLoop<T> {
         let display_proxy = display.attach(event_queue.token());
 
         // Setup environment.
-        let env = Environment::init(&display_proxy, WinitEnv::new());
-
-        // Issue 2 sync roundtrips to initialize environment.
-        event_queue.sync_roundtrip(&mut (), |_, _, _| unreachable!())?;
-        event_queue.sync_roundtrip(&mut (), |_, _, _| unreachable!())?;
+        let env = Environment::new(&display_proxy, &mut event_queue, WinitEnv::new())?;
 
         // Create event loop.
         let event_loop = calloop::EventLoop::<WinitState>::new()?;
