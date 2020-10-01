@@ -923,7 +923,7 @@ impl<T: 'static> EventProcessor<T> {
                                 },
                             });
 
-                            // Issue key press events for all pressed keys.
+                            // Issue key press events for all pressed keys
                             Self::handle_pressed_keys(
                                 &wt,
                                 window_id,
