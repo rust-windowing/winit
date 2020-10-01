@@ -20,6 +20,9 @@ use crate::{
     event_loop::EventLoopWindowTarget as RootELW,
 };
 
+/// The X11 documentation states: "Keycodes lie in the inclusive range [8,255]".
+const KEYCODE_OFFSET: usize = 8;
+
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
@@ -565,7 +568,7 @@ impl<T: 'static> EventProcessor<T> {
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
                 if keycode != 0 {
-                    let scancode = keycode - 8;
+                    let scancode = keycode - KEYCODE_OFFSET;
                     let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
@@ -1087,10 +1090,10 @@ impl<T: 'static> EventProcessor<T> {
 
                         let device_id = mkdid(xev.sourceid);
                         let keycode = xev.detail;
-                        if keycode < 8 {
+                        if keycode < KEYCODE_OFFSET {
                             return;
                         }
-                        let scancode = (keycode - 8) as u32;
+                        let scancode = (keycode - KEYCODE_OFFSET) as u32;
                         let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
@@ -1241,8 +1244,8 @@ impl<T: 'static> EventProcessor<T> {
 
         // Get the set of keys currently pressed and apply Key events to each and also updating
         // the pressed modifiers.
-        for keycode in wt.xconn.query_keymap().into_iter().filter(|k| *k >= 8) {
-            let scancode = (keycode - 8) as u32;
+        for keycode in wt.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
+            let scancode = (keycode - KEYCODE_OFFSET) as u32;
             let keysym = wt.xconn.keycode_to_keysym(keycode);
             let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
