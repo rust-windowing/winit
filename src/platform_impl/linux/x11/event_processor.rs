@@ -1242,8 +1242,7 @@ impl<T: 'static> EventProcessor<T> {
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
         let modifiers = device_mod_state.modifiers();
 
-        // Get the set of keys currently pressed and apply Key events to each and also updating
-        // the pressed modifiers.
+        // Update modifiers state and emit key events based on which keys are currently pressed.
         for keycode in wt.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
             let scancode = (keycode - KEYCODE_OFFSET) as u32;
             let keysym = wt.xconn.keycode_to_keysym(keycode);
