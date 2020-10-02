@@ -1243,7 +1243,12 @@ impl<T: 'static> EventProcessor<T> {
         let modifiers = device_mod_state.modifiers();
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
-        for keycode in wt.xconn.query_keymap().into_iter().filter(|k| *k >= KEYCODE_OFFSET) {
+        for keycode in wt
+            .xconn
+            .query_keymap()
+            .into_iter()
+            .filter(|k| *k >= KEYCODE_OFFSET)
+        {
             let scancode = (keycode - KEYCODE_OFFSET) as u32;
             let keysym = wt.xconn.keycode_to_keysym(keycode);
             let virtual_keycode = events::keysym_to_element(keysym as c_uint);
