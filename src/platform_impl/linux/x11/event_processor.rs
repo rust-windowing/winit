@@ -21,7 +21,7 @@ use crate::{
 };
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range [8,255]".
-const KEYCODE_OFFSET: usize = 8;
+const KEYCODE_OFFSET: u8 = 8;
 
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
@@ -568,7 +568,7 @@ impl<T: 'static> EventProcessor<T> {
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
                 if keycode != 0 {
-                    let scancode = keycode - KEYCODE_OFFSET;
+                    let scancode = keycode - KEYCODE_OFFSET as u32;
                     let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
@@ -1090,10 +1090,10 @@ impl<T: 'static> EventProcessor<T> {
 
                         let device_id = mkdid(xev.sourceid);
                         let keycode = xev.detail;
-                        if keycode < KEYCODE_OFFSET {
+                        let scancode = keycode - KEYCODE_OFFSET as i32;
+                        if scancode < 0 {
                             return;
                         }
-                        let scancode = (keycode - KEYCODE_OFFSET) as u32;
                         let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
@@ -1102,7 +1102,7 @@ impl<T: 'static> EventProcessor<T> {
                         callback(Event::DeviceEvent {
                             device_id,
                             event: DeviceEvent::Key(KeyboardInput {
-                                scancode,
+                                scancode: scancode as u32,
                                 virtual_keycode,
                                 state,
                                 modifiers,
