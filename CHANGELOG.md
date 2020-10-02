@@ -62,6 +62,7 @@
 - On Wayland, disable maximize button for non-resizable window.
 - On Wayland, added support for `set_ime_position`.
 - On Wayland, fix crash on startup since GNOME 3.37.90.
+- On X11, fix incorrect modifiers state on startup.
 
 # 0.22.2 (2020-05-16)
 
