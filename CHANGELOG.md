@@ -1,5 +1,7 @@
 # Unreleased
 
+- **Breaking:** On Windows, include prefix byte in scancodes.
+
 # 0.23.0 (2020-10-02)
 
 - On iOS, fixed support for the "Debug View Heirarchy" feature in Xcode.
@@ -29,7 +31,6 @@
 - On NetBSD, fixed crash due to incorrect detection of the main thread.
 - **Breaking:** On X11, `-` key is mapped to the `Minus` virtual key code, instead of `Subtract`.
 - On macOS, fix inverted horizontal scroll.
-- **Breaking:** On Windows, include prefix byte in scancodes.
 - **Breaking:** `current_monitor` now returns `Option<MonitorHandle>`.
 - **Breaking:** `primary_monitor` now returns `Option<MonitorHandle>`.
 - On macOS, updated core-* dependencies and cocoa.
