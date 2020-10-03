@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.22.2"
+version = "0.23.0"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2018"
@@ -21,7 +21,7 @@ default = ["x11", "wayland"]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
 x11 = ["x11-dl"]
-wayland = ["wayland-client", "smithay-client-toolkit"]
+wayland = ["wayland-client", "sctk"]
 
 [dependencies]
 instant = "0.1"
@@ -34,20 +34,20 @@ bitflags = "1"
 
 [dev-dependencies]
 image = "0.23"
-simple_logger = "1"
+simple_logger = "1.9"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ndk = "0.1.0"
-ndk-sys = "0.1.0"
-ndk-glue = "0.1.0"
+ndk = "0.2.0"
+ndk-sys = "0.2.0"
+ndk-glue = "0.2.0"
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc = "0.2.3"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.20"
-core-foundation = "0.7"
-core-graphics = "0.19"
+cocoa = "0.23"
+core-foundation = "0.9"
+core-graphics = "0.22"
 dispatch = "0.2.0"
 objc = "0.2.6"
 
@@ -81,15 +81,15 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] , optional = true }
+wayland-client = { version = "0.28", features = [ "dlopen"] , optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.12", optional = true }
 mio = "0.6"
 mio-extras = "2.0"
-smithay-client-toolkit = { version = "^0.6.6", optional = true }
 x11-dl = { version = "2.18.5", optional = true }
 percent-encoding = "2.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
-version = "0.10"
+version = "0.11"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"
@@ -129,4 +129,4 @@ optional = true
 features = ["experimental_features_which_may_break_on_minor_version_bumps"]
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-console_log = "0.1"
+console_log = "0.2"

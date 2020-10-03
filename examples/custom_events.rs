@@ -1,5 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
@@ -11,7 +12,7 @@ fn main() {
         Timer,
     }
 
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::<CustomEvent>::with_user_event();
 
     let _window = WindowBuilder::new()

@@ -1,11 +1,13 @@
 use std::io::{stdin, stdout, Write};
+
+use simple_logger::SimpleLogger;
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::monitor::{MonitorHandle, VideoMode};
 use winit::window::{Fullscreen, WindowBuilder};
 
 fn main() {
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
     print!("Please choose the fullscreen mode: (1) exclusive, (2) borderless: ");
@@ -17,7 +19,7 @@ fn main() {
 
     let fullscreen = Some(match num {
         1 => Fullscreen::Exclusive(prompt_for_video_mode(&prompt_for_monitor(&event_loop))),
-        2 => Fullscreen::Borderless(prompt_for_monitor(&event_loop)),
+        2 => Fullscreen::Borderless(Some(prompt_for_monitor(&event_loop))),
         _ => panic!("Please enter a valid number"),
     });
 

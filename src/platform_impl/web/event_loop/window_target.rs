@@ -2,9 +2,12 @@ use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
+use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId};
+use std::cell::RefCell;
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
+use std::rc::Rc;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
@@ -41,11 +44,12 @@ impl<T> WindowTarget<T> {
         window::Id(self.runner.generate_id())
     }
 
-    pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
-        let runner = self.runner.clone();
+    pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: window::Id) {
+        self.runner.add_canvas(WindowId(id), canvas);
+        let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
-        runner.add_canvas(WindowId(id), canvas.raw().clone());
 
+        let runner = self.runner.clone();
         canvas.on_blur(move || {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
@@ -237,7 +241,9 @@ impl<T> WindowTarget<T> {
         VecDeque::new().into_iter()
     }
 
-    pub fn primary_monitor(&self) -> monitor::Handle {
-        monitor::Handle
+    pub fn primary_monitor(&self) -> Option<RootMH> {
+        Some(RootMH {
+            inner: monitor::Handle,
+        })
     }
 }

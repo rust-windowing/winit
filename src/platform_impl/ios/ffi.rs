@@ -29,14 +29,14 @@ pub struct NSOperatingSystemVersion {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGPoint {
     pub x: CGFloat,
     pub y: CGFloat,
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGSize {
     pub width: CGFloat,
     pub height: CGFloat,
@@ -52,7 +52,7 @@ impl CGSize {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGRect {
     pub origin: CGPoint,
     pub size: CGSize,

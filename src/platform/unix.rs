@@ -1,11 +1,14 @@
-#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#![cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 
 use std::os::raw;
 #[cfg(feature = "x11")]
 use std::{ptr, sync::Arc};
-
-#[cfg(feature = "wayland")]
-use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
 
 use crate::{
     event_loop::{EventLoop, EventLoopWindowTarget},
@@ -328,7 +331,7 @@ impl WindowExtUnix for Window {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.display().as_ref().c_ptr() as *mut _),
+            LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
             #[cfg(feature = "x11")]
             _ => None,
         }
@@ -338,7 +341,7 @@ impl WindowExtUnix for Window {
     #[cfg(feature = "wayland")]
     fn set_wayland_theme<T: Theme>(&self, theme: T) {
         match self.window {
-            LinuxWindow::Wayland(ref w) => w.set_theme(WaylandTheme(theme)),
+            LinuxWindow::Wayland(ref w) => w.set_theme(theme),
             #[cfg(feature = "x11")]
             _ => {}
         }
@@ -466,83 +469,50 @@ impl MonitorHandleExtUnix for MonitorHandle {
     }
 }
 
-/// Wrapper for implementing SCTK's theme trait.
+/// A theme for a Wayland's client side decorations.
 #[cfg(feature = "wayland")]
-struct WaylandTheme<T: Theme>(T);
-
 pub trait Theme: Send + 'static {
-    /// Primary color of the scheme.
-    fn primary_color(&self, window_active: bool) -> [u8; 4];
+    /// Title bar color.
+    fn element_color(&self, element: Element, window_active: bool) -> ARGBColor;
 
-    /// Secondary color of the scheme.
-    fn secondary_color(&self, window_active: bool) -> [u8; 4];
+    /// Color for a given button part.
+    fn button_color(
+        &self,
+        button: Button,
+        state: ButtonState,
+        foreground: bool,
+        window_active: bool,
+    ) -> ARGBColor;
 
-    /// Color for the close button.
-    fn close_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the close button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn close_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.secondary_color(true)
-    }
-
-    /// Background color for the maximize button.
-    fn maximize_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the maximize button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn maximize_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.secondary_color(true)
-    }
-
-    /// Background color for the minimize button.
-    fn minimize_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the minimize button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn minimize_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.secondary_color(true)
+    /// Font name and the size for the title bar.
+    ///
+    /// By default the font is `sans-serif` at the size of 11.
+    ///
+    /// Returning `None` means that title won't be drawn.
+    fn font(&self) -> Option<(String, f32)> {
+        // Not having any title isn't something desirable for the users, so setting it to
+        // something generic.
+        Some((String::from("sans-serif"), 11.))
     }
 }
 
+/// A button on Wayland's client side decorations.
 #[cfg(feature = "wayland")]
-impl<T: Theme> SCTKTheme for WaylandTheme<T> {
-    fn get_primary_color(&self, active: bool) -> [u8; 4] {
-        self.0.primary_color(active)
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Button {
+    /// Button that maximizes the window.
+    Maximize,
 
-    fn get_secondary_color(&self, active: bool) -> [u8; 4] {
-        self.0.secondary_color(active)
-    }
+    /// Button that minimizes the window.
+    Minimize,
 
-    fn get_close_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.close_button_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_close_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0
-            .close_button_icon_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_maximize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.maximize_button_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_maximize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0
-            .maximize_button_icon_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_minimize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.minimize_button_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_minimize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0
-            .minimize_button_icon_color(ButtonState::from_sctk(status))
-    }
+    /// Button that closes the window.
+    Close,
 }
 
+/// A button state of the button on Wayland's client side decorations.
+#[cfg(feature = "wayland")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ButtonState {
     /// Button is being hovered over by pointer.
     Hovered,
@@ -553,12 +523,23 @@ pub enum ButtonState {
 }
 
 #[cfg(feature = "wayland")]
-impl ButtonState {
-    fn from_sctk(button_state: SCTKButtonState) -> Self {
-        match button_state {
-            SCTKButtonState::Hovered => Self::Hovered,
-            SCTKButtonState::Idle => Self::Idle,
-            SCTKButtonState::Disabled => Self::Disabled,
-        }
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Element {
+    /// Bar itself.
+    Bar,
+
+    /// Separator between window and title bar.
+    Separator,
+
+    /// Title bar text.
+    Text,
+}
+
+#[cfg(feature = "wayland")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ARGBColor {
+    pub a: u8,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
 }

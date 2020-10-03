@@ -1,5 +1,6 @@
 use std::{thread, time};
 
+use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -17,7 +18,7 @@ const WAIT_TIME: time::Duration = time::Duration::from_millis(100);
 const POLL_SLEEP_TIME: time::Duration = time::Duration::from_millis(100);
 
 fn main() {
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
 
     println!("Press '1' to switch to Wait mode.");
     println!("Press '2' to switch to WaitUntil mode.");

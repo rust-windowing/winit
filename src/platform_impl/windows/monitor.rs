@@ -131,8 +131,9 @@ impl Window {
         available_monitors()
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor()
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
     }
 }
 

@@ -649,10 +649,11 @@ impl UnownedWindow {
                 let (video_mode, monitor) = match fullscreen {
                     Fullscreen::Exclusive(RootVideoMode {
                         video_mode: PlatformVideoMode::X(ref video_mode),
-                    }) => (Some(video_mode), video_mode.monitor.as_ref().unwrap()),
-                    Fullscreen::Borderless(RootMonitorHandle {
-                        inner: PlatformMonitorHandle::X(ref monitor),
-                    }) => (None, monitor),
+                    }) => (Some(video_mode), video_mode.monitor.clone().unwrap()),
+                    Fullscreen::Borderless(Some(RootMonitorHandle {
+                        inner: PlatformMonitorHandle::X(monitor),
+                    })) => (None, monitor),
+                    Fullscreen::Borderless(None) => (None, self.current_monitor()),
                     #[cfg(feature = "wayland")]
                     _ => unreachable!(),
                 };

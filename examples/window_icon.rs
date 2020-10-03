@@ -1,5 +1,7 @@
 extern crate image;
 use std::path::Path;
+
+use simple_logger::SimpleLogger;
 use winit::{
     event::Event,
     event_loop::{ControlFlow, EventLoop},
@@ -7,7 +9,7 @@ use winit::{
 };
 
 fn main() {
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
 
     // You'll have to choose an icon size at your own discretion. On X11, the desired size varies
     // by WM, and on Windows, you still have to account for screen scaling. Here we use 32px,
