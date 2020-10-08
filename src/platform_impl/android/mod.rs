@@ -148,6 +148,28 @@ impl<T: 'static> EventLoop<T> {
                             );
                         }
                     }
+                    Event::WindowHasFocus => {
+                        call_event_handler!(
+                            event_handler,
+                            self.window_target(),
+                            control_flow,
+                            event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::Focused(true),
+                            }
+                        );
+                    }
+                    Event::WindowLostFocus => {
+                        call_event_handler!(
+                            event_handler,
+                            self.window_target(),
+                            control_flow,
+                            event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::Focused(false),
+                            }
+                        );
+                    }
                     _ => {}
                 },
                 Some(EventSource::InputQueue) => {
