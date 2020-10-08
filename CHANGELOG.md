@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
+
 # 0.23.0 (2020-10-02)
 
 - On iOS, fixed support for the "Debug View Heirarchy" feature in Xcode.
