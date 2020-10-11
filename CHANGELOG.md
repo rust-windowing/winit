@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
 - **Breaking:** On Windows, include prefix byte in scancodes.
 
 # 0.23.0 (2020-10-02)
