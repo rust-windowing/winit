@@ -489,7 +489,14 @@ impl Window {
 
             // Update window style
             WindowState::set_window_flags(window_state_lock, window.0, |f| {
-                f.set(WindowFlags::MARKER_FULLSCREEN, fullscreen.is_some())
+                f.set(
+                    WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Exclusive(_))),
+                );
+                f.set(
+                    WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Borderless(_))),
+                );
             });
 
             // Update window bounds
