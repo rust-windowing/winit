@@ -30,7 +30,12 @@ use winapi::{
     },
 };
 
-use crate::{dpi::{PhysicalPosition, PhysicalSize}, event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent}, event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW}, monitor::MonitorHandle as RootMonitorHandle, platform_impl::platform::{
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
+    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    monitor::MonitorHandle as RootMonitorHandle,
+    platform_impl::platform::{
         dark_mode::try_dark_mode,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
@@ -39,7 +44,9 @@ use crate::{dpi::{PhysicalPosition, PhysicalSize}, event::{DeviceEvent, Event, F
         raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
-    }, window::{Fullscreen, Theme, WindowId as RootWindowId}};
+    },
+    window::{Fullscreen, Theme, WindowId as RootWindowId},
+};
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
@@ -1872,7 +1879,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 let changed = window_state.is_dark_mode != is_dark_mode;
 
                 if changed {
-                    let theme = if is_dark_mode { Theme::Dark } else { Theme::Light };
+                    let theme = if is_dark_mode {
+                        Theme::Dark
+                    } else {
+                        Theme::Light
+                    };
 
                     window_state.is_dark_mode = is_dark_mode;
                     mem::drop(window_state);
