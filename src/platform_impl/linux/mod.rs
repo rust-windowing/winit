@@ -9,6 +9,8 @@
 #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+#[cfg(feature = "wayland")]
+use std::error::Error;
 use std::{collections::VecDeque, env, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
@@ -16,8 +18,6 @@ use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 #[cfg(feature = "x11")]
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
-#[cfg(feature = "wayland")]
-use smithay_client_toolkit::reexports::client::ConnectError;
 
 #[cfg(feature = "x11")]
 pub use self::x11::XNotSupported;
@@ -108,6 +108,8 @@ pub enum OsError {
     XError(XError),
     #[cfg(feature = "x11")]
     XMisc(&'static str),
+    #[cfg(feature = "wayland")]
+    WaylandMisc(&'static str),
 }
 
 impl fmt::Display for OsError {
@@ -117,6 +119,8 @@ impl fmt::Display for OsError {
             OsError::XError(ref e) => _f.pad(&e.description),
             #[cfg(feature = "x11")]
             OsError::XMisc(ref e) => _f.pad(e),
+            #[cfg(feature = "wayland")]
+            OsError::WaylandMisc(ref e) => _f.pad(e),
         }
     }
 }
@@ -410,13 +414,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _position: Position) {
-        match self {
-            #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.set_ime_position(_position),
-            #[cfg(feature = "wayland")]
-            _ => (),
-        }
+    pub fn set_ime_position(&self, position: Position) {
+        x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
     }
 
     #[inline]
@@ -425,9 +424,22 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: x11_or_wayland!(match self; Window(window) => window.current_monitor(); as MonitorHandle),
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        match self {
+            #[cfg(feature = "x11")]
+            &Window::X(ref window) => {
+                let current_monitor = MonitorHandle::X(window.current_monitor());
+                Some(RootMonitorHandle {
+                    inner: current_monitor,
+                })
+            }
+            #[cfg(feature = "wayland")]
+            &Window::Wayland(ref window) => {
+                let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
+                Some(RootMonitorHandle {
+                    inner: current_monitor,
+                })
+            }
         }
     }
 
@@ -450,8 +462,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        x11_or_wayland!(match self; Window(window) => window.primary_monitor(); as MonitorHandle)
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        match self {
+            #[cfg(feature = "x11")]
+            &Window::X(ref window) => {
+                let primary_monitor = MonitorHandle::X(window.primary_monitor());
+                Some(RootMonitorHandle {
+                    inner: primary_monitor,
+                })
+            }
+            #[cfg(feature = "wayland")]
+            &Window::Wayland(ref window) => window.primary_monitor(),
+        }
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
@@ -574,14 +596,14 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(feature = "wayland")]
-    pub fn new_wayland() -> Result<EventLoop<T>, ConnectError> {
+    pub fn new_wayland() -> Result<EventLoop<T>, Box<dyn Error>> {
         assert_is_main_thread("new_wayland_any_thread");
 
         EventLoop::new_wayland_any_thread()
     }
 
     #[cfg(feature = "wayland")]
-    pub fn new_wayland_any_thread() -> Result<EventLoop<T>, ConnectError> {
+    pub fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
         wayland::EventLoop::new().map(EventLoop::Wayland)
     }
 
@@ -669,15 +691,16 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
         match *self {
             #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(ref evlp) => {
-                MonitorHandle::Wayland(evlp.primary_monitor())
-            }
+            EventLoopWindowTarget::Wayland(ref evlp) => evlp.primary_monitor(),
             #[cfg(feature = "x11")]
             EventLoopWindowTarget::X(ref evlp) => {
-                MonitorHandle::X(evlp.x_connection().primary_monitor())
+                let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
+                Some(RootMonitorHandle {
+                    inner: primary_monitor,
+                })
             }
         }
     }
@@ -730,7 +753,5 @@ fn is_main_thread() -> bool {
 
 #[cfg(target_os = "netbsd")]
 fn is_main_thread() -> bool {
-    use libc::_lwp_self;
-
-    unsafe { _lwp_self() == 1 }
+    std::thread::current().name() == Some("main")
 }

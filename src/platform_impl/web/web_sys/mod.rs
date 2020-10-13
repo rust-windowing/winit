@@ -1,14 +1,18 @@
 mod canvas;
 mod event;
+mod event_handle;
+mod media_query_handle;
+mod scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
+pub use self::scaling::ScaleChangeDetector;
 pub use self::timeout::{AnimationFrameRequest, Timeout};
 
 use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::closure::Closure;
 use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement};
 
 pub fn throw(msg: &str) {
@@ -22,16 +26,21 @@ pub fn exit_fullscreen() {
     document.exit_fullscreen();
 }
 
-pub fn on_unload(mut handler: impl FnMut() + 'static) {
+pub struct UnloadEventHandle {
+    _listener: event_handle::EventListenerHandle<dyn FnMut(BeforeUnloadEvent)>,
+}
+
+pub fn on_unload(mut handler: impl FnMut() + 'static) -> UnloadEventHandle {
     let window = web_sys::window().expect("Failed to obtain window");
 
     let closure = Closure::wrap(
         Box::new(move |_: BeforeUnloadEvent| handler()) as Box<dyn FnMut(BeforeUnloadEvent)>
     );
 
-    window
-        .add_event_listener_with_callback("beforeunload", &closure.as_ref().unchecked_ref())
-        .expect("Failed to add close listener");
+    let listener = event_handle::EventListenerHandle::new(&window, "beforeunload", closure);
+    UnloadEventHandle {
+        _listener: listener,
+    }
 }
 
 impl WindowExtWebSys for Window {

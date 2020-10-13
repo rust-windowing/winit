@@ -142,13 +142,14 @@ fn create_window(
     unsafe {
         let pool = NSAutoreleasePool::new(nil);
         let screen = match attrs.fullscreen {
-            Some(Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }))
+            Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
             | Some(Fullscreen::Exclusive(RootVideoMode {
                 video_mode: VideoMode { ref monitor, .. },
             })) => {
                 let monitor_screen = monitor.ns_screen();
                 Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
             }
+            Some(Fullscreen::Borderless(None)) => Some(appkit::NSScreen::mainScreen(nil)),
             None => None,
         };
         let frame = match screen {
@@ -755,10 +756,15 @@ impl UnownedWindow {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }) => monitor,
+                Fullscreen::Borderless(borderless) => {
+                    let RootMonitorHandle { inner: monitor } = borderless
+                        .clone()
+                        .unwrap_or_else(|| self.current_monitor_inner());
+                    monitor
+                }
                 Fullscreen::Exclusive(RootVideoMode {
                     video_mode: VideoMode { ref monitor, .. },
-                }) => monitor,
+                }) => monitor.clone(),
             }
             .ns_screen()
             .unwrap();
@@ -972,7 +978,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
+    // Allow directly accessing the current monitor internally without unwrapping.
+    pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
             let screen: id = msg_send![*self.ns_window, screen];
             let desc = NSScreen::deviceDescription(screen);
@@ -986,13 +993,19 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(self.current_monitor_inner())
+    }
+
+    #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::available_monitors()
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        monitor::primary_monitor()
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = monitor::primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
     }
 
     #[inline]

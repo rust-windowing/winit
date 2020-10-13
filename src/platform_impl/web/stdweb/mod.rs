@@ -1,8 +1,12 @@
+#![deprecated(since = "0.23.0", note = "Please migrate to web-sys over stdweb")]
+
 mod canvas;
 mod event;
+mod scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
+pub use self::scaling::ScaleChangeDetector;
 pub use self::timeout::{AnimationFrameRequest, Timeout};
 
 use crate::dpi::{LogicalSize, Size};
@@ -24,7 +28,9 @@ pub fn exit_fullscreen() {
     document().exit_fullscreen();
 }
 
-pub fn on_unload(mut handler: impl FnMut() + 'static) {
+pub type UnloadEventHandle = ();
+
+pub fn on_unload(mut handler: impl FnMut() + 'static) -> UnloadEventHandle {
     window().add_event_listener(move |_: BeforeUnloadEvent| handler());
 }
 
