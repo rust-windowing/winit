@@ -126,7 +126,7 @@ pub trait WindowBuilderExtWindows {
     /// See https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks for more information.
     fn with_drag_and_drop(self, flag: bool) -> WindowBuilder;
 
-    /// Forces either Dark or Light theme. By default the system settings are used.
+    /// Forces a theme or use the system settings if None is provided.
     fn with_theme(self, theme: Theme) -> WindowBuilder;
 }
 
@@ -157,7 +157,7 @@ impl WindowBuilderExtWindows for WindowBuilder {
 
     #[inline]
     fn with_theme(mut self, theme: Theme) -> WindowBuilder {
-        self.platform_specific.forced_theme = Some(theme);
+        self.platform_specific.preferred_theme = theme;
         self
     }
 }

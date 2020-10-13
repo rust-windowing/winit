@@ -30,12 +30,7 @@ use winapi::{
     },
 };
 
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    monitor::MonitorHandle as RootMonitorHandle,
-    platform_impl::platform::{
+use crate::{dpi::{PhysicalPosition, PhysicalSize}, event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent}, event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW}, monitor::MonitorHandle as RootMonitorHandle, platform_impl::platform::{
         dark_mode::try_dark_mode,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
@@ -44,9 +39,7 @@ use crate::{
         raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
-    },
-    window::{Fullscreen, WindowId as RootWindowId},
-};
+    }, window::{Fullscreen, Theme, WindowId as RootWindowId}};
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
@@ -1871,16 +1864,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         winuser::WM_SETTINGCHANGE => {
             use crate::event::WindowEvent::ThemeChanged;
 
-            let forced_theme = subclass_input.window_state.lock().forced_theme.clone();
+            let preferred_theme = subclass_input.window_state.lock().preferred_theme.clone();
 
-            if forced_theme == None {
-                let is_dark_mode = try_dark_mode(window, forced_theme);
+            if preferred_theme == Theme::System {
+                let is_dark_mode = try_dark_mode(window, preferred_theme);
                 let mut window_state = subclass_input.window_state.lock();
                 let changed = window_state.is_dark_mode != is_dark_mode;
 
                 if changed {
-                    use crate::window::Theme::*;
-                    let theme = if is_dark_mode { Dark } else { Light };
+                    let theme = if is_dark_mode { Theme::Dark } else { Theme::Light };
 
                     window_state.is_dark_mode = is_dark_mode;
                     mem::drop(window_state);

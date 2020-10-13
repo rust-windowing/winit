@@ -74,10 +74,10 @@ lazy_static! {
 
 /// Attempt to set dark mode on a window, if necessary.
 /// Returns true if dark mode was set, false if not.
-pub fn try_dark_mode(hwnd: HWND, forced_theme: Option<Theme>) -> bool {
+pub fn try_dark_mode(hwnd: HWND, preferred_theme: Theme) -> bool {
     if *DARK_MODE_SUPPORTED {
-        let is_dark_mode: bool = if let Some(theme) = forced_theme {
-            theme == Theme::Dark
+        let is_dark_mode: bool = if preferred_theme != Theme::System {
+            preferred_theme == Theme::Dark
         } else {
             should_use_dark_mode()
         };

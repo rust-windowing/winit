@@ -32,7 +32,7 @@ pub struct WindowState {
     pub modifiers_state: ModifiersState,
     pub fullscreen: Option<Fullscreen>,
     pub is_dark_mode: bool,
-    pub forced_theme: Option<Theme>,
+    pub preferred_theme: Theme,
     pub high_surrogate: Option<u16>,
     window_flags: WindowFlags,
 }
@@ -102,7 +102,7 @@ impl WindowState {
         taskbar_icon: Option<Icon>,
         scale_factor: f64,
         is_dark_mode: bool,
-        forced_theme: Option<Theme>,
+        preferred_theme: Theme,
     ) -> WindowState {
         WindowState {
             mouse: MouseProperties {
@@ -124,7 +124,7 @@ impl WindowState {
             modifiers_state: ModifiersState::default(),
             fullscreen: None,
             is_dark_mode,
-            forced_theme,
+            preferred_theme,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
         }
