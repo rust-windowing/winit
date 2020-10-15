@@ -865,7 +865,6 @@ pub enum Fullscreen {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Theme {
-    System,
     Light,
     Dark,
 }

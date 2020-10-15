@@ -1873,7 +1873,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             let preferred_theme = subclass_input.window_state.lock().preferred_theme.clone();
 
-            if preferred_theme == Theme::System {
+            if preferred_theme == None {
                 let is_dark_mode = try_dark_mode(window, preferred_theme);
                 let mut window_state = subclass_input.window_state.lock();
                 let changed = window_state.is_dark_mode != is_dark_mode;
