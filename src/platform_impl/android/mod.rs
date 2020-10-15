@@ -215,7 +215,27 @@ impl<T: 'static> EventLoop<T> {
                                             );
                                         }
                                     }
-                                    InputEvent::KeyEvent(_) => {} // TODO
+                                    InputEvent::KeyEvent(key) => {
+                                        let event = event::Event::WindowEvent {
+                                            window_id,
+                                            event: event::WindowEvent::KeyboardInput {
+                                                device_id,
+                                                input: event::KeyboardInput {
+                                                    scancode: key.key_code() as u32,
+                                                    state: event::ElementState::Released,
+                                                    virtual_keycode: None,
+                                                    modifiers: event::ModifiersState::default(),
+                                                },
+                                                is_synthetic: true
+                                            }
+                                        };                                        
+                                        call_event_handler!(
+                                            event_handler,
+                                            self.window_target(),
+                                            control_flow,
+                                            event
+                                        );
+                                    }
                                 };
                                 input_queue.finish_event(event, true);
                             }
