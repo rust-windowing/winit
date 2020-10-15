@@ -1876,9 +1876,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             if preferred_theme == None {
                 let is_dark_mode = try_dark_mode(window, preferred_theme);
                 let mut window_state = subclass_input.window_state.lock();
-                let changed = window_state.is_dark_mode != is_dark_mode;
 
-                if changed {
+                if window_state.is_dark_mode != is_dark_mode {
                     let theme = if is_dark_mode {
                         Theme::Dark
                     } else {
