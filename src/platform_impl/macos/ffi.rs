@@ -161,7 +161,14 @@ pub const IO8BitOverlayPixels: &str = "O8";
 pub type CGWindowLevel = i32;
 pub type CGDisplayModeRef = *mut libc::c_void;
 
-#[link(name = "ColorSync", kind = "framework")]
+#[cfg_attr(
+    not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
+    link(name = "CoreGraphics", kind = "framework")
+)]
+#[cfg_attr(
+    use_colorsync_cgdisplaycreateuuidfromdisplayid,
+    link(name = "ColorSync", kind = "framework")
+)]
 extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
 }
