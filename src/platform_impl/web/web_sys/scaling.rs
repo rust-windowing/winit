@@ -59,9 +59,9 @@ impl ScaleChangeDetectorInternal {
         // We add 0.0001 to the lower and upper bounds such that it won't fail
         // due to floating point precision limitations.
         let media_query = format!(
-            "(min-resolution: {:.4}dppx) and (max-resolution: {:.4}dppx)",
-            current_scale - 0.0001,
-            current_scale + 0.0001,
+            "(min-resolution: {min_scale:.4}dppx) and (max-resolution: {max_scale:.4}dppx),
+             (-webkit-min-device-pixel-ratio: {min_scale:.4}) and (-webkit-max-device-pixel-ratio: {max_scale:.4})",
+            min_scale = current_scale - 0.0001, max_scale= current_scale + 0.0001,
         );
         let mql = MediaQueryListHandle::new(&media_query, closure);
         if let Some(mql) = &mql {

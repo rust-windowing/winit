@@ -1,6 +1,8 @@
 # Unreleased
 
 - **Breaking:** On Windows, include prefix byte in scancodes.
+- On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
+- On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.
 
 # 0.23.0 (2020-10-02)
 
