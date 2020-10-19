@@ -343,6 +343,7 @@ pub fn handle_extended_keys(
     extended: bool,
 ) -> Option<(c_int, UINT)> {
     // Welcome to hell https://blog.molecular-matters.com/2011/09/05/properly-handling-keyboard-input/
+    scancode = if extended { 0xE000 } else { 0x0000 } | scancode;
     let vkey = match vkey {
         winuser::VK_SHIFT => unsafe {
             winuser::MapVirtualKeyA(scancode, winuser::MAPVK_VSC_TO_VK_EX) as _
@@ -363,20 +364,23 @@ pub fn handle_extended_keys(
         }
         _ => {
             match scancode {
-                // This is only triggered when using raw input. Without this check, we get two events whenever VK_PAUSE is
-                // pressed, the first one having scancode 0x1D but vkey VK_PAUSE...
-                0x1D if vkey == winuser::VK_PAUSE => return None,
-                // ...and the second having scancode 0x45 but an unmatched vkey!
-                0x45 => winuser::VK_PAUSE,
-                // VK_PAUSE and VK_SCROLL have the same scancode when using modifiers, alongside incorrect vkey values.
-                0x46 => {
-                    if extended {
-                        scancode = 0x45;
-                        winuser::VK_PAUSE
-                    } else {
-                        winuser::VK_SCROLL
-                    }
+                // When VK_PAUSE is pressed it emits a LeftControl + NumLock scancode event sequence, but reports VK_PAUSE
+                // as the virtual key on both events, or VK_PAUSE on the first event or 0xFF when using raw input.
+                // Don't emit anything for the LeftControl event in the pair...
+                0xE01D if vkey == winuser::VK_PAUSE => return None,
+                // ...and emit the Pause event for the second event in the pair.
+                0x45 if vkey == winuser::VK_PAUSE || vkey == 0xFF as _ => {
+                    scancode = 0xE059;
+                    winuser::VK_PAUSE
                 }
+                // VK_PAUSE has an incorrect vkey value when used with modifiers. VK_PAUSE also reports a different
+                // scancode when used with modifiers than when used without
+                0xE046 => {
+                    scancode = 0xE059;
+                    winuser::VK_PAUSE
+                }
+                // VK_SCROLL has an incorrect vkey value when used with modifiers.
+                0x46 => winuser::VK_SCROLL,
                 _ => vkey,
             }
         }
