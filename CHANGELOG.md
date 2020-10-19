@@ -1,6 +1,7 @@
 # Unreleased
 
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
+- On Windows, fix alt-tab behaviour by removing borderless fullscreen "always on top" flag.
 - On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.
 
 # 0.23.0 (2020-10-02)
