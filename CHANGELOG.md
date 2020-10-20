@@ -4,6 +4,7 @@
 - On Windows, fix alt-tab behaviour by removing borderless fullscreen "always on top" flag.
 - On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.
 - **Breaking:** On Windows, include prefix byte in scancodes.
+- On Wayland, fix window not being resizeable when using `with_min_inner_size` in `WindowBuilder`.
 
 # 0.23.0 (2020-10-02)
 
