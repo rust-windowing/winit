@@ -1,6 +1,10 @@
 # Unreleased
 
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
+- On Windows, fix alt-tab behaviour by removing borderless fullscreen "always on top" flag.
+- On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.
+- **Breaking:** On Windows, include prefix byte in scancodes.
+- On Wayland, fix window not being resizeable when using `with_min_inner_size` in `WindowBuilder`.
 - On Unix, fix cross-compiling to wasm32 without enabling X11 or Wayland.
 
 # 0.23.0 (2020-10-02)

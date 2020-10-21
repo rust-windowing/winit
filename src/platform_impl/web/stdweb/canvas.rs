@@ -15,9 +15,7 @@ use stdweb::web::event::{
     PointerOutEvent, PointerOverEvent, PointerUpEvent,
 };
 use stdweb::web::html_element::CanvasElement;
-use stdweb::web::{
-    document, EventListenerHandle, IChildNode, IElement, IEventTarget, IHtmlElement,
-};
+use stdweb::web::{document, EventListenerHandle, IElement, IEventTarget, IHtmlElement};
 
 pub struct Canvas {
     /// Note: resizing the CanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
