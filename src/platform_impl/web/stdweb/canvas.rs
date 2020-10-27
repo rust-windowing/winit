@@ -10,9 +10,9 @@ use stdweb::js;
 use stdweb::traits::IPointerEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{
-    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, IEvent, KeyDownEvent,
-    KeyPressEvent, KeyUpEvent, MouseWheelEvent, PointerDownEvent, PointerMoveEvent,
-    PointerOutEvent, PointerOverEvent, PointerUpEvent,
+    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, IEvent, IKeyboardEvent,
+    KeyDownEvent, KeyPressEvent, KeyUpEvent, ModifierKey, MouseWheelEvent, PointerDownEvent,
+    PointerMoveEvent, PointerOutEvent, PointerOverEvent, PointerUpEvent,
 };
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, EventListenerHandle, IElement, IEventTarget, IHtmlElement};
@@ -136,7 +136,17 @@ impl Canvas {
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
         self.on_keyboard_press = Some(self.add_user_event(move |event: KeyDownEvent| {
-            event.prevent_default();
+            // event.prevent_default() would suppress subsequent on_received_character() calls. That
+            // supression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
+            // scroll, etc. We should not do it for key sequences that result in meaningful character
+            // input though.
+            let event_key = &event.key();
+            let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
+            let is_shortcut_modifiers = (event.ctrl_key() || event.alt_key())
+                && !event.get_modifier_state(ModifierKey::AltGr);
+            if !is_key_string || is_shortcut_modifiers {
+                event.prevent_default();
+            }
             handler(
                 event::scan_code(&event),
                 event::virtual_key_code(&event),
