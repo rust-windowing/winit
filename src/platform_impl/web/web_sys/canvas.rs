@@ -189,6 +189,8 @@ impl Canvas {
         self.on_received_character = Some(self.common.add_user_event(
             "keypress",
             move |event: KeyboardEvent| {
+                // Supress further handling to stop keys like the space key from scrolling the page.
+                event.prevent_default();
                 handler(event::codepoint(&event));
             },
         ));

@@ -165,6 +165,8 @@ impl Canvas {
         // viable/compatible alternative as of now. `beforeinput` is still widely
         // unsupported.
         self.on_received_character = Some(self.add_user_event(move |event: KeyPressEvent| {
+            // Supress further handling to stop keys like the space key from scrolling the page.
+            event.prevent_default();
             handler(event::codepoint(&event));
         }));
     }
