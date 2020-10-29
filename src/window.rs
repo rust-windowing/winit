@@ -785,7 +785,7 @@ impl Window {
 
 unsafe impl raw_window_handle::HasRawWindowHandle for Window {
     /// Returns a `raw_window_handle::RawWindowHandle` for the Window
-    /// 
+    ///
     /// ## Platform-specific
     ///
     /// - **Android:** Only available after receiving the Resumed event and before Suspended. *If you*
