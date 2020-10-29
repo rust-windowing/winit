@@ -505,7 +505,7 @@ impl Window {
         let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
             unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
         } else {
-            panic!("native window null");
+            panic!("The native window is null. Are you in between Event::Resumed and Event::Suspended?");
         };
         let mut handle = raw_window_handle::android::AndroidHandle::empty();
         handle.a_native_window = a_native_window;
