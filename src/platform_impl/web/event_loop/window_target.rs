@@ -1,9 +1,13 @@
-use super::{backend, device, proxy::Proxy, runner, window};
+use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
+use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId};
+use std::cell::RefCell;
 use std::clone::Clone;
+use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
+use std::rc::Rc;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
@@ -28,18 +32,24 @@ impl<T> WindowTarget<T> {
         Proxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'static, T>, &mut ControlFlow)>) {
+    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
         self.runner.set_listener(event_handler);
+        let runner = self.runner.clone();
+        self.runner.set_on_scale_change(move |arg| {
+            runner.handle_scale_changed(arg.old_scale, arg.new_scale)
+        });
     }
 
     pub fn generate_id(&self) -> window::Id {
         window::Id(self.runner.generate_id())
     }
 
-    pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
-        let runner = self.runner.clone();
+    pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: window::Id) {
+        self.runner.add_canvas(WindowId(id), canvas);
+        let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
+        let runner = self.runner.clone();
         canvas.on_blur(move || {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
@@ -132,16 +142,29 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_press(move |pointer_id, button, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::MouseInput {
-                    device_id: DeviceId(device::Id(pointer_id)),
-                    state: ElementState::Pressed,
-                    button,
-                    modifiers,
-                },
-            });
+        canvas.on_mouse_press(move |pointer_id, position, button, modifiers| {
+            // A mouse down event may come in without any prior CursorMoved events,
+            // therefore we should send a CursorMoved event to make sure that the
+            // user code has the correct cursor position.
+            runner.send_events(
+                std::iter::once(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::CursorMoved {
+                        device_id: DeviceId(device::Id(pointer_id)),
+                        position,
+                        modifiers,
+                    },
+                })
+                .chain(std::iter::once(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::MouseInput {
+                        device_id: DeviceId(device::Id(pointer_id)),
+                        state: ElementState::Pressed,
+                        button,
+                        modifiers,
+                    },
+                })),
+            );
         });
 
         let runner = self.runner.clone();
@@ -212,5 +235,15 @@ impl<T> WindowTarget<T> {
                 event: WindowEvent::ThemeChanged(theme),
             });
         });
+    }
+
+    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
+        VecDeque::new().into_iter()
+    }
+
+    pub fn primary_monitor(&self) -> Option<RootMH> {
+        Some(RootMH {
+            inner: monitor::Handle,
+        })
     }
 }

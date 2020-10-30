@@ -1,13 +1,13 @@
 //! Types useful for interacting with a user's monitors.
 //!
 //! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_handle]
-//! type. This is retreived from one of the following methods, which return an iterator of
+//! type. This is retrieved from one of the following methods, which return an iterator of
 //! [`MonitorHandle`][monitor_handle]:
-//! - [`EventLoop::available_monitors`][loop_get]
+//! - [`EventLoopWindowTarget::available_monitors`][loop_get]
 //! - [`Window::available_monitors`][window_get].
 //!
 //! [monitor_handle]: crate::monitor::MonitorHandle
-//! [loop_get]: crate::event_loop::EventLoop::available_monitors
+//! [loop_get]: crate::event_loop::EventLoopWindowTarget::available_monitors
 //! [window_get]: crate::window::Window::available_monitors
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},

@@ -17,6 +17,9 @@
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
 
+// Silence warnings from use of deprecated stdweb backend
+#![allow(deprecated)]
+
 mod device;
 mod error;
 mod event_loop;
@@ -46,3 +49,9 @@ pub use self::window::{
 };
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+
+#[derive(Clone, Copy)]
+pub(crate) struct ScaleChangeArgs {
+    old_scale: f64,
+    new_scale: f64,
+}

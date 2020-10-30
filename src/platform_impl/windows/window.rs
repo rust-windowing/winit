@@ -23,7 +23,6 @@ use winapi::{
         ole2,
         oleidl::LPDROPTARGET,
         shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
-        wingdi::{CreateRectRgn, DeleteObject},
         winnt::LPCWSTR,
         winuser,
     },
@@ -70,8 +69,9 @@ impl Window {
         //
         // done. you owe me -- ossi
         unsafe {
+            let drag_and_drop = pl_attr.drag_and_drop;
             init(w_attr, pl_attr, event_loop).map(|win| {
-                let file_drop_handler = {
+                let file_drop_handler = if drag_and_drop {
                     use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
 
                     let ole_init_result = ole2::OleInitialize(ptr::null_mut());
@@ -80,7 +80,11 @@ impl Window {
                     if ole_init_result == OLE_E_WRONGCOMPOBJ {
                         panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
                     } else if ole_init_result == RPC_E_CHANGED_MODE {
-                        panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
+                        panic!(
+                            "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. \
+                            Make sure other crates are not using multithreaded COM library \
+                            on the same thread or disable drag and drop support."
+                        );
                     }
 
                     let file_drop_runner = event_loop.runner_shared.clone();
@@ -99,7 +103,9 @@ impl Window {
                         ole2::RegisterDragDrop(win.window.0, handler_interface_ptr),
                         S_OK
                     );
-                    file_drop_handler
+                    Some(file_drop_handler)
+                } else {
+                    None
                 };
 
                 let subclass_input = event_loop::SubclassInput {
@@ -483,15 +489,25 @@ impl Window {
 
             // Update window style
             WindowState::set_window_flags(window_state_lock, window.0, |f| {
-                f.set(WindowFlags::MARKER_FULLSCREEN, fullscreen.is_some())
+                f.set(
+                    WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Exclusive(_))),
+                );
+                f.set(
+                    WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Borderless(_))),
+                );
             });
 
             // Update window bounds
             match &fullscreen {
                 Some(fullscreen) => {
-                    let monitor = match fullscreen {
-                        Fullscreen::Exclusive(ref video_mode) => video_mode.monitor(),
-                        Fullscreen::Borderless(ref monitor) => monitor.clone(),
+                    let monitor = match &fullscreen {
+                        Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
+                        Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
+                        Fullscreen::Borderless(None) => RootMonitorHandle {
+                            inner: monitor::current_monitor(window.0),
+                        },
                     };
 
                     let position: (i32, i32) = monitor.position().into();
@@ -570,10 +586,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(RootMonitorHandle {
             inner: monitor::current_monitor(self.window.0),
-        }
+        })
     }
 
     #[inline]
@@ -602,7 +618,7 @@ impl Window {
 
     #[inline]
     pub fn set_ime_position(&self, _position: Position) {
-        unimplemented!();
+        warn!("`Window::set_ime_position` is ignored on Windows")
     }
 
     #[inline]
@@ -698,33 +714,19 @@ unsafe fn init<T: 'static>(
 
     // making the window transparent
     if attributes.transparent && !pl_attribs.no_redirection_bitmap {
-        let region = CreateRectRgn(0, 0, -1, -1); // makes the window transparent
-
         let bb = dwmapi::DWM_BLURBEHIND {
-            dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
+            dwFlags: dwmapi::DWM_BB_ENABLE,
             fEnable: 1,
-            hRgnBlur: region,
+            hRgnBlur: ptr::null_mut(),
             fTransitionOnMaximized: 0,
         };
 
         dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
-        DeleteObject(region as _);
 
         if attributes.decorations {
-            // HACK: When opaque (opacity 255), there is a trail whenever
-            // the transparent window is moved. By reducing it to 254,
-            // the window is rendered properly.
-            let opacity = 254;
+            let opacity = 255;
 
-            // The color key can be any value except for black (0x0).
-            let color_key = 0x0030c100;
-
-            winuser::SetLayeredWindowAttributes(
-                real_window.0,
-                color_key,
-                opacity,
-                winuser::LWA_ALPHA,
-            );
+            winuser::SetLayeredWindowAttributes(real_window.0, 0, opacity, winuser::LWA_ALPHA);
         }
     }
 

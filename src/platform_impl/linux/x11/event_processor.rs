@@ -20,6 +20,9 @@ use crate::{
     event_loop::EventLoopWindowTarget as RootELW,
 };
 
+/// The X11 documentation states: "Keycodes lie in the inclusive range [8,255]".
+const KEYCODE_OFFSET: u8 = 8;
+
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
@@ -565,7 +568,7 @@ impl<T: 'static> EventProcessor<T> {
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
                 if keycode != 0 {
-                    let scancode = keycode - 8;
+                    let scancode = keycode - KEYCODE_OFFSET as u32;
                     let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
@@ -921,9 +924,12 @@ impl<T: 'static> EventProcessor<T> {
                             });
 
                             // Issue key press events for all pressed keys
-                            self.handle_pressed_keys(
+                            Self::handle_pressed_keys(
+                                &wt,
                                 window_id,
                                 ElementState::Pressed,
+                                &self.mod_keymap,
+                                &mut self.device_mod_state,
                                 &mut callback,
                             );
                         }
@@ -942,9 +948,12 @@ impl<T: 'static> EventProcessor<T> {
                             let window_id = mkwid(xev.event);
 
                             // Issue key release events for all pressed keys
-                            self.handle_pressed_keys(
+                            Self::handle_pressed_keys(
+                                &wt,
                                 window_id,
                                 ElementState::Released,
+                                &self.mod_keymap,
+                                &mut self.device_mod_state,
                                 &mut callback,
                             );
 
@@ -1081,10 +1090,10 @@ impl<T: 'static> EventProcessor<T> {
 
                         let device_id = mkdid(xev.sourceid);
                         let keycode = xev.detail;
-                        if keycode < 8 {
+                        let scancode = keycode - KEYCODE_OFFSET as i32;
+                        if scancode < 0 {
                             return;
                         }
-                        let scancode = (keycode - 8) as u32;
                         let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
@@ -1093,7 +1102,7 @@ impl<T: 'static> EventProcessor<T> {
                         callback(Event::DeviceEvent {
                             device_id,
                             event: DeviceEvent::Key(KeyboardInput {
-                                scancode,
+                                scancode: scancode as u32,
                                 virtual_keycode,
                                 state,
                                 modifiers,
@@ -1221,29 +1230,36 @@ impl<T: 'static> EventProcessor<T> {
     }
 
     fn handle_pressed_keys<F>(
-        &self,
+        wt: &super::EventLoopWindowTarget<T>,
         window_id: crate::window::WindowId,
         state: ElementState,
+        mod_keymap: &ModifierKeymap,
+        device_mod_state: &mut ModifierKeyState,
         callback: &mut F,
     ) where
         F: FnMut(Event<'_, T>),
     {
-        let wt = get_xtarget(&self.target);
-
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-        let modifiers = self.device_mod_state.modifiers();
+        let modifiers = device_mod_state.modifiers();
 
-        // Get the set of keys currently pressed and apply Key events to each
-        let keys = wt.xconn.query_keymap();
-
-        for keycode in &keys {
-            if keycode < 8 {
-                continue;
-            }
-
-            let scancode = (keycode - 8) as u32;
+        // Update modifiers state and emit key events based on which keys are currently pressed.
+        for keycode in wt
+            .xconn
+            .query_keymap()
+            .into_iter()
+            .filter(|k| *k >= KEYCODE_OFFSET)
+        {
+            let scancode = (keycode - KEYCODE_OFFSET) as u32;
             let keysym = wt.xconn.keycode_to_keysym(keycode);
             let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+
+            if let Some(modifier) = mod_keymap.get_modifier(keycode as ffi::KeyCode) {
+                device_mod_state.key_event(
+                    ElementState::Pressed,
+                    keycode as ffi::KeyCode,
+                    modifier,
+                );
+            }
 
             #[allow(deprecated)]
             callback(Event::WindowEvent {
