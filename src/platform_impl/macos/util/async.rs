@@ -10,6 +10,7 @@ use cocoa::{
 };
 use dispatch::Queue;
 use objc::rc::autoreleasepool;
+use objc::runtime::NO;
 
 use crate::{
     dpi::LogicalSize,
@@ -167,7 +168,7 @@ pub unsafe fn set_maximized_async(
                 } else {
                     shared_state_lock.saved_standard_frame()
                 };
-                ns_window.setFrame_display_(new_rect, 0);
+                ns_window.setFrame_display_(new_rect, NO);
             }
 
             trace!("Unlocked shared state in `set_maximized`");
