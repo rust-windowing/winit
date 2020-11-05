@@ -310,10 +310,9 @@ impl<T: 'static> EventLoop<T> {
             // Empty the redraw requests
             {
                 while let Ok(window_id) = self.redraw_channel.try_recv() {
+                    let window_id = crate::window::WindowId(super::WindowId::X(window_id));
                     sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(super::WindowId::X(
-                            window_id,
-                        ))),
+                        Event::RedrawRequested(window_id),
                         &self.target,
                         &mut control_flow,
                         &mut callback,
