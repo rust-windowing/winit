@@ -9,6 +9,7 @@
 - On Windows, fix use after free crash during window destruction.
 - On Web, fix `WindowEvent::ReceivedCharacter` never being sent on key input.
 - On macOS, fix compilation when targeting aarch64
+- On X11, fix `Window::request_redraw` not waking the event loop.
 
 # 0.23.0 (2020-10-02)
 
