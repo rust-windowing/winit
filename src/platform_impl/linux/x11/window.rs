@@ -10,9 +10,8 @@ use std::{
 };
 
 use libc;
-use parking_lot::Mutex;
-
 use mio_extras::channel::Sender;
+use parking_lot::Mutex;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
