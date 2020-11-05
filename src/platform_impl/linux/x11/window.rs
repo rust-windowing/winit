@@ -1,8 +1,6 @@
 use raw_window_handle::unix::XlibHandle;
 use std::{
-    cmp,
-    collections::HashSet,
-    env,
+    cmp, env,
     ffi::CString,
     mem::{self, replace, MaybeUninit},
     os::raw::*,
@@ -13,6 +11,8 @@ use std::{
 
 use libc;
 use parking_lot::Mutex;
+
+use mio_extras::channel::Sender;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -104,7 +104,7 @@ pub struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    pending_redraws: Arc<::std::sync::Mutex<HashSet<WindowId>>>,
+    redraw_sender: Sender<WindowId>,
 }
 
 impl UnownedWindow {
@@ -249,7 +249,7 @@ impl UnownedWindow {
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
-            pending_redraws: event_loop.pending_redraws.clone(),
+            redraw_sender: event_loop.redraw_sender.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -1314,10 +1314,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.pending_redraws
-            .lock()
-            .unwrap()
-            .insert(WindowId(self.xwindow));
+        self.redraw_sender.send(WindowId(self.xwindow)).unwrap();
     }
 
     #[inline]
