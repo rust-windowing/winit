@@ -1,8 +1,12 @@
-use super::{activation_hack, app_state::AppState};
+use super::{
+    activation_hack,
+    app_state::AppState,
+    event::{EventWrapper, MacSpecificEvent},
+};
 use cocoa::base::id;
 use objc::{
     declare::ClassDecl,
-    runtime::{Class, Object, Sel},
+    runtime::{Class, Object, Sel, BOOL, YES},
 };
 use std::os::raw::c_void;
 
@@ -36,8 +40,33 @@ lazy_static! {
             activation_hack::mouse_moved as extern "C" fn(&Object, Sel, id),
         );
 
+        decl.add_method(
+            sel!(application:openFile:),
+            application_open_file as extern "C" fn(&Object, Sel, id, id) -> BOOL,
+        );
+        decl.add_method(
+            sel!(application:openFiles:),
+            application_open_files as extern "C" fn(&Object, Sel, id, id),
+        );
+
         AppDelegateClass(decl.register())
     };
+}
+
+/// Copies the contents of the ns string into a `String` which gets returned.
+fn ns_string_to_rust(ns_string: id) -> String {
+    use cocoa::foundation::NSString;
+
+    let utf8_len = unsafe { ns_string.len() };
+    let utf8_ptr = unsafe { ns_string.UTF8String() } as *mut u8;
+    let utf8_slice = unsafe { std::slice::from_raw_parts(utf8_ptr, utf8_len) };
+    let mut utf8_vec = Vec::<u8>::with_capacity(utf8_len);
+    unsafe {
+        utf8_vec.set_len(utf8_len);
+    }
+    utf8_vec.copy_from_slice(utf8_slice);
+
+    unsafe { String::from_utf8_unchecked(utf8_vec) }
 }
 
 extern "C" fn new(class: &Class, _: Sel) -> id {
@@ -78,4 +107,46 @@ extern "C" fn did_resign_active(this: &Object, _: Sel, _: id) {
         activation_hack::refocus(this);
     }
     trace!("Completed `applicationDidResignActive`");
+}
+
+extern "C" fn application_open_file(_this: &Object, _: Sel, _sender: id, filename: id) -> BOOL {
+    trace!("Triggered `application:openFile:`");
+    let mut filenames = Vec::new();
+    let string = ns_string_to_rust(filename);
+    filenames.push(string.into());
+    let event = MacSpecificEvent::OpenFiles(filenames);
+    AppState::queue_event(EventWrapper::MacSpecific(event));
+    trace!("Completed `application:openFile:`");
+
+    // Return true to indicate to the OS that the file type is supported.
+    // (If the filetype turns out not to be supported, it's the application's
+    // responsibility to inform the user)
+    YES
+}
+
+extern "C" fn application_open_files(_this: &Object, _: Sel, _sender: id, filenames: id) {
+    use cocoa::foundation::NSArray;
+
+    #[allow(non_upper_case_globals)]
+    const NSApplicationDelegateReplySuccess: i32 = 0;
+
+    trace!("Triggered `application:openFiles:`");
+    let mut filenames_vec = Vec::new();
+    let filenames_len = unsafe { filenames.count() };
+    for i in 0..filenames_len {
+        let filename = unsafe { filenames.objectAtIndex(i) };
+        let name_string = ns_string_to_rust(filename);
+        filenames_vec.push(name_string.into());
+    }
+    let event = MacSpecificEvent::OpenFiles(filenames_vec);
+    AppState::queue_event(EventWrapper::MacSpecific(event));
+
+    let cls = objc::runtime::Class::get("NSApplication").unwrap();
+    let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+    // Indicate to the OS that the file types are supported.
+    // (If a filetype turns out not to be supported, it's the application's
+    // responsibility to inform the user)
+    unsafe { msg_send![app, replyToOpenOrPrint: NSApplicationDelegateReplySuccess] }
+
+    trace!("Completed `application:openFiles:`");
 }
