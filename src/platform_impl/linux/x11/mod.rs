@@ -309,19 +309,20 @@ impl<T: 'static> EventLoop<T> {
             }
             // Empty the redraw requests
             {
-                // Set of windows that have already received `RedrawRequested` this iteration
                 let mut windows = HashSet::new();
 
                 while let Ok(window_id) = self.redraw_channel.try_recv() {
-                    if windows.insert(window_id) {
-                        let window_id = crate::window::WindowId(super::WindowId::X(window_id));
-                        sticky_exit_callback(
-                            Event::RedrawRequested(window_id),
-                            &self.target,
-                            &mut control_flow,
-                            &mut callback,
-                        );
-                    }
+                    windows.insert(window_id);
+                }
+
+                for window_id in windows {
+                    let window_id = crate::window::WindowId(super::WindowId::X(window_id));
+                    sticky_exit_callback(
+                        Event::RedrawRequested(window_id),
+                        &self.target,
+                        &mut control_flow,
+                        &mut callback,
+                    );
                 }
             }
             // send RedrawEventsCleared
