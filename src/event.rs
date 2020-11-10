@@ -143,10 +143,10 @@ impl<T: Clone> Clone for Event<'static, T> {
 }
 
 impl<'a, T> Event<'a, T> {
-    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, T> {
         use self::Event::*;
         match self {
-            UserEvent(_) => Err(self),
+            UserEvent(user_event) => Err(user_event),
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
             NewEvents(cause) => Ok(NewEvents(cause)),
