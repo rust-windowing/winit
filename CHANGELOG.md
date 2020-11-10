@@ -10,6 +10,7 @@
 - On Web, fix `WindowEvent::ReceivedCharacter` never being sent on key input.
 - On macOS, fix compilation when targeting aarch64
 - On X11, fix `Window::request_redraw` not waking the event loop.
+- On Wayland, the keypad arrow keys are now recognized.
 
 # 0.23.0 (2020-10-02)
 
