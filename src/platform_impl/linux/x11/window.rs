@@ -22,7 +22,7 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Icon, RequestUserAttentionType, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -1304,6 +1304,21 @@ impl UnownedWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
         self.set_ime_position_physical(x, y);
+    }
+
+    fn request_user_attention_inner(&self, request: bool) -> util::Flusher<'_> {
+        let demand_atom = unsafe {
+            self.xconn
+                .get_atom_unchecked(b"_NET_WM_STATE_DEMANDS_ATTENTION\0")
+        };
+        self.set_netwm(request.into(), (demand_atom as c_long, 0, 0, 0))
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, _request_type: RequestUserAttentionType) {
+        self.request_user_attention_inner(true)
+            .flush()
+            .expect("Failed to set request-user-attention state");
     }
 
     #[inline]

@@ -1,5 +1,7 @@
 # Unreleased
 
+- Added `request_user_attention` method to `Window`.
+- **Breaking:** On macOS, removed `WindowExt::request_user_attention`.
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
 - On Windows, fix alt-tab behaviour by removing borderless fullscreen "always on top" flag.
 - On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.

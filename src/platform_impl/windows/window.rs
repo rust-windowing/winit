@@ -14,7 +14,7 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{HINSTANCE, UINT},
+        minwindef::{BOOL, HINSTANCE, UINT},
         windef::{HWND, POINT, RECT},
     },
     um::{
@@ -43,7 +43,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, RequestUserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -619,6 +619,21 @@ impl Window {
     #[inline]
     pub fn set_ime_position(&self, _position: Position) {
         warn!("`Window::set_ime_position` is ignored on Windows")
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, request_type: RequestUserAttentionType) {
+        let window = self.window.clone();
+
+        self.thread_executor.execute_in_thread(move || unsafe {
+            winuser::FlashWindow(
+                window.0,
+                match request_type {
+                    RequestUserAttentionType::Critical => true as BOOL,
+                    RequestUserAttentionType::Informational => false as BOOL,
+                },
+            );
+        });
     }
 
     #[inline]

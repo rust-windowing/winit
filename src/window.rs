@@ -682,6 +682,28 @@ impl Window {
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
     }
+
+    /// Requests user attention to the window, this has no effect if the application
+    /// is already focused.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    ///
+    /// - **MacOS:** `RequestUserAttentionType::Critical` bounces the dock icon until the
+    /// application is in focus. `RequestUserAttentionType::Informational` bounces the   
+    /// dock icon once.
+    ///
+    /// - **Windows:** `RequestUserAttentionType::Critical` flashes the window once and the
+    /// taskbar icon until the application is in focus. `RequestUserAttentionType::Informational`
+    /// flashes the taskbar icon until the application is in focus.
+    ///
+    /// - **X11:** `RequestUserAttentionType::Critical` and `RequestUserAttentionType::Informational`
+    /// provide the exact same result, which is determined by the WM.
+    #[inline]
+    pub fn request_user_attention(&self, request_type: RequestUserAttentionType) {
+        self.window.request_user_attention(request_type)
+    }
 }
 
 /// Cursor functions.
@@ -873,4 +895,16 @@ pub enum Fullscreen {
 pub enum Theme {
     Light,
     Dark,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RequestUserAttentionType {
+    Critical,
+    Informational,
+}
+
+impl Default for RequestUserAttentionType {
+    fn default() -> Self {
+        RequestUserAttentionType::Critical
+    }
 }

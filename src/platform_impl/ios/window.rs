@@ -22,7 +22,10 @@ use crate::{
         },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
+    window::{
+        CursorIcon, Fullscreen, RequestUserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
+    },
 };
 
 pub struct Inner {
@@ -258,6 +261,10 @@ impl Inner {
 
     pub fn set_ime_position(&self, _position: Position) {
         warn!("`Window::set_ime_position` is ignored on iOS")
+    }
+
+    pub fn request_user_attention(&self, _request_type: RequestUserAttentionType) {
+        warn!("`Window::request_user_attention` is ignored on iOS")
     }
 
     // Allow directly accessing the current monitor internally without unwrapping.
