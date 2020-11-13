@@ -626,31 +626,23 @@ impl Window {
         let window = self.window.clone();
 
         self.thread_executor.execute_in_thread(move || unsafe {
-            let mut flash_info = match request_type {
-                Some(req_type) => winuser::FLASHWINFO {
-                    cbSize: mem::size_of::<winuser::FLASHWINFO>() as UINT,
-                    hwnd: window.0,
-                    dwFlags: match req_type {
-                        RequestUserAttentionType::Critical => {
-                            winuser::FLASHW_ALL | winuser::FLASHW_TIMERNOFG
-                        }
-                        RequestUserAttentionType::Informational => {
-                            winuser::FLASHW_TRAY | winuser::FLASHW_TIMERNOFG
-                        }
-                    },
-                    uCount: match req_type {
-                        RequestUserAttentionType::Critical => u32::MAX,
-                        RequestUserAttentionType::Informational => 0,
-                    },
-                    dwTimeout: 0,
-                },
-                None => winuser::FLASHWINFO {
-                    cbSize: mem::size_of::<winuser::FLASHWINFO>() as UINT,
-                    hwnd: window.0,
-                    dwFlags: winuser::FLASHW_STOP,
-                    uCount: 0,
-                    dwTimeout: 0,
-                },
+            let (flags, count) = request_type
+                .map(|ty| match ty {
+                    RequestUserAttentionType::Critical => {
+                        (winuser::FLASHW_ALL | winuser::FLASHW_TIMERNOFG, u32::MAX)
+                    }
+                    RequestUserAttentionType::Informational => {
+                        (winuser::FLASHW_TRAY | winuser::FLASHW_TIMERNOFG, 0)
+                    }
+                })
+                .unwrap_or((winuser::FLASHW_STOP, 0));
+
+            let mut flash_info = winuser::FLASHWINFO {
+                cbSize: mem::size_of::<winuser::FLASHWINFO>() as UINT,
+                hwnd: window.0,
+                dwFlags: flags,
+                uCount: count,
+                dwTimeout: 0,
             };
             winuser::FlashWindowEx(&mut flash_info);
         });

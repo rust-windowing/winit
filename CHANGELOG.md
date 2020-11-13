@@ -1,8 +1,5 @@
 # Unreleased
 
-- Added `request_user_attention` method to `Window`.
-- **Breaking:** On macOS, removed `WindowExt::request_user_attention`, use `Window::request_user_attention`.  
-- **Breaking:** On X11, removed `WindowExt::set_urgent`, use `Window::request_user_attention`. 
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
 - On Windows, fix alt-tab behaviour by removing borderless fullscreen "always on top" flag.
 - On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.
@@ -13,6 +10,9 @@
 - On Web, fix `WindowEvent::ReceivedCharacter` never being sent on key input.
 - On macOS, fix compilation when targeting aarch64
 - On X11, fix `Window::request_redraw` not waking the event loop.
+- Added `request_user_attention` method to `Window`.
+- **Breaking:** On macOS, removed `WindowExt::request_user_attention`, use `Window::request_user_attention`.  
+- **Breaking:** On X11, removed `WindowExt::set_urgent`, use `Window::request_user_attention`. 
 
 # 0.23.0 (2020-10-02)
 

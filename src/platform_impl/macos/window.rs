@@ -984,19 +984,17 @@ impl UnownedWindow {
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
         let mut shared_state = self.shared_state.lock().unwrap();
+        let ns_request_type = request_type.map(|ty| match ty {
+            RequestUserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
+            RequestUserAttentionType::Informational => {
+                NSRequestUserAttentionType::NSInformationalRequest
+            }
+        });
 
         unsafe {
-            match request_type {
-                Some(request_type) => {
-                    shared_state.request_user_attention_id =
-                        Some(NSApp().requestUserAttention_(match request_type {
-                            RequestUserAttentionType::Critical => {
-                                NSRequestUserAttentionType::NSCriticalRequest
-                            }
-                            RequestUserAttentionType::Informational => {
-                                NSRequestUserAttentionType::NSInformationalRequest
-                            }
-                        }))
+            match ns_request_type {
+                Some(ty) => {
+                    shared_state.request_user_attention_id = Some(NSApp().requestUserAttention_(ty))
                 }
                 None => {
                     if let Some(id) = shared_state.request_user_attention_id {

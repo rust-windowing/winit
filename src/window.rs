@@ -684,22 +684,11 @@ impl Window {
     }
 
     /// Requests user attention to the window, this has no effect if the application
-    /// is already focused.
+    /// is already focused. Providing `None` will unset the requesting of user attention.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland:** Unsupported.
-    ///
-    /// - **MacOS:** `RequestUserAttentionType::Critical` bounces the dock icon until the
-    /// application is in focus. `RequestUserAttentionType::Informational` bounces the   
-    /// dock icon once.
-    ///
-    /// - **Windows:** `RequestUserAttentionType::Critical` flashes both the window and the
-    /// taskbar button until the application is in focus. `RequestUserAttentionType::Informational`
-    /// flashes the taskbar button until the application is in focus.
-    ///
-    /// - **X11:** `RequestUserAttentionType::Critical` and `RequestUserAttentionType::Informational`
-    /// provide the exact same result, which is determined by the WM.
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
         self.window.request_user_attention(request_type)
@@ -899,12 +888,20 @@ pub enum Theme {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RequestUserAttentionType {
+    /// ## Platform-specific
+    /// - **MacOS:** Bounces the dock icon until the application is in focus.
+    /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
+    /// - **X11:** No distinction between `Critical` and `Informational`, behavior determined by WM.
     Critical,
+    /// ## Platform-specific
+    /// - **MacOS:** Bounces the dock icon once.
+    /// - **Windows:** Flashes the taskbar button until the application is in focus.
+    /// - **X11:** No distinction between `Critical` and `Informational`, behavior determined by WM.
     Informational,
 }
 
 impl Default for RequestUserAttentionType {
     fn default() -> Self {
-        RequestUserAttentionType::Critical
+        RequestUserAttentionType::Informational
     }
 }
