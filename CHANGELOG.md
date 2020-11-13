@@ -10,11 +10,11 @@
 - On Web, fix `WindowEvent::ReceivedCharacter` never being sent on key input.
 - On macOS, fix compilation when targeting aarch64
 - On X11, fix `Window::request_redraw` not waking the event loop.
+- On Wayland, the keypad arrow keys are now recognized.
+- **Breaking** Rename `desktop::EventLoopExtDesktop` to `run_return::EventLoopExtRunReturn`.
 - Added `request_user_attention` method to `Window`.
 - **Breaking:** On macOS, removed `WindowExt::request_user_attention`, use `Window::request_user_attention`.  
 - **Breaking:** On X11, removed `WindowExt::set_urgent`, use `Window::request_user_attention`. 
-- On Wayland, the keypad arrow keys are now recognized.
-- **Breaking** Rename `desktop::EventLoopExtDesktop` to `run_return::EventLoopExtRunReturn`.
 
 # 0.23.0 (2020-10-02)
 
