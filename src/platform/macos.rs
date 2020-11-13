@@ -6,7 +6,7 @@ use crate::{
     dpi::LogicalSize,
     event_loop::EventLoopWindowTarget,
     monitor::MonitorHandle,
-    window::{RequestUserAttentionType, Window, WindowBuilder},
+    window::{Window, WindowBuilder},
 };
 
 /// Additional methods on `Window` that are specific to MacOS.
