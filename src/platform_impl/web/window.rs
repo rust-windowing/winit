@@ -271,7 +271,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, _request_type: RequestUserAttentionType) {
+    pub fn request_user_attention(&self, _request_type: Option<RequestUserAttentionType>) {
         // Currently an intentional no-op
     }
 

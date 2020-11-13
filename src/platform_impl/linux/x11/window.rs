@@ -523,23 +523,6 @@ impl UnownedWindow {
         )
     }
 
-    #[inline]
-    pub fn set_urgent(&self, is_urgent: bool) {
-        let mut wm_hints = self
-            .xconn
-            .get_wm_hints(self.xwindow)
-            .expect("`XGetWMHints` failed");
-        if is_urgent {
-            (*wm_hints).flags |= ffi::XUrgencyHint;
-        } else {
-            (*wm_hints).flags &= !ffi::XUrgencyHint;
-        }
-        self.xconn
-            .set_wm_hints(self.xwindow, wm_hints)
-            .flush()
-            .expect("Failed to set urgency hint");
-    }
-
     fn set_netwm(
         &self,
         operation: util::StateOperation,
@@ -1306,19 +1289,21 @@ impl UnownedWindow {
         self.set_ime_position_physical(x, y);
     }
 
-    fn request_user_attention_inner(&self, request: bool) -> util::Flusher<'_> {
-        let demand_atom = unsafe {
-            self.xconn
-                .get_atom_unchecked(b"_NET_WM_STATE_DEMANDS_ATTENTION\0")
-        };
-        self.set_netwm(request.into(), (demand_atom as c_long, 0, 0, 0))
-    }
-
     #[inline]
-    pub fn request_user_attention(&self, _request_type: RequestUserAttentionType) {
-        self.request_user_attention_inner(true)
+    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
+        let mut wm_hints = self
+            .xconn
+            .get_wm_hints(self.xwindow)
+            .expect("`XGetWMHints` failed");
+        if request_type.is_some() {
+            (*wm_hints).flags |= ffi::XUrgencyHint;
+        } else {
+            (*wm_hints).flags &= !ffi::XUrgencyHint;
+        }
+        self.xconn
+            .set_wm_hints(self.xwindow, wm_hints)
             .flush()
-            .expect("Failed to set request-user-attention state");
+            .expect("Failed to set urgency hint");
     }
 
     #[inline]

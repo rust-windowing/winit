@@ -298,6 +298,7 @@ pub struct SharedState {
     /// restored upon exiting it
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
     pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
+    pub request_user_attention_id: Option<i32>,
 }
 
 impl SharedState {
@@ -981,14 +982,29 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, request_type: RequestUserAttentionType) {
+    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
+        let mut shared_state = self.shared_state.lock().unwrap();
+
         unsafe {
-            NSApp().requestUserAttention_(match request_type {
-                RequestUserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
-                RequestUserAttentionType::Informational => {
-                    NSRequestUserAttentionType::NSInformationalRequest
+            match request_type {
+                Some(request_type) => {
+                    shared_state.request_user_attention_id =
+                        Some(NSApp().requestUserAttention_(match request_type {
+                            RequestUserAttentionType::Critical => {
+                                NSRequestUserAttentionType::NSCriticalRequest
+                            }
+                            RequestUserAttentionType::Informational => {
+                                NSRequestUserAttentionType::NSInformationalRequest
+                            }
+                        }))
                 }
-            });
+                None => {
+                    if let Some(id) = shared_state.request_user_attention_id {
+                        NSApp().cancelUserAttentionRequest_(id);
+                        shared_state.request_user_attention_id = None;
+                    }
+                }
+            }
         }
     }
 

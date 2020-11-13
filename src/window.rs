@@ -694,14 +694,14 @@ impl Window {
     /// application is in focus. `RequestUserAttentionType::Informational` bounces the   
     /// dock icon once.
     ///
-    /// - **Windows:** `RequestUserAttentionType::Critical` flashes the window once and the
-    /// taskbar icon until the application is in focus. `RequestUserAttentionType::Informational`
-    /// flashes the taskbar icon until the application is in focus.
+    /// - **Windows:** `RequestUserAttentionType::Critical` flashes both the window and the
+    /// taskbar button until the application is in focus. `RequestUserAttentionType::Informational`
+    /// flashes the taskbar button until the application is in focus.
     ///
     /// - **X11:** `RequestUserAttentionType::Critical` and `RequestUserAttentionType::Informational`
     /// provide the exact same result, which is determined by the WM.
     #[inline]
-    pub fn request_user_attention(&self, request_type: RequestUserAttentionType) {
+    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
         self.window.request_user_attention(request_type)
     }
 }
