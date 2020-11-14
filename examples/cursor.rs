@@ -20,7 +20,7 @@ fn main() {
         match event {
             Event::WindowEvent {
                 event:
-                    WindowEvent::KeyboardInput {
+                    WindowEvent::KeyboardInput_DEPRECATED {
                         input:
                             KeyboardInput {
                                 state: ElementState::Pressed,

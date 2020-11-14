@@ -33,7 +33,7 @@ fn main() {
                             *control_flow = ControlFlow::Exit;
                         }
                     }
-                    WindowEvent::KeyboardInput {
+                    WindowEvent::KeyboardInput_DEPRECATED {
                         input:
                             KeyboardInput {
                                 state: ElementState::Pressed,

@@ -25,7 +25,7 @@ fn main() {
 
             // Keyboard input event to handle minimize via a hotkey
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
+                event: WindowEvent::KeyboardInput_DEPRECATED { input, .. },
                 window_id,
             } => {
                 if window_id == window.id() {

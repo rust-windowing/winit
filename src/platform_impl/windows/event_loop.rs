@@ -1121,7 +1121,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     #[allow(deprecated)]
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
-                        event: WindowEvent::KeyboardInput {
+                        event: WindowEvent::KeyboardInput_DEPRECATED {
                             device_id: DEVICE_ID,
                             input: KeyboardInput {
                                 state: Pressed,
@@ -1153,7 +1153,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput {
+                    event: WindowEvent::KeyboardInput_DEPRECATED {
                         device_id: DEVICE_ID,
                         input: KeyboardInput {
                             state: Released,
@@ -1537,7 +1537,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput {
+                    event: WindowEvent::KeyboardInput_DEPRECATED {
                         device_id: DEVICE_ID,
                         input: KeyboardInput {
                             scancode,
@@ -1572,7 +1572,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 #[allow(deprecated)]
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput {
+                    event: WindowEvent::KeyboardInput_DEPRECATED {
                         device_id: DEVICE_ID,
                         input: KeyboardInput {
                             scancode,
@@ -1994,7 +1994,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
 
         winuser::WM_INPUT => {
             use crate::event::{
-                DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
+                DeviceEvent::{Button, Key_DEPRECATED, Motion, MouseMotion, MouseWheel},
                 ElementState::{Pressed, Released},
                 MouseScrollDelta::LineDelta,
             };
@@ -2078,7 +2078,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                             #[allow(deprecated)]
                             subclass_input.send_event(Event::DeviceEvent {
                                 device_id,
-                                event: Key(KeyboardInput {
+                                event: Key_DEPRECATED(KeyboardInput {
                                     scancode,
                                     state,
                                     virtual_keycode,

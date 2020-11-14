@@ -248,9 +248,24 @@ pub enum WindowEvent<'a> {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    KeyboardInput {
+    KeyboardInput_DEPRECATED {
         device_id: DeviceId,
         input: KeyboardInput,
+        /// If `true`, the event was generated synthetically by winit
+        /// in one of the following circumstances:
+        ///
+        /// * Synthetic key press events are generated for all keys pressed
+        ///   when a window gains focus. Likewise, synthetic key release events
+        ///   are generated for all keys pressed when a window goes out of focus.
+        ///   ***Currently, this is only functional on X11 and Windows***
+        ///
+        /// Otherwise, this value is always `false`.
+        is_synthetic: bool,
+    },
+
+    KeyboardInput {
+        device_id: DeviceId,
+        event: KeyEvent,
         /// If `true`, the event was generated synthetically by winit
         /// in one of the following circumstances:
         ///
@@ -367,16 +382,24 @@ impl Clone for WindowEvent<'static> {
             HoveredFileCancelled => HoveredFileCancelled,
             ReceivedCharacter(c) => ReceivedCharacter(*c),
             Focused(f) => Focused(*f),
-            KeyboardInput {
+            KeyboardInput_DEPRECATED {
                 device_id,
                 input,
                 is_synthetic,
-            } => KeyboardInput {
+            } => KeyboardInput_DEPRECATED {
                 device_id: *device_id,
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
-
+            KeyboardInput {
+                device_id,
+                event,
+                is_synthetic,
+            } => KeyboardInput {
+                device_id: *device_id,
+                event: event.clone(),
+                is_synthetic: *is_synthetic,
+            },
             ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
             #[allow(deprecated)]
             CursorMoved {
@@ -458,14 +481,23 @@ impl<'a> WindowEvent<'a> {
             HoveredFileCancelled => Some(HoveredFileCancelled),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),
+            KeyboardInput_DEPRECATED {
+                device_id,
+                input,
+                is_synthetic,
+            } => Some(KeyboardInput_DEPRECATED {
+                device_id,
+                input,
+                is_synthetic,
+            }),
             KeyboardInput {
                 device_id,
-                input,
+                event,
                 is_synthetic,
             } => Some(KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
+                device_id: device_id,
+                event: event,
+                is_synthetic: is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
             #[allow(deprecated)]
@@ -589,7 +621,7 @@ pub enum DeviceEvent {
         state: ElementState,
     },
 
-    Key(KeyboardInput),
+    Key_DEPRECATED(KeyboardInput),
 
     Text {
         codepoint: char,
@@ -605,7 +637,7 @@ pub struct KeyboardInput {
     /// This should not change if the user adjusts the host's keyboard map. Use when the physical location of the
     /// key is more important than the key's host GUI semantics, such as for movement controls in a first-person
     /// game.
-    pub scancode: ScanCode,
+    pub scancode: ScanCode_DEPRECATED,
 
     pub state: ElementState,
 
@@ -622,6 +654,52 @@ pub struct KeyboardInput {
     #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
 }
+
+//TODO Implement (de)serialization
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEvent {
+    pub scancode: ScanCode,
+
+    /// Represents the position of a key independent of the
+    /// currently active layout.
+    /// Conforms to https://www.w3.org/TR/uievents-code/
+    /// 
+    /// Note that `Fn` and `FnLock` key events are not emmited by `winit`.
+    /// These keys are usually handled at the hardware or at the OS level.
+    pub physical_key: keyboard_types::Code,
+    
+    /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
+    /// 
+    /// This is suitable for text input in a GUI application.
+    /// 
+    /// Note that the `Unicode` variant may contain multiple characters.
+    /// For example on Windows when pressing <kbd>^</kbd> using
+    /// a US-International layout, this will be `Dead` for the first
+    /// keypress and will be `Unicode("^^")` for the second keypress.
+    /// It's important that this behaviour might be different on
+    /// other platforms. For example Linux systems may emit a  
+    /// `Unicode("^")` on the second keypress.
+    ///
+    /// ## Platform-specific
+    /// - **Web:** Dead keys might be reported as the real key instead
+    /// of `Dead` depending on the browser/OS.
+    pub logical_key: keyboard_types::Key,
+    
+    pub location: keyboard_types::Location,
+    pub state: keyboard_types::KeyState,
+    pub repeat: bool,
+    
+    platform_specific: platform_impl::KeyEventExtra,
+}
+
+// impl std::fmt::Debug for KeyEvent {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.debug_struct("KeyEvent")
+//          .field("scancode", &())
+//          .field("y", &self.y)
+//          .finish()
+//     }
+// }
 
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -722,7 +800,10 @@ impl Force {
 }
 
 /// Hardware-dependent keyboard scan code.
-pub type ScanCode = u32;
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct ScanCode (platform_impl::PlatformScanCode);
+
+pub type ScanCode_DEPRECATED = u32;
 
 /// Identifier for a specific analog axis on some device.
 pub type AxisId = u32;

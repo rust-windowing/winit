@@ -37,7 +37,7 @@ fn main() {
         match event {
             Event::DeviceEvent {
                 event:
-                    DeviceEvent::Key(KeyboardInput {
+                    DeviceEvent::Key_DEPRECATED(KeyboardInput {
                         virtual_keycode: Some(key),
                         state: ElementState::Pressed,
                         ..
@@ -59,7 +59,7 @@ fn main() {
                 _ => (),
             },
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
+                event: WindowEvent::KeyboardInput_DEPRECATED { input, .. },
                 ..
             } => match input {
                 KeyboardInput {

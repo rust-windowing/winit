@@ -51,7 +51,7 @@ fn main() {
                 WindowEvent::CloseRequested => {
                     close_requested = true;
                 }
-                WindowEvent::KeyboardInput {
+                WindowEvent::KeyboardInput_DEPRECATED {
                     input:
                         KeyboardInput {
                             virtual_keycode: Some(virtual_code),

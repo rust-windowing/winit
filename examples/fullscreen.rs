@@ -38,7 +38,7 @@ fn main() {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput {
+                WindowEvent::KeyboardInput_DEPRECATED {
                     input:
                         KeyboardInput {
                             virtual_keycode: Some(virtual_code),

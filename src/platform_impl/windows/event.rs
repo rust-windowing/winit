@@ -5,12 +5,21 @@ use std::{
     sync::atomic::{AtomicBool, AtomicPtr, Ordering},
 };
 
-use crate::event::{ModifiersState, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, ScanCode, ScanCode_DEPRECATED, VirtualKeyCode};
 
 use winapi::{
     shared::minwindef::{HKL, HKL__, LPARAM, UINT, WPARAM},
     um::winuser,
 };
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub char_with_all_modifers: Option<String>,
+    pub key_without_modifers: keyboard_types::Key,
+}
+
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct PlatformScanCode(pub u32);
 
 fn key_pressed(vkey: c_int) -> bool {
     unsafe { (winuser::GetKeyState(vkey) & (1 << 15)) == (1 << 15) }
@@ -391,7 +400,7 @@ pub fn handle_extended_keys(
 pub fn process_key_params(
     wparam: WPARAM,
     lparam: LPARAM,
-) -> Option<(ScanCode, Option<VirtualKeyCode>)> {
+) -> Option<(ScanCode_DEPRECATED, Option<VirtualKeyCode>)> {
     let scancode = ((lparam >> 16) & 0xff) as UINT;
     let extended = (lparam & 0x01000000) != 0;
     handle_extended_keys(wparam as _, scancode, extended)

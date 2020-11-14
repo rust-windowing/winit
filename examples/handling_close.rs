@@ -43,7 +43,7 @@ fn main() {
                         // closing the window. How to close the window is detailed in the handler for
                         // the Y key.
                     }
-                    WindowEvent::KeyboardInput {
+                    WindowEvent::KeyboardInput_DEPRECATED {
                         input:
                             KeyboardInput {
                                 virtual_keycode: Some(virtual_code),
