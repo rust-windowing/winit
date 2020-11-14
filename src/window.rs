@@ -689,6 +689,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland:** Unsupported.
+    ///
+    /// On macOS, providing `None` has no effect.
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
         self.window.request_user_attention(request_type)
@@ -891,12 +893,12 @@ pub enum RequestUserAttentionType {
     /// ## Platform-specific
     /// - **MacOS:** Bounces the dock icon until the application is in focus.
     /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
-    /// - **X11:** No distinction between `Critical` and `Informational`, behavior determined by WM.
+    /// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
     Critical,
     /// ## Platform-specific
     /// - **MacOS:** Bounces the dock icon once.
     /// - **Windows:** Flashes the taskbar button until the application is in focus.
-    /// - **X11:** No distinction between `Critical` and `Informational`, behavior determined by WM.
+    /// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
     Informational,
 }
 
