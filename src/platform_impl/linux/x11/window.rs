@@ -1290,14 +1290,16 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, request_type: RequestUserAttentionType) {
+    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
         let mut wm_hints = self
             .xconn
             .get_wm_hints(self.xwindow)
             .expect("`XGetWMHints` failed");
-
-        (*wm_hints).flags |= ffi::XUrgencyHint;
-
+        if request_type.is_some() {
+            (*wm_hints).flags |= ffi::XUrgencyHint;
+        } else {
+            (*wm_hints).flags &= !ffi::XUrgencyHint;
+        }
         self.xconn
             .set_wm_hints(self.xwindow, wm_hints)
             .flush()
