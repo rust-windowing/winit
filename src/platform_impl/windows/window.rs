@@ -624,6 +624,10 @@ impl Window {
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
         let window = self.window.clone();
+        let active_window_handle = unsafe { winuser::GetActiveWindow() };
+        if window.0 == active_window_handle {
+            return;
+        }
 
         self.thread_executor.execute_in_thread(move || unsafe {
             let (flags, count) = request_type

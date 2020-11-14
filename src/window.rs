@@ -684,13 +684,17 @@ impl Window {
     }
 
     /// Requests user attention to the window, this has no effect if the application
-    /// is already focused. Providing `None` will unset the requesting of user attention.
+    /// is already focused. Providing `None` will unset the request for user attention.
+    ///
+    /// Unsetting the request for user attention is automatically done by the WM when
+    /// the window receives focus.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland:** Unsupported.
-    ///
-    /// On macOS, providing `None` has no effect.
+    /// - **macOS:** `None` has no effect.
+    /// - **X11:** Automatic unsetting the request for user attention when the window  
+    /// receives focus might not be handled by some WMs.
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
         self.window.request_user_attention(request_type)
