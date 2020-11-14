@@ -622,20 +622,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
+    pub fn request_user_attention(&self, request_type: RequestUserAttentionType) {
         let window = self.window.clone();
 
         self.thread_executor.execute_in_thread(move || unsafe {
-            let (flags, count) = request_type
-                .map(|ty| match ty {
-                    RequestUserAttentionType::Critical => {
-                        (winuser::FLASHW_ALL | winuser::FLASHW_TIMERNOFG, u32::MAX)
-                    }
-                    RequestUserAttentionType::Informational => {
-                        (winuser::FLASHW_TRAY | winuser::FLASHW_TIMERNOFG, 0)
-                    }
-                })
-                .unwrap_or((winuser::FLASHW_STOP, 0));
+            let (flags, count) = match request_type {
+                RequestUserAttentionType::Critical => {
+                    (winuser::FLASHW_ALL | winuser::FLASHW_TIMERNOFG, u32::MAX)
+                }
+                RequestUserAttentionType::Informational => {
+                    (winuser::FLASHW_TRAY | winuser::FLASHW_TIMERNOFG, 0)
+                }
+            };
 
             let mut flash_info = winuser::FLASHWINFO {
                 cbSize: mem::size_of::<winuser::FLASHWINFO>() as UINT,

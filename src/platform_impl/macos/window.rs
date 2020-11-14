@@ -981,17 +981,15 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
-        let ns_request_type = request_type.map(|ty| match ty {
+    pub fn request_user_attention(&self, request_type: RequestUserAttentionType) {
+        let ns_request_type = match request_type {
             RequestUserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
             RequestUserAttentionType::Informational => {
                 NSRequestUserAttentionType::NSInformationalRequest
             }
-        });
+        };
         unsafe {
-            if let Some(ty) = ns_request_type {
-                NSApp().requestUserAttention_(ty);
-            }
+            NSApp().requestUserAttention_(ns_request_type);
         }
     }
 
