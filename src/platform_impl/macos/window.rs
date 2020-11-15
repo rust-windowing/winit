@@ -35,8 +35,8 @@ use crate::{
 use cocoa::{
     appkit::{
         self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
-        NSApplicationPresentationOptions, NSColor, NSScreen, NSUserAttentionType, NSView, NSWindow,
-        NSWindowButton, NSWindowStyleMask,
+        NSApplicationPresentationOptions, NSColor, NSRequestUserAttentionType, NSScreen, NSView,
+        NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
@@ -982,8 +982,8 @@ impl UnownedWindow {
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let ns_request_type = request_type.map(|ty| match ty {
-            UserAttentionType::Critical => NSUserAttentionType::NSCriticalRequest,
-            UserAttentionType::Informational => NSUserAttentionType::NSInformationalRequest,
+            UserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
+            UserAttentionType::Informational => NSRequestUserAttentionType::NSInformationalRequest,
         });
         unsafe {
             if let Some(ty) = ns_request_type {
