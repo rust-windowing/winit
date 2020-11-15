@@ -682,6 +682,12 @@ impl Window {
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
     }
+
+    /// TODO: docs
+    #[inline]
+    pub fn focus_window(&self) {
+        self.window.focus_window()
+    }
 }
 
 /// Cursor functions.

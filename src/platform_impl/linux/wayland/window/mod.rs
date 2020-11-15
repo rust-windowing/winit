@@ -599,6 +599,9 @@ impl Window {
     }
 
     #[inline]
+    pub fn focus_window(&self) {}
+
+    #[inline]
     pub fn display(&self) -> &Display {
         &self.display
     }

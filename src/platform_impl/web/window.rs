@@ -269,6 +269,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn focus_window(&self) {
+        // Currently a no-op as it does not seem there is good support for this on web
+    }
+
+    #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
     fn current_monitor_inner(&self) -> RootMH {
         RootMH {

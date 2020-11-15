@@ -485,6 +485,8 @@ impl Window {
 
     pub fn set_ime_position(&self, _position: Position) {}
 
+    pub fn focus_window(&self) {}
+
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {

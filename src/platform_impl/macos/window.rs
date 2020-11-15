@@ -978,6 +978,14 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn focus_window(&self) {
+        unsafe {
+            NSApp().activateIgnoringOtherApps_(YES);
+            util::make_key_and_order_front_async(*self.ns_window);
+        }
+    }
+
+    #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
     pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {

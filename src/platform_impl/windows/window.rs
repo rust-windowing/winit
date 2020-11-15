@@ -625,6 +625,18 @@ impl Window {
     pub fn is_dark_mode(&self) -> bool {
         self.window_state.lock().is_dark_mode
     }
+
+    #[inline]
+    pub fn focus_window(&self) {
+        let window = self.window.clone();
+        let minimized = self.window_state.lock().window_flags().contains(WindowFlags::MINIMIZED);
+        let foreground = window.0 == unsafe { winuser::GetForegroundWindow() };
+
+        if !minimized && !foreground {
+            println!("x");
+            unsafe { force_window_active(window.0) }    
+        }       
+    }
 }
 
 impl Drop for Window {

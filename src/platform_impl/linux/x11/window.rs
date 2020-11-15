@@ -1306,6 +1306,27 @@ impl UnownedWindow {
         self.set_ime_position_physical(x, y);
     }
 
+    fn set_focus_inner(&self) -> util::Flusher<'_> {
+        unsafe {
+            let atom = self.xconn.get_atom_unchecked(b"_NET_ACTIVE_WINDOW\0");
+            
+            self.xconn.send_client_msg(
+                self.xwindow,
+                self.root,
+                atom,
+                Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                [1, ffi::CurrentTime as c_long, 0, 0, 0],
+            )
+        }
+    }
+
+    #[inline]
+    pub fn focus_window(&self) {
+        self.focus_window_inner()
+            .flush()
+            .expect("Failed to focus window");
+    }
+
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.xwindow)

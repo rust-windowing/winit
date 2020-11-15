@@ -419,6 +419,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn focus_window(&self) {
+        match self {
+            #[cfg(feature = "x11")]
+            &Window::X(ref w) => w.focus_window(_window_icon),
+            #[cfg(feature = "wayland")]
+            _ => (),
+        }
+    }
+
+    #[inline]
     pub fn request_redraw(&self) {
         x11_or_wayland!(match self; Window(w) => w.request_redraw())
     }
