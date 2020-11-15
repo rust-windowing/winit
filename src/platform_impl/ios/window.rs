@@ -23,8 +23,7 @@ use crate::{
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
     window::{
-        CursorIcon, Fullscreen, RequestUserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
     },
 };
 
@@ -263,7 +262,7 @@ impl Inner {
         warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
-    pub fn request_user_attention(&self, _request_type: Option<RequestUserAttentionType>) {
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         warn!("`Window::request_user_attention` is ignored on iOS")
     }
 

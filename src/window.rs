@@ -684,7 +684,10 @@ impl Window {
     }
 
     /// Requests user attention to the window, this has no effect if the application
-    /// is already focused. Providing `None` will unset the request for user attention.
+    /// is already focused. How requesting for user attention manifests is platform dependent,
+    /// see `UserAttentionType` for details.
+    ///
+    /// /// Providing `None` will unset the request for user attention.
     ///
     /// Unsetting the request for user attention is automatically done by the WM when
     /// the window receives focus.
@@ -696,7 +699,7 @@ impl Window {
     /// - **X11:** Automatic unsetting the request for user attention when the window  
     /// receives focus might not be handled by some WMs.
     #[inline]
-    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         self.window.request_user_attention(request_type)
     }
 }
@@ -892,22 +895,23 @@ pub enum Theme {
     Dark,
 }
 
+/// ## Platform-specific
+///
+/// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum RequestUserAttentionType {
+pub enum UserAttentionType {
     /// ## Platform-specific
     /// - **macOS:** Bounces the dock icon until the application is in focus.
     /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
-    /// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
     Critical,
     /// ## Platform-specific
     /// - **macOS:** Bounces the dock icon once.
     /// - **Windows:** Flashes the taskbar button until the application is in focus.
-    /// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
     Informational,
 }
 
-impl Default for RequestUserAttentionType {
+impl Default for UserAttentionType {
     fn default() -> Self {
-        RequestUserAttentionType::Informational
+        UserAttentionType::Informational
     }
 }

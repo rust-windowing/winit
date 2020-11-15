@@ -4,7 +4,7 @@ use crate::event;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{
-    CursorIcon, Fullscreen, RequestUserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
 use raw_window_handle::web::WebHandle;
@@ -271,7 +271,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, _request_type: Option<RequestUserAttentionType>) {
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         // Currently an intentional no-op
     }
 

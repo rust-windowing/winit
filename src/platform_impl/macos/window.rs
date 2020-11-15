@@ -29,15 +29,14 @@ use crate::{
         OsError,
     },
     window::{
-        CursorIcon, Fullscreen, RequestUserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
     },
 };
 use cocoa::{
     appkit::{
         self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
-        NSApplicationPresentationOptions, NSColor, NSRequestUserAttentionType, NSScreen, NSView,
-        NSWindow, NSWindowButton, NSWindowStyleMask,
+        NSApplicationPresentationOptions, NSColor, NSScreen, NSUserAttentionType, NSView, NSWindow,
+        NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
@@ -981,12 +980,10 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let ns_request_type = request_type.map(|ty| match ty {
-            RequestUserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
-            RequestUserAttentionType::Informational => {
-                NSRequestUserAttentionType::NSInformationalRequest
-            }
+            UserAttentionType::Critical => NSUserAttentionType::NSCriticalRequest,
+            UserAttentionType::Informational => NSUserAttentionType::NSInformationalRequest,
         });
         unsafe {
             if let Some(ty) = ns_request_type {

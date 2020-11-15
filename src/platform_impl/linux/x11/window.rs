@@ -22,7 +22,7 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Fullscreen, Icon, RequestUserAttentionType, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -1290,7 +1290,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let mut wm_hints = self
             .xconn
             .get_wm_hints(self.xwindow)

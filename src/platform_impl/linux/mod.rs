@@ -30,7 +30,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    window::{CursorIcon, Fullscreen, RequestUserAttentionType, WindowAttributes},
+    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -419,7 +419,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, _request_type: Option<RequestUserAttentionType>) {
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         match self {
             #[cfg(feature = "x11")]
             &Window::X(ref w) => w.request_user_attention(_request_type),

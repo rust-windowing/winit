@@ -43,7 +43,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Fullscreen, RequestUserAttentionType, WindowAttributes},
+    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -622,7 +622,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn request_user_attention(&self, request_type: Option<RequestUserAttentionType>) {
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let window = self.window.clone();
         let active_window_handle = unsafe { winuser::GetActiveWindow() };
         if window.0 == active_window_handle {
@@ -632,10 +632,10 @@ impl Window {
         self.thread_executor.execute_in_thread(move || unsafe {
             let (flags, count) = request_type
                 .map(|ty| match ty {
-                    RequestUserAttentionType::Critical => {
+                    UserAttentionType::Critical => {
                         (winuser::FLASHW_ALL | winuser::FLASHW_TIMERNOFG, u32::MAX)
                     }
-                    RequestUserAttentionType::Informational => {
+                    UserAttentionType::Informational => {
                         (winuser::FLASHW_TRAY | winuser::FLASHW_TIMERNOFG, 0)
                     }
                 })
