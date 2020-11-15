@@ -40,6 +40,7 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+        keyboard::{build_key_event, destructure_key_lparam},
         monitor::{self, MonitorHandle},
         raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
@@ -1132,6 +1133,19 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                             is_synthetic: false,
                         },
                     });
+
+                    let lparam_struct = destructure_key_lparam(lparam);
+                    let key_event = build_key_event(wparam as _, lparam_struct, keyboard_types::KeyState::Down);
+                    #[allow(deprecated)]
+                    subclass_input.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            event: key_event,
+                            is_synthetic: false,
+                        },
+                    });
+
                     // Windows doesn't emit a delete character by default, but in order to make it
                     // consistent with the other platforms we'll emit a delete character here.
                     if vkey == Some(VirtualKeyCode::Delete) {

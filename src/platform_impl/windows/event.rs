@@ -5,21 +5,20 @@ use std::{
     sync::atomic::{AtomicBool, AtomicPtr, Ordering},
 };
 
-use crate::event::{ModifiersState, ScanCode, ScanCode_DEPRECATED, VirtualKeyCode};
+use crate::event::{ModifiersState, ScanCode_DEPRECATED, VirtualKeyCode};
 
 use winapi::{
     shared::minwindef::{HKL, HKL__, LPARAM, UINT, WPARAM},
     um::winuser,
 };
 
+pub use super::keyboard::PlatformScanCode;
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
     pub char_with_all_modifers: Option<String>,
     pub key_without_modifers: keyboard_types::Key,
 }
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct PlatformScanCode(pub u32);
 
 fn key_pressed(vkey: c_int) -> bool {
     unsafe { (winuser::GetKeyState(vkey) & (1 << 15)) == (1 << 15) }

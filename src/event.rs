@@ -248,6 +248,7 @@ pub enum WindowEvent<'a> {
     Focused(bool),
 
     /// An event from the keyboard has been received.
+    // TODO: Remove this
     KeyboardInput_DEPRECATED {
         device_id: DeviceId,
         input: KeyboardInput,
@@ -689,7 +690,7 @@ pub struct KeyEvent {
     pub state: keyboard_types::KeyState,
     pub repeat: bool,
     
-    platform_specific: platform_impl::KeyEventExtra,
+    pub(crate) platform_specific: platform_impl::KeyEventExtra,
 }
 
 // impl std::fmt::Debug for KeyEvent {
@@ -801,7 +802,7 @@ impl Force {
 
 /// Hardware-dependent keyboard scan code.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct ScanCode (platform_impl::PlatformScanCode);
+pub struct ScanCode (pub(crate) platform_impl::PlatformScanCode);
 
 pub type ScanCode_DEPRECATED = u32;
 
