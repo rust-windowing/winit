@@ -496,9 +496,9 @@ impl<'a> WindowEvent<'a> {
                 event,
                 is_synthetic,
             } => Some(KeyboardInput {
-                device_id: device_id,
-                event: event,
-                is_synthetic: is_synthetic,
+                device_id,
+                event,
+                is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
             #[allow(deprecated)]
@@ -664,15 +664,15 @@ pub struct KeyEvent {
     /// Represents the position of a key independent of the
     /// currently active layout.
     /// Conforms to https://www.w3.org/TR/uievents-code/
-    /// 
+    ///
     /// Note that `Fn` and `FnLock` key events are not emmited by `winit`.
     /// These keys are usually handled at the hardware or at the OS level.
     pub physical_key: keyboard_types::Code,
-    
+
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
-    /// 
+    ///
     /// This is suitable for text input in a GUI application.
-    /// 
+    ///
     /// Note that the `Unicode` variant may contain multiple characters.
     /// For example on Windows when pressing <kbd>^</kbd> using
     /// a US-International layout, this will be `Dead` for the first
@@ -685,11 +685,11 @@ pub struct KeyEvent {
     /// - **Web:** Dead keys might be reported as the real key instead
     /// of `Dead` depending on the browser/OS.
     pub logical_key: keyboard_types::Key,
-    
+
     pub location: keyboard_types::Location,
     pub state: keyboard_types::KeyState,
     pub repeat: bool,
-    
+
     pub(crate) platform_specific: platform_impl::KeyEventExtra,
 }
 
@@ -802,7 +802,7 @@ impl Force {
 
 /// Hardware-dependent keyboard scan code.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct ScanCode (pub(crate) platform_impl::PlatformScanCode);
+pub struct ScanCode(pub(crate) platform_impl::PlatformScanCode);
 
 pub type ScanCode_DEPRECATED = u32;
 

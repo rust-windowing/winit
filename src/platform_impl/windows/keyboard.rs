@@ -1,10 +1,6 @@
-
 use std::os::raw::c_int;
 
-use winapi::{
-    shared::minwindef::LPARAM,
-    um::winuser,
-};
+use winapi::{shared::minwindef::LPARAM, um::winuser};
 
 use crate::{
     event::{KeyEvent, ScanCode},
@@ -40,11 +36,7 @@ pub fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
     }
 }
 
-pub fn build_key_event(
-    vkey: i32,
-    lparam: KeyLParam,
-    state: keyboard_types::KeyState
-) -> KeyEvent {
+pub fn build_key_event(vkey: i32, lparam: KeyLParam, state: keyboard_types::KeyState) -> KeyEvent {
     let scancode = PlatformScanCode::new(lparam.scancode, lparam.extended);
 
     let physical_key = native_key_to_code(scancode);
@@ -58,7 +50,7 @@ pub fn build_key_event(
         repeat: lparam.is_repeat,
         platform_specific: KeyEventExtra {
             char_with_all_modifers: None,
-            key_without_modifers: keyboard_types::Key::Unidentified
+            key_without_modifers: keyboard_types::Key::Unidentified,
         },
     }
 }
@@ -69,7 +61,7 @@ pub fn native_key_to_code(scancode: PlatformScanCode) -> keyboard_types::Code {
     // and: The widget/NativeKeyToDOMCodeName.h file in the firefox source
 
     use keyboard_types::Code;
-    
+
     match scancode.0 {
         0x0029 => Code::Backquote,
         0x002B => Code::Backslash,
@@ -136,10 +128,10 @@ pub fn native_key_to_code(scancode: PlatformScanCode) -> keyboard_types::Code {
         0x0039 => Code::Space,
         0x000F => Code::Tab,
         0x0079 => Code::Convert,
-        0x0072 => Code::Lang1,  // for non-Korean layout
-        0xE0F2 => Code::Lang1,  // for Korean layout
-        0x0071 => Code::Lang2,  // for non-Korean layout
-        0xE0F1 => Code::Lang2,  // for Korean layout
+        0x0072 => Code::Lang1, // for non-Korean layout
+        0xE0F2 => Code::Lang1, // for Korean layout
+        0x0071 => Code::Lang2, // for non-Korean layout
+        0xE0F1 => Code::Lang2, // for Korean layout
         0x0070 => Code::KanaMode,
         0x007B => Code::NonConvert,
         0xE053 => Code::Delete,
@@ -198,10 +190,10 @@ pub fn native_key_to_code(scancode: PlatformScanCode) -> keyboard_types::Code {
         // 0x006E => Code::F23,
         // 0x0076 => Code::F24,
         0xE037 => Code::PrintScreen,
-        0x0054 => Code::PrintScreen,  // Alt + PrintScreen
+        0x0054 => Code::PrintScreen, // Alt + PrintScreen
         0x0046 => Code::ScrollLock,
         0x0045 => Code::Pause,
-        0xE046 => Code::Pause,  // Ctrl + Pause
+        0xE046 => Code::Pause, // Ctrl + Pause
         0xE06A => Code::BrowserBack,
         0xE066 => Code::BrowserFavorites,
         0xE069 => Code::BrowserForward,
@@ -225,13 +217,17 @@ pub fn native_key_to_code(scancode: PlatformScanCode) -> keyboard_types::Code {
     }
 }
 
-pub fn get_location(vkey: c_int, extended: bool, code: keyboard_types::Code) -> keyboard_types::Location {
-    use winuser::*;
+pub fn get_location(
+    vkey: c_int,
+    extended: bool,
+    code: keyboard_types::Code,
+) -> keyboard_types::Location {
     use keyboard_types::{Code, Location};
+    use winuser::*;
     const VK_ABNT_C2: c_int = 0xc2;
 
     // Use the native VKEY and the extended flag to cover most cases
-    // This is taken from the `druid` software within 
+    // This is taken from the `druid` software within
     // druid-shell/src/platform/windows/keyboard.rs
     match vkey {
         VK_LSHIFT | VK_LCONTROL | VK_LMENU | VK_LWIN => return Location::Left,

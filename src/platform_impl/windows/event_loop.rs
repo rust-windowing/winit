@@ -1135,7 +1135,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     });
 
                     let lparam_struct = destructure_key_lparam(lparam);
-                    let key_event = build_key_event(wparam as _, lparam_struct, keyboard_types::KeyState::Down);
+                    let key_event =
+                        build_key_event(wparam as _, lparam_struct, keyboard_types::KeyState::Down);
                     #[allow(deprecated)]
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
