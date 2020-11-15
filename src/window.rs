@@ -895,12 +895,12 @@ pub enum Theme {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RequestUserAttentionType {
     /// ## Platform-specific
-    /// - **MacOS:** Bounces the dock icon until the application is in focus.
+    /// - **macOS:** Bounces the dock icon until the application is in focus.
     /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
     /// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
     Critical,
     /// ## Platform-specific
-    /// - **MacOS:** Bounces the dock icon once.
+    /// - **macOS:** Bounces the dock icon once.
     /// - **Windows:** Flashes the taskbar button until the application is in focus.
     /// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
     Informational,
