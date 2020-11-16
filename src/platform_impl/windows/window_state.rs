@@ -72,7 +72,8 @@ bitflags! {
 
         /// Marker flag for fullscreen. Should always match `WindowState::fullscreen`, but is
         /// included here to make masking easier.
-        const MARKER_FULLSCREEN = 1 << 9;
+        const MARKER_EXCLUSIVE_FULLSCREEN = 1 << 9;
+        const MARKER_BORDERLESS_FULLSCREEN = 1 << 13;
 
         /// The `WM_SIZE` event contains some parameters that can effect the state of `WindowFlags`.
         /// In most cases, it's okay to let those parameters change the state. However, when we're
@@ -90,7 +91,7 @@ bitflags! {
             WindowFlags::RESIZABLE.bits |
             WindowFlags::MAXIMIZED.bits
         );
-        const FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
+        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
@@ -179,9 +180,11 @@ impl MouseProperties {
 
 impl WindowFlags {
     fn mask(mut self) -> WindowFlags {
-        if self.contains(WindowFlags::MARKER_FULLSCREEN) {
+        if self.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN) {
             self &= WindowFlags::FULLSCREEN_AND_MASK;
-            self |= WindowFlags::FULLSCREEN_OR_MASK;
+            self |= WindowFlags::EXCLUSIVE_FULLSCREEN_OR_MASK;
+        } else if self.contains(WindowFlags::MARKER_BORDERLESS_FULLSCREEN) {
+            self &= WindowFlags::FULLSCREEN_AND_MASK;
         }
         if !self.contains(WindowFlags::VISIBLE) {
             self &= WindowFlags::INVISIBLE_AND_MASK;
@@ -322,7 +325,9 @@ impl WindowFlags {
                 // We generally don't want style changes here to affect window
                 // focus, but for fullscreen windows they must be activated
                 // (i.e. focused) so that they appear on top of the taskbar
-                if !new.contains(WindowFlags::MARKER_FULLSCREEN) {
+                if !new.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN)
+                    && !new.contains(WindowFlags::MARKER_BORDERLESS_FULLSCREEN)
+                {
                     flags |= winuser::SWP_NOACTIVATE;
                 }
 

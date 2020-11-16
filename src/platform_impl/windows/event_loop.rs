@@ -810,7 +810,10 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 event: Destroyed,
             });
             subclass_input.event_loop_runner.remove_window(window);
+            0
+        }
 
+        winuser::WM_NCDESTROY => {
             drop(subclass_input);
             Box::from_raw(subclass_input_ptr as *mut SubclassInput<T>);
             0

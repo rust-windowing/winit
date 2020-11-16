@@ -145,7 +145,7 @@ impl Window {
 
         // Max dimensions.
         let max_size = attributes
-            .min_inner_size
+            .max_inner_size
             .map(|size| size.to_logical::<f64>(scale_factor as f64).into());
         window.set_max_size(max_size);
 

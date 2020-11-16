@@ -157,7 +157,17 @@ impl Canvas {
         self.on_keyboard_press = Some(self.common.add_user_event(
             "keydown",
             move |event: KeyboardEvent| {
-                event.prevent_default();
+                // event.prevent_default() would suppress subsequent on_received_character() calls. That
+                // supression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
+                // scroll, etc. We should not do it for key sequences that result in meaningful character
+                // input though.
+                let event_key = &event.key();
+                let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
+                let is_shortcut_modifiers =
+                    (event.ctrl_key() || event.alt_key()) && !event.get_modifier_state("AltGr");
+                if !is_key_string || is_shortcut_modifiers {
+                    event.prevent_default();
+                }
                 handler(
                     event::scan_code(&event),
                     event::virtual_key_code(&event),
@@ -179,6 +189,8 @@ impl Canvas {
         self.on_received_character = Some(self.common.add_user_event(
             "keypress",
             move |event: KeyboardEvent| {
+                // Supress further handling to stop keys like the space key from scrolling the page.
+                event.prevent_default();
                 handler(event::codepoint(&event));
             },
         ));
