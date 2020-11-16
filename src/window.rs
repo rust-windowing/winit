@@ -687,17 +687,14 @@ impl Window {
     /// is already focused. How requesting for user attention manifests is platform dependent,
     /// see `UserAttentionType` for details.
     ///
-    /// Providing `None` will unset the request for user attention.
-    ///
-    /// Unsetting the request for user attention might not be done automatically by the WM
-    /// when the window receives input.
+    /// Providing `None` will unset the request for user attention. Unsetting the request for
+    /// user attention might not be done automatically by the WM when the window receives input.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland:** Unsupported.
     /// - **macOS:** `None` has no effect.
-    /// - **X11:** Automatic unsetting the request for user attention when the window  
-    /// receives focus might not be handled by some WMs.
+    /// - **X11:** Requests for user attention must be manually cleared.
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         self.window.request_user_attention(request_type)
