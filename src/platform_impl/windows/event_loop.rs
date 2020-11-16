@@ -1871,7 +1871,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         winuser::WM_SETTINGCHANGE => {
             use crate::event::WindowEvent::ThemeChanged;
 
-            let preferred_theme = subclass_input.window_state.lock().preferred_theme.clone();
+            let preferred_theme = subclass_input.window_state.lock().preferred_theme;
 
             if preferred_theme == Theme::System {
                 let is_dark_mode = try_dark_mode(window, preferred_theme);

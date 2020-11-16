@@ -726,7 +726,7 @@ unsafe fn init<T: 'static>(
     // If the system theme is dark, we need to set the window theme now
     // before we update the window flags (and possibly show the
     // window for the first time).
-    let dark_mode = try_dark_mode(real_window.0, pl_attribs.preferred_theme.clone());
+    let dark_mode = try_dark_mode(real_window.0, pl_attribs.preferred_theme);
 
     let window_state = {
         let window_state = WindowState::new(

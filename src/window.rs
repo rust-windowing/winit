@@ -863,7 +863,7 @@ pub enum Fullscreen {
     Borderless(Option<MonitorHandle>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Theme {
     System,
     Light,
