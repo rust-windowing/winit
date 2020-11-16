@@ -82,7 +82,7 @@ pub trait WindowExtWindows {
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
     /// Whether the system theme is currently Windows 10's "Dark Mode".
-    fn is_dark_mode(&self) -> bool;
+    fn theme(&self) -> Theme;
 }
 
 impl WindowExtWindows for Window {
@@ -102,8 +102,8 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
-    fn is_dark_mode(&self) -> bool {
-        self.window.is_dark_mode()
+    fn theme(&self) -> Theme {
+        self.window.theme()
     }
 }
 

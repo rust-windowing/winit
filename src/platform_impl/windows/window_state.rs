@@ -31,7 +31,7 @@ pub struct WindowState {
 
     pub modifiers_state: ModifiersState,
     pub fullscreen: Option<Fullscreen>,
-    pub is_dark_mode: bool,
+    pub current_theme: Theme,
     pub preferred_theme: Option<Theme>,
     pub high_surrogate: Option<u16>,
     window_flags: WindowFlags,
@@ -101,7 +101,7 @@ impl WindowState {
         attributes: &WindowAttributes,
         taskbar_icon: Option<Icon>,
         scale_factor: f64,
-        is_dark_mode: bool,
+        current_theme: Theme,
         preferred_theme: Option<Theme>,
     ) -> WindowState {
         WindowState {
@@ -123,7 +123,7 @@ impl WindowState {
 
             modifiers_state: ModifiersState::default(),
             fullscreen: None,
-            is_dark_mode,
+            current_theme,
             preferred_theme,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),

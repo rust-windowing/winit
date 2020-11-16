@@ -74,7 +74,7 @@ lazy_static! {
 
 /// Attempt to set dark mode on a window, if necessary.
 /// Returns true if dark mode was set, false if not.
-pub fn try_dark_mode(hwnd: HWND, preferred_theme: Option<Theme>) -> bool {
+pub fn try_dark_mode(hwnd: HWND, preferred_theme: Option<Theme>) -> Theme {
     if *DARK_MODE_SUPPORTED {
         let is_dark_mode = match preferred_theme {
             Some(theme) => theme == Theme::Dark,
@@ -89,10 +89,12 @@ pub fn try_dark_mode(hwnd: HWND, preferred_theme: Option<Theme>) -> bool {
 
         let status = unsafe { uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null()) };
 
-        status == S_OK && set_dark_mode_for_window(hwnd, is_dark_mode)
-    } else {
-        false
+        if status == S_OK && set_dark_mode_for_window(hwnd, is_dark_mode) {
+            return Theme::Dark;
+        }
     }
+
+    Theme::Light
 }
 
 fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {

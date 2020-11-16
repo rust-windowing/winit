@@ -1874,21 +1874,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let preferred_theme = subclass_input.window_state.lock().preferred_theme;
 
             if preferred_theme == None {
-                let is_dark_mode = try_dark_mode(window, preferred_theme);
+                let new_theme = try_dark_mode(window, preferred_theme);
                 let mut window_state = subclass_input.window_state.lock();
 
-                if window_state.is_dark_mode != is_dark_mode {
-                    let theme = if is_dark_mode {
-                        Theme::Dark
-                    } else {
-                        Theme::Light
-                    };
-
-                    window_state.is_dark_mode = is_dark_mode;
+                if window_state.current_theme != new_theme {
+                    window_state.current_theme = new_theme;
                     mem::drop(window_state);
                     subclass_input.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
-                        event: ThemeChanged(theme),
+                        event: ThemeChanged(new_theme),
                     });
                 }
             }

@@ -43,6 +43,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
+    window::Theme,
     window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
@@ -615,8 +616,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn is_dark_mode(&self) -> bool {
-        self.window_state.lock().is_dark_mode
+    pub fn theme(&self) -> Theme {
+        self.window_state.lock().current_theme
     }
 }
 
@@ -726,14 +727,14 @@ unsafe fn init<T: 'static>(
     // If the system theme is dark, we need to set the window theme now
     // before we update the window flags (and possibly show the
     // window for the first time).
-    let dark_mode = try_dark_mode(real_window.0, pl_attribs.preferred_theme);
+    let current_theme = try_dark_mode(real_window.0, pl_attribs.preferred_theme);
 
     let window_state = {
         let window_state = WindowState::new(
             &attributes,
             pl_attribs.taskbar_icon,
             scale_factor,
-            dark_mode,
+            current_theme,
             pl_attribs.preferred_theme,
         );
         let window_state = Arc::new(Mutex::new(window_state));
