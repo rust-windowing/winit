@@ -687,10 +687,10 @@ impl Window {
     /// is already focused. How requesting for user attention manifests is platform dependent,
     /// see `UserAttentionType` for details.
     ///
-    /// /// Providing `None` will unset the request for user attention.
+    /// Providing `None` will unset the request for user attention.
     ///
-    /// Unsetting the request for user attention is automatically done by the WM when
-    /// the window receives focus.
+    /// Unsetting the request for user attention might not be done automatically by the WM 
+    /// when the window receives input.
     ///
     /// ## Platform-specific
     ///
