@@ -821,7 +821,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
         winuser::WM_PAINT => {
             if subclass_input.event_loop_runner.should_buffer() {
-                println!("buffer");
                 // this branch can happen in response to `UpdateWindow`, if win32 decides to
                 // redraw the window outside the normal flow of the event loop.
                 winuser::RedrawWindow(
@@ -831,7 +830,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     winuser::RDW_INTERNALPAINT,
                 );
             } else {
-                println!("no buffer");
                 let managing_redraw =
                     flush_paint_messages(Some(window), &subclass_input.event_loop_runner);
                 subclass_input.send_event(Event::RedrawRequested(RootWindowId(WindowId(window))));
@@ -1949,10 +1947,10 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         // Because WM_PAINT comes after all other messages, we use it during modal loops to detect
         // when the event queue has been emptied. See `process_event` for more details.
         winuser::WM_PAINT => {
+            winuser::ValidateRect(window, ptr::null());
             // If the WM_PAINT handler in `public_window_callback` has already flushed the redraw
             // events, `handling_events` will return false and we won't emit a second
             // `RedrawEventsCleared` event.
-            winuser::ValidateRect(window, ptr::null());
             if subclass_input.event_loop_runner.handling_events() {
                 if subclass_input.event_loop_runner.should_buffer() {
                     // This branch can be triggered when a nested win32 event loop is triggered
