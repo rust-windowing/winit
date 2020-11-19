@@ -1964,10 +1964,10 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                 } else {
                     // This WM_PAINT handler will never be re-entrant because `flush_paint_messages`
                     // doesn't call WM_PAINT for the thread event target (i.e. this window).
-                    /*assert!(flush_paint_messages(
+                    assert!(flush_paint_messages(
                         None,
                         &subclass_input.event_loop_runner
-                    ));*/
+                    ));
                     subclass_input.event_loop_runner.redraw_events_cleared();
                     process_control_flow(&subclass_input.event_loop_runner);
                 }
