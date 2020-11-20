@@ -60,7 +60,18 @@ pub fn get_window_id(window_cocoa_id: id) -> Id {
     Id(window_cocoa_id as *const Object as _)
 }
 
-#[derive(Clone)]
+/// Reverse `get_window_id`.
+///
+/// TODO! This is suspect! Can `get_window_id` be reversed like this, reliably?
+pub(crate) fn get_window(id: Id) -> Option<id> {
+    if id.0 == 0 {
+        None
+    } else {
+        Some(id.0 as *const Object as id)
+    }
+}
+
+#[derive(Clone, Default)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,

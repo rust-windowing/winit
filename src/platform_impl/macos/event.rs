@@ -14,22 +14,6 @@ use crate::{
     },
 };
 
-// TODO: remove?
-#[derive(Debug)]
-pub enum EventWrapper {
-    StaticEvent(Event<Never>),
-    EventProxy(EventProxy),
-}
-
-#[derive(Debug, PartialEq)]
-pub enum EventProxy {
-    DpiChangedProxy {
-        ns_window: IdRef,
-        suggested_size: LogicalSize<f64>,
-        scale_factor: f64,
-    },
-}
-
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
     // We only translate keys that are affected by keyboard layout.
     //

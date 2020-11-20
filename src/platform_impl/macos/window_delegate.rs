@@ -61,6 +61,7 @@ impl WindowDelegateState {
         };
 
         if scale_factor != 1.0 {
+            // TODO this wil always no-op inside emit_static_scale_factor_changed_event, due to scale_factor and previous_scale_factor being equal. What is the intention here?
             delegate_state.emit_static_scale_factor_changed_event();
         }
 
@@ -79,7 +80,7 @@ impl WindowDelegateState {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event,
         };
-        AppState::queue_event(EventWrapper::StaticEvent(event));
+        AppState::queue_event(event);
     }
 
     pub fn emit_static_scale_factor_changed_event(&mut self) {
@@ -89,12 +90,22 @@ impl WindowDelegateState {
         };
 
         self.previous_scale_factor = scale_factor;
-        let wrapper = EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
-            ns_window: IdRef::retain(*self.ns_window),
-            suggested_size: self.view_size(),
-            scale_factor,
-        });
-        AppState::queue_event(wrapper);
+
+        let event = Event::WindowEvent {
+            // TODO why was this previously `IdRef::retain(*self.ns_window)`?
+            window_id: WindowId(get_window_id(*self.ns_window)),
+            event: WindowEvent::ScaleFactorChanged {
+                scale_factor,
+                new_inner_size: {
+                    // Note: we drop the mutability owner with the assumption that when the event handler eventually processes this, they will create a new ArcCell, keeping the mutability owner alive while the user processes the event.
+                    let (new_inner_size, _mut_owner) = scoped_arc_cell::scoped_arc_cell(
+                        self.view_size().to_physical(scale_factor),
+                    );
+                    new_inner_size
+                },
+            },
+        };
+        AppState::queue_event(event);
     }
 
     pub fn emit_resize_event(&mut self) {

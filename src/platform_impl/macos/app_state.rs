@@ -24,10 +24,9 @@ use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
-        event::{EventProxy, EventWrapper},
         observer::EventLoopWaker,
         util::{IdRef, Never},
-        window::get_window_id,
+        window::{get_window, get_window_id},
     },
     window::WindowId,
 };
@@ -97,7 +96,7 @@ struct Handler {
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
-    pending_events: Mutex<VecDeque<EventWrapper>>,
+    pending_events: Mutex<VecDeque<Event<Never>>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
@@ -106,7 +105,7 @@ unsafe impl Send for Handler {}
 unsafe impl Sync for Handler {}
 
 impl Handler {
-    fn events(&self) -> MutexGuard<'_, VecDeque<EventWrapper>> {
+    fn events(&self) -> MutexGuard<'_, VecDeque<Event<Never>>> {
         self.pending_events.lock().unwrap()
     }
 
@@ -150,7 +149,7 @@ impl Handler {
         *self.start_time.lock().unwrap() = Some(Instant::now());
     }
 
-    fn take_events(&self) -> VecDeque<EventWrapper> {
+    fn take_events(&self) -> VecDeque<Event<Never>> {
         mem::replace(&mut *self.events(), Default::default())
     }
 
@@ -166,13 +165,43 @@ impl Handler {
         self.in_callback.store(in_callback, Ordering::Release);
     }
 
-    fn handle_nonuser_event(&self, wrapper: EventWrapper) {
+    fn handle_nonuser_event(&self, event: Event<Never>) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
-            match wrapper {
-                EventWrapper::StaticEvent(event) => {
-                    callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap())
+            match event {
+                Event::WindowEvent {
+                    window_id,
+                    event:
+                        WindowEvent::ScaleFactorChanged {
+                            scale_factor,
+                            new_inner_size,
+                        },
+                } => {
+                    // Note: `ScaleFactorChanged` is an event that allows users to mutate window state while processing it, so we need to handle it specially here.
+
+                    let new_inner_size = {
+                        // TODO This is unnessecary? we're creating a new instance of the arccell, copied from the one created internally in the macOS backend. This is because we need a ScopedMutabilityOwner to let the user modify the value.
+                        let (new_inner_size, _mut_owner) =
+                            scoped_arc_cell::scoped_arc_cell(new_inner_size.get());
+
+                        let event = Event::WindowEvent {
+                            window_id,
+                            event: WindowEvent::ScaleFactorChanged {
+                                scale_factor,
+                                new_inner_size: new_inner_size.clone(),
+                            },
+                        };
+
+                        callback
+                            .handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
+
+                        new_inner_size.get()
+                    };
+
+                    let logical_size = new_inner_size.to_logical(scale_factor);
+                    let size = NSSize::new(logical_size.width, logical_size.height);
+                    unsafe { NSWindow::setContentSize_(get_window(window_id.0).unwrap(), size) };
                 }
-                EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
+                _ => callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap()),
             }
         }
     }
@@ -180,50 +209,6 @@ impl Handler {
     fn handle_user_events(&self) {
         if let Some(ref mut callback) = *self.callback.lock().unwrap() {
             callback.handle_user_events(&mut *self.control_flow.lock().unwrap());
-        }
-    }
-
-    fn handle_scale_factor_changed_event(
-        &self,
-        callback: &mut Box<dyn EventHandler + 'static>,
-        ns_window: IdRef,
-        suggested_size: LogicalSize<f64>,
-        scale_factor: f64,
-    ) {
-        let new_inner_size = {
-            let (new_inner_size, _mut_owner) =
-                scoped_arc_cell::scoped_arc_cell(suggested_size.to_physical(scale_factor));
-
-            let event = Event::WindowEvent {
-                window_id: WindowId(get_window_id(*ns_window)),
-                event: WindowEvent::ScaleFactorChanged {
-                    scale_factor,
-                    new_inner_size: new_inner_size.clone(),
-                },
-            };
-
-            callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
-
-            new_inner_size.get()
-        };
-
-        let logical_size = new_inner_size.to_logical(scale_factor);
-        let size = NSSize::new(logical_size.width, logical_size.height);
-        unsafe { NSWindow::setContentSize_(*ns_window, size) };
-    }
-
-    fn handle_proxy(&self, proxy: EventProxy, callback: &mut Box<dyn EventHandler + 'static>) {
-        match proxy {
-            EventProxy::DpiChangedProxy {
-                ns_window,
-                suggested_size,
-                scale_factor,
-            } => self.handle_scale_factor_changed_event(
-                callback,
-                ns_window,
-                suggested_size,
-                scale_factor,
-            ),
         }
     }
 }
@@ -254,7 +239,7 @@ impl AppState {
 
     pub fn exit() {
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopDestroyed));
+        HANDLER.handle_nonuser_event(Event::LoopDestroyed);
         HANDLER.set_in_callback(false);
         HANDLER.callback.lock().unwrap().take();
     }
@@ -263,9 +248,7 @@ impl AppState {
         HANDLER.set_ready();
         HANDLER.waker().start();
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
-            StartCause::Init,
-        )));
+        HANDLER.handle_nonuser_event(Event::NewEvents(StartCause::Init));
         HANDLER.set_in_callback(false);
     }
 
@@ -296,7 +279,7 @@ impl AppState {
             ControlFlow::Exit => StartCause::Poll, //panic!("unexpected `ControlFlow::Exit`"),
         };
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(cause)));
+        HANDLER.handle_nonuser_event(Event::NewEvents(cause));
         HANDLER.set_in_callback(false);
     }
 
@@ -308,18 +291,18 @@ impl AppState {
         }
     }
 
-    pub fn queue_event(wrapper: EventWrapper) {
+    pub fn queue_event(event: Event<Never>) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
-            panic!("Event queued from different thread: {:#?}", wrapper);
+            panic!("Event queued from different thread: {:#?}", event);
         }
-        HANDLER.events().push_back(wrapper);
+        HANDLER.events().push_back(event);
     }
 
-    pub fn queue_events(mut wrappers: VecDeque<EventWrapper>) {
+    pub fn queue_events(mut events: VecDeque<Event<Never>>) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
-            panic!("Events queued from different thread: {:#?}", wrappers);
+            panic!("Events queued from different thread: {:#?}", events);
         }
-        HANDLER.events().append(&mut wrappers);
+        HANDLER.events().append(&mut events);
     }
 
     pub fn cleared() {
@@ -332,13 +315,11 @@ impl AppState {
             for event in HANDLER.take_events() {
                 HANDLER.handle_nonuser_event(event);
             }
-            HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
+            HANDLER.handle_nonuser_event(Event::MainEventsCleared);
             for window_id in HANDLER.should_redraw() {
-                HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(
-                    window_id,
-                )));
+                HANDLER.handle_nonuser_event(Event::RedrawRequested(window_id));
             }
-            HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
+            HANDLER.handle_nonuser_event(Event::RedrawEventsCleared);
             HANDLER.set_in_callback(false);
         }
         if HANDLER.should_exit() {
