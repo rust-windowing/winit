@@ -16,7 +16,7 @@ use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{
-        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, IMEEvent, TouchPhase,
+        DeviceEvent, ElementState, Event, IMEEvent, KeyboardInput, ModifiersState, TouchPhase,
         WindowEvent,
     },
     event_loop::EventLoopWindowTarget as RootELW,
@@ -1256,7 +1256,7 @@ impl<T: 'static> EventProcessor<T> {
                     if self.is_composing {
                         callback(Event::WindowEvent {
                             window_id: mkwid(window),
-                            event: WindowEvent::IME(IMEEvent::Preedit(text, Some(position), None)),
+                            event: WindowEvent::IME(IMEEvent::Preedit(text, Some(position), Some(position))),
                         });
                     }
                 }

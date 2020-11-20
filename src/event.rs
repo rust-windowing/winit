@@ -632,17 +632,17 @@ pub struct KeyboardInput {
 pub enum IMEEvent {
     /// The user enables IME
     Enabled,
-    /// Preedit session is going to begin with the value
-    PreeditStart(String),
 
     /// The user updates preedit status on IME.
     ///
-    /// The value represents a pair of the preedit string and the cursor position.
+    /// The value represents a pair of the preedit string and the cursor begin position and end position.
+    /// When the cursor is hidden, both value will be None
     /// The cursor position is byte-wise indexed.
     Preedit(String, Option<usize>, Option<usize>),
 
     /// The user completes the current IME session with the value.
     Commit(String),
+
     /// The user disables IME
     Disabled,
 }
