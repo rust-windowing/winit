@@ -323,17 +323,24 @@ impl<T: 'static> Shared<T> {
                 height: canvas.height() as u32,
             };
             let logical_size = current_size.to_logical::<f64>(old_scale);
-            let mut new_size = logical_size.to_physical(new_scale);
-            self.handle_single_event_sync(
-                Event::WindowEvent {
-                    window_id: id,
-                    event: crate::event::WindowEvent::ScaleFactorChanged {
-                        scale_factor: new_scale,
-                        new_inner_size: &mut new_size,
+
+            let new_size = {
+                let (new_size, _mut_owner) =
+                    scoped_arc_cell::scoped_arc_cell(logical_size.to_physical(new_scale));
+
+                self.handle_single_event_sync(
+                    Event::WindowEvent {
+                        window_id: id,
+                        event: crate::event::WindowEvent::ScaleFactorChanged {
+                            scale_factor: new_scale,
+                            new_inner_size: new_size.clone(),
+                        },
                     },
-                },
-                &mut control,
-            );
+                    &mut control,
+                );
+
+                new_size.get()
+            };
 
             // Then we resize the canvas to the new size and send a `Resized` event:
             backend::set_canvas_size(&canvas, crate::dpi::Size::Physical(new_size));
