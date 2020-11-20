@@ -1256,7 +1256,11 @@ impl<T: 'static> EventProcessor<T> {
                     if self.is_composing {
                         callback(Event::WindowEvent {
                             window_id: mkwid(window),
-                            event: WindowEvent::IME(IMEEvent::Preedit(text, Some(position), Some(position))),
+                            event: WindowEvent::IME(IMEEvent::Preedit(
+                                text,
+                                Some(position),
+                                Some(position),
+                            )),
                         });
                     }
                 }
