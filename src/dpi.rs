@@ -89,6 +89,8 @@
 //! - **Android:** Scale factors are set by the manufacturer to the value that best suits the
 //!   device, and range from `1.0` to `4.0`. See [this article][android_1] for more information.
 //! - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
+//!   In other words, it is the value of [`window.devicePixelRatio`][web_1]. It is affected by
+//!   both the screen scaling and the browser zoom level and can go below `1.0`.
 //!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
@@ -96,6 +98,7 @@
 //! [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
 //! [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
 //! [android_1]: https://developer.android.com/training/multiscreen/screendensities
+//! [web_1]: https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
 
 pub trait Pixel: Copy + Into<f64> {
     fn from_f64(f: f64) -> Self;

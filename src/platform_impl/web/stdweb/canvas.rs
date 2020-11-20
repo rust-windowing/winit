@@ -10,14 +10,12 @@ use stdweb::js;
 use stdweb::traits::IPointerEvent;
 use stdweb::unstable::TryInto;
 use stdweb::web::event::{
-    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, IEvent, KeyDownEvent,
-    KeyPressEvent, KeyUpEvent, MouseWheelEvent, PointerDownEvent, PointerMoveEvent,
-    PointerOutEvent, PointerOverEvent, PointerUpEvent,
+    BlurEvent, ConcreteEvent, FocusEvent, FullscreenChangeEvent, IEvent, IKeyboardEvent,
+    KeyDownEvent, KeyPressEvent, KeyUpEvent, ModifierKey, MouseWheelEvent, PointerDownEvent,
+    PointerMoveEvent, PointerOutEvent, PointerOverEvent, PointerUpEvent,
 };
 use stdweb::web::html_element::CanvasElement;
-use stdweb::web::{
-    document, EventListenerHandle, IChildNode, IElement, IEventTarget, IHtmlElement,
-};
+use stdweb::web::{document, EventListenerHandle, IElement, IEventTarget, IHtmlElement};
 
 pub struct Canvas {
     /// Note: resizing the CanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
@@ -35,12 +33,6 @@ pub struct Canvas {
     on_mouse_wheel: Option<EventListenerHandle>,
     on_fullscreen_change: Option<EventListenerHandle>,
     wants_fullscreen: Rc<RefCell<bool>>,
-}
-
-impl Drop for Canvas {
-    fn drop(&mut self) {
-        self.raw.remove();
-    }
 }
 
 impl Canvas {
@@ -144,7 +136,17 @@ impl Canvas {
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
         self.on_keyboard_press = Some(self.add_user_event(move |event: KeyDownEvent| {
-            event.prevent_default();
+            // event.prevent_default() would suppress subsequent on_received_character() calls. That
+            // supression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
+            // scroll, etc. We should not do it for key sequences that result in meaningful character
+            // input though.
+            let event_key = &event.key();
+            let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
+            let is_shortcut_modifiers = (event.ctrl_key() || event.alt_key())
+                && !event.get_modifier_state(ModifierKey::AltGr);
+            if !is_key_string || is_shortcut_modifiers {
+                event.prevent_default();
+            }
             handler(
                 event::scan_code(&event),
                 event::virtual_key_code(&event),
@@ -163,6 +165,8 @@ impl Canvas {
         // viable/compatible alternative as of now. `beforeinput` is still widely
         // unsupported.
         self.on_received_character = Some(self.add_user_event(move |event: KeyPressEvent| {
+            // Supress further handling to stop keys like the space key from scrolling the page.
+            event.prevent_default();
             handler(event::codepoint(&event));
         }));
     }
@@ -200,14 +204,19 @@ impl Canvas {
 
     pub fn on_mouse_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
+        let canvas = self.raw.clone();
         self.on_mouse_press = Some(self.add_user_event(move |event: PointerDownEvent| {
             handler(
                 event.pointer_id(),
+                event::mouse_position(&event).to_physical(super::scale_factor()),
                 event::mouse_button(&event),
                 event::mouse_modifiers(&event),
             );
+            canvas
+                .set_pointer_capture(event.pointer_id())
+                .expect("Failed to set pointer capture");
         }));
     }
 
@@ -300,5 +309,9 @@ impl Canvas {
 
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
+    }
+
+    pub fn remove_listeners(&mut self) {
+        // TODO: Stub, unimplemented (see web_sys for reference).
     }
 }

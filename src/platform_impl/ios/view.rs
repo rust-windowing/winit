@@ -123,17 +123,26 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
 
                 let window: id = msg_send![object, window];
                 assert!(!window.is_null());
-                let bounds: CGRect = msg_send![window, bounds];
+                let window_bounds: CGRect = msg_send![window, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
-                    msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
+                    msg_send![object, convertRect:window_bounds toCoordinateSpace:screen_space];
                 let scale_factor: CGFloat = msg_send![screen, scale];
                 let size = crate::dpi::LogicalSize {
                     width: screen_frame.size.width as f64,
                     height: screen_frame.size.height as f64,
                 }
                 .to_physical(scale_factor.into());
+
+                // If the app is started in landscape, the view frame and window bounds can be mismatched.
+                // The view frame will be in portrait and the window bounds in landscape. So apply the
+                // window bounds to the view frame to make it consistent.
+                let view_frame: CGRect = msg_send![object, frame];
+                if view_frame != window_bounds {
+                    let () = msg_send![object, setFrame: window_bounds];
+                }
+
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
                     window_id: RootWindowId(window.into()),
                     event: WindowEvent::Resized(size),
@@ -519,7 +528,15 @@ pub unsafe fn create_window(
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
         Some(Fullscreen::Borderless(ref monitor)) => {
-            msg_send![window, setScreen:monitor.ui_screen()]
+            let uiscreen: id = match &monitor {
+                Some(monitor) => monitor.ui_screen() as id,
+                None => {
+                    let uiscreen: id = msg_send![window, screen];
+                    uiscreen
+                }
+            };
+
+            msg_send![window, setScreen: uiscreen]
         }
         None => (),
     }

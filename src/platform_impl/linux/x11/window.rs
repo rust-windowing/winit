@@ -1,8 +1,6 @@
 use raw_window_handle::unix::XlibHandle;
 use std::{
-    cmp,
-    collections::HashSet,
-    env,
+    cmp, env,
     ffi::CString,
     mem::{self, replace, MaybeUninit},
     os::raw::*,
@@ -12,6 +10,7 @@ use std::{
 };
 
 use libc;
+use mio_extras::channel::Sender;
 use parking_lot::Mutex;
 
 use crate::{
@@ -104,7 +103,7 @@ pub struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    pending_redraws: Arc<::std::sync::Mutex<HashSet<WindowId>>>,
+    redraw_sender: Sender<WindowId>,
 }
 
 impl UnownedWindow {
@@ -227,7 +226,7 @@ impl UnownedWindow {
                 // is > 0, like we do in glutin.
                 //
                 // It is non obvious which masks, if any, we should pass to
-                // `XGetVisualInfo`. winit doesn't recieve any info about what
+                // `XGetVisualInfo`. winit doesn't receive any info about what
                 // properties the user wants. Users should consider choosing the
                 // visual themselves as glutin does.
                 match pl_attribs.visual_infos {
@@ -249,7 +248,7 @@ impl UnownedWindow {
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
-            pending_redraws: event_loop.pending_redraws.clone(),
+            redraw_sender: event_loop.redraw_sender.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -640,6 +639,7 @@ impl UnownedWindow {
                 let flusher = self.set_fullscreen_hint(false);
                 let mut shared_state_lock = self.shared_state.lock();
                 if let Some(position) = shared_state_lock.restore_position.take() {
+                    drop(shared_state_lock);
                     self.set_position_inner(position.0, position.1).queue();
                 }
                 Some(flusher)
@@ -648,10 +648,12 @@ impl UnownedWindow {
                 let (video_mode, monitor) = match fullscreen {
                     Fullscreen::Exclusive(RootVideoMode {
                         video_mode: PlatformVideoMode::X(ref video_mode),
-                    }) => (Some(video_mode), video_mode.monitor.as_ref().unwrap()),
-                    Fullscreen::Borderless(RootMonitorHandle {
-                        inner: PlatformMonitorHandle::X(ref monitor),
-                    }) => (None, monitor),
+                    }) => (Some(video_mode), video_mode.monitor.clone().unwrap()),
+                    Fullscreen::Borderless(Some(RootMonitorHandle {
+                        inner: PlatformMonitorHandle::X(monitor),
+                    })) => (None, monitor),
+                    Fullscreen::Borderless(None) => (None, self.current_monitor()),
+                    #[cfg(feature = "wayland")]
                     _ => unreachable!(),
                 };
 
@@ -1311,10 +1313,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.pending_redraws
-            .lock()
-            .unwrap()
-            .insert(WindowId(self.xwindow));
+        self.redraw_sender.send(WindowId(self.xwindow)).unwrap();
     }
 
     #[inline]

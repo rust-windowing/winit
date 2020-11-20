@@ -6,11 +6,10 @@ mod window_target;
 pub use self::proxy::Proxy;
 pub use self::window_target::WindowTarget;
 
-use super::{backend, device, monitor, window};
+use super::{backend, device, window};
 use crate::event::Event;
 use crate::event_loop as root;
 
-use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::marker::PhantomData;
 
 pub struct EventLoop<T: 'static> {
@@ -25,14 +24,6 @@ impl<T> EventLoop<T> {
                 _marker: PhantomData,
             },
         }
-    }
-
-    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
-        VecDeque::new().into_iter()
-    }
-
-    pub fn primary_monitor(&self) -> monitor::Handle {
-        monitor::Handle
     }
 
     pub fn run<F>(self, mut event_handler: F) -> !

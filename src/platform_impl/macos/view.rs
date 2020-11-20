@@ -388,7 +388,7 @@ extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
         trace!("Triggered `hasMarkedText`");
         let marked_text: id = *this.get_ivar("markedText");
         trace!("Completed `hasMarkedText`");
-        (marked_text.length() > 0) as i8
+        (marked_text.length() > 0) as BOOL
     }
 }
 
@@ -915,8 +915,11 @@ fn mouse_motion(this: &Object, event: id) {
             || view_point.x > view_rect.size.width
             || view_point.y > view_rect.size.height
         {
-            // Point is outside of the client area (view)
-            return;
+            let mouse_buttons_down: NSInteger = msg_send![class!(NSEvent), pressedMouseButtons];
+            if mouse_buttons_down == 0 {
+                // Point is outside of the client area (view) and no buttons are pressed
+                return;
+            }
         }
 
         let x = view_point.x as f64;
@@ -996,10 +999,15 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
     mouse_motion(this, event);
 
     unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
         let delta = {
-            let (x, y) = (event.scrollingDeltaX(), event.scrollingDeltaY());
+            // macOS horizontal sign convention is the inverse of winit.
+            let (x, y) = (event.scrollingDeltaX() * -1.0, event.scrollingDeltaY());
             if event.hasPreciseScrollingDeltas() == YES {
-                MouseScrollDelta::PixelDelta((x as f64, y as f64).into())
+                let delta = LogicalPosition::new(x, y).to_physical(state.get_scale_factor());
+                MouseScrollDelta::PixelDelta(delta)
             } else {
                 MouseScrollDelta::LineDelta(x as f32, y as f32)
             }

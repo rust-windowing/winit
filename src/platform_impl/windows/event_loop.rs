@@ -4,6 +4,7 @@ mod runner;
 
 use parking_lot::Mutex;
 use std::{
+    collections::VecDeque,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
@@ -33,12 +34,14 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_dark_mode,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-        monitor, raw_input, util,
+        monitor::{self, MonitorHandle},
+        raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
@@ -82,7 +85,7 @@ lazy_static! {
 pub(crate) struct SubclassInput<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
-    pub file_drop_handler: FileDropHandler,
+    pub file_drop_handler: Option<FileDropHandler>,
 }
 
 impl<T> SubclassInput<T> {
@@ -226,7 +229,7 @@ impl<T: 'static> EventLoop<T> {
         }
 
         unsafe {
-            runner.call_event_handler(Event::LoopDestroyed);
+            runner.loop_destroyed();
         }
         runner.reset_runner();
     }
@@ -246,6 +249,16 @@ impl<T> EventLoopWindowTarget<T> {
             thread_id: self.thread_id,
             target_window: self.thread_msg_target,
         }
+    }
+
+    // TODO: Investigate opportunities for caching
+    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
+        monitor::available_monitors()
+    }
+
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = monitor::primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
     }
 }
 
@@ -797,7 +810,10 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 event: Destroyed,
             });
             subclass_input.event_loop_runner.remove_window(window);
+            0
+        }
 
+        winuser::WM_NCDESTROY => {
             drop(subclass_input);
             Box::from_raw(subclass_input_ptr as *mut SubclassInput<T>);
             0
@@ -840,8 +856,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
                 match fullscreen {
                     Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        if new_monitor != fullscreen_monitor.inner.hmonitor()
-                            && new_monitor != ptr::null_mut()
+                        if new_monitor != ptr::null_mut()
+                            && fullscreen_monitor
+                                .as_ref()
+                                .map(|monitor| new_monitor != monitor.inner.hmonitor())
+                                .unwrap_or(true)
                         {
                             if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
                                 let new_monitor_rect = new_monitor_info.rcMonitor;
@@ -850,9 +869,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                 window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
                                 window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
                             }
-                            *fullscreen_monitor = crate::monitor::MonitorHandle {
-                                inner: monitor::MonitorHandle::new(new_monitor),
-                            };
+                            *fullscreen_monitor = Some(crate::monitor::MonitorHandle {
+                                inner: MonitorHandle::new(new_monitor),
+                            });
                         }
                     }
                     Fullscreen::Exclusive(ref video_mode) => {
@@ -1938,14 +1957,25 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             // events, `handling_events` will return false and we won't emit a second
             // `RedrawEventsCleared` event.
             if subclass_input.event_loop_runner.handling_events() {
-                // This WM_PAINT handler will never be re-entrant because `flush_paint_messages`
-                // doesn't call WM_PAINT for the thread event target (i.e. this window).
-                assert!(flush_paint_messages(
-                    None,
-                    &subclass_input.event_loop_runner
-                ));
-                subclass_input.event_loop_runner.redraw_events_cleared();
-                process_control_flow(&subclass_input.event_loop_runner);
+                if subclass_input.event_loop_runner.should_buffer() {
+                    // This branch can be triggered when a nested win32 event loop is triggered
+                    // inside of the `event_handler` callback.
+                    winuser::RedrawWindow(
+                        window,
+                        ptr::null(),
+                        ptr::null_mut(),
+                        winuser::RDW_INTERNALPAINT,
+                    );
+                } else {
+                    // This WM_PAINT handler will never be re-entrant because `flush_paint_messages`
+                    // doesn't call WM_PAINT for the thread event target (i.e. this window).
+                    assert!(flush_paint_messages(
+                        None,
+                        &subclass_input.event_loop_runner
+                    ));
+                    subclass_input.event_loop_runner.redraw_events_cleared();
+                    process_control_flow(&subclass_input.event_loop_runner);
+                }
             }
 
             0

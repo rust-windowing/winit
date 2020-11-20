@@ -72,8 +72,13 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
-    /// whether or not new events are available to process. For web, events are sent when
-    /// `requestAnimationFrame` fires.
+    /// whether or not new events are available to process.
+    ///
+    /// ## Platform-specific
+    /// - **Web:** Events are queued and usually sent when `requestAnimationFrame` fires but sometimes
+    ///   the events in the queue may be sent before the next `requestAnimationFrame` callback, for
+    ///   example when the scaling of the page has changed. This should be treated as an implementation
+    ///   detail which should not be relied on.
     Poll,
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
     Wait,
@@ -155,29 +160,35 @@ impl<T> EventLoop<T> {
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }
-
-    /// Returns the list of all the monitors available on the system.
-    #[inline]
-    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.event_loop
-            .available_monitors()
-            .into_iter()
-            .map(|inner| MonitorHandle { inner })
-    }
-
-    /// Returns the primary monitor of the system.
-    #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle {
-            inner: self.event_loop.primary_monitor(),
-        }
-    }
 }
 
 impl<T> Deref for EventLoop<T> {
     type Target = EventLoopWindowTarget<T>;
     fn deref(&self) -> &EventLoopWindowTarget<T> {
         self.event_loop.window_target()
+    }
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    /// Returns the list of all the monitors available on the system.
+    #[inline]
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.p
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
+    }
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Wayland:** Always returns `None`.
+    #[inline]
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.p.primary_monitor()
     }
 }
 

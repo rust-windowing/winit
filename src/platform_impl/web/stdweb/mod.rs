@@ -1,8 +1,12 @@
+#![deprecated(since = "0.23.0", note = "Please migrate to web-sys over stdweb")]
+
 mod canvas;
 mod event;
+mod scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
+pub use self::scaling::ScaleChangeDetector;
 pub use self::timeout::{AnimationFrameRequest, Timeout};
 
 use crate::dpi::{LogicalSize, Size};
@@ -24,7 +28,9 @@ pub fn exit_fullscreen() {
     document().exit_fullscreen();
 }
 
-pub fn on_unload(mut handler: impl FnMut() + 'static) {
+pub type UnloadEventHandle = ();
+
+pub fn on_unload(mut handler: impl FnMut() + 'static) -> UnloadEventHandle {
     window().add_event_listener(move |_: BeforeUnloadEvent| handler());
 }
 
@@ -57,8 +63,6 @@ pub fn scale_factor() -> f64 {
 }
 
 pub fn set_canvas_size(raw: &CanvasElement, size: Size) {
-    use stdweb::*;
-
     let scale_factor = scale_factor();
 
     let physical_size = size.to_physical::<u32>(scale_factor);
@@ -67,9 +71,13 @@ pub fn set_canvas_size(raw: &CanvasElement, size: Size) {
     raw.set_width(physical_size.width);
     raw.set_height(physical_size.height);
 
+    set_canvas_style_property(raw, "width", &format!("{}px", logical_size.width));
+    set_canvas_style_property(raw, "height", &format!("{}px", logical_size.height));
+}
+
+pub fn set_canvas_style_property(raw: &CanvasElement, style_attribute: &str, value: &str) {
     js! {
-        @{raw.as_ref()}.style.width = @{logical_size.width} + "px";
-        @{raw.as_ref()}.style.height = @{logical_size.height} + "px";
+        @{raw.as_ref()}.style[@{style_attribute}] = @{value};
     }
 }
 

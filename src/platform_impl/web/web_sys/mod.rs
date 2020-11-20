@@ -1,14 +1,18 @@
 mod canvas;
 mod event;
+mod event_handle;
+mod media_query_handle;
+mod scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
+pub use self::scaling::ScaleChangeDetector;
 pub use self::timeout::{AnimationFrameRequest, Timeout};
 
 use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::closure::Closure;
 use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement};
 
 pub fn throw(msg: &str) {
@@ -22,16 +26,21 @@ pub fn exit_fullscreen() {
     document.exit_fullscreen();
 }
 
-pub fn on_unload(mut handler: impl FnMut() + 'static) {
+pub struct UnloadEventHandle {
+    _listener: event_handle::EventListenerHandle<dyn FnMut(BeforeUnloadEvent)>,
+}
+
+pub fn on_unload(mut handler: impl FnMut() + 'static) -> UnloadEventHandle {
     let window = web_sys::window().expect("Failed to obtain window");
 
     let closure = Closure::wrap(
         Box::new(move |_: BeforeUnloadEvent| handler()) as Box<dyn FnMut(BeforeUnloadEvent)>
     );
 
-    window
-        .add_event_listener_with_callback("beforeunload", &closure.as_ref().unchecked_ref())
-        .expect("Failed to add close listener");
+    let listener = event_handle::EventListenerHandle::new(&window, "beforeunload", closure);
+    UnloadEventHandle {
+        _listener: listener,
+    }
 }
 
 impl WindowExtWebSys for Window {
@@ -81,13 +90,15 @@ pub fn set_canvas_size(raw: &HtmlCanvasElement, size: Size) {
     raw.set_width(physical_size.width);
     raw.set_height(physical_size.height);
 
+    set_canvas_style_property(raw, "width", &format!("{}px", logical_size.width));
+    set_canvas_style_property(raw, "height", &format!("{}px", logical_size.height));
+}
+
+pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value: &str) {
     let style = raw.style();
     style
-        .set_property("width", &format!("{}px", logical_size.width))
-        .expect("Failed to set canvas width");
-    style
-        .set_property("height", &format!("{}px", logical_size.height))
-        .expect("Failed to set canvas height");
+        .set_property(property, value)
+        .expect(&format!("Failed to set {}", property));
 }
 
 pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {

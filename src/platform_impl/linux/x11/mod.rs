@@ -32,7 +32,7 @@ use std::{
     ptr,
     rc::Rc,
     slice,
-    sync::{mpsc, Arc, Mutex, Weak},
+    sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
 
@@ -58,6 +58,7 @@ use crate::{
 
 const X_TOKEN: Token = Token(0);
 const USER_TOKEN: Token = Token(1);
+const REDRAW_TOKEN: Token = Token(2);
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
@@ -67,13 +68,14 @@ pub struct EventLoopWindowTarget<T> {
     root: ffi::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    pending_redraws: Arc<Mutex<HashSet<WindowId>>>,
+    redraw_sender: Sender<WindowId>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
 pub struct EventLoop<T: 'static> {
     poll: Poll,
     event_processor: EventProcessor<T>,
+    redraw_channel: Receiver<WindowId>,
     user_channel: Receiver<T>,
     user_sender: Sender<T>,
     target: Rc<RootELW<T>>,
@@ -174,32 +176,16 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
-        let pending_redraws: Arc<Mutex<HashSet<WindowId>>> = Default::default();
-
         let mut mod_keymap = ModifierKeymap::new();
         mod_keymap.reset_from_x_connection(&xconn);
-
-        let target = Rc::new(RootELW {
-            p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
-                ime,
-                root,
-                windows: Default::default(),
-                _marker: ::std::marker::PhantomData,
-                ime_sender,
-                xconn,
-                wm_delete_window,
-                net_wm_ping,
-                pending_redraws: pending_redraws.clone(),
-            }),
-            _marker: ::std::marker::PhantomData,
-        });
 
         let poll = Poll::new().unwrap();
 
         let (user_sender, user_channel) = channel();
+        let (redraw_sender, redraw_channel) = channel();
 
         poll.register(
-            &EventedFd(&get_xtarget(&target).xconn.x11_fd),
+            &EventedFd(&xconn.x11_fd),
             X_TOKEN,
             Ready::readable(),
             PollOpt::level(),
@@ -213,6 +199,29 @@ impl<T: 'static> EventLoop<T> {
             PollOpt::level(),
         )
         .unwrap();
+
+        poll.register(
+            &redraw_channel,
+            REDRAW_TOKEN,
+            Ready::readable(),
+            PollOpt::level(),
+        )
+        .unwrap();
+
+        let target = Rc::new(RootELW {
+            p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
+                ime,
+                root,
+                windows: Default::default(),
+                _marker: ::std::marker::PhantomData,
+                ime_sender,
+                xconn,
+                wm_delete_window,
+                net_wm_ping,
+                redraw_sender,
+            }),
+            _marker: ::std::marker::PhantomData,
+        });
 
         let event_processor = EventProcessor {
             target: target.clone(),
@@ -239,6 +248,7 @@ impl<T: 'static> EventLoop<T> {
 
         let result = EventLoop {
             poll,
+            redraw_channel,
             user_channel,
             user_sender,
             event_processor,
@@ -256,10 +266,6 @@ impl<T: 'static> EventLoop<T> {
 
     pub(crate) fn window_target(&self) -> &RootELW<T> {
         &self.target
-    }
-
-    pub(crate) fn x_connection(&self) -> &Arc<XConnection> {
-        get_xtarget(&self.target).x_connection()
     }
 
     pub fn run_return<F>(&mut self, mut callback: F)
@@ -280,8 +286,6 @@ impl<T: 'static> EventLoop<T> {
 
             // Process all pending events
             self.drain_events(&mut callback, &mut control_flow);
-
-            let wt = get_xtarget(&self.target);
 
             // Empty the user event buffer
             {
@@ -305,12 +309,16 @@ impl<T: 'static> EventLoop<T> {
             }
             // Empty the redraw requests
             {
-                // Release the lock to prevent deadlock
-                let windows: Vec<_> = wt.pending_redraws.lock().unwrap().drain().collect();
+                let mut windows = HashSet::new();
 
-                for wid in windows {
+                while let Ok(window_id) = self.redraw_channel.try_recv() {
+                    windows.insert(window_id);
+                }
+
+                for window_id in windows {
+                    let window_id = crate::window::WindowId(super::WindowId::X(window_id));
                     sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(super::WindowId::X(wid))),
+                        Event::RedrawRequested(window_id),
                         &self.target,
                         &mut control_flow,
                         &mut callback,
@@ -412,7 +420,7 @@ impl<T: 'static> EventLoop<T> {
                             super::WindowId::X(wid),
                         )) = event
                         {
-                            wt.pending_redraws.lock().unwrap().insert(wid);
+                            wt.redraw_sender.send(wid).unwrap();
                         } else {
                             callback(event, window_target, control_flow);
                         }
@@ -426,6 +434,7 @@ impl<T: 'static> EventLoop<T> {
 pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
     match target.p {
         super::EventLoopWindowTarget::X(ref target) => target,
+        #[cfg(feature = "wayland")]
         _ => unreachable!(),
     }
 }
@@ -493,8 +502,20 @@ impl<'a> Deref for DeviceInfo<'a> {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(ffi::Window);
 
+impl WindowId {
+    pub unsafe fn dummy() -> Self {
+        WindowId(0)
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
+
+impl DeviceId {
+    pub unsafe fn dummy() -> Self {
+        DeviceId(0)
+    }
+}
 
 pub struct Window(Arc<UnownedWindow>);
 

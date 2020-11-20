@@ -50,6 +50,8 @@ enum RunnerState {
     /// The event loop is handling the redraw events and sending them to the user's callback.
     /// `MainEventsCleared` has been sent, and `RedrawEventsCleared` hasn't.
     HandlingRedrawEvents,
+    /// The event loop has been destroyed. No other events will be emitted.
+    Destroyed,
 }
 
 impl<T> EventLoopRunner<T> {
@@ -219,7 +221,11 @@ impl<T> EventLoopRunner<T> {
         self.move_state_to(RunnerState::Idle);
     }
 
-    pub(crate) unsafe fn call_event_handler(&self, event: Event<T>) {
+    pub(crate) unsafe fn loop_destroyed(&self) {
+        self.move_state_to(RunnerState::Destroyed);
+    }
+
+    unsafe fn call_event_handler(&self, event: Event<T>) {
         self.catch_unwind(|| {
             let mut control_flow = self.control_flow.take();
             let mut event_handler = self.event_handler.take()
@@ -250,8 +256,8 @@ impl<T> EventLoopRunner<T> {
         }
     }
 
-    /// Dispatch control flow events (`NewEvents`, `MainEventsCleared`, and `RedrawEventsCleared`) as
-    /// necessary to bring the internal `RunnerState` to the new runner state.
+    /// Dispatch control flow events (`NewEvents`, `MainEventsCleared`, `RedrawEventsCleared`, and
+    /// `LoopDestroyed`) as necessary to bring the internal `RunnerState` to the new runner state.
     ///
     /// The state transitions are defined as follows:
     ///
@@ -263,14 +269,20 @@ impl<T> EventLoopRunner<T> {
     ///   ^            |
     ///   |            V
     /// Idle <--- HandlingRedrawEvents
+    ///   |
+    ///   V
+    /// Destroyed
     /// ```
     ///
-    /// Attempting to transition back to `Uninitialized` will result in a panic. Transitioning to
-    /// the current state is a no-op. Even if the `new_runner_state` isn't the immediate next state
-    /// in the runner state machine (e.g. `self.runner_state == HandlingMainEvents` and
+    /// Attempting to transition back to `Uninitialized` will result in a panic. Attempting to
+    /// transition *from* `Destroyed` will also reuslt in a panic. Transitioning to the current
+    /// state is a no-op. Even if the `new_runner_state` isn't the immediate next state in the
+    /// runner state machine (e.g. `self.runner_state == HandlingMainEvents` and
     /// `new_runner_state == Idle`), the intermediate state transitions will still be executed.
     unsafe fn move_state_to(&self, new_runner_state: RunnerState) {
-        use RunnerState::{HandlingMainEvents, HandlingRedrawEvents, Idle, Uninitialized};
+        use RunnerState::{
+            Destroyed, HandlingMainEvents, HandlingRedrawEvents, Idle, Uninitialized,
+        };
 
         match (
             self.runner_state.replace(new_runner_state),
@@ -279,7 +291,8 @@ impl<T> EventLoopRunner<T> {
             (Uninitialized, Uninitialized)
             | (Idle, Idle)
             | (HandlingMainEvents, HandlingMainEvents)
-            | (HandlingRedrawEvents, HandlingRedrawEvents) => (),
+            | (HandlingRedrawEvents, HandlingRedrawEvents)
+            | (Destroyed, Destroyed) => (),
 
             // State transitions that initialize the event loop.
             (Uninitialized, HandlingMainEvents) => {
@@ -294,6 +307,12 @@ impl<T> EventLoopRunner<T> {
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
             }
+            (Uninitialized, Destroyed) => {
+                self.call_new_events(true);
+                self.call_event_handler(Event::MainEventsCleared);
+                self.call_redraw_events_cleared();
+                self.call_event_handler(Event::LoopDestroyed);
+            }
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
             // State transitions that start the event handling process.
@@ -304,6 +323,9 @@ impl<T> EventLoopRunner<T> {
                 self.call_new_events(false);
                 self.call_event_handler(Event::MainEventsCleared);
             }
+            (Idle, Destroyed) => {
+                self.call_event_handler(Event::LoopDestroyed);
+            }
 
             (HandlingMainEvents, HandlingRedrawEvents) => {
                 self.call_event_handler(Event::MainEventsCleared);
@@ -312,6 +334,11 @@ impl<T> EventLoopRunner<T> {
                 warn!("RedrawEventsCleared emitted without explicit MainEventsCleared");
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
+            }
+            (HandlingMainEvents, Destroyed) => {
+                self.call_event_handler(Event::MainEventsCleared);
+                self.call_redraw_events_cleared();
+                self.call_event_handler(Event::LoopDestroyed);
             }
 
             (HandlingRedrawEvents, Idle) => {
@@ -322,6 +349,12 @@ impl<T> EventLoopRunner<T> {
                 self.call_redraw_events_cleared();
                 self.call_new_events(false);
             }
+            (HandlingRedrawEvents, Destroyed) => {
+                self.call_redraw_events_cleared();
+                self.call_event_handler(Event::LoopDestroyed);
+            }
+
+            (Destroyed, _) => panic!("cannot move state from Destroyed"),
         }
     }
 
