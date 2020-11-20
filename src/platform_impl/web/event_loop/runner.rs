@@ -376,7 +376,7 @@ impl<T: 'static> Shared<T> {
     // handle_single_event_sync takes in an event and handles it synchronously.
     //
     // It should only ever be called from `scale_changed`.
-    fn handle_single_event_sync(&self, event: Event<'_, T>, control: &mut root::ControlFlow) {
+    fn handle_single_event_sync(&self, event: Event<T>, control: &mut root::ControlFlow) {
         if self.is_closed() {
             *control = root::ControlFlow::Exit;
         }

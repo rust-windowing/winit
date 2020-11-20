@@ -186,7 +186,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
     {
         self.run_return(callback);
         process::exit(0)
@@ -194,7 +194,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut callback: F)
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         // Send pending events to the server.
         let _ = self.display.flush();
