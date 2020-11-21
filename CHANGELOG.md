@@ -12,6 +12,7 @@
 - On X11, fix `Window::request_redraw` not waking the event loop.
 - On Wayland, the keypad arrow keys are now recognized.
 - **Breaking** Rename `desktop::EventLoopExtDesktop` to `run_return::EventLoopExtRunReturn`.
+- On Wayland, default font size in CSD increased from 11 to 17.
 
 # 0.23.0 (2020-10-02)
 
