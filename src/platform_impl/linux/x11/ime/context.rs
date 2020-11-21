@@ -89,7 +89,7 @@ extern "C" fn preedit_draw_callback(
             .collect()
     };
     let mut old_text_tail = client_data.text.split_off(chg_range.end);
-    client_data.text.split_off(chg_range.start);
+    let _ = client_data.text.split_off(chg_range.start);
     client_data.text.append(&mut new_chars);
     client_data.text.append(&mut old_text_tail);
     let cursor_byte_pos = calc_byte_position(&client_data.text, client_data.cursor_pos);

@@ -271,7 +271,7 @@ pub enum WindowEvent<'a> {
     ModifiersChanged(ModifiersState),
 
     /// An event from IME
-    IME(IMEEvent),
+    IME(IME),
 
     /// The cursor has moved on the window.
     CursorMoved {
@@ -627,23 +627,25 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 }
 
+/// Describes an event from input method.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum IMEEvent {
-    /// The user enables IME
+pub enum IME {
+    /// Notifies when the IME was enabled.
     Enabled,
 
-    /// The user updates preedit status on IME.
+    /// Notifies when a new composing text should be set at the cursor position.
     ///
-    /// The value represents a pair of the preedit string and the cursor begin position and end position.
-    /// When the cursor is hidden, both value will be None
+    /// The value represents a pair of the preedit string and the cursor begin position and end
+    /// position. When both indices are `None`, the cursor should be hidden.
+    ///
     /// The cursor position is byte-wise indexed.
     Preedit(String, Option<usize>, Option<usize>),
 
-    /// The user completes the current IME session with the value.
+    /// Notifies when text should be inserted into the editor widget.
     Commit(String),
 
-    /// The user disables IME
+    /// Notifies when the IME was disabled.
     Disabled,
 }
 
