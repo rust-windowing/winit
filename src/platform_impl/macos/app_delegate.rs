@@ -1,7 +1,9 @@
+use crate::event::Event;
+
 use super::{
     activation_hack,
     app_state::AppState,
-    event::{EventWrapper, MacSpecificEvent},
+    event::EventWrapper,
 };
 use cocoa::base::id;
 use objc::{
@@ -111,11 +113,11 @@ extern "C" fn did_resign_active(this: &Object, _: Sel, _: id) {
 
 extern "C" fn application_open_file(_this: &Object, _: Sel, _sender: id, filename: id) -> BOOL {
     trace!("Triggered `application:openFile:`");
-    let mut filenames = Vec::new();
+    let mut filenames_vec = Vec::with_capacity(1);
     let string = ns_string_to_rust(filename);
-    filenames.push(string.into());
-    let event = MacSpecificEvent::OpenFiles(filenames);
-    AppState::queue_event(EventWrapper::MacSpecific(event));
+    filenames_vec.push(string.into());
+    let event = Event::OpenFiles(filenames_vec);
+    AppState::queue_event(EventWrapper::StaticEvent(event));
     trace!("Completed `application:openFile:`");
 
     // Return true to indicate to the OS that the file type is supported.
@@ -131,15 +133,15 @@ extern "C" fn application_open_files(_this: &Object, _: Sel, _sender: id, filena
     const NSApplicationDelegateReplySuccess: i32 = 0;
 
     trace!("Triggered `application:openFiles:`");
-    let mut filenames_vec = Vec::new();
     let filenames_len = unsafe { filenames.count() };
+    let mut filenames_vec = Vec::with_capacity(filenames_len as usize);
     for i in 0..filenames_len {
         let filename = unsafe { filenames.objectAtIndex(i) };
         let name_string = ns_string_to_rust(filename);
         filenames_vec.push(name_string.into());
     }
-    let event = MacSpecificEvent::OpenFiles(filenames_vec);
-    AppState::queue_event(EventWrapper::MacSpecific(event));
+    let event = Event::OpenFiles(filenames_vec);
+    AppState::queue_event(EventWrapper::StaticEvent(event));
 
     let cls = objc::runtime::Class::get("NSApplication").unwrap();
     let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };

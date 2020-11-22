@@ -67,6 +67,21 @@ pub enum Event<'a, T: 'static> {
         event: DeviceEvent,
     },
 
+    /// Emitted on macOS to let the application know that a file or files are requested to be opened.
+    /// 
+    /// This for example happens when the user double-clicks on a file in Finder and the file's type
+    /// is associated with this application. (Other systems usually pass the path to the files as
+    /// arguments to the program. See `std::env::args()`.)
+    ///
+    /// More precisely this event is emmited when either of `application:openFile:` or
+    /// `application:openFiles:` is called on the application delegate. Winit always responds to
+    /// the OS as if the operation was succesful regardles of wheter this event was handled or
+    /// wheter the files could indeed be opened.
+    ///
+    /// Note that to allow associating file types with an application, said application must have
+    /// an appropriate `Info.plist` file in the application bundle defining `CFBundleDocumentTypes`.
+    OpenFiles(Vec<PathBuf>),
+
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
 
@@ -131,6 +146,7 @@ impl<T: Clone> Clone for Event<'static, T> {
                 device_id: *device_id,
                 event: event.clone(),
             },
+            OpenFiles(files) => OpenFiles(files.clone()),
             NewEvents(cause) => NewEvents(cause.clone()),
             MainEventsCleared => MainEventsCleared,
             RedrawRequested(wid) => RedrawRequested(*wid),
@@ -149,6 +165,7 @@ impl<'a, T> Event<'a, T> {
             UserEvent(_) => Err(self),
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
+            OpenFiles(files) => Ok(OpenFiles(files)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             MainEventsCleared => Ok(MainEventsCleared),
             RedrawRequested(wid) => Ok(RedrawRequested(wid)),
@@ -169,6 +186,7 @@ impl<'a, T> Event<'a, T> {
                 .map(|event| WindowEvent { window_id, event }),
             UserEvent(event) => Some(UserEvent(event)),
             DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
+            OpenFiles(files) => Some(OpenFiles(files)),
             NewEvents(cause) => Some(NewEvents(cause)),
             MainEventsCleared => Some(MainEventsCleared),
             RedrawRequested(wid) => Some(RedrawRequested(wid)),

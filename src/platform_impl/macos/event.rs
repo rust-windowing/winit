@@ -1,4 +1,4 @@
-use std::{os::raw::c_ushort, path::PathBuf};
+use std::os::raw::c_ushort;
 
 use cocoa::{
     appkit::{NSEvent, NSEventModifierFlags},
@@ -18,12 +18,6 @@ use crate::{
 pub enum EventWrapper {
     StaticEvent(Event<'static, Never>),
     EventProxy(EventProxy),
-    MacSpecific(MacSpecificEvent),
-}
-
-#[derive(Debug)]
-pub enum MacSpecificEvent {
-    OpenFiles(Vec<PathBuf>),
 }
 
 #[derive(Debug, PartialEq)]

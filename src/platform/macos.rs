@@ -1,6 +1,6 @@
 #![cfg(target_os = "macos")]
 
-use std::{os::raw::c_void, path::PathBuf};
+use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
@@ -211,21 +211,6 @@ pub trait EventLoopWindowTargetExtMacOS {
     fn hide_application(&self);
     /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
     fn hide_other_applications(&self);
-
-    /// Registers or removes the callback that gets called when the user double-clicks
-    /// a file in Finder whose type is associated with this application. More specifically the
-    /// callback gets called when either `application:openFile:` or `application:openFiles:` gets
-    /// called on the application delegate.
-    ///
-    /// Winit defines both `application:openFile:` and `application:openFiles:` and it will respond
-    /// to the OS as if the operation was succesful regardles of wheter there is a callback registered
-    /// and regardless of whether the callback could indeed open the files.
-    ///
-    /// Note that to allow associating file types with an application, said application must have
-    /// an appropriate `Info.plist` file in the application bundle defining `CFBundleDocumentTypes`.
-    ///
-    /// Set the calback to `None` to prevent it from getting called. By default it is `None`.
-    fn set_open_files_callback<F: FnMut(&[PathBuf]) + 'static>(&self, callback: Option<F>);
 }
 
 impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
@@ -239,13 +224,5 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
         let cls = objc::runtime::Class::get("NSApplication").unwrap();
         let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
         unsafe { msg_send![app, hideOtherApplications: 0] }
-    }
-
-    fn set_open_files_callback<F>(&self, callback: Option<F>)
-    where
-        F: FnMut(&[PathBuf]) + 'static,
-    {
-        let mut borrowed = self.p.open_files_callback.borrow_mut();
-        *borrowed = callback.map(|cb| Box::new(cb) as Box<dyn FnMut(&[PathBuf])>);
     }
 }

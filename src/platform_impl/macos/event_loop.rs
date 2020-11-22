@@ -6,7 +6,6 @@ use std::{
     mem,
     os::raw::c_void,
     panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
-    path::PathBuf,
     process, ptr,
     rc::{Rc, Weak},
     sync::mpsc,
@@ -65,8 +64,6 @@ impl PanicInfo {
 pub struct EventLoopWindowTarget<T: 'static> {
     pub sender: mpsc::Sender<T>, // this is only here to be cloned elsewhere
     pub receiver: mpsc::Receiver<T>,
-
-    pub open_files_callback: RefCell<Option<Box<dyn FnMut(&[PathBuf])>>>,
 }
 
 impl<T> Default for EventLoopWindowTarget<T> {
@@ -75,7 +72,6 @@ impl<T> Default for EventLoopWindowTarget<T> {
         EventLoopWindowTarget {
             sender,
             receiver,
-            open_files_callback: RefCell::new(None),
         }
     }
 }

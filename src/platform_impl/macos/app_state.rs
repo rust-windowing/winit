@@ -23,7 +23,7 @@ use crate::{
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
-        event::{EventProxy, EventWrapper, MacSpecificEvent},
+        event::{EventProxy, EventWrapper},
         event_loop::{post_dummy_event, PanicInfo},
         observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
         util::{IdRef, Never},
@@ -49,7 +49,6 @@ pub trait EventHandler: Debug {
     // Not sure probably it should accept Event<'static, Never>
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow);
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
-    fn handle_mac_specific_events(&mut self, event: MacSpecificEvent);
 }
 
 struct EventLoopHandler<T: 'static> {
@@ -110,17 +109,6 @@ impl<T> EventHandler for EventLoopHandler<T> {
             }
             this.will_exit = will_exit;
         });
-    }
-
-    fn handle_mac_specific_events(&mut self, event: MacSpecificEvent) {
-        match event {
-            MacSpecificEvent::OpenFiles(files) => {
-                let mut borrowed = self.window_target.p.open_files_callback.borrow_mut();
-                if let Some(callback) = &mut *borrowed {
-                    callback(files.as_slice());
-                }
-            }
-        }
     }
 }
 
@@ -209,9 +197,6 @@ impl Handler {
                     callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap())
                 }
                 EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
-                EventWrapper::MacSpecific(e) => {
-                    callback.handle_mac_specific_events(e);
-                }
             }
         }
     }
