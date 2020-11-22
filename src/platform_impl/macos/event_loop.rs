@@ -69,10 +69,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 impl<T> Default for EventLoopWindowTarget<T> {
     fn default() -> Self {
         let (sender, receiver) = mpsc::channel();
-        EventLoopWindowTarget {
-            sender,
-            receiver,
-        }
+        EventLoopWindowTarget { sender, receiver }
     }
 }
 

@@ -1,10 +1,6 @@
 use crate::event::Event;
 
-use super::{
-    activation_hack,
-    app_state::AppState,
-    event::EventWrapper,
-};
+use super::{activation_hack, app_state::AppState, event::EventWrapper};
 use cocoa::base::id;
 use objc::{
     declare::ClassDecl,

@@ -68,7 +68,7 @@ pub enum Event<'a, T: 'static> {
     },
 
     /// Emitted on macOS to let the application know that a file or files are requested to be opened.
-    /// 
+    ///
     /// This for example happens when the user double-clicks on a file in Finder and the file's type
     /// is associated with this application. (Other systems usually pass the path to the files as
     /// arguments to the program. See `std::env::args()`.)
