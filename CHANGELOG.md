@@ -52,6 +52,7 @@
 - **Breaking**: `MouseButton::Other` now uses `u16`.
 - On macOS, add `set_open_files_callback`.
 - On macOS, implement `Event::OpenFiles` to allow opening associated files.
+- **Breaking** On all platfoms, add `Event::OpenFiles` and implement it on macOS.
 
 # 0.23.0 (2020-10-02)
 
