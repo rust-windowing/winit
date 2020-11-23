@@ -571,7 +571,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         let ev_mods = event_mods(event);
         let characters = get_characters(
             event,
-            state.ignore_alt_modifier && ev_mods.alt() && !ev_mods.ctrl()
+            state.ignore_alt_modifier && ev_mods.alt() && !ev_mods.ctrl(),
         );
 
         let scancode = get_scancode(event) as u32;
