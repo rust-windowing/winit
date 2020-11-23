@@ -28,7 +28,7 @@ extern "C" fn preedit_start_callback(
     client_data
         .event_sender
         .send((client_data.window, ImeEvent::Start))
-        .expect("failed to send composition start event");
+        .expect("failed to send preedit start event");
     -1
 }
 
@@ -42,7 +42,7 @@ extern "C" fn preedit_done_callback(
     client_data
         .event_sender
         .send((client_data.window, ImeEvent::End))
-        .expect("failed to send composition end event");
+        .expect("failed to send preedit end event");
 }
 
 fn calc_byte_position(text: &Vec<char>, pos: usize) -> usize {
@@ -89,7 +89,7 @@ extern "C" fn preedit_draw_callback(
             .collect()
     };
     let mut old_text_tail = client_data.text.split_off(chg_range.end);
-    client_data.text.split_off(chg_range.start);
+    let _ = client_data.text.split_off(chg_range.start);
     client_data.text.append(&mut new_chars);
     client_data.text.append(&mut old_text_tail);
     let cursor_byte_pos = calc_byte_position(&client_data.text, client_data.cursor_pos);
@@ -100,7 +100,7 @@ extern "C" fn preedit_draw_callback(
             client_data.window,
             ImeEvent::Update(client_data.text.iter().collect(), cursor_byte_pos),
         ))
-        .expect("failed to send composition update event");
+        .expect("failed to send preedit update event");
 }
 
 extern "C" fn preedit_caret_callback(
@@ -119,7 +119,7 @@ extern "C" fn preedit_caret_callback(
             client_data.window,
             ImeEvent::Update(client_data.text.iter().collect(), cursor_byte_pos),
         ))
-        .expect("failed to send composition update event");
+        .expect("failed to send preedit update event");
 }
 
 unsafe fn create_pre_edit_attr<'a>(
