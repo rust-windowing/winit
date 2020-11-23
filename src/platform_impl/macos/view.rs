@@ -569,7 +569,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         let state = &mut *(state_ptr as *mut ViewState);
         let window_id = WindowId(get_window_id(state.ns_window));
         let ev_mods = event_mods(event);
-        let characters = get_characters(event, state.ignore_alt_modifier && ev_mods.alt());
+        let characters = get_characters(event, state.ignore_alt_modifier && ev_mods.alt() && !ev_mods.ctrl());
 
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
