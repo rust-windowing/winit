@@ -72,9 +72,9 @@ lazy_static! {
     static ref LIGHT_THEME_NAME: Vec<u16> = widestring("");
 }
 
-/// Attempt to set dark mode on a window, if necessary.
-/// Returns true if dark mode was set, false if not.
-pub fn try_dark_mode(hwnd: HWND, preferred_theme: Option<Theme>) -> Theme {
+/// Attempt to set a theme on a window, if necessary.
+/// Returns the theme that was picked
+pub fn try_theme(hwnd: HWND, preferred_theme: Option<Theme>) -> Theme {
     if *DARK_MODE_SUPPORTED {
         let is_dark_mode = match preferred_theme {
             Some(theme) => theme == Theme::Dark,
