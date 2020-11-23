@@ -1974,11 +1974,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
             }
 
             // Default WM_PAINT behaviour. This makes sure modals and popups are shown immediatly when opening them.
-            let mut ps = std::mem::MaybeUninit::<winuser::PAINTSTRUCT>::zeroed().assume_init();
-            winuser::BeginPaint(window, &mut ps as *mut _);
-            winuser::EndPaint(window, &mut ps as *mut _);
-
-            0
+            commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
         winuser::WM_INPUT_DEVICE_CHANGE => {
