@@ -34,7 +34,7 @@ use crate::{
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
-        dark_mode::try_dark_mode,
+        dark_mode::try_theme,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
@@ -734,7 +734,7 @@ unsafe fn init<T: 'static>(
     // If the system theme is dark, we need to set the window theme now
     // before we update the window flags (and possibly show the
     // window for the first time).
-    let current_theme = try_dark_mode(real_window.0, pl_attribs.preferred_theme);
+    let current_theme = try_theme(real_window.0, pl_attribs.preferred_theme);
 
     let window_state = {
         let window_state = WindowState::new(

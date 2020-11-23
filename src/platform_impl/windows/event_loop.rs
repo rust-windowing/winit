@@ -36,7 +36,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
-        dark_mode::try_dark_mode,
+        dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
@@ -45,7 +45,7 @@ use crate::{
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
-    window::{Fullscreen, Theme, WindowId as RootWindowId},
+    window::{Fullscreen, WindowId as RootWindowId},
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
@@ -1877,7 +1877,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let preferred_theme = subclass_input.window_state.lock().preferred_theme;
 
             if preferred_theme == None {
-                let new_theme = try_dark_mode(window, preferred_theme);
+                let new_theme = try_theme(window, preferred_theme);
                 let mut window_state = subclass_input.window_state.lock();
 
                 if window_state.current_theme != new_theme {
