@@ -70,13 +70,8 @@ pub enum Event<'a, T: 'static> {
     /// Emitted on macOS to let the application know that a file or files are requested to be opened.
     ///
     /// This for example happens when the user double-clicks on a file in Finder and the file's type
-    /// is associated with this application. (Other systems usually pass the path to the files as
-    /// arguments to the program. See `std::env::args()`.)
-    ///
-    /// More precisely this event is emmited when either of `application:openFile:` or
-    /// `application:openFiles:` is called on the application delegate. Winit always responds to
-    /// the OS as if the operation was succesful regardles of wheter this event was handled or
-    /// wheter the files could indeed be opened.
+    /// is associated with this application. More precisely this event is emitted when either of
+    /// `application:openFile:` or `application:openFiles:` is called on the application delegate.
     ///
     /// Note that to allow associating file types with an application, said application must have
     /// an appropriate `Info.plist` file in the application bundle defining `CFBundleDocumentTypes`.

@@ -53,6 +53,7 @@
 - On macOS, add `set_open_files_callback`.
 - On macOS, implement `Event::OpenFiles` to allow opening associated files.
 - **Breaking** On all platfoms, add `Event::OpenFiles` and implement it on macOS.
+- **Breaking** New `Event::OpenFiles` Event, for macOS "open with..." support.
 
 # 0.23.0 (2020-10-02)
 

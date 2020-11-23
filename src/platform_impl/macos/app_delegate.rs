@@ -1,12 +1,17 @@
 use crate::event::Event;
 
 use super::{activation_hack, app_state::AppState, event::EventWrapper};
-use cocoa::base::id;
+use cocoa::{base::id, foundation::{NSString, NSArray}};
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, YES},
 };
-use std::os::raw::c_void;
+use std::{os::raw::c_void, slice, str};
+
+/// This constant represents the one with an identical name in appkit. See:
+/// https://developer.apple.com/documentation/appkit/nsapplicationdelegatereply/nsapplicationdelegatereplysuccess?language=occ
+#[allow(non_upper_case_globals)]
+const NSApplicationDelegateReplySuccess: i32 = 0;
 
 pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
@@ -53,18 +58,11 @@ lazy_static! {
 
 /// Copies the contents of the ns string into a `String` which gets returned.
 fn ns_string_to_rust(ns_string: id) -> String {
-    use cocoa::foundation::NSString;
-
-    let utf8_len = unsafe { ns_string.len() };
-    let utf8_ptr = unsafe { ns_string.UTF8String() } as *mut u8;
-    let utf8_slice = unsafe { std::slice::from_raw_parts(utf8_ptr, utf8_len) };
-    let mut utf8_vec = Vec::<u8>::with_capacity(utf8_len);
     unsafe {
-        utf8_vec.set_len(utf8_len);
+        let slice = slice::from_raw_parts(ns_string.UTF8String() as *mut u8, ns_string.len());
+        let string = str::from_utf8_unchecked(slice);
+        string.to_owned()
     }
-    utf8_vec.copy_from_slice(utf8_slice);
-
-    unsafe { String::from_utf8_unchecked(utf8_vec) }
 }
 
 extern "C" fn new(class: &Class, _: Sel) -> id {
@@ -109,25 +107,20 @@ extern "C" fn did_resign_active(this: &Object, _: Sel, _: id) {
 
 extern "C" fn application_open_file(_this: &Object, _: Sel, _sender: id, filename: id) -> BOOL {
     trace!("Triggered `application:openFile:`");
-    let mut filenames_vec = Vec::with_capacity(1);
     let string = ns_string_to_rust(filename);
-    filenames_vec.push(string.into());
-    let event = Event::OpenFiles(filenames_vec);
+    let event = Event::OpenFiles(vec![string.into()]);
     AppState::queue_event(EventWrapper::StaticEvent(event));
     trace!("Completed `application:openFile:`");
 
-    // Return true to indicate to the OS that the file type is supported.
-    // (If the filetype turns out not to be supported, it's the application's
-    // responsibility to inform the user)
+    // Return YES to indicate to the OS that the file was opened successfully.
+    // If the client code handles the `OpenFiles` event and the operations fails,
+    // it's the application's responsibility to inform the user.
+    // This is not optimal but we do this because at the time this function returns the
+    // client may not have received the `OpenFiles` event yet.
     YES
 }
 
 extern "C" fn application_open_files(_this: &Object, _: Sel, _sender: id, filenames: id) {
-    use cocoa::foundation::NSArray;
-
-    #[allow(non_upper_case_globals)]
-    const NSApplicationDelegateReplySuccess: i32 = 0;
-
     trace!("Triggered `application:openFiles:`");
     let filenames_len = unsafe { filenames.count() };
     let mut filenames_vec = Vec::with_capacity(filenames_len as usize);
@@ -141,9 +134,12 @@ extern "C" fn application_open_files(_this: &Object, _: Sel, _sender: id, filena
 
     let cls = objc::runtime::Class::get("NSApplication").unwrap();
     let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-    // Indicate to the OS that the file types are supported.
-    // (If a filetype turns out not to be supported, it's the application's
-    // responsibility to inform the user)
+
+    // Indicate to the OS that the file was opened successfully.
+    // If the client code handles the `OpenFiles` event and the operations fails,
+    // it's the application's responsibility to inform the user.
+    // This is not optimal but we do this because at the time this function returns the
+    // client may not have received the `OpenFiles` event yet.
     unsafe { msg_send![app, replyToOpenOrPrint: NSApplicationDelegateReplySuccess] }
 
     trace!("Completed `application:openFiles:`");
