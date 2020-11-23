@@ -1,7 +1,10 @@
 use crate::event::Event;
 
 use super::{activation_hack, app_state::AppState, event::EventWrapper};
-use cocoa::{base::id, foundation::{NSString, NSArray}};
+use cocoa::{
+    base::id,
+    foundation::{NSArray, NSString},
+};
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, YES},
