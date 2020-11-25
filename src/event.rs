@@ -67,14 +67,15 @@ pub enum Event<'a, T: 'static> {
         event: DeviceEvent,
     },
 
-    /// Emitted on macOS to let the application know that a file or files are requested to be opened.
+    /// Emitted to let the application know that a file or files are requested to be opened.
     ///
-    /// This for example happens when the user double-clicks on a file in Finder and the file's type
-    /// is associated with this application. More precisely this event is emitted when either of
-    /// `application:openFile:` or `application:openFiles:` is called on the application delegate.
+    /// This for example happens when the user double-clicks on a file in the file browser
+    /// and the file's type is associated with this application.
     ///
-    /// Note that to allow associating file types with an application, said application must have
-    /// an appropriate `Info.plist` file in the application bundle defining `CFBundleDocumentTypes`.
+    /// ## Platform-specific
+    /// 
+    /// This is only implemented on **macOS**. (Other systems usually provide the path as an
+    /// argument. See: `std::env::args`.)
     OpenFiles(Vec<PathBuf>),
 
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
