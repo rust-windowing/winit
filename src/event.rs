@@ -73,7 +73,7 @@ pub enum Event<'a, T: 'static> {
     /// and the file's type is associated with this application.
     ///
     /// ## Platform-specific
-    /// 
+    ///
     /// This is only implemented on **macOS**. (Other systems usually provide the path as an
     /// argument. See: `std::env::args`.)
     OpenFiles(Vec<PathBuf>),
