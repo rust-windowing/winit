@@ -40,7 +40,7 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-        keyboard::{build_key_event, destructure_key_lparam},
+        keyboard::is_msg_keyboard_related,
         monitor::{self, MonitorHandle},
         raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
@@ -765,6 +765,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
     let keyboard_callback = || {
         use crate::event::WindowEvent::KeyboardInput;
+        let is_keyboard_related = is_msg_keyboard_related(msg);
+        if !is_keyboard_related {
+            // We return early to avoid a deadlock from locking the window state
+            // when not appropriate.
+            return -1;
+        }
         let mut retval = 0;
         let mut window_state = subclass_input.window_state.lock();
         let event = window_state.key_event_builder.process_message(window, msg, wparam, lparam, &mut retval);
@@ -781,14 +787,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         retval
     };
 
+    // TODO: merge this retval with whatever is done in the following.
     let retval = subclass_input
         .event_loop_runner
         .catch_unwind(keyboard_callback)
         .unwrap_or(-1);
-
-    if retval == -1 {
-        return retval;
-    }
 
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
