@@ -472,13 +472,13 @@ pub trait Theme: Send + 'static {
 
     /// Font name and the size for the title bar.
     ///
-    /// By default the font is `sans-serif` at the size of 11.
+    /// By default the font is `sans-serif` at the size of 17.
     ///
     /// Returning `None` means that title won't be drawn.
     fn font(&self) -> Option<(String, f32)> {
         // Not having any title isn't something desirable for the users, so setting it to
         // something generic.
-        Some((String::from("sans-serif"), 11.))
+        Some((String::from("sans-serif"), 17.))
     }
 }
 
