@@ -213,10 +213,6 @@ pub trait WindowExtUnix {
     #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
-    /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
-    #[cfg(feature = "x11")]
-    fn set_urgent(&self, is_urgent: bool);
-
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
@@ -294,16 +290,6 @@ impl WindowExtUnix for Window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
             #[cfg(feature = "wayland")]
             _ => None,
-        }
-    }
-
-    #[inline]
-    #[cfg(feature = "x11")]
-    fn set_urgent(&self, is_urgent: bool) {
-        match self.window {
-            LinuxWindow::X(ref w) => w.set_urgent(is_urgent),
-            #[cfg(feature = "wayland")]
-            _ => (),
         }
     }
 

@@ -22,7 +22,7 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -521,23 +521,6 @@ impl UnownedWindow {
             util::PropMode::Replace,
             variant.as_bytes(),
         )
-    }
-
-    #[inline]
-    pub fn set_urgent(&self, is_urgent: bool) {
-        let mut wm_hints = self
-            .xconn
-            .get_wm_hints(self.xwindow)
-            .expect("`XGetWMHints` failed");
-        if is_urgent {
-            (*wm_hints).flags |= ffi::XUrgencyHint;
-        } else {
-            (*wm_hints).flags &= !ffi::XUrgencyHint;
-        }
-        self.xconn
-            .set_wm_hints(self.xwindow, wm_hints)
-            .flush()
-            .expect("Failed to set urgency hint");
     }
 
     fn set_netwm(
@@ -1304,6 +1287,23 @@ impl UnownedWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
         self.set_ime_position_physical(x, y);
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let mut wm_hints = self
+            .xconn
+            .get_wm_hints(self.xwindow)
+            .expect("`XGetWMHints` failed");
+        if request_type.is_some() {
+            (*wm_hints).flags |= ffi::XUrgencyHint;
+        } else {
+            (*wm_hints).flags &= !ffi::XUrgencyHint;
+        }
+        self.xconn
+            .set_wm_hints(self.xwindow, wm_hints)
+            .flush()
+            .expect("Failed to set urgency hint");
     }
 
     #[inline]

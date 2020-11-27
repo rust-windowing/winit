@@ -16,7 +16,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
+    platform::macos::{ActivationPolicy, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
@@ -28,7 +28,9 @@ use crate::{
         window_delegate::new_delegate,
         OsError,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
+    window::{
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+    },
 };
 use cocoa::{
     appkit::{
@@ -978,6 +980,19 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let ns_request_type = request_type.map(|ty| match ty {
+            UserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
+            UserAttentionType::Informational => NSRequestUserAttentionType::NSInformationalRequest,
+        });
+        unsafe {
+            if let Some(ty) = ns_request_type {
+                NSApp().requestUserAttention_(ty);
+            }
+        }
+    }
+
+    #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
     pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
@@ -1028,18 +1043,6 @@ impl WindowExtMacOS for UnownedWindow {
     #[inline]
     fn ns_view(&self) -> *mut c_void {
         *self.ns_view as *mut _
-    }
-
-    #[inline]
-    fn request_user_attention(&self, request_type: RequestUserAttentionType) {
-        unsafe {
-            NSApp().requestUserAttention_(match request_type {
-                RequestUserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
-                RequestUserAttentionType::Informational => {
-                    NSRequestUserAttentionType::NSInformationalRequest
-                }
-            });
-        }
     }
 
     #[inline]

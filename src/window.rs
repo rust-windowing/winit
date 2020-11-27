@@ -682,6 +682,23 @@ impl Window {
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
     }
+
+    /// Requests user attention to the window, this has no effect if the application
+    /// is already focused. How requesting for user attention manifests is platform dependent,
+    /// see `UserAttentionType` for details.
+    ///
+    /// Providing `None` will unset the request for user attention. Unsetting the request for
+    /// user attention might not be done automatically by the WM when the window receives input.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    /// - **macOS:** `None` has no effect.
+    /// - **X11:** Requests for user attention must be manually cleared.
+    #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        self.window.request_user_attention(request_type)
+    }
 }
 
 /// Cursor functions.
@@ -873,4 +890,25 @@ pub enum Fullscreen {
 pub enum Theme {
     Light,
     Dark,
+}
+
+/// ## Platform-specific
+///
+/// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UserAttentionType {
+    /// ## Platform-specific
+    /// - **macOS:** Bounces the dock icon until the application is in focus.
+    /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
+    Critical,
+    /// ## Platform-specific
+    /// - **macOS:** Bounces the dock icon once.
+    /// - **Windows:** Flashes the taskbar button until the application is in focus.
+    Informational,
+}
+
+impl Default for UserAttentionType {
+    fn default() -> Self {
+        UserAttentionType::Informational
+    }
 }
