@@ -622,11 +622,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn theme(&self) -> Theme {
-        self.window_state.lock().current_theme
-    }
-
-    #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let window = self.window.clone();
         let active_window_handle = unsafe { winuser::GetActiveWindow() };
@@ -655,6 +650,11 @@ impl Window {
             };
             winuser::FlashWindowEx(&mut flash_info);
         });
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Theme {
+        self.window_state.lock().current_theme
     }
 }
 
@@ -791,7 +791,7 @@ unsafe fn init<T: 'static>(
     win.set_inner_size(dimensions);
     if attributes.maximized {
         // Need to set MAXIMIZED after setting `inner_size` as
-        // `ow::set_inner_size` changes MAXIMIZED to false.
+        // `Window::set_inner_size` changes MAXIMIZED to false.
         win.set_maximized(true);
     }
     win.set_visible(attributes.visible);
