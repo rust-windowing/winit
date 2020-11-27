@@ -175,7 +175,6 @@ impl<T: 'static> EventLoop<T> {
                 Some(EventSource::InputQueue) => {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
                         while let Some(event) = input_queue.get_event() {
-                            println!("event {:?}", event);
                             if let Some(event) = input_queue.pre_dispatch(event) {
                                 let window_id = window::WindowId(WindowId);
                                 let device_id = event::DeviceId(DeviceId);
@@ -484,6 +483,8 @@ impl Window {
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
     pub fn set_ime_position(&self, _position: Position) {}
+
+    pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 

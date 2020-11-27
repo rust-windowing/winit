@@ -3,7 +3,9 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
-use crate::window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWI};
+use crate::window::{
+    CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+};
 
 use raw_window_handle::web::WebHandle;
 
@@ -266,6 +268,11 @@ impl Window {
     #[inline]
     pub fn set_ime_position(&self, _position: Position) {
         // Currently a no-op as it does not seem there is good support for this on web
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
+        // Currently an intentional no-op
     }
 
     #[inline]

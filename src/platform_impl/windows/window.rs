@@ -43,8 +43,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::Theme,
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -626,6 +625,37 @@ impl Window {
     pub fn theme(&self) -> Theme {
         self.window_state.lock().current_theme
     }
+  
+    #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let window = self.window.clone();
+        let active_window_handle = unsafe { winuser::GetActiveWindow() };
+        if window.0 == active_window_handle {
+            return;
+        }
+
+        self.thread_executor.execute_in_thread(move || unsafe {
+            let (flags, count) = request_type
+                .map(|ty| match ty {
+                    UserAttentionType::Critical => {
+                        (winuser::FLASHW_ALL | winuser::FLASHW_TIMERNOFG, u32::MAX)
+                    }
+                    UserAttentionType::Informational => {
+                        (winuser::FLASHW_TRAY | winuser::FLASHW_TIMERNOFG, 0)
+                    }
+                })
+                .unwrap_or((winuser::FLASHW_STOP, 0));
+
+            let mut flash_info = winuser::FLASHWINFO {
+                cbSize: mem::size_of::<winuser::FLASHWINFO>() as UINT,
+                hwnd: window.0,
+                dwFlags: flags,
+                uCount: count,
+                dwTimeout: 0,
+            };
+            winuser::FlashWindowEx(&mut flash_info);
+        });
+    }
 }
 
 impl Drop for Window {
@@ -761,7 +791,7 @@ unsafe fn init<T: 'static>(
     win.set_inner_size(dimensions);
     if attributes.maximized {
         // Need to set MAXIMIZED after setting `inner_size` as
-        // `Window::set_inner_size` changes MAXIMIZED to false.
+        // `ow::set_inner_size` changes MAXIMIZED to false.
         win.set_maximized(true);
     }
     win.set_visible(attributes.visible);
