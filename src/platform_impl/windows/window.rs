@@ -625,7 +625,7 @@ impl Window {
     pub fn theme(&self) -> Theme {
         self.window_state.lock().current_theme
     }
-  
+
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let window = self.window.clone();
