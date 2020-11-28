@@ -1,15 +1,20 @@
 use std::{
-    os::raw::c_int, fmt, collections::HashMap,
-    char, mem::MaybeUninit, ffi::OsString, os::windows::ffi::OsStringExt
+    char, collections::HashMap, ffi::OsString, fmt, mem::MaybeUninit, os::raw::c_int,
+    os::windows::ffi::OsStringExt,
 };
 
 use keyboard_types::Key;
 
 use winapi::{
-    shared::{minwindef::{LRESULT, LPARAM, WPARAM, HKL, LOWORD}, windef::HWND},
-    um::{winuser, winnt::{PRIMARYLANGID, LANG_KOREAN, LANG_JAPANESE}}
+    shared::{
+        minwindef::{HKL, LOWORD, LPARAM, LRESULT, WPARAM},
+        windef::HWND,
+    },
+    um::{
+        winnt::{LANG_JAPANESE, LANG_KOREAN, PRIMARYLANGID},
+        winuser,
+    },
 };
-
 
 use crate::{
     event::{KeyEvent, ScanCode},
@@ -17,7 +22,9 @@ use crate::{
 };
 
 pub fn is_msg_keyboard_related(msg: u32) -> bool {
-    use winuser::{WM_KEYFIRST, WM_KEYLAST, WM_SETFOCUS, WM_KILLFOCUS, WM_INPUTLANGCHANGE, WM_SHOWWINDOW};
+    use winuser::{
+        WM_INPUTLANGCHANGE, WM_KEYFIRST, WM_KEYLAST, WM_KILLFOCUS, WM_SETFOCUS, WM_SHOWWINDOW,
+    };
     let is_keyboard_msg = WM_KEYFIRST <= msg && msg <= WM_KEYLAST;
 
     is_keyboard_msg
@@ -43,7 +50,7 @@ impl ToUnicodeResult {
     fn is_none(&self) -> bool {
         match self {
             ToUnicodeResult::None => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -56,7 +63,9 @@ impl ToUnicodeResult {
 pub struct PlatformScanCode(pub u16);
 impl fmt::Debug for PlatformScanCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("PlatformScanCode").field(&format_args!("0x{:04x}", self.0)).finish()
+        f.debug_tuple("PlatformScanCode")
+            .field(&format_args!("0x{:04x}", self.0))
+            .finish()
     }
 }
 impl PlatformScanCode {
@@ -67,11 +76,11 @@ impl PlatformScanCode {
 }
 
 /// Stores information required to make `KeyEvent`s.
-/// 
+///
 /// A single winint `KeyEvent` contains information which the windows API passes to the application
 /// in multiple window messages. In other words a winit `KeyEvent` cannot be build from a single
 /// window message. Therefore this type keeps track of certain information from previous events so
-/// that a `KeyEvent` can be constructed when the last event related to a keypress is received. 
+/// that a `KeyEvent` can be constructed when the last event related to a keypress is received.
 ///
 /// `PeekMessage` is sometimes used to determine wheter the next window message still belongs to the
 /// current keypress. If it doesn't and the current state represents a key event waiting to be
@@ -83,7 +92,7 @@ impl PlatformScanCode {
 /// - Zero or more WM_CHAR / WM_SYSCHAR. These messages each come with a UTF-16 code unit which when
 /// put together in the sequence they arrived in, forms the text which is the result of pressing the
 /// key.
-/// 
+///
 /// Key release messages are a bit different due to the fact that they don't contribute to
 /// text input. The "sequence" only consists of one WM_KEYUP / WM_SYSKEYUP event.
 pub struct KeyEventBuilder {
@@ -106,7 +115,7 @@ pub struct KeyEventBuilder {
 
     /// The keyup event needs to call `ToUnicode` to determine what's the text produced by the
     /// key with all modifiers except CTRL (the `logical_key`).
-    /// 
+    ///
     /// But `ToUnicode` without the non-modifying flag (see `key_labels`), resets the dead key
     /// state which would be incorrect during every keyup event. Therefore this variable is used
     /// to determine whether the last keydown event produced a dead key.
@@ -145,7 +154,7 @@ impl KeyEventBuilder {
         msg_kind: u32,
         wparam: WPARAM,
         lparam: LPARAM,
-        retval: &mut LRESULT
+        retval: &mut LRESULT,
     ) -> Option<KeyEvent> {
         match msg_kind {
             winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
@@ -160,22 +169,20 @@ impl KeyEventBuilder {
 
                 let vkey = wparam as i32;
                 let lparam_struct = destructure_key_lparam(lparam);
-                let scancode = PlatformScanCode::new(
-                    lparam_struct.scancode,
-                    lparam_struct.extended
-                );
+                let scancode =
+                    PlatformScanCode::new(lparam_struct.scancode, lparam_struct.extended);
                 let code = native_key_to_code(scancode);
                 let location = get_location(vkey, lparam_struct.extended);
                 let label = self.key_labels.get(&scancode).map(|s| s.clone());
                 self.event_info = Some(PartialKeyEventInfo {
                     key_state: keyboard_types::KeyState::Down,
                     vkey: wparam as i32,
-                    scancode: scancode,
+                    scancode,
                     is_repeat: lparam_struct.is_repeat,
-                    code: code,
-                    location: location,
+                    code,
+                    location,
                     is_dead: false,
-                    label: label,
+                    label,
                     utf16parts: Vec::with_capacity(8),
                     utf16parts_without_ctrl: Vec::with_capacity(8),
                 });
@@ -206,7 +213,7 @@ impl KeyEventBuilder {
                         hwnd,
                         winuser::WM_KEYFIRST,
                         winuser::WM_KEYLAST,
-                        winuser::PM_NOREMOVE
+                        winuser::PM_NOREMOVE,
                     );
                     let has_message = has_message != 0;
                     if !has_message {
@@ -220,17 +227,20 @@ impl KeyEventBuilder {
                         }
                     }
                 }
-                
+
                 if is_utf16 {
-                    self.event_info.as_mut().unwrap().utf16parts.push(wparam as u16);
+                    self.event_info
+                        .as_mut()
+                        .unwrap()
+                        .utf16parts
+                        .push(wparam as u16);
                 } else {
                     let utf16parts = &mut self.event_info.as_mut().unwrap().utf16parts;
                     let start_offset = utf16parts.len();
                     let new_size = utf16parts.len() + 2;
                     utf16parts.resize(new_size, 0);
                     if let Some(ch) = char::from_u32(wparam as u32) {
-                        let encode_len =
-                            ch.encode_utf16(&mut utf16parts[start_offset..]).len();
+                        let encode_len = ch.encode_utf16(&mut utf16parts[start_offset..]).len();
                         let new_size = start_offset + encode_len;
                         utf16parts.resize(new_size, 0);
                     }
@@ -245,10 +255,9 @@ impl KeyEventBuilder {
                         winuser::GetKeyboardState(key_state[0].as_mut_ptr());
                         let mut key_state = std::mem::transmute::<_, [u8; 256]>(key_state);
 
-                        let has_ctrl =
-                            key_state[winuser::VK_CONTROL as usize] != 0 ||
-                            key_state[winuser::VK_LCONTROL as usize] != 0 ||
-                            key_state[winuser::VK_RCONTROL as usize] != 0;
+                        let has_ctrl = key_state[winuser::VK_CONTROL as usize] != 0
+                            || key_state[winuser::VK_LCONTROL as usize] != 0
+                            || key_state[winuser::VK_RCONTROL as usize] != 0;
 
                         // If neither of the CTRL keys is pressed, just use the text with all
                         // modifiers because that already consumed the dead key and otherwise
@@ -260,7 +269,7 @@ impl KeyEventBuilder {
                                 event_info.vkey as u32,
                                 event_info.scancode,
                                 &mut key_state,
-                                &mut event_info.utf16parts_without_ctrl
+                                &mut event_info.utf16parts_without_ctrl,
                             );
                         }
                     }
@@ -272,10 +281,8 @@ impl KeyEventBuilder {
                 *retval = 0;
                 let vkey = wparam as i32;
                 let lparam_struct = destructure_key_lparam(lparam);
-                let scancode = PlatformScanCode::new(
-                    lparam_struct.scancode,
-                    lparam_struct.extended
-                );
+                let scancode =
+                    PlatformScanCode::new(lparam_struct.scancode, lparam_struct.extended);
                 let code = native_key_to_code(scancode);
                 let location = get_location(vkey, lparam_struct.extended);
                 let mut utf16parts = Vec::with_capacity(8);
@@ -299,15 +306,15 @@ impl KeyEventBuilder {
                             (&mut key_state[0]) as *mut _,
                             utf16parts.as_mut_ptr(),
                             utf16parts.capacity() as i32,
-                            0
+                            0,
                         );
                         utf16parts.set_len(unicode_len as usize);
-                        
+
                         get_utf16_without_ctrl(
                             wparam as u32,
                             scancode,
                             &mut key_state,
-                            &mut utf16parts_without_ctrl
+                            &mut utf16parts_without_ctrl,
                         );
                     }
                 }
@@ -315,18 +322,18 @@ impl KeyEventBuilder {
                 let event_info = PartialKeyEventInfo {
                     key_state: keyboard_types::KeyState::Up,
                     vkey: wparam as i32,
-                    scancode: scancode,
+                    scancode,
                     is_repeat: false,
-                    code: code,
-                    location: location,
+                    code,
+                    location,
                     is_dead: self.prev_down_was_dead,
-                    label: label,
-                    utf16parts: utf16parts,
-                    utf16parts_without_ctrl: utf16parts_without_ctrl,
+                    label,
+                    utf16parts,
+                    utf16parts_without_ctrl,
                 };
                 return Some(event_info.finalize(self.known_locale_id, self.has_alt_graph));
             }
-            _ => ()
+            _ => (),
         }
 
         None
@@ -347,11 +354,9 @@ impl KeyEventBuilder {
         // elements. This array is allowed to be indexed by virtual key values
         // giving the key state for the virtual key used for indexing.
         for vk in 0..256 {
-            let scancode = unsafe { winuser::MapVirtualKeyExW(
-                vk,
-                winuser::MAPVK_VK_TO_VSC_EX,
-                locale_identifier as HKL
-            ) };
+            let scancode = unsafe {
+                winuser::MapVirtualKeyExW(vk, winuser::MAPVK_VK_TO_VSC_EX, locale_identifier as HKL)
+            };
             if scancode == 0 {
                 continue;
             }
@@ -370,13 +375,11 @@ impl KeyEventBuilder {
             // has AltGr.
             if !self.has_alt_graph {
                 Self::apply_mod_state(&mut key_state, Self::CONTROL_FLAG);
-                let key_with_ctrl = Self::ToUnicodeString(
-                    &key_state, vk, scancode, locale_identifier
-                );
+                let key_with_ctrl =
+                    Self::ToUnicodeString(&key_state, vk, scancode, locale_identifier);
                 Self::apply_mod_state(&mut key_state, Self::CONTROL_FLAG | Self::ALT_FLAG);
-                let key_with_ctrl_alt = Self::ToUnicodeString(
-                    &key_state, vk, scancode, locale_identifier
-                );
+                let key_with_ctrl_alt =
+                    Self::ToUnicodeString(&key_state, vk, scancode, locale_identifier);
                 if key_with_ctrl.is_something() && key_with_ctrl_alt.is_something() {
                     self.has_alt_graph = key_with_ctrl != key_with_ctrl_alt;
                 }
@@ -386,7 +389,12 @@ impl KeyEventBuilder {
         true
     }
 
-    fn ToUnicodeString(key_state: &[u8; 256], vkey: u32, scancode: u32, locale_identifier: usize) -> ToUnicodeResult {
+    fn ToUnicodeString(
+        key_state: &[u8; 256],
+        vkey: u32,
+        scancode: u32,
+        locale_identifier: usize,
+    ) -> ToUnicodeResult {
         unsafe {
             let mut label_wide = [0u16; 8];
             let wide_len = winuser::ToUnicodeEx(
@@ -396,7 +404,7 @@ impl KeyEventBuilder {
                 (&mut label_wide[0]) as *mut _,
                 label_wide.len() as i32,
                 0,
-                locale_identifier as _
+                locale_identifier as _,
             );
             if wide_len < 0 {
                 // If it's dead, let's run `ToUnicode` again, to consume the dead-key
@@ -407,7 +415,7 @@ impl KeyEventBuilder {
                     (&mut label_wide[0]) as *mut _,
                     label_wide.len() as i32,
                     0,
-                    locale_identifier as _
+                    locale_identifier as _,
                 );
                 return ToUnicodeResult::Dead;
             }
@@ -483,7 +491,7 @@ impl PartialKeyEventInfo {
                 Key::Unidentified => {
                     if self.utf16parts_without_ctrl.len() > 0 {
                         logical_key = Key::Character(
-                            String::from_utf16(&self.utf16parts_without_ctrl).unwrap()
+                            String::from_utf16(&self.utf16parts_without_ctrl).unwrap(),
                         );
                     } else {
                         logical_key = Key::Unidentified;
@@ -510,13 +518,13 @@ impl PartialKeyEventInfo {
         KeyEvent {
             scancode: ScanCode(self.scancode),
             physical_key: self.code,
-            logical_key: logical_key,
+            logical_key,
             location: self.location,
             state: self.key_state,
             repeat: self.is_repeat,
             platform_specific: KeyEventExtra {
                 char_with_all_modifers: char_with_all_modifiers,
-                key_without_modifers: key_without_modifers,
+                key_without_modifers,
             },
         }
     }
@@ -532,10 +540,7 @@ pub fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
     }
 }
 
-pub fn get_location(
-    vkey: c_int,
-    extended: bool,
-) -> keyboard_types::Location {
+pub fn get_location(vkey: c_int, extended: bool) -> keyboard_types::Location {
     use keyboard_types::{Code, Location};
     use winuser::*;
     const VK_ABNT_C2: c_int = 0xc2;
@@ -566,7 +571,7 @@ unsafe fn get_utf16_without_ctrl(
     vkey: u32,
     scancode: PlatformScanCode,
     key_state: &mut [u8; 256],
-    utf16parts_without_ctrl: &mut Vec<u16>
+    utf16parts_without_ctrl: &mut Vec<u16>,
 ) {
     let target_capacity = 8;
     let curr_cap = utf16parts_without_ctrl.capacity();
@@ -583,7 +588,7 @@ unsafe fn get_utf16_without_ctrl(
         (&mut key_state[0]) as *mut _,
         utf16parts_without_ctrl.as_mut_ptr(),
         utf16parts_without_ctrl.capacity() as i32,
-        0
+        0,
     );
     if unicode_len < 0 {
         utf16parts_without_ctrl.set_len(0);
@@ -600,22 +605,33 @@ fn does_vkey_consume_dead_key(vkey: u32) -> bool {
     const NINE: u32 = '9' as u32;
     match vkey {
         A..=Z | ZERO..=NINE => return true,
-        _ => ()
+        _ => (),
     }
     match vkey as i32 {
         // OEM keys
-        winuser::VK_OEM_1 | winuser::VK_OEM_2 | winuser::VK_OEM_3 | winuser::VK_OEM_4 |
-        winuser::VK_OEM_5 | winuser::VK_OEM_6 | winuser::VK_OEM_7 | winuser::VK_OEM_8 |
-        winuser::VK_OEM_PLUS | winuser::VK_OEM_COMMA | winuser::VK_OEM_MINUS |
-        winuser::VK_OEM_PERIOD => {
-            true
-        }
+        winuser::VK_OEM_1
+        | winuser::VK_OEM_2
+        | winuser::VK_OEM_3
+        | winuser::VK_OEM_4
+        | winuser::VK_OEM_5
+        | winuser::VK_OEM_6
+        | winuser::VK_OEM_7
+        | winuser::VK_OEM_8
+        | winuser::VK_OEM_PLUS
+        | winuser::VK_OEM_COMMA
+        | winuser::VK_OEM_MINUS
+        | winuser::VK_OEM_PERIOD => true,
         // Other keys
-        winuser::VK_TAB | winuser::VK_BACK | winuser::VK_RETURN | winuser::VK_SPACE |
-        winuser::VK_NUMPAD0..=winuser::VK_NUMPAD9 | winuser::VK_MULTIPLY | winuser::VK_ADD |
-        winuser::VK_SUBTRACT | winuser::VK_DECIMAL | winuser::VK_DIVIDE => {
-            true
-        },
+        winuser::VK_TAB
+        | winuser::VK_BACK
+        | winuser::VK_RETURN
+        | winuser::VK_SPACE
+        | winuser::VK_NUMPAD0..=winuser::VK_NUMPAD9
+        | winuser::VK_MULTIPLY
+        | winuser::VK_ADD
+        | winuser::VK_SUBTRACT
+        | winuser::VK_DECIMAL
+        | winuser::VK_DIVIDE => true,
         _ => false,
     }
 }
@@ -629,15 +645,15 @@ fn vkey_to_non_printable(vkey: i32, hkl: usize, has_alt_graph: bool) -> Key {
     let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
     let is_korean = primary_lang_id == LANG_KOREAN;
     let is_japanese = primary_lang_id == LANG_JAPANESE;
-    
+
     match vkey {
-        winuser::VK_LBUTTON => Key::Unidentified, // Mouse
-        winuser::VK_RBUTTON => Key::Unidentified, // Mouse
+        winuser::VK_LBUTTON => Key::Unidentified,  // Mouse
+        winuser::VK_RBUTTON => Key::Unidentified,  // Mouse
         winuser::VK_CANCEL => Key::Unidentified, // I don't think this can be represented with a Key
         winuser::VK_MBUTTON => Key::Unidentified, // Mouse
         winuser::VK_XBUTTON1 => Key::Unidentified, // Mouse
         winuser::VK_XBUTTON2 => Key::Unidentified, // Mouse
-        winuser::VK_BACK => Key::Backspace, 
+        winuser::VK_BACK => Key::Backspace,
         winuser::VK_TAB => Key::Tab,
         winuser::VK_CLEAR => Key::Clear,
         winuser::VK_RETURN => Key::Enter,
@@ -732,7 +748,6 @@ fn vkey_to_non_printable(vkey: i32, hkl: usize, has_alt_graph: bool) -> Key {
         // winuser::VK_F22 => Key::F22,
         // winuser::VK_F23 => Key::F23,
         // winuser::VK_F24 => Key::F24,
-
         winuser::VK_NAVIGATION_VIEW => Key::Unidentified,
         winuser::VK_NAVIGATION_MENU => Key::Unidentified,
         winuser::VK_NAVIGATION_UP => Key::Unidentified,
@@ -755,8 +770,11 @@ fn vkey_to_non_printable(vkey: i32, hkl: usize, has_alt_graph: bool) -> Key {
         winuser::VK_RCONTROL => Key::Control,
         winuser::VK_LMENU => Key::Alt,
         winuser::VK_RMENU => {
-            if has_alt_graph { Key::AltGraph }
-            else { Key::Alt }
+            if has_alt_graph {
+                Key::AltGraph
+            } else {
+                Key::Alt
+            }
         }
         winuser::VK_BROWSER_BACK => Key::BrowserBack,
         winuser::VK_BROWSER_FORWARD => Key::BrowserForward,
@@ -858,7 +876,7 @@ fn vkey_to_non_printable(vkey: i32, hkl: usize, has_alt_graph: bool) -> Key {
         winuser::VK_NONAME => Key::Unidentified,
         winuser::VK_PA1 => Key::Unidentified,
         winuser::VK_OEM_CLEAR => Key::Clear,
-        _ => Key::Unidentified
+        _ => Key::Unidentified,
     }
 }
 

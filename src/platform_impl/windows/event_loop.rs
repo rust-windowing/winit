@@ -773,13 +773,19 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
         let mut retval = 0;
         let mut window_state = subclass_input.window_state.lock();
-        let event = window_state.key_event_builder.process_message(window, msg, wparam, lparam, &mut retval);
+        let event = window_state.key_event_builder.process_message(
+            window,
+            msg,
+            wparam,
+            lparam,
+            &mut retval,
+        );
         if let Some(event) = event {
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: KeyboardInput {
                     device_id: DEVICE_ID,
-                    event: event,
+                    event,
                     is_synthetic: false,
                 },
             });
