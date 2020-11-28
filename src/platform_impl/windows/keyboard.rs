@@ -39,7 +39,7 @@ pub struct KeyLParam {
     pub is_repeat: bool,
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 enum ToUnicodeResult {
     Str(String),
     Dead,
@@ -158,7 +158,6 @@ impl KeyEventBuilder {
     ) -> Option<KeyEvent> {
         match msg_kind {
             winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
-                println!("{}, {}", file!(), line!());
                 self.prev_down_was_dead = false;
 
                 // When the labels are already generated for this locale,
@@ -167,16 +166,20 @@ impl KeyEventBuilder {
                 let locale_id = unsafe { winuser::GetKeyboardLayout(0) };
                 self.prepare_layout(locale_id as usize);
 
-                let vkey = wparam as i32;
+                //let vkey = wparam as i32;
+
                 let lparam_struct = destructure_key_lparam(lparam);
                 let scancode =
                     PlatformScanCode::new(lparam_struct.scancode, lparam_struct.extended);
                 let code = native_key_to_code(scancode);
+                let vkey = unsafe {
+                    winuser::MapVirtualKeyW(scancode.0 as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
+                };
                 let location = get_location(vkey, lparam_struct.extended);
                 let label = self.key_labels.get(&scancode).map(|s| s.clone());
-                self.event_info = Some(PartialKeyEventInfo {
+                let mut event_info = Some(PartialKeyEventInfo {
                     key_state: keyboard_types::KeyState::Down,
-                    vkey: wparam as i32,
+                    vkey,
                     scancode,
                     is_repeat: lparam_struct.is_repeat,
                     code,
@@ -186,7 +189,31 @@ impl KeyEventBuilder {
                     utf16parts: Vec::with_capacity(8),
                     utf16parts_without_ctrl: Vec::with_capacity(8),
                 });
+
+                let mut next_msg = MaybeUninit::uninit();
+                let peek_retval = unsafe {
+                    winuser::PeekMessageW(
+                        next_msg.as_mut_ptr(),
+                        hwnd,
+                        winuser::WM_KEYFIRST,
+                        winuser::WM_KEYLAST,
+                        winuser::PM_NOREMOVE,
+                    )
+                };
+                let has_next_key_message = peek_retval != 0;
                 *retval = 0;
+                self.event_info = None;
+                if has_next_key_message {
+                    let next_msg = unsafe { next_msg.assume_init().message };
+                    let is_next_keydown =
+                        next_msg == winuser::WM_KEYDOWN || next_msg == winuser::WM_SYSKEYDOWN;
+                    if !is_next_keydown {
+                        self.event_info = event_info.take();
+                    }
+                }
+                if let Some(event_info) = event_info {
+                    return Some(event_info.finalize(locale_id as usize, self.has_alt_graph));
+                }
             }
             winuser::WM_DEADCHAR | winuser::WM_SYSDEADCHAR => {
                 self.prev_down_was_dead = true;
@@ -198,7 +225,6 @@ impl KeyEventBuilder {
                 return Some(event_info.finalize(self.known_locale_id, self.has_alt_graph));
             }
             winuser::WM_CHAR | winuser::WM_SYSCHAR => {
-                println!("{}, {}", file!(), line!());
                 *retval = 0;
                 let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
                 let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
@@ -279,11 +305,13 @@ impl KeyEventBuilder {
             }
             winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
                 *retval = 0;
-                let vkey = wparam as i32;
                 let lparam_struct = destructure_key_lparam(lparam);
                 let scancode =
                     PlatformScanCode::new(lparam_struct.scancode, lparam_struct.extended);
                 let code = native_key_to_code(scancode);
+                let vkey = unsafe {
+                    winuser::MapVirtualKeyW(scancode.0 as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
+                };
                 let location = get_location(vkey, lparam_struct.extended);
                 let mut utf16parts = Vec::with_capacity(8);
                 let mut utf16parts_without_ctrl = Vec::with_capacity(8);
@@ -321,7 +349,7 @@ impl KeyEventBuilder {
                 let label = self.key_labels.get(&scancode).map(|s| s.clone());
                 let event_info = PartialKeyEventInfo {
                     key_state: keyboard_types::KeyState::Up,
-                    vkey: wparam as i32,
+                    vkey,
                     scancode,
                     is_repeat: false,
                     code,
@@ -349,6 +377,7 @@ impl KeyEventBuilder {
         // simulate a scenario when no modifier is active.
         let mut key_state = [0u8; 256];
         self.key_labels.clear();
+        self.has_alt_graph = false;
         // Virtual key values are in the domain [0, 255].
         // This is reinforced by the fact that the keyboard state array has 256
         // elements. This array is allowed to be indexed by virtual key values
@@ -361,8 +390,8 @@ impl KeyEventBuilder {
                 continue;
             }
             Self::apply_mod_state(&mut key_state, 0);
-            let unicode = Self::ToUnicodeString(&key_state, vk, scancode, locale_identifier);
-            let unicode_str = match unicode {
+            let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
+            let unicode_str = match unicode.clone() {
                 ToUnicodeResult::Str(str) => str,
                 _ => continue,
             };
@@ -374,14 +403,11 @@ impl KeyEventBuilder {
             // a different result from when it's pressed with CTRL+ALT then the layout
             // has AltGr.
             if !self.has_alt_graph {
-                Self::apply_mod_state(&mut key_state, Self::CONTROL_FLAG);
-                let key_with_ctrl =
-                    Self::ToUnicodeString(&key_state, vk, scancode, locale_identifier);
                 Self::apply_mod_state(&mut key_state, Self::CONTROL_FLAG | Self::ALT_FLAG);
-                let key_with_ctrl_alt =
-                    Self::ToUnicodeString(&key_state, vk, scancode, locale_identifier);
-                if key_with_ctrl.is_something() && key_with_ctrl_alt.is_something() {
-                    self.has_alt_graph = key_with_ctrl != key_with_ctrl_alt;
+                let unicode_with_ctrl_alt =
+                    Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
+                if unicode_with_ctrl_alt.is_something() {
+                    self.has_alt_graph = unicode != unicode_with_ctrl_alt;
                 }
             }
         }
@@ -389,7 +415,7 @@ impl KeyEventBuilder {
         true
     }
 
-    fn ToUnicodeString(
+    fn to_unicode_string(
         key_state: &[u8; 256],
         vkey: u32,
         scancode: u32,
@@ -423,8 +449,6 @@ impl KeyEventBuilder {
                 let os_string = OsString::from_wide(&label_wide[0..wide_len as usize]);
                 if let Ok(label_str) = os_string.into_string() {
                     return ToUnicodeResult::Str(label_str);
-                } else {
-                    println!("Could not transform {:?}", label_wide);
                 }
             }
         }
@@ -487,22 +511,17 @@ impl PartialKeyEventInfo {
             logical_key = Key::Dead;
         } else {
             let key = vkey_to_non_printable(self.vkey, locale_id, has_alt_gr);
-            match key {
-                Key::Unidentified => {
-                    if self.utf16parts_without_ctrl.len() > 0 {
-                        logical_key = Key::Character(
-                            String::from_utf16(&self.utf16parts_without_ctrl).unwrap(),
-                        );
-                    } else {
-                        logical_key = Key::Unidentified;
-                    }
+            if key == Key::Unidentified {
+                if self.utf16parts_without_ctrl.len() > 0 {
+                    logical_key =
+                        Key::Character(String::from_utf16(&self.utf16parts_without_ctrl).unwrap());
+                } else {
+                    logical_key = Key::Unidentified;
                 }
-                key @ _ => {
-                    logical_key = key;
-                }
+            } else {
+                logical_key = key;
             }
         }
-
         let key_without_modifers;
         if let Some(label) = &self.label {
             key_without_modifers = Key::Character(label.clone());
