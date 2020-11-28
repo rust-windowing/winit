@@ -656,7 +656,9 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 }
 
-//TODO Implement (de)serialization
+// TODO: implement minimal IME API acting as a stopgap until #1497 gets completed.
+
+// TODO: Implement (de)serialization
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEvent {
     pub scancode: ScanCode,
