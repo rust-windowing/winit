@@ -1,4 +1,4 @@
-//#![cfg(target_os = "android")]
+#![cfg(target_os = "android")]
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -194,13 +194,13 @@ impl<T: 'static> EventLoop<T> {
                                             _ => None, // TODO mouse events
                                         };
 
-                                        for pointer in motion_event.pointers() {
-                                            let location = PhysicalPosition {
-                                                x: pointer.x() as _,
-                                                y: pointer.y() as _,
-                                            };
+                                        if let Some(phase) = phase {
+                                            for pointer in motion_event.pointers() {
+                                                let location = PhysicalPosition {
+                                                    x: pointer.x() as _,
+                                                    y: pointer.y() as _,
+                                                };
 
-                                            if let Some(phase) = phase {
                                                 let event = event::Event::WindowEvent {
                                                     window_id,
                                                     event: event::WindowEvent::Touch(
