@@ -166,61 +166,61 @@ Legend:
 - ❓: Unknown status
 
 ### Windowing
-|Feature                          |Windows|MacOS   |Linux x11   |Linux Wayland  |Android|iOS    |WASM      |
-|-------------------------------- | ----- | ----   | -------    | -----------   | ----- | ----- | -------- |
-|Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |✔️        |
-|Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |**N/A**|
-|Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |**N/A**|
-|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|**N/A**|**N/A**|
-|Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
-|Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|✔️        |
-|Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
-|Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |
-|Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
-|Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
-|Window minimization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
-|Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
-|Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
-|Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |**N/A**|
-|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️ \*1|
-|Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
+| Feature                          | Windows | MacOS   | Linux x11 | Linux Wayland | Android | iOS     | WASM    |
+| -------------------------------- | ------- | ------- | --------- | ------------- | ------- | ------- | ------- |
+| Window initialization            | ✔️       | ✔️       | ▢[#5]     | ✔️             | ▢[#33]  | ▢[#33]  | ✔️       |
+| Providing pointer to init OpenGL | ✔️       | ✔️       | ✔️         | ✔️             | ✔️       | ✔️       | **N/A** |
+| Providing pointer to init Vulkan | ✔️       | ✔️       | ✔️         | ✔️             | ✔️       | ❓       | **N/A** |
+| Window decorations               | ✔️       | ✔️       | ✔️         | ▢[#306]       | **N/A** | **N/A** | **N/A** |
+| Window decorations toggle        | ✔️       | ✔️       | ✔️         | ✔️             | **N/A** | **N/A** | **N/A** |
+| Window resizing                  | ✔️       | ▢[#219] | ✔️         | ▢[#306]       | **N/A** | **N/A** | ✔️       |
+| Window resize increments         | ❌       | ❌       | ❌         | ❌             | ❌       | ❌       | **N/A** |
+| Window transparency              | ✔️       | ✔️       | ✔️         | ✔️             | **N/A** | **N/A** | N/A     |
+| Window maximization              | ✔️       | ✔️       | ✔️         | ✔️             | **N/A** | **N/A** | **N/A** |
+| Window maximization toggle       | ✔️       | ✔️       | ✔️         | ✔️             | **N/A** | **N/A** | **N/A** |
+| Window minimization              | ✔️       | ✔️       | ✔️         | ✔️             | **N/A** | **N/A** | **N/A** |
+| Fullscreen                       | ✔️       | ✔️       | ✔️         | ✔️             | **N/A** | ✔️       | ✔️       |
+| Fullscreen toggle                | ✔️       | ✔️       | ✔️         | ✔️             | **N/A** | ✔️       | ✔️       |
+| Exclusive fullscreen             | ✔️       | ✔️       | ✔️         | **N/A**       | ❌       | ✔️       | **N/A** |
+| HiDPI support                    | ✔️       | ✔️       | ✔️         | ✔️             | ▢[#721] | ✔️       | ✔️ \*1   |
+| Popup windows                    | ❌       | ❌       | ❌         | ❌             | ❌       | ❌       | **N/A** |
 
 \*1: `WindowEvent::ScaleFactorChanged` is not sent on `stdweb` backend.
 
 ### System information
-|Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS      |WASM      |
-|---------------- | ----- | ---- | ------- | ----------- | ----- | ------- | -------- |
-|Monitor list     |✔️    |✔️    |✔️       |✔️          |**N/A**|✔️       |**N/A**|
-|Video mode query |✔️    |✔️    |✔️       |✔️          |❌     |✔️      |**N/A**|
+| Feature          | Windows | MacOS | Linux x11 | Linux Wayland | Android | iOS | WASM    |
+| ---------------- | ------- | ----- | --------- | ------------- | ------- | --- | ------- |
+| Monitor list     | ✔️       | ✔️     | ✔️         | ✔️             | **N/A** | ✔️   | **N/A** |
+| Video mode query | ✔️       | ✔️     | ✔️         | ✔️             | ❌       | ✔️   | **N/A** |
 
 ### Input handling
-|Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |WASM      |
-|----------------------- | -----    | ----   | ------- | ----------- | ----- | ----- | -------- |
-|Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|✔️        |
-|Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
-|Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|❓        |
-|Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
-|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
-|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
-|Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |❌        |
-|Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
-|Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
-|Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |
-|Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |
-|Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |
+| Feature                 | Windows | MacOS   | Linux x11 | Linux Wayland | Android | iOS     | WASM    |
+| ----------------------- | ------- | ------- | --------- | ------------- | ------- | ------- | ------- |
+| Mouse events            | ✔️       | ▢[#63]  | ✔️         | ✔️             | **N/A** | **N/A** | ✔️       |
+| Mouse set location      | ✔️       | ✔️       | ✔️         | ❓             | **N/A** | **N/A** | **N/A** |
+| Cursor grab             | ✔️       | ▢[#165] | ▢[#242]   | ✔️             | **N/A** | **N/A** | ❓       |
+| Cursor icon             | ✔️       | ✔️       | ✔️         | ✔️             | **N/A** | **N/A** | ✔️       |
+| Touch events            | ✔️       | ❌       | ✔️         | ✔️             | ✔️       | ✔️       | ❌       |
+| Touch pressure          | ✔️       | ❌       | ❌         | ❌             | ❌       | ✔️       | ❌       |
+| Multitouch              | ✔️       | ❌       | ✔️         | ✔️             | ✔️       | ✔️       | ❌       |
+| Keyboard events         | ✔️       | ✔️       | ✔️         | ✔️             | ❓       | ❌       | ✔️       |
+| Drag & Drop             | ▢[#720] | ▢[#720] | ▢[#720]   | ❌[#306]       | **N/A** | **N/A** | ❓       |
+| Raw Device Events       | ▢[#750] | ▢[#750] | ▢[#750]   | ❌             | ❌       | ❌       | ❓       |
+| Gamepad/Joystick events | ❌[#804] | ❌       | ❌         | ❌             | ❌       | ❌       | ❓       |
+| Device movement events  | ❓       | ❓       | ❓         | ❓             | ❌       | ❌       | ❓       |
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.
 
-|Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |
-|------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
-|New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |▢[#721]|✔️    |❓        |
-|Event Loop 2.0 ([#459])             |✔️    |✔️    |❌       |✔️          |❌     |✔️    |❓        |
-|Keyboard Input ([#812])             |❌    |❌    |❌       |❌          |❌     |❌    |❓        |
+| Feature                           | Windows | MacOS | Linux x11 | Linux Wayland | Android | iOS | WASM |
+| --------------------------------- | ------- | ----- | --------- | ------------- | ------- | --- | ---- |
+| New API for HiDPI ([#315] [#319]) | ✔️       | ✔️     | ✔️         | ✔️             | ▢[#721] | ✔️   | ❓    |
+| Event Loop 2.0 ([#459])           | ✔️       | ✔️     | ❌         | ✔️             | ❌       | ✔️   | ❓    |
+| Keyboard Input ([#812])           | ❌       | ❌     | ❌         | ❌             | ❌       | ❌   | ❓    |
 
 ### Completed API Reworks
-|Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |
-|------------------------------      | ----- | ---- | ------- | ----------- | ----- | ----- | -------- |
+| Feature | Windows | MacOS | Linux x11 | Linux Wayland | Android | iOS | WASM |
+| ------- | ------- | ----- | --------- | ------------- | ------- | --- | ---- |
 
 [#165]: https://github.com/rust-windowing/winit/issues/165
 [#219]: https://github.com/rust-windowing/winit/issues/219
