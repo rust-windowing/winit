@@ -1,6 +1,9 @@
 # Unreleased
 
-- On Windows, fix applications not exiting gracefully.
+- On Windows, fix applications not exiting gracefully due to thread_event_target_callback accessing corrupted memory.
+- **Breaking:** On Windows, Renamed `WindowBuilderExtWindows`'s `is_dark_mode` to `theme`.
+- On Windows, add `WindowBuilderExtWindows::with_theme` to set a preferred theme.
+- On Windows, fix bug causing message boxes to appear delayed.
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
 - On Windows, fix alt-tab behaviour by removing borderless fullscreen "always on top" flag.
 - On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.

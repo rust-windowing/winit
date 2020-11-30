@@ -36,7 +36,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
-        dark_mode::try_dark_mode,
+        dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
@@ -1874,20 +1874,20 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         winuser::WM_SETTINGCHANGE => {
             use crate::event::WindowEvent::ThemeChanged;
 
-            let is_dark_mode = try_dark_mode(window);
-            let mut window_state = subclass_input.window_state.lock();
-            let changed = window_state.is_dark_mode != is_dark_mode;
+            let preferred_theme = subclass_input.window_state.lock().preferred_theme;
 
-            if changed {
-                use crate::window::Theme::*;
-                let theme = if is_dark_mode { Dark } else { Light };
+            if preferred_theme == None {
+                let new_theme = try_theme(window, preferred_theme);
+                let mut window_state = subclass_input.window_state.lock();
 
-                window_state.is_dark_mode = is_dark_mode;
-                mem::drop(window_state);
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: ThemeChanged(theme),
-                });
+                if window_state.current_theme != new_theme {
+                    window_state.current_theme = new_theme;
+                    mem::drop(window_state);
+                    subclass_input.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: ThemeChanged(new_theme),
+                    });
+                }
             }
 
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
