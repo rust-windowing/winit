@@ -1,5 +1,6 @@
 # Unreleased
 
+- ***Breaking:** On Windows, Renamed `WindowBuilderExtWindows`'s is_dark_mode` to `theme`.
 - On Windows, add `WindowBuilderExtWindows::with_theme` to set a preferred theme.
 - On Windows, fix bug causing message boxes to appear delayed.
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
@@ -18,6 +19,8 @@
 - **Breaking:** On macOS, removed `WindowExt::request_user_attention`, use `Window::request_user_attention`.  
 - **Breaking:** On X11, removed `WindowExt::set_urgent`, use `Window::request_user_attention`. 
 - On Wayland, default font size in CSD increased from 11 to 17.
+- On Windows, fix bug causing message boxes to appear delayed.
+- On Android, support multi-touch.
 
 # 0.23.0 (2020-10-02)
 
