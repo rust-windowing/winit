@@ -1,6 +1,6 @@
 # Unreleased
 
-- ***Breaking:** On Windows, Renamed `WindowBuilderExtWindows`'s is_dark_mode` to `theme`.
+- **Breaking:** On Windows, Renamed `WindowBuilderExtWindows`'s `is_dark_mode` to `theme`.
 - On Windows, add `WindowBuilderExtWindows::with_theme` to set a preferred theme.
 - On Windows, fix bug causing message boxes to appear delayed.
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
