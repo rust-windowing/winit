@@ -81,7 +81,7 @@ pub trait WindowExtWindows {
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
-    /// Whether the system theme is currently Windows 10's "Dark Mode".
+    /// Returns the current window theme.
     fn theme(&self) -> Theme;
 }
 
