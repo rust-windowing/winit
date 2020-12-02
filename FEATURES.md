@@ -202,7 +202,7 @@ Legend:
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
-|Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |❌        |
+|Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |

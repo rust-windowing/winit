@@ -193,14 +193,27 @@ impl<T: 'static> EventLoop<T> {
                                             }
                                             _ => None, // TODO mouse events
                                         };
-
                                         if let Some(phase) = phase {
-                                            for pointer in motion_event.pointers() {
+                                            let pointers: Box<
+                                                dyn Iterator<Item = ndk::event::Pointer<'_>>,
+                                            > = match phase {
+                                                event::TouchPhase::Started
+                                                | event::TouchPhase::Ended => Box::new(
+                                                    std::iter::once(motion_event.pointer_at_index(
+                                                        motion_event.pointer_index(),
+                                                    )),
+                                                ),
+                                                event::TouchPhase::Moved
+                                                | event::TouchPhase::Cancelled => {
+                                                    Box::new(motion_event.pointers())
+                                                }
+                                            };
+
+                                            for pointer in pointers {
                                                 let location = PhysicalPosition {
                                                     x: pointer.x() as _,
                                                     y: pointer.y() as _,
                                                 };
-
                                                 let event = event::Event::WindowEvent {
                                                     window_id,
                                                     event: event::WindowEvent::Touch(
