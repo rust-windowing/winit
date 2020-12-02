@@ -17,7 +17,7 @@
 - **Breaking:** On X11, removed `WindowExt::set_urgent`, use `Window::request_user_attention`. 
 - On Wayland, default font size in CSD increased from 11 to 17.
 - On Windows, fix bug causing message boxes to appear delayed.
-- On Android, support multi-touch with proper implemenation for every input state in `event::TouchPhase`
+- On Android, support multi-touch.
 
 # 0.23.0 (2020-10-02)
 
