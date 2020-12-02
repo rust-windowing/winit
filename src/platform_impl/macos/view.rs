@@ -307,6 +307,12 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
                 name: notification_name
                 object: this
             ];
+
+            // Always enable IME
+            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: WindowId(get_window_id((*(state as *mut ViewState)).ns_window)),
+                event: WindowEvent::IME(IME::Enabled),
+            }));
         }
         this
     }
@@ -572,14 +578,6 @@ extern "C" fn insert_text(this: &mut Object, _sel: Sel, string: id, _replacement
 
         let mut events = VecDeque::with_capacity(characters.len());
 
-        for character in string.chars() {
-            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.ns_window)),
-                event: WindowEvent::ReceivedCharacter(character),
-            }));
-        }
-
-        // Commit preedit if exists.
         let is_preediting: bool = *this.get_ivar("isPreediting");
         if is_preediting {
             events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -587,6 +585,13 @@ extern "C" fn insert_text(this: &mut Object, _sel: Sel, string: id, _replacement
                 event: WindowEvent::IME(IME::Commit(string.clone())),
             }));
             this.set_ivar("isPreediting", false);
+        } else {
+            for character in string.chars() {
+                events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+                    window_id: WindowId(get_window_id(state.ns_window)),
+                    event: WindowEvent::ReceivedCharacter(character),
+                }));
+            }
         }
 
         AppState::queue_events(events);
