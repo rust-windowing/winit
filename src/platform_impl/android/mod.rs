@@ -180,37 +180,36 @@ impl<T: 'static> EventLoop<T> {
                                 let device_id = event::DeviceId(DeviceId);
                                 match &event {
                                     InputEvent::MotionEvent(motion_event) => {
-                                        match motion_event.action() {
+                                        let phase = match motion_event.action() {
                                             MotionAction::Down | MotionAction::PointerDown => {
-                                                let pointer = motion_event
-                                                    .pointer_at_index(motion_event.pointer_index());
-                                                let location = PhysicalPosition {
-                                                    x: pointer.x() as _,
-                                                    y: pointer.y() as _,
-                                                };
-                                                let event = event::Event::WindowEvent {
-                                                    window_id,
-                                                    event: event::WindowEvent::Touch(
-                                                        event::Touch {
-                                                            device_id,
-                                                            phase: event::TouchPhase::Started,
-                                                            location,
-                                                            id: pointer.pointer_id() as u64,
-                                                            force: None,
-                                                        },
-                                                    ),
-                                                };
-
-                                                call_event_handler!(
-                                                    event_handler,
-                                                    self.window_target(),
-                                                    control_flow,
-                                                    event
-                                                );
+                                                Some(event::TouchPhase::Started)
                                             }
                                             MotionAction::Up | MotionAction::PointerUp => {
-                                                let pointer = motion_event
-                                                    .pointer_at_index(motion_event.pointer_index());
+                                                Some(event::TouchPhase::Ended)
+                                            }
+                                            MotionAction::Move => Some(event::TouchPhase::Moved),
+                                            MotionAction::Cancel => {
+                                                Some(event::TouchPhase::Cancelled)
+                                            }
+                                            _ => None, // TODO mouse events
+                                        };
+                                        if let Some(phase) = phase {
+                                            let pointers: Box<
+                                                dyn Iterator<Item = ndk::event::Pointer<'_>>,
+                                            > = match phase {
+                                                event::TouchPhase::Started
+                                                | event::TouchPhase::Ended => Box::new(
+                                                    std::iter::once(motion_event.pointer_at_index(
+                                                        motion_event.pointer_index(),
+                                                    )),
+                                                ),
+                                                event::TouchPhase::Moved
+                                                | event::TouchPhase::Cancelled => {
+                                                    Box::new(motion_event.pointers())
+                                                }
+                                            };
+
+                                            for pointer in pointers {
                                                 let location = PhysicalPosition {
                                                     x: pointer.x() as _,
                                                     y: pointer.y() as _,
@@ -220,14 +219,13 @@ impl<T: 'static> EventLoop<T> {
                                                     event: event::WindowEvent::Touch(
                                                         event::Touch {
                                                             device_id,
-                                                            phase: event::TouchPhase::Ended,
+                                                            phase,
                                                             location,
                                                             id: pointer.pointer_id() as u64,
                                                             force: None,
                                                         },
                                                     ),
                                                 };
-
                                                 call_event_handler!(
                                                     event_handler,
                                                     self.window_target(),
@@ -235,62 +233,7 @@ impl<T: 'static> EventLoop<T> {
                                                     event
                                                 );
                                             }
-                                            MotionAction::Move => {
-                                                for pointer in motion_event.pointers() {
-                                                    let location = PhysicalPosition {
-                                                        x: pointer.x() as _,
-                                                        y: pointer.y() as _,
-                                                    };
-
-                                                    let event = event::Event::WindowEvent {
-                                                        window_id,
-                                                        event: event::WindowEvent::Touch(
-                                                            event::Touch {
-                                                                device_id,
-                                                                phase: event::TouchPhase::Moved,
-                                                                location,
-                                                                id: pointer.pointer_id() as u64,
-                                                                force: None,
-                                                            },
-                                                        ),
-                                                    };
-                                                    call_event_handler!(
-                                                        event_handler,
-                                                        self.window_target(),
-                                                        control_flow,
-                                                        event
-                                                    );
-                                                }
-                                            }
-                                            MotionAction::Cancel => {
-                                                for pointer in motion_event.pointers() {
-                                                    let location = PhysicalPosition {
-                                                        x: pointer.x() as _,
-                                                        y: pointer.y() as _,
-                                                    };
-
-                                                    let event = event::Event::WindowEvent {
-                                                        window_id,
-                                                        event: event::WindowEvent::Touch(
-                                                            event::Touch {
-                                                                device_id,
-                                                                phase: event::TouchPhase::Moved,
-                                                                location,
-                                                                id: pointer.pointer_id() as u64,
-                                                                force: None,
-                                                            },
-                                                        ),
-                                                    };
-                                                    call_event_handler!(
-                                                        event_handler,
-                                                        self.window_target(),
-                                                        control_flow,
-                                                        event
-                                                    );
-                                                }
-                                            }
-                                            _ => (), // TODO mouse events
-                                        };
+                                        }
                                     }
                                     InputEvent::KeyEvent(_) => {} // TODO
                                 };
