@@ -2,7 +2,9 @@ use crate::{
     dpi::{PhysicalPosition, Size},
     event::ModifiersState,
     icon::Icon,
-    platform_impl::platform::{event_loop, keyboard::KeyEventBuilder, util},
+    platform_impl::platform::{
+        event_loop, keyboard::KeyEventBuilder, minimal_ime::MinimalIme, util,
+    },
     window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
 };
 use parking_lot::MutexGuard;
@@ -36,6 +38,7 @@ pub struct WindowState {
     pub high_surrogate: Option<u16>,
 
     pub key_event_builder: KeyEventBuilder,
+    pub ime_handler: MinimalIme,
 
     window_flags: WindowFlags,
 }
@@ -131,6 +134,7 @@ impl WindowState {
             preferred_theme,
             high_surrogate: None,
             key_event_builder: KeyEventBuilder::default(),
+            ime_handler: MinimalIme::default(),
             window_flags: WindowFlags::empty(),
         }
     }

@@ -7,7 +7,7 @@ use keyboard_types::Key;
 
 use winapi::{
     shared::{
-        minwindef::{HKL, LOWORD, LPARAM, LRESULT, WPARAM},
+        minwindef::{HKL, LOWORD, LPARAM, LRESULT, UINT, WPARAM},
         windef::HWND,
     },
     um::{
@@ -22,12 +22,10 @@ use crate::{
 };
 
 pub fn is_msg_keyboard_related(msg: u32) -> bool {
-    use winuser::{
-        WM_INPUTLANGCHANGE, WM_KEYFIRST, WM_KEYLAST, WM_KILLFOCUS, WM_SETFOCUS, WM_SHOWWINDOW,
-    };
+    use winuser::{WM_KEYFIRST, WM_KEYLAST, WM_KILLFOCUS, WM_SETFOCUS};
     let is_keyboard_msg = WM_KEYFIRST <= msg && msg <= WM_KEYLAST;
 
-    is_keyboard_msg
+    is_keyboard_msg || msg == WM_SETFOCUS || msg == WM_KILLFOCUS
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -75,6 +73,11 @@ impl PlatformScanCode {
     }
 }
 
+pub struct MessageAsKeyEvent {
+    pub event: KeyEvent,
+    pub is_synthetic: bool,
+}
+
 /// Stores information required to make `KeyEvent`s.
 ///
 /// A single winint `KeyEvent` contains information which the windows API passes to the application
@@ -104,7 +107,10 @@ pub struct KeyEventBuilder {
     /// just when the key is pressed/released would be enough if `ToUnicode` wouldn't
     /// change the keyboard state (it clears the dead key). There is a flag to prevent
     /// changing the state but that flag requires Windows 10, version 1607 or newer)
-    key_labels: HashMap<PlatformScanCode, String>,
+    key_text: HashMap<PlatformScanCode, String>,
+
+    /// Same as `key_text` but as if caps-lock was pressed.
+    key_text_with_caps: HashMap<PlatformScanCode, String>,
 
     /// True if the keyboard layout belonging to `known_locale_id` has an AltGr key.
     has_alt_graph: bool,
@@ -132,7 +138,8 @@ impl Default for KeyEventBuilder {
     fn default() -> Self {
         KeyEventBuilder {
             event_info: None,
-            key_labels: HashMap::with_capacity(128),
+            key_text: HashMap::with_capacity(128),
+            key_text_with_caps: HashMap::with_capacity(128),
             has_alt_graph: false,
             known_locale_id: 0,
             prev_down_was_dead: false,
@@ -154,9 +161,23 @@ impl KeyEventBuilder {
         msg_kind: u32,
         wparam: WPARAM,
         lparam: LPARAM,
-        retval: &mut LRESULT,
-    ) -> Option<KeyEvent> {
+        retval: &mut Option<LRESULT>,
+    ) -> Option<Vec<MessageAsKeyEvent>> {
         match msg_kind {
+            winuser::WM_SETFOCUS => {
+                // synthesize keydown events
+                let key_events = self.synthesize_kbd_state(keyboard_types::KeyState::Down);
+                if !key_events.is_empty() {
+                    return Some(key_events);
+                }
+            }
+            winuser::WM_KILLFOCUS => {
+                // sythesize keyup events
+                let key_events = self.synthesize_kbd_state(keyboard_types::KeyState::Up);
+                if !key_events.is_empty() {
+                    return Some(key_events);
+                }
+            }
             winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
                 self.prev_down_was_dead = false;
 
@@ -176,7 +197,7 @@ impl KeyEventBuilder {
                     winuser::MapVirtualKeyW(scancode.0 as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
                 };
                 let location = get_location(vkey, lparam_struct.extended);
-                let label = self.key_labels.get(&scancode).map(|s| s.clone());
+                let label = self.key_text.get(&scancode).map(|s| s.clone());
                 let mut event_info = Some(PartialKeyEventInfo {
                     key_state: keyboard_types::KeyState::Down,
                     vkey,
@@ -201,7 +222,7 @@ impl KeyEventBuilder {
                     )
                 };
                 let has_next_key_message = peek_retval != 0;
-                *retval = 0;
+                *retval = Some(0);
                 self.event_info = None;
                 if has_next_key_message {
                     let next_msg = unsafe { next_msg.assume_init().message };
@@ -212,7 +233,11 @@ impl KeyEventBuilder {
                     }
                 }
                 if let Some(event_info) = event_info {
-                    return Some(event_info.finalize(locale_id as usize, self.has_alt_graph));
+                    let ev = event_info.finalize(locale_id as usize, self.has_alt_graph);
+                    return Some(vec![MessageAsKeyEvent {
+                        event: ev,
+                        is_synthetic: false,
+                    }]);
                 }
             }
             winuser::WM_DEADCHAR | winuser::WM_SYSDEADCHAR => {
@@ -221,11 +246,15 @@ impl KeyEventBuilder {
                 // this key press
                 let mut event_info = self.event_info.take().unwrap();
                 event_info.is_dead = true;
-                *retval = 0;
-                return Some(event_info.finalize(self.known_locale_id, self.has_alt_graph));
+                *retval = Some(0);
+                let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
+                return Some(vec![MessageAsKeyEvent {
+                    event: ev,
+                    is_synthetic: false,
+                }]);
             }
             winuser::WM_CHAR | winuser::WM_SYSCHAR => {
-                *retval = 0;
+                *retval = Some(0);
                 let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
                 let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
 
@@ -300,11 +329,15 @@ impl KeyEventBuilder {
                         }
                     }
 
-                    return Some(event_info.finalize(self.known_locale_id, self.has_alt_graph));
+                    let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
+                    return Some(vec![MessageAsKeyEvent {
+                        event: ev,
+                        is_synthetic: false,
+                    }]);
                 }
             }
             winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
-                *retval = 0;
+                *retval = Some(0);
                 let lparam_struct = destructure_key_lparam(lparam);
                 let scancode =
                     PlatformScanCode::new(lparam_struct.scancode, lparam_struct.extended);
@@ -346,7 +379,7 @@ impl KeyEventBuilder {
                         );
                     }
                 }
-                let label = self.key_labels.get(&scancode).map(|s| s.clone());
+                let label = self.key_text.get(&scancode).map(|s| s.clone());
                 let event_info = PartialKeyEventInfo {
                     key_state: keyboard_types::KeyState::Up,
                     vkey,
@@ -359,7 +392,11 @@ impl KeyEventBuilder {
                     utf16parts,
                     utf16parts_without_ctrl,
                 };
-                return Some(event_info.finalize(self.known_locale_id, self.has_alt_graph));
+                let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
+                return Some(vec![MessageAsKeyEvent {
+                    event: ev,
+                    is_synthetic: false,
+                }]);
             }
             _ => (),
         }
@@ -376,7 +413,8 @@ impl KeyEventBuilder {
         // We initialize the keyboard state with all zeros to
         // simulate a scenario when no modifier is active.
         let mut key_state = [0u8; 256];
-        self.key_labels.clear();
+        self.key_text.clear();
+        self.key_text_with_caps.clear();
         self.has_alt_graph = false;
         // Virtual key values are in the domain [0, 255].
         // This is reinforced by the fact that the keyboard state array has 256
@@ -389,14 +427,24 @@ impl KeyEventBuilder {
             if scancode == 0 {
                 continue;
             }
+            let platform_scancode = PlatformScanCode(scancode as u16);
+
             Self::apply_mod_state(&mut key_state, 0);
+
+            // Caps lock is not pressed but it's on.
+            key_state[winuser::VK_CAPITAL as usize] = 1;
+            let unicode_caps = Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
+            if let ToUnicodeResult::Str(str) = unicode_caps {
+                self.key_text_with_caps.insert(platform_scancode, str);
+            }
+            key_state[winuser::VK_CAPITAL as usize] = 0;
+
             let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
             let unicode_str = match unicode.clone() {
                 ToUnicodeResult::Str(str) => str,
                 _ => continue,
             };
-            let platform_scancode = PlatformScanCode(scancode as u16);
-            self.key_labels.insert(platform_scancode, unicode_str);
+            self.key_text.insert(platform_scancode, unicode_str);
 
             // Check for alt graph.
             // The logic is that if a key pressed with the CTRL modifier produces
@@ -483,6 +531,160 @@ impl KeyEventBuilder {
             key_state[winuser::VK_CAPITAL as usize] &= !0x80;
         }
     }
+
+    fn synthesize_kbd_state(
+        &mut self,
+        key_state: keyboard_types::KeyState,
+    ) -> Vec<MessageAsKeyEvent> {
+        let mut key_events = Vec::new();
+        let locale_id = unsafe { winuser::GetKeyboardLayout(0) };
+        self.prepare_layout(locale_id as usize);
+
+        let kbd_state = unsafe {
+            let mut kbd_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
+            winuser::GetKeyboardState(kbd_state[0].as_mut_ptr());
+            std::mem::transmute::<_, [u8; 256]>(kbd_state)
+        };
+        macro_rules! is_key_pressed {
+            ($vk:expr) => {
+                kbd_state[$vk as usize] & 0x80 != 0
+            };
+        }
+
+        // Is caps-lock active? Be careful that this is different from caps-lock
+        // being held down.
+        let caps_lock_on = kbd_state[winuser::VK_CAPITAL as usize] & 1 != 0;
+
+        // We are synthesizing the press event for caps-lock first. The reason:
+        // 1, if caps-lock is *not* held down but it's active, than we have to
+        // synthesize all printable keys, respecting the calps-lock state
+        // 2, if caps-lock is held down, we could choose to sythesize it's
+        // keypress after every other key, in which case all other keys *must*
+        // be sythesized as if the caps-lock state would be the opposite
+        // of what it currently is.
+        // --
+        // For the sake of simplicity we are choosing to always sythesize
+        // caps-lock first, and always use the current caps-lock state
+        // to determine the produced text
+        if is_key_pressed!(winuser::VK_CAPITAL) {
+            let event =
+                self.create_synthetic(winuser::VK_CAPITAL, key_state, locale_id, caps_lock_on);
+            if let Some(event) = event {
+                key_events.push(event);
+            }
+        }
+        let do_non_modifier = |key_events: &mut Vec<_>| {
+            for vk in 0..256 {
+                match vk {
+                    winuser::VK_CONTROL
+                    | winuser::VK_LCONTROL
+                    | winuser::VK_RCONTROL
+                    | winuser::VK_SHIFT
+                    | winuser::VK_LSHIFT
+                    | winuser::VK_RSHIFT
+                    | winuser::VK_MENU
+                    | winuser::VK_LMENU
+                    | winuser::VK_RMENU
+                    | winuser::VK_CAPITAL => continue,
+                    _ => (),
+                }
+                if !is_key_pressed!(vk) {
+                    continue;
+                }
+                if let Some(event) = self.create_synthetic(vk, key_state, locale_id, caps_lock_on) {
+                    key_events.push(event);
+                }
+            }
+        };
+        let do_modifier = |key_events: &mut Vec<_>| {
+            const CLEAR_MODIFIER_VKS: [i32; 6] = [
+                winuser::VK_LCONTROL,
+                winuser::VK_LSHIFT,
+                winuser::VK_LMENU,
+                winuser::VK_RCONTROL,
+                winuser::VK_RSHIFT,
+                winuser::VK_RMENU,
+            ];
+            for vk in CLEAR_MODIFIER_VKS.iter() {
+                if is_key_pressed!(*vk) {
+                    let event = self.create_synthetic(*vk, key_state, locale_id, caps_lock_on);
+                    if let Some(event) = event {
+                        key_events.push(event);
+                    }
+                }
+            }
+        };
+
+        // Be cheeky and sythesize sequence modifier and non-modifier
+        // key events such that non-modifier keys are not affected
+        // by modifiers (except for caps-lock)
+        match key_state {
+            keyboard_types::KeyState::Down => {
+                do_non_modifier(&mut key_events);
+                do_modifier(&mut key_events);
+            }
+            keyboard_types::KeyState::Up => {
+                do_modifier(&mut key_events);
+                do_non_modifier(&mut key_events);
+            }
+        }
+
+        key_events
+    }
+
+    fn create_synthetic(
+        &self,
+        vk: i32,
+        key_state: keyboard_types::KeyState,
+        locale_id: HKL,
+        caps_lock_on: bool,
+    ) -> Option<MessageAsKeyEvent> {
+        let scancode = unsafe {
+            winuser::MapVirtualKeyExW(vk as UINT, winuser::MAPVK_VK_TO_VSC_EX, locale_id)
+        };
+        if scancode == 0 {
+            return None;
+        }
+        let is_extended = (scancode & 0xE000) == 0xE000;
+        let platform_scancode = PlatformScanCode(scancode as u16);
+
+        let key_text = self.key_text.get(&platform_scancode).cloned();
+        let key_text_with_caps = self.key_text_with_caps.get(&platform_scancode).cloned();
+        let logical_key = match &key_text {
+            Some(str) => {
+                if caps_lock_on {
+                    match key_text_with_caps.clone() {
+                        Some(str) => keyboard_types::Key::Character(str),
+                        None => keyboard_types::Key::Unidentified,
+                    }
+                } else {
+                    keyboard_types::Key::Character(str.clone())
+                }
+            }
+            None => vkey_to_non_printable(vk, locale_id as usize, self.has_alt_graph),
+        };
+
+        let event_info = PartialKeyEventInfo {
+            key_state,
+            vkey: vk,
+            scancode: platform_scancode,
+            is_repeat: false,
+            code: native_key_to_code(platform_scancode),
+            location: get_location(vk, is_extended),
+            is_dead: false,
+            label: key_text,
+            utf16parts: Vec::with_capacity(8),
+            utf16parts_without_ctrl: Vec::with_capacity(8),
+        };
+
+        let mut event = event_info.finalize(locale_id as usize, self.has_alt_graph);
+        event.logical_key = logical_key;
+        event.platform_specific.char_with_all_modifers = key_text_with_caps;
+        Some(MessageAsKeyEvent {
+            event,
+            is_synthetic: true,
+        })
+    }
 }
 
 struct PartialKeyEventInfo {
@@ -560,7 +762,7 @@ pub fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
 }
 
 pub fn get_location(vkey: c_int, extended: bool) -> keyboard_types::Location {
-    use keyboard_types::{Code, Location};
+    use keyboard_types::Location;
     use winuser::*;
     const VK_ABNT_C2: c_int = 0xc2;
 

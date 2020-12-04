@@ -96,6 +96,7 @@ mod event;
 mod event_loop;
 mod icon;
 mod keyboard;
+mod minimal_ime;
 mod monitor;
 mod raw_input;
 mod window;

@@ -41,6 +41,7 @@ use crate::{
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         keyboard::is_msg_keyboard_related,
+        minimal_ime::is_msg_ime_related,
         monitor::{self, MonitorHandle},
         raw_input, util,
         window_state::{CursorFlags, WindowFlags, WindowState},
@@ -763,41 +764,65 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         winuser::RDW_INTERNALPAINT,
     );
 
+    let mut retval = None;
     let keyboard_callback = || {
         use crate::event::WindowEvent::KeyboardInput;
         let is_keyboard_related = is_msg_keyboard_related(msg);
         if !is_keyboard_related {
             // We return early to avoid a deadlock from locking the window state
             // when not appropriate.
-            return -1;
+            return retval;
         }
-        let mut retval = 0;
-        let mut window_state = subclass_input.window_state.lock();
-        let event = window_state.key_event_builder.process_message(
-            window,
-            msg,
-            wparam,
-            lparam,
-            &mut retval,
-        );
-        if let Some(event) = event {
-            subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: KeyboardInput {
-                    device_id: DEVICE_ID,
-                    event,
-                    is_synthetic: false,
-                },
-            });
+        let events = {
+            let mut window_state = subclass_input.window_state.lock();
+            window_state
+                .key_event_builder
+                .process_message(window, msg, wparam, lparam, &mut retval)
+        };
+        if let Some(events) = events {
+            for event in events {
+                subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: KeyboardInput {
+                        device_id: DEVICE_ID,
+                        event: event.event,
+                        is_synthetic: event.is_synthetic,
+                    },
+                });
+            }
         }
         retval
     };
 
-    // TODO: merge this retval with whatever is done in the following.
-    let retval = subclass_input
+    retval = subclass_input
         .event_loop_runner
         .catch_unwind(keyboard_callback)
-        .unwrap_or(-1);
+        .unwrap_or(Some(-1));
+
+    let ime_callback = || {
+        use crate::event::WindowEvent::ReceivedImeText;
+        let is_ime_related = is_msg_ime_related(msg);
+        if !is_ime_related {
+            return retval;
+        }
+        let text = {
+            let mut window_state = subclass_input.window_state.lock();
+            window_state
+                .ime_handler
+                .process_message(window, msg, wparam, lparam, &mut retval)
+        };
+        if let Some(str) = text {
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: ReceivedImeText(str),
+            });
+        }
+        retval
+    };
+    retval = subclass_input
+        .event_loop_runner
+        .catch_unwind(ime_callback)
+        .unwrap_or(Some(-1));
 
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
@@ -1942,7 +1967,11 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 });
                 0
             } else {
-                commctrl::DefSubclassProc(window, msg, wparam, lparam)
+                if let Some(retval) = retval {
+                    retval
+                } else {
+                    commctrl::DefSubclassProc(window, msg, wparam, lparam)
+                }
             }
         }
     };

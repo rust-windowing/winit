@@ -242,6 +242,12 @@ pub enum WindowEvent<'a> {
     /// The window received a unicode character.
     ReceivedCharacter(char),
 
+    /// The user commited an IME string for this window.
+    ///
+    /// This is a temporary API until #1497 gets completed. See:
+    /// https://github.com/rust-windowing/winit/issues/1497
+    ReceivedImeText(String),
+
     /// The window gained or lost focus.
     ///
     /// The parameter is true if the window has gained focus, and false if it has lost focus.
@@ -382,6 +388,7 @@ impl Clone for WindowEvent<'static> {
             HoveredFile(file) => HoveredFile(file.clone()),
             HoveredFileCancelled => HoveredFileCancelled,
             ReceivedCharacter(c) => ReceivedCharacter(*c),
+            ReceivedImeText(s) => ReceivedImeText(s.clone()),
             Focused(f) => Focused(*f),
             KeyboardInput_DEPRECATED {
                 device_id,
@@ -481,6 +488,7 @@ impl<'a> WindowEvent<'a> {
             HoveredFile(file) => Some(HoveredFile(file)),
             HoveredFileCancelled => Some(HoveredFileCancelled),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
+            ReceivedImeText(s) => Some(ReceivedImeText(s)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput_DEPRECATED {
                 device_id,
