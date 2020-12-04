@@ -12,7 +12,7 @@ use winapi::{
         minwindef::DWORD,
         windef::{HWND, RECT},
     },
-    um::winuser,
+    um::{winnt::LONG, winuser},
 };
 
 /// Contains information about states and the window that the callback is going to use.
@@ -39,8 +39,9 @@ pub struct WindowState {
 
 #[derive(Clone)]
 pub struct SavedWindow {
-    pub client_rect: RECT,
-    pub scale_factor: f64,
+    pub style: LONG,
+    pub ex_style: LONG,
+    pub window_rect: RECT,
 }
 
 #[derive(Clone)]

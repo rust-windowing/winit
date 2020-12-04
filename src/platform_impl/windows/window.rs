@@ -403,20 +403,6 @@ impl Window {
         drop(window_state_lock);
 
         self.thread_executor.execute_in_thread(move || {
-            let mut window_state_lock = window_state.lock();
-
-            // Save window bounds before entering fullscreen
-            match (&old_fullscreen, &fullscreen) {
-                (&None, &Some(_)) => {
-                    let client_rect = util::get_client_rect(window.0).unwrap();
-                    window_state_lock.saved_window = Some(SavedWindow {
-                        client_rect,
-                        scale_factor: window_state_lock.scale_factor,
-                    });
-                }
-                _ => (),
-            }
-
             // Change video mode if we're transitioning to or from exclusive
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
@@ -489,21 +475,26 @@ impl Window {
                 winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0);
             }
 
-            // Update window style
-            WindowState::set_window_flags(window_state_lock, window.0, |f| {
-                f.set(
-                    WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN,
-                    matches!(fullscreen, Some(Fullscreen::Exclusive(_))),
-                );
-                f.set(
-                    WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
-                    matches!(fullscreen, Some(Fullscreen::Borderless(_))),
-                );
-            });
-
             // Update window bounds
             match &fullscreen {
                 Some(fullscreen) => {
+                    // Save window bounds before entering fullscreen
+                    let (style, ex_style) = unsafe {
+                        (
+                            winuser::GetWindowLongW(window.0, winuser::GWL_STYLE),
+                            winuser::GetWindowLongW(window.0, winuser::GWL_EXSTYLE),
+                        )
+                    };
+                    let window_rect = util::get_window_rect(window.0).unwrap();
+
+                    let mut window_state_lock = window_state.lock();
+                    window_state_lock.saved_window = Some(SavedWindow {
+                        style,
+                        ex_style,
+                        window_rect,
+                    });
+                    drop(window_state_lock);
+
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
                         Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
@@ -516,6 +507,21 @@ impl Window {
                     let size: (u32, u32) = monitor.size().into();
 
                     unsafe {
+                        winuser::SetWindowLongW(
+                            window.0,
+                            winuser::GWL_STYLE,
+                            style & !(winuser::WS_CAPTION | winuser::WS_THICKFRAME) as i32,
+                        );
+                        winuser::SetWindowLongW(
+                            window.0,
+                            winuser::GWL_EXSTYLE,
+                            ex_style
+                                & !(winuser::WS_EX_DLGMODALFRAME
+                                    | winuser::WS_EX_WINDOWEDGE
+                                    | winuser::WS_EX_CLIENTEDGE
+                                    | winuser::WS_EX_STATICEDGE)
+                                    as i32,
+                        );
                         winuser::SetWindowPos(
                             window.0,
                             ptr::null_mut(),
@@ -523,7 +529,9 @@ impl Window {
                             position.1,
                             size.0 as i32,
                             size.1 as i32,
-                            winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER,
+                            winuser::SWP_NOZORDER
+                                | winuser::SWP_NOACTIVATE
+                                | winuser::SWP_FRAMECHANGED,
                         );
                         winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                     }
@@ -531,25 +539,25 @@ impl Window {
                 None => {
                     let mut window_state_lock = window_state.lock();
                     if let Some(SavedWindow {
-                        client_rect,
-                        scale_factor,
+                        style,
+                        ex_style,
+                        window_rect,
                     }) = window_state_lock.saved_window.take()
                     {
-                        window_state_lock.scale_factor = scale_factor;
                         drop(window_state_lock);
-                        let client_rect = util::adjust_window_rect(window.0, client_rect).unwrap();
-
                         unsafe {
+                            winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
+                            winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
                             winuser::SetWindowPos(
                                 window.0,
                                 ptr::null_mut(),
-                                client_rect.left,
-                                client_rect.top,
-                                client_rect.right - client_rect.left,
-                                client_rect.bottom - client_rect.top,
-                                winuser::SWP_ASYNCWINDOWPOS
-                                    | winuser::SWP_NOZORDER
-                                    | winuser::SWP_NOACTIVATE,
+                                window_rect.left,
+                                window_rect.top,
+                                window_rect.right - window_rect.left,
+                                window_rect.bottom - window_rect.top,
+                                winuser::SWP_NOZORDER
+                                    | winuser::SWP_NOACTIVATE
+                                    | winuser::SWP_FRAMECHANGED,
                             );
                             winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                         }
