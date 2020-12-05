@@ -1,11 +1,208 @@
-use std::os::raw::c_int;
+use std::{os::raw::c_int, fmt, collections::HashMap};
 
-use winapi::{shared::minwindef::LPARAM, um::winuser};
+use winapi::{shared::{minwindef::{LRESULT, LPARAM, WPARAM}, windef::HWND}, um::winuser, um::winnls};
+
+use std::{char, mem::MaybeUninit, ffi::OsString, os::windows::ffi::OsStringExt};
 
 use crate::{
     event::{KeyEvent, ScanCode},
     platform_impl::platform::event::KeyEventExtra,
 };
+
+const VIRTUAL_KEYS: &'static [i32] = &[
+    winuser::VK_LBUTTON,
+    winuser::VK_RBUTTON,
+    winuser::VK_CANCEL,
+    winuser::VK_MBUTTON,
+    winuser::VK_XBUTTON1,
+    winuser::VK_XBUTTON2,
+    winuser::VK_BACK,
+    winuser::VK_TAB,
+    winuser::VK_CLEAR,
+    winuser::VK_RETURN,
+    winuser::VK_SHIFT,
+    winuser::VK_CONTROL,
+    winuser::VK_MENU,
+    winuser::VK_PAUSE,
+    winuser::VK_CAPITAL,
+    winuser::VK_KANA,
+    winuser::VK_HANGEUL,
+    winuser::VK_HANGUL,
+    winuser::VK_JUNJA,
+    winuser::VK_FINAL,
+    winuser::VK_HANJA,
+    winuser::VK_KANJI,
+    winuser::VK_ESCAPE,
+    winuser::VK_CONVERT,
+    winuser::VK_NONCONVERT,
+    winuser::VK_ACCEPT,
+    winuser::VK_MODECHANGE,
+    winuser::VK_SPACE,
+    winuser::VK_PRIOR,
+    winuser::VK_NEXT,
+    winuser::VK_END,
+    winuser::VK_HOME,
+    winuser::VK_LEFT,
+    winuser::VK_UP,
+    winuser::VK_RIGHT,
+    winuser::VK_DOWN,
+    winuser::VK_SELECT,
+    winuser::VK_PRINT,
+    winuser::VK_EXECUTE,
+    winuser::VK_SNAPSHOT,
+    winuser::VK_INSERT,
+    winuser::VK_DELETE,
+    winuser::VK_HELP,
+    winuser::VK_LWIN,
+    winuser::VK_RWIN,
+    winuser::VK_APPS,
+    winuser::VK_SLEEP,
+    winuser::VK_NUMPAD0,
+    winuser::VK_NUMPAD1,
+    winuser::VK_NUMPAD2,
+    winuser::VK_NUMPAD3,
+    winuser::VK_NUMPAD4,
+    winuser::VK_NUMPAD5,
+    winuser::VK_NUMPAD6,
+    winuser::VK_NUMPAD7,
+    winuser::VK_NUMPAD8,
+    winuser::VK_NUMPAD9,
+    winuser::VK_MULTIPLY,
+    winuser::VK_ADD,
+    winuser::VK_SEPARATOR,
+    winuser::VK_SUBTRACT,
+    winuser::VK_DECIMAL,
+    winuser::VK_DIVIDE,
+    winuser::VK_F1,
+    winuser::VK_F2,
+    winuser::VK_F3,
+    winuser::VK_F4,
+    winuser::VK_F5,
+    winuser::VK_F6,
+    winuser::VK_F7,
+    winuser::VK_F8,
+    winuser::VK_F9,
+    winuser::VK_F10,
+    winuser::VK_F11,
+    winuser::VK_F12,
+    winuser::VK_F13,
+    winuser::VK_F14,
+    winuser::VK_F15,
+    winuser::VK_F16,
+    winuser::VK_F17,
+    winuser::VK_F18,
+    winuser::VK_F19,
+    winuser::VK_F20,
+    winuser::VK_F21,
+    winuser::VK_F22,
+    winuser::VK_F23,
+    winuser::VK_F24,
+    winuser::VK_NAVIGATION_VIEW,
+    winuser::VK_NAVIGATION_MENU,
+    winuser::VK_NAVIGATION_UP,
+    winuser::VK_NAVIGATION_DOWN,
+    winuser::VK_NAVIGATION_LEFT,
+    winuser::VK_NAVIGATION_RIGHT,
+    winuser::VK_NAVIGATION_ACCEPT,
+    winuser::VK_NAVIGATION_CANCEL,
+    winuser::VK_NUMLOCK,
+    winuser::VK_SCROLL,
+    winuser::VK_OEM_NEC_EQUAL,
+    winuser::VK_OEM_FJ_JISHO,
+    winuser::VK_OEM_FJ_MASSHOU,
+    winuser::VK_OEM_FJ_TOUROKU,
+    winuser::VK_OEM_FJ_LOYA,
+    winuser::VK_OEM_FJ_ROYA,
+    winuser::VK_LSHIFT,
+    winuser::VK_RSHIFT,
+    winuser::VK_LCONTROL,
+    winuser::VK_RCONTROL,
+    winuser::VK_LMENU,
+    winuser::VK_RMENU,
+    winuser::VK_BROWSER_BACK,
+    winuser::VK_BROWSER_FORWARD,
+    winuser::VK_BROWSER_REFRESH,
+    winuser::VK_BROWSER_STOP,
+    winuser::VK_BROWSER_SEARCH,
+    winuser::VK_BROWSER_FAVORITES,
+    winuser::VK_BROWSER_HOME,
+    winuser::VK_VOLUME_MUTE,
+    winuser::VK_VOLUME_DOWN,
+    winuser::VK_VOLUME_UP,
+    winuser::VK_MEDIA_NEXT_TRACK,
+    winuser::VK_MEDIA_PREV_TRACK,
+    winuser::VK_MEDIA_STOP,
+    winuser::VK_MEDIA_PLAY_PAUSE,
+    winuser::VK_LAUNCH_MAIL,
+    winuser::VK_LAUNCH_MEDIA_SELECT,
+    winuser::VK_LAUNCH_APP1,
+    winuser::VK_LAUNCH_APP2,
+    winuser::VK_OEM_1,
+    winuser::VK_OEM_PLUS,
+    winuser::VK_OEM_COMMA,
+    winuser::VK_OEM_MINUS,
+    winuser::VK_OEM_PERIOD,
+    winuser::VK_OEM_2,
+    winuser::VK_OEM_3,
+    winuser::VK_GAMEPAD_A,
+    winuser::VK_GAMEPAD_B,
+    winuser::VK_GAMEPAD_X,
+    winuser::VK_GAMEPAD_Y,
+    winuser::VK_GAMEPAD_RIGHT_SHOULDER,
+    winuser::VK_GAMEPAD_LEFT_SHOULDER,
+    winuser::VK_GAMEPAD_LEFT_TRIGGER,
+    winuser::VK_GAMEPAD_RIGHT_TRIGGER,
+    winuser::VK_GAMEPAD_DPAD_UP,
+    winuser::VK_GAMEPAD_DPAD_DOWN,
+    winuser::VK_GAMEPAD_DPAD_LEFT,
+    winuser::VK_GAMEPAD_DPAD_RIGHT,
+    winuser::VK_GAMEPAD_MENU,
+    winuser::VK_GAMEPAD_VIEW,
+    winuser::VK_GAMEPAD_LEFT_THUMBSTICK_BUTTON,
+    winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_BUTTON,
+    winuser::VK_GAMEPAD_LEFT_THUMBSTICK_UP,
+    winuser::VK_GAMEPAD_LEFT_THUMBSTICK_DOWN,
+    winuser::VK_GAMEPAD_LEFT_THUMBSTICK_RIGHT,
+    winuser::VK_GAMEPAD_LEFT_THUMBSTICK_LEFT,
+    winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_UP,
+    winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_DOWN,
+    winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_RIGHT,
+    winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_LEFT,
+    winuser::VK_OEM_4,
+    winuser::VK_OEM_5,
+    winuser::VK_OEM_6,
+    winuser::VK_OEM_7,
+    winuser::VK_OEM_8,
+    winuser::VK_OEM_AX,
+    winuser::VK_OEM_102,
+    winuser::VK_ICO_HELP,
+    winuser::VK_ICO_00,
+    winuser::VK_PROCESSKEY,
+    winuser::VK_ICO_CLEAR,
+    winuser::VK_PACKET,
+    winuser::VK_OEM_RESET,
+    winuser::VK_OEM_JUMP,
+    winuser::VK_OEM_PA1,
+    winuser::VK_OEM_PA2,
+    winuser::VK_OEM_PA3,
+    winuser::VK_OEM_WSCTRL,
+    winuser::VK_OEM_CUSEL,
+    winuser::VK_OEM_ATTN,
+    winuser::VK_OEM_FINISH,
+    winuser::VK_OEM_COPY,
+    winuser::VK_OEM_AUTO,
+    winuser::VK_OEM_ENLW,
+    winuser::VK_OEM_BACKTAB,
+    winuser::VK_ATTN,
+    winuser::VK_CRSEL,
+    winuser::VK_EXSEL,
+    winuser::VK_EREOF,
+    winuser::VK_PLAY,
+    winuser::VK_ZOOM,
+    winuser::VK_NONAME,
+    winuser::VK_PA1,
+    winuser::VK_OEM_CLEAR,
+];
 
 #[derive(Debug, Copy, Clone)]
 pub struct KeyLParam {
@@ -16,13 +213,383 @@ pub struct KeyLParam {
     pub is_repeat: bool,
 }
 
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PlatformScanCode(pub u16);
-
+impl fmt::Debug for PlatformScanCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("PlatformScanCode").field(&format_args!("0x{:04x}", self.0)).finish()
+    }
+}
 impl PlatformScanCode {
     pub fn new(scancode: u8, extended: bool) -> PlatformScanCode {
         let ex_scancode = (scancode as u16) | (if extended { 0xE000 } else { 0 });
         PlatformScanCode(ex_scancode)
+    }
+}
+
+/// A single winint `KeyEvent` contains information which the windows API passes to the application
+/// in multiple window messages. In other words a winit `KeyEvent` cannot be build from a single
+/// window message. Therefore this type keeps track of certain information from previous events so
+/// that a `KeyEvent` can be constructed when the last event related to a keypress is received. 
+///
+/// `PeekMessage` is used to determine wheter the next window message still belongs to the current
+/// keypress. If it doesn't and the current state represents a key event waiting to be dispatched,
+/// than said event is dispatched.
+///
+/// The sequence of window messages for a key press event is the following:
+/// - Exactly one WM_KEYDOWN / WM_SYSKEYDOWN
+/// - Zero or one WM_DEADCHAR / WM_SYSDEADCHAR
+/// - Zero or more WM_CHAR / WM_SYSCHAR. These messages each come with a UTF-16 code unit which when
+/// put together in the sequence they arrived in, forms the text which is the result of pressing the
+/// key.
+/// 
+/// Key release messages are a bit different due to the fact that they don't contribute to
+/// text input. The "sequence" only consists of one WM_KEYUP / WM_SYSKEYUP event.
+pub struct KeyEventBuilder {
+    event_info: Option<PartialKeyEventInfo>,
+
+    /// This map shouldn't need to exist.
+    /// However currently this seems to be the only good way
+    /// way of getting the label for the pressed key. Note that calling `ToUnicode`
+    /// just when the key is pressed/released would be enough if `ToUnicode` wouldn't
+    /// change the keyboard state (it removes the dead key). There is a flag to prevent
+    /// changing the state but that flag requires Windows 10, version 1607 or newer)
+    key_labels: HashMap<PlatformScanCode, String>,
+
+    /// The locale identifier (HKL) of the layout for which the `key_labels` was generated
+    known_locale_id: usize,
+
+    /// The keyup event needs to call `ToUnicode` to determine key with all modifiers except CTRL
+    /// (the `logical_key`).
+    /// 
+    /// But `ToUnicode` without the non-modifying flag (see `key_labels`), resets the dead key
+    /// state which would be incorrect during every keyup event. Therefore this variable is used
+    /// to determine whether the last keydown event produced a dead key.
+    ///
+    /// Note that this variable is not always correct because it does
+    /// not track key presses outside of this window. However the ONLY situation where this
+    /// doesn't work as intended is when the user presses a dead key outside of this window, and
+    /// switched to this window BEFORE releasing it then releases the dead key. In this case
+    /// the `ToUnicode` function will be called, incorrectly clearing the dead key state. Having
+    /// an inccorect behaviour in this case seems acceptable.
+    prev_down_was_dead: bool,
+}
+impl Default for KeyEventBuilder {
+    fn default() -> Self {
+        KeyEventBuilder {
+            event_info: None,
+            key_labels: HashMap::default(),
+            known_locale_id: 0,
+            prev_down_was_dead: false,
+        }
+    }
+}
+impl KeyEventBuilder {
+    /// Call this function for every window message.
+    /// Returns Some() if this window message completes a KeyEvent.
+    /// Returns None otherwise.
+    pub fn process_message(
+        &mut self,
+        hwnd: HWND,
+        msg_kind: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        retval: &mut LRESULT
+    ) -> Option<KeyEvent> {
+        match msg_kind {
+            winuser::WM_INPUTLANGCHANGE => {
+                self.generate_labels(lparam as usize);
+                *retval = 1;
+            }
+            winuser::WM_SETFOCUS => {
+                // We do not know the dead key, state so assuing that there wasn't a deadkey press
+                // outside of this window.
+                self.prev_down_was_dead = false;
+
+                let locale_id = unsafe { winuser::GetKeyboardLayout(0) };
+                self.generate_labels(locale_id as usize);
+            }
+            winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
+                self.prev_down_was_dead = false;
+                let vkey = wparam as i32;
+                let lparam_struct = destructure_key_lparam(lparam);
+                let scancode = PlatformScanCode::new(
+                    lparam_struct.scancode,
+                    lparam_struct.extended
+                );
+                let code = native_key_to_code(scancode);
+                let location = get_location(vkey, lparam_struct.extended, code);
+                self.event_info = Some(PartialKeyEventInfo {
+                    key_state: keyboard_types::KeyState::Down,
+                    vkey: wparam as i32,
+                    scancode: scancode,
+                    is_repeat: lparam_struct.is_repeat,
+                    code: code,
+                    location: location,
+                    is_dead: false,
+                    label: self.key_labels.get(&scancode).map(|s| s.clone()),
+                    utf16parts: Vec::with_capacity(4),
+                    utf16parts_without_ctrl: Vec::with_capacity(4),
+                });
+            }
+            winuser::WM_DEADCHAR | winuser::WM_SYSDEADCHAR => {
+                self.prev_down_was_dead = true;
+                // At this point we know that there isn't going to be any more events related to
+                // this key press
+                let mut event_info = self.event_info.take().unwrap();
+                event_info.is_dead = true;
+                return Some(event_info.finalize());
+            }
+            winuser::WM_CHAR | winuser::WM_SYSCHAR => {
+                if msg_kind == winuser::WM_SYSCHAR {
+                    *retval = 0;
+                }
+                let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
+                let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
+
+                let is_utf16 = is_high_surrogate || is_low_surrogate;
+
+                let more_char_coming;
+                unsafe {
+                    let mut next_msg = MaybeUninit::uninit();
+                    let has_message = winuser::PeekMessageW(
+                        next_msg.as_mut_ptr(),
+                        hwnd,
+                        winuser::WM_KEYFIRST,
+                        winuser::WM_KEYLAST,
+                        winuser::PM_NOREMOVE
+                    );
+                    let has_message = has_message != 0;
+                    if !has_message {
+                        more_char_coming = false;
+                    } else {
+                        let next_msg = next_msg.assume_init().message;
+                        if next_msg == winuser::WM_CHAR || next_msg == winuser::WM_SYSCHAR {
+                            more_char_coming = true;
+                        } else {
+                            more_char_coming = false;
+                        }
+                    }
+                }
+                
+                if is_utf16 {
+                    self.event_info.as_mut().unwrap().utf16parts.push(wparam as u16);
+                } else {
+                    let utf16parts = &mut self.event_info.as_mut().unwrap().utf16parts;
+                    let start_offset = utf16parts.len();
+                    let new_size = utf16parts.len() + 2;
+                    utf16parts.resize(new_size, 0);
+                    if let Some(ch) = char::from_u32(wparam as u32) {
+                        let encode_len =
+                            ch.encode_utf16(&mut utf16parts[start_offset..]).len();
+                        let new_size = start_offset + encode_len;
+                        utf16parts.resize(new_size, 0);
+                    }
+                }
+                if !more_char_coming {
+                    let event_info = self.event_info.take().unwrap();
+                    return Some(event_info.finalize());
+                }
+            }
+            winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
+                let vkey = wparam as i32;
+                let lparam_struct = destructure_key_lparam(lparam);
+                let scancode = PlatformScanCode::new(
+                    lparam_struct.scancode,
+                    lparam_struct.extended
+                );
+                let code = native_key_to_code(scancode);
+                let location = get_location(vkey, lparam_struct.extended, code);
+                let mut utf16parts = Vec::with_capacity(8);
+                let mut utf16parts_without_ctrl = Vec::with_capacity(8);
+                if !self.prev_down_was_dead {
+                    unsafe {
+                        //let locale_id = winuser::GetKeyboardLayout(0);
+                        let mut key_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
+                        winuser::GetKeyboardState(key_state[0].as_mut_ptr());
+                        let mut key_state = std::mem::transmute::<_, [u8; 256]>(key_state);
+                        let unicode_len = winuser::ToUnicode(
+                            wparam as u32,
+                            scancode.0 as u32,
+                            (&mut key_state[0]) as *mut _,
+                            utf16parts.as_mut_ptr(),
+                            utf16parts.capacity() as i32,
+                            0
+                        );
+                        utf16parts.set_len(unicode_len as usize);
+                        
+                        // Now remove all CTRL stuff from the keyboard state
+                        key_state[winuser::VK_LCONTROL as usize] = 0;
+                        key_state[winuser::VK_RCONTROL as usize] = 0;
+                        let unicode_len = winuser::ToUnicode(
+                            wparam as u32,
+                            scancode.0 as u32,
+                            (&mut key_state[0]) as *mut _,
+                            utf16parts_without_ctrl.as_mut_ptr(),
+                            utf16parts_without_ctrl.capacity() as i32,
+                            0
+                        );
+                        utf16parts_without_ctrl.set_len(unicode_len as usize);
+                    }
+                }
+
+                let event_info = PartialKeyEventInfo {
+                    key_state: keyboard_types::KeyState::Up,
+                    vkey: wparam as i32,
+                    scancode: scancode,
+                    is_repeat: false,
+                    code: code,
+                    location: location,
+                    is_dead: self.prev_down_was_dead,
+                    label: self.key_labels.get(&scancode).map(|s| s.clone()),
+                    utf16parts: utf16parts,
+                    utf16parts_without_ctrl: utf16parts_without_ctrl,
+                };
+                return Some(event_info.finalize());
+            }
+            _ => ()
+        }
+
+        None
+    }
+
+    /// Returns true if succeeded.
+    fn generate_labels(&mut self, locale_identifier: usize) -> bool {
+        if self.known_locale_id == locale_identifier {
+            return true;
+        }
+
+        let mut key_state = [0u8; 256];
+        self.key_labels.clear();
+        let target_capacity = 128;
+        if self.key_labels.capacity() < target_capacity {
+            self.key_labels.reserve(target_capacity - self.key_labels.capacity());
+        }
+        unsafe {
+            let result = winuser::GetKeyboardState((&mut key_state[0]) as *mut _);
+            assert!(result != 0, "`GetKeyboardState` failed");
+            for &vk in VIRTUAL_KEYS {
+                let scancode = winuser::MapVirtualKeyExW(
+                    vk as u32,
+                    winuser::MAPVK_VK_TO_VSC_EX,
+                    locale_identifier as _
+                );
+                let platform_scancode = PlatformScanCode(scancode as u16);
+
+                let mut label_wide = [0u16; 8];
+                let wide_len = winuser::ToUnicodeEx(
+                    vk as u32,
+                    scancode,
+                    (&mut key_state[0]) as *mut _,
+                    (&mut label_wide[0]) as *mut _,
+                    label_wide.len() as i32,
+                    0,
+                    locale_identifier as _
+                );
+                if wide_len > 0 {
+                    let label_str = OsString::from_wide(&label_wide[0..wide_len as usize]).into_string().unwrap();
+                    self.key_labels.insert(platform_scancode, label_str);
+                }
+            }
+        }
+        true
+    }
+}
+
+struct PartialKeyEventInfo {
+    key_state: keyboard_types::KeyState,
+    /// The native Virtual Key
+    vkey: i32,
+    scancode: PlatformScanCode,
+    is_repeat: bool,
+    code: keyboard_types::Code,
+    location: keyboard_types::Location,
+    /// True if the key event corresponds to a dead key input
+    is_dead: bool,
+    label: Option<String>,
+
+    /// The utf16 code units of the text that was produced by the keypress event.
+    /// This take all modifiers into account. Including CTRL
+    utf16parts: Vec<u16>,
+
+    utf16parts_without_ctrl: Vec<u16>,
+}
+
+impl PartialKeyEventInfo {
+    fn finalize(self) -> KeyEvent {
+        use keyboard_types::Key;
+
+        let logical_key;
+        if self.is_dead {
+            logical_key = Key::Dead;
+        } else {
+            // TODO: Check if the vkey indicates a printable key. If it does AND if there's no dead
+            // key active (this can be detected by passing `MAPVK_VK_TO_CHAR` to `MapVirtualKeyExW`)
+            // than we are safe to call ToUnicodeEx because it only resets the dead key state but
+            // that does not matter if there are no active dead keys anyways.
+            if self.utf16parts_without_ctrl.len() > 0 {
+                logical_key =
+                    Key::Character(String::from_utf16(&self.utf16parts_without_ctrl).unwrap());
+            } else {
+                logical_key = Key::Unidentified;
+            }
+        }
+
+        let key_without_modifers;
+        match &logical_key {
+            Key::Character(_) => {
+                if let Some(label) = self.label {
+                    key_without_modifers = Key::Character(label);
+                } else {
+                    key_without_modifers = Key::Unidentified;
+                }
+            }
+            _ => {
+                key_without_modifers = logical_key.clone();
+            }
+        }
+
+        let mut char_with_all_modifiers = None;
+        if !self.utf16parts.is_empty() {
+            char_with_all_modifiers = Some(String::from_utf16(&self.utf16parts).unwrap());
+        }
+
+        KeyEvent {
+            scancode: ScanCode(self.scancode),
+            physical_key: self.code,
+            logical_key: logical_key,
+            location: self.location,
+            state: self.key_state,
+            repeat: self.is_repeat,
+            platform_specific: KeyEventExtra {
+                char_with_all_modifers: char_with_all_modifiers,
+                key_without_modifers: key_without_modifers,
+            },
+        }
+    }
+}
+
+fn ToUnicodeString(
+    vkey: u32,
+    scancode: u16,
+    key_state: *mut u8,
+    locale_identifier: usize
+) -> Option<String> {
+    let mut label_wide = [0u16; 8];
+    let wide_len = unsafe { winuser::ToUnicodeEx(
+        vkey,
+        scancode as u32,
+        key_state,
+        (&mut label_wide[0]) as *mut _,
+        label_wide.len() as i32,
+        0,
+        locale_identifier as _
+    ) };
+    if wide_len > 0 {
+        let label_str = OsString::from_wide(&label_wide[0..wide_len as usize]).into_string().unwrap();
+        Some(label_str)
+    } else {
+        None
     }
 }
 
@@ -230,30 +797,20 @@ pub fn get_location(
     // This is taken from the `druid` software within
     // druid-shell/src/platform/windows/keyboard.rs
     match vkey {
-        VK_LSHIFT | VK_LCONTROL | VK_LMENU | VK_LWIN => return Location::Left,
-        VK_RSHIFT | VK_RCONTROL | VK_RMENU | VK_RWIN => return Location::Right,
-        VK_RETURN if extended => return Location::Numpad,
+        VK_LSHIFT | VK_LCONTROL | VK_LMENU | VK_LWIN => Location::Left,
+        VK_RSHIFT | VK_RCONTROL | VK_RMENU | VK_RWIN => Location::Right,
+        VK_RETURN if extended => Location::Numpad,
         VK_INSERT | VK_DELETE | VK_END | VK_DOWN | VK_NEXT | VK_LEFT | VK_CLEAR | VK_RIGHT
         | VK_HOME | VK_UP | VK_PRIOR => {
             if extended {
-                return Location::Standard;
+                Location::Standard
             } else {
-                return Location::Numpad;
+                Location::Numpad
             }
         }
         VK_NUMPAD0 | VK_NUMPAD1 | VK_NUMPAD2 | VK_NUMPAD3 | VK_NUMPAD4 | VK_NUMPAD5
         | VK_NUMPAD6 | VK_NUMPAD7 | VK_NUMPAD8 | VK_NUMPAD9 | VK_DECIMAL | VK_DIVIDE
-        | VK_MULTIPLY | VK_SUBTRACT | VK_ADD | VK_ABNT_C2 => return Location::Numpad,
-        _ => (),
-    }
-
-    match code {
-        Code::NumpadAdd => Location::Numpad,
-        Code::NumpadSubtract => Location::Numpad,
-        Code::NumpadMultiply => Location::Numpad,
-        Code::NumpadDivide => Location::Numpad,
-        Code::NumpadComma => Location::Numpad,
-        Code::NumpadDecimal => Location::Numpad,
+        | VK_MULTIPLY | VK_SUBTRACT | VK_ADD | VK_ABNT_C2 => Location::Numpad,
         _ => Location::Standard,
     }
 }

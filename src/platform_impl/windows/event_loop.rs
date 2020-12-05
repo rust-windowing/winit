@@ -763,6 +763,33 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         winuser::RDW_INTERNALPAINT,
     );
 
+    let keyboard_callback = || {
+        use crate::event::WindowEvent::KeyboardInput;
+        let mut retval = 0;
+        let mut window_state = subclass_input.window_state.lock();
+        let event = window_state.key_event_builder.process_message(window, msg, wparam, lparam, &mut retval);
+        if let Some(event) = event {
+            subclass_input.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: KeyboardInput {
+                    device_id: DEVICE_ID,
+                    event: event,
+                    is_synthetic: false,
+                },
+            });
+        }
+        retval
+    };
+
+    let retval = subclass_input
+        .event_loop_runner
+        .catch_unwind(keyboard_callback)
+        .unwrap_or(-1);
+
+    if retval == -1 {
+        return retval;
+    }
+
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
@@ -1130,19 +1157,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                                 virtual_keycode: vkey,
                                 modifiers: event::get_key_mods(),
                             },
-                            is_synthetic: false,
-                        },
-                    });
-
-                    let lparam_struct = destructure_key_lparam(lparam);
-                    let key_event =
-                        build_key_event(wparam as _, lparam_struct, keyboard_types::KeyState::Down);
-                    #[allow(deprecated)]
-                    subclass_input.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
-                        event: WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
-                            event: key_event,
                             is_synthetic: false,
                         },
                     });

@@ -80,6 +80,7 @@ features = [
     "winerror",
     "wingdi",
     "winnt",
+    "winnls",
     "winuser",
 ]
 
