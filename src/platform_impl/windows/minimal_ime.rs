@@ -2,13 +2,10 @@ use std::mem::MaybeUninit;
 
 use winapi::{
     shared::{
-        minwindef::{HKL, LOWORD, LPARAM, LRESULT, WPARAM},
+        minwindef::{LPARAM, LRESULT, WPARAM},
         windef::HWND,
     },
-    um::{
-        winnt::{LANG_JAPANESE, LANG_KOREAN, PRIMARYLANGID},
-        winuser,
-    },
+    um::winuser,
 };
 
 pub fn is_msg_ime_related(msg_kind: u32) -> bool {

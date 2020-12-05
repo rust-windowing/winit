@@ -239,9 +239,6 @@ pub enum WindowEvent<'a> {
     /// hovered.
     HoveredFileCancelled,
 
-    /// The window received a unicode character.
-    ReceivedCharacter(char),
-
     /// The user commited an IME string for this window.
     ///
     /// This is a temporary API until #1497 gets completed. See:
@@ -254,22 +251,6 @@ pub enum WindowEvent<'a> {
     Focused(bool),
 
     /// An event from the keyboard has been received.
-    // TODO: Remove this
-    KeyboardInput_DEPRECATED {
-        device_id: DeviceId,
-        input: KeyboardInput,
-        /// If `true`, the event was generated synthetically by winit
-        /// in one of the following circumstances:
-        ///
-        /// * Synthetic key press events are generated for all keys pressed
-        ///   when a window gains focus. Likewise, synthetic key release events
-        ///   are generated for all keys pressed when a window goes out of focus.
-        ///   ***Currently, this is only functional on X11 and Windows***
-        ///
-        /// Otherwise, this value is always `false`.
-        is_synthetic: bool,
-    },
-
     KeyboardInput {
         device_id: DeviceId,
         event: KeyEvent,
@@ -387,18 +368,8 @@ impl Clone for WindowEvent<'static> {
             DroppedFile(file) => DroppedFile(file.clone()),
             HoveredFile(file) => HoveredFile(file.clone()),
             HoveredFileCancelled => HoveredFileCancelled,
-            ReceivedCharacter(c) => ReceivedCharacter(*c),
             ReceivedImeText(s) => ReceivedImeText(s.clone()),
             Focused(f) => Focused(*f),
-            KeyboardInput_DEPRECATED {
-                device_id,
-                input,
-                is_synthetic,
-            } => KeyboardInput_DEPRECATED {
-                device_id: *device_id,
-                input: *input,
-                is_synthetic: *is_synthetic,
-            },
             KeyboardInput {
                 device_id,
                 event,
@@ -487,18 +458,8 @@ impl<'a> WindowEvent<'a> {
             DroppedFile(file) => Some(DroppedFile(file)),
             HoveredFile(file) => Some(HoveredFile(file)),
             HoveredFileCancelled => Some(HoveredFileCancelled),
-            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             ReceivedImeText(s) => Some(ReceivedImeText(s)),
             Focused(focused) => Some(Focused(focused)),
-            KeyboardInput_DEPRECATED {
-                device_id,
-                input,
-                is_synthetic,
-            } => Some(KeyboardInput_DEPRECATED {
-                device_id,
-                input,
-                is_synthetic,
-            }),
             KeyboardInput {
                 device_id,
                 event,
@@ -630,43 +591,25 @@ pub enum DeviceEvent {
         state: ElementState,
     },
 
-    Key_DEPRECATED(KeyboardInput),
+    Key(RawKeyEvent),
 
     Text {
         codepoint: char,
     },
 }
 
-/// Describes a keyboard input event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct KeyboardInput {
-    /// Identifies the physical key pressed
-    ///
-    /// This should not change if the user adjusts the host's keyboard map. Use when the physical location of the
-    /// key is more important than the key's host GUI semantics, such as for movement controls in a first-person
-    /// game.
-    pub scancode: ScanCode_DEPRECATED,
-
-    pub state: ElementState,
-
-    /// Identifies the semantic meaning of the key
-    ///
-    /// Use when the semantics of the key are more important than the physical location of the key, such as when
-    /// implementing appropriate behavior for "page up."
-    pub virtual_keycode: Option<VirtualKeyCode>,
-
-    /// Modifier keys active at the time of this input.
-    ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-    pub modifiers: ModifiersState,
+/// Describes a keyboard input as a raw device event.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct RawKeyEvent {
+    pub scancode: ScanCode,
+    pub physical_key: keyboard_types::Code,
+    pub state: keyboard_types::KeyState,
 }
 
-// TODO: implement minimal IME API acting as a stopgap until #1497 gets completed.
-
-// TODO: Implement (de)serialization
+/// Describes a keyboard input targeting a window.
+// TODO: Implement (de)serialization.
+// (This struct cannot be serialized in its entirety because `ScanCode`
+// contains platform dependent data so that value cannot be serialized)
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEvent {
     pub scancode: ScanCode,
@@ -814,8 +757,6 @@ impl Force {
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct ScanCode(pub(crate) platform_impl::PlatformScanCode);
 
-pub type ScanCode_DEPRECATED = u32;
-
 /// Identifier for a specific analog axis on some device.
 pub type AxisId = u32;
 
@@ -857,209 +798,6 @@ pub enum MouseScrollDelta {
     /// supported by the device (eg. a touchpad) and
     /// platform.
     PixelDelta(PhysicalPosition<f64>),
-}
-
-/// Symbolic name for a keyboard key.
-#[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
-#[repr(u32)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum VirtualKeyCode {
-    /// The '1' key over the letters.
-    Key1,
-    /// The '2' key over the letters.
-    Key2,
-    /// The '3' key over the letters.
-    Key3,
-    /// The '4' key over the letters.
-    Key4,
-    /// The '5' key over the letters.
-    Key5,
-    /// The '6' key over the letters.
-    Key6,
-    /// The '7' key over the letters.
-    Key7,
-    /// The '8' key over the letters.
-    Key8,
-    /// The '9' key over the letters.
-    Key9,
-    /// The '0' key over the 'O' and 'P' keys.
-    Key0,
-
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-
-    /// The Escape key, next to F1.
-    Escape,
-
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-
-    /// Print Screen/SysRq.
-    Snapshot,
-    /// Scroll Lock.
-    Scroll,
-    /// Pause/Break key, next to Scroll lock.
-    Pause,
-
-    /// `Insert`, next to Backspace.
-    Insert,
-    Home,
-    Delete,
-    End,
-    PageDown,
-    PageUp,
-
-    Left,
-    Up,
-    Right,
-    Down,
-
-    /// The Backspace key, right over Enter.
-    // TODO: rename
-    Back,
-    /// The Enter key.
-    Return,
-    /// The space bar.
-    Space,
-
-    /// The "Compose" key on Linux.
-    Compose,
-
-    Caret,
-
-    Numlock,
-    Numpad0,
-    Numpad1,
-    Numpad2,
-    Numpad3,
-    Numpad4,
-    Numpad5,
-    Numpad6,
-    Numpad7,
-    Numpad8,
-    Numpad9,
-    NumpadAdd,
-    NumpadDivide,
-    NumpadDecimal,
-    NumpadComma,
-    NumpadEnter,
-    NumpadEquals,
-    NumpadMultiply,
-    NumpadSubtract,
-
-    AbntC1,
-    AbntC2,
-    Apostrophe,
-    Apps,
-    Asterisk,
-    At,
-    Ax,
-    Backslash,
-    Calculator,
-    Capital,
-    Colon,
-    Comma,
-    Convert,
-    Equals,
-    Grave,
-    Kana,
-    Kanji,
-    LAlt,
-    LBracket,
-    LControl,
-    LShift,
-    LWin,
-    Mail,
-    MediaSelect,
-    MediaStop,
-    Minus,
-    Mute,
-    MyComputer,
-    // also called "Next"
-    NavigateForward,
-    // also called "Prior"
-    NavigateBackward,
-    NextTrack,
-    NoConvert,
-    OEM102,
-    Period,
-    PlayPause,
-    Plus,
-    Power,
-    PrevTrack,
-    RAlt,
-    RBracket,
-    RControl,
-    RShift,
-    RWin,
-    Semicolon,
-    Slash,
-    Sleep,
-    Stop,
-    Sysrq,
-    Tab,
-    Underline,
-    Unlabeled,
-    VolumeDown,
-    VolumeUp,
-    Wake,
-    WebBack,
-    WebFavorites,
-    WebForward,
-    WebHome,
-    WebRefresh,
-    WebSearch,
-    WebStop,
-    Yen,
-    Copy,
-    Paste,
-    Cut,
 }
 
 impl ModifiersState {

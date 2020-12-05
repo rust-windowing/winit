@@ -1104,7 +1104,7 @@ fn vkey_to_non_printable(vkey: i32, hkl: usize, has_alt_graph: bool) -> Key {
     }
 }
 
-fn native_key_to_code(scancode: PlatformScanCode) -> keyboard_types::Code {
+pub fn native_key_to_code(scancode: PlatformScanCode) -> keyboard_types::Code {
     // See: https://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
     // and: https://www.w3.org/TR/uievents-code/
     // and: The widget/NativeKeyToDOMCodeName.h file in the firefox source

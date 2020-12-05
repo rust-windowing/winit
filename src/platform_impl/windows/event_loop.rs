@@ -32,15 +32,15 @@ use winapi::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
+    event::{DeviceEvent, Event, Force, Touch, TouchPhase, WindowEvent, RawKeyEvent, ScanCode},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
-        event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-        keyboard::is_msg_keyboard_related,
+        event,
+        keyboard::{is_msg_keyboard_related, native_key_to_code, PlatformScanCode},
         minimal_ime::is_msg_ime_related,
         monitor::{self, MonitorHandle},
         raw_input, util,
@@ -995,39 +995,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             0
         }
 
-        winuser::WM_CHAR | winuser::WM_SYSCHAR => {
-            use crate::event::WindowEvent::ReceivedCharacter;
-            use std::char;
-            let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
-            let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
-
-            if is_high_surrogate {
-                subclass_input.window_state.lock().high_surrogate = Some(wparam as u16);
-            } else if is_low_surrogate {
-                let high_surrogate = subclass_input.window_state.lock().high_surrogate.take();
-
-                if let Some(high_surrogate) = high_surrogate {
-                    let pair = [high_surrogate, wparam as u16];
-                    if let Some(Ok(chr)) = char::decode_utf16(pair.iter().copied()).next() {
-                        subclass_input.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
-                            event: ReceivedCharacter(chr),
-                        });
-                    }
-                }
-            } else {
-                subclass_input.window_state.lock().high_surrogate = None;
-
-                if let Some(chr) = char::from_u32(wparam as u32) {
-                    subclass_input.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
-                        event: ReceivedCharacter(chr),
-                    });
-                }
-            }
-            0
-        }
-
         // this is necessary for us to maintain minimize/restore state
         winuser::WM_SYSCOMMAND => {
             if wparam == winuser::SC_RESTORE {
@@ -1171,62 +1138,15 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
 
         winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
-            use crate::event::{ElementState::Pressed, VirtualKeyCode};
             if msg == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             } else {
-                if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
-                    update_modifiers(window, subclass_input);
-
-                    #[allow(deprecated)]
-                    subclass_input.send_event(Event::WindowEvent {
-                        window_id: RootWindowId(WindowId(window)),
-                        event: WindowEvent::KeyboardInput_DEPRECATED {
-                            device_id: DEVICE_ID,
-                            input: KeyboardInput {
-                                state: Pressed,
-                                scancode,
-                                virtual_keycode: vkey,
-                                modifiers: event::get_key_mods(),
-                            },
-                            is_synthetic: false,
-                        },
-                    });
-
-                    // Windows doesn't emit a delete character by default, but in order to make it
-                    // consistent with the other platforms we'll emit a delete character here.
-                    if vkey == Some(VirtualKeyCode::Delete) {
-                        subclass_input.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
-                            event: WindowEvent::ReceivedCharacter('\u{7F}'),
-                        });
-                    }
+                if let Some(retval) = retval {
+                    retval
+                } else {
+                    commctrl::DefSubclassProc(window, msg, wparam, lparam)
                 }
-                0
             }
-        }
-
-        winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
-            use crate::event::ElementState::Released;
-            if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
-                update_modifiers(window, subclass_input);
-
-                #[allow(deprecated)]
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput_DEPRECATED {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            state: Released,
-                            scancode,
-                            virtual_keycode: vkey,
-                            modifiers: event::get_key_mods(),
-                        },
-                        is_synthetic: false,
-                    },
-                });
-            }
-            0
         }
 
         winuser::WM_LBUTTONDOWN => {
@@ -1587,29 +1507,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
 
         winuser::WM_SETFOCUS => {
-            use crate::event::{ElementState::Released, WindowEvent::Focused};
-            for windows_keycode in event::get_pressed_keys() {
-                let scancode =
-                    winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
-                let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
-
-                update_modifiers(window, subclass_input);
-
-                #[allow(deprecated)]
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput_DEPRECATED {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            scancode,
-                            virtual_keycode,
-                            state: Released,
-                            modifiers: event::get_key_mods(),
-                        },
-                        is_synthetic: true,
-                    },
-                })
-            }
+            use crate::event::WindowEvent::Focused;
+            update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1621,30 +1520,9 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
         winuser::WM_KILLFOCUS => {
             use crate::event::{
-                ElementState::Released,
                 ModifiersState,
                 WindowEvent::{Focused, ModifiersChanged},
             };
-            for windows_keycode in event::get_pressed_keys() {
-                let scancode =
-                    winuser::MapVirtualKeyA(windows_keycode as _, winuser::MAPVK_VK_TO_VSC);
-                let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
-
-                #[allow(deprecated)]
-                subclass_input.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput_DEPRECATED {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            scancode,
-                            virtual_keycode,
-                            state: Released,
-                            modifiers: event::get_key_mods(),
-                        },
-                        is_synthetic: true,
-                    },
-                })
-            }
 
             subclass_input.window_state.lock().modifiers_state = ModifiersState::empty();
             subclass_input.send_event(Event::WindowEvent {
@@ -2059,8 +1937,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
 
         winuser::WM_INPUT => {
             use crate::event::{
-                DeviceEvent::{Button, Key_DEPRECATED, Motion, MouseMotion, MouseWheel},
-                ElementState::{Pressed, Released},
+                DeviceEvent::{Button, Motion, MouseMotion, MouseWheel, Key},
                 MouseScrollDelta::LineDelta,
             };
 
@@ -2129,28 +2006,31 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         || keyboard.Message == winuser::WM_SYSKEYUP;
 
                     if pressed || released {
-                        let state = if pressed { Pressed } else { Released };
-
-                        let scancode = keyboard.MakeCode as _;
-                        let extended = util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _)
-                            | util::has_flag(keyboard.Flags, winuser::RI_KEY_E1 as _);
-
-                        if let Some((vkey, scancode)) =
-                            handle_extended_keys(keyboard.VKey as _, scancode, extended)
-                        {
-                            let virtual_keycode = vkey_to_winit_vkey(vkey);
-
-                            #[allow(deprecated)]
-                            subclass_input.send_event(Event::DeviceEvent {
-                                device_id,
-                                event: Key_DEPRECATED(KeyboardInput {
-                                    scancode,
-                                    state,
-                                    virtual_keycode,
-                                    modifiers: event::get_key_mods(),
-                                }),
-                            });
-                        }
+                        let state = if pressed {
+                            keyboard_types::KeyState::Down
+                        } else {
+                            keyboard_types::KeyState::Up
+                        };
+                        let extension = {
+                            if util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _) {
+                                0xE000
+                            } else if util::has_flag(keyboard.Flags, winuser::RI_KEY_E1 as _) {
+                                0xE100
+                            } else {
+                                0x0000
+                            }
+                        };
+                        let scancode = keyboard.MakeCode | extension;
+                        let platform_scancode = PlatformScanCode(scancode);
+                        let code = native_key_to_code(platform_scancode);
+                        subclass_input.send_event(Event::DeviceEvent {
+                            device_id,
+                            event: Key(RawKeyEvent {
+                                scancode: ScanCode(platform_scancode),
+                                physical_key: code,
+                                state,
+                            }),
+                        });
                     }
                 }
             }
