@@ -1,7 +1,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{Event, KeyEvent, keyboard_types::{Code, KeyState}, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -25,11 +25,11 @@ fn main() {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput_DEPRECATED {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(VirtualKeyCode::Space),
-                            state: ElementState::Released,
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            physical_key: Code::Space,
+                            state: KeyState::Up,
                             ..
                         },
                     ..

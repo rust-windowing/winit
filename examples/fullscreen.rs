@@ -1,7 +1,7 @@
 use std::io::{stdin, stdout, Write};
 
 use simple_logger::SimpleLogger;
-use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use winit::event::{Event, KeyEvent, keyboard_types::{KeyState, Key}, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::monitor::{MonitorHandle, VideoMode};
 use winit::window::{Fullscreen, WindowBuilder};
@@ -38,33 +38,36 @@ fn main() {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput_DEPRECATED {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
-                            state,
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: key,
+                            state: KeyState::Down,
                             ..
                         },
                     ..
-                } => match (virtual_code, state) {
-                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
-                    (VirtualKeyCode::F, ElementState::Pressed) => {
-                        if window.fullscreen().is_some() {
-                            window.set_fullscreen(None);
-                        } else {
-                            window.set_fullscreen(fullscreen.clone());
+                } => match key {
+                    Key::Escape => *control_flow = ControlFlow::Exit,
+                    Key::Character(string) => match string.to_lowercase().as_str() {
+                        "f" => {
+                            if window.fullscreen().is_some() {
+                                window.set_fullscreen(None);
+                            } else {
+                                window.set_fullscreen(fullscreen.clone());
+                            }
                         }
-                    }
-                    (VirtualKeyCode::S, ElementState::Pressed) => {
-                        println!("window.fullscreen {:?}", window.fullscreen());
-                    }
-                    (VirtualKeyCode::M, ElementState::Pressed) => {
-                        is_maximized = !is_maximized;
-                        window.set_maximized(is_maximized);
-                    }
-                    (VirtualKeyCode::D, ElementState::Pressed) => {
-                        decorations = !decorations;
-                        window.set_decorations(decorations);
+                        "s" => {
+                            println!("window.fullscreen {:?}", window.fullscreen());
+                        }
+                        "m" => {
+                            is_maximized = !is_maximized;
+                            window.set_maximized(is_maximized);
+                        }
+                        "d" => {
+                            decorations = !decorations;
+                            window.set_decorations(decorations);
+                        }
+                        _ => (),
                     }
                     _ => (),
                 },

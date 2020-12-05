@@ -765,6 +765,20 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
     );
 
     let mut retval = None;
+
+    // Send new modifiers before sending key events.
+    let mods_changed_callback = || match msg {
+        winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN | winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
+            update_modifiers(window, subclass_input);
+            Some(0)
+        }
+        _ => retval,
+    };
+    retval = subclass_input
+        .event_loop_runner
+        .catch_unwind(mods_changed_callback)
+        .unwrap_or(Some(-1));
+
     let keyboard_callback = || {
         use crate::event::WindowEvent::KeyboardInput;
         let is_keyboard_related = is_msg_keyboard_related(msg);
@@ -791,7 +805,6 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
         retval
     };
-
     retval = subclass_input
         .event_loop_runner
         .catch_unwind(keyboard_callback)

@@ -1,6 +1,6 @@
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{Event, KeyEvent, keyboard_types::{KeyState}, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{CursorIcon, WindowBuilder},
 };
@@ -20,10 +20,10 @@ fn main() {
         match event {
             Event::WindowEvent {
                 event:
-                    WindowEvent::KeyboardInput_DEPRECATED {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                state: KeyState::Down,
                                 ..
                             },
                         ..

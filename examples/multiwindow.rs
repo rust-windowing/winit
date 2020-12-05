@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event::{Event, KeyEvent, WindowEvent, keyboard_types::{KeyState}},
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
@@ -33,10 +33,10 @@ fn main() {
                             *control_flow = ControlFlow::Exit;
                         }
                     }
-                    WindowEvent::KeyboardInput_DEPRECATED {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
+                    WindowEvent::KeyboardInput {
+                        event:
+                        KeyEvent {
+                                state: KeyState::Up,
                                 ..
                             },
                         ..

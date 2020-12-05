@@ -2,7 +2,7 @@ use std::{thread, time};
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, KeyboardInput, WindowEvent},
+    event::{Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -38,7 +38,7 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::{ElementState, StartCause, VirtualKeyCode};
+        use winit::event::{StartCause, keyboard_types::Key};
         println!("{:?}", event);
         match event {
             Event::NewEvents(start_cause) => {
@@ -51,32 +51,35 @@ fn main() {
                 WindowEvent::CloseRequested => {
                     close_requested = true;
                 }
-                WindowEvent::KeyboardInput_DEPRECATED {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
-                            state: ElementState::Pressed,
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: key,
+                            state: keyboard_types::KeyState::Down,
                             ..
                         },
                     ..
-                } => match virtual_code {
-                    VirtualKeyCode::Key1 => {
-                        mode = Mode::Wait;
-                        println!("\nmode: {:?}\n", mode);
+                } => match key {
+                    Key::Character(string) => match string.to_lowercase().as_str() {
+                        "1" => {
+                            mode = Mode::Wait;
+                            println!("\nmode: {:?}\n", mode);
+                        }
+                        "2" => {
+                            mode = Mode::WaitUntil;
+                            println!("\nmode: {:?}\n", mode);
+                        }
+                        "3" => {
+                            mode = Mode::Poll;
+                            println!("\nmode: {:?}\n", mode);
+                        }
+                        "r" => {
+                            request_redraw = !request_redraw;
+                            println!("\nrequest_redraw: {}\n", request_redraw);
+                        }
+                        _ => ()
                     }
-                    VirtualKeyCode::Key2 => {
-                        mode = Mode::WaitUntil;
-                        println!("\nmode: {:?}\n", mode);
-                    }
-                    VirtualKeyCode::Key3 => {
-                        mode = Mode::Poll;
-                        println!("\nmode: {:?}\n", mode);
-                    }
-                    VirtualKeyCode::R => {
-                        request_redraw = !request_redraw;
-                        println!("\nrequest_redraw: {}\n", request_redraw);
-                    }
-                    VirtualKeyCode::Escape => {
+                    Key::Escape => {
                         close_requested = true;
                     }
                     _ => (),

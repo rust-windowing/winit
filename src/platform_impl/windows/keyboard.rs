@@ -179,6 +179,11 @@ impl KeyEventBuilder {
                 }
             }
             winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
+                if msg_kind == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
+                    // Don't dispatch Alt+F4 to the application.
+                    // This is handled in `event_loop.rs`
+                    return vec![];
+                }
                 self.prev_down_was_dead = false;
 
                 // When the labels are already generated for this locale,

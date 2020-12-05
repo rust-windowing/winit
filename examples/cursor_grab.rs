@@ -1,6 +1,8 @@
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
+    event::{
+        keyboard_types, DeviceEvent, ElementState, Event, KeyEvent, ModifiersState, WindowEvent,
+    },
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -22,20 +24,23 @@ fn main() {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput_DEPRECATED {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Released,
-                            virtual_keycode: Some(key),
+                WindowEvent::KeyboardInput {
+                    event:
+                        KeyEvent {
+                            logical_key: key,
+                            state: keyboard_types::KeyState::Up,
                             ..
                         },
                     ..
                 } => {
-                    use winit::event::VirtualKeyCode::*;
+                    use winit::event::keyboard_types::Key;
                     match key {
-                        Escape => *control_flow = ControlFlow::Exit,
-                        G => window.set_cursor_grab(!modifiers.shift()).unwrap(),
-                        H => window.set_cursor_visible(modifiers.shift()),
+                        Key::Escape => *control_flow = ControlFlow::Exit,
+                        Key::Character(string) => match string.to_lowercase().as_str() {
+                            "g" => window.set_cursor_grab(!modifiers.shift()).unwrap(),
+                            "h" => window.set_cursor_visible(modifiers.shift()),
+                            _ => (),
+                        },
                         _ => (),
                     }
                 }

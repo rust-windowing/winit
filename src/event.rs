@@ -36,6 +36,8 @@
 use instant::Instant;
 use std::path::PathBuf;
 
+pub use keyboard_types;
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
