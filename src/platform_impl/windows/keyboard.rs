@@ -162,20 +162,20 @@ impl KeyEventBuilder {
         wparam: WPARAM,
         lparam: LPARAM,
         retval: &mut Option<LRESULT>,
-    ) -> Option<Vec<MessageAsKeyEvent>> {
+    ) -> Vec<MessageAsKeyEvent> {
         match msg_kind {
             winuser::WM_SETFOCUS => {
                 // synthesize keydown events
                 let key_events = self.synthesize_kbd_state(keyboard_types::KeyState::Down);
                 if !key_events.is_empty() {
-                    return Some(key_events);
+                    return key_events;
                 }
             }
             winuser::WM_KILLFOCUS => {
                 // sythesize keyup events
                 let key_events = self.synthesize_kbd_state(keyboard_types::KeyState::Up);
                 if !key_events.is_empty() {
-                    return Some(key_events);
+                    return key_events;
                 }
             }
             winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
@@ -234,10 +234,10 @@ impl KeyEventBuilder {
                 }
                 if let Some(event_info) = event_info {
                     let ev = event_info.finalize(locale_id as usize, self.has_alt_graph);
-                    return Some(vec![MessageAsKeyEvent {
+                    return vec![MessageAsKeyEvent {
                         event: ev,
                         is_synthetic: false,
-                    }]);
+                    }];
                 }
             }
             winuser::WM_DEADCHAR | winuser::WM_SYSDEADCHAR => {
@@ -248,10 +248,10 @@ impl KeyEventBuilder {
                 event_info.is_dead = true;
                 *retval = Some(0);
                 let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
-                return Some(vec![MessageAsKeyEvent {
+                return vec![MessageAsKeyEvent {
                     event: ev,
                     is_synthetic: false,
-                }]);
+                }];
             }
             winuser::WM_CHAR | winuser::WM_SYSCHAR => {
                 *retval = Some(0);
@@ -330,10 +330,10 @@ impl KeyEventBuilder {
                     }
 
                     let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
-                    return Some(vec![MessageAsKeyEvent {
+                    return vec![MessageAsKeyEvent {
                         event: ev,
                         is_synthetic: false,
-                    }]);
+                    }];
                 }
             }
             winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
@@ -393,15 +393,15 @@ impl KeyEventBuilder {
                     utf16parts_without_ctrl,
                 };
                 let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
-                return Some(vec![MessageAsKeyEvent {
+                return vec![MessageAsKeyEvent {
                     event: ev,
                     is_synthetic: false,
-                }]);
+                }];
             }
             _ => (),
         }
 
-        None
+        Vec::new()
     }
 
     /// Returns true if succeeded.
@@ -1079,8 +1079,11 @@ fn vkey_to_non_printable(vkey: i32, hkl: usize, has_alt_graph: bool) -> Key {
             if is_japanese {
                 Key::Katakana
             } else {
-                // TODO: use Finish once that gets added to Key
-                // Key::Finish
+                // This matches IE and Firefox behaviour according to
+                // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
+                // At the time of writing there is no `Key::Finish` variant as
+                // Finish is not mentionned at https://w3c.github.io/uievents-key/
+                // Also see: https://github.com/pyfisch/keyboard-types/issues/9
                 Key::Unidentified
             }
         }
