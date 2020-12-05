@@ -475,24 +475,20 @@ impl Window {
                 winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0);
             }
 
+            let style = unsafe { winuser::GetWindowLongW(window.0, winuser::GWL_STYLE) };
+
             // Update window bounds
             match &fullscreen {
                 Some(fullscreen) => {
                     // Save window bounds before entering fullscreen
-                    let (style, ex_style) = unsafe {
-                        (
-                            winuser::GetWindowLongW(window.0, winuser::GWL_STYLE),
-                            winuser::GetWindowLongW(window.0, winuser::GWL_EXSTYLE),
-                        )
+                    let placement = unsafe {
+                        let mut placement = mem::zeroed();
+                        winuser::GetWindowPlacement(window.0, &mut placement);
+                        placement
                     };
-                    let window_rect = util::get_window_rect(window.0).unwrap();
 
                     let mut window_state_lock = window_state.lock();
-                    window_state_lock.saved_window = Some(SavedWindow {
-                        style,
-                        ex_style,
-                        window_rect,
-                    });
+                    window_state_lock.saved_window = Some(SavedWindow { placement });
                     drop(window_state_lock);
 
                     let monitor = match &fullscreen {
@@ -510,17 +506,7 @@ impl Window {
                         winuser::SetWindowLongW(
                             window.0,
                             winuser::GWL_STYLE,
-                            style & !(winuser::WS_CAPTION | winuser::WS_THICKFRAME) as i32,
-                        );
-                        winuser::SetWindowLongW(
-                            window.0,
-                            winuser::GWL_EXSTYLE,
-                            ex_style
-                                & !(winuser::WS_EX_DLGMODALFRAME
-                                    | winuser::WS_EX_WINDOWEDGE
-                                    | winuser::WS_EX_CLIENTEDGE
-                                    | winuser::WS_EX_STATICEDGE)
-                                    as i32,
+                            style & !winuser::WS_OVERLAPPEDWINDOW as i32,
                         );
                         winuser::SetWindowPos(
                             window.0,
@@ -529,36 +515,22 @@ impl Window {
                             position.1,
                             size.0 as i32,
                             size.1 as i32,
-                            winuser::SWP_NOZORDER
-                                | winuser::SWP_NOACTIVATE
-                                | winuser::SWP_FRAMECHANGED,
+                            winuser::SWP_NOOWNERZORDER | winuser::SWP_FRAMECHANGED,
                         );
                         winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                     }
                 }
                 None => {
                     let mut window_state_lock = window_state.lock();
-                    if let Some(SavedWindow {
-                        style,
-                        ex_style,
-                        window_rect,
-                    }) = window_state_lock.saved_window.take()
-                    {
+                    if let Some(SavedWindow { placement }) = window_state_lock.saved_window.take() {
                         drop(window_state_lock);
                         unsafe {
-                            winuser::SetWindowLongW(window.0, winuser::GWL_STYLE, style);
-                            winuser::SetWindowLongW(window.0, winuser::GWL_EXSTYLE, ex_style);
-                            winuser::SetWindowPos(
+                            winuser::SetWindowLongW(
                                 window.0,
-                                ptr::null_mut(),
-                                window_rect.left,
-                                window_rect.top,
-                                window_rect.right - window_rect.left,
-                                window_rect.bottom - window_rect.top,
-                                winuser::SWP_NOZORDER
-                                    | winuser::SWP_NOACTIVATE
-                                    | winuser::SWP_FRAMECHANGED,
+                                winuser::GWL_STYLE,
+                                style | winuser::WS_OVERLAPPEDWINDOW as i32,
                             );
+                            winuser::SetWindowPlacement(window.0, &placement);
                             winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                         }
                     }
