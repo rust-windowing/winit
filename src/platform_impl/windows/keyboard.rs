@@ -647,7 +647,7 @@ impl KeyEventBuilder {
         }
         let is_extended = (scancode & 0xE000) == 0xE000;
         let platform_scancode = PlatformScanCode(scancode as u16);
-
+        let code = native_key_to_code(platform_scancode);
         let key_text = self.key_text.get(&platform_scancode).cloned();
         let key_text_with_caps = self.key_text_with_caps.get(&platform_scancode).cloned();
         let logical_key = match &key_text {
@@ -661,7 +661,7 @@ impl KeyEventBuilder {
                     keyboard_types::Key::Character(str.clone())
                 }
             }
-            None => vkey_to_non_printable(vk, locale_id as usize, self.has_alt_graph),
+            None => vkey_to_non_printable(vk, code, locale_id as usize, self.has_alt_graph),
         };
 
         let event_info = PartialKeyEventInfo {
@@ -669,7 +669,7 @@ impl KeyEventBuilder {
             vkey: vk,
             scancode: platform_scancode,
             is_repeat: false,
-            code: native_key_to_code(platform_scancode),
+            code,
             location: get_location(vk, is_extended),
             is_dead: false,
             label: key_text,
@@ -712,7 +712,7 @@ impl PartialKeyEventInfo {
         if self.is_dead {
             logical_key = Key::Dead;
         } else {
-            let key = vkey_to_non_printable(self.vkey, locale_id, has_alt_gr);
+            let key = vkey_to_non_printable(self.vkey, self.code, locale_id, has_alt_gr);
             if key == Key::Unidentified {
                 if self.utf16parts_without_ctrl.len() > 0 {
                     logical_key =
@@ -859,9 +859,18 @@ fn does_vkey_consume_dead_key(vkey: u32) -> bool {
 
 /// This includes all non-character keys defined within `Key` so for example
 /// backspace and tab are included.
-fn vkey_to_non_printable(vkey: i32, hkl: usize, has_alt_graph: bool) -> Key {
+fn vkey_to_non_printable(vkey: i32, code: keyboard_types::Code, hkl: usize, has_alt_graph: bool) -> Key {
+    use keyboard_types::Code;
     // List of the Web key names and their corresponding platform-native key names:
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
+
+    // Some keys cannot be correctly determined based on the virtual key.
+    // Therefore we use the `code` to translate those keys.
+    match code {
+        Code::NumLock => return Key::NumLock,
+        Code::Pause => return Key::Pause,
+        _ => ()
+    }
 
     let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
     let is_korean = primary_lang_id == LANG_KOREAN;
