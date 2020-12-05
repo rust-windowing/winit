@@ -310,9 +310,9 @@ impl KeyEventBuilder {
                         winuser::GetKeyboardState(key_state[0].as_mut_ptr());
                         let mut key_state = std::mem::transmute::<_, [u8; 256]>(key_state);
 
-                        let has_ctrl = key_state[winuser::VK_CONTROL as usize] != 0
-                            || key_state[winuser::VK_LCONTROL as usize] != 0
-                            || key_state[winuser::VK_RCONTROL as usize] != 0;
+                        let has_ctrl = key_state[winuser::VK_CONTROL as usize] & 0x80 != 0
+                            || key_state[winuser::VK_LCONTROL as usize] & 0x80 != 0
+                            || key_state[winuser::VK_RCONTROL as usize] & 0x80 != 0;
 
                         // If neither of the CTRL keys is pressed, just use the text with all
                         // modifiers because that already consumed the dead key and otherwise
@@ -712,16 +712,11 @@ impl PartialKeyEventInfo {
         if self.is_dead {
             logical_key = Key::Dead;
         } else {
-            let key = vkey_to_non_printable(self.vkey, self.code, locale_id, has_alt_gr);
-            if key == Key::Unidentified {
-                if self.utf16parts_without_ctrl.len() > 0 {
-                    logical_key =
-                        Key::Character(String::from_utf16(&self.utf16parts_without_ctrl).unwrap());
-                } else {
-                    logical_key = Key::Unidentified;
-                }
+            if !self.utf16parts_without_ctrl.is_empty() {
+                logical_key =
+                    Key::Character(String::from_utf16(&self.utf16parts_without_ctrl).unwrap());
             } else {
-                logical_key = key;
+                logical_key = vkey_to_non_printable(self.vkey, self.code, locale_id, has_alt_gr);
             }
         }
         let key_without_modifers;
