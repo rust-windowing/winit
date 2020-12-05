@@ -859,7 +859,12 @@ fn does_vkey_consume_dead_key(vkey: u32) -> bool {
 
 /// This includes all non-character keys defined within `Key` so for example
 /// backspace and tab are included.
-fn vkey_to_non_printable(vkey: i32, code: keyboard_types::Code, hkl: usize, has_alt_graph: bool) -> Key {
+fn vkey_to_non_printable(
+    vkey: i32,
+    code: keyboard_types::Code,
+    hkl: usize,
+    has_alt_graph: bool,
+) -> Key {
     use keyboard_types::Code;
     // List of the Web key names and their corresponding platform-native key names:
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
@@ -869,7 +874,7 @@ fn vkey_to_non_printable(vkey: i32, code: keyboard_types::Code, hkl: usize, has_
     match code {
         Code::NumLock => return Key::NumLock,
         Code::Pause => return Key::Pause,
-        _ => ()
+        _ => (),
     }
 
     let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));

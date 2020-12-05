@@ -32,7 +32,7 @@ use winapi::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, Touch, TouchPhase, WindowEvent, RawKeyEvent, ScanCode},
+    event::{DeviceEvent, Event, Force, RawKeyEvent, ScanCode, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
@@ -1937,7 +1937,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
 
         winuser::WM_INPUT => {
             use crate::event::{
-                DeviceEvent::{Button, Motion, MouseMotion, MouseWheel, Key},
+                DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
                 MouseScrollDelta::LineDelta,
             };
 
