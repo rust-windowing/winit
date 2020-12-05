@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, KeyEvent, WindowEvent, keyboard_types::{KeyState}},
+    event::{keyboard_types::KeyState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::Window,
 };
@@ -35,7 +35,7 @@ fn main() {
                     }
                     WindowEvent::KeyboardInput {
                         event:
-                        KeyEvent {
+                            KeyEvent {
                                 state: KeyState::Up,
                                 ..
                             },

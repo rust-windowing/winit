@@ -38,7 +38,7 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::{StartCause, keyboard_types::Key};
+        use winit::event::{keyboard_types::Key, StartCause};
         println!("{:?}", event);
         match event {
             Event::NewEvents(start_cause) => {
@@ -77,8 +77,8 @@ fn main() {
                             request_redraw = !request_redraw;
                             println!("\nrequest_redraw: {}\n", request_redraw);
                         }
-                        _ => ()
-                    }
+                        _ => (),
+                    },
                     Key::Escape => {
                         close_requested = true;
                     }

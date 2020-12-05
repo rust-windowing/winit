@@ -5,7 +5,7 @@ fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-        event::{Event, KeyEvent, WindowEvent, ModifiersState},
+        event::{Event, KeyEvent, ModifiersState, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
@@ -62,7 +62,7 @@ fn main() {
                             },
                         ..
                     } => {
-                        use keyboard_types::Key::{Character, ArrowLeft, ArrowRight};
+                        use keyboard_types::Key::{ArrowLeft, ArrowRight, Character};
                         window.set_title(&format!("{:?}", key));
                         let state = !modifiers.shift();
                         match &key {
@@ -128,8 +128,8 @@ fn main() {
                                     thread::sleep(Duration::from_secs(1));
                                     window.set_visible(true);
                                 }
-                                _ => ()
-                            }
+                                _ => (),
+                            },
                             ArrowRight | ArrowLeft => {
                                 video_mode_id = match &key {
                                     ArrowLeft => video_mode_id.saturating_sub(1),
@@ -140,7 +140,7 @@ fn main() {
                                     "Picking video mode: {}",
                                     video_modes.iter().nth(video_mode_id).unwrap()
                                 );
-                            },
+                            }
                             _ => (),
                         }
                     }

@@ -1,6 +1,6 @@
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, KeyEvent, keyboard_types::{KeyState}, WindowEvent},
+    event::{keyboard_types::KeyState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::{CursorIcon, WindowBuilder},
 };

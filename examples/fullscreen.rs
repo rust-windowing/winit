@@ -1,7 +1,10 @@
 use std::io::{stdin, stdout, Write};
 
 use simple_logger::SimpleLogger;
-use winit::event::{Event, KeyEvent, keyboard_types::{KeyState, Key}, WindowEvent};
+use winit::event::{
+    keyboard_types::{Key, KeyState},
+    Event, KeyEvent, WindowEvent,
+};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::monitor::{MonitorHandle, VideoMode};
 use winit::window::{Fullscreen, WindowBuilder};
@@ -68,7 +71,7 @@ fn main() {
                             window.set_decorations(decorations);
                         }
                         _ => (),
-                    }
+                    },
                     _ => (),
                 },
                 _ => (),

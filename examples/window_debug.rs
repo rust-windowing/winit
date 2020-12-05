@@ -3,7 +3,10 @@
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
-    event::{DeviceEvent, Event, RawKeyEvent, KeyEvent, keyboard_types::{KeyState, Key, Code}, WindowEvent},
+    event::{
+        keyboard_types::{Code, Key, KeyState},
+        DeviceEvent, Event, KeyEvent, RawKeyEvent, WindowEvent,
+    },
     event_loop::{ControlFlow, EventLoop},
     window::{Fullscreen, WindowBuilder},
 };
@@ -61,14 +64,16 @@ fn main() {
                 _ => (),
             },
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput {
-                    event: KeyEvent {
-                        logical_key: Key::Character(key_str),
-                        state: KeyState::Up,
+                event:
+                    WindowEvent::KeyboardInput {
+                        event:
+                            KeyEvent {
+                                logical_key: Key::Character(key_str),
+                                state: KeyState::Up,
+                                ..
+                            },
                         ..
                     },
-                    .. 
-                },
                 ..
             } => match key_str.to_lowercase().as_str() {
                 "e" => {

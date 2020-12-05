@@ -54,7 +54,7 @@ fn main() {
                                     if close_requested {
                                         // This is where you'll want to do any cleanup you need.
                                         println!("Buh-bye!");
-    
+
                                         // For a single-window application like this, you'd normally just
                                         // break out of the event loop here. If you wanted to keep running the
                                         // event loop (i.e. if it's a multi-window application), you need to
