@@ -18,7 +18,9 @@ use winapi::{
         windef::{HWND, POINT, RECT},
     },
     um::{
-        combaseapi, dwmapi, libloaderapi,
+        combaseapi, dwmapi,
+        imm::{CFS_POINT, COMPOSITIONFORM},
+        libloaderapi,
         objbase::COINIT_APARTMENTTHREADED,
         ole2,
         oleidl::LPDROPTARGET,
@@ -616,9 +618,25 @@ impl Window {
         self.window_state.lock().taskbar_icon = taskbar_icon;
     }
 
+    pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
+        if unsafe { winuser::GetSystemMetrics(winuser::SM_DBCSENABLED) } != 0 {
+            let mut composition_form = COMPOSITIONFORM {
+                dwStyle: CFS_POINT,
+                ptCurrentPos: POINT { x, y },
+                rcArea: unsafe { mem::zeroed() },
+            };
+            unsafe {
+                let himc = winapi::um::imm::ImmGetContext(self.window.0);
+                winapi::um::imm::ImmSetCompositionWindow(himc, &mut composition_form);
+                winapi::um::imm::ImmReleaseContext(self.window.0, himc);
+            }
+        }
+    }
+
     #[inline]
-    pub fn set_ime_position(&self, _position: Position) {
-        warn!("`Window::set_ime_position` is ignored on Windows")
+    pub fn set_ime_position(&self, spot: Position) {
+        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+        self.set_ime_position_physical(x, y);
     }
 
     #[inline]

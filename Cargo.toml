@@ -65,6 +65,7 @@ features = [
     "commctrl",
     "dwmapi",
     "errhandlingapi",
+    "imm",
     "hidusage",
     "libloaderapi",
     "objbase",
