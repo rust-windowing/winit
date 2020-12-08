@@ -619,7 +619,7 @@ impl Window {
     }
 
     pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
-        if unsafe { winuser::GetSystemMetrics(winuser::SM_DBCSENABLED) } != 0 {
+        if unsafe { winuser::GetSystemMetrics(winuser::SM_IMMENABLED) } != 0 {
             let mut composition_form = COMPOSITIONFORM {
                 dwStyle: CFS_POINT,
                 ptCurrentPos: POINT { x, y },
