@@ -677,7 +677,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Windows:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
