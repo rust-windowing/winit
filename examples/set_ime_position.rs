@@ -1,6 +1,6 @@
 use simple_logger::SimpleLogger;
 use winit::{
-    dpi::{LogicalPosition, Position},
+    dpi::PhysicalPosition,
     event::{ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
@@ -14,12 +14,19 @@ fn main() {
     window.set_title("A fantastic window!");
 
     println!("Ime position will system default");
-    let mut ime_follow_cursor = false;
+    println!("Click to set ime position to cursor's");
 
+    let mut cursor_position = PhysicalPosition::new(0.0, 0.0);
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         match event {
+            Event::WindowEvent {
+                event: WindowEvent::CursorMoved { position, .. },
+                ..
+            } => {
+                cursor_position = position;
+            }
             Event::WindowEvent {
                 event:
                     WindowEvent::MouseInput {
@@ -28,22 +35,11 @@ fn main() {
                     },
                 ..
             } => {
-                ime_follow_cursor = !ime_follow_cursor;
-                if !ime_follow_cursor {
-                    println!("Setting ime position to 10.0, 10.0");
-                    window.set_ime_position(Position::Logical(LogicalPosition::new(10.0, 10.0)));
-                } else {
-                    println!("Ime will follow your mouse cursor");
-                }
-            }
-            Event::WindowEvent {
-                event: WindowEvent::CursorMoved { position, .. },
-                ..
-            } => {
-                if ime_follow_cursor {
-                    println!("Setting ime position to {}, {}", position.x, position.y);
-                    window.set_ime_position(position);
-                }
+                println!(
+                    "Setting ime position to {}, {}",
+                    cursor_position.x, cursor_position.y
+                );
+                window.set_ime_position(cursor_position);
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
