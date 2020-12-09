@@ -1,4 +1,4 @@
-# Unreleased
+# 0.24.0 (2020-12-09)
 
 - On Windows, implement `Window::set_ime_position`.
 - **Breaking:** On Windows, Renamed `WindowBuilderExtWindows`'s `is_dark_mode` to `theme`.
