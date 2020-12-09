@@ -1307,7 +1307,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 event: MouseInput {
                     device_id: DEVICE_ID,
                     state: Pressed,
-                    button: Other(xbutton as u8),
+                    button: Other(xbutton),
                     modifiers: event::get_key_mods(),
                 },
             });
@@ -1329,7 +1329,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 event: MouseInput {
                     device_id: DEVICE_ID,
                     state: Released,
-                    button: Other(xbutton as u8),
+                    button: Other(xbutton),
                     modifiers: event::get_key_mods(),
                 },
             });

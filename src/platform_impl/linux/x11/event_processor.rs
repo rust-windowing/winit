@@ -709,7 +709,7 @@ impl<T: 'static> EventProcessor<T> {
                                 event: MouseInput {
                                     device_id,
                                     state,
-                                    button: Other(x as u8),
+                                    button: Other(x as u16),
                                     modifiers,
                                 },
                             }),
