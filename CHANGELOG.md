@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Windows, implement `Window::set_ime_position`.
 - **Breaking:** On Windows, Renamed `WindowBuilderExtWindows`'s `is_dark_mode` to `theme`.
 - On Windows, add `WindowBuilderExtWindows::with_theme` to set a preferred theme.
 - On Windows, fix bug causing message boxes to appear delayed.
