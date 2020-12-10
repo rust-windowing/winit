@@ -619,15 +619,17 @@ fn subclass_event_target_window<T>(
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
 /// the window.
 unsafe fn capture_mouse(window: HWND, window_state: &mut WindowState) {
-    window_state.mouse.buttons_down += 1;
+    window_state.mouse.capture_count += 1;
     winuser::SetCapture(window);
 }
 
 /// Release mouse input, stopping windows on this thread from receiving mouse input when the cursor
 /// is outside the window.
-unsafe fn release_mouse(window_state: &mut WindowState) {
-    window_state.mouse.buttons_down = window_state.mouse.buttons_down.saturating_sub(1);
-    if window_state.mouse.buttons_down == 0 {
+unsafe fn release_mouse(mut window_state: parking_lot::MutexGuard<'_, WindowState>) {
+    window_state.mouse.capture_count = window_state.mouse.capture_count.saturating_sub(1);
+    if window_state.mouse.capture_count == 0 {
+        // ReleaseCapture() causes a WM_CAPTURECHANGED where we lock the window_state.
+        drop(window_state);
         winuser::ReleaseCapture();
     }
 }
@@ -1192,7 +1194,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 ElementState::Released, MouseButton::Left, WindowEvent::MouseInput,
             };
 
-            release_mouse(&mut *subclass_input.window_state.lock());
+            release_mouse(subclass_input.window_state.lock());
 
             update_modifiers(window, subclass_input);
 
@@ -1234,7 +1236,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 ElementState::Released, MouseButton::Right, WindowEvent::MouseInput,
             };
 
-            release_mouse(&mut *subclass_input.window_state.lock());
+            release_mouse(subclass_input.window_state.lock());
 
             update_modifiers(window, subclass_input);
 
@@ -1276,7 +1278,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 ElementState::Released, MouseButton::Middle, WindowEvent::MouseInput,
             };
 
-            release_mouse(&mut *subclass_input.window_state.lock());
+            release_mouse(subclass_input.window_state.lock());
 
             update_modifiers(window, subclass_input);
 
@@ -1320,7 +1322,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
-            release_mouse(&mut *subclass_input.window_state.lock());
+            release_mouse(subclass_input.window_state.lock());
 
             update_modifiers(window, subclass_input);
 
@@ -1333,6 +1335,12 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     modifiers: event::get_key_mods(),
                 },
             });
+            0
+        }
+
+        winuser::WM_CAPTURECHANGED => {
+            // window lost mouse capture
+            subclass_input.window_state.lock().mouse.capture_count = 0;
             0
         }
 

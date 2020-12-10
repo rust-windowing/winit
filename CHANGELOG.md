@@ -1,3 +1,7 @@
+# Unreleased
+
+- On Windows, fix bug causing mouse capture to not be released.
+
 # 0.24.0 (2020-12-09)
 
 - On Windows, fix applications not exiting gracefully due to thread_event_target_callback accessing corrupted memory.
