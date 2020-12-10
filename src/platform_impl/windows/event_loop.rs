@@ -1939,7 +1939,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
-        winuser::WM_DESTROY => {
+        winuser::WM_NCDESTROY => {
             Box::from_raw(subclass_input);
             drop(subclass_input);
             0
