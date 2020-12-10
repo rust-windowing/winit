@@ -1,4 +1,4 @@
-# Unreleased
+# 0.24.0 (2020-12-09)
 
 - On Windows, fix applications not exiting gracefully due to thread_event_target_callback accessing corrupted memory.
 - On Windows, implement `Window::set_ime_position`.
