@@ -475,7 +475,17 @@ impl Window {
                 winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, 0);
             }
 
-            let style = unsafe { winuser::GetWindowLongW(window.0, winuser::GWL_STYLE) };
+            // Update window style
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(
+                    WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Exclusive(_))),
+                );
+                f.set(
+                    WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Borderless(_))),
+                );
+            });
 
             // Update window bounds
             match &fullscreen {
@@ -487,9 +497,7 @@ impl Window {
                         placement
                     };
 
-                    let mut window_state_lock = window_state.lock();
-                    window_state_lock.saved_window = Some(SavedWindow { placement });
-                    drop(window_state_lock);
+                    window_state.lock().saved_window = Some(SavedWindow { placement });
 
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
@@ -503,11 +511,6 @@ impl Window {
                     let size: (u32, u32) = monitor.size().into();
 
                     unsafe {
-                        winuser::SetWindowLongW(
-                            window.0,
-                            winuser::GWL_STYLE,
-                            style & !winuser::WS_OVERLAPPEDWINDOW as i32,
-                        );
                         winuser::SetWindowPos(
                             window.0,
                             ptr::null_mut(),
@@ -525,11 +528,6 @@ impl Window {
                     if let Some(SavedWindow { placement }) = window_state_lock.saved_window.take() {
                         drop(window_state_lock);
                         unsafe {
-                            winuser::SetWindowLongW(
-                                window.0,
-                                winuser::GWL_STYLE,
-                                style | winuser::WS_OVERLAPPEDWINDOW as i32,
-                            );
                             winuser::SetWindowPlacement(window.0, &placement);
                             winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                         }

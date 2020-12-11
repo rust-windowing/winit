@@ -85,11 +85,6 @@ bitflags! {
 
         const MINIMIZED = 1 << 12;
 
-        const FULLSCREEN_AND_MASK = !(
-            WindowFlags::DECORATIONS.bits |
-            WindowFlags::RESIZABLE.bits |
-            WindowFlags::MAXIMIZED.bits
-        );
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
@@ -180,10 +175,7 @@ impl MouseProperties {
 impl WindowFlags {
     fn mask(mut self) -> WindowFlags {
         if self.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN) {
-            self &= WindowFlags::FULLSCREEN_AND_MASK;
             self |= WindowFlags::EXCLUSIVE_FULLSCREEN_OR_MASK;
-        } else if self.contains(WindowFlags::MARKER_BORDERLESS_FULLSCREEN) {
-            self &= WindowFlags::FULLSCREEN_AND_MASK;
         }
         if !self.contains(WindowFlags::VISIBLE) {
             self &= WindowFlags::INVISIBLE_AND_MASK;
@@ -233,6 +225,12 @@ impl WindowFlags {
 
         style |= WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
         style_ex |= WS_EX_ACCEPTFILES;
+
+        if self.intersects(
+            WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN | WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
+        ) {
+            style &= !WS_OVERLAPPEDWINDOW;
+        }
 
         (style, style_ex)
     }
