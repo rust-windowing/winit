@@ -1,6 +1,6 @@
 # Unreleased
 
-- On Windows, fix fullscreen doesn't preserve minimized/maximized state.
+- On Windows, fix fullscreen not preserving minimized/maximized state.
 
 # 0.24.0 (2020-12-09)
 
