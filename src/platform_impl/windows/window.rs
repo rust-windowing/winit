@@ -518,7 +518,7 @@ impl Window {
                             position.1,
                             size.0 as i32,
                             size.1 as i32,
-                            winuser::SWP_NOOWNERZORDER | winuser::SWP_FRAMECHANGED,
+                            winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER,
                         );
                         winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                     }
