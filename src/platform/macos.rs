@@ -119,6 +119,8 @@ pub trait WindowBuilderExtMacOS {
     fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    /// Blurs the background.
+    fn with_blurred_background(self, blurred_background: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -182,6 +184,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
+        self
+    }
+
+    #[inline]
+    fn with_blurred_background(mut self, blurred_background: bool) -> WindowBuilder {
+        self.platform_specific.blurred_background = blurred_background;
         self
     }
 }

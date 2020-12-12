@@ -36,7 +36,7 @@ use cocoa::{
     appkit::{
         self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
         NSApplicationPresentationOptions, NSColor, NSRequestUserAttentionType, NSScreen, NSView,
-        NSWindow, NSWindowButton, NSWindowStyleMask,
+        NSWindow, NSWindowButton, NSWindowOrderingMode, NSWindowStyleMask,
     },
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
@@ -44,6 +44,7 @@ use cocoa::{
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassDecl,
+    rc::StrongPtr,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 
@@ -74,6 +75,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub blurred_background: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -90,6 +92,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
+            blurred_background: false,
         }
     }
 }
@@ -323,9 +326,14 @@ impl From<WindowAttributes> for SharedState {
     }
 }
 
+lazy_static! {
+    static ref NSVISUALEFFECTVIEW: Option<&'static Class> = Class::get("NSVisualEffectView");
+}
+
 pub struct UnownedWindow {
     pub ns_window: IdRef, // never changes
     pub ns_view: IdRef,   // never changes
+    pub ns_visual_effect_view: Option<StrongPtr>,
     input_context: IdRef, // never changes
     pub shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
@@ -369,10 +377,30 @@ impl UnownedWindow {
 
         let scale_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
 
+        let mut ns_visual_effect_view = None;
+
         unsafe {
             if win_attribs.transparent {
                 ns_window.setOpaque_(NO);
                 ns_window.setBackgroundColor_(NSColor::clearColor(nil));
+            }
+
+            if pl_attribs.blurred_background {
+                // As per https://stackoverflow.com/a/26194538
+                if let Some(visual_effect_class) = *NSVISUALEFFECTVIEW {
+                    let blurred_view = StrongPtr::new(msg_send![visual_effect_class, alloc]);
+                    let bounds = ns_view.bounds();
+                    let _: () = msg_send![*blurred_view, initWithFrame: bounds];
+                    // Blur external background
+                    let _: () = msg_send![*blurred_view, setBlendingMode:0];
+                    // Blur when the window is active
+                    let _: () = msg_send![*blurred_view, setState:0];
+                    // Autoresizing: Adapt to superview
+                    let _: () = msg_send![*blurred_view, setAutoresizingMask: 0x3e];
+                    let _: () = msg_send![*ns_view, addSubview: blurred_view.clone() positioned:    NSWindowOrderingMode::NSWindowBelow relativeTo: 0];
+
+                    ns_visual_effect_view = Some(blurred_view);
+                }
             }
 
             ns_app.activateIgnoringOtherApps_(YES);
@@ -410,6 +438,7 @@ impl UnownedWindow {
         let window = Arc::new(UnownedWindow {
             ns_view,
             ns_window,
+            ns_visual_effect_view,
             input_context,
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
