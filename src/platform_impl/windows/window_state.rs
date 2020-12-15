@@ -45,7 +45,7 @@ pub struct SavedWindow {
 #[derive(Clone)]
 pub struct MouseProperties {
     pub cursor: CursorIcon,
-    pub buttons_down: u32,
+    pub capture_count: u32,
     cursor_flags: CursorFlags,
     pub last_position: Option<PhysicalPosition<f64>>,
 }
@@ -102,7 +102,7 @@ impl WindowState {
         WindowState {
             mouse: MouseProperties {
                 cursor: CursorIcon::default(),
-                buttons_down: 0,
+                capture_count: 0,
                 cursor_flags: CursorFlags::empty(),
                 last_position: None,
             },

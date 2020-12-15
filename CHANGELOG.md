@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.
 
 # 0.24.0 (2020-12-09)
