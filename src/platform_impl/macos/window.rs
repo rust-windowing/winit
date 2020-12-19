@@ -732,8 +732,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn maximized(&self) -> bool {
-        let shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.maximized
+        self.is_zoomed()
     }
 
     #[inline]
