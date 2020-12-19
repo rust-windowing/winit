@@ -1,5 +1,6 @@
 # Unreleased
 
+- Added `maximized` method to `Window`.
 - On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.
 
