@@ -731,6 +731,12 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn maximized(&self) -> bool {
+        let shared_state_lock = self.shared_state.lock().unwrap();
+        shared_state_lock.maximized
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         trace!("Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
