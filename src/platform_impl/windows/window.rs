@@ -114,6 +114,8 @@ impl Window {
                     window_state: win.window_state.clone(),
                     event_loop_runner: event_loop.runner_shared.clone(),
                     file_drop_handler,
+                    subclass_removed: Cell::new(false),
+                    recurse_depth: Cell::new(0),
                 };
 
                 event_loop::subclass_window(win.window.0, subclass_input);
