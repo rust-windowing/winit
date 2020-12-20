@@ -757,12 +757,12 @@ impl Force {
 
 /// An opaque struct that (mostly) uniquely identifies a single physical key
 /// on the current platform.
-/// 
+///
 /// This is distinct from `keyboard_types::Code` because this uses
 /// the platform specific identifier for keys, while
 /// `keyboard_types::Code` may be `Unidentified` for multiple keys
 /// with different `ScanCode`.
-/// 
+///
 /// Furthermore this struct may store a value that cannot be ported
 /// to another platform, hence it is opaque. To retreive the underlying
 /// value, use one of the platform-dependent extension traits like

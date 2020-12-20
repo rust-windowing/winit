@@ -9,9 +9,10 @@ use winapi::shared::windef::HWND;
 
 use crate::{
     dpi::PhysicalSize,
-    event::DeviceId,
+    event::{DeviceId, KeyEvent},
     event_loop::EventLoop,
     monitor::MonitorHandle,
+    platform::modifier_supplement::KeyEventExtModifierSupplement,
     platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
     window::{BadIcon, Icon, Theme, Window, WindowBuilder},
 };
@@ -232,5 +233,15 @@ impl IconExtWindows for Icon {
     fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
         let win_icon = WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
+    }
+}
+
+impl KeyEventExtModifierSupplement for KeyEvent {
+    fn char_with_all_modifers(&self) -> &Option<String> {
+        &self.platform_specific.char_with_all_modifers
+    }
+
+    fn key_without_modifers(&self) -> &keyboard_types::Key {
+        &self.platform_specific.key_without_modifers
     }
 }
