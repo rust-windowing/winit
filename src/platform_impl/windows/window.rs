@@ -785,7 +785,7 @@ unsafe fn init<T: 'static>(
 
     let dimensions = attributes
         .inner_size
-        .unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
+        .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
     win.set_inner_size(dimensions);
     if attributes.maximized {
         // Need to set MAXIMIZED after setting `inner_size` as
