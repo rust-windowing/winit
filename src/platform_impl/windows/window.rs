@@ -114,6 +114,8 @@ impl Window {
                     window_state: win.window_state.clone(),
                     event_loop_runner: event_loop.runner_shared.clone(),
                     file_drop_handler,
+                    subclass_removed: Cell::new(false),
+                    recurse_depth: Cell::new(0),
                 };
 
                 event_loop::subclass_window(win.window.0, subclass_input);
@@ -789,7 +791,7 @@ unsafe fn init<T: 'static>(
 
     let dimensions = attributes
         .inner_size
-        .unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
+        .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
     win.set_inner_size(dimensions);
     if attributes.maximized {
         // Need to set MAXIMIZED after setting `inner_size` as
