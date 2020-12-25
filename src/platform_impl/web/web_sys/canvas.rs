@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    AddEventListenerOptions, DragEvent, Event, File, FocusEvent, HtmlCanvasElement, KeyboardEvent,
     MediaQueryListEvent, MouseEvent, WheelEvent,
 };
 
@@ -27,6 +27,10 @@ pub struct Canvas {
     on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
+    on_file_drag_enter: Option<EventListenerHandle<dyn FnMut(DragEvent)>>,
+    on_file_drag_exit: Option<EventListenerHandle<dyn FnMut(DragEvent)>>,
+    on_file_drop: Option<EventListenerHandle<dyn FnMut(DragEvent)>>,
+    on_file_drag_over: Option<EventListenerHandle<dyn FnMut(DragEvent)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
     mouse_state: MouseState,
 }
@@ -71,11 +75,13 @@ impl Canvas {
             MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
         };
 
+        let common = Common {
+            raw: canvas,
+            wants_fullscreen: Rc::new(RefCell::new(false)),
+        };
+
         Ok(Canvas {
-            common: Common {
-                raw: canvas,
-                wants_fullscreen: Rc::new(RefCell::new(false)),
-            },
+            common,
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -84,6 +90,10 @@ impl Canvas {
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             on_dark_mode: None,
+            on_file_drag_enter: None,
+            on_file_drag_exit: None,
+            on_file_drop: None,
+            on_file_drag_over: None,
             mouse_state,
         })
     }
@@ -280,6 +290,69 @@ impl Canvas {
         self.on_dark_mode = MediaQueryListHandle::new("(prefers-color-scheme: dark)", closure);
     }
 
+    pub fn on_file_drag_enter<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(File),
+    {
+        self.on_file_drag_enter =
+            Some(self.common.add_event("dragenter", move |event: DragEvent| {
+                event.prevent_default();
+                event.stop_propagation();
+                event.cancel_bubble();
+
+                let files = event.data_transfer().unwrap().items();
+                for i in 0..files.length() {
+                    let file = files.get(i).unwrap();
+                    if file.kind() == "file" {
+                        handler(file.get_as_file().unwrap().unwrap());
+                    }
+                }
+            }));
+    }
+
+    pub fn on_file_drag_exit<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.on_file_drag_exit =
+            Some(self.common.add_event("dragleave", move |event: DragEvent| {
+                event.prevent_default();
+                event.stop_propagation();
+                event.cancel_bubble();
+                handler();
+            }));
+    }
+
+    pub fn on_file_drop<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(File),
+    {
+        self.on_file_drop = Some(self.common.add_event("drop", move |event: DragEvent| {
+            event.prevent_default();
+            event.stop_propagation();
+            event.cancel_bubble();
+
+            let files = event.data_transfer().unwrap().items();
+
+            for i in 0..files.length() {
+                let file = files.get(i).unwrap();
+                if file.kind() == "file" {
+                    handler(file.get_as_file().unwrap().unwrap());
+                }
+            }
+        }));
+    }
+
+    pub fn on_file_drag_over<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(),
+    {
+        self.on_file_drag_over =
+            Some(self.common.add_event("dragover", move |event: DragEvent| {
+                event.prevent_default();
+            }));
+    }
+
     pub fn request_fullscreen(&self) {
         self.common.request_fullscreen()
     }
@@ -297,6 +370,10 @@ impl Canvas {
         self.on_mouse_wheel = None;
         self.on_fullscreen_change = None;
         self.on_dark_mode = None;
+        self.on_file_drag_enter = None;
+        self.on_file_drag_exit = None;
+        self.on_file_drop = None;
+        self.on_file_drag_over = None;
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.remove_listeners(),
             MouseState::NoPointerEvent(h) => h.remove_listeners(),

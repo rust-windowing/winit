@@ -7,6 +7,7 @@ use crate::window::{Theme, WindowId};
 use std::cell::RefCell;
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 pub struct WindowTarget<T: 'static> {
@@ -192,6 +193,33 @@ impl<T> WindowTarget<T> {
                 },
             });
         });
+
+        let runner = self.runner.clone();
+        canvas.on_file_drag_enter(move |file| {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::HoveredFile(file),
+            });
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_file_drag_exit(move || {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::HoveredFileCancelled,
+            });
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_file_drop(move |file| {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::DroppedFile(file),
+            });
+        });
+
+        let runner = self.runner.clone();
+        canvas.on_file_drag_over(move || {});
 
         let runner = self.runner.clone();
         let raw = canvas.raw().clone();

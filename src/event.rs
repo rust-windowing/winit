@@ -225,13 +225,19 @@ pub enum WindowEvent<'a> {
     ///
     /// When the user drops multiple files at once, this event will be emitted for each file
     /// separately.
+    #[cfg(not(feature = "web-sys"))]
     DroppedFile(PathBuf),
+    #[cfg(feature = "web-sys")]
+    DroppedFile(web_sys::File),
 
     /// A file is being hovered over the window.
     ///
     /// When the user hovers multiple files at once, this event will be emitted for each file
     /// separately.
+    #[cfg(not(feature = "web-sys"))]
     HoveredFile(PathBuf),
+    #[cfg(feature = "web-sys")]
+    HoveredFile(web_sys::File),
 
     /// A file was hovered, but has exited the window.
     ///
