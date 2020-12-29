@@ -489,7 +489,7 @@ impl Window {
 
     pub fn set_maximized(&self, _maximized: bool) {}
 
-    pub fn maximized(&self) -> bool {
+    pub fn is_maximized(&self) -> bool {
         false
     }
 

@@ -374,7 +374,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn maximized(&self) -> bool {
+    pub fn is_maximized(&self) -> bool {
         // TODO: Not implemented
         false
     }

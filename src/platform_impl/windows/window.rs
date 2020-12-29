@@ -386,7 +386,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn maximized(&self) -> bool {
+    pub fn is_maximized(&self) -> bool {
         let window_state = self.window_state.lock();
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)
     }

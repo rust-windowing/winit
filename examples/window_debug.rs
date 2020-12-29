@@ -108,7 +108,7 @@ fn main() {
                         window.set_visible(visible);
                     }
                     VirtualKeyCode::X => {
-                        let is_maximized = window.maximized();
+                        let is_maximized = window.is_maximized();
                         window.set_maximized(!is_maximized);
                     }
                     _ => (),

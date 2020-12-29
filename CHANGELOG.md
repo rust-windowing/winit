@@ -1,6 +1,6 @@
 # Unreleased
 
-- Added `maximized` method to `Window`.
+- Added `is_maximized` method to `Window`.
 - On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
 - On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.

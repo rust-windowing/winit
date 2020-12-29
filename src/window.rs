@@ -604,8 +604,8 @@ impl Window {
     /// - **Wayland / X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
-    pub fn maximized(&self) -> bool {
-        self.window.maximized()
+    pub fn is_maximized(&self) -> bool {
+        self.window.is_maximized()
     }
 
     /// Sets the window to fullscreen or back.

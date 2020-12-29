@@ -233,7 +233,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn maximized(&self) -> bool {
+    pub fn is_maximized(&self) -> bool {
         // Canvas cannot be 'maximized'
         false
     }

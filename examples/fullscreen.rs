@@ -58,7 +58,7 @@ fn main() {
                         println!("window.fullscreen {:?}", window.fullscreen());
                     }
                     (VirtualKeyCode::M, ElementState::Pressed) => {
-                        let is_maximized = window.maximized();
+                        let is_maximized = window.is_maximized();
                         window.set_maximized(!is_maximized);
                     }
                     (VirtualKeyCode::D, ElementState::Pressed) => {
