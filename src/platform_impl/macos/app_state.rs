@@ -25,7 +25,7 @@ use crate::{
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
         event_loop::{post_dummy_event, PanicInfo},
-        observer::EventLoopWaker,
+        observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
         util::{IdRef, Never},
         window::get_window_id,
     },
@@ -320,6 +320,10 @@ impl AppState {
         let mut pending_redraw = HANDLER.redraw();
         if !pending_redraw.contains(&window_id) {
             pending_redraw.push(window_id);
+        }
+        unsafe {
+            let rl = CFRunLoopGetMain();
+            CFRunLoopWakeUp(rl);
         }
     }
 
