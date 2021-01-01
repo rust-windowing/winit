@@ -21,6 +21,7 @@
 - Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
 - On X11, bump `mio` to 0.7.
 - On macOS, emit `RedrawRequested` events immediately while the window is being resized.
+- On macOS, add `EventLoopWindowTargetExtMacOS::set_file_open_callback`.
 
 # 0.24.0 (2020-12-09)
 
