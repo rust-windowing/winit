@@ -5,6 +5,7 @@ use std::{
     hint::unreachable_unchecked,
     mem,
     rc::{Rc, Weak},
+    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         Mutex, MutexGuard,
@@ -22,6 +23,7 @@ use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
+    platform::macos::FileOpenResult,
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
         event_loop::{post_dummy_event, PanicInfo},
@@ -121,6 +123,7 @@ struct Handler {
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
+    file_open_callback: Mutex<Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
@@ -264,6 +267,14 @@ impl AppState {
         }));
     }
 
+    pub fn set_file_open_callback<F>(callback: Option<F>)
+    where
+        F: FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static,
+    {
+        *HANDLER.file_open_callback.lock().unwrap() =
+            callback.map(|c| Box::new(c) as Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send>);
+    }
+
     pub fn exit() {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopDestroyed));
@@ -343,6 +354,15 @@ impl AppState {
             panic!("Events queued from different thread: {:#?}", wrappers);
         }
         HANDLER.events().append(&mut wrappers);
+    }
+
+    pub fn open_files(paths: Vec<PathBuf>) -> FileOpenResult {
+        let mut callback = HANDLER.file_open_callback.lock().unwrap();
+        if let Some(callback) = &mut *callback {
+            (callback)(paths)
+        } else {
+            FileOpenResult::Failure
+        }
     }
 
     pub fn cleared(panic_info: Weak<PanicInfo>) {

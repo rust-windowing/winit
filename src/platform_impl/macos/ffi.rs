@@ -16,6 +16,9 @@ use core_graphics::{
 use objc;
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
+pub const NSApplicationDelegateReplySuccess: i32 = 0;
+pub const NSApplicationDelegateReplyCancel: i32 = 1;
+pub const NSApplicationDelegateReplyFailure: i32 = 2;
 
 #[repr(C)]
 pub struct NSRange {

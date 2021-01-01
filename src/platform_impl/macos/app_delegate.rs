@@ -1,20 +1,22 @@
-use crate::event::Event;
+use crate::platform::macos::FileOpenResult;
 
-use super::{activation_hack, app_state::AppState, event::EventWrapper};
+use super::{
+    activation_hack,
+    app_state::AppState,
+    ffi::{
+        NSApplicationDelegateReplyCancel, NSApplicationDelegateReplyFailure,
+        NSApplicationDelegateReplySuccess,
+    },
+};
 use cocoa::{
     base::id,
     foundation::{NSArray, NSString},
 };
 use objc::{
     declare::ClassDecl,
-    runtime::{Class, Object, Sel, BOOL, YES},
+    runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 use std::{os::raw::c_void, slice, str};
-
-/// This constant represents the one with an identical name in appkit. See:
-/// https://developer.apple.com/documentation/appkit/nsapplicationdelegatereply/nsapplicationdelegatereplysuccess?language=occ
-#[allow(non_upper_case_globals)]
-const NSApplicationDelegateReplySuccess: i32 = 0;
 
 pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
@@ -111,19 +113,17 @@ extern "C" fn did_resign_active(this: &Object, _: Sel, _: id) {
 extern "C" fn application_open_file(_this: &Object, _: Sel, _sender: id, filename: id) -> BOOL {
     trace!("Triggered `application:openFile:`");
     let string = ns_string_to_rust(filename);
-    let event = Event::OpenFiles(vec![string.into()]);
-    AppState::queue_event(EventWrapper::StaticEvent(event));
+    let result = AppState::open_files(vec![string.into()]);
     trace!("Completed `application:openFile:`");
 
-    // Return YES to indicate to the OS that the file was opened successfully.
-    // If the client code handles the `OpenFiles` event and the operations fails,
-    // it's the application's responsibility to inform the user.
-    // This is not optimal but we do this because at the time this function returns the
-    // client may not have received the `OpenFiles` event yet.
-    YES
+    if result == FileOpenResult::Success {
+        YES
+    } else {
+        NO
+    }
 }
 
-extern "C" fn application_open_files(_this: &Object, _: Sel, _sender: id, filenames: id) {
+extern "C" fn application_open_files(_this: &Object, _: Sel, sender: id, filenames: id) {
     trace!("Triggered `application:openFiles:`");
     let filenames_len = unsafe { filenames.count() };
     let mut filenames_vec = Vec::with_capacity(filenames_len as usize);
@@ -132,18 +132,13 @@ extern "C" fn application_open_files(_this: &Object, _: Sel, _sender: id, filena
         let name_string = ns_string_to_rust(filename);
         filenames_vec.push(name_string.into());
     }
-    let event = Event::OpenFiles(filenames_vec);
-    AppState::queue_event(EventWrapper::StaticEvent(event));
-
-    let cls = objc::runtime::Class::get("NSApplication").unwrap();
-    let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-
-    // Indicate to the OS that the file was opened successfully.
-    // If the client code handles the `OpenFiles` event and the operations fails,
-    // it's the application's responsibility to inform the user.
-    // This is not optimal but we do this because at the time this function returns the
-    // client may not have received the `OpenFiles` event yet.
-    unsafe { msg_send![app, replyToOpenOrPrint: NSApplicationDelegateReplySuccess] }
+    let result = AppState::open_files(filenames_vec);
+    let response = match result {
+        FileOpenResult::Success => NSApplicationDelegateReplySuccess,
+        FileOpenResult::Cancel => NSApplicationDelegateReplyCancel,
+        FileOpenResult::Failure => NSApplicationDelegateReplyFailure,
+    };
+    unsafe { msg_send![sender, replyToOpenOrPrint: response] }
 
     trace!("Completed `application:openFiles:`");
 }

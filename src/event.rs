@@ -67,17 +67,6 @@ pub enum Event<'a, T: 'static> {
         event: DeviceEvent,
     },
 
-    /// Emitted to let the application know that a file or files are requested to be opened.
-    ///
-    /// This for example happens when the user double-clicks on a file in the file browser
-    /// and the file's type is associated with this application.
-    ///
-    /// ## Platform-specific
-    ///
-    /// This is only implemented on **macOS**. (Other systems usually provide the path as an
-    /// argument. See: `std::env::args`.)
-    OpenFiles(Vec<PathBuf>),
-
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
 
@@ -142,7 +131,6 @@ impl<T: Clone> Clone for Event<'static, T> {
                 device_id: *device_id,
                 event: event.clone(),
             },
-            OpenFiles(files) => OpenFiles(files.clone()),
             NewEvents(cause) => NewEvents(cause.clone()),
             MainEventsCleared => MainEventsCleared,
             RedrawRequested(wid) => RedrawRequested(*wid),
@@ -161,7 +149,6 @@ impl<'a, T> Event<'a, T> {
             UserEvent(_) => Err(self),
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
             DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
-            OpenFiles(files) => Ok(OpenFiles(files)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             MainEventsCleared => Ok(MainEventsCleared),
             RedrawRequested(wid) => Ok(RedrawRequested(wid)),
@@ -182,7 +169,6 @@ impl<'a, T> Event<'a, T> {
                 .map(|event| WindowEvent { window_id, event }),
             UserEvent(event) => Some(UserEvent(event)),
             DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
-            OpenFiles(files) => Some(OpenFiles(files)),
             NewEvents(cause) => Some(NewEvents(cause)),
             MainEventsCleared => Some(MainEventsCleared),
             RedrawRequested(wid) => Some(RedrawRequested(wid)),
