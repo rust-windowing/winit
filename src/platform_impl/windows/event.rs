@@ -30,7 +30,7 @@ pub fn get_key_mods() -> ModifiersState {
     let mut mods = ModifiersState::empty();
     mods.set(ModifiersState::SHIFT, key_pressed(winuser::VK_SHIFT));
     mods.set(
-        ModifiersState::CTRL,
+        ModifiersState::CONTROL,
         key_pressed(winuser::VK_CONTROL) && !filter_out_altgr,
     );
     mods.set(
@@ -38,7 +38,7 @@ pub fn get_key_mods() -> ModifiersState {
         key_pressed(winuser::VK_MENU) && !filter_out_altgr,
     );
     mods.set(
-        ModifiersState::LOGO,
+        ModifiersState::META,
         key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN),
     );
     mods
@@ -78,7 +78,7 @@ impl From<ModifiersStateSide> for ModifiersState {
             side.intersects(ModifiersStateSide::LSHIFT | ModifiersStateSide::RSHIFT),
         );
         state.set(
-            Self::CTRL,
+            Self::CONTROL,
             side.intersects(ModifiersStateSide::LCTRL | ModifiersStateSide::RCTRL),
         );
         state.set(
@@ -86,7 +86,7 @@ impl From<ModifiersStateSide> for ModifiersState {
             side.intersects(ModifiersStateSide::LALT | ModifiersStateSide::RALT),
         );
         state.set(
-            Self::LOGO,
+            Self::META,
             side.intersects(ModifiersStateSide::LLOGO | ModifiersStateSide::RLOGO),
         );
         state

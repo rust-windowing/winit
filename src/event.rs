@@ -820,7 +820,7 @@ impl ModifiersState {
     }
     /// Returns `true` if the control key is pressed.
     pub fn ctrl(&self) -> bool {
-        self.intersects(Self::CTRL)
+        self.intersects(Self::CONTROL)
     }
     /// Returns `true` if the alt key is pressed.
     pub fn alt(&self) -> bool {
@@ -828,7 +828,7 @@ impl ModifiersState {
     }
     /// Returns `true` if the logo key is pressed.
     pub fn logo(&self) -> bool {
-        self.intersects(Self::LOGO)
+        self.intersects(Self::META)
     }
 }
 
@@ -845,7 +845,7 @@ bitflags! {
         // const LSHIFT = 0b010 << 0;
         // const RSHIFT = 0b001 << 0;
         /// The "control" key.
-        const CTRL = 0b100 << 3;
+        const CONTROL = 0b100 << 3;
         // const LCTRL = 0b010 << 3;
         // const RCTRL = 0b001 << 3;
         /// The "alt" key.
@@ -853,7 +853,7 @@ bitflags! {
         // const LALT = 0b010 << 6;
         // const RALT = 0b001 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
-        const LOGO = 0b100 << 9;
+        const META = 0b100 << 9;
         // const LLOGO = 0b010 << 9;
         // const RLOGO = 0b001 << 9;
     }
