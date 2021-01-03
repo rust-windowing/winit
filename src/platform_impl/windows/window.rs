@@ -756,12 +756,6 @@ unsafe fn init<T: 'static>(
 
         dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
         DeleteObject(region as _);
-
-        if attributes.decorations {
-            let opacity = 255;
-
-            winuser::SetLayeredWindowAttributes(real_window.0, 0, opacity, winuser::LWA_ALPHA);
-        }
     }
 
     // If the system theme is dark, we need to set the window theme now
