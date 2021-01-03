@@ -40,6 +40,7 @@ pub use keyboard_types;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
+    keyboard,
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -603,59 +604,61 @@ pub enum DeviceEvent {
 /// Describes a keyboard input as a raw device event.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct RawKeyEvent {
-    pub scancode: ScanCode,
     pub physical_key: keyboard_types::Code,
     pub state: keyboard_types::KeyState,
 }
 
 /// Describes a keyboard input targeting a window.
-// TODO: Implement (de)serialization.
-// (This struct cannot be serialized in its entirety because `ScanCode`
-// contains platform dependent data so that value cannot be serialized)
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyEvent {
-    pub scancode: ScanCode,
-
     /// Represents the position of a key independent of the
     /// currently active layout.
     /// Conforms to https://www.w3.org/TR/uievents-code/
     ///
     /// Note that `Fn` and `FnLock` key events are not emmited by `winit`.
     /// These keys are usually handled at the hardware or at the OS level.
-    pub physical_key: keyboard_types::Code,
-
+    pub physical_key: keyboard::KeyCode,
+    
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
-    ///
-    /// This is suitable for text input in a GUI application.
-    ///
-    /// Note that the `Unicode` variant may contain multiple characters.
-    /// For example on Windows when pressing <kbd>^</kbd> using
-    /// a US-International layout, this will be `Dead` for the first
-    /// keypress and will be `Unicode("^^")` for the second keypress.
-    /// It's important that this behaviour might be different on
-    /// other platforms. For example Linux systems may emit a  
-    /// `Unicode("^")` on the second keypress.
-    ///
+    /// 
+    /// This has two use cases:
+    /// - Allows querying whether the current input is a Dead key
+    /// - Allows handling key-bindings on platforms which don't
+    /// support `KeyEventExtModifierSupplement::key_without_modifiers`.
+    /// 
     /// ## Platform-specific
     /// - **Web:** Dead keys might be reported as the real key instead
     /// of `Dead` depending on the browser/OS.
-    pub logical_key: keyboard_types::Key,
-
-    pub location: keyboard_types::Location,
-    pub state: keyboard_types::KeyState,
+    pub logical_key: keyboard::Key<'static>,
+    
+    /// Contains the text produced by this keypress.
+    ///
+    /// In most cases this is identical to the content
+    /// of the `Character` variant of `logical_key`.
+    /// However, on Windows when a dead key was pressed earlier
+    /// but cannot be combined with the character from this
+    /// keypress, the produced text will consist of two characters:
+    /// the dead-key-character followed by the character resulting
+    /// from this keypress.
+    ///
+    /// An additional difference from `logical_key` is that
+    /// this field stores the text representation of any key
+    /// that has such a representation. For example when 
+    /// `logical_key` is `Key::Enter`, this field is `Some("\r")`.
+    /// 
+    /// This is `None` if the current keypress cannot
+    /// be interpreted as text.
+    /// 
+    /// See also: `text_with_all_modifiers()`
+    pub text: Option<&'static str>,
+    
+    pub location: keyboard::KeyLocation,
+    pub state: ElementState,
     pub repeat: bool,
 
     pub(crate) platform_specific: platform_impl::KeyEventExtra,
 }
-
-// impl std::fmt::Debug for KeyEvent {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         f.debug_struct("KeyEvent")
-//          .field("scancode", &())
-//          .field("y", &self.y)
-//          .finish()
-//     }
-// }
 
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
@@ -754,21 +757,6 @@ impl Force {
         }
     }
 }
-
-/// An opaque struct that (mostly) uniquely identifies a single physical key
-/// on the current platform.
-///
-/// This is distinct from `keyboard_types::Code` because this uses
-/// the platform specific identifier for keys, while
-/// `keyboard_types::Code` may be `Unidentified` for multiple keys
-/// with different `ScanCode`.
-///
-/// Furthermore this struct may store a value that cannot be ported
-/// to another platform, hence it is opaque. To retreive the underlying
-/// value, use one of the platform-dependent extension traits like
-/// `XkbScanCodeExt`
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct ScanCode(pub(crate) platform_impl::PlatformScanCode);
 
 /// Identifier for a specific analog axis on some device.
 pub type AxisId = u32;

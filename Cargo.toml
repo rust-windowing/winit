@@ -31,7 +31,6 @@ log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 raw-window-handle = "0.3"
 bitflags = "1"
-keyboard-types = "0.5"
 
 [dev-dependencies]
 image = "0.23"
