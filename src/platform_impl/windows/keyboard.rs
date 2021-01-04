@@ -17,7 +17,10 @@ use winapi::{
 use crate::{
     event::{KeyEvent, ElementState},
     keyboard::{Key, KeyCode, NativeKeyCode, KeyLocation},
-    platform_impl::platform::event::KeyEventExtra,
+    platform_impl::platform::{
+        keyboard_layout::LAYOUT_CACHE,
+        event::KeyEventExtra
+    },
 };
 
 pub fn is_msg_keyboard_related(msg: u32) -> bool {
@@ -36,27 +39,7 @@ pub struct KeyLParam {
     pub is_repeat: bool,
 }
 
-#[derive(Clone, Eq, PartialEq)]
-enum ToUnicodeResult {
-    Str(String),
-    Dead,
-    None,
-}
-
-impl ToUnicodeResult {
-    fn is_none(&self) -> bool {
-        match self {
-            ToUnicodeResult::None => true,
-            _ => false,
-        }
-    }
-
-    fn is_something(&self) -> bool {
-        !self.is_none()
-    }
-}
-
-type ExScancode = u16;
+pub type ExScancode = u16;
 
 fn new_ex_scancode(scancode: u8, extended: bool) -> ExScancode {
     (scancode as u16) | (if extended { 0xE000 } else { 0 })
@@ -90,24 +73,6 @@ pub struct MessageAsKeyEvent {
 pub struct KeyEventBuilder {
     event_info: Option<PartialKeyEventInfo>,
 
-    /// This map shouldn't need to exist.
-    /// However currently this seems to be the only good way
-    /// of getting the label for the pressed key. Note that calling `ToUnicode`
-    /// just when the key is pressed/released would be enough if `ToUnicode` wouldn't
-    /// change the keyboard state (it clears the dead key). There is a flag to prevent
-    /// changing the state but that flag requires Windows 10, version 1607 or newer)
-    key_text: HashMap<ExScancode, String>,
-
-    /// Same as `key_text` but as if caps-lock was pressed.
-    key_text_with_caps: HashMap<ExScancode, String>,
-
-    /// True if the keyboard layout belonging to `known_locale_id` has an AltGr key.
-    has_alt_graph: bool,
-
-    /// The locale identifier (HKL) of the layout for which the `key_labels` and `has_alt_graph` was
-    /// generated
-    known_locale_id: usize,
-
     /// The keyup event needs to call `ToUnicode` to determine what's the text produced by the
     /// key with all modifiers except CTRL (the `logical_key`).
     ///
@@ -127,20 +92,11 @@ impl Default for KeyEventBuilder {
     fn default() -> Self {
         KeyEventBuilder {
             event_info: None,
-            key_text: HashMap::with_capacity(128),
-            key_text_with_caps: HashMap::with_capacity(128),
-            has_alt_graph: false,
-            known_locale_id: 0,
             prev_down_was_dead: false,
         }
     }
 }
 impl KeyEventBuilder {
-    const SHIFT_FLAG: u8 = 1 << 0;
-    const CONTROL_FLAG: u8 = 1 << 1;
-    const ALT_FLAG: u8 = 1 << 2;
-    const CAPS_LOCK_FLAG: u8 = 1 << 3;
-
     /// Call this function for every window message.
     /// Returns Some() if this window message completes a KeyEvent.
     /// Returns None otherwise.
@@ -175,11 +131,8 @@ impl KeyEventBuilder {
                 }
                 self.prev_down_was_dead = false;
 
-                // When the labels are already generated for this locale,
-                // the `generate_labels` function returns without calling
-                // `ToUnicode` so it keeps the dead key state intact.
-                let locale_id = unsafe { winuser::GetKeyboardLayout(0) };
-                self.prepare_layout(locale_id as usize);
+                let layouts = LAYOUT_CACHE.lock().unwrap();
+                let (locale_id, layout) = layouts.get_current_layout();
 
                 //let vkey = wparam as i32;
 
@@ -188,7 +141,7 @@ impl KeyEventBuilder {
                     new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
                 let code = native_key_to_code(scancode);
                 let vkey = unsafe {
-                    winuser::MapVirtualKeyW(scancode.0 as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
+                    winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
                 };
                 let location = get_location(vkey, lparam_struct.extended);
                 let label = self.key_text.get(&scancode).map(|s| s.clone());
@@ -398,134 +351,6 @@ impl KeyEventBuilder {
         Vec::new()
     }
 
-    /// Returns true if succeeded.
-    fn prepare_layout(&mut self, locale_identifier: usize) -> bool {
-        if self.known_locale_id == locale_identifier {
-            return true;
-        }
-
-        // We initialize the keyboard state with all zeros to
-        // simulate a scenario when no modifier is active.
-        let mut key_state = [0u8; 256];
-        self.key_text.clear();
-        self.key_text_with_caps.clear();
-        self.has_alt_graph = false;
-        // Virtual key values are in the domain [0, 255].
-        // This is reinforced by the fact that the keyboard state array has 256
-        // elements. This array is allowed to be indexed by virtual key values
-        // giving the key state for the virtual key used for indexing.
-        for vk in 0..256 {
-            let scancode = unsafe {
-                winuser::MapVirtualKeyExW(vk, winuser::MAPVK_VK_TO_VSC_EX, locale_identifier as HKL)
-            };
-            if scancode == 0 {
-                continue;
-            }
-            let platform_scancode = PlatformScanCode(scancode as u16);
-
-            Self::apply_mod_state(&mut key_state, 0);
-
-            // Caps lock is not pressed but it's on.
-            key_state[winuser::VK_CAPITAL as usize] = 1;
-            let unicode_caps = Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
-            if let ToUnicodeResult::Str(str) = unicode_caps {
-                self.key_text_with_caps.insert(platform_scancode, str);
-            }
-            key_state[winuser::VK_CAPITAL as usize] = 0;
-
-            let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
-            let unicode_str = match unicode.clone() {
-                ToUnicodeResult::Str(str) => str,
-                _ => continue,
-            };
-            self.key_text.insert(platform_scancode, unicode_str);
-
-            // Check for alt graph.
-            // The logic is that if a key pressed with the CTRL modifier produces
-            // a different result from when it's pressed with CTRL+ALT then the layout
-            // has AltGr.
-            if !self.has_alt_graph {
-                Self::apply_mod_state(&mut key_state, Self::CONTROL_FLAG | Self::ALT_FLAG);
-                let unicode_with_ctrl_alt =
-                    Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
-                if unicode_with_ctrl_alt.is_something() {
-                    self.has_alt_graph = unicode != unicode_with_ctrl_alt;
-                }
-            }
-        }
-        self.known_locale_id = locale_identifier;
-        true
-    }
-
-    fn to_unicode_string(
-        key_state: &[u8; 256],
-        vkey: u32,
-        scancode: u32,
-        locale_identifier: usize,
-    ) -> ToUnicodeResult {
-        unsafe {
-            let mut label_wide = [0u16; 8];
-            let wide_len = winuser::ToUnicodeEx(
-                vkey,
-                scancode,
-                (&key_state[0]) as *const _,
-                (&mut label_wide[0]) as *mut _,
-                label_wide.len() as i32,
-                0,
-                locale_identifier as _,
-            );
-            if wide_len < 0 {
-                // If it's dead, let's run `ToUnicode` again, to consume the dead-key
-                winuser::ToUnicodeEx(
-                    vkey,
-                    scancode,
-                    (&key_state[0]) as *const _,
-                    (&mut label_wide[0]) as *mut _,
-                    label_wide.len() as i32,
-                    0,
-                    locale_identifier as _,
-                );
-                return ToUnicodeResult::Dead;
-            }
-            if wide_len > 0 {
-                let os_string = OsString::from_wide(&label_wide[0..wide_len as usize]);
-                if let Ok(label_str) = os_string.into_string() {
-                    return ToUnicodeResult::Str(label_str);
-                }
-            }
-        }
-        ToUnicodeResult::None
-    }
-
-    fn apply_mod_state(key_state: &mut [u8; 256], mod_state: u8) {
-        if mod_state & Self::SHIFT_FLAG != 0 {
-            key_state[winuser::VK_SHIFT as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_SHIFT as usize] &= !0x80;
-            key_state[winuser::VK_LSHIFT as usize] &= !0x80;
-            key_state[winuser::VK_RSHIFT as usize] &= !0x80;
-        }
-        if mod_state & Self::CONTROL_FLAG != 0 {
-            key_state[winuser::VK_CONTROL as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_CONTROL as usize] &= !0x80;
-            key_state[winuser::VK_LCONTROL as usize] &= !0x80;
-            key_state[winuser::VK_RCONTROL as usize] &= !0x80;
-        }
-        if mod_state & Self::ALT_FLAG != 0 {
-            key_state[winuser::VK_MENU as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_MENU as usize] &= !0x80;
-            key_state[winuser::VK_LMENU as usize] &= !0x80;
-            key_state[winuser::VK_RMENU as usize] &= !0x80;
-        }
-        if mod_state & Self::CAPS_LOCK_FLAG != 0 {
-            key_state[winuser::VK_CAPITAL as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_CAPITAL as usize] &= !0x80;
-        }
-    }
-
     fn synthesize_kbd_state(
         &mut self,
         key_state: ElementState,
@@ -685,13 +510,11 @@ struct PartialKeyEventInfo {
     key_state: ElementState,
     /// The native Virtual Key
     vkey: i32,
-    scancode: PlatformScanCode,
+    scancode: ExScancode,
     is_repeat: bool,
     code: KeyCode,
     location: KeyLocation,
-    /// True if the key event corresponds to a dead key input
-    is_dead: bool,
-    label: Option<String>,
+    logical_key: Key<'static>,
 
     /// The utf16 code units of the text that was produced by the keypress event.
     /// This take all modifiers into account. Including CTRL
@@ -731,6 +554,7 @@ impl PartialKeyEventInfo {
         KeyEvent {
             physical_key: self.code,
             logical_key,
+            text: None,
             location: self.location,
             state: self.key_state,
             repeat: self.is_repeat,
@@ -849,11 +673,11 @@ fn vkey_consumes_dead_key(vkey: u32) -> bool {
 
 /// This includes all non-character keys defined within `Key` so for example
 /// backspace and tab are included.
-fn vkey_to_non_printable(
+pub fn vkey_to_non_printable(
     vkey: i32,
     native_code: NativeKeyCode,
     code: KeyCode,
-    hkl: usize,
+    hkl: u64,
     has_alt_graph: bool,
 ) -> Key<'static> {
     // List of the Web key names and their corresponding platform-native key names:

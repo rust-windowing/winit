@@ -32,7 +32,7 @@ use winapi::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, RawKeyEvent, ScanCode, Touch, TouchPhase, WindowEvent},
+    event::{DeviceEvent, Event, Force, RawKeyEvent, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
@@ -40,7 +40,7 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
         event,
-        keyboard::{is_msg_keyboard_related, native_key_to_code, PlatformScanCode},
+        keyboard::{is_msg_keyboard_related, native_key_to_code},
         minimal_ime::is_msg_ime_related,
         monitor::{self, MonitorHandle},
         raw_input, util,

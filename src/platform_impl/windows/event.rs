@@ -5,14 +5,12 @@ use std::{
     sync::atomic::{AtomicBool, AtomicPtr, Ordering},
 };
 
-use crate::event::ModifiersState;
+use crate::keyboard::ModifiersState;
 
 use winapi::{
     shared::minwindef::{HKL, HKL__},
     um::winuser,
 };
-
-pub use super::keyboard::PlatformScanCode;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {

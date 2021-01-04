@@ -1,5 +1,105 @@
 
 
+
+impl ModifiersState {
+    /// Returns `true` if the shift key is pressed.
+    pub fn shift(&self) -> bool {
+        self.intersects(Self::SHIFT)
+    }
+    /// Returns `true` if the control key is pressed.
+    pub fn control(&self) -> bool {
+        self.intersects(Self::CONTROL)
+    }
+    /// Returns `true` if the alt key is pressed.
+    pub fn alt(&self) -> bool {
+        self.intersects(Self::ALT)
+    }
+    /// Returns `true` if the meta key is pressed.
+    pub fn meta(&self) -> bool {
+        self.intersects(Self::META)
+    }
+}
+
+bitflags! {
+    /// Represents the current state of the keyboard modifiers
+    ///
+    /// Each flag represents a modifier and is set if this modifier is active.
+    #[derive(Default)]
+    pub struct ModifiersState: u32 {
+        // left and right modifiers are currently commented out, but we should be able to support
+        // them in a future release
+        /// The "shift" key.
+        const SHIFT = 0b100 << 0;
+        // const LSHIFT = 0b010 << 0;
+        // const RSHIFT = 0b001 << 0;
+        /// The "control" key.
+        const CONTROL = 0b100 << 3;
+        // const LCTRL = 0b010 << 3;
+        // const RCTRL = 0b001 << 3;
+        /// The "alt" key.
+        const ALT = 0b100 << 6;
+        // const LALT = 0b010 << 6;
+        // const RALT = 0b001 << 6;
+        /// This is the "windows" key on PC and "command" key on Mac.
+        const META = 0b100 << 9;
+        // const LLOGO = 0b010 << 9;
+        // const RLOGO = 0b001 << 9;
+    }
+}
+
+#[cfg(feature = "serde")]
+mod modifiers_serde {
+    use super::ModifiersState;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Default, Serialize, Deserialize)]
+    #[serde(default)]
+    #[serde(rename = "ModifiersState")]
+    pub struct ModifiersStateSerialize {
+        pub shift: bool,
+        pub control: bool,
+        pub alt: bool,
+        pub meta: bool,
+    }
+
+    impl Serialize for ModifiersState {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let s = ModifiersStateSerialize {
+                shift: self.shift(),
+                control: self.control(),
+                alt: self.alt(),
+                meta: self.meta(),
+            };
+            s.serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for ModifiersState {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let ModifiersStateSerialize {
+                shift,
+                control,
+                alt,
+                meta,
+            } = ModifiersStateSerialize::deserialize(deserializer)?;
+            let mut m = ModifiersState::empty();
+            m.set(ModifiersState::SHIFT, shift);
+            m.set(ModifiersState::CONTROL, control);
+            m.set(ModifiersState::ALT, alt);
+            m.set(ModifiersState::META, meta);
+            Ok(m)
+        }
+    }
+}
+
+
+
 /// Contains the platform-native physical key identifier (aka scancode)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

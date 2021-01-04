@@ -3,7 +3,7 @@
 use winapi::{self, shared::windef::HWND};
 
 pub use self::{
-    event::{KeyEventExtra, PlatformScanCode},
+    event::{KeyEventExtra},
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
     icon::WinIcon,
     monitor::{MonitorHandle, VideoMode},
@@ -96,6 +96,7 @@ mod event;
 mod event_loop;
 mod icon;
 mod keyboard;
+mod keyboard_layout;
 mod minimal_ime;
 mod monitor;
 mod raw_input;
