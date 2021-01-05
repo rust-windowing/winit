@@ -20,7 +20,7 @@ use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
 
 use winapi::{
     shared::{
-        minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WPARAM},
+        minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WORD, WPARAM},
         windef::{HWND, POINT, RECT},
         windowsx, winerror,
     },
@@ -1664,11 +1664,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
         winuser::WM_SETCURSOR => {
             let set_cursor_to = {
                 let window_state = subclass_input.window_state.lock();
-                if window_state
-                    .mouse
-                    .cursor_flags()
-                    .contains(CursorFlags::IN_WINDOW)
-                {
+                // The return value for the preceding `WM_NCHITTEST` message is conveniently
+                // provided through the low-order word of lParam. We use that here since
+                // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
+                let in_client_area = LOWORD(lparam as DWORD) == winuser::HTCLIENT as WORD;
+                if in_client_area {
                     Some(window_state.mouse.cursor)
                 } else {
                     None
