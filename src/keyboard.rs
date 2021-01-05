@@ -1189,6 +1189,19 @@ pub enum Key<'a> {
     F35,
 }
 
+impl<'a> Key<'a> {
+    pub fn to_text(&self) -> Option<&'a str> {
+        match self {
+            Key::Character(ch) => Some(*ch),
+            Key::Enter => Some("\r"),
+            Key::Backspace => Some("\x08"),
+            Key::Tab => Some("\t"),
+            Key::Escape => Some("\x1b"),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KeyLocation {

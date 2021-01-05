@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicBool, AtomicPtr, Ordering},
 };
 
-use crate::keyboard::ModifiersState;
+use crate::keyboard::{ModifiersState, Key};
 
 use winapi::{
     shared::minwindef::{HKL, HKL__},
@@ -14,8 +14,8 @@ use winapi::{
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
-    pub char_with_all_modifers: Option<String>,
-    pub key_without_modifers: keyboard_types::Key,
+    pub char_with_all_modifers: Option<&'static str>,
+    pub key_without_modifers: Key<'static>,
 }
 
 fn key_pressed(vkey: c_int) -> bool {

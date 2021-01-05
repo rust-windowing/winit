@@ -1,7 +1,4 @@
-use std::{
-    char, collections::HashMap, ffi::OsString, fmt, mem::MaybeUninit, os::raw::c_int,
-    os::windows::ffi::OsStringExt,
-};
+use std::{char, collections::HashMap, ffi::OsString, fmt, mem::MaybeUninit, os::raw::c_int, os::windows::ffi::OsStringExt, sync::MutexGuard};
 
 use winapi::{
     shared::{
@@ -18,7 +15,7 @@ use crate::{
     event::{KeyEvent, ElementState},
     keyboard::{Key, KeyCode, NativeKeyCode, KeyLocation},
     platform_impl::platform::{
-        keyboard_layout::LAYOUT_CACHE,
+        keyboard_layout::{LAYOUT_CACHE, WindowsModifiers, Layout, LayoutCache},
         event::KeyEventExtra
     },
 };
@@ -131,11 +128,6 @@ impl KeyEventBuilder {
                 }
                 self.prev_down_was_dead = false;
 
-                let layouts = LAYOUT_CACHE.lock().unwrap();
-                let (locale_id, layout) = layouts.get_current_layout();
-
-                //let vkey = wparam as i32;
-
                 let lparam_struct = destructure_key_lparam(lparam);
                 let scancode =
                     new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
@@ -144,16 +136,24 @@ impl KeyEventBuilder {
                     winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
                 };
                 let location = get_location(vkey, lparam_struct.extended);
-                let label = self.key_text.get(&scancode).map(|s| s.clone());
+
+                let kbd_state = unsafe { Self::get_kbd_state() };
+                let mods = WindowsModifiers::active_modifiers(&kbd_state);
+                let layouts = LAYOUT_CACHE.lock().unwrap();
+                let (locale_id, layout) = layouts.get_current_layout();
+                let logical_key = layout.get_key(mods, scancode, code);
+                let key_without_modifers = layout.get_key(
+                    WindowsModifiers::empty(), scancode, code
+                );
                 let mut event_info = Some(PartialKeyEventInfo {
                     key_state: ElementState::Pressed,
+                    logical_key,
+                    key_without_modifers,
                     vkey,
                     scancode,
                     is_repeat: lparam_struct.is_repeat,
                     code,
                     location,
-                    is_dead: false,
-                    label,
                     utf16parts: Vec::with_capacity(8),
                     utf16parts_without_ctrl: Vec::with_capacity(8),
                 });
@@ -180,7 +180,7 @@ impl KeyEventBuilder {
                     }
                 }
                 if let Some(event_info) = event_info {
-                    let ev = event_info.finalize(locale_id as usize, self.has_alt_graph);
+                    let ev = event_info.finalize();
                     return vec![MessageAsKeyEvent {
                         event: ev,
                         is_synthetic: false,
@@ -192,9 +192,8 @@ impl KeyEventBuilder {
                 // At this point we know that there isn't going to be any more events related to
                 // this key press
                 let mut event_info = self.event_info.take().unwrap();
-                event_info.is_dead = true;
                 *retval = Some(0);
-                let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
+                let ev = event_info.finalize();
                 return vec![MessageAsKeyEvent {
                     event: ev,
                     is_synthetic: false,
@@ -237,6 +236,8 @@ impl KeyEventBuilder {
                         .utf16parts
                         .push(wparam as u16);
                 } else {
+                    // Otherwise wparam holds a utf32 character.
+                    // Let's encode it as utf16 appending it to the end of utf16parts
                     let utf16parts = &mut self.event_info.as_mut().unwrap().utf16parts;
                     let start_offset = utf16parts.len();
                     let new_size = utf16parts.len() + 2;
@@ -253,13 +254,11 @@ impl KeyEventBuilder {
                     // Here it's okay to call `ToUnicode` because at this point the dead key
                     // is already consumed by the character.
                     unsafe {
-                        let mut key_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
-                        winuser::GetKeyboardState(key_state[0].as_mut_ptr());
-                        let mut key_state = std::mem::transmute::<_, [u8; 256]>(key_state);
+                        let kbd_state = Self::get_kbd_state();
 
-                        let has_ctrl = key_state[winuser::VK_CONTROL as usize] & 0x80 != 0
-                            || key_state[winuser::VK_LCONTROL as usize] & 0x80 != 0
-                            || key_state[winuser::VK_RCONTROL as usize] & 0x80 != 0;
+                        let has_ctrl = kbd_state[winuser::VK_CONTROL as usize] & 0x80 != 0
+                            || kbd_state[winuser::VK_LCONTROL as usize] & 0x80 != 0
+                            || kbd_state[winuser::VK_RCONTROL as usize] & 0x80 != 0;
 
                         // If neither of the CTRL keys is pressed, just use the text with all
                         // modifiers because that already consumed the dead key and otherwise
@@ -267,16 +266,16 @@ impl KeyEventBuilder {
                         if !has_ctrl {
                             event_info.utf16parts_without_ctrl = event_info.utf16parts.clone();
                         } else {
+                            // TODO: This should probably be done through the layout cahce
                             get_utf16_without_ctrl(
                                 event_info.vkey as u32,
                                 event_info.scancode,
-                                &mut key_state,
+                                &mut kbd_state,
                                 &mut event_info.utf16parts_without_ctrl,
                             );
                         }
                     }
-
-                    let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
+                    let ev = event_info.finalize();
                     return vec![MessageAsKeyEvent {
                         event: ev,
                         is_synthetic: false,
@@ -287,14 +286,22 @@ impl KeyEventBuilder {
                 *retval = Some(0);
                 let lparam_struct = destructure_key_lparam(lparam);
                 let scancode =
-                    PlatformScanCode::new(lparam_struct.scancode, lparam_struct.extended);
+                    new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
                 let code = native_key_to_code(scancode);
                 let vkey = unsafe {
-                    winuser::MapVirtualKeyW(scancode.0 as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
+                    winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
                 };
                 let location = get_location(vkey, lparam_struct.extended);
                 let mut utf16parts = Vec::with_capacity(8);
                 let mut utf16parts_without_ctrl = Vec::with_capacity(8);
+
+                let kbd_state = unsafe { Self::get_kbd_state() };
+                let mods = WindowsModifiers::active_modifiers(&kbd_state);
+                let mods_without_ctrl = {
+                    let mut mods_copy = mods;
+                    mods_copy.remove(WindowsModifiers::CONTROL);
+                    mods_copy
+                };
 
                 // Avoid calling `ToUnicode` (which resets dead keys) if either the event
                 // belongs to the key-down which just produced the dead key or if
@@ -302,44 +309,49 @@ impl KeyEventBuilder {
                 //
                 // This logic relies on the assuption that keys which don't consume
                 // dead keys, also do not produce text input.
-                if !self.prev_down_was_dead && vkey_consumes_dead_key(wparam as u32) {
-                    unsafe {
-                        //let locale_id = winuser::GetKeyboardLayout(0);
-                        let mut key_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
-                        winuser::GetKeyboardState(key_state[0].as_mut_ptr());
-                        let mut key_state = std::mem::transmute::<_, [u8; 256]>(key_state);
-                        let unicode_len = winuser::ToUnicode(
-                            wparam as u32,
-                            scancode.0 as u32,
-                            (&mut key_state[0]) as *mut _,
-                            utf16parts.as_mut_ptr(),
-                            utf16parts.capacity() as i32,
-                            0,
-                        );
-                        utf16parts.set_len(unicode_len as usize);
+                // if !self.prev_down_was_dead && vkey_consumes_dead_key(wparam as u32) {
+                //     unsafe {
+                //         let unicode_len = winuser::ToUnicode(
+                //             wparam as u32,
+                //             scancode as u32,
+                //             (&mut kbd_state[0]) as *mut _,
+                //             utf16parts.as_mut_ptr(),
+                //             utf16parts.capacity() as i32,
+                //             0,
+                //         );
+                //         utf16parts.set_len(unicode_len as usize);
 
-                        get_utf16_without_ctrl(
-                            wparam as u32,
-                            scancode,
-                            &mut key_state,
-                            &mut utf16parts_without_ctrl,
-                        );
-                    }
-                }
-                let label = self.key_text.get(&scancode).map(|s| s.clone());
+                //         get_utf16_without_ctrl(
+                //             wparam as u32,
+                //             scancode,
+                //             &mut kbd_state,
+                //             &mut utf16parts_without_ctrl,
+                //         );
+                //     }
+                // }
+                
+                let layouts = LAYOUT_CACHE.lock().unwrap();
+                let (locale_id, layout) = layouts.get_current_layout();
+                let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
+                let key_without_modifers = layout.get_key(
+                    WindowsModifiers::empty(), scancode, code
+                );
+                let key_with_all_modifiers = layout.get_key(mods, scancode, code);
                 let event_info = PartialKeyEventInfo {
                     key_state: ElementState::Released,
+                    logical_key,
+                    key_without_modifers,
                     vkey,
                     scancode,
                     is_repeat: false,
                     code,
                     location,
-                    is_dead: self.prev_down_was_dead,
-                    label,
-                    utf16parts,
-                    utf16parts_without_ctrl,
+                    utf16parts: Vec::new(),
+                    utf16parts_without_ctrl: Vec::new(),
                 };
-                let ev = event_info.finalize(self.known_locale_id, self.has_alt_graph);
+                let mut ev = event_info.finalize();
+                ev.text = logical_key.to_text();
+                ev.platform_specific.char_with_all_modifers = key_with_all_modifiers.to_text();
                 return vec![MessageAsKeyEvent {
                     event: ev,
                     is_synthetic: false,
@@ -356,14 +368,13 @@ impl KeyEventBuilder {
         key_state: ElementState,
     ) -> Vec<MessageAsKeyEvent> {
         let mut key_events = Vec::new();
-        let locale_id = unsafe { winuser::GetKeyboardLayout(0) };
-        self.prepare_layout(locale_id as usize);
-
-        let kbd_state = unsafe {
-            let mut kbd_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
-            winuser::GetKeyboardState(kbd_state[0].as_mut_ptr());
-            std::mem::transmute::<_, [u8; 256]>(kbd_state)
+        
+        let locale_id = {
+            let mut layout_cache = LAYOUT_CACHE.lock().unwrap();
+            layout_cache.get_current_layout().0
         };
+
+        let kbd_state = unsafe { Self::get_kbd_state() };
         macro_rules! is_key_pressed {
             ($vk:expr) => {
                 kbd_state[$vk as usize] & 0x80 != 0
@@ -504,6 +515,12 @@ impl KeyEventBuilder {
             is_synthetic: true,
         })
     }
+
+    unsafe fn get_kbd_state() -> [u8; 256] {
+        let mut kbd_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
+        winuser::GetKeyboardState(kbd_state[0].as_mut_ptr());
+        std::mem::transmute::<_, [u8; 256]>(kbd_state)
+    }
 }
 
 struct PartialKeyEventInfo {
@@ -516,6 +533,8 @@ struct PartialKeyEventInfo {
     location: KeyLocation,
     logical_key: Key<'static>,
 
+    key_without_modifers: Key<'static>,
+
     /// The utf16 code units of the text that was produced by the keypress event.
     /// This take all modifiers into account. Including CTRL
     utf16parts: Vec<u16>,
@@ -524,43 +543,26 @@ struct PartialKeyEventInfo {
 }
 
 impl PartialKeyEventInfo {
-    fn finalize(self, locale_id: usize, has_alt_gr: bool) -> KeyEvent {
-        let logical_key;
-        if self.is_dead {
-            // TODO: dispatch the dead-key char here
-            logical_key = Key::Dead(None);
-        } else {
-            if !self.utf16parts_without_ctrl.is_empty() {
-                let string = String::from_utf16(&self.utf16parts_without_ctrl).unwrap();
-                // TODO: cache these in a global map
-                let leaked = Box::leak(Box::<str>::from(string));
-                logical_key = Key::Character(leaked);
-            } else {
-                logical_key = vkey_to_non_printable(self.vkey, self.code, locale_id, has_alt_gr);
-            }
-        }
-        let key_without_modifers;
-        if let Some(label) = &self.label {
-            key_without_modifers = Key::Character(label.clone());
-        } else {
-            key_without_modifers = logical_key.clone();
-        }
-
+    fn finalize(self, mut layout_cache: MutexGuard<'_, LayoutCache>) -> KeyEvent {
         let mut char_with_all_modifiers = None;
         if !self.utf16parts.is_empty() {
-            char_with_all_modifiers = Some(String::from_utf16(&self.utf16parts).unwrap());
+            let os_string = OsString::from_wide(&self.utf16parts);
+            if let Ok(string) = os_string.into_string() {
+                let static_str = layout_cache.get_or_insert_str(string);
+                char_with_all_modifiers = Some(static_str);
+            }
         }
 
         KeyEvent {
             physical_key: self.code,
-            logical_key,
+            logical_key: self.logical_key,
             text: None,
             location: self.location,
             state: self.key_state,
             repeat: self.is_repeat,
             platform_specific: KeyEventExtra {
                 char_with_all_modifers: char_with_all_modifiers,
-                key_without_modifers,
+                key_without_modifers: self.key_without_modifers,
             },
         }
     }
@@ -605,7 +607,7 @@ pub fn get_location(vkey: c_int, extended: bool) -> KeyLocation {
 unsafe fn get_utf16_without_ctrl(
     vkey: u32,
     scancode: ExScancode,
-    key_state: &mut [u8; 256],
+    kbd_state: &mut [u8; 256],
     utf16parts_without_ctrl: &mut Vec<u16>,
 ) {
     let target_capacity = 8;
@@ -614,13 +616,13 @@ unsafe fn get_utf16_without_ctrl(
         utf16parts_without_ctrl.reserve(target_capacity - curr_cap);
     }
     // Now remove all CTRL stuff from the keyboard state
-    key_state[winuser::VK_CONTROL as usize] = 0;
-    key_state[winuser::VK_LCONTROL as usize] = 0;
-    key_state[winuser::VK_RCONTROL as usize] = 0;
+    kbd_state[winuser::VK_CONTROL as usize] = 0;
+    kbd_state[winuser::VK_LCONTROL as usize] = 0;
+    kbd_state[winuser::VK_RCONTROL as usize] = 0;
     let unicode_len = winuser::ToUnicode(
         vkey,
         scancode as u32,
-        (&mut key_state[0]) as *mut _,
+        (&mut kbd_state[0]) as *mut _,
         utf16parts_without_ctrl.as_mut_ptr(),
         utf16parts_without_ctrl.capacity() as i32,
         0,

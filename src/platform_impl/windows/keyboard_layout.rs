@@ -27,6 +27,78 @@ lazy_static!{
     pub static ref LAYOUT_CACHE: Mutex<LayoutCache> = Mutex::new(LayoutCache::default());
 }
 
+bitflags! {
+    pub struct WindowsModifiers : u8 {
+        const SHIFT = 1 << 0;
+        const CONTROL = 1 << 1;
+        const ALT = 1 << 2;
+        const CAPS_LOCK = 1 << 3;
+        const FLAGS_END = 1 << 4;
+    }
+}
+
+impl WindowsModifiers {
+    pub fn active_modifiers(key_state: &[u8; 256]) -> WindowsModifiers {
+        let shift = key_state[winuser::VK_SHIFT as usize] & 0x80 != 0;
+        let lshift = key_state[winuser::VK_LSHIFT as usize] & 0x80 != 0;
+        let rshift = key_state[winuser::VK_RSHIFT as usize] & 0x80 != 0;
+    
+        let control = key_state[winuser::VK_CONTROL as usize] & 0x80 != 0;
+        let lcontrol = key_state[winuser::VK_LCONTROL as usize] & 0x80 != 0;
+        let rcontrol = key_state[winuser::VK_RCONTROL as usize] & 0x80 != 0;
+    
+        let alt = key_state[winuser::VK_MENU as usize] & 0x80 != 0;
+        let lalt = key_state[winuser::VK_LMENU as usize] & 0x80 != 0;
+        let ralt = key_state[winuser::VK_RMENU as usize] & 0x80 != 0;
+    
+        let caps = key_state[winuser::VK_CAPITAL as usize] & 0x01 != 0;
+    
+        let mut result = WindowsModifiers::empty();
+        if shift || lshift || rshift {
+            result.insert(WindowsModifiers::SHIFT);
+        }
+        if control || lcontrol || rcontrol {
+            result.insert(WindowsModifiers::CONTROL);
+        }
+        if alt || lalt || ralt {
+            result.insert(WindowsModifiers::ALT);
+        }
+        if caps {
+            result.insert(WindowsModifiers::CAPS_LOCK);
+        }
+        result
+    }
+
+    pub fn apply_to_key_state(self, key_state: &mut [u8; 256]) {
+        if self.intersects(Self::SHIFT) {
+            key_state[winuser::VK_SHIFT as usize] |= 0x80;
+        } else {
+            key_state[winuser::VK_SHIFT as usize] &= !0x80;
+            key_state[winuser::VK_LSHIFT as usize] &= !0x80;
+            key_state[winuser::VK_RSHIFT as usize] &= !0x80;
+        }
+        if self.intersects(Self::CONTROL) {
+            key_state[winuser::VK_CONTROL as usize] |= 0x80;
+        } else {
+            key_state[winuser::VK_CONTROL as usize] &= !0x80;
+            key_state[winuser::VK_LCONTROL as usize] &= !0x80;
+            key_state[winuser::VK_RCONTROL as usize] &= !0x80;
+        }
+        if self.intersects(Self::ALT) {
+            key_state[winuser::VK_MENU as usize] |= 0x80;
+        } else {
+            key_state[winuser::VK_MENU as usize] &= !0x80;
+            key_state[winuser::VK_LMENU as usize] &= !0x80;
+            key_state[winuser::VK_RMENU as usize] &= !0x80;
+        }
+        if self.intersects(Self::CAPS_LOCK) {
+            key_state[winuser::VK_CAPITAL as usize] |= 0x80;
+        } else {
+            key_state[winuser::VK_CAPITAL as usize] &= !0x80;
+        }
+    }
+}
+
 pub struct Layout {
     /// Maps a modifier state to group of key strings
     /// Not using `ModifiersState` here because that object cannot express caps lock
@@ -38,8 +110,19 @@ pub struct Layout {
     /// just when the key is pressed/released would be enough if `ToUnicode` wouldn't
     /// change the keyboard state (it clears the dead key). There is a flag to prevent
     /// changing the state but that flag requires Windows 10, version 1607 or newer)
-    pub keys: HashMap<u8, HashMap<KeyCode, Key<'static>>>,
+    pub keys: HashMap<WindowsModifiers, HashMap<KeyCode, Key<'static>>>,
     pub has_alt_graph: bool,
+}
+
+impl Layout {
+    pub fn get_key(&self, mods: WindowsModifiers, scancode: ExScancode, keycode: KeyCode) -> Key<'static> {
+        if let Some(keys) = self.keys.get(&mods) {
+            if let Some(key) = keys.get(&keycode) {
+                return *key;
+            }
+        }
+        Key::Unidentified(NativeKeyCode::Windows(scancode))
+    }
 }
 
 #[derive(Default)]
@@ -84,10 +167,13 @@ impl LayoutCache {
         let mut key_state = [0u8; 256];
 
         // Iterate through every combination of modifiers
-        for mod_state in 0..Self::MOD_FLAGS_END {
+        let mods_end = WindowsModifiers::FLAGS_END.bits;
+        for mod_state in 0..mods_end {
             let mut keys_for_this_mod = HashMap::with_capacity(256);
 
-            Self::apply_mod_state(&mut key_state, mod_state);
+            let mod_state = unsafe { WindowsModifiers::from_bits_unchecked(mod_state) };
+
+            //Self::apply_mod_state(&mut key_state, mod_state);
 
             // Virtual key values are in the domain [0, 255].
             // This is reinforced by the fact that the keyboard state array has 256
@@ -137,12 +223,13 @@ impl LayoutCache {
                 // The logic is that if a key pressed with the CTRL modifier produces
                 // a different result from when it's pressed with CTRL+ALT then the layout
                 // has AltGr.
-                const CTRL_ALT_FLAG: u8 = Self::ALT_FLAG | Self::CONTROL_FLAG;
-                let is_in_ctrl_alt = (mod_state & CTRL_ALT_FLAG) == CTRL_ALT_FLAG;
+                const CTRL_ALT: WindowsModifiers =
+                    WindowsModifiers::CONTROL | WindowsModifiers::ALT;
+                let is_in_ctrl_alt = (mod_state & CTRL_ALT) == CTRL_ALT;
                 if !layout.has_alt_graph && is_in_ctrl_alt {
                     // Unwrapping here because if we are in the ctrl+alt modifier state
                     // then the alt modifier state must have come before.
-                    let alt_keys = layout.keys.get(&Self::ALT_FLAG).unwrap();
+                    let alt_keys = layout.keys.get(&WindowsModifiers::ALT).unwrap();
                     if let Some(key_without_ctrl_alt) = alt_keys.get(&key_code) {
                         layout.has_alt_graph = key != *key_without_ctrl_alt;
                     }
@@ -156,7 +243,8 @@ impl LayoutCache {
 
         // Second pass: replace right alt keys with AltGr if the layout has alt graph
         if layout.has_alt_graph {
-            for mod_state in 0..Self::MOD_FLAGS_END {
+            for mod_state in 0..mods_end {
+                let mod_state = unsafe { WindowsModifiers::from_bits_unchecked(mod_state) };
                 if let Some(keys) = layout.keys.get_mut(&mod_state) {
                     if let Some(key) = keys.get_mut(&KeyCode::AltRight) {
                         *key = Key::AltGraph;
@@ -168,7 +256,7 @@ impl LayoutCache {
         layout
     }
 
-    fn get_or_insert_str(&mut self, string: String) -> &'static str {
+    pub fn get_or_insert_str(&mut self, string: String) -> &'static str {
         {
             let str_ref = string.as_str();
             if let Some(&existing) = self.strings.get(&str_ref) {
@@ -226,35 +314,6 @@ impl LayoutCache {
             }
         }
         ToUnicodeResult::None
-    }
-
-    fn apply_mod_state(key_state: &mut [u8; 256], mod_state: u8) {
-        if mod_state & Self::SHIFT_FLAG != 0 {
-            key_state[winuser::VK_SHIFT as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_SHIFT as usize] &= !0x80;
-            key_state[winuser::VK_LSHIFT as usize] &= !0x80;
-            key_state[winuser::VK_RSHIFT as usize] &= !0x80;
-        }
-        if mod_state & Self::CONTROL_FLAG != 0 {
-            key_state[winuser::VK_CONTROL as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_CONTROL as usize] &= !0x80;
-            key_state[winuser::VK_LCONTROL as usize] &= !0x80;
-            key_state[winuser::VK_RCONTROL as usize] &= !0x80;
-        }
-        if mod_state & Self::ALT_FLAG != 0 {
-            key_state[winuser::VK_MENU as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_MENU as usize] &= !0x80;
-            key_state[winuser::VK_LMENU as usize] &= !0x80;
-            key_state[winuser::VK_RMENU as usize] &= !0x80;
-        }
-        if mod_state & Self::CAPS_LOCK_FLAG != 0 {
-            key_state[winuser::VK_CAPITAL as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_CAPITAL as usize] &= !0x80;
-        }
     }
 }
 
