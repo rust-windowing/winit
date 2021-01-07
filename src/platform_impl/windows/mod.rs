@@ -3,7 +3,7 @@
 use winapi::{self, shared::windef::HWND};
 
 pub use self::{
-    event::{KeyEventExtra},
+    event::KeyEventExtra,
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
     icon::WinIcon,
     monitor::{MonitorHandle, VideoMode},

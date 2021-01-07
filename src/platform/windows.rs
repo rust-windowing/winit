@@ -11,6 +11,7 @@ use crate::{
     dpi::PhysicalSize,
     event::{DeviceId, KeyEvent},
     event_loop::EventLoop,
+    keyboard::Key,
     monitor::MonitorHandle,
     platform::modifier_supplement::KeyEventExtModifierSupplement,
     platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
@@ -237,11 +238,13 @@ impl IconExtWindows for Icon {
 }
 
 impl KeyEventExtModifierSupplement for KeyEvent {
-    fn char_with_all_modifers(&self) -> &Option<String> {
-        &self.platform_specific.char_with_all_modifers
+    #[inline]
+    fn char_with_all_modifers(&self) -> Option<&str> {
+        self.platform_specific.char_with_all_modifers
     }
 
-    fn key_without_modifers(&self) -> &keyboard_types::Key {
-        &self.platform_specific.key_without_modifers
+    #[inline]
+    fn key_without_modifers(&self) -> Key<'static> {
+        self.platform_specific.key_without_modifers
     }
 }

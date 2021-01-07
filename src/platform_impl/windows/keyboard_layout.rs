@@ -1,29 +1,20 @@
-
 use std::{
-    collections::{HashMap, HashSet, hash_map::Entry},
-    sync::Mutex,
+    collections::{hash_map::Entry, HashMap, HashSet},
+    ffi::OsString,
     os::windows::ffi::OsStringExt,
+    sync::Mutex,
 };
 
 use lazy_static::lazy_static;
 
-
-use winapi::{
-    shared::{
-        minwindef::{HKL, LOWORD, LPARAM, LRESULT, UINT, WPARAM},
-    },
-    um::{
-        winnt::{LANG_JAPANESE, LANG_KOREAN, PRIMARYLANGID},
-        winuser,
-    },
-};
+use winapi::{shared::minwindef::HKL, um::winuser};
 
 use crate::{
-    keyboard::{ModifiersState, Key, KeyCode, NativeKeyCode},
-    platform_impl::platform::keyboard::{ExScancode, vkey_to_non_printable, native_key_to_code},
+    keyboard::{Key, KeyCode, NativeKeyCode},
+    platform_impl::platform::keyboard::{native_key_to_code, vkey_to_non_printable, ExScancode},
 };
 
-lazy_static!{
+lazy_static! {
     pub static ref LAYOUT_CACHE: Mutex<LayoutCache> = Mutex::new(LayoutCache::default());
 }
 
@@ -42,17 +33,17 @@ impl WindowsModifiers {
         let shift = key_state[winuser::VK_SHIFT as usize] & 0x80 != 0;
         let lshift = key_state[winuser::VK_LSHIFT as usize] & 0x80 != 0;
         let rshift = key_state[winuser::VK_RSHIFT as usize] & 0x80 != 0;
-    
+
         let control = key_state[winuser::VK_CONTROL as usize] & 0x80 != 0;
         let lcontrol = key_state[winuser::VK_LCONTROL as usize] & 0x80 != 0;
         let rcontrol = key_state[winuser::VK_RCONTROL as usize] & 0x80 != 0;
-    
+
         let alt = key_state[winuser::VK_MENU as usize] & 0x80 != 0;
         let lalt = key_state[winuser::VK_LMENU as usize] & 0x80 != 0;
         let ralt = key_state[winuser::VK_RMENU as usize] & 0x80 != 0;
-    
+
         let caps = key_state[winuser::VK_CAPITAL as usize] & 0x01 != 0;
-    
+
         let mut result = WindowsModifiers::empty();
         if shift || lshift || rshift {
             result.insert(WindowsModifiers::SHIFT);
@@ -67,35 +58,6 @@ impl WindowsModifiers {
             result.insert(WindowsModifiers::CAPS_LOCK);
         }
         result
-    }
-
-    pub fn apply_to_key_state(self, key_state: &mut [u8; 256]) {
-        if self.intersects(Self::SHIFT) {
-            key_state[winuser::VK_SHIFT as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_SHIFT as usize] &= !0x80;
-            key_state[winuser::VK_LSHIFT as usize] &= !0x80;
-            key_state[winuser::VK_RSHIFT as usize] &= !0x80;
-        }
-        if self.intersects(Self::CONTROL) {
-            key_state[winuser::VK_CONTROL as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_CONTROL as usize] &= !0x80;
-            key_state[winuser::VK_LCONTROL as usize] &= !0x80;
-            key_state[winuser::VK_RCONTROL as usize] &= !0x80;
-        }
-        if self.intersects(Self::ALT) {
-            key_state[winuser::VK_MENU as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_MENU as usize] &= !0x80;
-            key_state[winuser::VK_LMENU as usize] &= !0x80;
-            key_state[winuser::VK_RMENU as usize] &= !0x80;
-        }
-        if self.intersects(Self::CAPS_LOCK) {
-            key_state[winuser::VK_CAPITAL as usize] |= 0x80;
-        } else {
-            key_state[winuser::VK_CAPITAL as usize] &= !0x80;
-        }
     }
 }
 
@@ -115,7 +77,12 @@ pub struct Layout {
 }
 
 impl Layout {
-    pub fn get_key(&self, mods: WindowsModifiers, scancode: ExScancode, keycode: KeyCode) -> Key<'static> {
+    pub fn get_key(
+        &self,
+        mods: WindowsModifiers,
+        scancode: ExScancode,
+        keycode: KeyCode,
+    ) -> Key<'static> {
         if let Some(keys) = self.keys.get(&mods) {
             if let Some(key) = keys.get(&keycode) {
                 return *key;
@@ -133,30 +100,21 @@ pub struct LayoutCache {
 }
 
 impl LayoutCache {
-    const SHIFT_FLAG: u8 = 1 << 0;
-    const CONTROL_FLAG: u8 = 1 << 1;
-    const ALT_FLAG: u8 = 1 << 2;
-    const CAPS_LOCK_FLAG: u8 = 1 << 3;
-    const MOD_FLAGS_END: u8 = 1 << 4;
-
     /// Checks whether the current layout is already known and
     /// prepares the layout if it isn't known.
     /// The current layout is then returned.
-    pub fn get_current_layout(&mut self) -> (u64, &Layout) {
+    pub fn get_current_layout<'a>(&'a mut self) -> (u64, &'a Layout) {
         let locale_id = unsafe { winuser::GetKeyboardLayout(0) } as u64;
         match self.layouts.entry(locale_id) {
-            Entry::Occupied(entry) => {
-                (locale_id, entry.get())
-            }
+            Entry::Occupied(entry) => (locale_id, entry.into_mut()),
             Entry::Vacant(entry) => {
-                let layout = self.prepare_layout(locale_id);
+                let layout = Self::prepare_layout(&mut self.strings, locale_id);
                 (locale_id, entry.insert(layout))
             }
         }
     }
 
-    /// Returns Some if succeeded
-    fn prepare_layout(&mut self, locale_identifier: u64) -> Layout {
+    fn prepare_layout(strings: &mut HashSet<&'static str>, locale_identifier: u64) -> Layout {
         let mut layout = Layout {
             keys: Default::default(),
             has_alt_graph: false,
@@ -164,7 +122,7 @@ impl LayoutCache {
 
         // We initialize the keyboard state with all zeros to
         // simulate a scenario when no modifier is active.
-        let mut key_state = [0u8; 256];
+        let key_state = [0u8; 256];
 
         // Iterate through every combination of modifiers
         let mods_end = WindowsModifiers::FLAGS_END.bits;
@@ -181,7 +139,11 @@ impl LayoutCache {
             // giving the key state for the virtual key used for indexing.
             for vk in 0..256 {
                 let scancode = unsafe {
-                    winuser::MapVirtualKeyExW(vk, winuser::MAPVK_VK_TO_VSC_EX, locale_identifier as HKL)
+                    winuser::MapVirtualKeyExW(
+                        vk,
+                        winuser::MAPVK_VK_TO_VSC_EX,
+                        locale_identifier as HKL,
+                    )
                 };
                 if scancode == 0 {
                     continue;
@@ -194,7 +156,11 @@ impl LayoutCache {
                 // assume it isn't. Then we'll do a second pass where we set the "AltRight" keys to
                 // "AltGr" in case we find out that there's an AltGraph.
                 let preliminary_key = vkey_to_non_printable(
-                    vk as i32, native_code, key_code, locale_identifier, false
+                    vk as i32,
+                    native_code,
+                    key_code,
+                    locale_identifier,
+                    false,
                 );
                 match preliminary_key {
                     Key::Unidentified(_) => (),
@@ -207,12 +173,10 @@ impl LayoutCache {
                 let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
                 let key = match unicode {
                     ToUnicodeResult::Str(str) => {
-                        let static_str = self.get_or_insert_str(str);
+                        let static_str = get_or_insert_str(strings, str);
                         Key::Character(static_str)
                     }
-                    ToUnicodeResult::Dead(dead_char) => {
-                        Key::Dead(dead_char)
-                    }
+                    ToUnicodeResult::Dead(dead_char) => Key::Dead(dead_char),
                     ToUnicodeResult::None => {
                         // Just use the unidentified key, we got earlier
                         preliminary_key
@@ -223,9 +187,8 @@ impl LayoutCache {
                 // The logic is that if a key pressed with the CTRL modifier produces
                 // a different result from when it's pressed with CTRL+ALT then the layout
                 // has AltGr.
-                const CTRL_ALT: WindowsModifiers =
-                    WindowsModifiers::CONTROL | WindowsModifiers::ALT;
-                let is_in_ctrl_alt = (mod_state & CTRL_ALT) == CTRL_ALT;
+                let ctrl_alt: WindowsModifiers = WindowsModifiers::CONTROL | WindowsModifiers::ALT;
+                let is_in_ctrl_alt = (mod_state & ctrl_alt) == ctrl_alt;
                 if !layout.has_alt_graph && is_in_ctrl_alt {
                     // Unwrapping here because if we are in the ctrl+alt modifier state
                     // then the alt modifier state must have come before.
@@ -254,18 +217,6 @@ impl LayoutCache {
         }
 
         layout
-    }
-
-    pub fn get_or_insert_str(&mut self, string: String) -> &'static str {
-        {
-            let str_ref = string.as_str();
-            if let Some(&existing) = self.strings.get(&str_ref) {
-                return existing;
-            }
-        }
-        let leaked = Box::leak(Box::from(string));
-        self.strings.insert(leaked);
-        leaked
     }
 
     fn to_unicode_string(
@@ -317,18 +268,21 @@ impl LayoutCache {
     }
 }
 
+pub fn get_or_insert_str(strings: &mut HashSet<&'static str>, string: String) -> &'static str {
+    {
+        let str_ref = string.as_str();
+        if let Some(&existing) = strings.get(str_ref) {
+            return existing;
+        }
+    }
+    let leaked = Box::leak(Box::from(string));
+    strings.insert(leaked);
+    leaked
+}
+
 #[derive(Clone, Eq, PartialEq)]
 enum ToUnicodeResult {
     Str(String),
     Dead(Option<char>),
     None,
-}
-
-impl ToUnicodeResult {
-    fn is_none(&self) -> bool {
-        match self {
-            ToUnicodeResult::None => true,
-            _ => false,
-        }
-    }
 }

@@ -8,7 +8,7 @@
     target_os = "openbsd"
 ))]
 
-use keyboard_types;
+use crate::keyboard::Key;
 
 /// Additional methods for the `KeyEvent` which cannot be implemented on all
 /// platforms.
@@ -29,7 +29,7 @@ pub trait KeyEventExtModifierSupplement {
     /// It's important that this behaviour might be different on
     /// other platforms. For example Linux systems may emit a  
     /// `Some("'")` on the second keypress.
-    fn char_with_all_modifers(&self) -> &Option<String>;
+    fn char_with_all_modifers(&self) -> Option<&str>;
 
     /// This value ignores all modifiers including
     /// but not limited to <kbd>Shift</kbd>, <kbd>Caps Lock</kbd>,
@@ -42,5 +42,5 @@ pub trait KeyEventExtModifierSupplement {
     /// real key according to the current keyboard layout. This value
     /// cannot be `Dead`. Furthermore the `Character` variant will always
     /// contain a single-character String.
-    fn key_without_modifers(&self) -> &keyboard_types::Key;
+    fn key_without_modifers(&self) -> Key<'static>;
 }

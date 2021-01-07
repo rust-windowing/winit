@@ -1,4 +1,7 @@
-use std::{char, collections::HashMap, ffi::OsString, fmt, mem::MaybeUninit, os::raw::c_int, os::windows::ffi::OsStringExt, sync::MutexGuard};
+use std::{
+    char, collections::HashSet, ffi::OsString, mem::MaybeUninit, os::raw::c_int,
+    os::windows::ffi::OsStringExt, sync::MutexGuard,
+};
 
 use winapi::{
     shared::{
@@ -12,11 +15,11 @@ use winapi::{
 };
 
 use crate::{
-    event::{KeyEvent, ElementState},
-    keyboard::{Key, KeyCode, NativeKeyCode, KeyLocation},
+    event::{ElementState, KeyEvent},
+    keyboard::{Key, KeyCode, KeyLocation, NativeKeyCode},
     platform_impl::platform::{
-        keyboard_layout::{LAYOUT_CACHE, WindowsModifiers, Layout, LayoutCache},
-        event::KeyEventExtra
+        event::KeyEventExtra,
+        keyboard_layout::{get_or_insert_str, LayoutCache, WindowsModifiers, LAYOUT_CACHE},
     },
 };
 
@@ -129,8 +132,7 @@ impl KeyEventBuilder {
                 self.prev_down_was_dead = false;
 
                 let lparam_struct = destructure_key_lparam(lparam);
-                let scancode =
-                    new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
+                let scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
                 let code = native_key_to_code(scancode);
                 let vkey = unsafe {
                     winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
@@ -139,12 +141,16 @@ impl KeyEventBuilder {
 
                 let kbd_state = unsafe { Self::get_kbd_state() };
                 let mods = WindowsModifiers::active_modifiers(&kbd_state);
-                let layouts = LAYOUT_CACHE.lock().unwrap();
-                let (locale_id, layout) = layouts.get_current_layout();
-                let logical_key = layout.get_key(mods, scancode, code);
-                let key_without_modifers = layout.get_key(
-                    WindowsModifiers::empty(), scancode, code
-                );
+                let mods_without_ctrl = {
+                    let mut mods_copy = mods;
+                    mods_copy.remove(WindowsModifiers::CONTROL);
+                    mods_copy
+                };
+                let mut layouts = LAYOUT_CACHE.lock().unwrap();
+                let (_, layout) = layouts.get_current_layout();
+                let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
+                let key_without_modifers =
+                    layout.get_key(WindowsModifiers::empty(), scancode, code);
                 let mut event_info = Some(PartialKeyEventInfo {
                     key_state: ElementState::Pressed,
                     logical_key,
@@ -180,7 +186,7 @@ impl KeyEventBuilder {
                     }
                 }
                 if let Some(event_info) = event_info {
-                    let ev = event_info.finalize();
+                    let ev = event_info.finalize(&mut layouts.strings);
                     return vec![MessageAsKeyEvent {
                         event: ev,
                         is_synthetic: false,
@@ -191,9 +197,10 @@ impl KeyEventBuilder {
                 self.prev_down_was_dead = true;
                 // At this point we know that there isn't going to be any more events related to
                 // this key press
-                let mut event_info = self.event_info.take().unwrap();
+                let event_info = self.event_info.take().unwrap();
                 *retval = Some(0);
-                let ev = event_info.finalize();
+                let mut layouts = LAYOUT_CACHE.lock().unwrap();
+                let ev = event_info.finalize(&mut layouts.strings);
                 return vec![MessageAsKeyEvent {
                     event: ev,
                     is_synthetic: false,
@@ -254,7 +261,7 @@ impl KeyEventBuilder {
                     // Here it's okay to call `ToUnicode` because at this point the dead key
                     // is already consumed by the character.
                     unsafe {
-                        let kbd_state = Self::get_kbd_state();
+                        let mut kbd_state = Self::get_kbd_state();
 
                         let has_ctrl = kbd_state[winuser::VK_CONTROL as usize] & 0x80 != 0
                             || kbd_state[winuser::VK_LCONTROL as usize] & 0x80 != 0
@@ -275,7 +282,8 @@ impl KeyEventBuilder {
                             );
                         }
                     }
-                    let ev = event_info.finalize();
+                    let mut layouts = LAYOUT_CACHE.lock().unwrap();
+                    let ev = event_info.finalize(&mut layouts.strings);
                     return vec![MessageAsKeyEvent {
                         event: ev,
                         is_synthetic: false,
@@ -285,15 +293,14 @@ impl KeyEventBuilder {
             winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
                 *retval = Some(0);
                 let lparam_struct = destructure_key_lparam(lparam);
-                let scancode =
-                    new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
+                let scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
                 let code = native_key_to_code(scancode);
                 let vkey = unsafe {
                     winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
                 };
                 let location = get_location(vkey, lparam_struct.extended);
-                let mut utf16parts = Vec::with_capacity(8);
-                let mut utf16parts_without_ctrl = Vec::with_capacity(8);
+                //let mut utf16parts = Vec::with_capacity(8);
+                //let mut utf16parts_without_ctrl = Vec::with_capacity(8);
 
                 let kbd_state = unsafe { Self::get_kbd_state() };
                 let mods = WindowsModifiers::active_modifiers(&kbd_state);
@@ -303,39 +310,11 @@ impl KeyEventBuilder {
                     mods_copy
                 };
 
-                // Avoid calling `ToUnicode` (which resets dead keys) if either the event
-                // belongs to the key-down which just produced the dead key or if
-                // the current key would not otherwise reset the dead key state.
-                //
-                // This logic relies on the assuption that keys which don't consume
-                // dead keys, also do not produce text input.
-                // if !self.prev_down_was_dead && vkey_consumes_dead_key(wparam as u32) {
-                //     unsafe {
-                //         let unicode_len = winuser::ToUnicode(
-                //             wparam as u32,
-                //             scancode as u32,
-                //             (&mut kbd_state[0]) as *mut _,
-                //             utf16parts.as_mut_ptr(),
-                //             utf16parts.capacity() as i32,
-                //             0,
-                //         );
-                //         utf16parts.set_len(unicode_len as usize);
-
-                //         get_utf16_without_ctrl(
-                //             wparam as u32,
-                //             scancode,
-                //             &mut kbd_state,
-                //             &mut utf16parts_without_ctrl,
-                //         );
-                //     }
-                // }
-                
-                let layouts = LAYOUT_CACHE.lock().unwrap();
-                let (locale_id, layout) = layouts.get_current_layout();
+                let mut layouts = LAYOUT_CACHE.lock().unwrap();
+                let (_, layout) = layouts.get_current_layout();
                 let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
-                let key_without_modifers = layout.get_key(
-                    WindowsModifiers::empty(), scancode, code
-                );
+                let key_without_modifers =
+                    layout.get_key(WindowsModifiers::empty(), scancode, code);
                 let key_with_all_modifiers = layout.get_key(mods, scancode, code);
                 let event_info = PartialKeyEventInfo {
                     key_state: ElementState::Released,
@@ -349,7 +328,7 @@ impl KeyEventBuilder {
                     utf16parts: Vec::new(),
                     utf16parts_without_ctrl: Vec::new(),
                 };
-                let mut ev = event_info.finalize();
+                let mut ev = event_info.finalize(&mut layouts.strings);
                 ev.text = logical_key.to_text();
                 ev.platform_specific.char_with_all_modifers = key_with_all_modifiers.to_text();
                 return vec![MessageAsKeyEvent {
@@ -363,16 +342,11 @@ impl KeyEventBuilder {
         Vec::new()
     }
 
-    fn synthesize_kbd_state(
-        &mut self,
-        key_state: ElementState,
-    ) -> Vec<MessageAsKeyEvent> {
+    fn synthesize_kbd_state(&mut self, key_state: ElementState) -> Vec<MessageAsKeyEvent> {
         let mut key_events = Vec::new();
-        
-        let locale_id = {
-            let mut layout_cache = LAYOUT_CACHE.lock().unwrap();
-            layout_cache.get_current_layout().0
-        };
+
+        let mut layouts = LAYOUT_CACHE.lock().unwrap();
+        let (locale_id, _) = layouts.get_current_layout();
 
         let kbd_state = unsafe { Self::get_kbd_state() };
         macro_rules! is_key_pressed {
@@ -397,13 +371,18 @@ impl KeyEventBuilder {
         // caps-lock first, and always use the current caps-lock state
         // to determine the produced text
         if is_key_pressed!(winuser::VK_CAPITAL) {
-            let event =
-                self.create_synthetic(winuser::VK_CAPITAL, key_state, locale_id, caps_lock_on);
+            let event = self.create_synthetic(
+                winuser::VK_CAPITAL,
+                key_state,
+                caps_lock_on,
+                locale_id as HKL,
+                &mut layouts,
+            );
             if let Some(event) = event {
                 key_events.push(event);
             }
         }
-        let do_non_modifier = |key_events: &mut Vec<_>| {
+        let do_non_modifier = |key_events: &mut Vec<_>, layouts: &mut _| {
             for vk in 0..256 {
                 match vk {
                     winuser::VK_CONTROL
@@ -421,12 +400,14 @@ impl KeyEventBuilder {
                 if !is_key_pressed!(vk) {
                     continue;
                 }
-                if let Some(event) = self.create_synthetic(vk, key_state, locale_id, caps_lock_on) {
+                let event =
+                    self.create_synthetic(vk, key_state, caps_lock_on, locale_id as HKL, layouts);
+                if let Some(event) = event {
                     key_events.push(event);
                 }
             }
         };
-        let do_modifier = |key_events: &mut Vec<_>| {
+        let do_modifier = |key_events: &mut Vec<_>, layouts: &mut _| {
             const CLEAR_MODIFIER_VKS: [i32; 6] = [
                 winuser::VK_LCONTROL,
                 winuser::VK_LSHIFT,
@@ -437,7 +418,13 @@ impl KeyEventBuilder {
             ];
             for vk in CLEAR_MODIFIER_VKS.iter() {
                 if is_key_pressed!(*vk) {
-                    let event = self.create_synthetic(*vk, key_state, locale_id, caps_lock_on);
+                    let event = self.create_synthetic(
+                        *vk,
+                        key_state,
+                        caps_lock_on,
+                        locale_id as HKL,
+                        layouts,
+                    );
                     if let Some(event) = event {
                         key_events.push(event);
                     }
@@ -450,12 +437,12 @@ impl KeyEventBuilder {
         // by modifiers (except for caps-lock)
         match key_state {
             ElementState::Pressed => {
-                do_non_modifier(&mut key_events);
-                do_modifier(&mut key_events);
+                do_non_modifier(&mut key_events, &mut layouts);
+                do_modifier(&mut key_events, &mut layouts);
             }
             ElementState::Released => {
-                do_modifier(&mut key_events);
-                do_non_modifier(&mut key_events);
+                do_modifier(&mut key_events, &mut layouts);
+                do_non_modifier(&mut key_events, &mut layouts);
             }
         }
 
@@ -466,8 +453,9 @@ impl KeyEventBuilder {
         &self,
         vk: i32,
         key_state: ElementState,
-        locale_id: HKL,
         caps_lock_on: bool,
+        locale_id: HKL,
+        layouts: &mut MutexGuard<'_, LayoutCache>,
     ) -> Option<MessageAsKeyEvent> {
         let scancode = unsafe {
             winuser::MapVirtualKeyExW(vk as UINT, winuser::MAPVK_VK_TO_VSC_EX, locale_id)
@@ -478,38 +466,34 @@ impl KeyEventBuilder {
         let scancode = scancode as ExScancode;
         let is_extended = (scancode & 0xE000) == 0xE000;
         let code = native_key_to_code(scancode);
-        let key_text = self.key_text.get(&scancode).cloned();
-        let key_text_with_caps = self.key_text_with_caps.get(&scancode).cloned();
-        let logical_key = match &key_text {
-            Some(str) => {
-                if caps_lock_on {
-                    match key_text_with_caps.clone() {
-                        Some(str) => keyboard_types::Key::Character(str),
-                        None => keyboard_types::Key::Unidentified(native_code),
-                    }
-                } else {
-                    keyboard_types::Key::Character(str.clone())
-                }
-            }
-            None => vkey_to_non_printable(vk, code, locale_id as usize, self.has_alt_graph),
+        let mods = if caps_lock_on {
+            WindowsModifiers::CAPS_LOCK
+        } else {
+            WindowsModifiers::empty()
         };
-
+        let logical_key;
+        let key_without_modifers;
+        {
+            let layout = layouts.layouts.get(&(locale_id as u64)).unwrap();
+            logical_key = layout.get_key(mods, scancode, code);
+            key_without_modifers = layout.get_key(WindowsModifiers::empty(), scancode, code);
+        }
         let event_info = PartialKeyEventInfo {
+            logical_key,
+            key_without_modifers,
             key_state,
             vkey: vk,
-            scancode: platform_scancode,
+            scancode,
             is_repeat: false,
             code,
             location: get_location(vk, is_extended),
-            is_dead: false,
-            label: key_text,
             utf16parts: Vec::with_capacity(8),
             utf16parts_without_ctrl: Vec::with_capacity(8),
         };
 
-        let mut event = event_info.finalize(locale_id as usize, self.has_alt_graph);
+        let mut event = event_info.finalize(&mut layouts.strings);
         event.logical_key = logical_key;
-        event.platform_specific.char_with_all_modifers = key_text_with_caps;
+        event.platform_specific.char_with_all_modifers = logical_key.to_text();
         Some(MessageAsKeyEvent {
             event,
             is_synthetic: true,
@@ -543,12 +527,12 @@ struct PartialKeyEventInfo {
 }
 
 impl PartialKeyEventInfo {
-    fn finalize(self, mut layout_cache: MutexGuard<'_, LayoutCache>) -> KeyEvent {
+    fn finalize(self, strings: &mut HashSet<&'static str>) -> KeyEvent {
         let mut char_with_all_modifiers = None;
         if !self.utf16parts.is_empty() {
             let os_string = OsString::from_wide(&self.utf16parts);
             if let Ok(string) = os_string.into_string() {
-                let static_str = layout_cache.get_or_insert_str(string);
+                let static_str = get_or_insert_str(strings, string);
                 char_with_all_modifiers = Some(static_str);
             }
         }
@@ -634,45 +618,6 @@ unsafe fn get_utf16_without_ctrl(
     }
 }
 
-// TODO: This list might not be complete
-fn vkey_consumes_dead_key(vkey: u32) -> bool {
-    const A: u32 = 'A' as u32;
-    const Z: u32 = 'Z' as u32;
-    const ZERO: u32 = '0' as u32;
-    const NINE: u32 = '9' as u32;
-    match vkey {
-        A..=Z | ZERO..=NINE => return true,
-        _ => (),
-    }
-    match vkey as i32 {
-        // OEM keys
-        winuser::VK_OEM_1
-        | winuser::VK_OEM_2
-        | winuser::VK_OEM_3
-        | winuser::VK_OEM_4
-        | winuser::VK_OEM_5
-        | winuser::VK_OEM_6
-        | winuser::VK_OEM_7
-        | winuser::VK_OEM_8
-        | winuser::VK_OEM_PLUS
-        | winuser::VK_OEM_COMMA
-        | winuser::VK_OEM_MINUS
-        | winuser::VK_OEM_PERIOD => true,
-        // Other keys
-        winuser::VK_TAB
-        | winuser::VK_BACK
-        | winuser::VK_RETURN
-        | winuser::VK_SPACE
-        | winuser::VK_NUMPAD0..=winuser::VK_NUMPAD9
-        | winuser::VK_MULTIPLY
-        | winuser::VK_ADD
-        | winuser::VK_SUBTRACT
-        | winuser::VK_DECIMAL
-        | winuser::VK_DIVIDE => true,
-        _ => false,
-    }
-}
-
 /// This includes all non-character keys defined within `Key` so for example
 /// backspace and tab are included.
 pub fn vkey_to_non_printable(
@@ -698,8 +643,8 @@ pub fn vkey_to_non_printable(
     let is_japanese = primary_lang_id == LANG_JAPANESE;
 
     match vkey {
-        winuser::VK_LBUTTON => Key::Unidentified(NativeKeyCode::Unidentified),  // Mouse
-        winuser::VK_RBUTTON => Key::Unidentified(NativeKeyCode::Unidentified),  // Mouse
+        winuser::VK_LBUTTON => Key::Unidentified(NativeKeyCode::Unidentified), // Mouse
+        winuser::VK_RBUTTON => Key::Unidentified(NativeKeyCode::Unidentified), // Mouse
 
         // I don't think this can be represented with a Key
         winuser::VK_CANCEL => Key::Unidentified(native_code),

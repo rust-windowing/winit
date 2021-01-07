@@ -1,7 +1,7 @@
 use crate::{
     dpi::{PhysicalPosition, Size},
-    event::ModifiersState,
     icon::Icon,
+    keyboard::ModifiersState,
     platform_impl::platform::{
         event_loop, keyboard::KeyEventBuilder, minimal_ime::MinimalIme, util,
     },

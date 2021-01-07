@@ -5,7 +5,7 @@ use std::{
     sync::atomic::{AtomicBool, AtomicPtr, Ordering},
 };
 
-use crate::keyboard::{ModifiersState, Key};
+use crate::keyboard::{Key, ModifiersState};
 
 use winapi::{
     shared::minwindef::{HKL, HKL__},

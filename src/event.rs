@@ -38,7 +38,7 @@ use std::path::PathBuf;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    keyboard,
+    keyboard::{self, ModifiersState},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -601,14 +601,14 @@ pub enum DeviceEvent {
 
 /// Describes a keyboard input as a raw device event.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
-    pub physical_key: keyboard_types::Code,
-    pub state: keyboard_types::KeyState,
+    pub physical_key: keyboard::KeyCode,
+    pub state: ElementState,
 }
 
 /// Describes a keyboard input targeting a window.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct KeyEvent {
     /// Represents the position of a key independent of the
     /// currently active layout.
@@ -617,19 +617,19 @@ pub struct KeyEvent {
     /// Note that `Fn` and `FnLock` key events are not emmited by `winit`.
     /// These keys are usually handled at the hardware or at the OS level.
     pub physical_key: keyboard::KeyCode,
-    
+
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
-    /// 
+    ///
     /// This has two use cases:
     /// - Allows querying whether the current input is a Dead key
     /// - Allows handling key-bindings on platforms which don't
     /// support `KeyEventExtModifierSupplement::key_without_modifiers`.
-    /// 
+    ///
     /// ## Platform-specific
     /// - **Web:** Dead keys might be reported as the real key instead
     /// of `Dead` depending on the browser/OS.
     pub logical_key: keyboard::Key<'static>,
-    
+
     /// Contains the text produced by this keypress.
     ///
     /// In most cases this is identical to the content
@@ -642,15 +642,15 @@ pub struct KeyEvent {
     ///
     /// An additional difference from `logical_key` is that
     /// this field stores the text representation of any key
-    /// that has such a representation. For example when 
+    /// that has such a representation. For example when
     /// `logical_key` is `Key::Enter`, this field is `Some("\r")`.
-    /// 
+    ///
     /// This is `None` if the current keypress cannot
     /// be interpreted as text.
-    /// 
+    ///
     /// See also: `text_with_all_modifiers()`
     pub text: Option<&'static str>,
-    
+
     pub location: keyboard::KeyLocation,
     pub state: ElementState,
     pub repeat: bool,

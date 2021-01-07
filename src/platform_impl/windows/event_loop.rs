@@ -34,6 +34,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, RawKeyEvent, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    keyboard::ModifiersState,
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
@@ -1532,10 +1533,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
 
         winuser::WM_KILLFOCUS => {
-            use crate::event::{
-                ModifiersState,
-                WindowEvent::{Focused, ModifiersChanged},
-            };
+            use crate::event::WindowEvent::{Focused, ModifiersChanged};
 
             subclass_input.window_state.lock().modifiers_state = ModifiersState::empty();
             subclass_input.send_event(Event::WindowEvent {
@@ -1951,6 +1949,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         winuser::WM_INPUT => {
             use crate::event::{
                 DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
+                ElementState::{Pressed, Released},
                 MouseScrollDelta::LineDelta,
             };
 
@@ -2019,11 +2018,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         || keyboard.Message == winuser::WM_SYSKEYUP;
 
                     if pressed || released {
-                        let state = if pressed {
-                            keyboard_types::KeyState::Down
-                        } else {
-                            keyboard_types::KeyState::Up
-                        };
+                        let state = if pressed { Pressed } else { Released };
                         let extension = {
                             if util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _) {
                                 0xE000
@@ -2034,12 +2029,10 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                             }
                         };
                         let scancode = keyboard.MakeCode | extension;
-                        let platform_scancode = PlatformScanCode(scancode);
-                        let code = native_key_to_code(platform_scancode);
+                        let code = native_key_to_code(scancode);
                         subclass_input.send_event(Event::DeviceEvent {
                             device_id,
                             event: Key(RawKeyEvent {
-                                scancode: ScanCode(platform_scancode),
                                 physical_key: code,
                                 state,
                             }),

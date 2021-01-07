@@ -1,6 +1,3 @@
-
-
-
 impl ModifiersState {
     /// Returns `true` if the shift key is pressed.
     pub fn shift(&self) -> bool {
@@ -97,8 +94,6 @@ mod modifiers_serde {
         }
     }
 }
-
-
 
 /// Contains the platform-native physical key identifier (aka scancode)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -526,14 +521,14 @@ pub enum KeyCode {
 /// Specification:
 /// https://w3c.github.io/uievents-key/
 #[non_exhaustive]
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Key<'a> {
     /// A key string that corresponds to the character typed by the user,
     /// taking into account the user’s current locale setting, modifier state,
     /// and any system-level keyboard mapping overrides that are in effect.
     Character(&'a str),
-    
+
     /// This variant is used when the key cannot be translated to any
     /// other variant.
     ///
@@ -544,7 +539,7 @@ pub enum Key<'a> {
 
     /// Contains the text representation of the dead-key
     /// when available.
-    /// 
+    ///
     /// ## Platform-specific
     /// - **Web:** Always contains `None`
     Dead(Option<char>),
