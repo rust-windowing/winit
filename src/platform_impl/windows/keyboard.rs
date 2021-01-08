@@ -141,11 +141,8 @@ impl KeyEventBuilder {
 
                 let kbd_state = unsafe { Self::get_kbd_state() };
                 let mods = WindowsModifiers::active_modifiers(&kbd_state);
-                let mods_without_ctrl = {
-                    let mut mods_copy = mods;
-                    mods_copy.remove(WindowsModifiers::CONTROL);
-                    mods_copy
-                };
+                let mods_without_ctrl = mods.remove_only_ctrl();
+
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
                 let (_, layout) = layouts.get_current_layout();
                 let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
@@ -155,13 +152,12 @@ impl KeyEventBuilder {
                     key_state: ElementState::Pressed,
                     logical_key,
                     key_without_modifers,
-                    vkey,
                     scancode,
                     is_repeat: lparam_struct.is_repeat,
                     code,
                     location,
                     utf16parts: Vec::with_capacity(8),
-                    utf16parts_without_ctrl: Vec::with_capacity(8),
+                    text: PartialText::System(Vec::new()),
                 });
 
                 let mut next_msg = MaybeUninit::uninit();
@@ -258,31 +254,35 @@ impl KeyEventBuilder {
                 if !more_char_coming {
                     let mut event_info = self.event_info.take().unwrap();
 
+                    let mut layouts = LAYOUT_CACHE.lock().unwrap();
                     // Here it's okay to call `ToUnicode` because at this point the dead key
                     // is already consumed by the character.
                     unsafe {
-                        let mut kbd_state = Self::get_kbd_state();
+                        let kbd_state = Self::get_kbd_state();
+                        let mod_state = WindowsModifiers::active_modifiers(&kbd_state);
 
-                        let has_ctrl = kbd_state[winuser::VK_CONTROL as usize] & 0x80 != 0
-                            || kbd_state[winuser::VK_LCONTROL as usize] & 0x80 != 0
-                            || kbd_state[winuser::VK_RCONTROL as usize] & 0x80 != 0;
+                        let (_, layout) = layouts.get_current_layout();
+                        let ctrl_on;
+                        if layout.has_alt_graph {
+                            let alt_on = mod_state.contains(WindowsModifiers::ALT);
+                            ctrl_on = !alt_on && mod_state.contains(WindowsModifiers::CONTROL)
+                        } else {
+                            ctrl_on = mod_state.contains(WindowsModifiers::CONTROL)
+                        }
 
-                        // If neither of the CTRL keys is pressed, just use the text with all
+                        // If CTRL is not pressed, just use the text with all
                         // modifiers because that already consumed the dead key and otherwise
                         // we would interpret the character incorretly, missing the dead key.
-                        if !has_ctrl {
-                            event_info.utf16parts_without_ctrl = event_info.utf16parts.clone();
+                        if !ctrl_on {
+                            event_info.text = PartialText::System(event_info.utf16parts.clone());
                         } else {
-                            // TODO: This should probably be done through the layout cahce
-                            get_utf16_without_ctrl(
-                                event_info.vkey as u32,
-                                event_info.scancode,
-                                &mut kbd_state,
-                                &mut event_info.utf16parts_without_ctrl,
-                            );
+                            let mod_no_ctrl = mod_state.remove_only_ctrl();
+                            let scancode = event_info.scancode;
+                            let keycode = event_info.code;
+                            let key = layout.get_key(mod_no_ctrl, scancode, keycode);
+                            event_info.text = PartialText::Text(key.to_text());
                         }
                     }
-                    let mut layouts = LAYOUT_CACHE.lock().unwrap();
                     let ev = event_info.finalize(&mut layouts.strings);
                     return vec![MessageAsKeyEvent {
                         event: ev,
@@ -304,11 +304,7 @@ impl KeyEventBuilder {
 
                 let kbd_state = unsafe { Self::get_kbd_state() };
                 let mods = WindowsModifiers::active_modifiers(&kbd_state);
-                let mods_without_ctrl = {
-                    let mut mods_copy = mods;
-                    mods_copy.remove(WindowsModifiers::CONTROL);
-                    mods_copy
-                };
+                let mods_without_ctrl = mods.remove_only_ctrl();
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
                 let (_, layout) = layouts.get_current_layout();
@@ -320,13 +316,12 @@ impl KeyEventBuilder {
                     key_state: ElementState::Released,
                     logical_key,
                     key_without_modifers,
-                    vkey,
                     scancode,
                     is_repeat: false,
                     code,
                     location,
                     utf16parts: Vec::new(),
-                    utf16parts_without_ctrl: Vec::new(),
+                    text: PartialText::System(Vec::new()),
                 };
                 let mut ev = event_info.finalize(&mut layouts.strings);
                 ev.text = logical_key.to_text();
@@ -482,13 +477,12 @@ impl KeyEventBuilder {
             logical_key,
             key_without_modifers,
             key_state,
-            vkey: vk,
             scancode,
             is_repeat: false,
             code,
             location: get_location(vk, is_extended),
             utf16parts: Vec::with_capacity(8),
-            utf16parts_without_ctrl: Vec::with_capacity(8),
+            text: PartialText::System(Vec::new()),
         };
 
         let mut event = event_info.finalize(&mut layouts.strings);
@@ -507,10 +501,14 @@ impl KeyEventBuilder {
     }
 }
 
+enum PartialText {
+    // Unicode
+    System(Vec<u16>),
+    Text(Option<&'static str>),
+}
+
 struct PartialKeyEventInfo {
     key_state: ElementState,
-    /// The native Virtual Key
-    vkey: i32,
     scancode: ExScancode,
     is_repeat: bool,
     code: KeyCode,
@@ -523,7 +521,7 @@ struct PartialKeyEventInfo {
     /// This take all modifiers into account. Including CTRL
     utf16parts: Vec<u16>,
 
-    utf16parts_without_ctrl: Vec<u16>,
+    text: PartialText,
 }
 
 impl PartialKeyEventInfo {
@@ -537,10 +535,27 @@ impl PartialKeyEventInfo {
             }
         }
 
+        // The text without ctrl
+        let mut text = None;
+        match self.text {
+            PartialText::System(wide) => {
+                if !wide.is_empty() {
+                    let os_string = OsString::from_wide(&wide);
+                    if let Ok(string) = os_string.into_string() {
+                        let static_str = get_or_insert_str(strings, string);
+                        text = Some(static_str);
+                    }
+                }
+            }
+            PartialText::Text(s) => {
+                text = s;
+            }
+        }
+
         KeyEvent {
             physical_key: self.code,
             logical_key: self.logical_key,
-            text: None,
+            text,
             location: self.location,
             state: self.key_state,
             repeat: self.is_repeat,
@@ -585,36 +600,6 @@ pub fn get_location(vkey: c_int, extended: bool) -> KeyLocation {
         | VK_NUMPAD6 | VK_NUMPAD7 | VK_NUMPAD8 | VK_NUMPAD9 | VK_DECIMAL | VK_DIVIDE
         | VK_MULTIPLY | VK_SUBTRACT | VK_ADD | VK_ABNT_C2 => KeyLocation::Numpad,
         _ => KeyLocation::Standard,
-    }
-}
-
-unsafe fn get_utf16_without_ctrl(
-    vkey: u32,
-    scancode: ExScancode,
-    kbd_state: &mut [u8; 256],
-    utf16parts_without_ctrl: &mut Vec<u16>,
-) {
-    let target_capacity = 8;
-    let curr_cap = utf16parts_without_ctrl.capacity();
-    if curr_cap < target_capacity {
-        utf16parts_without_ctrl.reserve(target_capacity - curr_cap);
-    }
-    // Now remove all CTRL stuff from the keyboard state
-    kbd_state[winuser::VK_CONTROL as usize] = 0;
-    kbd_state[winuser::VK_LCONTROL as usize] = 0;
-    kbd_state[winuser::VK_RCONTROL as usize] = 0;
-    let unicode_len = winuser::ToUnicode(
-        vkey,
-        scancode as u32,
-        (&mut kbd_state[0]) as *mut _,
-        utf16parts_without_ctrl.as_mut_ptr(),
-        utf16parts_without_ctrl.capacity() as i32,
-        0,
-    );
-    if unicode_len < 0 {
-        utf16parts_without_ctrl.set_len(0);
-    } else {
-        utf16parts_without_ctrl.set_len(unicode_len as usize);
     }
 }
 
@@ -944,8 +929,8 @@ pub fn native_key_to_code(scancode: ExScancode) -> KeyCode {
         0x001D => KeyCode::ControlLeft,
         0xE01D => KeyCode::ControlRight,
         0x001C => KeyCode::Enter,
-        //0xE05B => KeyCode::OSLeft,
-        //0xE05C => KeyCode::OSRight,
+        0xE05B => KeyCode::MetaLeft,
+        0xE05C => KeyCode::MetaRight,
         0x002A => KeyCode::ShiftLeft,
         0x0036 => KeyCode::ShiftRight,
         0x0039 => KeyCode::Space,

@@ -57,7 +57,49 @@ impl WindowsModifiers {
         if caps {
             result.insert(WindowsModifiers::CAPS_LOCK);
         }
+
+        println!("Active modifiers: {:?}", result);
+
         result
+    }
+
+    pub fn apply_to_kbd_state(self, key_state: &mut [u8; 256]) {
+        if self.intersects(Self::SHIFT) {
+            key_state[winuser::VK_SHIFT as usize] |= 0x80;
+        } else {
+            key_state[winuser::VK_SHIFT as usize] &= !0x80;
+            key_state[winuser::VK_LSHIFT as usize] &= !0x80;
+            key_state[winuser::VK_RSHIFT as usize] &= !0x80;
+        }
+        if self.intersects(Self::CONTROL) {
+            key_state[winuser::VK_CONTROL as usize] |= 0x80;
+        } else {
+            key_state[winuser::VK_CONTROL as usize] &= !0x80;
+            key_state[winuser::VK_LCONTROL as usize] &= !0x80;
+            key_state[winuser::VK_RCONTROL as usize] &= !0x80;
+        }
+        if self.intersects(Self::ALT) {
+            key_state[winuser::VK_MENU as usize] |= 0x80;
+        } else {
+            key_state[winuser::VK_MENU as usize] &= !0x80;
+            key_state[winuser::VK_LMENU as usize] &= !0x80;
+            key_state[winuser::VK_RMENU as usize] &= !0x80;
+        }
+        if self.intersects(Self::CAPS_LOCK) {
+            key_state[winuser::VK_CAPITAL as usize] |= 0x80;
+        } else {
+            key_state[winuser::VK_CAPITAL as usize] &= !0x80;
+        }
+    }
+
+    /// Removes the control modifier if the alt modifier is not present.
+    /// This is useful because on Windows: (Control + Alt) == AltGr
+    /// but we don't want to interfere with the AltGr state.
+    pub fn remove_only_ctrl(mut self) -> WindowsModifiers {
+        if !self.contains(WindowsModifiers::ALT) {
+            self.remove(WindowsModifiers::CONTROL);
+        }
+        self
     }
 }
 
@@ -83,6 +125,11 @@ impl Layout {
         scancode: ExScancode,
         keycode: KeyCode,
     ) -> Key<'static> {
+        // let ctrl_alt: WindowsModifiers = WindowsModifiers::CONTROL | WindowsModifiers::ALT;
+        // if self.has_alt_graph && mods.contains(ctrl_alt) {
+
+        // }
+
         if let Some(keys) = self.keys.get(&mods) {
             if let Some(key) = keys.get(&keycode) {
                 return *key;
@@ -114,7 +161,7 @@ impl LayoutCache {
         }
     }
 
-    fn prepare_layout(strings: &mut HashSet<&'static str>, locale_identifier: u64) -> Layout {
+    fn prepare_layout(strings: &mut HashSet<&'static str>, locale_id: u64) -> Layout {
         let mut layout = Layout {
             keys: Default::default(),
             has_alt_graph: false,
@@ -122,7 +169,7 @@ impl LayoutCache {
 
         // We initialize the keyboard state with all zeros to
         // simulate a scenario when no modifier is active.
-        let key_state = [0u8; 256];
+        let mut key_state = [0u8; 256];
 
         // Iterate through every combination of modifiers
         let mods_end = WindowsModifiers::FLAGS_END.bits;
@@ -130,8 +177,7 @@ impl LayoutCache {
             let mut keys_for_this_mod = HashMap::with_capacity(256);
 
             let mod_state = unsafe { WindowsModifiers::from_bits_unchecked(mod_state) };
-
-            //Self::apply_mod_state(&mut key_state, mod_state);
+            mod_state.apply_to_kbd_state(&mut key_state);
 
             // Virtual key values are in the domain [0, 255].
             // This is reinforced by the fact that the keyboard state array has 256
@@ -142,7 +188,7 @@ impl LayoutCache {
                     winuser::MapVirtualKeyExW(
                         vk,
                         winuser::MAPVK_VK_TO_VSC_EX,
-                        locale_identifier as HKL,
+                        locale_id as HKL,
                     )
                 };
                 if scancode == 0 {
@@ -159,7 +205,7 @@ impl LayoutCache {
                     vk as i32,
                     native_code,
                     key_code,
-                    locale_identifier,
+                    locale_id,
                     false,
                 );
                 match preliminary_key {
@@ -170,37 +216,49 @@ impl LayoutCache {
                     }
                 }
 
-                let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_identifier);
+                let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_id);
                 let key = match unicode {
                     ToUnicodeResult::Str(str) => {
                         let static_str = get_or_insert_str(strings, str);
                         Key::Character(static_str)
                     }
-                    ToUnicodeResult::Dead(dead_char) => Key::Dead(dead_char),
+                    ToUnicodeResult::Dead(dead_char) => {
+                        //println!("{:?} - {:?} produced dead {:?}", key_code, mod_state, dead_char);
+                        Key::Dead(dead_char)
+                    },
                     ToUnicodeResult::None => {
-                        // Just use the unidentified key, we got earlier
-                        preliminary_key
+                        let has_alt = mod_state.contains(WindowsModifiers::ALT);
+                        let has_ctrl = mod_state.contains(WindowsModifiers::CONTROL);
+                        // HACK: `ToUnicodeEx` seems to fail getting the string for the numpad
+                        // divide key, so we handle that explicitly here
+                        if !has_alt && !has_ctrl && key_code == KeyCode::NumpadDivide {
+                            Key::Character("/")
+                        } else {
+                            // Just use the unidentified key, we got earlier
+                            preliminary_key
+                        }
                     }
                 };
 
                 // Check for alt graph.
-                // The logic is that if a key pressed with the CTRL modifier produces
-                // a different result from when it's pressed with CTRL+ALT then the layout
+                // The logic is that if a key pressed with no modifier produces
+                // a different `Character` from when it's pressed with CTRL+ALT then the layout
                 // has AltGr.
                 let ctrl_alt: WindowsModifiers = WindowsModifiers::CONTROL | WindowsModifiers::ALT;
-                let is_in_ctrl_alt = (mod_state & ctrl_alt) == ctrl_alt;
+                let is_in_ctrl_alt = mod_state == ctrl_alt;
                 if !layout.has_alt_graph && is_in_ctrl_alt {
                     // Unwrapping here because if we are in the ctrl+alt modifier state
                     // then the alt modifier state must have come before.
-                    let alt_keys = layout.keys.get(&WindowsModifiers::ALT).unwrap();
-                    if let Some(key_without_ctrl_alt) = alt_keys.get(&key_code) {
-                        layout.has_alt_graph = key != *key_without_ctrl_alt;
+                    let simple_keys = layout.keys.get(&WindowsModifiers::empty()).unwrap();
+                    if let Some(Key::Character(key_no_altgr)) = simple_keys.get(&key_code) {
+                        if let Key::Character(key) = key {
+                            layout.has_alt_graph = key != *key_no_altgr;
+                        }
                     }
                 }
 
                 keys_for_this_mod.insert(key_code, key);
             }
-
             layout.keys.insert(mod_state, keys_for_this_mod);
         }
 
@@ -223,7 +281,7 @@ impl LayoutCache {
         key_state: &[u8; 256],
         vkey: u32,
         scancode: u32,
-        locale_identifier: u64,
+        locale_id: u64,
     ) -> ToUnicodeResult {
         unsafe {
             let mut label_wide = [0u16; 8];
@@ -234,7 +292,7 @@ impl LayoutCache {
                 (&mut label_wide[0]) as *mut _,
                 label_wide.len() as i32,
                 0,
-                locale_identifier as _,
+                locale_id as HKL,
             );
             if wide_len < 0 {
                 // If it's dead, let's run `ToUnicode` again, to consume the dead-key
@@ -245,7 +303,7 @@ impl LayoutCache {
                     (&mut label_wide[0]) as *mut _,
                     label_wide.len() as i32,
                     0,
-                    locale_identifier as _,
+                    locale_id as HKL,
                 );
                 if wide_len > 0 {
                     let os_string = OsString::from_wide(&label_wide[0..wide_len as usize]);
