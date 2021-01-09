@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use winit::{
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
     event::{
-        ElementState, KeyboardInput, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
-        VirtualKeyCode,
+        ElementState, MouseButton, MouseScrollDelta, TouchPhase,
     },
+    keyboard::{ModifiersState, Key, KeyCode, KeyLocation},
     window::CursorIcon,
 };
 
@@ -20,12 +20,13 @@ fn window_serde() {
 
 #[test]
 fn events_serde() {
-    needs_serde::<KeyboardInput>();
     needs_serde::<TouchPhase>();
     needs_serde::<ElementState>();
     needs_serde::<MouseButton>();
     needs_serde::<MouseScrollDelta>();
-    needs_serde::<VirtualKeyCode>();
+    needs_serde::<Key<'static>>();
+    needs_serde::<KeyCode>();
+    needs_serde::<KeyLocation>();
     needs_serde::<ModifiersState>();
 }
 
