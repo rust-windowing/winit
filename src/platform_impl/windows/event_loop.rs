@@ -4,6 +4,7 @@ mod runner;
 
 use parking_lot::Mutex;
 use std::{
+    cell::Cell,
     collections::VecDeque,
     marker::PhantomData,
     mem, panic, ptr,
@@ -89,6 +90,8 @@ pub(crate) struct SubclassInput<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
     pub file_drop_handler: Option<FileDropHandler>,
+    pub subclass_removed: Cell<bool>,
+    pub recurse_depth: Cell<u32>,
 }
 
 impl<T> SubclassInput<T> {
@@ -619,18 +622,31 @@ fn subclass_event_target_window<T>(
     }
 }
 
+fn remove_event_target_window_subclass<T: 'static>(window: HWND) {
+    let removal_result = unsafe {
+        commctrl::RemoveWindowSubclass(
+            window,
+            Some(thread_event_target_callback::<T>),
+            THREAD_EVENT_TARGET_SUBCLASS_ID,
+        )
+    };
+    assert_eq!(removal_result, 1);
+}
+
 /// Capture mouse input, allowing `window` to receive mouse events when the cursor is outside of
 /// the window.
 unsafe fn capture_mouse(window: HWND, window_state: &mut WindowState) {
-    window_state.mouse.buttons_down += 1;
+    window_state.mouse.capture_count += 1;
     winuser::SetCapture(window);
 }
 
 /// Release mouse input, stopping windows on this thread from receiving mouse input when the cursor
 /// is outside the window.
-unsafe fn release_mouse(window_state: &mut WindowState) {
-    window_state.mouse.buttons_down = window_state.mouse.buttons_down.saturating_sub(1);
-    if window_state.mouse.buttons_down == 0 {
+unsafe fn release_mouse(mut window_state: parking_lot::MutexGuard<'_, WindowState>) {
+    window_state.mouse.capture_count = window_state.mouse.capture_count.saturating_sub(1);
+    if window_state.mouse.capture_count == 0 {
+        // ReleaseCapture() causes a WM_CAPTURECHANGED where we lock the window_state.
+        drop(window_state);
         winuser::ReleaseCapture();
     }
 }
@@ -649,6 +665,17 @@ pub(crate) fn subclass_window<T>(window: HWND, subclass_input: SubclassInput<T>)
         )
     };
     assert_eq!(subclass_result, 1);
+}
+
+fn remove_window_subclass<T: 'static>(window: HWND) {
+    let removal_result = unsafe {
+        commctrl::RemoveWindowSubclass(
+            window,
+            Some(public_window_callback::<T>),
+            WINDOW_SUBCLASS_ID,
+        )
+    };
+    assert_eq!(removal_result, 1);
 }
 
 fn normalize_pointer_pressure(pressure: u32) -> Option<Force> {
@@ -759,11 +786,41 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
     msg: UINT,
     wparam: WPARAM,
     lparam: LPARAM,
-    _: UINT_PTR,
+    uidsubclass: UINT_PTR,
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
-    let subclass_input = &*(subclass_input_ptr as *const SubclassInput<T>);
+    let subclass_input_ptr = subclass_input_ptr as *mut SubclassInput<T>;
+    let (result, subclass_removed, recurse_depth) = {
+        let subclass_input = &*subclass_input_ptr;
+        subclass_input
+            .recurse_depth
+            .set(subclass_input.recurse_depth.get() + 1);
 
+        let result =
+            public_window_callback_inner(window, msg, wparam, lparam, uidsubclass, subclass_input);
+
+        let subclass_removed = subclass_input.subclass_removed.get();
+        let recurse_depth = subclass_input.recurse_depth.get() - 1;
+        subclass_input.recurse_depth.set(recurse_depth);
+
+        (result, subclass_removed, recurse_depth)
+    };
+
+    if subclass_removed && recurse_depth == 0 {
+        Box::from_raw(subclass_input_ptr);
+    }
+
+    result
+}
+
+unsafe fn public_window_callback_inner<T: 'static>(
+    window: HWND,
+    msg: UINT,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    _: UINT_PTR,
+    subclass_input: &SubclassInput<T>,
+) -> LRESULT {
     winuser::RedrawWindow(
         subclass_input.event_loop_runner.thread_msg_target(),
         ptr::null(),
@@ -894,8 +951,8 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
         }
 
         winuser::WM_NCDESTROY => {
-            drop(subclass_input);
-            Box::from_raw(subclass_input_ptr as *mut SubclassInput<T>);
+            remove_window_subclass::<T>(window);
+            subclass_input.subclass_removed.set(true);
             0
         }
 
@@ -1192,7 +1249,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 ElementState::Released, MouseButton::Left, WindowEvent::MouseInput,
             };
 
-            release_mouse(&mut *subclass_input.window_state.lock());
+            release_mouse(subclass_input.window_state.lock());
 
             let modifiers = update_modifiers(window, subclass_input);
 
@@ -1234,7 +1291,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 ElementState::Released, MouseButton::Right, WindowEvent::MouseInput,
             };
 
-            release_mouse(&mut *subclass_input.window_state.lock());
+            release_mouse(subclass_input.window_state.lock());
 
             let modifiers = update_modifiers(window, subclass_input);
 
@@ -1276,7 +1333,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 ElementState::Released, MouseButton::Middle, WindowEvent::MouseInput,
             };
 
-            release_mouse(&mut *subclass_input.window_state.lock());
+            release_mouse(subclass_input.window_state.lock());
 
             let modifiers = update_modifiers(window, subclass_input);
 
@@ -1307,7 +1364,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 event: MouseInput {
                     device_id: DEVICE_ID,
                     state: Pressed,
-                    button: Other(xbutton as u8),
+                    button: Other(xbutton),
                     modifiers,
                 },
             });
@@ -1320,7 +1377,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             };
             let xbutton = winuser::GET_XBUTTON_WPARAM(wparam);
 
-            release_mouse(&mut *subclass_input.window_state.lock());
+            release_mouse(subclass_input.window_state.lock());
 
             let modifiers = update_modifiers(window, subclass_input);
 
@@ -1329,10 +1386,16 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 event: MouseInput {
                     device_id: DEVICE_ID,
                     state: Released,
-                    button: Other(xbutton as u8),
+                    button: Other(xbutton),
                     modifiers,
                 },
             });
+            0
+        }
+
+        winuser::WM_CAPTURECHANGED => {
+            // window lost mouse capture
+            subclass_input.window_state.lock().mouse.capture_count = 0;
             0
         }
 
@@ -1882,8 +1945,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     _: UINT_PTR,
     subclass_input_ptr: DWORD_PTR,
 ) -> LRESULT {
-    let subclass_input = &mut *(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
-    let runner = subclass_input.event_loop_runner.clone();
+    let subclass_input = Box::from_raw(subclass_input_ptr as *mut ThreadMsgTargetSubclassInput<T>);
 
     if msg != winuser::WM_PAINT {
         winuser::RedrawWindow(
@@ -1894,13 +1956,15 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         );
     }
 
+    let mut subclass_removed = false;
+
     // I decided to bind the closure to `callback` and pass it to catch_unwind rather than passing
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
-        winuser::WM_DESTROY => {
-            Box::from_raw(subclass_input);
-            drop(subclass_input);
+        winuser::WM_NCDESTROY => {
+            remove_event_target_window_subclass::<T>(window);
+            subclass_removed = true;
             0
         }
         // Because WM_PAINT comes after all other messages, we use it during modal loops to detect
@@ -2104,5 +2168,14 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         _ => commctrl::DefSubclassProc(window, msg, wparam, lparam),
     };
 
-    runner.catch_unwind(callback).unwrap_or(-1)
+    let result = subclass_input
+        .event_loop_runner
+        .catch_unwind(callback)
+        .unwrap_or(-1);
+    if subclass_removed {
+        mem::drop(subclass_input);
+    } else {
+        Box::into_raw(subclass_input);
+    }
+    result
 }

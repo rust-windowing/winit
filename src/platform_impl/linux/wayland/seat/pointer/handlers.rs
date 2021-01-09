@@ -17,6 +17,11 @@ use crate::platform_impl::wayland::{self, DeviceId};
 
 use super::{PointerData, WinitPointer};
 
+// These values are comming from <linux/input-event-codes.h>.
+const BTN_LEFT: u32 = 0x110;
+const BTN_RIGHT: u32 = 0x111;
+const BTN_MIDDLE: u32 = 0x112;
+
 #[inline]
 pub(super) fn handle_pointer(
     pointer: ThemedPointer,
@@ -153,11 +158,10 @@ pub(super) fn handle_pointer(
             };
 
             let button = match button {
-                0x110 => MouseButton::Left,
-                0x111 => MouseButton::Right,
-                0x112 => MouseButton::Middle,
-                // TODO - figure out the translation.
-                _ => return,
+                BTN_LEFT => MouseButton::Left,
+                BTN_RIGHT => MouseButton::Right,
+                BTN_MIDDLE => MouseButton::Middle,
+                button => MouseButton::Other(button as u16),
             };
 
             event_sink.push_window_event(
