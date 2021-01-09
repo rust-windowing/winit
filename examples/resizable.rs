@@ -1,9 +1,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{
-        Event, KeyEvent, WindowEvent, ElementState
-    },
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::KeyCode,
     window::WindowBuilder,

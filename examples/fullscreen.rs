@@ -1,9 +1,7 @@
 use std::io::{stdin, stdout, Write};
 
 use simple_logger::SimpleLogger;
-use winit::event::{
-    Event, KeyEvent, WindowEvent, ElementState,
-};
+use winit::event::{ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::Key;
 use winit::monitor::{MonitorHandle, VideoMode};

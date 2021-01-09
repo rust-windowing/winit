@@ -1,8 +1,6 @@
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{
-        DeviceEvent, ElementState, Event, KeyEvent, WindowEvent,
-    },
+    event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{Key, ModifiersState},
     window::WindowBuilder,
@@ -41,8 +39,8 @@ fn main() {
                         Key::Character(ch) => match ch.to_lowercase().as_str() {
                             "g" => window.set_cursor_grab(!modifiers.shift()).unwrap(),
                             "h" => window.set_cursor_visible(modifiers.shift()),
-                            _ => ()
-                        }
+                            _ => (),
+                        },
                         _ => (),
                     }
                 }

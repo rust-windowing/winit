@@ -2,10 +2,10 @@ use std::{thread, time};
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, KeyEvent, WindowEvent, ElementState},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::Key,
     window::WindowBuilder,
-    keyboard::Key
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,7 +63,6 @@ fn main() {
                 } => match key {
                     // WARNING: Consider using `key_without_modifers()` if available on your platform.
                     // See the `key_binding` example
-
                     Key::Character("1") => {
                         mode = Mode::Wait;
                         println!("\nmode: {:?}\n", mode);
@@ -79,7 +78,7 @@ fn main() {
                     Key::Character("r") => {
                         request_redraw = !request_redraw;
                         println!("\nrequest_redraw: {}\n", request_redraw);
-                    },
+                    }
                     Key::Escape => {
                         close_requested = true;
                     }
