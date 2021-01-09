@@ -1,5 +1,5 @@
 # Unreleased
-
+- On Android, implemented `request_redraw`, fixing issue where iced would not render properly
 - On Windows, fix bug causing newly created windows to erroneously display the "wait" (spinning) cursor.
 - On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
 - On Windows, fix bug causing mouse capture to not be released.

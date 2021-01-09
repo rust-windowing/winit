@@ -448,7 +448,20 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        // TODO
+        match ndk_glue::native_window().as_ref() {
+            Some(native_window) => {
+                let a_native_window: *mut ndk_sys::ANativeWindow = native_window.ptr().as_ptr();
+                let a_native_activity: *mut ndk_sys::ANativeActivity =
+                    ndk_glue::native_activity().ptr().as_ptr();
+                unsafe {
+                    match (*(*a_native_activity).callbacks).onNativeWindowRedrawNeeded {
+                        Some(callback) => callback(a_native_activity, a_native_window),
+                        None => (),
+                    };
+                };
+            }
+            None => (),
+        }
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
