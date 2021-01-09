@@ -18,8 +18,8 @@ use crate::{
     event::{ElementState, KeyEvent},
     keyboard::{Key, KeyCode, KeyLocation, NativeKeyCode},
     platform_impl::platform::{
-        event::KeyEventExtra,
         keyboard_layout::{get_or_insert_str, LayoutCache, WindowsModifiers, LAYOUT_CACHE},
+        KeyEventExtra,
     },
 };
 
@@ -43,6 +43,12 @@ pub type ExScancode = u16;
 
 fn new_ex_scancode(scancode: u8, extended: bool) -> ExScancode {
     (scancode as u16) | (if extended { 0xE000 } else { 0 })
+}
+
+unsafe fn get_kbd_state() -> [u8; 256] {
+    let mut kbd_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
+    winuser::GetKeyboardState(kbd_state[0].as_mut_ptr());
+    std::mem::transmute::<_, [u8; 256]>(kbd_state)
 }
 
 pub struct MessageAsKeyEvent {
@@ -139,7 +145,7 @@ impl KeyEventBuilder {
                 };
                 let location = get_location(vkey, lparam_struct.extended);
 
-                let kbd_state = unsafe { Self::get_kbd_state() };
+                let kbd_state = unsafe { get_kbd_state() };
                 let mods = WindowsModifiers::active_modifiers(&kbd_state);
                 let mods_without_ctrl = mods.remove_only_ctrl();
 
@@ -258,7 +264,7 @@ impl KeyEventBuilder {
                     // Here it's okay to call `ToUnicode` because at this point the dead key
                     // is already consumed by the character.
                     unsafe {
-                        let kbd_state = Self::get_kbd_state();
+                        let kbd_state = get_kbd_state();
                         let mod_state = WindowsModifiers::active_modifiers(&kbd_state);
 
                         let (_, layout) = layouts.get_current_layout();
@@ -302,7 +308,7 @@ impl KeyEventBuilder {
                 //let mut utf16parts = Vec::with_capacity(8);
                 //let mut utf16parts_without_ctrl = Vec::with_capacity(8);
 
-                let kbd_state = unsafe { Self::get_kbd_state() };
+                let kbd_state = unsafe { get_kbd_state() };
                 let mods = WindowsModifiers::active_modifiers(&kbd_state);
                 let mods_without_ctrl = mods.remove_only_ctrl();
 
@@ -343,7 +349,7 @@ impl KeyEventBuilder {
         let mut layouts = LAYOUT_CACHE.lock().unwrap();
         let (locale_id, _) = layouts.get_current_layout();
 
-        let kbd_state = unsafe { Self::get_kbd_state() };
+        let kbd_state = unsafe { get_kbd_state() };
         macro_rules! is_key_pressed {
             ($vk:expr) => {
                 kbd_state[$vk as usize] & 0x80 != 0
@@ -492,12 +498,6 @@ impl KeyEventBuilder {
             event,
             is_synthetic: true,
         })
-    }
-
-    unsafe fn get_kbd_state() -> [u8; 256] {
-        let mut kbd_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
-        winuser::GetKeyboardState(kbd_state[0].as_mut_ptr());
-        std::mem::transmute::<_, [u8; 256]>(kbd_state)
     }
 }
 

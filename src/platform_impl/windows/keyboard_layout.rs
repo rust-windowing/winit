@@ -7,15 +7,19 @@ use std::{
 
 use lazy_static::lazy_static;
 
-use winapi::{shared::minwindef::HKL, um::winuser};
+use winapi::{ctypes::c_int, shared::minwindef::HKL, um::winuser};
 
 use crate::{
-    keyboard::{Key, KeyCode, NativeKeyCode},
+    keyboard::{Key, KeyCode, ModifiersState, NativeKeyCode},
     platform_impl::platform::keyboard::{native_key_to_code, vkey_to_non_printable, ExScancode},
 };
 
 lazy_static! {
     pub static ref LAYOUT_CACHE: Mutex<LayoutCache> = Mutex::new(LayoutCache::default());
+}
+
+fn key_pressed(vkey: c_int) -> bool {
+    unsafe { (winuser::GetKeyState(vkey) & (1 << 15)) == (1 << 15) }
 }
 
 bitflags! {
@@ -161,6 +165,26 @@ impl LayoutCache {
         }
     }
 
+    pub fn get_agnostic_mods(&mut self) -> ModifiersState {
+        let (_, layout) = self.get_current_layout();
+        let filter_out_altgr = layout.has_alt_graph && key_pressed(winuser::VK_RMENU);
+        let mut mods = ModifiersState::empty();
+        mods.set(ModifiersState::SHIFT, key_pressed(winuser::VK_SHIFT));
+        mods.set(
+            ModifiersState::CONTROL,
+            key_pressed(winuser::VK_CONTROL) && !filter_out_altgr,
+        );
+        mods.set(
+            ModifiersState::ALT,
+            key_pressed(winuser::VK_MENU) && !filter_out_altgr,
+        );
+        mods.set(
+            ModifiersState::META,
+            key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN),
+        );
+        mods
+    }
+
     fn prepare_layout(strings: &mut HashSet<&'static str>, locale_id: u64) -> Layout {
         let mut layout = Layout {
             keys: Default::default(),
@@ -185,11 +209,7 @@ impl LayoutCache {
             // giving the key state for the virtual key used for indexing.
             for vk in 0..256 {
                 let scancode = unsafe {
-                    winuser::MapVirtualKeyExW(
-                        vk,
-                        winuser::MAPVK_VK_TO_VSC_EX,
-                        locale_id as HKL,
-                    )
+                    winuser::MapVirtualKeyExW(vk, winuser::MAPVK_VK_TO_VSC_EX, locale_id as HKL)
                 };
                 if scancode == 0 {
                     continue;
@@ -201,13 +221,8 @@ impl LayoutCache {
                 // We don't necessarily know yet if AltGraph is present on this layout so we'll
                 // assume it isn't. Then we'll do a second pass where we set the "AltRight" keys to
                 // "AltGr" in case we find out that there's an AltGraph.
-                let preliminary_key = vkey_to_non_printable(
-                    vk as i32,
-                    native_code,
-                    key_code,
-                    locale_id,
-                    false,
-                );
+                let preliminary_key =
+                    vkey_to_non_printable(vk as i32, native_code, key_code, locale_id, false);
                 match preliminary_key {
                     Key::Unidentified(_) => (),
                     _ => {
@@ -225,7 +240,7 @@ impl LayoutCache {
                     ToUnicodeResult::Dead(dead_char) => {
                         //println!("{:?} - {:?} produced dead {:?}", key_code, mod_state, dead_char);
                         Key::Dead(dead_char)
-                    },
+                    }
                     ToUnicodeResult::None => {
                         let has_alt = mod_state.contains(WindowsModifiers::ALT);
                         let has_ctrl = mod_state.contains(WindowsModifiers::CONTROL);

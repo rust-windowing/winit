@@ -40,8 +40,8 @@ use crate::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
-        event,
         keyboard::{is_msg_keyboard_related, native_key_to_code},
+        keyboard_layout::LAYOUT_CACHE,
         minimal_ime::is_msg_ime_related,
         monitor::{self, MonitorHandle},
         raw_input, util,
@@ -721,10 +721,15 @@ unsafe fn process_control_flow<T: 'static>(runner: &EventLoopRunner<T>) {
 }
 
 /// Emit a `ModifiersChanged` event whenever modifiers have changed.
-fn update_modifiers<T>(window: HWND, subclass_input: &SubclassInput<T>) {
+/// Returns the current modifier state
+fn update_modifiers<T>(window: HWND, subclass_input: &SubclassInput<T>) -> ModifiersState {
     use crate::event::WindowEvent::ModifiersChanged;
 
-    let modifiers = event::get_key_mods();
+    let modifiers = {
+        let mut layouts = LAYOUT_CACHE.lock().unwrap();
+        layouts.get_agnostic_mods()
+    };
+
     let mut window_state = subclass_input.window_state.lock();
     if window_state.modifiers_state != modifiers {
         window_state.modifiers_state = modifiers;
@@ -739,6 +744,7 @@ fn update_modifiers<T>(window: HWND, subclass_input: &SubclassInput<T>) {
             });
         }
     }
+    modifiers
 }
 
 /// Any window whose callback is configured to this function will have its events propagated
@@ -1073,14 +1079,13 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                 w.mouse.last_position = Some(position);
             }
             if cursor_moved {
-                update_modifiers(window, subclass_input);
-
+                let modifiers = update_modifiers(window, subclass_input);
                 subclass_input.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: CursorMoved {
                         device_id: DEVICE_ID,
                         position,
-                        modifiers: event::get_key_mods(),
+                        modifiers,
                     },
                 });
             }
@@ -1114,7 +1119,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let value = value as i32;
             let value = value as f32 / winuser::WHEEL_DELTA as f32;
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1122,7 +1127,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     delta: LineDelta(0.0, value),
                     phase: TouchPhase::Moved,
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
 
@@ -1136,7 +1141,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
             let value = value as i32;
             let value = value as f32 / winuser::WHEEL_DELTA as f32;
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1144,7 +1149,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     delta: LineDelta(value, 0.0),
                     phase: TouchPhase::Moved,
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
 
@@ -1168,7 +1173,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1176,7 +1181,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Left,
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
             0
@@ -1189,7 +1194,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             release_mouse(&mut *subclass_input.window_state.lock());
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1197,7 +1202,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Left,
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
             0
@@ -1210,7 +1215,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1218,7 +1223,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Right,
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
             0
@@ -1231,7 +1236,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             release_mouse(&mut *subclass_input.window_state.lock());
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1239,7 +1244,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Right,
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
             0
@@ -1252,7 +1257,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1260,7 +1265,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Middle,
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
             0
@@ -1273,7 +1278,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             release_mouse(&mut *subclass_input.window_state.lock());
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1281,7 +1286,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Middle,
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
             0
@@ -1295,7 +1300,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             capture_mouse(window, &mut *subclass_input.window_state.lock());
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1303,7 +1308,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Other(xbutton as u8),
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
             0
@@ -1317,7 +1322,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
 
             release_mouse(&mut *subclass_input.window_state.lock());
 
-            update_modifiers(window, subclass_input);
+            let modifiers = update_modifiers(window, subclass_input);
 
             subclass_input.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -1325,7 +1330,7 @@ unsafe extern "system" fn public_window_callback<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Other(xbutton as u8),
-                    modifiers: event::get_key_mods(),
+                    modifiers,
                 },
             });
             0

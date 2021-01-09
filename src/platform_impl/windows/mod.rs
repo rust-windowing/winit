@@ -3,7 +3,6 @@
 use winapi::{self, shared::windef::HWND};
 
 pub use self::{
-    event::KeyEventExtra,
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
     icon::WinIcon,
     monitor::{MonitorHandle, VideoMode},
@@ -14,6 +13,7 @@ pub use self::icon::WinIcon as PlatformIcon;
 
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
+use crate::keyboard::Key;
 use crate::window::Theme;
 
 #[derive(Clone)]
@@ -73,6 +73,12 @@ fn wrap_device_id(id: u32) -> RootDeviceId {
 }
 
 pub type OsError = std::io::Error;
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub char_with_all_modifers: Option<&'static str>,
+    pub key_without_modifers: Key<'static>,
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(HWND);
