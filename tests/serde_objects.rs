@@ -3,10 +3,8 @@
 use serde::{Deserialize, Serialize};
 use winit::{
     dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
-    event::{
-        ElementState, MouseButton, MouseScrollDelta, TouchPhase,
-    },
-    keyboard::{ModifiersState, Key, KeyCode, KeyLocation},
+    event::{ElementState, MouseButton, MouseScrollDelta, TouchPhase},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState},
     window::CursorIcon,
 };
 
