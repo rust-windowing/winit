@@ -4,10 +4,10 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{
-        keyboard_types::{Code, Key, KeyState},
-        DeviceEvent, Event, KeyEvent, RawKeyEvent, WindowEvent,
+        DeviceEvent, Event, KeyEvent, RawKeyEvent, WindowEvent, ElementState,
     },
     event_loop::{ControlFlow, EventLoop},
+    keyboard::{Key, KeyCode},
     window::{Fullscreen, WindowBuilder},
 };
 
@@ -44,18 +44,18 @@ fn main() {
                 event:
                     DeviceEvent::Key(RawKeyEvent {
                         physical_key,
-                        state: KeyState::Up,
+                        state: ElementState::Released,
                         ..
                     }),
                 ..
             } => match physical_key {
-                Code::KeyM => {
+                KeyCode::KeyM => {
                     if minimized {
                         minimized = !minimized;
                         window.set_minimized(minimized);
                     }
                 }
-                Code::KeyV => {
+                KeyCode::KeyV => {
                     if !visible {
                         visible = !visible;
                         window.set_visible(visible);
@@ -69,13 +69,15 @@ fn main() {
                         event:
                             KeyEvent {
                                 logical_key: Key::Character(key_str),
-                                state: KeyState::Up,
+                                state: ElementState::Released,
                                 ..
                             },
                         ..
                     },
                 ..
-            } => match key_str.to_lowercase().as_str() {
+            } => match key_str {
+                // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                // See the `key_binding` example
                 "e" => {
                     fn area(size: PhysicalSize<u32>) -> u32 {
                         size.width * size.height

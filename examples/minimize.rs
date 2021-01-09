@@ -1,8 +1,10 @@
 extern crate winit;
 
 use simple_logger::SimpleLogger;
+
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
+use winit::keyboard::Key;
 use winit::window::WindowBuilder;
 
 fn main() {
@@ -29,11 +31,11 @@ fn main() {
                 window_id,
             } => {
                 if window_id == window.id() {
-                    // Pressing the 'M' key will minimize the window
-                    if let keyboard_types::Key::Character(string) = event.logical_key {
-                        if string.to_lowercase() == "m" {
-                            window.set_minimized(true);
-                        }
+                    // Pressing the 'm' key will minimize the window
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
+                    if let Key::Character("m") = event.logical_key {
+                        window.set_minimized(true);
                     }
                 }
             }

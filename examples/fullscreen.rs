@@ -2,10 +2,10 @@ use std::io::{stdin, stdout, Write};
 
 use simple_logger::SimpleLogger;
 use winit::event::{
-    keyboard_types::{Key, KeyState},
-    Event, KeyEvent, WindowEvent,
+    Event, KeyEvent, WindowEvent, ElementState,
 };
 use winit::event_loop::{ControlFlow, EventLoop};
+use winit::keyboard::Key;
 use winit::monitor::{MonitorHandle, VideoMode};
 use winit::window::{Fullscreen, WindowBuilder};
 
@@ -45,33 +45,33 @@ fn main() {
                     event:
                         KeyEvent {
                             logical_key: key,
-                            state: KeyState::Down,
+                            state: ElementState::Pressed,
                             ..
                         },
                     ..
                 } => match key {
                     Key::Escape => *control_flow = ControlFlow::Exit,
-                    Key::Character(string) => match string.to_lowercase().as_str() {
-                        "f" => {
-                            if window.fullscreen().is_some() {
-                                window.set_fullscreen(None);
-                            } else {
-                                window.set_fullscreen(fullscreen.clone());
-                            }
+
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
+                    Key::Character("f") => {
+                        if window.fullscreen().is_some() {
+                            window.set_fullscreen(None);
+                        } else {
+                            window.set_fullscreen(fullscreen.clone());
                         }
-                        "s" => {
-                            println!("window.fullscreen {:?}", window.fullscreen());
-                        }
-                        "m" => {
-                            is_maximized = !is_maximized;
-                            window.set_maximized(is_maximized);
-                        }
-                        "d" => {
-                            decorations = !decorations;
-                            window.set_decorations(decorations);
-                        }
-                        _ => (),
-                    },
+                    }
+                    Key::Character("s") => {
+                        println!("window.fullscreen {:?}", window.fullscreen());
+                    }
+                    Key::Character("m") => {
+                        is_maximized = !is_maximized;
+                        window.set_maximized(is_maximized);
+                    }
+                    Key::Character("d") => {
+                        decorations = !decorations;
+                        window.set_decorations(decorations);
+                    }
                     _ => (),
                 },
                 _ => (),

@@ -1,9 +1,10 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{
-        keyboard_types, DeviceEvent, ElementState, Event, KeyEvent, ModifiersState, WindowEvent,
+        DeviceEvent, ElementState, Event, KeyEvent, WindowEvent,
     },
     event_loop::{ControlFlow, EventLoop},
+    keyboard::{Key, ModifiersState},
     window::WindowBuilder,
 };
 
@@ -28,19 +29,20 @@ fn main() {
                     event:
                         KeyEvent {
                             logical_key: key,
-                            state: keyboard_types::KeyState::Up,
+                            state: ElementState::Released,
                             ..
                         },
                     ..
                 } => {
-                    use winit::event::keyboard_types::Key;
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
                     match key {
                         Key::Escape => *control_flow = ControlFlow::Exit,
-                        Key::Character(string) => match string.to_lowercase().as_str() {
+                        Key::Character(ch) => match ch.to_lowercase().as_str() {
                             "g" => window.set_cursor_grab(!modifiers.shift()).unwrap(),
                             "h" => window.set_cursor_visible(modifiers.shift()),
-                            _ => (),
-                        },
+                            _ => ()
+                        }
                         _ => (),
                     }
                 }

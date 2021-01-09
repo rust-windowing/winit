@@ -1,8 +1,9 @@
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
-    event::{keyboard_types::KeyState, Event, KeyEvent, ModifiersState, WindowEvent},
+    event::{Event, KeyEvent, WindowEvent, ElementState},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::{Key, ModifiersState},
     window::WindowBuilder,
 };
 
@@ -42,18 +43,15 @@ fn main() {
 }
 
 fn handle_key_event(modifiers: ModifiersState, event: KeyEvent) {
-    if event.state == KeyState::Down && !event.repeat {
+    if event.state == ElementState::Pressed && !event.repeat {
         match event.key_without_modifers() {
-            keyboard_types::Key::Character(c) => match c.as_str() {
-                "1" => {
-                    if modifiers.shift() {
-                        println!("Shift + 1 | logical_key: {:?}", event.logical_key);
-                    } else {
-                        println!("1");
-                    }
+            Key::Character("1") => {
+                if modifiers.shift() {
+                    println!("Shift + 1 | logical_key: {:?}", event.logical_key);
+                } else {
+                    println!("1");
                 }
-                _ => (),
-            },
+            }
             _ => (),
         }
     }

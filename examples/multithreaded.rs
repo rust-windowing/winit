@@ -5,8 +5,9 @@ fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-        event::{Event, KeyEvent, ModifiersState, WindowEvent},
+        event::{Event, KeyEvent, WindowEvent, ElementState},
         event_loop::{ControlFlow, EventLoop},
+        keyboard::{Key, ModifiersState},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
 
@@ -56,16 +57,18 @@ fn main() {
                     WindowEvent::KeyboardInput {
                         event:
                             KeyEvent {
-                                state: keyboard_types::KeyState::Up,
+                                state: ElementState::Released,
                                 logical_key: key,
                                 ..
                             },
                         ..
                     } => {
-                        use keyboard_types::Key::{ArrowLeft, ArrowRight, Character};
+                        use Key::{ArrowLeft, ArrowRight, Character};
                         window.set_title(&format!("{:?}", key));
                         let state = !modifiers.shift();
                         match &key {
+                            // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                            // See the `key_binding` example
                             Character(string) => match string.to_lowercase().as_str() {
                                 "a" => window.set_always_on_top(state),
                                 "c" => window.set_cursor_icon(match state {
@@ -161,8 +164,8 @@ fn main() {
                 | WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
-                            state: keyboard_types::KeyState::Up,
-                            logical_key: keyboard_types::Key::Escape,
+                            state: ElementState::Released,
+                            logical_key: Key::Escape,
                             ..
                         },
                     ..

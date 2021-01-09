@@ -2,9 +2,10 @@ use std::{thread, time};
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, KeyEvent, WindowEvent},
+    event::{Event, KeyEvent, WindowEvent, ElementState},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
+    keyboard::Key
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,7 +39,7 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::{keyboard_types::Key, StartCause};
+        use winit::event::StartCause;
         println!("{:?}", event);
         match event {
             Event::NewEvents(start_cause) => {
@@ -55,29 +56,29 @@ fn main() {
                     event:
                         KeyEvent {
                             logical_key: key,
-                            state: keyboard_types::KeyState::Down,
+                            state: ElementState::Pressed,
                             ..
                         },
                     ..
                 } => match key {
-                    Key::Character(string) => match string.to_lowercase().as_str() {
-                        "1" => {
-                            mode = Mode::Wait;
-                            println!("\nmode: {:?}\n", mode);
-                        }
-                        "2" => {
-                            mode = Mode::WaitUntil;
-                            println!("\nmode: {:?}\n", mode);
-                        }
-                        "3" => {
-                            mode = Mode::Poll;
-                            println!("\nmode: {:?}\n", mode);
-                        }
-                        "r" => {
-                            request_redraw = !request_redraw;
-                            println!("\nrequest_redraw: {}\n", request_redraw);
-                        }
-                        _ => (),
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
+
+                    Key::Character("1") => {
+                        mode = Mode::Wait;
+                        println!("\nmode: {:?}\n", mode);
+                    }
+                    Key::Character("2") => {
+                        mode = Mode::WaitUntil;
+                        println!("\nmode: {:?}\n", mode);
+                    }
+                    Key::Character("3") => {
+                        mode = Mode::Poll;
+                        println!("\nmode: {:?}\n", mode);
+                    }
+                    Key::Character("r") => {
+                        request_redraw = !request_redraw;
+                        println!("\nrequest_redraw: {}\n", request_redraw);
                     },
                     Key::Escape => {
                         close_requested = true;

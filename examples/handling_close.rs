@@ -1,7 +1,8 @@
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{keyboard_types, Event, KeyEvent, WindowEvent},
+    event::{Event, KeyEvent, WindowEvent, ElementState},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::Key,
     window::WindowBuilder,
 };
 
@@ -43,34 +44,34 @@ fn main() {
                         event:
                             KeyEvent {
                                 logical_key: key,
-                                state: keyboard_types::KeyState::Up,
+                                state: ElementState::Released,
                                 ..
                             },
                         ..
                     } => {
-                        if let keyboard_types::Key::Character(string) = key {
-                            match string.to_lowercase().as_str() {
-                                "y" => {
-                                    if close_requested {
-                                        // This is where you'll want to do any cleanup you need.
-                                        println!("Buh-bye!");
+                        // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                        // See the `key_binding` example
+                        match key {
+                            Key::Character("y") => {
+                                if close_requested {
+                                    // This is where you'll want to do any cleanup you need.
+                                    println!("Buh-bye!");
 
-                                        // For a single-window application like this, you'd normally just
-                                        // break out of the event loop here. If you wanted to keep running the
-                                        // event loop (i.e. if it's a multi-window application), you need to
-                                        // drop the window. That closes it, and results in `Destroyed` being
-                                        // sent.
-                                        *control_flow = ControlFlow::Exit;
-                                    }
+                                    // For a single-window application like this, you'd normally just
+                                    // break out of the event loop here. If you wanted to keep running the
+                                    // event loop (i.e. if it's a multi-window application), you need to
+                                    // drop the window. That closes it, and results in `Destroyed` being
+                                    // sent.
+                                    *control_flow = ControlFlow::Exit;
                                 }
-                                "n" => {
-                                    if close_requested {
-                                        println!("Your window will continue to stay by your side.");
-                                        close_requested = false;
-                                    }
-                                }
-                                _ => (),
                             }
+                            Key::Character("n") => {
+                                if close_requested {
+                                    println!("Your window will continue to stay by your side.");
+                                    close_requested = false;
+                                }
+                            }
+                            _ => (),
                         }
                     }
                     _ => (),
