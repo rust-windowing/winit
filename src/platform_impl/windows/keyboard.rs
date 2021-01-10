@@ -701,8 +701,8 @@ pub fn vkey_to_non_printable(
         winuser::VK_INSERT => Key::Insert,
         winuser::VK_DELETE => Key::Delete,
         winuser::VK_HELP => Key::Help,
-        winuser::VK_LWIN => Key::Meta,
-        winuser::VK_RWIN => Key::Meta,
+        winuser::VK_LWIN => Key::Super,
+        winuser::VK_RWIN => Key::Super,
         winuser::VK_APPS => Key::ContextMenu,
         winuser::VK_SLEEP => Key::Standby,
 

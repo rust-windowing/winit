@@ -46,7 +46,7 @@ fn handle_key_event(modifiers: ModifiersState, event: KeyEvent) {
     if event.state == ElementState::Pressed && !event.repeat {
         match event.key_without_modifers() {
             Key::Character("1") => {
-                if modifiers.shift() {
+                if modifiers.shift_key() {
                     println!("Shift + 1 | logical_key: {:?}", event.logical_key);
                 } else {
                     println!("1");

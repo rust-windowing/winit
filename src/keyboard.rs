@@ -1,19 +1,19 @@
 impl ModifiersState {
     /// Returns `true` if the shift key is pressed.
-    pub fn shift(&self) -> bool {
+    pub fn shift_key(&self) -> bool {
         self.intersects(Self::SHIFT)
     }
     /// Returns `true` if the control key is pressed.
-    pub fn control(&self) -> bool {
+    pub fn control_key(&self) -> bool {
         self.intersects(Self::CONTROL)
     }
     /// Returns `true` if the alt key is pressed.
-    pub fn alt(&self) -> bool {
+    pub fn alt_key(&self) -> bool {
         self.intersects(Self::ALT)
     }
-    /// Returns `true` if the meta key is pressed.
-    pub fn meta(&self) -> bool {
-        self.intersects(Self::META)
+    /// Returns `true` if the super key is pressed.
+    pub fn super_key(&self) -> bool {
+        self.intersects(Self::SUPER)
     }
 }
 
@@ -38,7 +38,7 @@ bitflags! {
         // const LALT = 0b010 << 6;
         // const RALT = 0b001 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
-        const META = 0b100 << 9;
+        const SUPER = 0b100 << 9;
         // const LLOGO = 0b010 << 9;
         // const RLOGO = 0b001 << 9;
     }
@@ -53,10 +53,10 @@ mod modifiers_serde {
     #[serde(default)]
     #[serde(rename = "ModifiersState")]
     pub struct ModifiersStateSerialize {
-        pub shift: bool,
-        pub control: bool,
-        pub alt: bool,
-        pub meta: bool,
+        pub shift_key: bool,
+        pub control_key: bool,
+        pub alt_key: bool,
+        pub super_key: bool,
     }
 
     impl Serialize for ModifiersState {
@@ -65,10 +65,10 @@ mod modifiers_serde {
             S: Serializer,
         {
             let s = ModifiersStateSerialize {
-                shift: self.shift(),
-                control: self.control(),
-                alt: self.alt(),
-                meta: self.meta(),
+                shift_key: self.shift_key(),
+                control_key: self.control_key(),
+                alt_key: self.alt_key(),
+                super_key: self.super_key(),
             };
             s.serialize(serializer)
         }
@@ -80,16 +80,16 @@ mod modifiers_serde {
             D: Deserializer<'de>,
         {
             let ModifiersStateSerialize {
-                shift,
-                control,
-                alt,
-                meta,
+                shift_key,
+                control_key,
+                alt_key,
+                super_key,
             } = ModifiersStateSerialize::deserialize(deserializer)?;
             let mut m = ModifiersState::empty();
-            m.set(ModifiersState::SHIFT, shift);
-            m.set(ModifiersState::CONTROL, control);
-            m.set(ModifiersState::ALT, alt);
-            m.set(ModifiersState::META, meta);
+            m.set(ModifiersState::SHIFT, shift_key);
+            m.set(ModifiersState::CONTROL, control_key);
+            m.set(ModifiersState::ALT, alt_key);
+            m.set(ModifiersState::SUPER, super_key);
             Ok(m)
         }
     }
@@ -105,6 +105,15 @@ pub enum NativeKeyCode {
     XKB(u32),
 }
 
+/// Represents the location of a physical key.
+///
+/// This mostly conforms to the UI Events Specification's [`KeyboardEvent.code`] with a few
+/// exceptions:
+/// - The keys that the specification calls "MetaLeft" and "MetaRight" are named "SuperLeft" and
+///   "SuperRight" here.
+/// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
+///
+/// [`KeyboardEvent.code`]: https://w3c.github.io/uievents-code/#code-value-tables
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -240,7 +249,8 @@ pub enum KeyCode {
     Backspace,
     /// <kbd>CapsLock</kbd> or <kbd>⇪</kbd>
     CapsLock,
-    /// The application context menu key, which is typically found between the right <kbd>Meta</kbd> key and the right <kbd>Control</kbd> key.
+    /// The application context menu key, which is typically found between the right
+    /// <kbd>Super</kbd> key and the right <kbd>Control</kbd> key.
     ContextMenu,
     /// <kbd>Control</kbd> or <kbd>⌃</kbd>
     ControlLeft,
@@ -249,9 +259,9 @@ pub enum KeyCode {
     /// <kbd>Enter</kbd> or <kbd>↵</kbd>. Labelled <kbd>Return</kbd> on Apple keyboards.
     Enter,
     /// The Windows, <kbd>⌘</kbd> <kbd>Command</kbd> or other OS symbol key.
-    MetaLeft,
+    SuperLeft,
     /// The Windows, <kbd>⌘</kbd> <kbd>Command</kbd> or other OS symbol key.
-    MetaRight,
+    SuperRight,
     /// <kbd>Shift</kbd> or <kbd>⇧</kbd>
     ShiftLeft,
     /// <kbd>Shift</kbd> or <kbd>⇧</kbd>
@@ -552,8 +562,14 @@ pub enum KeyCode {
 
 /// Key represents the meaning of a keypress.
 ///
-/// Specification:
-/// https://w3c.github.io/uievents-key/
+/// This mostly conforms to the UI Events Specification's [`KeyboardEvent.key`] with a few
+/// exceptions:
+/// - The key that the specification calls "Meta" is named "Super" here.
+/// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
+/// - The `Dead` variant here, can specify the character which is inserted when pressing the
+///   dead-key twice.
+///
+/// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -602,17 +618,11 @@ pub enum Key<'a> {
     /// keyboard to changes some keys' values to an alternate character or function. This key is
     /// often handled directly in the keyboard hardware and does not usually generate key events.
     FnLock,
-    /// The `Meta` key. Used to enable meta modifier function for interpreting concurrent or
-    /// subsequent keyboard input. This key value is used for the "Windows Logo" key and the Apple
-    /// `Command` or `⌘` key.
-    Meta,
     /// The `NumLock` or Number Lock key. Used to toggle numpad mode function for interpreting
     /// subsequent keyboard input.
     NumLock,
     /// Toggle between scrolling and cursor movement modes.
     ScrollLock,
-    /// The `Shift` key
-    ///
     /// Used to enable shift modifier function for interpreting concurrent or subsequent keyboard
     /// input.
     Shift,
@@ -620,6 +630,10 @@ pub enum Key<'a> {
     Symbol,
     SymbolLock,
     Hyper,
+    /// Used to enable "super" modifier function for interpreting concurrent or subsequent keyboard
+    /// input. This key value is used for the "Windows Logo" key and the Apple `Command` or `⌘` key.
+    ///
+    /// Note: In some contexts (e.g. the Web) this is referred to as the "Meta" key.
     Super,
     /// The `Enter` or `↵` key. Used to activate current selection or accept current input. This key
     /// value is also used for the `Return` (Macintosh numpad) key. This key value is also used for
@@ -680,7 +694,7 @@ pub enum Key<'a> {
     Attn,
     Cancel,
     /// Show the application’s context menu.
-    /// This key is commonly found between the right `Meta` key and the right `Control` key.
+    /// This key is commonly found between the right `Super` key and the right `Control` key.
     ContextMenu,
     /// The `Esc` key. This key was originally used to initiate an escape sequence, but is
     /// now more generally used to exit or "escape" the current context, such as closing a dialog

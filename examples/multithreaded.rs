@@ -65,7 +65,7 @@ fn main() {
                     } => {
                         use Key::{ArrowLeft, ArrowRight, Character};
                         window.set_title(&format!("{:?}", key));
-                        let state = !modifiers.shift();
+                        let state = !modifiers.shift_key();
                         match &key {
                             // WARNING: Consider using `key_without_modifers()` if available on your platform.
                             // See the `key_binding` example
@@ -76,7 +76,7 @@ fn main() {
                                     false => CursorIcon::Default,
                                 }),
                                 "d" => window.set_decorations(!state),
-                                "f" => window.set_fullscreen(match (state, modifiers.alt()) {
+                                "f" => window.set_fullscreen(match (state, modifiers.alt_key()) {
                                     (true, false) => Some(Fullscreen::Borderless(None)),
                                     (true, true) => Some(Fullscreen::Exclusive(
                                         video_modes.iter().nth(video_mode_id).unwrap().clone(),

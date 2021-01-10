@@ -178,7 +178,7 @@ impl LayoutCache {
             key_pressed(winuser::VK_MENU) && !filter_out_altgr,
         );
         mods.set(
-            ModifiersState::META,
+            ModifiersState::SUPER,
             key_pressed(winuser::VK_LWIN) || key_pressed(winuser::VK_RWIN),
         );
         mods

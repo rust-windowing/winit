@@ -37,8 +37,8 @@ fn main() {
                     match key {
                         Key::Escape => *control_flow = ControlFlow::Exit,
                         Key::Character(ch) => match ch.to_lowercase().as_str() {
-                            "g" => window.set_cursor_grab(!modifiers.shift()).unwrap(),
-                            "h" => window.set_cursor_visible(modifiers.shift()),
+                            "g" => window.set_cursor_grab(!modifiers.shift_key()).unwrap(),
+                            "h" => window.set_cursor_visible(modifiers.shift_key()),
                             _ => (),
                         },
                         _ => (),
