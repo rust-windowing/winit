@@ -116,7 +116,8 @@ pub enum KeyCode {
     /// to allow the user to specify keybindings for keys which
     /// are not defined by this API.
     Unidentified(NativeKeyCode),
-    /// <kbd>`</kbd> on a US keyboard. This is the <kbd>半角/全角/漢字</kbd> (<span class="unicode">hankaku/zenkaku/kanji</span>) key on Japanese keyboards
+    /// <kbd>`</kbd> on a US keyboard. This is the <kbd>半角</kbd>/<kbd>全角</kbd>/<kbd>漢字</kbd>
+    /// (hankaku/zenkaku/kanji) key on Japanese keyboards
     Backquote,
     /// Used for both the US <kbd>\</kbd> (on the 101-key layout) and also for the key
     /// located between the <kbd>"</kbd> and <kbd>Enter</kbd> keys on row C of the 102-,
@@ -155,10 +156,10 @@ pub enum KeyCode {
     /// Labelled <kbd>\</kbd> on a UK keyboard.
     IntlBackslash,
     /// Located between the <kbd>/</kbd> and right <kbd>Shift</kbd> keys.
-    /// Labelled <kbd>\</kbd> (<span class="unicode">ro</span>) on a Japanese keyboard.
+    /// Labelled <kbd>\</kbd> (ro) on a Japanese keyboard.
     IntlRo,
     /// Located between the <kbd>=</kbd> and <kbd>Backspace</kbd> keys.
-    /// Labelled <kbd>¥</kbd> (<span class="unicode">yen</span>) on a Japanese keyboard. <kbd>\</kbd> on a
+    /// Labelled <kbd>¥</kbd> (yen) on a Japanese keyboard. <kbd>\</kbd> on a
     /// Russian keyboard.
     IntlYen,
     /// <kbd>a</kbd> on a US keyboard.
@@ -259,13 +260,17 @@ pub enum KeyCode {
     Space,
     /// <kbd>Tab</kbd> or <kbd>⇥</kbd>
     Tab,
-    /// Japanese: <kbd>変</kbd> (<span class="unicode">henkan</span>)
+    /// Japanese: <kbd>変</kbd> (henkan)
     Convert,
-    /// Japanese: <kbd>カタカナ/ひらがな/ローマ字</kbd> (<span class="unicode">katakana/hiragana/romaji</span>)
+    /// Japanese: <kbd>カタカナ</kbd>/<kbd>ひらがな</kbd>/<kbd>ローマ字</kbd> (katakana/hiragana/romaji)
     KanaMode,
-    /// Korean: HangulMode <kbd>한/영</kbd> (<span class="unicode">han/yeong</span>)<br>Japanese (Mac keyboard): <kbd>か</kbd> (<span class="unicode">kana</span>)
+    /// Korean: HangulMode <kbd>한/영</kbd> (han/yeong)
+    ///
+    /// Japanese (Mac keyboard): <kbd>か</kbd> (kana)
     Lang1,
-    /// Korean: Hanja <kbd>한</kbd> (<span class="unicode">hanja</span>)<br>Japanese (Mac keyboard): <kbd>英</kbd> (<span class="unicode">eisu</span>)
+    /// Korean: Hanja <kbd>한</kbd> (hanja)
+    ///
+    /// Japanese (Mac keyboard): <kbd>英</kbd> (eisu)
     Lang2,
     /// Japanese (word-processing keyboard): Katakana
     Lang3,
@@ -273,11 +278,11 @@ pub enum KeyCode {
     Lang4,
     /// Japanese (word-processing keyboard): Zenkaku/Hankaku
     Lang5,
-    /// Japanese: <kbd>無変換</kbd> (<span class="unicode">muhenkan</span>)
+    /// Japanese: <kbd>無変換</kbd> (muhenkan)
     NonConvert,
     /// <kbd>⌦</kbd>. The forward delete key.
     /// Note that on Apple keyboards, the key labelled <kbd>Delete</kbd> on the main part of
-    /// the keyboard should be encoded as <code class="code">"Backspace"</kbd>.
+    /// the keyboard should be encoded as <kbd>"Backspace"</kbd>.
     Delete,
     /// <kbd>Page Down</kbd> <kbd>End</kbd> or <kbd>↘</kbd>
     End,
@@ -299,37 +304,38 @@ pub enum KeyCode {
     ArrowRight,
     /// <kbd>↑</kbd>
     ArrowUp,
-    /// On the Mac, the <code class="code">"NumLock"</kbd> code should be used for the numpad <kbd>Clear</kbd> key.
+    /// On the Mac, the <kbd>"NumLock"</kbd> code should be used for the numpad <kbd>Clear</kbd>
+    /// key.
     NumLock,
-    /// <kbd>0 Ins</kbd> on a keyboard<br><kbd>0</kbd> on a phone or remote control
+    /// <kbd>0 Ins</kbd> on a keyboard. <kbd>0</kbd> on a phone or remote control
     Numpad0,
-    /// <kbd>1 End</kbd> on a keyboard<br><kbd>1</kbd> or <kbd>1 QZ</kbd> on a phone or
-    /// remote control
+    /// <kbd>1 End</kbd> on a keyboard. <kbd>1</kbd> or <kbd>1 QZ</kbd> on a phone or remote control
     Numpad1,
-    /// <kbd>2 ↓</kbd> on a keyboard<br><kbd>2 ABC</kbd> on a phone or remote control
+    /// <kbd>2 ↓</kbd> on a keyboard. <kbd>2 ABC</kbd> on a phone or remote control
     Numpad2,
-    /// <kbd>3 PgDn</kbd> on a keyboard<br><kbd>3 DEF</kbd> on a phone or remote control
+    /// <kbd>3 PgDn</kbd> on a keyboard. <kbd>3 DEF</kbd> on a phone or remote control
     Numpad3,
-    /// <kbd>4 ←</kbd> on a keyboard<br><kbd>4 GHI</kbd> on a phone or remote control
+    /// <kbd>4 ←</kbd> on a keyboard. <kbd>4 GHI</kbd> on a phone or remote control
     Numpad4,
-    /// <kbd>5</kbd> on a keyboard<br><kbd>5 JKL</kbd> on a phone or remote control
+    /// <kbd>5</kbd> on a keyboard. <kbd>5 JKL</kbd> on a phone or remote control
     Numpad5,
-    /// <kbd>6 →</kbd> on a keyboard<br><kbd>6 MNO</kbd> on a phone or remote control
+    /// <kbd>6 →</kbd> on a keyboard. <kbd>6 MNO</kbd> on a phone or remote control
     Numpad6,
-    /// <kbd>7 Home</kbd> on a keyboard<br><kbd>7 PQRS</kbd> or <kbd>7 PRS</kbd> on a phone
+    /// <kbd>7 Home</kbd> on a keyboard. <kbd>7 PQRS</kbd> or <kbd>7 PRS</kbd> on a phone
     /// or remote control
     Numpad7,
-    /// <kbd>8 ↑</kbd> on a keyboard<br><kbd>8 TUV</kbd> on a phone or remote control
+    /// <kbd>8 ↑</kbd> on a keyboard. <kbd>8 TUV</kbd> on a phone or remote control
     Numpad8,
-    /// <kbd>9 PgUp</kbd> on a keyboard<br><kbd>9 WXYZ</kbd> or <kbd>9 WXY</kbd> on a phone
+    /// <kbd>9 PgUp</kbd> on a keyboard. <kbd>9 WXYZ</kbd> or <kbd>9 WXY</kbd> on a phone
     /// or remote control
     Numpad9,
     /// <kbd>+</kbd>
     NumpadAdd,
     /// Found on the Microsoft Natural Keyboard.
     NumpadBackspace,
-    /// <kbd>C</kbd> or <kbd>A</kbd> (All Clear). Also for use with numpads that have a <kbd>Clear</kbd> key that is separate from the <kbd>NumLock</kbd> key. On the Mac, the numpad <kbd>Clear</kbd> key should always
-    /// be encoded as <code class="code">"NumLock"</kbd>.
+    /// <kbd>C</kbd> or <kbd>A</kbd> (All Clear). Also for use with numpads that have a
+    /// <kbd>Clear</kbd> key that is separate from the <kbd>NumLock</kbd> key. On the Mac, the
+    /// numpad <kbd>Clear</kbd> key should always be encoded as <kbd>"NumLock"</kbd>.
     NumpadClear,
     /// <kbd>C</kbd> (Clear Entry)
     NumpadClearEntry,
@@ -358,7 +364,9 @@ pub enum KeyCode {
     /// <kbd>M</kbd> Subtract current entry from the value stored in memory.
     NumpadMemorySubtract,
     /// <kbd>*</kbd> on a keyboard. For use with numpads that provide mathematical
-    /// operations (<kbd>+</kbd>, <kbd>-</kbd> <kbd>*</kbd> and <kbd>/</kbd>).<br>Use <code class="code">"NumpadStar"</kbd> for the <kbd>*</kbd> key on phones and remote controls.
+    /// operations (<kbd>+</kbd>, <kbd>-</kbd> <kbd>*</kbd> and <kbd>/</kbd>).
+    ///
+    /// Use <kbd>"NumpadStar"</kbd> for the <kbd>*</kbd> key on phones and remote controls.
     NumpadMultiply,
     /// <kbd>(</kbd> Found on the Microsoft Natural Keyboard.
     NumpadParenLeft,
@@ -366,7 +374,9 @@ pub enum KeyCode {
     NumpadParenRight,
     /// <kbd>*</kbd> on a phone or remote control device.
     /// This key is typically found below the <kbd>7</kbd> key and to the left of
-    /// the <kbd>0</kbd> key.<br>Use <code class="code">"NumpadMultiply"</kbd> for the <kbd>*</kbd> key on
+    /// the <kbd>0</kbd> key.
+    ///
+    /// Use <kbd>"NumpadMultiply"</kbd> for the <kbd>*</kbd> key on
     /// numeric keypads.
     NumpadStar,
     /// <kbd>-</kbd>
@@ -395,8 +405,8 @@ pub enum KeyCode {
     BrowserRefresh,
     BrowserSearch,
     BrowserStop,
-    /// <kbd>Eject</kbd> or <kbd>⏏</kbd>. This key is placed in the <a data-link-type="dfn" href="#function-section" id="ref-for-function-section①①">function
-    /// section</a> on some Apple keyboards.
+    /// <kbd>Eject</kbd> or <kbd>⏏</kbd>. This key is placed in the function section on some Apple
+    /// keyboards.
     Eject,
     /// Sometimes labelled <kbd>My Computer</kbd> on the keyboard
     LaunchApp1,
@@ -408,8 +418,8 @@ pub enum KeyCode {
     MediaStop,
     MediaTrackNext,
     MediaTrackPrevious,
-    /// This key is placed in the function section on some Apple keyboards,
-    /// replacing the <kbd>Eject</kbd> key.
+    /// This key is placed in the function section on some Apple keyboards, replacing the
+    /// <kbd>Eject</kbd> key.
     Power,
     Sleep,
     AudioVolumeDown,
@@ -444,75 +454,99 @@ pub enum KeyCode {
     Hiragana,
     /// Use for dedicated <kbd>カタカナ</kbd> key found on some Japanese word processing keyboards.
     Katakana,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F1,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F2,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F3,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F4,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F5,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F6,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F7,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F8,
-    /// <kbd>F</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F9,
-    /// <kbd>F10</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F10,
-    /// <kbd>F11</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F11,
-    /// <kbd>F12</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F12,
-    /// <kbd>F13</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F13,
-    /// <kbd>F14</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F14,
-    /// <kbd>F15</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F15,
-    /// <kbd>F16</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F16,
-    /// <kbd>F17</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F17,
-    /// <kbd>F18</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F18,
-    /// <kbd>F19</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F19,
-    /// <kbd>F20</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F20,
-    /// <kbd>F21</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F21,
-    /// <kbd>F22</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F22,
-    /// <kbd>F23</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F23,
-    /// <kbd>F24</kbd>
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F24,
-    /// <kbd>F25</kbd>
+    /// General-purpose function key.
     F25,
-    /// <kbd>F26</kbd>
+    /// General-purpose function key.
     F26,
-    /// <kbd>F27</kbd>
+    /// General-purpose function key.
     F27,
-    /// <kbd>F28</kbd>
+    /// General-purpose function key.
     F28,
-    /// <kbd>F29</kbd>
+    /// General-purpose function key.
     F29,
-    /// <kbd>F30</kbd>
+    /// General-purpose function key.
     F30,
-    /// <kbd>F31</kbd>
+    /// General-purpose function key.
     F31,
-    /// <kbd>F32</kbd>
+    /// General-purpose function key.
     F32,
-    /// <kbd>F33</kbd>
+    /// General-purpose function key.
     F33,
-    /// <kbd>F34</kbd>
+    /// General-purpose function key.
     F34,
-    /// <kbd>F35</kbd>
+    /// General-purpose function key.
     F35,
 }
 
@@ -524,100 +558,113 @@ pub enum KeyCode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Key<'a> {
-    /// A key string that corresponds to the character typed by the user,
-    /// taking into account the user’s current locale setting, modifier state,
-    /// and any system-level keyboard mapping overrides that are in effect.
+    /// A key string that corresponds to the character typed by the user, taking into account the
+    /// user’s current locale setting, and any system-level keyboard mapping overrides that are in
+    /// effect.
     Character(&'a str),
 
-    /// This variant is used when the key cannot be translated to any
-    /// other variant.
+    /// This variant is used when the key cannot be translated to any other variant.
     ///
-    /// The native scancode is provided (if available) in order
-    /// to allow the user to specify keybindings for keys which
-    /// are not defined by this API.
+    /// The native scancode is provided (if available) in order to allow the user to specify
+    /// keybindings for keys which are not defined by this API.
     Unidentified(NativeKeyCode),
 
-    /// Contains the text representation of the dead-key
-    /// when available.
+    /// Contains the text representation of the dead-key when available.
     ///
     /// ## Platform-specific
     /// - **Web:** Always contains `None`
     Dead(Option<char>),
 
-    /// The `Alt` (Alternative) key.<br> This key enables the alternate modifier function for interpreting concurrent or subsequent keyboard input.<br> This key value is also used for the Apple `Option` key.
+    /// The `Alt` (Alternative) key.
+    ///
+    /// This key enables the alternate modifier function for interpreting concurrent or subsequent
+    /// keyboard input. This key value is also used for the Apple `Option` key.
     Alt,
     /// The Alternate Graphics (`AltGr` or `AltGraph`) key.
-    /// This key is used enable the ISO Level 3 shift modifier (the standard `Shift` key is the level 2 modifier).
-    /// See [ISO9995-1].
+    ///
+    /// This key is used enable the ISO Level 3 shift modifier (the standard `Shift` key is the
+    /// level 2 modifier). See [ISO9995-1].
     AltGraph,
     /// The `Caps Lock` (Capital) key.
+    ///
     /// Toggle capital character lock function for interpreting subsequent keyboard input event.
     CapsLock,
-    /// The `Control` or `Ctrl` key, to enable control modifier function for interpreting concurrent or subsequent keyboard input.
+    /// The `Control` or `Ctrl` key.
+    ///
+    /// Used to enable control modifier function for interpreting concurrent or subsequent keyboard
+    /// input.
     Control,
-    /// The Function switch `Fn` key.<br> Activating this key simultaneously with another key changes that key’s value to an alternate character or function.
-    /// This key is often handled directly in the keyboard hardware and does not usually generate key events.
+    /// The Function switch `Fn` key. Activating this key simultaneously with another key changes
+    /// that key’s value to an alternate character or function. This key is often handled directly
+    /// in the keyboard hardware and does not usually generate key events.
     Fn,
-    /// The Function-Lock (`FnLock` or `F-Lock`) key.
-    /// Activating this key switches the mode of the keyboard to changes some keys' values to an alternate character or function.
-    /// This key is often handled directly in the keyboard hardware and does not usually generate key events.
+    /// The Function-Lock (`FnLock` or `F-Lock`) key. Activating this key switches the mode of the
+    /// keyboard to changes some keys' values to an alternate character or function. This key is
+    /// often handled directly in the keyboard hardware and does not usually generate key events.
     FnLock,
-    /// The `Meta` key, to enable meta modifier function for interpreting concurrent or subsequent keyboard input.
-    /// This key value is used for the <q>Windows Logo</q> key and the Apple `Command` or `⌘` key.
+    /// The `Meta` key. Used to enable meta modifier function for interpreting concurrent or
+    /// subsequent keyboard input. This key value is used for the "Windows Logo" key and the Apple
+    /// `Command` or `⌘` key.
     Meta,
-    /// The `NumLock` or Number Lock key, to toggle numpad mode function for interpreting subsequent keyboard input.
+    /// The `NumLock` or Number Lock key. Used to toggle numpad mode function for interpreting
+    /// subsequent keyboard input.
     NumLock,
-    /// The `Scroll Lock` key, to toggle between scrolling and cursor movement modes.
+    /// Toggle between scrolling and cursor movement modes.
     ScrollLock,
-    /// The `Shift` key, to enable shift modifier function for interpreting concurrent or subsequent keyboard input.
+    /// The `Shift` key
+    ///
+    /// Used to enable shift modifier function for interpreting concurrent or subsequent keyboard
+    /// input.
     Shift,
     /// The Symbol modifier key (used on some virtual keyboards).
     Symbol,
-    /// The Symbol Lock key.
     SymbolLock,
-    /// The `Hyper` key.
     Hyper,
-    /// The `Super` key.
     Super,
-    /// The `Enter` or `↵` key, to activate current selection or accept current input.<br> This key value is also used for the `Return` (Macintosh numpad) key.<br> This key value is also used for the Android `KEYCODE_DPAD_CENTER`.
+    /// The `Enter` or `↵` key. Used to activate current selection or accept current input. This key
+    /// value is also used for the `Return` (Macintosh numpad) key. This key value is also used for
+    /// the Android `KEYCODE_DPAD_CENTER`.
     Enter,
     /// The Horizontal Tabulation `Tab` key.
     Tab,
-    /// The down arrow key, to navigate or traverse downward. (`KEYCODE_DPAD_DOWN`)
+    /// Navigate or traverse downward. (`KEYCODE_DPAD_DOWN`)
     ArrowDown,
-    /// The left arrow key, to navigate or traverse leftward. (`KEYCODE_DPAD_LEFT`)
+    /// Navigate or traverse leftward. (`KEYCODE_DPAD_LEFT`)
     ArrowLeft,
-    /// The right arrow key, to navigate or traverse rightward. (`KEYCODE_DPAD_RIGHT`)
+    /// Navigate or traverse rightward. (`KEYCODE_DPAD_RIGHT`)
     ArrowRight,
-    /// The up arrow key, to navigate or traverse upward. (`KEYCODE_DPAD_UP`)
+    /// Navigate or traverse upward. (`KEYCODE_DPAD_UP`)
     ArrowUp,
     /// The End key, used with keyboard entry to go to the end of content (`KEYCODE_MOVE_END`).
     End,
-    /// The Home key, used with keyboard entry, to go to start of content (`KEYCODE_MOVE_HOME`).<br> For the mobile phone `Home` key (which goes to the phone’s main screen), use `"GoHome"`.
+    /// The Home key, used with keyboard entry, to go to start of content (`KEYCODE_MOVE_HOME`).
+    /// For the mobile phone `Home` key (which goes to the phone’s main screen), use `"GoHome"`.
     Home,
-    /// The Page Down key, to scroll down or display next page of content.
+    /// Scroll down or display next page of content.
     PageDown,
-    /// The Page Up key, to scroll up or display previous page of content.
+    /// Scroll up or display previous page of content.
     PageUp,
-    /// The Backspace key. This key value is also used for the key labeled `Delete` on MacOS keyboards.
+    /// Used to remove the character to the left of the cursor. This key value is also used for
+    /// the key labeled `Delete` on MacOS keyboards.
     Backspace,
     /// Remove the currently selected input.
     Clear,
     /// Copy the current selection. (`APPCOMMAND_COPY`)
     Copy,
-    /// The Cursor Select (Crsel) key.
+    /// The Cursor Select key.
     CrSel,
     /// Cut the current selection. (`APPCOMMAND_CUT`)
     Cut,
-    /// The Delete (Del) Key.
-    /// This key value is also used for the key labeled `Delete` on MacOS keyboards when modified by the `Fn` key.
+    /// Used to delete the character to the right of the cursor. This key value is also used for the
+    /// key labeled `Delete` on MacOS keyboards when `Fn` is active.
     Delete,
-    /// The Erase to End of Field key.
-    /// This key deletes all characters from the current cursor position to the end of the current field.
+    /// The Erase to End of Field key. This key deletes all characters from the current cursor
+    /// position to the end of the current field.
     EraseEof,
     /// The Extend Selection (Exsel) key.
     ExSel,
-    /// The Insert (Ins) key, to toggle between text modes for insertion or overtyping. (`KEYCODE_INSERT`)
+    /// Toggle between text modes for insertion or overtyping.
+    /// (`KEYCODE_INSERT`)
     Insert,
     /// The Paste key. (`APPCOMMAND_PASTE`)
     Paste,
@@ -627,11 +674,10 @@ pub enum Key<'a> {
     Undo,
     /// The Accept (Commit, OK) key. Accept current option or input method sequence conversion.
     Accept,
-    /// The Again key, to redo or repeat an action.
+    /// Redo or repeat an action.
     Again,
     /// The Attention (Attn) key.
     Attn,
-    /// The Cancel key.
     Cancel,
     /// Show the application’s context menu.
     /// This key is commonly found between the right `Meta` key and the right `Control` key.
@@ -640,61 +686,64 @@ pub enum Key<'a> {
     /// now more generally used to exit or "escape" the current context, such as closing a dialog
     /// or exiting full screen mode.
     Escape,
-    /// The Execute key.
     Execute,
     /// Open the Find dialog. (`APPCOMMAND_FIND`)
     Find,
-    /// Open a help dialog or toggle display of help information. (`APPCOMMAND_HELP`, `KEYCODE_HELP`)
+    /// Open a help dialog or toggle display of help information. (`APPCOMMAND_HELP`,
+    /// `KEYCODE_HELP`)
     Help,
     /// Pause the current state or application (as appropriate).
-    /// <p class="note" role="note">Do not use this value for the `Pause` button on media controllers. Use `"MediaPause"` instead.</p>
+    ///
+    /// Note: Do not use this value for the `Pause` button on media controllers. Use `"MediaPause"`
+    /// instead.
     Pause,
     /// Play or resume the current state or application (as appropriate).
-    /// <p class="note" role="note">Do not use this value for the `Play` button on media controllers. Use `"MediaPlay"` instead.</p>
+    ///
+    /// Note: Do not use this value for the `Play` button on media controllers. Use `"MediaPlay"`
+    /// instead.
     Play,
     /// The properties (Props) key.
     Props,
-    /// The Select key.
     Select,
     /// The ZoomIn key. (`KEYCODE_ZOOM_IN`)
     ZoomIn,
     /// The ZoomOut key. (`KEYCODE_ZOOM_OUT`)
     ZoomOut,
-    /// The Brightness Down key. Typically controls the display brightness. (`KEYCODE_BRIGHTNESS_DOWN`)
+    /// The Brightness Down key. Typically controls the display brightness.
+    /// (`KEYCODE_BRIGHTNESS_DOWN`)
     BrightnessDown,
     /// The Brightness Up key. Typically controls the display brightness. (`KEYCODE_BRIGHTNESS_UP`)
     BrightnessUp,
     /// Toggle removable media to eject (open) and insert (close) state. (`KEYCODE_MEDIA_EJECT`)
     Eject,
-    /// The LogOff key.
     LogOff,
     /// Toggle power state. (`KEYCODE_POWER`)
-    /// <p class="note" role="note">Note: Some devices might not expose this key to the operating environment.</p>
+    /// Note: Note: Some devices might not expose this key to the operating environment.
     Power,
     /// The `PowerOff` key. Sometime called `PowerDown`.
     PowerOff,
-    /// The `Print Screen` or `SnapShot` key, to initiate print-screen function.
+    /// Initiate print-screen function.
     PrintScreen,
-    /// The Hibernate key.
-    /// This key saves the current state of the computer to disk so that it can be restored. The computer will then shutdown.
+    /// The Hibernate key. This key saves the current state of the computer to disk so that it can
+    /// be restored. The computer will then shutdown.
     Hibernate,
-    /// The Standby key.
-    /// This key turns off the display and places the computer into a low-power mode without completely shutting down.
-    /// It is sometimes labelled `Suspend` or `Sleep` key. (`KEYCODE_SLEEP`)
+    /// The Standby key. This key turns off the display and places the computer into a low-power
+    /// mode without completely shutting down. It is sometimes labelled `Suspend` or `Sleep` key.
+    /// (`KEYCODE_SLEEP`)
     Standby,
     /// The WakeUp key. (`KEYCODE_WAKEUP`)
     WakeUp,
-    /// The All Candidates key, to initate the multi-candidate mode.
+    /// Initate the multi-candidate mode.
     AllCandidates,
-    /// The Alphanumeric key.
     Alphanumeric,
-    /// The Code Input key, to initiate the Code Input mode to allow characters to be entered by their code points.
+    /// Initiate the Code Input mode to allow characters to be entered by
+    /// their code points.
     CodeInput,
-    /// The Compose key, also known as <em>Multi_key</em> on the X Window System.
-    /// This key acts in a manner similar to a
-    /// dead key, triggering a mode where subsequent key presses are combined to produce a different character.
+    /// The Compose key, also known as "Multi_key" on the X Window System. This key acts in a
+    /// manner similar to a dead key, triggering a mode where subsequent key presses are combined to
+    /// produce a different character.
     Compose,
-    /// The Convert key, to convert the current input method sequence.
+    /// Convert the current input method sequence.
     Convert,
     /// The Final Mode `Final` key used on some Asian keyboards, to enable the final mode for IMEs.
     FinalMode,
@@ -706,26 +755,21 @@ pub enum Key<'a> {
     GroupNext,
     /// Switch to the previous character group. (ISO/IEC 9995)
     GroupPrevious,
-    /// The Mode Change key, to toggle between or cycle through input modes of IMEs.
+    /// Toggle between or cycle through input modes of IMEs.
     ModeChange,
-    /// The Next Candidate function key.
     NextCandidate,
-    /// The NonConvert ("Don’t Convert") key, to accept current input method sequence without conversion in IMEs.
+    /// Accept current input method sequence without
+    /// conversion in IMEs.
     NonConvert,
-    /// The Previous Candidate function key.
     PreviousCandidate,
-    /// The Process key.
     Process,
-    /// The Single Candidate function key.
     SingleCandidate,
-    /// The Hangul (Korean characters) Mode key, to toggle between Hangul and English modes.
+    /// Toggle between Hangul and English modes.
     HangulMode,
-    /// The Hanja (Korean characters) Mode key.
     HanjaMode,
-    /// The Junja (Korean characters) Mode key.
     JunjaMode,
-    /// The Eisu key. This key may close the IME, but its purpose
-    /// is defined by the current IME. (`KEYCODE_EISU`)
+    /// The Eisu key. This key may close the IME, but its purpose is defined by the current IME.
+    /// (`KEYCODE_EISU`)
     Eisu,
     /// The (Half-Width) Characters key.
     Hankaku,
@@ -733,12 +777,12 @@ pub enum Key<'a> {
     Hiragana,
     /// The Hiragana/Katakana toggle key. (`KEYCODE_KATAKANA_HIRAGANA`)
     HiraganaKatakana,
-    /// The Kana Mode (Kana Lock) key. This key is used to enter
-    /// hiragana mode (typically from romaji mode).
+    /// The Kana Mode (Kana Lock) key. This key is used to enter hiragana mode (typically from
+    /// romaji mode).
     KanaMode,
-    /// The Kanji (Japanese name for ideographic characters of Chinese origin) Mode key.
-    /// This key is typically used to switch to a hiragana keyboard for
-    /// the purpose of converting input into kanji. (`KEYCODE_KANA`)
+    /// The Kanji (Japanese name for ideographic characters of Chinese origin) Mode key. This key is
+    /// typically used to switch to a hiragana keyboard for the purpose of converting input into
+    /// kanji. (`KEYCODE_KANA`)
     KanjiMode,
     /// The Katakana (Japanese Kana characters) key.
     Katakana,
@@ -756,11 +800,14 @@ pub enum Key<'a> {
     Soft3,
     /// General purpose virtual function key, as index 4.
     Soft4,
-    /// Select next (numerically or logically) lower channel. (`APPCOMMAND_MEDIA_CHANNEL_DOWN`, `KEYCODE_CHANNEL_DOWN`)
+    /// Select next (numerically or logically) lower channel. (`APPCOMMAND_MEDIA_CHANNEL_DOWN`,
+    /// `KEYCODE_CHANNEL_DOWN`)
     ChannelDown,
-    /// Select next (numerically or logically) higher channel. (`APPCOMMAND_MEDIA_CHANNEL_UP`, `KEYCODE_CHANNEL_UP`)
+    /// Select next (numerically or logically) higher channel. (`APPCOMMAND_MEDIA_CHANNEL_UP`,
+    /// `KEYCODE_CHANNEL_UP`)
     ChannelUp,
-    /// Close the current document or message (Note: This doesn’t close the application). (`APPCOMMAND_CLOSE`)
+    /// Close the current document or message (Note: This doesn’t close the application).
+    /// (`APPCOMMAND_CLOSE`)
     Close,
     /// Open an editor to forward the current message. (`APPCOMMAND_FORWARD_MAIL`)
     MailForward,
@@ -770,24 +817,33 @@ pub enum Key<'a> {
     MailSend,
     /// Close the current media, for example to close a CD or DVD tray. (`KEYCODE_MEDIA_CLOSE`)
     MediaClose,
-    /// Initiate or continue forward playback at faster than normal speed, or increase speed if already fast forwarding. (`APPCOMMAND_MEDIA_FAST_FORWARD`, `KEYCODE_MEDIA_FAST_FORWARD`)
+    /// Initiate or continue forward playback at faster than normal speed, or increase speed if
+    /// already fast forwarding. (`APPCOMMAND_MEDIA_FAST_FORWARD`, `KEYCODE_MEDIA_FAST_FORWARD`)
     MediaFastForward,
     /// Pause the currently playing media. (`APPCOMMAND_MEDIA_PAUSE`, `KEYCODE_MEDIA_PAUSE`)
-    /// <p class="note" role="note">Media controller devices should use this value rather than `"Pause"` for their pause keys.</p>
+    ///
+    /// Note: Media controller devices should use this value rather than `"Pause"` for their pause
+    /// keys.
     MediaPause,
-    /// Initiate or continue media playback at normal speed, if not currently playing at normal speed. (`APPCOMMAND_MEDIA_PLAY`, `KEYCODE_MEDIA_PLAY`)
+    /// Initiate or continue media playback at normal speed, if not currently playing at normal
+    /// speed. (`APPCOMMAND_MEDIA_PLAY`, `KEYCODE_MEDIA_PLAY`)
     MediaPlay,
-    /// Toggle media between play and pause states. (`APPCOMMAND_MEDIA_PLAY_PAUSE`, `KEYCODE_MEDIA_PLAY_PAUSE`)
+    /// Toggle media between play and pause states. (`APPCOMMAND_MEDIA_PLAY_PAUSE`,
+    /// `KEYCODE_MEDIA_PLAY_PAUSE`)
     MediaPlayPause,
-    /// Initiate or resume recording of currently selected media. (`APPCOMMAND_MEDIA_RECORD`, `KEYCODE_MEDIA_RECORD`)
+    /// Initiate or resume recording of currently selected media. (`APPCOMMAND_MEDIA_RECORD`,
+    /// `KEYCODE_MEDIA_RECORD`)
     MediaRecord,
-    /// Initiate or continue reverse playback at faster than normal speed, or increase speed if already rewinding. (`APPCOMMAND_MEDIA_REWIND`, `KEYCODE_MEDIA_REWIND`)
+    /// Initiate or continue reverse playback at faster than normal speed, or increase speed if
+    /// already rewinding. (`APPCOMMAND_MEDIA_REWIND`, `KEYCODE_MEDIA_REWIND`)
     MediaRewind,
-    /// Stop media playing, pausing, forwarding, rewinding, or recording, if not already stopped. (`APPCOMMAND_MEDIA_STOP`, `KEYCODE_MEDIA_STOP`)
+    /// Stop media playing, pausing, forwarding, rewinding, or recording, if not already stopped.
+    /// (`APPCOMMAND_MEDIA_STOP`, `KEYCODE_MEDIA_STOP`)
     MediaStop,
     /// Seek to next media or program track. (`APPCOMMAND_MEDIA_NEXTTRACK`, `KEYCODE_MEDIA_NEXT`)
     MediaTrackNext,
-    /// Seek to previous media or program track. (`APPCOMMAND_MEDIA_PREVIOUSTRACK`, `KEYCODE_MEDIA_PREVIOUS`)
+    /// Seek to previous media or program track. (`APPCOMMAND_MEDIA_PREVIOUSTRACK`,
+    /// `KEYCODE_MEDIA_PREVIOUS`)
     MediaTrackPrevious,
     /// Open a new document or message. (`APPCOMMAND_NEW`)
     New,
@@ -809,11 +865,13 @@ pub enum Key<'a> {
     AudioBalanceLeft,
     /// Adjust audio balance rightward. (`VK_AUDIO_BALANCE_RIGHT`)
     AudioBalanceRight,
-    /// Decrease audio bass boost or cycle down through bass boost states. (`APPCOMMAND_BASS_DOWN`, `VK_BASS_BOOST_DOWN`)
+    /// Decrease audio bass boost or cycle down through bass boost states. (`APPCOMMAND_BASS_DOWN`,
+    /// `VK_BASS_BOOST_DOWN`)
     AudioBassBoostDown,
     /// Toggle bass boost on/off. (`APPCOMMAND_BASS_BOOST`)
     AudioBassBoostToggle,
-    /// Increase audio bass boost or cycle up through bass boost states. (`APPCOMMAND_BASS_UP`, `VK_BASS_BOOST_UP`)
+    /// Increase audio bass boost or cycle up through bass boost states. (`APPCOMMAND_BASS_UP`,
+    /// `VK_BASS_BOOST_UP`)
     AudioBassBoostUp,
     /// Adjust audio fader towards front. (`VK_FADER_FRONT`)
     AudioFaderFront,
@@ -829,7 +887,8 @@ pub enum Key<'a> {
     AudioVolumeDown,
     /// Increase audio volume. (`APPCOMMAND_VOLUME_UP`, `KEYCODE_VOLUME_UP`)
     AudioVolumeUp,
-    /// Toggle between muted state and prior volume level. (`APPCOMMAND_VOLUME_MUTE`, `KEYCODE_VOLUME_MUTE`)
+    /// Toggle between muted state and prior volume level. (`APPCOMMAND_VOLUME_MUTE`,
+    /// `KEYCODE_VOLUME_MUTE`)
     AudioVolumeMute,
     /// Toggle the microphone on/off. (`APPCOMMAND_MIC_ON_OFF_TOGGLE`)
     MicrophoneToggle,
@@ -841,11 +900,15 @@ pub enum Key<'a> {
     MicrophoneVolumeMute,
     /// Show correction list when a word is incorrectly identified. (`APPCOMMAND_CORRECTION_LIST`)
     SpeechCorrectionList,
-    /// Toggle between dictation mode and command/control mode. (`APPCOMMAND_DICTATE_OR_COMMAND_CONTROL_TOGGLE`)
+    /// Toggle between dictation mode and command/control mode.
+    /// (`APPCOMMAND_DICTATE_OR_COMMAND_CONTROL_TOGGLE`)
     SpeechInputToggle,
-    /// The first generic "LaunchApplication" key. This is commonly associated with launching "My Computer", and may have a computer symbol on the key. (`APPCOMMAND_LAUNCH_APP1`)
+    /// The first generic "LaunchApplication" key. This is commonly associated with launching "My
+    /// Computer", and may have a computer symbol on the key. (`APPCOMMAND_LAUNCH_APP1`)
     LaunchApplication1,
-    /// The second generic "LaunchApplication" key. This is commonly associated with launching "Calculator", and may have a calculator symbol on the key. (`APPCOMMAND_LAUNCH_APP2`, `KEYCODE_CALCULATOR`)
+    /// The second generic "LaunchApplication" key. This is commonly associated with launching
+    /// "Calculator", and may have a calculator symbol on the key. (`APPCOMMAND_LAUNCH_APP2`,
+    /// `KEYCODE_CALCULATOR`)
     LaunchApplication2,
     /// The "Calendar" key. (`KEYCODE_CALENDAR`)
     LaunchCalendar,
@@ -855,19 +918,12 @@ pub enum Key<'a> {
     LaunchMail,
     /// The "Media Player" key. (`APPCOMMAND_LAUNCH_MEDIA_SELECT`)
     LaunchMediaPlayer,
-    /// The "Music Player" key.
     LaunchMusicPlayer,
-    /// The "Phone" key.
     LaunchPhone,
-    /// The "Screen Saver" key.
     LaunchScreenSaver,
-    /// The "Spreadsheet" key.
     LaunchSpreadsheet,
-    /// The "Web Browser" key.
     LaunchWebBrowser,
-    /// The "WebCam" key.
     LaunchWebCam,
-    /// The "Word Processor" key.
     LaunchWordProcessor,
     /// Navigate to previous content or page in current history. (`APPCOMMAND_BROWSER_BACKWARD`)
     BrowserBack,
@@ -883,7 +939,8 @@ pub enum Key<'a> {
     BrowserSearch,
     /// Stop loading the current page or content. (`APPCOMMAND_BROWSER_STOP`)
     BrowserStop,
-    /// The Application switch key, which provides a list of recent apps to switch between. (`KEYCODE_APP_SWITCH`)
+    /// The Application switch key, which provides a list of recent apps to switch between.
+    /// (`KEYCODE_APP_SWITCH`)
     AppSwitch,
     /// The Call key. (`KEYCODE_CALL`)
     Call,
@@ -899,13 +956,11 @@ pub enum Key<'a> {
     GoHome,
     /// The Headset Hook key. (`KEYCODE_HEADSETHOOK`)
     HeadsetHook,
-    /// The Last Number Redial key.
     LastNumberRedial,
     /// The Notification key. (`KEYCODE_NOTIFICATION`)
     Notification,
     /// Toggle between manner mode state: silent, vibrate, ring, ... (`KEYCODE_MANNER_MODE`)
     MannerMode,
-    /// The Voice Dial key.
     VoiceDial,
     /// Switch to viewing TV. (`KEYCODE_TV`)
     TV,
@@ -971,13 +1026,17 @@ pub enum Key<'a> {
     AVRInput,
     /// Toggle the power on an external AVR (audio/video receiver). (`KEYCODE_AVR_POWER`)
     AVRPower,
-    /// General purpose color-coded media function key, as index 0 (red). (`VK_COLORED_KEY_0`, `KEYCODE_PROG_RED`)
+    /// General purpose color-coded media function key, as index 0 (red). (`VK_COLORED_KEY_0`,
+    /// `KEYCODE_PROG_RED`)
     ColorF0Red,
-    /// General purpose color-coded media function key, as index 1 (green). (`VK_COLORED_KEY_1`, `KEYCODE_PROG_GREEN`)
+    /// General purpose color-coded media function key, as index 1 (green). (`VK_COLORED_KEY_1`,
+    /// `KEYCODE_PROG_GREEN`)
     ColorF1Green,
-    /// General purpose color-coded media function key, as index 2 (yellow). (`VK_COLORED_KEY_2`, `KEYCODE_PROG_YELLOW`)
+    /// General purpose color-coded media function key, as index 2 (yellow). (`VK_COLORED_KEY_2`,
+    /// `KEYCODE_PROG_YELLOW`)
     ColorF2Yellow,
-    /// General purpose color-coded media function key, as index 3 (blue). (`VK_COLORED_KEY_3`, `KEYCODE_PROG_BLUE`)
+    /// General purpose color-coded media function key, as index 3 (blue). (`VK_COLORED_KEY_3`,
+    /// `KEYCODE_PROG_BLUE`)
     ColorF3Blue,
     /// General purpose color-coded media function key, as index 4 (grey). (`VK_COLORED_KEY_4`)
     ColorF4Grey,
@@ -1023,7 +1082,8 @@ pub enum Key<'a> {
     GuideNextDay,
     /// If guide is active and displayed, then display previous day’s content. (`VK_PREV_DAY`)
     GuidePreviousDay,
-    /// Toggle display of information about currently selected context or media. (`VK_INFO`, `KEYCODE_INFO`)
+    /// Toggle display of information about currently selected context or media. (`VK_INFO`,
+    /// `KEYCODE_INFO`)
     Info,
     /// Toggle instant replay. (`VK_INSTANT_REPLAY`)
     InstantReplay,
@@ -1036,7 +1096,9 @@ pub enum Key<'a> {
     /// Lock or unlock current content or program. (`VK_LOCK`)
     Lock,
     /// Show a list of media applications: audio/video players and image viewers. (`VK_APPS`)
-    /// <p class="note" role="note">Do not confuse this key value with the Windows' `VK_APPS` / `VK_CONTEXT_MENU` key, which is encoded as `"ContextMenu"`.</p>
+    ///
+    /// Note: Do not confuse this key value with the Windows' `VK_APPS` / `VK_CONTEXT_MENU` key,
+    /// which is encoded as `"ContextMenu"`.
     MediaApps,
     /// Audio track key. (`KEYCODE_MEDIA_AUDIO_TRACK`)
     MediaAudioTrack,
@@ -1084,11 +1146,13 @@ pub enum Key<'a> {
     PlaySpeedUp,
     /// Toggle random media or content shuffle mode. (`VK_RANDOM_TOGGLE`)
     RandomToggle,
-    /// Not a physical key, but this key code is sent when the remote control battery is low. (`VK_RC_LOW_BATTERY`)
+    /// Not a physical key, but this key code is sent when the remote control battery is low.
+    /// (`VK_RC_LOW_BATTERY`)
     RcLowBattery,
     /// Toggle or cycle between media recording speeds. (`VK_RECORD_SPEED_NEXT`)
     RecordSpeedNext,
-    /// Toggle RF (radio frequency) input bypass mode (pass RF input directly to the RF output). (`VK_RF_BYPASS`)
+    /// Toggle RF (radio frequency) input bypass mode (pass RF input directly to the RF output).
+    /// (`VK_RF_BYPASS`)
     RfBypass,
     /// Toggle scan channels mode. (`VK_SCAN_CHANNELS_TOGGLE`)
     ScanChannelsToggle,
@@ -1110,77 +1174,102 @@ pub enum Key<'a> {
     VideoModeNext,
     /// Cause device to identify itself in some manner, e.g., audibly or visibly. (`VK_WINK`)
     Wink,
-    /// Toggle between full-screen and scaled content, or alter magnification level. (`VK_ZOOM`, `KEYCODE_TV_ZOOM_MODE`)
+    /// Toggle between full-screen and scaled content, or alter magnification level. (`VK_ZOOM`,
+    /// `KEYCODE_TV_ZOOM_MODE`)
     ZoomToggle,
-    /// The F1 key, a general purpose function key, as index 1.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F1,
-    /// The F2 key, a general purpose function key, as index 2.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F2,
-    /// The F3 key, a general purpose function key, as index 3.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F3,
-    /// The F4 key, a general purpose function key, as index 4.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F4,
-    /// The F5 key, a general purpose function key, as index 5.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F5,
-    /// The F6 key, a general purpose function key, as index 6.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F6,
-    /// The F7 key, a general purpose function key, as index 7.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F7,
-    /// The F8 key, a general purpose function key, as index 8.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F8,
-    /// The F9 key, a general purpose function key, as index 9.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F9,
-    /// The F10 key, a general purpose function key, as index 10.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F10,
-    /// The F11 key, a general purpose function key, as index 11.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F11,
-    /// The F12 key, a general purpose function key, as index 12.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F12,
-    /// The F13 key, a general purpose function key, as index 13.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F13,
-    /// The F14 key, a general purpose function key, as index 14.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F14,
-    /// The F15 key, a general purpose function key, as index 15.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F15,
-    /// The F16 key, a general purpose function key, as index 16.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F16,
-    /// The F17 key, a general purpose function key, as index 17.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F17,
-    /// The F18 key, a general purpose function key, as index 18.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F18,
-    /// The F19 key, a general purpose function key, as index 19.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F19,
-    /// The F20 key, a general purpose function key, as index 20.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F20,
-    /// The F21 key, a general purpose function key, as index 21.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F21,
-    /// The F22 key, a general purpose function key, as index 22.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F22,
-    /// The F23 key, a general purpose function key, as index 23.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F23,
-    /// The F24 key, a general purpose function key, as index 24.
+    /// General-purpose function key.
+    /// Usually found at the top of the keyboard.
     F24,
-    /// The F25 key, a general purpose function key, as index 25.
+    /// General-purpose function key.
     F25,
-    /// The F26 key, a general purpose function key, as index 26.
+    /// General-purpose function key.
     F26,
-    /// The F27 key, a general purpose function key, as index 27.
+    /// General-purpose function key.
     F27,
-    /// The F28 key, a general purpose function key, as index 28.
+    /// General-purpose function key.
     F28,
-    /// The F29 key, a general purpose function key, as index 29.
+    /// General-purpose function key.
     F29,
-    /// The F30 key, a general purpose function key, as index 30.
+    /// General-purpose function key.
     F30,
-    /// The F31 key, a general purpose function key, as index 31.
+    /// General-purpose function key.
     F31,
-    /// The F32 key, a general purpose function key, as index 32.
+    /// General-purpose function key.
     F32,
-    /// The F33 key, a general purpose function key, as index 33.
+    /// General-purpose function key.
     F33,
-    /// The F34 key, a general purpose function key, as index 34.
+    /// General-purpose function key.
     F34,
-    /// The F35 key, a general purpose function key, as index 35.
+    /// General-purpose function key.
     F35,
 }
 
