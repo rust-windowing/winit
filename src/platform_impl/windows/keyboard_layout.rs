@@ -62,8 +62,6 @@ impl WindowsModifiers {
             result.insert(WindowsModifiers::CAPS_LOCK);
         }
 
-        println!("Active modifiers: {:?}", result);
-
         result
     }
 
@@ -341,14 +339,18 @@ impl LayoutCache {
     }
 }
 
-pub fn get_or_insert_str(strings: &mut HashSet<&'static str>, string: String) -> &'static str {
+pub fn get_or_insert_str<T>(strings: &mut HashSet<&'static str>, string: T) -> &'static str
+where
+    T: AsRef<str>,
+    String: From<T>,
+{
     {
-        let str_ref = string.as_str();
+        let str_ref = string.as_ref();
         if let Some(&existing) = strings.get(str_ref) {
             return existing;
         }
     }
-    let leaked = Box::leak(Box::from(string));
+    let leaked = Box::leak(Box::from(String::from(string)));
     strings.insert(leaked);
     leaked
 }

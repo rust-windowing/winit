@@ -137,34 +137,11 @@ impl KeyEventBuilder {
                 }
                 self.prev_down_was_dead = false;
 
-                let lparam_struct = destructure_key_lparam(lparam);
-                let scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
-                let code = native_key_to_code(scancode);
-                let vkey = unsafe {
-                    winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
-                };
-                let location = get_location(vkey, lparam_struct.extended);
-
-                let kbd_state = unsafe { get_kbd_state() };
-                let mods = WindowsModifiers::active_modifiers(&kbd_state);
-                let mods_without_ctrl = mods.remove_only_ctrl();
-
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
-                let (_, layout) = layouts.get_current_layout();
-                let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
-                let key_without_modifers =
-                    layout.get_key(WindowsModifiers::empty(), scancode, code);
-                let mut event_info = Some(PartialKeyEventInfo {
-                    key_state: ElementState::Pressed,
-                    logical_key,
-                    key_without_modifers,
-                    scancode,
-                    is_repeat: lparam_struct.is_repeat,
-                    code,
-                    location,
-                    utf16parts: Vec::with_capacity(8),
-                    text: PartialText::System(Vec::new()),
-                });
+                let mut event_info = Some(
+                    PartialKeyEventInfo::from_message(lparam, ElementState::Pressed, &mut layouts)
+                        .0,
+                );
 
                 let mut next_msg = MaybeUninit::uninit();
                 let peek_retval = unsafe {
@@ -298,38 +275,15 @@ impl KeyEventBuilder {
             }
             winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
                 *retval = Some(0);
-                let lparam_struct = destructure_key_lparam(lparam);
-                let scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
-                let code = native_key_to_code(scancode);
-                let vkey = unsafe {
-                    winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32
-                };
-                let location = get_location(vkey, lparam_struct.extended);
-                //let mut utf16parts = Vec::with_capacity(8);
-                //let mut utf16parts_without_ctrl = Vec::with_capacity(8);
-
-                let kbd_state = unsafe { get_kbd_state() };
-                let mods = WindowsModifiers::active_modifiers(&kbd_state);
-                let mods_without_ctrl = mods.remove_only_ctrl();
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
-                let (_, layout) = layouts.get_current_layout();
-                let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
-                let key_without_modifers =
-                    layout.get_key(WindowsModifiers::empty(), scancode, code);
-                let key_with_all_modifiers = layout.get_key(mods, scancode, code);
-                let event_info = PartialKeyEventInfo {
-                    key_state: ElementState::Released,
-                    logical_key,
-                    key_without_modifers,
-                    scancode,
-                    is_repeat: false,
-                    code,
-                    location,
-                    utf16parts: Vec::new(),
-                    text: PartialText::System(Vec::new()),
-                };
+                let (event_info, aux_info) =
+                    PartialKeyEventInfo::from_message(lparam, ElementState::Released, &mut layouts);
+                let logical_key = event_info.logical_key;
                 let mut ev = event_info.finalize(&mut layouts.strings);
+                let (_, layout) = layouts.get_current_layout();
+                let key_with_all_modifiers =
+                    layout.get_key(aux_info.modifiers, aux_info.scancode, aux_info.key_code);
                 ev.text = logical_key.to_text();
                 ev.platform_specific.char_with_all_modifers = key_with_all_modifiers.to_text();
                 return vec![MessageAsKeyEvent {
@@ -481,7 +435,7 @@ impl KeyEventBuilder {
         }
         let event_info = PartialKeyEventInfo {
             logical_key,
-            key_without_modifers,
+            key_without_modifiers: key_without_modifers,
             key_state,
             scancode,
             is_repeat: false,
@@ -515,7 +469,7 @@ struct PartialKeyEventInfo {
     location: KeyLocation,
     logical_key: Key<'static>,
 
-    key_without_modifers: Key<'static>,
+    key_without_modifiers: Key<'static>,
 
     /// The utf16 code units of the text that was produced by the keypress event.
     /// This take all modifiers into account. Including CTRL
@@ -524,7 +478,71 @@ struct PartialKeyEventInfo {
     text: PartialText,
 }
 
+struct AuxKeyInfo {
+    scancode: ExScancode,
+    key_code: KeyCode,
+    modifiers: WindowsModifiers,
+}
+
 impl PartialKeyEventInfo {
+    fn from_message(
+        lparam: LPARAM,
+        state: ElementState,
+        layouts: &mut MutexGuard<'_, LayoutCache>,
+    ) -> (Self, AuxKeyInfo) {
+        const NO_MODS: WindowsModifiers = WindowsModifiers::empty();
+
+        let lparam_struct = destructure_key_lparam(lparam);
+        let scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
+        let code = native_key_to_code(scancode);
+        let vkey =
+            unsafe { winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32 };
+        let location = get_location(vkey, lparam_struct.extended);
+
+        let kbd_state = unsafe { get_kbd_state() };
+        let mods = WindowsModifiers::active_modifiers(&kbd_state);
+        let mods_without_ctrl = mods.remove_only_ctrl();
+
+        let (_, layout) = layouts.get_current_layout();
+        let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
+        let key_without_modifiers = match layout.get_key(NO_MODS, scancode, code) {
+            // We convert dead keys into their character.
+            // The reason for this is that `key_without_modifiers` is designed for key-bindings
+            // but for example the US International treats `'` (apostrophe) as a dead key and
+            // reguar US keyboard treats it a character. In order for a single binding configuration
+            // to work with both layouts we forward each dead key as a character.
+            Key::Dead(k) => {
+                if let Some(ch) = k {
+                    // I'm avoiding the heap allocation. I don't want to talk about it :(
+                    let mut utf8 = [0; 4];
+                    let s = ch.encode_utf8(&mut utf8);
+                    let static_str = get_or_insert_str(&mut layouts.strings, s);
+                    Key::Character(static_str)
+                } else {
+                    Key::Unidentified(NativeKeyCode::Unidentified)
+                }
+            }
+            key => key,
+        };
+        let aux_info = AuxKeyInfo {
+            scancode,
+            key_code: code,
+            modifiers: mods,
+        };
+        let partial_key_event_info = PartialKeyEventInfo {
+            key_state: state,
+            logical_key,
+            key_without_modifiers,
+            scancode,
+            is_repeat: lparam_struct.is_repeat,
+            code,
+            location,
+            utf16parts: Vec::with_capacity(8),
+            text: PartialText::System(Vec::new()),
+        };
+        (partial_key_event_info, aux_info)
+    }
+
     fn finalize(self, strings: &mut HashSet<&'static str>) -> KeyEvent {
         let mut char_with_all_modifiers = None;
         if !self.utf16parts.is_empty() {
@@ -561,7 +579,7 @@ impl PartialKeyEventInfo {
             repeat: self.is_repeat,
             platform_specific: KeyEventExtra {
                 char_with_all_modifers: char_with_all_modifiers,
-                key_without_modifers: self.key_without_modifers,
+                key_without_modifers: self.key_without_modifiers,
             },
         }
     }
