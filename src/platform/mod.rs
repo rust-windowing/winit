@@ -23,4 +23,5 @@ pub mod windows;
 
 pub mod modifier_supplement;
 pub mod run_return;
+pub mod scancode;
 pub mod web;

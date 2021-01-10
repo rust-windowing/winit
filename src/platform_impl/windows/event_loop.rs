@@ -35,13 +35,14 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, RawKeyEvent, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    keyboard::ModifiersState,
+    keyboard::{KeyCode, ModifiersState},
     monitor::MonitorHandle as RootMonitorHandle,
+    platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
         drop_handler::FileDropHandler,
-        keyboard::{is_msg_keyboard_related, native_key_to_code},
+        keyboard::is_msg_keyboard_related,
         keyboard_layout::LAYOUT_CACHE,
         minimal_ime::is_msg_ime_related,
         monitor::{self, MonitorHandle},
@@ -2098,7 +2099,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                             }
                         };
                         let scancode = keyboard.MakeCode | extension;
-                        let code = native_key_to_code(scancode);
+                        let code = KeyCode::from_scancode(scancode as u32);
                         subclass_input.send_event(Event::DeviceEvent {
                             device_id,
                             event: Key(RawKeyEvent {

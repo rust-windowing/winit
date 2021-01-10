@@ -11,7 +11,8 @@ use winapi::{ctypes::c_int, shared::minwindef::HKL, um::winuser};
 
 use crate::{
     keyboard::{Key, KeyCode, ModifiersState, NativeKeyCode},
-    platform_impl::platform::keyboard::{native_key_to_code, vkey_to_non_printable, ExScancode},
+    platform::scancode::KeyCodeExtScancode,
+    platform_impl::platform::keyboard::{vkey_to_non_printable, ExScancode},
 };
 
 lazy_static! {
@@ -214,7 +215,7 @@ impl LayoutCache {
                 }
 
                 let native_code = NativeKeyCode::Windows(scancode as ExScancode);
-                let key_code = native_key_to_code(scancode as ExScancode);
+                let key_code = KeyCode::from_scancode(scancode);
                 // Let's try to get the key from just the scancode and vk
                 // We don't necessarily know yet if AltGraph is present on this layout so we'll
                 // assume it isn't. Then we'll do a second pass where we set the "AltRight" keys to
