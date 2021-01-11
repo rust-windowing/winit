@@ -28,5 +28,5 @@ pub trait KeyEventExtModifierSupplement {
     /// In case `logical_key` reports `Dead`, this will still report the
     /// key as `Characcter` according to the current keyboard layout. This value
     /// cannot be `Dead`.
-    fn key_without_modifers(&self) -> Key<'static>;
+    fn key_without_modifiers(&self) -> Key<'static>;
 }

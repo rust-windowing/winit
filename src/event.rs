@@ -610,12 +610,12 @@ pub struct RawKeyEvent {
 /// Describes a keyboard input targeting a window.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEvent {
-    /// Represents the position of a key independent of the
-    /// currently active layout.
-    /// Conforms to https://www.w3.org/TR/uievents-code/
+    /// Represents the position of a key independent of the currently active layout.
     ///
-    /// Note that `Fn` and `FnLock` key events are not emmited by `winit`.
-    /// These keys are usually handled at the hardware or at the OS level.
+    /// It also uniquely identifies the physical key (i.e. it's synonymus with a scancode).
+    ///
+    /// Note that `Fn` and `FnLock` key events are not guaranteed to be emmited by `winit`. These
+    /// keys are usually handled at the hardware or at the OS level.
     pub physical_key: keyboard::KeyCode,
 
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
@@ -623,11 +623,13 @@ pub struct KeyEvent {
     /// This has two use cases:
     /// - Allows querying whether the current input is a Dead key
     /// - Allows handling key-bindings on platforms which don't
-    /// support `KeyEventExtModifierSupplement::key_without_modifiers`.
+    /// support [`key_without_modifiers`].
     ///
     /// ## Platform-specific
     /// - **Web:** Dead keys might be reported as the real key instead
     /// of `Dead` depending on the browser/OS.
+    ///
+    /// [`key_without_modifiers`]: crate::platform::modifier_supplement::KeyEventExtModifierSupplement::key_without_modifiers
     pub logical_key: keyboard::Key<'static>,
 
     /// Contains the text produced by this keypress.

@@ -252,7 +252,7 @@ impl KeyEventExtModifierSupplement for KeyEvent {
     }
 
     #[inline]
-    fn key_without_modifers(&self) -> Key<'static> {
+    fn key_without_modifiers(&self) -> Key<'static> {
         self.platform_specific.key_without_modifers
     }
 }
@@ -426,6 +426,7 @@ impl KeyCodeExtScancode for KeyCode {
             KeyCode::AudioVolumeDown => Some(0xE02E),
             KeyCode::AudioVolumeMute => Some(0xE020),
             KeyCode::AudioVolumeUp => Some(0xE030),
+            KeyCode::Unidentified(NativeKeyCode::Windows(scancode)) => Some(scancode as u32),
             _ => None,
         }
     }
