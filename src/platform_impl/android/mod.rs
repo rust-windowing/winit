@@ -30,7 +30,7 @@ enum EventSource {
 
 fn poll(poll: Poll) -> Option<EventSource> {
     match poll {
-        Poll::Event { data, .. } => match data as usize {
+        Poll::Event { ident, .. } => match ident {
             0 => Some(EventSource::Callback),
             1 => Some(EventSource::InputQueue),
             _ => unreachable!(),
