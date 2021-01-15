@@ -5,6 +5,7 @@
 - On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.
 - On Android, unimplemented events are marked as unhandled on the native event loop.
+- On Web, added `DeviceEvent::MouseMotion` to support use with Pointer Lock API.
 
 # 0.24.0 (2020-12-09)
 
