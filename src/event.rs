@@ -38,9 +38,10 @@ use std::path::PathBuf;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl,
     window::{Theme, WindowId},
 };
+
+pub mod device;
 
 /// Describes a generic event.
 ///
@@ -61,11 +62,12 @@ pub enum Event<'a, T: 'static> {
         event: WindowEvent<'a>,
     },
 
-    /// Emitted when the OS sends an event to a device.
-    DeviceEvent {
-        device_id: DeviceId,
-        event: DeviceEvent,
-    },
+    MouseEvent(device::MouseId, device::MouseEvent),
+    /// Emitted when a keyboard device has generated input.
+    KeyboardEvent(device::KeyboardId, device::KeyboardEvent),
+    HidEvent(device::HidId, device::HidEvent),
+    /// Emitted when a gamepad/joystick device has generated input.
+    GamepadEvent(device::GamepadHandle, device::GamepadEvent),
 
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
@@ -127,10 +129,10 @@ impl<T: Clone> Clone for Event<'static, T> {
                 event: event.clone(),
             },
             UserEvent(event) => UserEvent(event.clone()),
-            DeviceEvent { device_id, event } => DeviceEvent {
-                device_id: *device_id,
-                event: event.clone(),
-            },
+            MouseEvent(id, event) => MouseEvent(id.clone(), event.clone()),
+            KeyboardEvent(id, event) => KeyboardEvent(id.clone(), event.clone()),
+            HidEvent(id, event) => HidEvent(id.clone(), event.clone()),
+            GamepadEvent(id, event) => GamepadEvent(id.clone(), event.clone()),
             NewEvents(cause) => NewEvents(cause.clone()),
             MainEventsCleared => MainEventsCleared,
             RedrawRequested(wid) => RedrawRequested(*wid),
@@ -148,7 +150,10 @@ impl<'a, T> Event<'a, T> {
         match self {
             UserEvent(_) => Err(self),
             WindowEvent { window_id, event } => Ok(WindowEvent { window_id, event }),
-            DeviceEvent { device_id, event } => Ok(DeviceEvent { device_id, event }),
+            MouseEvent(id, event) => Ok(MouseEvent(id, event)),
+            KeyboardEvent(id, event) => Ok(KeyboardEvent(id, event)),
+            HidEvent(id, event) => Ok(HidEvent(id, event)),
+            GamepadEvent(id, event) => Ok(GamepadEvent(id, event)),
             NewEvents(cause) => Ok(NewEvents(cause)),
             MainEventsCleared => Ok(MainEventsCleared),
             RedrawRequested(wid) => Ok(RedrawRequested(wid)),
@@ -168,7 +173,10 @@ impl<'a, T> Event<'a, T> {
                 .to_static()
                 .map(|event| WindowEvent { window_id, event }),
             UserEvent(event) => Some(UserEvent(event)),
-            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
+            MouseEvent(id, event) => Some(MouseEvent(id, event)),
+            KeyboardEvent(id, event) => Some(KeyboardEvent(id, event)),
+            HidEvent(id, event) => Some(HidEvent(id, event)),
+            GamepadEvent(id, event) => Some(GamepadEvent(id, event)),
             NewEvents(cause) => Some(NewEvents(cause)),
             MainEventsCleared => Some(MainEventsCleared),
             RedrawRequested(wid) => Some(RedrawRequested(wid)),
@@ -249,7 +257,6 @@ pub enum WindowEvent<'a> {
 
     /// An event from the keyboard has been received.
     KeyboardInput {
-        device_id: DeviceId,
         input: KeyboardInput,
         /// If `true`, the event was generated synthetically by winit
         /// in one of the following circumstances:
@@ -272,8 +279,6 @@ pub enum WindowEvent<'a> {
 
     /// The cursor has moved on the window.
     CursorMoved {
-        device_id: DeviceId,
-
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
@@ -283,14 +288,13 @@ pub enum WindowEvent<'a> {
     },
 
     /// The cursor has entered the window.
-    CursorEntered { device_id: DeviceId },
+    CursorEntered,
 
     /// The cursor has left the window.
-    CursorLeft { device_id: DeviceId },
+    CursorLeft,
 
     /// A mouse wheel movement or touchpad scroll occurred.
     MouseWheel {
-        device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
         #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
@@ -299,7 +303,6 @@ pub enum WindowEvent<'a> {
 
     /// An mouse button press has been received.
     MouseInput {
-        device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
         #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
@@ -311,18 +314,7 @@ pub enum WindowEvent<'a> {
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
     /// The parameters are: pressure level (value between 0 and 1 representing how hard the touchpad
     /// is being pressed) and stage (integer representing the click level).
-    TouchpadPressure {
-        device_id: DeviceId,
-        pressure: f32,
-        stage: i64,
-    },
-
-    /// Motion on some analog axis. May report data redundant to other, more specific events.
-    AxisMotion {
-        device_id: DeviceId,
-        axis: AxisId,
-        value: f64,
-    },
+    TouchpadPressure { pressure: f32, stage: i64 },
 
     /// Touch event has been received
     Touch(Touch),
@@ -368,11 +360,9 @@ impl Clone for WindowEvent<'static> {
             ReceivedCharacter(c) => ReceivedCharacter(*c),
             Focused(f) => Focused(*f),
             KeyboardInput {
-                device_id,
                 input,
                 is_synthetic,
             } => KeyboardInput {
-                device_id: *device_id,
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
@@ -380,61 +370,37 @@ impl Clone for WindowEvent<'static> {
             ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
             #[allow(deprecated)]
             CursorMoved {
-                device_id,
                 position,
                 modifiers,
             } => CursorMoved {
-                device_id: *device_id,
                 position: *position,
                 modifiers: *modifiers,
             },
-            CursorEntered { device_id } => CursorEntered {
-                device_id: *device_id,
-            },
-            CursorLeft { device_id } => CursorLeft {
-                device_id: *device_id,
-            },
+            CursorEntered => CursorEntered,
+            CursorLeft => CursorLeft,
             #[allow(deprecated)]
             MouseWheel {
-                device_id,
                 delta,
                 phase,
                 modifiers,
             } => MouseWheel {
-                device_id: *device_id,
                 delta: *delta,
                 phase: *phase,
                 modifiers: *modifiers,
             },
             #[allow(deprecated)]
             MouseInput {
-                device_id,
                 state,
                 button,
                 modifiers,
             } => MouseInput {
-                device_id: *device_id,
                 state: *state,
                 button: *button,
                 modifiers: *modifiers,
             },
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => TouchpadPressure {
-                device_id: *device_id,
+            TouchpadPressure { pressure, stage } => TouchpadPressure {
                 pressure: *pressure,
                 stage: *stage,
-            },
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => AxisMotion {
-                device_id: *device_id,
-                axis: *axis,
-                value: *value,
             },
             Touch(touch) => Touch(*touch),
             ThemeChanged(theme) => ThemeChanged(theme.clone()),
@@ -459,141 +425,49 @@ impl<'a> WindowEvent<'a> {
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput {
-                device_id,
                 input,
                 is_synthetic,
             } => Some(KeyboardInput {
-                device_id,
                 input,
                 is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
             #[allow(deprecated)]
             CursorMoved {
-                device_id,
                 position,
                 modifiers,
             } => Some(CursorMoved {
-                device_id,
                 position,
                 modifiers,
             }),
-            CursorEntered { device_id } => Some(CursorEntered { device_id }),
-            CursorLeft { device_id } => Some(CursorLeft { device_id }),
+            CursorEntered => Some(CursorEntered),
+            CursorLeft => Some(CursorLeft),
             #[allow(deprecated)]
             MouseWheel {
-                device_id,
                 delta,
                 phase,
                 modifiers,
             } => Some(MouseWheel {
-                device_id,
                 delta,
                 phase,
                 modifiers,
             }),
             #[allow(deprecated)]
             MouseInput {
-                device_id,
                 state,
                 button,
                 modifiers,
             } => Some(MouseInput {
-                device_id,
                 state,
                 button,
                 modifiers,
             }),
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => Some(TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            }),
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => Some(AxisMotion {
-                device_id,
-                axis,
-                value,
-            }),
+            TouchpadPressure { pressure, stage } => Some(TouchpadPressure { pressure, stage }),
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
             ScaleFactorChanged { .. } => None,
         }
     }
-}
-
-/// Identifier of an input device.
-///
-/// Whenever you receive an event arising from a particular input device, this event contains a `DeviceId` which
-/// identifies its origin. Note that devices may be virtual (representing an on-screen cursor and keyboard focus) or
-/// physical. Virtual devices typically aggregate inputs from multiple physical devices.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(pub(crate) platform_impl::DeviceId);
-
-impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
-    /// value of this function is that it will always be equal to itself and to future values returned
-    /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.
-    ///
-    /// **Passing this into a winit function will result in undefined behavior.**
-    pub unsafe fn dummy() -> Self {
-        DeviceId(platform_impl::DeviceId::dummy())
-    }
-}
-
-/// Represents raw hardware events that are not associated with any particular window.
-///
-/// Useful for interactions that diverge significantly from a conventional 2D GUI, such as 3D camera or first-person
-/// game controls. Many physical actions, such as mouse movement, can produce both device and window events. Because
-/// window events typically arise from virtual devices (corresponding to GUI cursors and keyboard focus) the device IDs
-/// may not match.
-///
-/// Note that these events are delivered regardless of input focus.
-#[derive(Clone, Debug, PartialEq)]
-pub enum DeviceEvent {
-    Added,
-    Removed,
-
-    /// Change in physical position of a pointing device.
-    ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
-    MouseMotion {
-        /// (x, y) change in position in unspecified units.
-        ///
-        /// Different devices may use different units.
-        delta: (f64, f64),
-    },
-
-    /// Physical scroll event
-    MouseWheel {
-        delta: MouseScrollDelta,
-    },
-
-    /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
-    /// that winit supports on this platform, including mouse devices.  If the device is a mouse
-    /// device then this will be reported alongside the MouseMotion event.
-    Motion {
-        axis: AxisId,
-        value: f64,
-    },
-
-    Button {
-        button: ButtonId,
-        state: ElementState,
-    },
-
-    Key(KeyboardInput),
-
-    Text {
-        codepoint: char,
-    },
 }
 
 /// Describes a keyboard input event.
@@ -651,7 +525,6 @@ pub enum TouchPhase {
 /// device against their face.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
-    pub device_id: DeviceId,
     pub phase: TouchPhase,
     pub location: PhysicalPosition<f64>,
     /// Describes how hard the screen was pressed. May be `None` if the platform
@@ -731,7 +604,7 @@ pub type AxisId = u32;
 pub type ButtonId = u32;
 
 /// Describes the input state of a key.
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ElementState {
     Pressed,

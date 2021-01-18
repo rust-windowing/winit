@@ -89,12 +89,12 @@ impl Window {
                         );
                     }
 
-                    let file_drop_runner = event_loop.runner_shared.clone();
+                    let shared_data = event_loop.shared_data.clone();
                     let file_drop_handler = FileDropHandler::new(
                         win.window.0,
                         Box::new(move |event| {
                             if let Ok(e) = event.map_nonuser_event() {
-                                file_drop_runner.send_event(e)
+                                shared_data.runner_shared.send_event(e)
                             }
                         }),
                     );
@@ -112,7 +112,7 @@ impl Window {
 
                 let subclass_input = event_loop::SubclassInput {
                     window_state: win.window_state.clone(),
-                    event_loop_runner: event_loop.runner_shared.clone(),
+                    shared_data: event_loop.shared_data.clone(),
                     file_drop_handler,
                     subclass_removed: Cell::new(false),
                     recurse_depth: Cell::new(0),
