@@ -136,8 +136,12 @@ impl KeyEventBuilder {
                 self.prev_down_was_dead = false;
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
-                let (event_info, _) =
-                    PartialKeyEventInfo::from_message(lparam, ElementState::Pressed, &mut layouts);
+                let (event_info, _) = PartialKeyEventInfo::from_message(
+                    wparam,
+                    lparam,
+                    ElementState::Pressed,
+                    &mut layouts,
+                );
                 let mut event_info = Some(event_info);
 
                 let mut next_msg = MaybeUninit::uninit();
@@ -274,8 +278,12 @@ impl KeyEventBuilder {
                 *retval = Some(0);
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
-                let (event_info, aux_info) =
-                    PartialKeyEventInfo::from_message(lparam, ElementState::Released, &mut layouts);
+                let (event_info, aux_info) = PartialKeyEventInfo::from_message(
+                    wparam,
+                    lparam,
+                    ElementState::Released,
+                    &mut layouts,
+                );
                 let logical_key = event_info.logical_key;
                 let mut ev = event_info.finalize(&mut layouts.strings);
                 let (_, layout) = layouts.get_current_layout();
@@ -483,24 +491,45 @@ struct AuxKeyInfo {
 
 impl PartialKeyEventInfo {
     fn from_message(
+        wparam: WPARAM,
         lparam: LPARAM,
         state: ElementState,
         layouts: &mut MutexGuard<'_, LayoutCache>,
     ) -> (Self, AuxKeyInfo) {
         const NO_MODS: WindowsModifiers = WindowsModifiers::empty();
 
+        let (_, layout) = layouts.get_current_layout();
         let lparam_struct = destructure_key_lparam(lparam);
-        let scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
+        let scancode;
+        let vkey;
+        if lparam_struct.scancode == 0 {
+            // In some cases (often with media keys) the device reports a scancode of 0 but a
+            // valid virtual key. In these cases we obtain the scancode from the virtual key.
+            vkey = wparam as c_int;
+            scancode = unsafe {
+                winuser::MapVirtualKeyExW(
+                    vkey as u32,
+                    winuser::MAPVK_VK_TO_VSC_EX,
+                    layout.hkl as HKL,
+                ) as u16
+            };
+        } else {
+            scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
+            vkey = unsafe {
+                winuser::MapVirtualKeyExW(
+                    scancode as u32,
+                    winuser::MAPVK_VSC_TO_VK_EX,
+                    layout.hkl as HKL,
+                ) as i32
+            };
+        }
         let code = KeyCode::from_scancode(scancode as u32);
-        let vkey =
-            unsafe { winuser::MapVirtualKeyW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX) as i32 };
         let location = get_location(vkey, lparam_struct.extended);
 
         let kbd_state = unsafe { get_kbd_state() };
         let mods = WindowsModifiers::active_modifiers(&kbd_state);
         let mods_without_ctrl = mods.remove_only_ctrl();
 
-        let (_, layout) = layouts.get_current_layout();
         let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
         let key_without_modifiers = match layout.get_key(NO_MODS, scancode, code) {
             // We convert dead keys into their character.

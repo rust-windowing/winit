@@ -2098,7 +2098,17 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                                 0x0000
                             }
                         };
-                        let scancode = keyboard.MakeCode | extension;
+                        let scancode;
+                        if keyboard.MakeCode == 0 {
+                            // In some cases (often with media keys) the device reports a scancode of 0 but a
+                            // valid virtual key. In these cases we obtain the scancode from the virtual key.
+                            scancode = winuser::MapVirtualKeyW(
+                                keyboard.VKey as u32,
+                                winuser::MAPVK_VK_TO_VSC_EX,
+                            ) as u16;
+                        } else {
+                            scancode = keyboard.MakeCode | extension;
+                        }
                         let code = KeyCode::from_scancode(scancode as u32);
                         subclass_input.send_event(Event::DeviceEvent {
                             device_id,
