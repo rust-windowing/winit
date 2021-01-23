@@ -242,8 +242,9 @@ pub enum WindowEvent<'a> {
 
     /// The user commited an IME string for this window.
     ///
-    /// This is a temporary API until #1497 gets completed. See:
-    /// https://github.com/rust-windowing/winit/issues/1497
+    /// This is a temporary API until [#1497] gets completed.
+    ///
+    /// [#1497]: https://github.com/rust-windowing/winit/issues/1497
     ReceivedImeText(String),
 
     /// The window gained or lost focus.
