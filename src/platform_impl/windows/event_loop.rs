@@ -19,6 +19,7 @@ use std::{
 use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
 
 use winapi::{
+    ctypes::c_int,
     shared::{
         minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WPARAM},
         windef::{HWND, POINT, RECT},
@@ -2109,7 +2110,17 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         } else {
                             scancode = keyboard.MakeCode | extension;
                         }
-                        let code = KeyCode::from_scancode(scancode as u32);
+                        let code;
+                        if keyboard.VKey as c_int == winuser::VK_NUMLOCK {
+                            // For some reason the scancode for numlock reports the `Pause` key.
+                            // This is beyond my comprehension but it's probably related to what's
+                            // described in the article by Raymond Chen, titled:
+                            // "Why does Ctrl+ScrollLock cancel dialogs?"
+                            // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
+                            code = KeyCode::NumLock;
+                        } else {
+                            code = KeyCode::from_scancode(scancode as u32);
+                        }
                         subclass_input.send_event(Event::DeviceEvent {
                             device_id,
                             event: Key(RawKeyEvent {
