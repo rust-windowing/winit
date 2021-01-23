@@ -7,12 +7,19 @@ use std::{
 
 use lazy_static::lazy_static;
 
-use winapi::{ctypes::c_int, shared::minwindef::HKL, um::winuser};
+use winapi::{
+    ctypes::c_int,
+    shared::minwindef::{HKL, LOWORD},
+    um::{
+        winnt::{LANG_JAPANESE, LANG_KOREAN, PRIMARYLANGID},
+        winuser,
+    },
+};
 
 use crate::{
     keyboard::{Key, KeyCode, ModifiersState, NativeKeyCode},
     platform::scancode::KeyCodeExtScancode,
-    platform_impl::platform::keyboard::{vkey_to_non_printable, ExScancode},
+    platform_impl::platform::keyboard::ExScancode,
 };
 
 lazy_static! {
@@ -107,6 +114,7 @@ impl WindowsModifiers {
 }
 
 pub struct Layout {
+    pub hkl: u64,
     /// Maps a modifier state to group of key strings
     /// Not using `ModifiersState` here because that object cannot express caps lock
     /// but we need to handle caps lock too.
@@ -128,10 +136,14 @@ impl Layout {
         scancode: ExScancode,
         keycode: KeyCode,
     ) -> Key<'static> {
-        // let ctrl_alt: WindowsModifiers = WindowsModifiers::CONTROL | WindowsModifiers::ALT;
-        // if self.has_alt_graph && mods.contains(ctrl_alt) {
-
-        // }
+        // This feels much like a hack as one would assume that the `keys` map contains every key
+        // mapping. However `MapVirtualKeyExW` sometimes maps virtual keys to odd scancodes that
+        // don't match the scancode coming from the KEYDOWN message for the same key.
+        // For example:
+        // `VK_LEFT` is mapped to `0x004B`, but the scancode for the left arrow is `0xE04B`.
+        if let Some(key) = keycode_to_non_character_key(keycode, self.has_alt_graph, self.hkl) {
+            return key;
+        }
 
         if let Some(keys) = self.keys.get(&mods) {
             if let Some(key) = keys.get(&keycode) {
@@ -186,6 +198,7 @@ impl LayoutCache {
 
     fn prepare_layout(strings: &mut HashSet<&'static str>, locale_id: u64) -> Layout {
         let mut layout = Layout {
+            hkl: locale_id,
             keys: Default::default(),
             has_alt_graph: false,
         };
@@ -361,4 +374,406 @@ enum ToUnicodeResult {
     Str(String),
     Dead(Option<char>),
     None,
+}
+
+fn keycode_to_non_character_key(
+    keycode: KeyCode,
+    has_alt_graph: bool,
+    hkl: u64,
+) -> Option<Key<'static>> {
+    let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
+    let is_korean = primary_lang_id == LANG_KOREAN;
+    match keycode {
+        KeyCode::AltLeft => Some(Key::Alt),
+        KeyCode::AltRight => {
+            if has_alt_graph {
+                Some(Key::AltGraph)
+            } else {
+                Some(Key::Alt)
+            }
+        }
+        KeyCode::Backspace => Some(Key::Backspace),
+        KeyCode::CapsLock => Some(Key::CapsLock),
+        KeyCode::ContextMenu => Some(Key::ContextMenu),
+        KeyCode::ControlLeft => Some(Key::Control),
+        KeyCode::ControlRight => Some(Key::Control),
+        KeyCode::Enter => Some(Key::Enter),
+        KeyCode::SuperLeft => Some(Key::Super),
+        KeyCode::SuperRight => Some(Key::Super),
+        KeyCode::ShiftLeft => Some(Key::Shift),
+        KeyCode::ShiftRight => Some(Key::Shift),
+        KeyCode::Tab => Some(Key::Tab),
+        KeyCode::Convert => Some(Key::Convert),
+        KeyCode::KanaMode => Some(Key::KanaMode),
+        KeyCode::Lang1 => {
+            if is_korean {
+                Some(Key::HangulMode)
+            } else {
+                Some(Key::KanaMode)
+            }
+        }
+        KeyCode::Lang2 => {
+            if is_korean {
+                Some(Key::HanjaMode)
+            } else {
+                Some(Key::Eisu)
+            }
+        }
+        KeyCode::Lang3 => Some(Key::Katakana),
+        KeyCode::Lang4 => Some(Key::Hiragana),
+        KeyCode::Lang5 => Some(Key::ZenkakuHankaku),
+        KeyCode::NonConvert => Some(Key::NonConvert),
+        KeyCode::Delete => Some(Key::Delete),
+        KeyCode::End => Some(Key::End),
+        KeyCode::Help => Some(Key::Help),
+        KeyCode::Home => Some(Key::Home),
+        KeyCode::Insert => Some(Key::Insert),
+        KeyCode::PageDown => Some(Key::PageDown),
+        KeyCode::PageUp => Some(Key::PageUp),
+        KeyCode::ArrowDown => Some(Key::ArrowDown),
+        KeyCode::ArrowLeft => Some(Key::ArrowLeft),
+        KeyCode::ArrowRight => Some(Key::ArrowRight),
+        KeyCode::ArrowUp => Some(Key::ArrowUp),
+        KeyCode::NumLock => Some(Key::NumLock),
+        KeyCode::NumpadClear => Some(Key::Clear),
+        KeyCode::NumpadEnter => Some(Key::Enter),
+        KeyCode::Escape => Some(Key::Escape),
+        KeyCode::Fn => Some(Key::Fn),
+        KeyCode::FnLock => Some(Key::FnLock),
+        KeyCode::PrintScreen => Some(Key::PrintScreen),
+        KeyCode::ScrollLock => Some(Key::ScrollLock),
+        KeyCode::Pause => Some(Key::Pause),
+        KeyCode::BrowserBack => Some(Key::BrowserBack),
+        KeyCode::BrowserFavorites => Some(Key::BrowserFavorites),
+        KeyCode::BrowserForward => Some(Key::BrowserForward),
+        KeyCode::BrowserHome => Some(Key::BrowserHome),
+        KeyCode::BrowserRefresh => Some(Key::BrowserRefresh),
+        KeyCode::BrowserSearch => Some(Key::BrowserSearch),
+        KeyCode::BrowserStop => Some(Key::BrowserStop),
+        KeyCode::Eject => Some(Key::Eject),
+        KeyCode::LaunchApp1 => Some(Key::LaunchApplication1),
+        KeyCode::LaunchApp2 => Some(Key::LaunchApplication2),
+        KeyCode::LaunchMail => Some(Key::LaunchMail),
+        KeyCode::MediaPlayPause => Some(Key::MediaPlayPause),
+        KeyCode::MediaStop => Some(Key::MediaStop),
+        KeyCode::MediaTrackNext => Some(Key::MediaTrackNext),
+        KeyCode::MediaTrackPrevious => Some(Key::MediaTrackPrevious),
+        KeyCode::Power => Some(Key::Power),
+        KeyCode::Sleep => Some(Key::Standby),
+        KeyCode::AudioVolumeDown => Some(Key::AudioVolumeDown),
+        KeyCode::AudioVolumeMute => Some(Key::AudioVolumeMute),
+        KeyCode::AudioVolumeUp => Some(Key::AudioVolumeUp),
+        KeyCode::WakeUp => Some(Key::WakeUp),
+        KeyCode::Hyper => Some(Key::Hyper),
+        KeyCode::Super => Some(Key::Super),
+        KeyCode::Again => Some(Key::Again),
+        KeyCode::Copy => Some(Key::Copy),
+        KeyCode::Cut => Some(Key::Cut),
+        KeyCode::Find => Some(Key::Find),
+        KeyCode::Open => Some(Key::Open),
+        KeyCode::Paste => Some(Key::Paste),
+        KeyCode::Props => Some(Key::Props),
+        KeyCode::Select => Some(Key::Select),
+        KeyCode::Undo => Some(Key::Undo),
+        KeyCode::Hiragana => Some(Key::Hiragana),
+        KeyCode::Katakana => Some(Key::Katakana),
+        KeyCode::F1 => Some(Key::F1),
+        KeyCode::F2 => Some(Key::F2),
+        KeyCode::F3 => Some(Key::F3),
+        KeyCode::F4 => Some(Key::F4),
+        KeyCode::F5 => Some(Key::F5),
+        KeyCode::F6 => Some(Key::F6),
+        KeyCode::F7 => Some(Key::F7),
+        KeyCode::F8 => Some(Key::F8),
+        KeyCode::F9 => Some(Key::F9),
+        KeyCode::F10 => Some(Key::F10),
+        KeyCode::F11 => Some(Key::F11),
+        KeyCode::F12 => Some(Key::F12),
+        KeyCode::F13 => Some(Key::F13),
+        KeyCode::F14 => Some(Key::F14),
+        KeyCode::F15 => Some(Key::F15),
+        KeyCode::F16 => Some(Key::F16),
+        KeyCode::F17 => Some(Key::F17),
+        KeyCode::F18 => Some(Key::F18),
+        KeyCode::F19 => Some(Key::F19),
+        KeyCode::F20 => Some(Key::F20),
+        KeyCode::F21 => Some(Key::F21),
+        KeyCode::F22 => Some(Key::F22),
+        KeyCode::F23 => Some(Key::F23),
+        KeyCode::F24 => Some(Key::F24),
+        KeyCode::F25 => Some(Key::F25),
+        KeyCode::F26 => Some(Key::F26),
+        KeyCode::F27 => Some(Key::F27),
+        KeyCode::F28 => Some(Key::F28),
+        KeyCode::F29 => Some(Key::F29),
+        KeyCode::F30 => Some(Key::F30),
+        KeyCode::F31 => Some(Key::F31),
+        KeyCode::F32 => Some(Key::F32),
+        KeyCode::F33 => Some(Key::F33),
+        KeyCode::F34 => Some(Key::F34),
+        KeyCode::F35 => Some(Key::F35),
+        _ => None,
+    }
+}
+
+/// This includes all non-character keys defined within `Key` so for example
+/// backspace and tab are included.
+fn vkey_to_non_printable(
+    vkey: i32,
+    native_code: NativeKeyCode,
+    code: KeyCode,
+    hkl: u64,
+    has_alt_graph: bool,
+) -> Key<'static> {
+    // List of the Web key names and their corresponding platform-native key names:
+    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
+
+    // Some keys cannot be correctly determined based on the virtual key.
+    // Therefore we use the `code` to translate those keys.
+    match code {
+        KeyCode::NumLock => return Key::NumLock,
+        KeyCode::Pause => return Key::Pause,
+        _ => (),
+    }
+
+    let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
+    let is_korean = primary_lang_id == LANG_KOREAN;
+    let is_japanese = primary_lang_id == LANG_JAPANESE;
+
+    match vkey {
+        winuser::VK_LBUTTON => Key::Unidentified(NativeKeyCode::Unidentified), // Mouse
+        winuser::VK_RBUTTON => Key::Unidentified(NativeKeyCode::Unidentified), // Mouse
+
+        // I don't think this can be represented with a Key
+        winuser::VK_CANCEL => Key::Unidentified(native_code),
+
+        winuser::VK_MBUTTON => Key::Unidentified(NativeKeyCode::Unidentified), // Mouse
+        winuser::VK_XBUTTON1 => Key::Unidentified(NativeKeyCode::Unidentified), // Mouse
+        winuser::VK_XBUTTON2 => Key::Unidentified(NativeKeyCode::Unidentified), // Mouse
+        winuser::VK_BACK => Key::Backspace,
+        winuser::VK_TAB => Key::Tab,
+        winuser::VK_CLEAR => Key::Clear,
+        winuser::VK_RETURN => Key::Enter,
+        winuser::VK_SHIFT => Key::Shift,
+        winuser::VK_CONTROL => Key::Control,
+        winuser::VK_MENU => Key::Alt,
+        winuser::VK_PAUSE => Key::Pause,
+        winuser::VK_CAPITAL => Key::CapsLock,
+
+        //winuser::VK_HANGEUL => Key::HangulMode, // Deprecated in favour of VK_HANGUL
+
+        // VK_HANGUL and VK_KANA are defined as the same constant therefore
+        // we use appropriate conditions to differentate between them
+        winuser::VK_HANGUL if is_korean => Key::HangulMode,
+        winuser::VK_KANA if is_japanese => Key::KanaMode,
+
+        winuser::VK_JUNJA => Key::JunjaMode,
+        winuser::VK_FINAL => Key::FinalMode,
+
+        // VK_HANJA and VK_KANJI are defined as the same constant therefore
+        // we use appropriate conditions to differentate between them
+        winuser::VK_HANJA if is_korean => Key::HanjaMode,
+        winuser::VK_KANJI if is_japanese => Key::KanjiMode,
+
+        winuser::VK_ESCAPE => Key::Escape,
+        winuser::VK_CONVERT => Key::Convert,
+        winuser::VK_NONCONVERT => Key::NonConvert,
+        winuser::VK_ACCEPT => Key::Accept,
+        winuser::VK_MODECHANGE => Key::ModeChange,
+        winuser::VK_SPACE => Key::Unidentified(native_code), // This function only converts "non-printable"
+        winuser::VK_PRIOR => Key::PageUp,
+        winuser::VK_NEXT => Key::PageDown,
+        winuser::VK_END => Key::End,
+        winuser::VK_HOME => Key::Home,
+        winuser::VK_LEFT => Key::ArrowLeft,
+        winuser::VK_UP => Key::ArrowUp,
+        winuser::VK_RIGHT => Key::ArrowRight,
+        winuser::VK_DOWN => Key::ArrowDown,
+        winuser::VK_SELECT => Key::Select,
+        winuser::VK_PRINT => Key::Print,
+        winuser::VK_EXECUTE => Key::Execute,
+        winuser::VK_SNAPSHOT => Key::PrintScreen,
+        winuser::VK_INSERT => Key::Insert,
+        winuser::VK_DELETE => Key::Delete,
+        winuser::VK_HELP => Key::Help,
+        winuser::VK_LWIN => Key::Super,
+        winuser::VK_RWIN => Key::Super,
+        winuser::VK_APPS => Key::ContextMenu,
+        winuser::VK_SLEEP => Key::Standby,
+
+        // This function only converts "non-printable"
+        winuser::VK_NUMPAD0 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD1 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD2 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD3 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD4 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD5 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD6 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD7 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD8 => Key::Unidentified(native_code),
+        winuser::VK_NUMPAD9 => Key::Unidentified(native_code),
+        winuser::VK_MULTIPLY => Key::Unidentified(native_code),
+        winuser::VK_ADD => Key::Unidentified(native_code),
+        winuser::VK_SEPARATOR => Key::Unidentified(native_code),
+        winuser::VK_SUBTRACT => Key::Unidentified(native_code),
+        winuser::VK_DECIMAL => Key::Unidentified(native_code),
+        winuser::VK_DIVIDE => Key::Unidentified(native_code),
+
+        winuser::VK_F1 => Key::F1,
+        winuser::VK_F2 => Key::F2,
+        winuser::VK_F3 => Key::F3,
+        winuser::VK_F4 => Key::F4,
+        winuser::VK_F5 => Key::F5,
+        winuser::VK_F6 => Key::F6,
+        winuser::VK_F7 => Key::F7,
+        winuser::VK_F8 => Key::F8,
+        winuser::VK_F9 => Key::F9,
+        winuser::VK_F10 => Key::F10,
+        winuser::VK_F11 => Key::F11,
+        winuser::VK_F12 => Key::F12,
+        winuser::VK_F13 => Key::F13,
+        winuser::VK_F14 => Key::F14,
+        winuser::VK_F15 => Key::F15,
+        winuser::VK_F16 => Key::F16,
+        winuser::VK_F17 => Key::F17,
+        winuser::VK_F18 => Key::F18,
+        winuser::VK_F19 => Key::F19,
+        winuser::VK_F20 => Key::F20,
+        winuser::VK_F21 => Key::F21,
+        winuser::VK_F22 => Key::F22,
+        winuser::VK_F23 => Key::F23,
+        winuser::VK_F24 => Key::F24,
+        winuser::VK_NAVIGATION_VIEW => Key::Unidentified(native_code),
+        winuser::VK_NAVIGATION_MENU => Key::Unidentified(native_code),
+        winuser::VK_NAVIGATION_UP => Key::Unidentified(native_code),
+        winuser::VK_NAVIGATION_DOWN => Key::Unidentified(native_code),
+        winuser::VK_NAVIGATION_LEFT => Key::Unidentified(native_code),
+        winuser::VK_NAVIGATION_RIGHT => Key::Unidentified(native_code),
+        winuser::VK_NAVIGATION_ACCEPT => Key::Unidentified(native_code),
+        winuser::VK_NAVIGATION_CANCEL => Key::Unidentified(native_code),
+        winuser::VK_NUMLOCK => Key::NumLock,
+        winuser::VK_SCROLL => Key::ScrollLock,
+        winuser::VK_OEM_NEC_EQUAL => Key::Unidentified(native_code),
+        //winuser::VK_OEM_FJ_JISHO => Key::Unidentified(native_code), // Conflicts with `VK_OEM_NEC_EQUAL`
+        winuser::VK_OEM_FJ_MASSHOU => Key::Unidentified(native_code),
+        winuser::VK_OEM_FJ_TOUROKU => Key::Unidentified(native_code),
+        winuser::VK_OEM_FJ_LOYA => Key::Unidentified(native_code),
+        winuser::VK_OEM_FJ_ROYA => Key::Unidentified(native_code),
+        winuser::VK_LSHIFT => Key::Shift,
+        winuser::VK_RSHIFT => Key::Shift,
+        winuser::VK_LCONTROL => Key::Control,
+        winuser::VK_RCONTROL => Key::Control,
+        winuser::VK_LMENU => Key::Alt,
+        winuser::VK_RMENU => {
+            if has_alt_graph {
+                Key::AltGraph
+            } else {
+                Key::Alt
+            }
+        }
+        winuser::VK_BROWSER_BACK => Key::BrowserBack,
+        winuser::VK_BROWSER_FORWARD => Key::BrowserForward,
+        winuser::VK_BROWSER_REFRESH => Key::BrowserRefresh,
+        winuser::VK_BROWSER_STOP => Key::BrowserStop,
+        winuser::VK_BROWSER_SEARCH => Key::BrowserSearch,
+        winuser::VK_BROWSER_FAVORITES => Key::BrowserFavorites,
+        winuser::VK_BROWSER_HOME => Key::BrowserHome,
+        winuser::VK_VOLUME_MUTE => Key::AudioVolumeMute,
+        winuser::VK_VOLUME_DOWN => Key::AudioVolumeDown,
+        winuser::VK_VOLUME_UP => Key::AudioVolumeUp,
+        winuser::VK_MEDIA_NEXT_TRACK => Key::MediaTrackNext,
+        winuser::VK_MEDIA_PREV_TRACK => Key::MediaTrackPrevious,
+        winuser::VK_MEDIA_STOP => Key::MediaStop,
+        winuser::VK_MEDIA_PLAY_PAUSE => Key::MediaPlayPause,
+        winuser::VK_LAUNCH_MAIL => Key::LaunchMail,
+        winuser::VK_LAUNCH_MEDIA_SELECT => Key::LaunchMediaPlayer,
+        winuser::VK_LAUNCH_APP1 => Key::LaunchApplication1,
+        winuser::VK_LAUNCH_APP2 => Key::LaunchApplication2,
+
+        // This function only converts "non-printable"
+        winuser::VK_OEM_1 => Key::Unidentified(native_code),
+        winuser::VK_OEM_PLUS => Key::Unidentified(native_code),
+        winuser::VK_OEM_COMMA => Key::Unidentified(native_code),
+        winuser::VK_OEM_MINUS => Key::Unidentified(native_code),
+        winuser::VK_OEM_PERIOD => Key::Unidentified(native_code),
+        winuser::VK_OEM_2 => Key::Unidentified(native_code),
+        winuser::VK_OEM_3 => Key::Unidentified(native_code),
+
+        winuser::VK_GAMEPAD_A => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_B => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_X => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_Y => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_RIGHT_SHOULDER => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_LEFT_SHOULDER => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_LEFT_TRIGGER => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_RIGHT_TRIGGER => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_DPAD_UP => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_DPAD_DOWN => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_DPAD_LEFT => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_DPAD_RIGHT => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_MENU => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_VIEW => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_LEFT_THUMBSTICK_BUTTON => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_BUTTON => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_LEFT_THUMBSTICK_UP => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_LEFT_THUMBSTICK_DOWN => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_LEFT_THUMBSTICK_RIGHT => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_LEFT_THUMBSTICK_LEFT => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_UP => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_DOWN => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_RIGHT => Key::Unidentified(native_code),
+        winuser::VK_GAMEPAD_RIGHT_THUMBSTICK_LEFT => Key::Unidentified(native_code),
+
+        // This function only converts "non-printable"
+        winuser::VK_OEM_4 => Key::Unidentified(native_code),
+        winuser::VK_OEM_5 => Key::Unidentified(native_code),
+        winuser::VK_OEM_6 => Key::Unidentified(native_code),
+        winuser::VK_OEM_7 => Key::Unidentified(native_code),
+        winuser::VK_OEM_8 => Key::Unidentified(native_code),
+        winuser::VK_OEM_AX => Key::Unidentified(native_code),
+        winuser::VK_OEM_102 => Key::Unidentified(native_code),
+
+        winuser::VK_ICO_HELP => Key::Unidentified(native_code),
+        winuser::VK_ICO_00 => Key::Unidentified(native_code),
+
+        winuser::VK_PROCESSKEY => Key::Process,
+
+        winuser::VK_ICO_CLEAR => Key::Unidentified(native_code),
+        winuser::VK_PACKET => Key::Unidentified(native_code),
+        winuser::VK_OEM_RESET => Key::Unidentified(native_code),
+        winuser::VK_OEM_JUMP => Key::Unidentified(native_code),
+        winuser::VK_OEM_PA1 => Key::Unidentified(native_code),
+        winuser::VK_OEM_PA2 => Key::Unidentified(native_code),
+        winuser::VK_OEM_PA3 => Key::Unidentified(native_code),
+        winuser::VK_OEM_WSCTRL => Key::Unidentified(native_code),
+        winuser::VK_OEM_CUSEL => Key::Unidentified(native_code),
+
+        winuser::VK_OEM_ATTN => Key::Attn,
+        winuser::VK_OEM_FINISH => {
+            if is_japanese {
+                Key::Katakana
+            } else {
+                // This matches IE and Firefox behaviour according to
+                // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
+                // At the time of writing there is no `Key::Finish` variant as
+                // Finish is not mentionned at https://w3c.github.io/uievents-key/
+                // Also see: https://github.com/pyfisch/keyboard-types/issues/9
+                Key::Unidentified(native_code)
+            }
+        }
+        winuser::VK_OEM_COPY => Key::Copy,
+        winuser::VK_OEM_AUTO => Key::Hankaku,
+        winuser::VK_OEM_ENLW => Key::Zenkaku,
+        winuser::VK_OEM_BACKTAB => Key::Romaji,
+        winuser::VK_ATTN => Key::KanaMode,
+        winuser::VK_CRSEL => Key::CrSel,
+        winuser::VK_EXSEL => Key::ExSel,
+        winuser::VK_EREOF => Key::EraseEof,
+        winuser::VK_PLAY => Key::Play,
+        winuser::VK_ZOOM => Key::ZoomToggle,
+        winuser::VK_NONAME => Key::Unidentified(native_code),
+        winuser::VK_PA1 => Key::Unidentified(native_code),
+        winuser::VK_OEM_CLEAR => Key::Clear,
+        _ => Key::Unidentified(native_code),
+    }
 }

@@ -1,3 +1,7 @@
+//! Types related to the keyboard.
+
+use nameof::name_of;
+
 impl ModifiersState {
     /// Returns `true` if the shift key is pressed.
     pub fn shift_key(&self) -> bool {
@@ -96,13 +100,37 @@ mod modifiers_serde {
 }
 
 /// Contains the platform-native physical key identifier (aka scancode)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum NativeKeyCode {
     Unidentified,
     Windows(u16),
     MacOS(u32),
     XKB(u32),
+}
+impl std::fmt::Debug for NativeKeyCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use NativeKeyCode::{MacOS, Unidentified, Windows, XKB};
+        let mut debug_tuple;
+        match self {
+            Unidentified => {
+                debug_tuple = f.debug_tuple(name_of!(Unidentified));
+            }
+            Windows(v) => {
+                debug_tuple = f.debug_tuple(name_of!(Windows));
+                debug_tuple.field(&format_args!("0x{:04X}", v));
+            }
+            MacOS(v) => {
+                debug_tuple = f.debug_tuple(name_of!(MacOS));
+                debug_tuple.field(v);
+            }
+            XKB(v) => {
+                debug_tuple = f.debug_tuple(name_of!(XKB));
+                debug_tuple.field(v);
+            }
+        }
+        debug_tuple.finish()
+    }
 }
 
 /// Represents the location of a physical key.
