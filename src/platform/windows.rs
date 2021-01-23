@@ -248,7 +248,7 @@ impl IconExtWindows for Icon {
 impl KeyEventExtModifierSupplement for KeyEvent {
     #[inline]
     fn text_with_all_modifers(&self) -> Option<&str> {
-        self.platform_specific.char_with_all_modifers
+        self.platform_specific.text_with_all_modifers
     }
 
     #[inline]

@@ -76,7 +76,7 @@ pub type OsError = std::io::Error;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
-    pub char_with_all_modifers: Option<&'static str>,
+    pub text_with_all_modifers: Option<&'static str>,
     pub key_without_modifers: Key<'static>,
 }
 

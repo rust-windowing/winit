@@ -136,7 +136,7 @@ impl KeyEventBuilder {
                 self.prev_down_was_dead = false;
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
-                let (event_info, _) = PartialKeyEventInfo::from_message(
+                let event_info = PartialKeyEventInfo::from_message(
                     wparam,
                     lparam,
                     ElementState::Pressed,
@@ -278,21 +278,15 @@ impl KeyEventBuilder {
                 *retval = Some(0);
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
-                let (event_info, aux_info) = PartialKeyEventInfo::from_message(
+                let event_info = PartialKeyEventInfo::from_message(
                     wparam,
                     lparam,
                     ElementState::Released,
                     &mut layouts,
                 );
-                let logical_key = event_info.logical_key;
-                let mut ev = event_info.finalize(&mut layouts.strings);
-                let (_, layout) = layouts.get_current_layout();
-                let key_with_all_modifiers =
-                    layout.get_key(aux_info.modifiers, aux_info.scancode, aux_info.key_code);
-                ev.text = logical_key.to_text();
-                ev.platform_specific.char_with_all_modifers = key_with_all_modifiers.to_text();
+                let event = event_info.finalize(&mut layouts.strings);
                 return vec![MessageAsKeyEvent {
-                    event: ev,
+                    event,
                     is_synthetic: false,
                 }];
             }
@@ -452,7 +446,7 @@ impl KeyEventBuilder {
 
         let mut event = event_info.finalize(&mut layouts.strings);
         event.logical_key = logical_key;
-        event.platform_specific.char_with_all_modifers = logical_key.to_text();
+        event.platform_specific.text_with_all_modifers = logical_key.to_text();
         Some(MessageAsKeyEvent {
             event,
             is_synthetic: true,
@@ -483,19 +477,13 @@ struct PartialKeyEventInfo {
     text: PartialText,
 }
 
-struct AuxKeyInfo {
-    scancode: ExScancode,
-    key_code: KeyCode,
-    modifiers: WindowsModifiers,
-}
-
 impl PartialKeyEventInfo {
     fn from_message(
         wparam: WPARAM,
         lparam: LPARAM,
         state: ElementState,
         layouts: &mut MutexGuard<'_, LayoutCache>,
-    ) -> (Self, AuxKeyInfo) {
+    ) -> Self {
         const NO_MODS: WindowsModifiers = WindowsModifiers::empty();
 
         let (_, layout) = layouts.get_current_layout();
@@ -550,12 +538,7 @@ impl PartialKeyEventInfo {
             }
             key => key,
         };
-        let aux_info = AuxKeyInfo {
-            scancode,
-            key_code: code,
-            modifiers: mods,
-        };
-        let partial_key_event_info = PartialKeyEventInfo {
+        PartialKeyEventInfo {
             key_state: state,
             logical_key,
             key_without_modifiers,
@@ -565,8 +548,7 @@ impl PartialKeyEventInfo {
             location,
             utf16parts: Vec::with_capacity(8),
             text: PartialText::System(Vec::new()),
-        };
-        (partial_key_event_info, aux_info)
+        }
     }
 
     fn finalize(self, strings: &mut HashSet<&'static str>) -> KeyEvent {
@@ -604,7 +586,7 @@ impl PartialKeyEventInfo {
             state: self.key_state,
             repeat: self.is_repeat,
             platform_specific: KeyEventExtra {
-                char_with_all_modifers: char_with_all_modifiers,
+                text_with_all_modifers: char_with_all_modifiers,
                 key_without_modifers: self.key_without_modifiers,
             },
         }
