@@ -128,7 +128,7 @@ pub enum KeyCode {
     /// <kbd>`</kbd> on a US keyboard. This is the <kbd>半角</kbd>/<kbd>全角</kbd>/<kbd>漢字</kbd>
     /// (hankaku/zenkaku/kanji) key on Japanese keyboards
     Backquote,
-    /// Used for both the US <kbd>\</kbd> (on the 101-key layout) and also for the key
+    /// Used for both the US <kbd>\\</kbd> (on the 101-key layout) and also for the key
     /// located between the <kbd>"</kbd> and <kbd>Enter</kbd> keys on row C of the 102-,
     /// 104- and 106-key layouts.
     /// Labelled <kbd>#</kbd> on a UK (102) keyboard.
@@ -162,13 +162,13 @@ pub enum KeyCode {
     /// <kbd>=</kbd> on a US keyboard.
     Equal,
     /// Located between the left <kbd>Shift</kbd> and <kbd>Z</kbd> keys.
-    /// Labelled <kbd>\</kbd> on a UK keyboard.
+    /// Labelled <kbd>\\</kbd> on a UK keyboard.
     IntlBackslash,
     /// Located between the <kbd>/</kbd> and right <kbd>Shift</kbd> keys.
-    /// Labelled <kbd>\</kbd> (ro) on a Japanese keyboard.
+    /// Labelled <kbd>\\</kbd> (ro) on a Japanese keyboard.
     IntlRo,
     /// Located between the <kbd>=</kbd> and <kbd>Backspace</kbd> keys.
-    /// Labelled <kbd>¥</kbd> (yen) on a Japanese keyboard. <kbd>\</kbd> on a
+    /// Labelled <kbd>¥</kbd> (yen) on a Japanese keyboard. <kbd>\\</kbd> on a
     /// Russian keyboard.
     IntlYen,
     /// <kbd>a</kbd> on a US keyboard.
