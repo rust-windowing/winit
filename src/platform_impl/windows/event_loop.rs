@@ -28,7 +28,7 @@ use winapi::{
     um::{
         commctrl, libloaderapi, ole2, processthreadsapi, winbase,
         winnt::{HANDLE, LONG, LPCSTR, SHORT},
-        winuser,
+        winuser::{self, RAWINPUT},
     },
 };
 
@@ -2018,118 +2018,8 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         }
 
         winuser::WM_INPUT => {
-            use crate::event::{
-                DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
-                ElementState::{Pressed, Released},
-                MouseScrollDelta::LineDelta,
-            };
-
             if let Some(data) = raw_input::get_raw_input_data(lparam as _) {
-                let device_id = wrap_device_id(data.header.hDevice as _);
-
-                if data.header.dwType == winuser::RIM_TYPEMOUSE {
-                    let mouse = data.data.mouse();
-
-                    if util::has_flag(mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
-                        let x = mouse.lLastX as f64;
-                        let y = mouse.lLastY as f64;
-
-                        if x != 0.0 {
-                            subclass_input.send_event(Event::DeviceEvent {
-                                device_id,
-                                event: Motion { axis: 0, value: x },
-                            });
-                        }
-
-                        if y != 0.0 {
-                            subclass_input.send_event(Event::DeviceEvent {
-                                device_id,
-                                event: Motion { axis: 1, value: y },
-                            });
-                        }
-
-                        if x != 0.0 || y != 0.0 {
-                            subclass_input.send_event(Event::DeviceEvent {
-                                device_id,
-                                event: MouseMotion { delta: (x, y) },
-                            });
-                        }
-                    }
-
-                    if util::has_flag(mouse.usButtonFlags, winuser::RI_MOUSE_WHEEL) {
-                        let delta = mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
-                        subclass_input.send_event(Event::DeviceEvent {
-                            device_id,
-                            event: MouseWheel {
-                                delta: LineDelta(0.0, delta as f32),
-                            },
-                        });
-                    }
-
-                    let button_state = raw_input::get_raw_mouse_button_state(mouse.usButtonFlags);
-                    // Left, middle, and right, respectively.
-                    for (index, state) in button_state.iter().enumerate() {
-                        if let Some(state) = *state {
-                            // This gives us consistency with X11, since there doesn't
-                            // seem to be anything else reasonable to do for a mouse
-                            // button ID.
-                            let button = (index + 1) as _;
-                            subclass_input.send_event(Event::DeviceEvent {
-                                device_id,
-                                event: Button { button, state },
-                            });
-                        }
-                    }
-                } else if data.header.dwType == winuser::RIM_TYPEKEYBOARD {
-                    let keyboard = data.data.keyboard();
-
-                    let pressed = keyboard.Message == winuser::WM_KEYDOWN
-                        || keyboard.Message == winuser::WM_SYSKEYDOWN;
-                    let released = keyboard.Message == winuser::WM_KEYUP
-                        || keyboard.Message == winuser::WM_SYSKEYUP;
-
-                    if pressed || released {
-                        let state = if pressed { Pressed } else { Released };
-                        let extension = {
-                            if util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _) {
-                                0xE000
-                            } else if util::has_flag(keyboard.Flags, winuser::RI_KEY_E1 as _) {
-                                0xE100
-                            } else {
-                                0x0000
-                            }
-                        };
-                        let scancode;
-                        if keyboard.MakeCode == 0 {
-                            // In some cases (often with media keys) the device reports a scancode of 0 but a
-                            // valid virtual key. In these cases we obtain the scancode from the virtual key.
-                            scancode = winuser::MapVirtualKeyW(
-                                keyboard.VKey as u32,
-                                winuser::MAPVK_VK_TO_VSC_EX,
-                            ) as u16;
-                        } else {
-                            scancode = keyboard.MakeCode | extension;
-                        }
-                        let code;
-                        if keyboard.VKey as c_int == winuser::VK_NUMLOCK {
-                            // For some reason the scancode for numlock reports the `Pause` key.
-                            // This is beyond my comprehension but it's probably related to what's
-                            // described in the article by Raymond Chen, titled:
-                            // "Why does Ctrl+ScrollLock cancel dialogs?"
-                            // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
-                            code = KeyCode::NumLock;
-                        } else {
-                            code = KeyCode::from_scancode(scancode as u32);
-                        }
-                        subclass_input.send_event(Event::DeviceEvent {
-                            device_id,
-                            event: Key(RawKeyEvent {
-                                physical_key: code,
-                                state,
-                            }),
-                        });
-                    }
-                }
+                handle_raw_input(&subclass_input, data);
             }
 
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
@@ -2200,4 +2090,144 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         Box::into_raw(subclass_input);
     }
     result
+}
+
+unsafe fn handle_raw_input<T: 'static>(
+    subclass_input: &Box<ThreadMsgTargetSubclassInput<T>>,
+    data: RAWINPUT,
+) {
+    use crate::event::{
+        DeviceEvent::{Button, Key, Motion, MouseMotion, MouseWheel},
+        ElementState::{Pressed, Released},
+        MouseScrollDelta::LineDelta,
+    };
+
+    let device_id = wrap_device_id(data.header.hDevice as _);
+
+    if data.header.dwType == winuser::RIM_TYPEMOUSE {
+        let mouse = data.data.mouse();
+
+        if util::has_flag(mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
+            let x = mouse.lLastX as f64;
+            let y = mouse.lLastY as f64;
+
+            if x != 0.0 {
+                subclass_input.send_event(Event::DeviceEvent {
+                    device_id,
+                    event: Motion { axis: 0, value: x },
+                });
+            }
+
+            if y != 0.0 {
+                subclass_input.send_event(Event::DeviceEvent {
+                    device_id,
+                    event: Motion { axis: 1, value: y },
+                });
+            }
+
+            if x != 0.0 || y != 0.0 {
+                subclass_input.send_event(Event::DeviceEvent {
+                    device_id,
+                    event: MouseMotion { delta: (x, y) },
+                });
+            }
+        }
+
+        if util::has_flag(mouse.usButtonFlags, winuser::RI_MOUSE_WHEEL) {
+            let delta = mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
+            subclass_input.send_event(Event::DeviceEvent {
+                device_id,
+                event: MouseWheel {
+                    delta: LineDelta(0.0, delta as f32),
+                },
+            });
+        }
+
+        let button_state = raw_input::get_raw_mouse_button_state(mouse.usButtonFlags);
+        // Left, middle, and right, respectively.
+        for (index, state) in button_state.iter().enumerate() {
+            if let Some(state) = *state {
+                // This gives us consistency with X11, since there doesn't
+                // seem to be anything else reasonable to do for a mouse
+                // button ID.
+                let button = (index + 1) as _;
+                subclass_input.send_event(Event::DeviceEvent {
+                    device_id,
+                    event: Button { button, state },
+                });
+            }
+        }
+    } else if data.header.dwType == winuser::RIM_TYPEKEYBOARD {
+        let keyboard = data.data.keyboard();
+
+        let pressed =
+            keyboard.Message == winuser::WM_KEYDOWN || keyboard.Message == winuser::WM_SYSKEYDOWN;
+        let released =
+            keyboard.Message == winuser::WM_KEYUP || keyboard.Message == winuser::WM_SYSKEYUP;
+
+        if !pressed && !released {
+            return;
+        }
+
+        let state = if pressed { Pressed } else { Released };
+        let extension = {
+            if util::has_flag(keyboard.Flags, winuser::RI_KEY_E0 as _) {
+                0xE000
+            } else if util::has_flag(keyboard.Flags, winuser::RI_KEY_E1 as _) {
+                0xE100
+            } else {
+                0x0000
+            }
+        };
+        let scancode;
+        if keyboard.MakeCode == 0 {
+            // In some cases (often with media keys) the device reports a scancode of 0 but a
+            // valid virtual key. In these cases we obtain the scancode from the virtual key.
+            scancode =
+                winuser::MapVirtualKeyW(keyboard.VKey as u32, winuser::MAPVK_VK_TO_VSC_EX) as u16;
+        } else {
+            scancode = keyboard.MakeCode | extension;
+        }
+        if scancode == 0xE11D {
+            // Some keys are equivalent to a combination of keys at the hardware (or driver?) level.
+            // For example Pause = Ctrl+NumLock.
+            // This equvalence means that if the user presses Pause, the keyboard will emmit two
+            // subsequent keypresses:
+            // 1, 0xE11D - Which is a left ctrl (0x1D) with an extension flag (0xE100)
+            // 2, 0x0045 - Which on its own can be interpreted as Pause
+            //
+            // For this reason if we encounter the first keypress, we simply ignore it, trusting
+            // that there's going to be another event coming, from which we can extract the
+            // appropriate key.
+            // For more on this, read the article by Raymond Chen, titled:
+            // "Why does Ctrl+ScrollLock cancel dialogs?"
+            // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
+            return;
+        }
+        let code;
+        if keyboard.VKey as c_int == winuser::VK_NUMLOCK {
+            // Historically the NumLock and the Pause key were one and the same physical key.
+            // The user could trigger Pause by pressing Ctrl+NumLock.
+            // Now these are often physically separate and the two keys can be differentiated by
+            // checking the extension flag of the scancode. NumLock is 0xE045, Pause is 0x0045.
+            //
+            // However in this event, both keys are reported as 0x0045 even on modern hardware.
+            // Therefore we use the virtual key instead to determine whether it's a NumLock and
+            // set the KeyCode accordingly.
+            //
+            // For more on this, read the article by Raymond Chen, titled:
+            // "Why does Ctrl+ScrollLock cancel dialogs?"
+            // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
+            code = KeyCode::NumLock;
+        } else {
+            code = KeyCode::from_scancode(scancode as u32);
+        }
+        subclass_input.send_event(Event::DeviceEvent {
+            device_id,
+            event: Key(RawKeyEvent {
+                physical_key: code,
+                state,
+            }),
+        });
+    }
 }
