@@ -5,7 +5,10 @@ mod runner;
 use parking_lot::Mutex;
 use std::{
     cell::Cell,
-    collections::VecDeque,
+    collections::{
+        hash_map::{Entry, HashMap},
+        VecDeque,
+    },
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
@@ -86,6 +89,7 @@ lazy_static! {
         get_function!("user32.dll", GetPointerTouchInfo);
     static ref GET_POINTER_PEN_INFO: Option<GetPointerPenInfo> =
         get_function!("user32.dll", GetPointerPenInfo);
+    static ref RAW_KEYS_PRESSED: Mutex<HashMap<KeyCode, bool>> = Mutex::new(HashMap::new());
 }
 
 pub(crate) struct SubclassInput<T: 'static> {
@@ -2222,11 +2226,25 @@ unsafe fn handle_raw_input<T: 'static>(
         } else {
             code = KeyCode::from_scancode(scancode as u32);
         }
+        let repeat;
+        let mut keys_pressed = RAW_KEYS_PRESSED.lock();
+        match keys_pressed.entry(code) {
+            Entry::Occupied(mut e) => {
+                let prev_pressed = e.get_mut();
+                repeat = *prev_pressed && pressed;
+                *prev_pressed = pressed;
+            }
+            Entry::Vacant(e) => {
+                e.insert(pressed);
+                repeat = false;
+            }
+        }
         subclass_input.send_event(Event::DeviceEvent {
             device_id,
             event: Key(RawKeyEvent {
                 physical_key: code,
                 state,
+                repeat,
             }),
         });
     }

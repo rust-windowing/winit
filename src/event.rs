@@ -601,11 +601,12 @@ pub enum DeviceEvent {
 }
 
 /// Describes a keyboard input as a raw device event.
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
     pub physical_key: keyboard::KeyCode,
     pub state: ElementState,
+    pub repeat: bool,
 }
 
 /// Describes a keyboard input targeting a window.
