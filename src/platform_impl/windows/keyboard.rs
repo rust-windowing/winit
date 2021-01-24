@@ -261,9 +261,10 @@ impl KeyEventBuilder {
                             event_info.text = PartialText::System(event_info.utf16parts.clone());
                         } else {
                             let mod_no_ctrl = mod_state.remove_only_ctrl();
+                            let vkey = event_info.vkey;
                             let scancode = event_info.scancode;
                             let keycode = event_info.code;
-                            let key = layout.get_key(mod_no_ctrl, scancode, keycode);
+                            let key = layout.get_key(mod_no_ctrl, vkey, scancode, keycode);
                             event_info.text = PartialText::Text(key.to_text());
                         }
                     }
@@ -429,10 +430,11 @@ impl KeyEventBuilder {
         let key_without_modifers;
         {
             let layout = layouts.layouts.get(&(locale_id as u64)).unwrap();
-            logical_key = layout.get_key(mods, scancode, code);
-            key_without_modifers = layout.get_key(WindowsModifiers::empty(), scancode, code);
+            logical_key = layout.get_key(mods, vk, scancode, code);
+            key_without_modifers = layout.get_key(WindowsModifiers::empty(), vk, scancode, code);
         }
         let event_info = PartialKeyEventInfo {
+            vkey: vk,
             logical_key,
             key_without_modifiers: key_without_modifers,
             key_state,
@@ -461,8 +463,9 @@ enum PartialText {
 }
 
 struct PartialKeyEventInfo {
-    key_state: ElementState,
+    vkey: c_int,
     scancode: ExScancode,
+    key_state: ElementState,
     is_repeat: bool,
     code: KeyCode,
     location: KeyLocation,
@@ -489,11 +492,10 @@ impl PartialKeyEventInfo {
         let (_, layout) = layouts.get_current_layout();
         let lparam_struct = destructure_key_lparam(lparam);
         let scancode;
-        let vkey;
+        let vkey = wparam as c_int;
         if lparam_struct.scancode == 0 {
             // In some cases (often with media keys) the device reports a scancode of 0 but a
             // valid virtual key. In these cases we obtain the scancode from the virtual key.
-            vkey = wparam as c_int;
             scancode = unsafe {
                 winuser::MapVirtualKeyExW(
                     vkey as u32,
@@ -503,13 +505,6 @@ impl PartialKeyEventInfo {
             };
         } else {
             scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
-            vkey = unsafe {
-                winuser::MapVirtualKeyExW(
-                    scancode as u32,
-                    winuser::MAPVK_VSC_TO_VK_EX,
-                    layout.hkl as HKL,
-                ) as i32
-            };
         }
         let code = KeyCode::from_scancode(scancode as u32);
         let location = get_location(vkey, lparam_struct.extended);
@@ -518,8 +513,8 @@ impl PartialKeyEventInfo {
         let mods = WindowsModifiers::active_modifiers(&kbd_state);
         let mods_without_ctrl = mods.remove_only_ctrl();
 
-        let logical_key = layout.get_key(mods_without_ctrl, scancode, code);
-        let key_without_modifiers = match layout.get_key(NO_MODS, scancode, code) {
+        let logical_key = layout.get_key(mods_without_ctrl, vkey, scancode, code);
+        let key_without_modifiers = match layout.get_key(NO_MODS, vkey, scancode, code) {
             // We convert dead keys into their character.
             // The reason for this is that `key_without_modifiers` is designed for key-bindings
             // but for example the US International treats `'` (apostrophe) as a dead key and
@@ -539,10 +534,11 @@ impl PartialKeyEventInfo {
             key => key,
         };
         PartialKeyEventInfo {
+            vkey,
+            scancode,
             key_state: state,
             logical_key,
             key_without_modifiers,
-            scancode,
             is_repeat: lparam_struct.is_repeat,
             code,
             location,

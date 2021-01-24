@@ -592,7 +592,10 @@ pub enum KeyCode {
 ///
 /// This mostly conforms to the UI Events Specification's [`KeyboardEvent.key`] with a few
 /// exceptions:
-/// - The key that the specification calls "Meta" is named "Super" here.
+/// - The `Super` variant here, is named `Meta` in the aforementionned specification. (There's
+///   another key which the specification calls `Super`. That does not exist here.)
+/// - The `Space` variant here, can be identified by the character it generates in the
+///   specificaiton.
 /// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
 /// - The `Dead` variant here, can specify the character which is inserted when pressing the
 ///   dead-key twice.
@@ -669,6 +672,8 @@ pub enum Key<'a> {
     Enter,
     /// The Horizontal Tabulation `Tab` key.
     Tab,
+    /// Used in text to insert a space between words. Usually located below the character keys.
+    Space,
     /// Navigate or traverse downward. (`KEYCODE_DPAD_DOWN`)
     ArrowDown,
     /// Navigate or traverse leftward. (`KEYCODE_DPAD_LEFT`)

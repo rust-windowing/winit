@@ -23,12 +23,31 @@ use crate::{
 };
 
 lazy_static! {
-    pub static ref LAYOUT_CACHE: Mutex<LayoutCache> = Mutex::new(LayoutCache::default());
+    pub(crate) static ref LAYOUT_CACHE: Mutex<LayoutCache> = Mutex::new(LayoutCache::default());
 }
 
 fn key_pressed(vkey: c_int) -> bool {
     unsafe { (winuser::GetKeyState(vkey) & (1 << 15)) == (1 << 15) }
 }
+
+const NUMPAD_VKEYS: [c_int; 16] = [
+    winuser::VK_NUMPAD0,
+    winuser::VK_NUMPAD1,
+    winuser::VK_NUMPAD2,
+    winuser::VK_NUMPAD3,
+    winuser::VK_NUMPAD4,
+    winuser::VK_NUMPAD5,
+    winuser::VK_NUMPAD6,
+    winuser::VK_NUMPAD7,
+    winuser::VK_NUMPAD8,
+    winuser::VK_NUMPAD9,
+    winuser::VK_MULTIPLY,
+    winuser::VK_ADD,
+    winuser::VK_SEPARATOR,
+    winuser::VK_SUBTRACT,
+    winuser::VK_DECIMAL,
+    winuser::VK_DIVIDE,
+];
 
 bitflags! {
     pub struct WindowsModifiers : u8 {
@@ -113,8 +132,16 @@ impl WindowsModifiers {
     }
 }
 
-pub struct Layout {
+pub(crate) struct Layout {
     pub hkl: u64,
+
+    /// Maps a Windows virtual key to a `Key`.
+    ///
+    /// Only those keys are mapped for which the modifier state is not needed when mapping. Making
+    /// this field separate from the `keys` field, saves having to add NumLock as a modifier to
+    /// `WindowsModifiers`, which would double the number of items in keys.
+    pub simple_vkeys: HashMap<c_int, Key<'static>>,
+
     /// Maps a modifier state to group of key strings
     /// Not using `ModifiersState` here because that object cannot express caps lock
     /// but we need to handle caps lock too.
@@ -133,29 +160,35 @@ impl Layout {
     pub fn get_key(
         &self,
         mods: WindowsModifiers,
+        vkey: c_int,
         scancode: ExScancode,
         keycode: KeyCode,
     ) -> Key<'static> {
+        let native_code = NativeKeyCode::Windows(scancode);
+
         // This feels much like a hack as one would assume that the `keys` map contains every key
         // mapping. However `MapVirtualKeyExW` sometimes maps virtual keys to odd scancodes that
         // don't match the scancode coming from the KEYDOWN message for the same key.
         // For example:
         // `VK_LEFT` is mapped to `0x004B`, but the scancode for the left arrow is `0xE04B`.
-        if let Some(key) = keycode_to_non_character_key(keycode, self.has_alt_graph, self.hkl) {
-            return key;
+        let key_from_vkey = vkey_to_non_char_key(vkey, native_code, self.hkl, self.has_alt_graph);
+        if !matches!(key_from_vkey, Key::Unidentified(_)) {
+            return key_from_vkey;
         }
-
+        if let Some(key) = self.simple_vkeys.get(&vkey) {
+            return *key;
+        }
         if let Some(keys) = self.keys.get(&mods) {
             if let Some(key) = keys.get(&keycode) {
                 return *key;
             }
         }
-        Key::Unidentified(NativeKeyCode::Windows(scancode))
+        Key::Unidentified(native_code)
     }
 }
 
 #[derive(Default)]
-pub struct LayoutCache {
+pub(crate) struct LayoutCache {
     /// Maps locale identifiers (HKL) to layouts
     pub layouts: HashMap<u64, Layout>,
     pub strings: HashSet<&'static str>,
@@ -199,6 +232,7 @@ impl LayoutCache {
     fn prepare_layout(strings: &mut HashSet<&'static str>, locale_id: u64) -> Layout {
         let mut layout = Layout {
             hkl: locale_id,
+            simple_vkeys: Default::default(),
             keys: Default::default(),
             has_alt_graph: false,
         };
@@ -206,6 +240,24 @@ impl LayoutCache {
         // We initialize the keyboard state with all zeros to
         // simulate a scenario when no modifier is active.
         let mut key_state = [0u8; 256];
+
+        // First, generate all the simple vkeys
+        // Some numpad keys generate different charcaters based on the locale.
+        // For example `VK_DECIMAL` is sometimes "." and sometimes ","
+        layout.simple_vkeys.reserve(NUMPAD_VKEYS.len());
+        for vk in NUMPAD_VKEYS.iter() {
+            let vk = (*vk) as u32;
+            let scancode = unsafe {
+                winuser::MapVirtualKeyExW(vk, winuser::MAPVK_VK_TO_VSC_EX, locale_id as HKL)
+            };
+            let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_id);
+            if let ToUnicodeResult::Str(s) = unicode {
+                let static_str = get_or_insert_str(strings, s);
+                layout
+                    .simple_vkeys
+                    .insert(vk as i32, Key::Character(static_str));
+            }
+        }
 
         // Iterate through every combination of modifiers
         let mods_end = WindowsModifiers::FLAGS_END.bits;
@@ -234,7 +286,7 @@ impl LayoutCache {
                 // assume it isn't. Then we'll do a second pass where we set the "AltRight" keys to
                 // "AltGr" in case we find out that there's an AltGraph.
                 let preliminary_key =
-                    vkey_to_non_printable(vk as i32, native_code, key_code, locale_id, false);
+                    vkey_to_non_char_key(vk as i32, native_code, locale_id, false);
                 match preliminary_key {
                     Key::Unidentified(_) => (),
                     _ => {
@@ -369,172 +421,29 @@ where
     leaked
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 enum ToUnicodeResult {
     Str(String),
     Dead(Option<char>),
     None,
 }
 
-fn keycode_to_non_character_key(
-    keycode: KeyCode,
-    has_alt_graph: bool,
-    hkl: u64,
-) -> Option<Key<'static>> {
-    let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
-    let is_korean = primary_lang_id == LANG_KOREAN;
-    match keycode {
-        KeyCode::AltLeft => Some(Key::Alt),
-        KeyCode::AltRight => {
-            if has_alt_graph {
-                Some(Key::AltGraph)
-            } else {
-                Some(Key::Alt)
-            }
-        }
-        KeyCode::Backspace => Some(Key::Backspace),
-        KeyCode::CapsLock => Some(Key::CapsLock),
-        KeyCode::ContextMenu => Some(Key::ContextMenu),
-        KeyCode::ControlLeft => Some(Key::Control),
-        KeyCode::ControlRight => Some(Key::Control),
-        KeyCode::Enter => Some(Key::Enter),
-        KeyCode::SuperLeft => Some(Key::Super),
-        KeyCode::SuperRight => Some(Key::Super),
-        KeyCode::ShiftLeft => Some(Key::Shift),
-        KeyCode::ShiftRight => Some(Key::Shift),
-        KeyCode::Tab => Some(Key::Tab),
-        KeyCode::Convert => Some(Key::Convert),
-        KeyCode::KanaMode => Some(Key::KanaMode),
-        KeyCode::Lang1 => {
-            if is_korean {
-                Some(Key::HangulMode)
-            } else {
-                Some(Key::KanaMode)
-            }
-        }
-        KeyCode::Lang2 => {
-            if is_korean {
-                Some(Key::HanjaMode)
-            } else {
-                Some(Key::Eisu)
-            }
-        }
-        KeyCode::Lang3 => Some(Key::Katakana),
-        KeyCode::Lang4 => Some(Key::Hiragana),
-        KeyCode::Lang5 => Some(Key::ZenkakuHankaku),
-        KeyCode::NonConvert => Some(Key::NonConvert),
-        KeyCode::Delete => Some(Key::Delete),
-        KeyCode::End => Some(Key::End),
-        KeyCode::Help => Some(Key::Help),
-        KeyCode::Home => Some(Key::Home),
-        KeyCode::Insert => Some(Key::Insert),
-        KeyCode::PageDown => Some(Key::PageDown),
-        KeyCode::PageUp => Some(Key::PageUp),
-        KeyCode::ArrowDown => Some(Key::ArrowDown),
-        KeyCode::ArrowLeft => Some(Key::ArrowLeft),
-        KeyCode::ArrowRight => Some(Key::ArrowRight),
-        KeyCode::ArrowUp => Some(Key::ArrowUp),
-        KeyCode::NumLock => Some(Key::NumLock),
-        KeyCode::NumpadClear => Some(Key::Clear),
-        KeyCode::NumpadEnter => Some(Key::Enter),
-        KeyCode::Escape => Some(Key::Escape),
-        KeyCode::Fn => Some(Key::Fn),
-        KeyCode::FnLock => Some(Key::FnLock),
-        KeyCode::PrintScreen => Some(Key::PrintScreen),
-        KeyCode::ScrollLock => Some(Key::ScrollLock),
-        KeyCode::Pause => Some(Key::Pause),
-        KeyCode::BrowserBack => Some(Key::BrowserBack),
-        KeyCode::BrowserFavorites => Some(Key::BrowserFavorites),
-        KeyCode::BrowserForward => Some(Key::BrowserForward),
-        KeyCode::BrowserHome => Some(Key::BrowserHome),
-        KeyCode::BrowserRefresh => Some(Key::BrowserRefresh),
-        KeyCode::BrowserSearch => Some(Key::BrowserSearch),
-        KeyCode::BrowserStop => Some(Key::BrowserStop),
-        KeyCode::Eject => Some(Key::Eject),
-        KeyCode::LaunchApp1 => Some(Key::LaunchApplication1),
-        KeyCode::LaunchApp2 => Some(Key::LaunchApplication2),
-        KeyCode::LaunchMail => Some(Key::LaunchMail),
-        KeyCode::MediaPlayPause => Some(Key::MediaPlayPause),
-        KeyCode::MediaStop => Some(Key::MediaStop),
-        KeyCode::MediaTrackNext => Some(Key::MediaTrackNext),
-        KeyCode::MediaTrackPrevious => Some(Key::MediaTrackPrevious),
-        KeyCode::Power => Some(Key::Power),
-        KeyCode::Sleep => Some(Key::Standby),
-        KeyCode::AudioVolumeDown => Some(Key::AudioVolumeDown),
-        KeyCode::AudioVolumeMute => Some(Key::AudioVolumeMute),
-        KeyCode::AudioVolumeUp => Some(Key::AudioVolumeUp),
-        KeyCode::WakeUp => Some(Key::WakeUp),
-        KeyCode::Hyper => Some(Key::Hyper),
-        KeyCode::Super => Some(Key::Super),
-        KeyCode::Again => Some(Key::Again),
-        KeyCode::Copy => Some(Key::Copy),
-        KeyCode::Cut => Some(Key::Cut),
-        KeyCode::Find => Some(Key::Find),
-        KeyCode::Open => Some(Key::Open),
-        KeyCode::Paste => Some(Key::Paste),
-        KeyCode::Props => Some(Key::Props),
-        KeyCode::Select => Some(Key::Select),
-        KeyCode::Undo => Some(Key::Undo),
-        KeyCode::Hiragana => Some(Key::Hiragana),
-        KeyCode::Katakana => Some(Key::Katakana),
-        KeyCode::F1 => Some(Key::F1),
-        KeyCode::F2 => Some(Key::F2),
-        KeyCode::F3 => Some(Key::F3),
-        KeyCode::F4 => Some(Key::F4),
-        KeyCode::F5 => Some(Key::F5),
-        KeyCode::F6 => Some(Key::F6),
-        KeyCode::F7 => Some(Key::F7),
-        KeyCode::F8 => Some(Key::F8),
-        KeyCode::F9 => Some(Key::F9),
-        KeyCode::F10 => Some(Key::F10),
-        KeyCode::F11 => Some(Key::F11),
-        KeyCode::F12 => Some(Key::F12),
-        KeyCode::F13 => Some(Key::F13),
-        KeyCode::F14 => Some(Key::F14),
-        KeyCode::F15 => Some(Key::F15),
-        KeyCode::F16 => Some(Key::F16),
-        KeyCode::F17 => Some(Key::F17),
-        KeyCode::F18 => Some(Key::F18),
-        KeyCode::F19 => Some(Key::F19),
-        KeyCode::F20 => Some(Key::F20),
-        KeyCode::F21 => Some(Key::F21),
-        KeyCode::F22 => Some(Key::F22),
-        KeyCode::F23 => Some(Key::F23),
-        KeyCode::F24 => Some(Key::F24),
-        KeyCode::F25 => Some(Key::F25),
-        KeyCode::F26 => Some(Key::F26),
-        KeyCode::F27 => Some(Key::F27),
-        KeyCode::F28 => Some(Key::F28),
-        KeyCode::F29 => Some(Key::F29),
-        KeyCode::F30 => Some(Key::F30),
-        KeyCode::F31 => Some(Key::F31),
-        KeyCode::F32 => Some(Key::F32),
-        KeyCode::F33 => Some(Key::F33),
-        KeyCode::F34 => Some(Key::F34),
-        KeyCode::F35 => Some(Key::F35),
-        _ => None,
-    }
-}
-
-/// This includes all non-character keys defined within `Key` so for example
-/// backspace and tab are included.
-fn vkey_to_non_printable(
+/// This converts virtual keys to `Key`s. Only those virtual keys are converted which can be
+/// unambigously converted to a `Key` with only information passed in as arguments.
+///
+/// In other words this function does not need to "prepare" the current layout in order to do
+/// the conversion but as such it cannot convert language specific character keys for example.
+///
+/// The result includes all non-character keys defined within `Key` plus characters from numpad keys.
+/// So for example backspace and tab are included.
+fn vkey_to_non_char_key(
     vkey: i32,
     native_code: NativeKeyCode,
-    code: KeyCode,
     hkl: u64,
     has_alt_graph: bool,
 ) -> Key<'static> {
     // List of the Web key names and their corresponding platform-native key names:
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
-
-    // Some keys cannot be correctly determined based on the virtual key.
-    // Therefore we use the `code` to translate those keys.
-    match code {
-        KeyCode::NumLock => return Key::NumLock,
-        KeyCode::Pause => return Key::Pause,
-        _ => (),
-    }
 
     let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
     let is_korean = primary_lang_id == LANG_KOREAN;
@@ -580,7 +489,7 @@ fn vkey_to_non_printable(
         winuser::VK_NONCONVERT => Key::NonConvert,
         winuser::VK_ACCEPT => Key::Accept,
         winuser::VK_MODECHANGE => Key::ModeChange,
-        winuser::VK_SPACE => Key::Unidentified(native_code), // This function only converts "non-printable"
+        winuser::VK_SPACE => Key::Space,
         winuser::VK_PRIOR => Key::PageUp,
         winuser::VK_NEXT => Key::PageDown,
         winuser::VK_END => Key::End,
@@ -601,7 +510,7 @@ fn vkey_to_non_printable(
         winuser::VK_APPS => Key::ContextMenu,
         winuser::VK_SLEEP => Key::Standby,
 
-        // This function only converts "non-printable"
+        // Numpad keys produce characters
         winuser::VK_NUMPAD0 => Key::Unidentified(native_code),
         winuser::VK_NUMPAD1 => Key::Unidentified(native_code),
         winuser::VK_NUMPAD2 => Key::Unidentified(native_code),
