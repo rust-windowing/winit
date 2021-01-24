@@ -419,7 +419,6 @@ impl KeyEventBuilder {
             return None;
         }
         let scancode = scancode as ExScancode;
-        let is_extended = (scancode & 0xE000) == 0xE000;
         let code = KeyCode::from_scancode(scancode as u32);
         let mods = if caps_lock_on {
             WindowsModifiers::CAPS_LOCK
@@ -441,7 +440,7 @@ impl KeyEventBuilder {
             scancode,
             is_repeat: false,
             code,
-            location: get_location(vk, is_extended),
+            location: get_location(scancode, locale_id),
             utf16parts: Vec::with_capacity(8),
             text: PartialText::System(Vec::new()),
         };
@@ -507,7 +506,7 @@ impl PartialKeyEventInfo {
             scancode = new_ex_scancode(lparam_struct.scancode, lparam_struct.extended);
         }
         let code = KeyCode::from_scancode(scancode as u32);
-        let location = get_location(vkey, lparam_struct.extended);
+        let location = get_location(scancode, layout.hkl as HKL);
 
         let kbd_state = unsafe { get_kbd_state() };
         let mods = WindowsModifiers::active_modifiers(&kbd_state);
@@ -599,9 +598,15 @@ pub fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
     }
 }
 
-pub fn get_location(vkey: c_int, extended: bool) -> KeyLocation {
+fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
     use winuser::*;
     const VK_ABNT_C2: c_int = 0xc2;
+
+    let extension = 0xE000;
+    let extended = (scancode & extension) == extension;
+    let vkey = unsafe {
+        winuser::MapVirtualKeyExW(scancode as u32, winuser::MAPVK_VSC_TO_VK_EX, hkl) as i32
+    };
 
     // Use the native VKEY and the extended flag to cover most cases
     // This is taken from the `druid` software within
