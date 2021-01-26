@@ -9,6 +9,7 @@
 - On Android, unimplemented events are marked as unhandled on the native event loop.
 - On Windows, added `WindowBuilderExtWindows::with_menu` to set a custom menu at window creation time.
 - On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
+- Added `Window::set_drag_window`. Implemented on Windows, macOS, X11 and Wayland.
 
 # 0.24.0 (2020-12-09)
 

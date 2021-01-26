@@ -357,6 +357,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.0)
     }

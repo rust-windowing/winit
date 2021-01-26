@@ -359,6 +359,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_drag_window(&self) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.set_drag_window())
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         x11_or_wayland!(match self; Window(w) => w.scale_factor() as f64)
     }

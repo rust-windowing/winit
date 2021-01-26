@@ -636,6 +636,11 @@ impl UnownedWindow {
         Ok(())
     }
 
+    #[inline]
+    pub fn set_drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub(crate) fn is_zoomed(&self) -> bool {
         // because `isZoomed` doesn't work if the window's borderless,
         // we make it resizable temporalily.
