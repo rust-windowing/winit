@@ -14,7 +14,7 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{HINSTANCE, UINT},
+        minwindef::{HINSTANCE, UINT, WPARAM},
         windef::{HWND, POINT, RECT},
     },
     um::{
@@ -359,7 +359,17 @@ impl Window {
 
     #[inline]
     pub fn set_drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+        unsafe {
+            winuser::ReleaseCapture();
+            winuser::SendMessageW(
+                self.window.0,
+                winuser::WM_NCLBUTTONDOWN,
+                winuser::HTCAPTION as WPARAM,
+                0,
+            );
+        }
+
+        Ok(())
     }
 
     #[inline]
