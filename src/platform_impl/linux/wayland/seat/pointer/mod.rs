@@ -38,7 +38,7 @@ pub struct WinitPointer {
     latest_serial: Rc<Cell<u32>>,
 
     /// Seat.
-    seat: Attached<WlSeat>,
+    seat: WlSeat,
 }
 
 impl PartialEq for WinitPointer {
@@ -181,7 +181,7 @@ impl Pointers {
             pointer_constraints.clone(),
             modifiers_state,
         )));
-        let seat_clone = seat.clone();
+        let pointer_seat = seat.detach();
         let pointer = theme_manager.theme_pointer_with_impl(
             seat,
             move |event, pointer, mut dispatch_data| {
@@ -191,7 +191,7 @@ impl Pointers {
                     event,
                     &pointer_data,
                     winit_state,
-                    seat_clone.clone(),
+                    pointer_seat.clone(),
                 );
             },
         );

@@ -5,7 +5,6 @@ use std::rc::Rc;
 
 use sctk::reexports::client::protocol::wl_pointer::{self, Event as PointerEvent};
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
-use sctk::reexports::client::Attached;
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_v1::Event as RelativePointerEvent;
 
 use sctk::seat::pointer::ThemedPointer;
@@ -30,7 +29,7 @@ pub(super) fn handle_pointer(
     event: PointerEvent,
     pointer_data: &Rc<RefCell<PointerData>>,
     winit_state: &mut WinitState,
-    seat: Attached<WlSeat>,
+    seat: WlSeat,
 ) {
     let event_sink = &mut winit_state.event_sink;
     let mut pointer_data = pointer_data.borrow_mut();
