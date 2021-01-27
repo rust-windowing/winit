@@ -588,7 +588,14 @@ impl Window {
 
     #[inline]
     pub fn set_drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+        let drag_window_request = WindowRequest::DragWindow;
+        self.window_requests
+            .lock()
+            .unwrap()
+            .push(drag_window_request);
+        self.event_loop_awakener.ping();
+
+        Ok(())
     }
 
     #[inline]
