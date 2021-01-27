@@ -34,7 +34,7 @@ pub struct WindowState {
     pub current_theme: Theme,
     pub preferred_theme: Option<Theme>,
     pub high_surrogate: Option<u16>,
-    window_flags: WindowFlags,
+    pub window_flags: WindowFlags,
 }
 
 #[derive(Clone)]

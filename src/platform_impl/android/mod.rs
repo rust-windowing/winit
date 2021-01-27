@@ -496,6 +496,10 @@ impl Window {
 
     pub fn set_maximized(&self, _maximized: bool) {}
 
+    pub fn is_maximized(&self) -> bool {
+        false
+    }
+
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
         warn!("Cannot set fullscreen on Android");
     }

@@ -190,6 +190,11 @@ impl Inner {
         warn!("`Window::set_maximized` is ignored on iOS")
     }
 
+    pub fn is_maximized(&self) -> bool {
+        warn!("`Window::is_maximized` is ignored on iOS");
+        false
+    }
+
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
             let uiscreen = match monitor {

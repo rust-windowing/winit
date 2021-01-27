@@ -28,7 +28,6 @@ fn main() {
     eprintln!("  (X) Toggle maximized");
 
     let mut minimized = false;
-    let mut maximized = false;
     let mut visible = true;
 
     event_loop.run(move |event, _, control_flow| {
@@ -109,8 +108,8 @@ fn main() {
                         window.set_visible(visible);
                     }
                     VirtualKeyCode::X => {
-                        maximized = !maximized;
-                        window.set_maximized(maximized);
+                        let is_maximized = window.is_maximized();
+                        window.set_maximized(!is_maximized);
                     }
                     _ => (),
                 },
