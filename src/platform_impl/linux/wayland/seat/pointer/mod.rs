@@ -13,6 +13,7 @@ use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_p
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
 
 use sctk::seat::pointer::{ThemeManager, ThemedPointer};
+use sctk::window::{ConceptFrame, Window};
 
 use crate::event::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;
@@ -35,6 +36,9 @@ pub struct WinitPointer {
 
     /// Latest observed serial in pointer events.
     latest_serial: Rc<Cell<u32>>,
+
+    /// Seat.
+    seat: Attached<WlSeat>,
 }
 
 impl PartialEq for WinitPointer {
@@ -144,6 +148,11 @@ impl WinitPointer {
             confined_pointer.destroy();
         }
     }
+
+    /// Tries to unconfine the pointer if the current pointer is confined.
+    pub fn set_drag_window(&self, window: &Window<ConceptFrame>) {
+        window.start_interactive_move(&self.seat, self.latest_serial.get());
+    }
 }
 
 /// A pointer wrapper for easy releasing and managing pointers.
@@ -172,11 +181,18 @@ impl Pointers {
             pointer_constraints.clone(),
             modifiers_state,
         )));
+        let seat_clone = seat.clone();
         let pointer = theme_manager.theme_pointer_with_impl(
             seat,
             move |event, pointer, mut dispatch_data| {
                 let winit_state = dispatch_data.get::<WinitState>().unwrap();
-                handlers::handle_pointer(pointer, event, &pointer_data, winit_state);
+                handlers::handle_pointer(
+                    pointer,
+                    event,
+                    &pointer_data,
+                    winit_state,
+                    seat_clone.clone(),
+                );
             },
         );
 
