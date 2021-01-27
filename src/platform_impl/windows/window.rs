@@ -14,8 +14,8 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{HINSTANCE, UINT, WPARAM},
-        windef::{HWND, POINT, RECT},
+        minwindef::{HINSTANCE, LPARAM, UINT, WPARAM},
+        windef::{HWND, POINT, POINTS, RECT},
     },
     um::{
         combaseapi, dwmapi,
@@ -26,7 +26,7 @@ use winapi::{
         oleidl::LPDROPTARGET,
         shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
         wingdi::{CreateRectRgn, DeleteObject},
-        winnt::LPCWSTR,
+        winnt::{LPCWSTR, SHORT},
         winuser,
     },
 };
@@ -360,12 +360,21 @@ impl Window {
     #[inline]
     pub fn set_drag_window(&self) -> Result<(), ExternalError> {
         unsafe {
+            let points = {
+                let mut pos = mem::zeroed();
+                winuser::GetCursorPos(&mut pos);
+                pos
+            };
+            let points = POINTS {
+                x: points.x as SHORT,
+                y: points.y as SHORT,
+            };
             winuser::ReleaseCapture();
             winuser::SendMessageW(
                 self.window.0,
                 winuser::WM_NCLBUTTONDOWN,
                 winuser::HTCAPTION as WPARAM,
-                0,
+                &points as *const _ as LPARAM,
             );
         }
 
