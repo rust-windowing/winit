@@ -30,7 +30,7 @@ enum EventSource {
 
 fn poll(poll: Poll) -> Option<EventSource> {
     match poll {
-        Poll::Event { data, .. } => match data as usize {
+        Poll::Event { ident, .. } => match ident {
             0 => Some(EventSource::Callback),
             1 => Some(EventSource::InputQueue),
             _ => unreachable!(),
@@ -176,6 +176,7 @@ impl<T: 'static> EventLoop<T> {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
                         while let Some(event) = input_queue.get_event() {
                             if let Some(event) = input_queue.pre_dispatch(event) {
+                                let mut handled = true;
                                 let window_id = window::WindowId(WindowId);
                                 let device_id = event::DeviceId(DeviceId);
                                 match &event {
@@ -191,7 +192,10 @@ impl<T: 'static> EventLoop<T> {
                                             MotionAction::Cancel => {
                                                 Some(event::TouchPhase::Cancelled)
                                             }
-                                            _ => None, // TODO mouse events
+                                            _ => {
+                                                handled = false;
+                                                None // TODO mouse events
+                                            }
                                         };
                                         if let Some(phase) = phase {
                                             let pointers: Box<
@@ -235,9 +239,12 @@ impl<T: 'static> EventLoop<T> {
                                             }
                                         }
                                     }
-                                    InputEvent::KeyEvent(_) => {} // TODO
+                                    InputEvent::KeyEvent(_) => {
+                                        // TODO
+                                        handled = false;
+                                    }
                                 };
-                                input_queue.finish_event(event, true);
+                                input_queue.finish_event(event, handled);
                             }
                         }
                     }
