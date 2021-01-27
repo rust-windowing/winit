@@ -133,4 +133,4 @@ features = ["experimental_features_which_may_break_on_minor_version_bumps"]
 console_log = "0.2"
 
 [patch.crates-io]
-smithay-client-toolkit = { git = "https://github.com/daxpedda/client-toolkit", branch = "start-interactive-move" }
+smithay-client-toolkit = { git = "https://github.com/smithay/client-toolkit" }
