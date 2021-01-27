@@ -648,7 +648,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             valid_orientations: Default::default(),
             prefers_home_indicator_hidden: false,
             prefers_status_bar_hidden: false,
-            preferred_screen_edges_deferring_system_gestures: Default::default(),
+            preferred_screen_edges_deferring_system_gestures: ScreenEdge::ALL,
         }
     }
 }
