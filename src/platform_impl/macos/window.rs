@@ -638,7 +638,12 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+        unsafe {
+            let event: id = msg_send![NSApp(), currentEvent];
+            let _: () = msg_send![*self.ns_window, performWindowDragWithEvent: event];
+        }
+
+        Ok(())
     }
 
     pub(crate) fn is_zoomed(&self) -> bool {
