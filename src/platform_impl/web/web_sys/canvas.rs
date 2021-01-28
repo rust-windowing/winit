@@ -89,6 +89,16 @@ impl Canvas {
         })
     }
 
+    pub fn set_cursor_grab(&self, grab: bool) {
+        if grab {
+            self.raw().request_pointer_lock()
+        } else {
+            let window = web_sys::window().unwrap();
+            let document = window.document().unwrap();
+            document.exit_pointer_lock();
+        }
+    }
+
     pub fn set_attribute(&self, attribute: &str, value: &str) {
         self.common
             .raw
