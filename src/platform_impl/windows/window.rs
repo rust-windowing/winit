@@ -278,7 +278,7 @@ impl Window {
 
     #[inline]
     pub fn hinstance(&self) -> HINSTANCE {
-        unsafe { winuser::GetWindowLongW(self.hwnd(), winuser::GWL_HINSTANCE) as *mut _ }
+        unsafe { winuser::GetWindowLongPtrW(self.hwnd(), winuser::GWLP_HINSTANCE) as *mut _ }
     }
 
     #[inline]
