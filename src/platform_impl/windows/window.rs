@@ -369,7 +369,7 @@ impl Window {
                 y: points.y as SHORT,
             };
             winuser::ReleaseCapture();
-            winuser::SendMessageW(
+            winuser::PostMessageW(
                 self.window.0,
                 winuser::WM_NCLBUTTONDOWN,
                 winuser::HTCAPTION as WPARAM,
