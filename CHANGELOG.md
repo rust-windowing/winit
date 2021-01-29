@@ -6,6 +6,7 @@
 - On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.
 - On Android, unimplemented events are marked as unhandled on the native event loop.
+- On X11, the numpad's enter key is now mapped to `NumpadEnter`.
 
 # 0.24.0 (2020-12-09)
 
