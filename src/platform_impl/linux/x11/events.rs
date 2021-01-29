@@ -62,7 +62,7 @@ pub fn keysym_to_element(keysym: libc::c_uint) -> Option<VirtualKeyCode> {
         //ffi::XK_Num_Lock => VirtualKeyCode::Num_lock,
         //ffi::XK_KP_Space => VirtualKeyCode::Kp_space,
         //ffi::XK_KP_Tab => VirtualKeyCode::Kp_tab,
-        //ffi::XK_KP_Enter => VirtualKeyCode::Kp_enter,
+        ffi::XK_KP_Enter => VirtualKeyCode::NumpadEnter,
         //ffi::XK_KP_F1 => VirtualKeyCode::Kp_f1,
         //ffi::XK_KP_F2 => VirtualKeyCode::Kp_f2,
         //ffi::XK_KP_F3 => VirtualKeyCode::Kp_f3,
