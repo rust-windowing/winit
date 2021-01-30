@@ -31,8 +31,8 @@ enum EventSource {
 fn poll(poll: Poll) -> Option<EventSource> {
     match poll {
         Poll::Event { ident, .. } => match ident {
-            0 => Some(EventSource::Callback),
-            1 => Some(EventSource::InputQueue),
+            ndk_glue::NDK_GLUE_LOOPER_EVENT_PIPE_IDENT => Some(EventSource::Callback),
+            ndk_glue::NDK_GLUE_LOOPER_INPUT_QUEUE_IDENT => Some(EventSource::InputQueue),
             _ => unreachable!(),
         },
         Poll::Timeout => None,
