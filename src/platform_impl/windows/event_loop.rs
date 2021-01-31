@@ -1394,8 +1394,13 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         winuser::WM_CAPTURECHANGED => {
-            // window lost mouse capture
-            subclass_input.window_state.lock().mouse.capture_count = 0;
+            // lparam here is a handle to the window which is gaining mouse capture.
+            // If it is the same as our window, then we're essentially retaining the capture. This
+            // can happen if `SetCapture` is called on our window when it already has the mouse
+            // capture.
+            if lparam != window as isize {
+                subclass_input.window_state.lock().mouse.capture_count = 0;
+            }
             0
         }
 

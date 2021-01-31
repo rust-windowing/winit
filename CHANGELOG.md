@@ -1,10 +1,12 @@
 # Unreleased
 
+- Added `is_maximized` method to `Window`.
 - On Windows, fix bug causing newly created windows to erroneously display the "wait" (spinning) cursor.
 - On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
 - On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.
 - On Android, unimplemented events are marked as unhandled on the native event loop.
+- On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
 - On Web, added support for `DeviceEvent::MouseMotion` to listen for relative mouse movements.
 
 # 0.24.0 (2020-12-09)
