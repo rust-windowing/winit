@@ -380,8 +380,7 @@ impl Window {
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        // TODO: Not implemented
-        false
+        x11_or_wayland!(match self; Window(w) => w.is_maximized())
     }
 
     #[inline]

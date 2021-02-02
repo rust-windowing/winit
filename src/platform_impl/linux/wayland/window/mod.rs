@@ -369,6 +369,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_maximized(&self) -> bool {
+        // TODO: Not implemented
+        false
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         let maximize_request = WindowRequest::Maximize(maximized);
         self.window_requests.lock().unwrap().push(maximize_request);
