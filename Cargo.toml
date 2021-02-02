@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.23.0"
+version = "0.24.0"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2018"
@@ -20,7 +20,7 @@ targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux
 default = ["x11", "wayland"]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
-x11 = ["x11-dl"]
+x11 = ["x11-dl", "mio", "mio-extras", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "sctk"]
 
 [dependencies]
@@ -33,28 +33,30 @@ raw-window-handle = "0.3"
 bitflags = "1"
 
 [dev-dependencies]
-image = "0.23"
+image = "0.23.12"
 simple_logger = "1.9"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ndk = "0.2.0"
+ndk = "0.3"
 ndk-sys = "0.2.0"
-ndk-glue = "0.2.0"
+ndk-glue = "0.3"
 
-[target.'cfg(target_os = "ios")'.dependencies]
-objc = "0.2.3"
+[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
+objc = "0.2.7"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.23"
+cocoa = "0.24"
 core-foundation = "0.9"
 core-graphics = "0.22"
 dispatch = "0.2.0"
-objc = "0.2.6"
 
 [target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
 version = "0.1.4"
 default_features = false
 features = ["display_link"]
+
+[target.'cfg(target_os = "windows")'.dependencies]
+parking_lot = "0.11"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3.6"
@@ -63,6 +65,7 @@ features = [
     "commctrl",
     "dwmapi",
     "errhandlingapi",
+    "imm",
     "hidusage",
     "libloaderapi",
     "objbase",
@@ -83,13 +86,11 @@ features = [
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = { version = "0.28", features = [ "dlopen"] , optional = true }
 sctk = { package = "smithay-client-toolkit", version = "0.12", optional = true }
-mio = "0.6"
-mio-extras = "2.0"
+mio = { version = "0.6", optional = true }
+mio-extras = { version = "2.0", optional = true }
 x11-dl = { version = "2.18.5", optional = true }
-percent-encoding = "2.0"
-
-[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
-version = "0.11"
+percent-encoding = { version = "2.0", optional = true }
+parking_lot = { version = "0.11.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"

@@ -17,6 +17,9 @@
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
 
+// Silence warnings from use of deprecated stdweb backend
+#![allow(deprecated)]
+
 mod device;
 mod error;
 mod event_loop;

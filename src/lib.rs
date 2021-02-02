@@ -35,10 +35,10 @@
 //! entire program terminates.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
-//! model, since that can't be implemented properly on web and mobile platforms and works poorly on
-//! most desktop platforms. However, this model can be re-implemented to an extent on desktops with
-//! [`EventLoopExtDesktop::run_return`]. See that method's documentation for more reasons about why
-//! it's discouraged, beyond mobile/web compatibility reasons.
+//! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
+//! most other platforms. However, this model can be re-implemented to an extent with
+//! [`EventLoopExtRunReturn::run_return`]. See that method's documentation for more reasons about why
+//! it's discouraged, beyond compatibility reasons.
 //!
 //!
 //! ```no_run
@@ -109,7 +109,7 @@
 //! window visible only once you're ready to render into it.
 //!
 //! [`EventLoop`]: event_loop::EventLoop
-//! [`EventLoopExtDesktop::run_return`]: ./platform/desktop/trait.EventLoopExtDesktop.html#tymethod.run_return
+//! [`EventLoopExtRunReturn::run_return`]: ./platform/run_return/trait.EventLoopExtRunReturn.html#tymethod.run_return
 //! [`EventLoop::new()`]: event_loop::EventLoop::new
 //! [event_loop_run]: event_loop::EventLoop::run
 //! [`ControlFlow`]: event_loop::ControlFlow
@@ -130,7 +130,7 @@
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 
 #![deny(rust_2018_idioms)]
-#![deny(intra_doc_link_resolution_failure)]
+#![deny(broken_intra_doc_links)]
 
 #[allow(unused_imports)]
 #[macro_use]

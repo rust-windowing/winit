@@ -63,8 +63,6 @@ pub fn scale_factor() -> f64 {
 }
 
 pub fn set_canvas_size(raw: &CanvasElement, size: Size) {
-    use stdweb::*;
-
     let scale_factor = scale_factor();
 
     let physical_size = size.to_physical::<u32>(scale_factor);

@@ -117,7 +117,7 @@ If your PR makes notable changes to Winit's features, please update this section
 * Setting the taskbar icon
 * Setting the parent window
 * `WS_EX_NOREDIRECTIONBITMAP` support
-* Theme the title bar according to Windows 10 Dark Mode setting
+* Theme the title bar according to Windows 10 Dark Mode setting or set a preferred theme
 
 ### macOS
 * Window activation policy
@@ -202,7 +202,7 @@ Legend:
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
-|Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |❌        |
+|Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |

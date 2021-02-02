@@ -30,7 +30,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -374,6 +374,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_maximized(&self) -> bool {
+        // TODO: Not implemented
+        false
+    }
+
+    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
     }
@@ -416,6 +422,16 @@ impl Window {
     #[inline]
     pub fn set_ime_position(&self, position: Position) {
         x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
+        match self {
+            #[cfg(feature = "x11")]
+            &Window::X(ref w) => w.request_user_attention(_request_type),
+            #[cfg(feature = "wayland")]
+            _ => (),
+        }
     }
 
     #[inline]

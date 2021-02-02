@@ -14,6 +14,8 @@ use winapi::{
     um::{libloaderapi, uxtheme, winuser},
 };
 
+use crate::window::Theme;
+
 lazy_static! {
     static ref WIN10_BUILD_VERSION: Option<DWORD> = {
         // FIXME: RtlGetVersion is a documented windows API,
@@ -70,11 +72,14 @@ lazy_static! {
     static ref LIGHT_THEME_NAME: Vec<u16> = widestring("");
 }
 
-/// Attempt to set dark mode on a window, if necessary.
-/// Returns true if dark mode was set, false if not.
-pub fn try_dark_mode(hwnd: HWND) -> bool {
+/// Attempt to set a theme on a window, if necessary.
+/// Returns the theme that was picked
+pub fn try_theme(hwnd: HWND, preferred_theme: Option<Theme>) -> Theme {
     if *DARK_MODE_SUPPORTED {
-        let is_dark_mode = should_use_dark_mode();
+        let is_dark_mode = match preferred_theme {
+            Some(theme) => theme == Theme::Dark,
+            None => should_use_dark_mode(),
+        };
 
         let theme_name = if is_dark_mode {
             DARK_THEME_NAME.as_ptr()
@@ -84,10 +89,12 @@ pub fn try_dark_mode(hwnd: HWND) -> bool {
 
         let status = unsafe { uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null()) };
 
-        status == S_OK && set_dark_mode_for_window(hwnd, is_dark_mode)
-    } else {
-        false
+        if status == S_OK && set_dark_mode_for_window(hwnd, is_dark_mode) {
+            return Theme::Dark;
+        }
     }
+
+    Theme::Light
 }
 
 fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {

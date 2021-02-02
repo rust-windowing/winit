@@ -15,7 +15,7 @@ fn main() {
     use winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
-        platform::desktop::EventLoopExtDesktop,
+        platform::run_return::EventLoopExtRunReturn,
         window::WindowBuilder,
     };
     let mut event_loop = EventLoop::new();

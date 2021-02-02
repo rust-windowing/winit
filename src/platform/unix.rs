@@ -213,10 +213,6 @@ pub trait WindowExtUnix {
     #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
-    /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
-    #[cfg(feature = "x11")]
-    fn set_urgent(&self, is_urgent: bool);
-
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
@@ -294,16 +290,6 @@ impl WindowExtUnix for Window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
             #[cfg(feature = "wayland")]
             _ => None,
-        }
-    }
-
-    #[inline]
-    #[cfg(feature = "x11")]
-    fn set_urgent(&self, is_urgent: bool) {
-        match self.window {
-            LinuxWindow::X(ref w) => w.set_urgent(is_urgent),
-            #[cfg(feature = "wayland")]
-            _ => (),
         }
     }
 
@@ -486,13 +472,13 @@ pub trait Theme: Send + 'static {
 
     /// Font name and the size for the title bar.
     ///
-    /// By default the font is `sans-serif` at the size of 11.
+    /// By default the font is `sans-serif` at the size of 17.
     ///
     /// Returning `None` means that title won't be drawn.
     fn font(&self) -> Option<(String, f32)> {
         // Not having any title isn't something desirable for the users, so setting it to
         // something generic.
-        Some((String::from("sans-serif"), 11.))
+        Some((String::from("sans-serif"), 17.))
     }
 }
 

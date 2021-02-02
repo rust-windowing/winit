@@ -18,7 +18,9 @@ use winapi::{
         windef::{HWND, POINT, RECT},
     },
     um::{
-        combaseapi, dwmapi, libloaderapi,
+        combaseapi, dwmapi,
+        imm::{CFS_POINT, COMPOSITIONFORM},
+        libloaderapi,
         objbase::COINIT_APARTMENTTHREADED,
         ole2,
         oleidl::LPDROPTARGET,
@@ -34,7 +36,7 @@ use crate::{
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
-        dark_mode::try_dark_mode,
+        dark_mode::try_theme,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
@@ -43,7 +45,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -112,6 +114,8 @@ impl Window {
                     window_state: win.window_state.clone(),
                     event_loop_runner: event_loop.runner_shared.clone(),
                     file_drop_handler,
+                    subclass_removed: Cell::new(false),
+                    recurse_depth: Cell::new(0),
                 };
 
                 event_loop::subclass_window(win.window.0, subclass_input);
@@ -274,7 +278,7 @@ impl Window {
 
     #[inline]
     pub fn hinstance(&self) -> HINSTANCE {
-        unsafe { winuser::GetWindowLongW(self.hwnd(), winuser::GWL_HINSTANCE) as *mut _ }
+        unsafe { winuser::GetWindowLongPtrW(self.hwnd(), winuser::GWLP_HINSTANCE) as *mut _ }
     }
 
     #[inline]
@@ -382,6 +386,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_maximized(&self) -> bool {
+        let window_state = self.window_state.lock();
+        window_state.window_flags.contains(WindowFlags::MAXIMIZED)
+    }
+
+    #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         let window_state = self.window_state.lock();
         window_state.fullscreen.clone()
@@ -401,20 +411,6 @@ impl Window {
         drop(window_state_lock);
 
         self.thread_executor.execute_in_thread(move || {
-            let mut window_state_lock = window_state.lock();
-
-            // Save window bounds before entering fullscreen
-            match (&old_fullscreen, &fullscreen) {
-                (&None, &Some(_)) => {
-                    let client_rect = util::get_client_rect(window.0).unwrap();
-                    window_state_lock.saved_window = Some(SavedWindow {
-                        client_rect,
-                        scale_factor: window_state_lock.scale_factor,
-                    });
-                }
-                _ => (),
-            }
-
             // Change video mode if we're transitioning to or from exclusive
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
@@ -488,13 +484,29 @@ impl Window {
             }
 
             // Update window style
-            WindowState::set_window_flags(window_state_lock, window.0, |f| {
-                f.set(WindowFlags::MARKER_FULLSCREEN, fullscreen.is_some())
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(
+                    WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Exclusive(_))),
+                );
+                f.set(
+                    WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Borderless(_))),
+                );
             });
 
             // Update window bounds
             match &fullscreen {
                 Some(fullscreen) => {
+                    // Save window bounds before entering fullscreen
+                    let placement = unsafe {
+                        let mut placement = mem::zeroed();
+                        winuser::GetWindowPlacement(window.0, &mut placement);
+                        placement
+                    };
+
+                    window_state.lock().saved_window = Some(SavedWindow { placement });
+
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
                         Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
@@ -521,27 +533,10 @@ impl Window {
                 }
                 None => {
                     let mut window_state_lock = window_state.lock();
-                    if let Some(SavedWindow {
-                        client_rect,
-                        scale_factor,
-                    }) = window_state_lock.saved_window.take()
-                    {
-                        window_state_lock.scale_factor = scale_factor;
+                    if let Some(SavedWindow { placement }) = window_state_lock.saved_window.take() {
                         drop(window_state_lock);
-                        let client_rect = util::adjust_window_rect(window.0, client_rect).unwrap();
-
                         unsafe {
-                            winuser::SetWindowPos(
-                                window.0,
-                                ptr::null_mut(),
-                                client_rect.left,
-                                client_rect.top,
-                                client_rect.right - client_rect.left,
-                                client_rect.bottom - client_rect.top,
-                                winuser::SWP_ASYNCWINDOWPOS
-                                    | winuser::SWP_NOZORDER
-                                    | winuser::SWP_NOACTIVATE,
-                            );
+                            winuser::SetWindowPlacement(window.0, &placement);
                             winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                         }
                     }
@@ -609,14 +604,61 @@ impl Window {
         self.window_state.lock().taskbar_icon = taskbar_icon;
     }
 
-    #[inline]
-    pub fn set_ime_position(&self, _position: Position) {
-        warn!("`Window::set_ime_position` is ignored on Windows")
+    pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
+        if unsafe { winuser::GetSystemMetrics(winuser::SM_IMMENABLED) } != 0 {
+            let mut composition_form = COMPOSITIONFORM {
+                dwStyle: CFS_POINT,
+                ptCurrentPos: POINT { x, y },
+                rcArea: unsafe { mem::zeroed() },
+            };
+            unsafe {
+                let himc = winapi::um::imm::ImmGetContext(self.window.0);
+                winapi::um::imm::ImmSetCompositionWindow(himc, &mut composition_form);
+                winapi::um::imm::ImmReleaseContext(self.window.0, himc);
+            }
+        }
     }
 
     #[inline]
-    pub fn is_dark_mode(&self) -> bool {
-        self.window_state.lock().is_dark_mode
+    pub fn set_ime_position(&self, spot: Position) {
+        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+        self.set_ime_position_physical(x, y);
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let window = self.window.clone();
+        let active_window_handle = unsafe { winuser::GetActiveWindow() };
+        if window.0 == active_window_handle {
+            return;
+        }
+
+        self.thread_executor.execute_in_thread(move || unsafe {
+            let (flags, count) = request_type
+                .map(|ty| match ty {
+                    UserAttentionType::Critical => {
+                        (winuser::FLASHW_ALL | winuser::FLASHW_TIMERNOFG, u32::MAX)
+                    }
+                    UserAttentionType::Informational => {
+                        (winuser::FLASHW_TRAY | winuser::FLASHW_TIMERNOFG, 0)
+                    }
+                })
+                .unwrap_or((winuser::FLASHW_STOP, 0));
+
+            let mut flash_info = winuser::FLASHWINFO {
+                cbSize: mem::size_of::<winuser::FLASHWINFO>() as UINT,
+                hwnd: window.0,
+                dwFlags: flags,
+                uCount: count,
+                dwTimeout: 0,
+            };
+            winuser::FlashWindowEx(&mut flash_info);
+        });
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Theme {
+        self.window_state.lock().current_theme
     }
 }
 
@@ -726,14 +768,15 @@ unsafe fn init<T: 'static>(
     // If the system theme is dark, we need to set the window theme now
     // before we update the window flags (and possibly show the
     // window for the first time).
-    let dark_mode = try_dark_mode(real_window.0);
+    let current_theme = try_theme(real_window.0, pl_attribs.preferred_theme);
 
     let window_state = {
         let window_state = WindowState::new(
             &attributes,
             pl_attribs.taskbar_icon,
             scale_factor,
-            dark_mode,
+            current_theme,
+            pl_attribs.preferred_theme,
         );
         let window_state = Arc::new(Mutex::new(window_state));
         WindowState::set_window_flags(window_state.lock(), real_window.0, |f| *f = window_flags);
@@ -748,7 +791,7 @@ unsafe fn init<T: 'static>(
 
     let dimensions = attributes
         .inner_size
-        .unwrap_or_else(|| PhysicalSize::new(1024, 768).into());
+        .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
     win.set_inner_size(dimensions);
     if attributes.maximized {
         // Need to set MAXIMIZED after setting `inner_size` as
