@@ -795,8 +795,8 @@ impl UnownedWindow {
         };
         match state {
             Ok(atoms) => {
-                let horz_maximized = atoms.iter().any(|atom: &u64| *atom == horz_atom);
-                let vert_maximized = atoms.iter().any(|atom: &u64| *atom == vert_atom);
+                let horz_maximized = atoms.iter().any(|atom: &ffi::Atom| *atom == horz_atom);
+                let vert_maximized = atoms.iter().any(|atom: &ffi::Atom| *atom == vert_atom);
                 horz_maximized && vert_maximized
             }
             _ => false,
