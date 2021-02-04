@@ -43,10 +43,12 @@ fn new_ex_scancode(scancode: u8, extended: bool) -> ExScancode {
     (scancode as u16) | (if extended { 0xE000 } else { 0 })
 }
 
-unsafe fn get_kbd_state() -> [u8; 256] {
-    let mut kbd_state: [MaybeUninit<u8>; 256] = [MaybeUninit::uninit(); 256];
-    winuser::GetKeyboardState(kbd_state[0].as_mut_ptr());
-    std::mem::transmute::<_, [u8; 256]>(kbd_state)
+fn get_kbd_state() -> [u8; 256] {
+    unsafe {
+        let mut kbd_state: MaybeUninit<[u8; 256]> = MaybeUninit::uninit();
+        winuser::GetKeyboardState(kbd_state.as_mut_ptr() as *mut u8);
+        kbd_state.assume_init()
+    }
 }
 
 pub struct MessageAsKeyEvent {
@@ -241,32 +243,30 @@ impl KeyEventBuilder {
                     let mut layouts = LAYOUT_CACHE.lock().unwrap();
                     // Here it's okay to call `ToUnicode` because at this point the dead key
                     // is already consumed by the character.
-                    unsafe {
-                        let kbd_state = get_kbd_state();
-                        let mod_state = WindowsModifiers::active_modifiers(&kbd_state);
+                    let kbd_state = get_kbd_state();
+                    let mod_state = WindowsModifiers::active_modifiers(&kbd_state);
 
-                        let (_, layout) = layouts.get_current_layout();
-                        let ctrl_on;
-                        if layout.has_alt_graph {
-                            let alt_on = mod_state.contains(WindowsModifiers::ALT);
-                            ctrl_on = !alt_on && mod_state.contains(WindowsModifiers::CONTROL)
-                        } else {
-                            ctrl_on = mod_state.contains(WindowsModifiers::CONTROL)
-                        }
+                    let (_, layout) = layouts.get_current_layout();
+                    let ctrl_on;
+                    if layout.has_alt_graph {
+                        let alt_on = mod_state.contains(WindowsModifiers::ALT);
+                        ctrl_on = !alt_on && mod_state.contains(WindowsModifiers::CONTROL)
+                    } else {
+                        ctrl_on = mod_state.contains(WindowsModifiers::CONTROL)
+                    }
 
-                        // If CTRL is not pressed, just use the text with all
-                        // modifiers because that already consumed the dead key and otherwise
-                        // we would interpret the character incorretly, missing the dead key.
-                        if !ctrl_on {
-                            event_info.text = PartialText::System(event_info.utf16parts.clone());
-                        } else {
-                            let mod_no_ctrl = mod_state.remove_only_ctrl();
-                            let vkey = event_info.vkey;
-                            let scancode = event_info.scancode;
-                            let keycode = event_info.code;
-                            let key = layout.get_key(mod_no_ctrl, vkey, scancode, keycode);
-                            event_info.text = PartialText::Text(key.to_text());
-                        }
+                    // If CTRL is not pressed, just use the text with all
+                    // modifiers because that already consumed the dead key and otherwise
+                    // we would interpret the character incorretly, missing the dead key.
+                    if !ctrl_on {
+                        event_info.text = PartialText::System(event_info.utf16parts.clone());
+                    } else {
+                        let mod_no_ctrl = mod_state.remove_only_ctrl();
+                        let vkey = event_info.vkey;
+                        let scancode = event_info.scancode;
+                        let keycode = event_info.code;
+                        let key = layout.get_key(mod_no_ctrl, vkey, scancode, keycode);
+                        event_info.text = PartialText::Text(key.to_text());
                     }
                     let ev = event_info.finalize(&mut layouts.strings);
                     return vec![MessageAsKeyEvent {
@@ -303,7 +303,7 @@ impl KeyEventBuilder {
         let mut layouts = LAYOUT_CACHE.lock().unwrap();
         let (locale_id, _) = layouts.get_current_layout();
 
-        let kbd_state = unsafe { get_kbd_state() };
+        let kbd_state = get_kbd_state();
         macro_rules! is_key_pressed {
             ($vk:expr) => {
                 kbd_state[$vk as usize] & 0x80 != 0
@@ -514,7 +514,7 @@ impl PartialKeyEventInfo {
         let code = KeyCode::from_scancode(scancode as u32);
         let location = get_location(scancode, layout.hkl as HKL);
 
-        let kbd_state = unsafe { get_kbd_state() };
+        let kbd_state = get_kbd_state();
         let mods = WindowsModifiers::active_modifiers(&kbd_state);
         let mods_without_ctrl = mods.remove_only_ctrl();
 

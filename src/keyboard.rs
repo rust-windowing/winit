@@ -1327,6 +1327,7 @@ impl<'a> Key<'a> {
             Key::Enter => Some("\r"),
             Key::Backspace => Some("\x08"),
             Key::Tab => Some("\t"),
+            Key::Space => Some(" "),
             Key::Escape => Some("\x1b"),
             _ => None,
         }
