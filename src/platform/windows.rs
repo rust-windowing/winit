@@ -114,6 +114,8 @@ pub trait WindowBuilderExtWindows {
 
     /// Sets a menu on the window to be created.
     ///
+    /// Parent and menu are mutually exclusive; a child window cannot have a menu!
+    ///
     /// The menu must have been manually created beforehand with [`winapi::um::winuser::CreateMenu`] or similar.
     ///
     /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.

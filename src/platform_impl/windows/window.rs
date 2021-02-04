@@ -705,6 +705,10 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::CHILD, pl_attribs.parent.is_some());
     window_flags.set(WindowFlags::ON_TASKBAR, true);
 
+    if pl_attribs.parent.is_some() && pl_attribs.menu.is_some() {
+        warn!("Setting a menu on windows that have a parent is unsupported");
+    }
+
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
         let (style, ex_style) = window_flags.to_window_styles();

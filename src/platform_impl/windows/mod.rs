@@ -17,7 +17,6 @@ use crate::window::Theme;
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    // TODO: parent and menu are mutually exclusive; a child window cannot have a menu!
     pub parent: Option<HWND>,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
