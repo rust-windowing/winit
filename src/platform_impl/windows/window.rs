@@ -711,6 +711,10 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::CHILD, pl_attribs.parent.is_some());
     window_flags.set(WindowFlags::ON_TASKBAR, true);
 
+    if pl_attribs.parent.is_some() && pl_attribs.menu.is_some() {
+        warn!("Setting a menu on windows that have a parent is unsupported");
+    }
+
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
         let (style, ex_style) = window_flags.to_window_styles();
@@ -724,7 +728,7 @@ unsafe fn init<T: 'static>(
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
             pl_attribs.parent.unwrap_or(ptr::null_mut()),
-            ptr::null_mut(),
+            pl_attribs.menu.unwrap_or(ptr::null_mut()),
             libloaderapi::GetModuleHandleW(ptr::null()),
             ptr::null_mut(),
         );

@@ -116,6 +116,7 @@ If your PR makes notable changes to Winit's features, please update this section
 ### Windows
 * Setting the taskbar icon
 * Setting the parent window
+* Setting a menu bar
 * `WS_EX_NOREDIRECTIONBITMAP` support
 * Theme the title bar according to Windows 10 Dark Mode setting or set a preferred theme
 

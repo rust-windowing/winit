@@ -5,7 +5,7 @@ use std::path::Path;
 
 use libc;
 use winapi::shared::minwindef::WORD;
-use winapi::shared::windef::HWND;
+use winapi::shared::windef::{HMENU, HWND};
 
 use crate::{
     dpi::PhysicalSize,
@@ -112,6 +112,16 @@ pub trait WindowBuilderExtWindows {
     /// Sets a parent to the window to be created.
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
 
+    /// Sets a menu on the window to be created.
+    ///
+    /// Parent and menu are mutually exclusive; a child window cannot have a menu!
+    ///
+    /// The menu must have been manually created beforehand with [`winapi::um::winuser::CreateMenu`] or similar.
+    ///
+    /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
+    /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
+    fn with_menu(self, menu: HMENU) -> WindowBuilder;
+
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> WindowBuilder;
 
@@ -134,6 +144,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_parent_window(mut self, parent: HWND) -> WindowBuilder {
         self.platform_specific.parent = Some(parent);
+        self
+    }
+
+    #[inline]
+    fn with_menu(mut self, menu: HMENU) -> WindowBuilder {
+        self.platform_specific.menu = Some(menu);
         self
     }
 
