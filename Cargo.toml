@@ -37,9 +37,9 @@ image = "0.23.12"
 simple_logger = "1.9"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ndk = "0.2.0"
+ndk = "0.3"
 ndk-sys = "0.2.0"
-ndk-glue = "0.2.0"
+ndk-glue = "0.3"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 objc = "0.2.7"

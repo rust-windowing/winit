@@ -278,7 +278,7 @@ impl Window {
 
     #[inline]
     pub fn hinstance(&self) -> HINSTANCE {
-        unsafe { winuser::GetWindowLongW(self.hwnd(), winuser::GWL_HINSTANCE) as *mut _ }
+        unsafe { winuser::GetWindowLongPtrW(self.hwnd(), winuser::GWLP_HINSTANCE) as *mut _ }
     }
 
     #[inline]
@@ -383,6 +383,12 @@ impl Window {
                 f.set(WindowFlags::MAXIMIZED, maximized)
             });
         });
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        let window_state = self.window_state.lock();
+        window_state.window_flags.contains(WindowFlags::MAXIMIZED)
     }
 
     #[inline]
