@@ -432,6 +432,12 @@ impl KeyEventBuilder {
             logical_key = layout.get_key(mods, vk, scancode, code);
             key_without_modifers = layout.get_key(WindowsModifiers::empty(), vk, scancode, code);
         }
+        let text;
+        if key_state == ElementState::Pressed {
+            text = logical_key.to_text();
+        } else {
+            text = None;
+        }
         let event_info = PartialKeyEventInfo {
             vkey: vk,
             logical_key,
@@ -442,12 +448,12 @@ impl KeyEventBuilder {
             code,
             location: get_location(scancode, locale_id),
             utf16parts: Vec::with_capacity(8),
-            text: PartialText::System(Vec::new()),
+            text: PartialText::Text(text),
         };
 
         let mut event = event_info.finalize(&mut layouts.strings);
         event.logical_key = logical_key;
-        event.platform_specific.text_with_all_modifers = logical_key.to_text();
+        event.platform_specific.text_with_all_modifers = text;
         Some(MessageAsKeyEvent {
             event,
             is_synthetic: true,
