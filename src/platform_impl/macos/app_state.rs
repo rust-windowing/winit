@@ -6,7 +6,7 @@ use std::{
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Mutex, MutexGuard,
+        Mutex, MutexGuard, Weak,
     },
     time::Instant,
 };
@@ -52,7 +52,7 @@ pub trait EventHandler: Debug {
 }
 
 struct EventLoopHandler<T: 'static> {
-    callback: Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+    callback: Weak<Mutex<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
     will_exit: bool,
     window_target: Rc<RootWindowTarget<T>>,
 }
@@ -68,23 +68,43 @@ impl<T> Debug for EventLoopHandler<T> {
 
 impl<T> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
-        (self.callback)(event.userify(), &self.window_target, control_flow);
-        self.will_exit |= *control_flow == ControlFlow::Exit;
-        if self.will_exit {
-            *control_flow = ControlFlow::Exit;
+        if let Some(callback) = self.callback.upgrade() {
+            let mut callback = callback.lock().unwrap();
+            (callback)(event.userify(), &self.window_target, control_flow);
+            self.will_exit |= *control_flow == ControlFlow::Exit;
+            if self.will_exit {
+                *control_flow = ControlFlow::Exit;
+            }
+        } else {
+            // Logging an error instead of panicing because might happen while the
+            // application is already panicing.
+            error!(
+                "Tried to dispatch an event but the event loop that \
+                owned the event handler callback seems to be destroyed"
+            );
         }
     }
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
         let mut will_exit = self.will_exit;
-        for event in self.window_target.p.receiver.try_iter() {
-            (self.callback)(Event::UserEvent(event), &self.window_target, control_flow);
-            will_exit |= *control_flow == ControlFlow::Exit;
-            if will_exit {
-                *control_flow = ControlFlow::Exit;
+        if let Some(callback) = self.callback.upgrade() {
+            let mut callback = callback.lock().unwrap();
+            for event in self.window_target.p.receiver.try_iter() {
+                (callback)(Event::UserEvent(event), &self.window_target, control_flow);
+                will_exit |= *control_flow == ControlFlow::Exit;
+                if will_exit {
+                    *control_flow = ControlFlow::Exit;
+                }
             }
+            self.will_exit = will_exit;
+        } else {
+            // Logging an error instead of panicing because might happen while the
+            // application is already panicing.
+            error!(
+                "Tried to dispatch an event but the event loop that \
+                owned the event handler callback seems to be destroyed"
+            );
         }
-        self.will_exit = will_exit;
     }
 }
 
@@ -230,19 +250,12 @@ pub enum AppState {}
 
 impl AppState {
     // This function extends lifetime of `callback` to 'static as its side effect
-    pub unsafe fn set_callback<F, T>(callback: F, window_target: Rc<RootWindowTarget<T>>)
-    where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
-    {
+    pub fn set_callback<T>(
+        callback: Weak<Mutex<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
+        window_target: Rc<RootWindowTarget<T>>,
+    ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
-            // This transmute is always safe, in case it was reached through `run`, since our
-            // lifetime will be already 'static. In other cases caller should ensure that all data
-            // they passed to callback will actually outlive it, some apps just can't move
-            // everything to event loop, so this is something that they should care about.
-            callback: mem::transmute::<
-                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
-                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
-            >(Box::new(callback)),
+            callback,
             will_exit: false,
             window_target,
         }));

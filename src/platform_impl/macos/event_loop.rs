@@ -1,6 +1,11 @@
 use std::{
-    collections::VecDeque, marker::PhantomData, mem, os::raw::c_void, process, ptr, rc::Rc,
-    sync::mpsc,
+    collections::VecDeque,
+    marker::PhantomData,
+    mem,
+    os::raw::c_void,
+    process, ptr,
+    rc::Rc,
+    sync::{mpsc, Arc, Mutex, Weak},
 };
 
 use cocoa::{
@@ -50,6 +55,16 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
 pub struct EventLoop<T: 'static> {
     window_target: Rc<RootWindowTarget<T>>,
+
+    /// We make sure that the callback closure is dropped during a panic
+    /// by making the event loop own it.
+    ///
+    /// Every other reference should be a Weak reference which is only upgraded
+    /// into a strong reference in order to call the callback but then the
+    /// strong reference should be dropped as soon as possible.
+    callback:
+        Option<Arc<Mutex<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>>,
+
     _delegate: IdRef,
 }
 
@@ -78,6 +93,7 @@ impl<T> EventLoop<T> {
                 p: Default::default(),
                 _marker: PhantomData,
             }),
+            callback: None,
             _delegate: delegate,
         }
     }
@@ -98,11 +114,30 @@ impl<T> EventLoop<T> {
     where
         F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
+        // This transmute is always safe, in case it was reached through `run`, since our
+        // lifetime will be already 'static. In other cases caller should ensure that all data
+        // they passed to callback will actually outlive it, some apps just can't move
+        // everything to event loop, so this is something that they should care about.
+        let callback = Arc::new(Mutex::new(unsafe {
+            mem::transmute::<
+                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
+            >(Box::new(callback))
+        }));
+
+        self.callback = Some(callback.clone());
+
         unsafe {
             let pool = NSAutoreleasePool::new(nil);
             let app = NSApp();
             assert_ne!(app, nil);
-            AppState::set_callback(callback, Rc::clone(&self.window_target));
+
+            // A bit of juggling with the callback references to make sure
+            // that `self.callback` is the only owner of the callback.
+            let weak_cb: Weak<_> = Arc::downgrade(&callback);
+            std::mem::drop(callback);
+
+            AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
             let _: () = msg_send![app, run];
             AppState::exit();
             pool.drain();
