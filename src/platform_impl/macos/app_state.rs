@@ -249,7 +249,6 @@ pub static INTERRUPT_EVENT_LOOP_EXIT: AtomicBool = AtomicBool::new(false);
 pub enum AppState {}
 
 impl AppState {
-    // This function extends lifetime of `callback` to 'static as its side effect
     pub fn set_callback<T>(
         callback: Weak<Mutex<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
         window_target: Rc<RootWindowTarget<T>>,

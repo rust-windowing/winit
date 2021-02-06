@@ -62,7 +62,7 @@ pub struct EventLoop<T: 'static> {
     /// Every other reference should be a Weak reference which is only upgraded
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
-    callback:
+    _callback:
         Option<Arc<Mutex<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>>,
 
     _delegate: IdRef,
@@ -93,7 +93,7 @@ impl<T> EventLoop<T> {
                 p: Default::default(),
                 _marker: PhantomData,
             }),
-            callback: None,
+            _callback: None,
             _delegate: delegate,
         }
     }
@@ -125,7 +125,7 @@ impl<T> EventLoop<T> {
             >(Box::new(callback))
         }));
 
-        self.callback = Some(callback.clone());
+        self._callback = Some(callback.clone());
 
         unsafe {
             let pool = NSAutoreleasePool::new(nil);
