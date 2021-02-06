@@ -5,6 +5,7 @@ use std::{
     hint::unreachable_unchecked,
     mem,
     rc::{Rc, Weak},
+    panic::catch_unwind,
     path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -356,11 +357,23 @@ impl AppState {
     }
 
     pub fn open_files(paths: Vec<PathBuf>) -> FileOpenResult {
-        let mut callback = HANDLER.file_open_callback.lock().unwrap();
-        if let Some(callback) = &mut *callback {
-            (callback)(paths)
-        } else {
-            FileOpenResult::Failure
+        let result = catch_unwind(|| {
+            let mut callback = HANDLER.file_open_callback.lock().unwrap();
+            if let Some(callback) = &mut *callback {
+                (callback)(paths)
+            } else {
+                FileOpenResult::Failure
+            }
+        });
+        match result {
+            Ok(result) => result,
+            Err(e) => {
+                error!(
+                    "Paniced when trying to execute open files callback: {:?}",
+                    e
+                );
+                FileOpenResult::Failure
+            }
         }
     }
 
