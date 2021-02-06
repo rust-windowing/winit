@@ -2192,13 +2192,20 @@ unsafe fn handle_raw_input<T: 'static>(
         } else {
             scancode = keyboard.MakeCode | extension;
         }
-        if scancode == 0xE11D {
-            // Some keys are equivalent to a combination of keys at the hardware (or driver?) level.
-            // For example Pause = Ctrl+NumLock.
+        if scancode == 0xE11D || scancode == 0xE02A {
+            // At the hardware (or driver?) level, pressing the Pause key is equivalent to pressing
+            // Ctrl+NumLock.
             // This equvalence means that if the user presses Pause, the keyboard will emmit two
             // subsequent keypresses:
             // 1, 0xE11D - Which is a left ctrl (0x1D) with an extension flag (0xE100)
             // 2, 0x0045 - Which on its own can be interpreted as Pause
+            //
+            // There's another combination which isn't quite an equivalence:
+            // PrtSc used to be Shift+Asterisk. This means that on some keyboards, presssing
+            // PrtSc (print screen) produces the following sequence:
+            // 1, 0xE02A - Which is a left shift (0x2A) with an exteion flag (0xE000)
+            // 2, 0xE037 - Which is a numpad multiply (0x37) with an exteion flag (0xE000). This on
+            //             its own it can be interpreted as PrtSc
             //
             // For this reason if we encounter the first keypress, we simply ignore it, trusting
             // that there's going to be another event coming, from which we can extract the
