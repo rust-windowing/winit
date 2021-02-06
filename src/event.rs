@@ -614,7 +614,7 @@ pub struct RawKeyEvent {
 pub struct KeyEvent {
     /// Represents the position of a key independent of the currently active layout.
     ///
-    /// It also uniquely identifies the physical key (i.e. it's synonymus with a scancode).
+    /// It also uniquely identifies the physical key (i.e. it's synonymous with a scancode).
     ///
     /// Note that `Fn` and `FnLock` key events are not guaranteed to be emmited by `winit`. These
     /// keys are usually handled at the hardware or at the OS level.
@@ -623,7 +623,7 @@ pub struct KeyEvent {
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
     ///
     /// This has two use cases:
-    /// - Allows querying whether the current input is a Dead key
+    /// - Allows querying whether the current input is a Dead key.
     /// - Allows handling key-bindings on platforms which don't
     /// support [`key_without_modifiers`].
     ///

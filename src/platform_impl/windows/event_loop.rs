@@ -2233,6 +2233,39 @@ unsafe fn handle_raw_input<T: 'static>(
         } else {
             code = KeyCode::from_scancode(scancode as u32);
         }
+        if keyboard.VKey as c_int == winuser::VK_SHIFT {
+            match code {
+                KeyCode::NumpadDecimal
+                | KeyCode::Numpad0
+                | KeyCode::Numpad1
+                | KeyCode::Numpad2
+                | KeyCode::Numpad3
+                | KeyCode::Numpad4
+                | KeyCode::Numpad5
+                | KeyCode::Numpad6
+                | KeyCode::Numpad7
+                | KeyCode::Numpad8
+                | KeyCode::Numpad9 => {
+                    // On Windows, holding the Shift key makes numpad keys behave as if NumLock
+                    // wasn't active. The way this is exposed to applications by the system is that
+                    // the application receives a fake key release event for the shift key at the
+                    // moment when the numpad key is pressed, just before receiving the numpad key
+                    // as well.
+                    //
+                    // The issue is that in the raw device event (here), the fake shift release
+                    // event reports the numpad key as the scancode. Unfortunately the event doesn't
+                    // have any information to tell whether it's the left shift or the right shift
+                    // that needs to get the fake release (or press) event so we don't forward this
+                    // event to the application at all.
+                    //
+                    // For more on this, read the article by Raymond Chen, titled:
+                    // "The shift key overrides NumLock"
+                    // https://devblogs.microsoft.com/oldnewthing/20040906-00/?p=37953
+                    return;
+                }
+                _ => (),
+            }
+        }
         let repeat;
         let mut keys_pressed = RAW_KEYS_PRESSED.lock();
         match keys_pressed.entry(code) {
