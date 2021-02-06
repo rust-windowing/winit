@@ -166,14 +166,22 @@ impl Layout {
     ) -> Key<'static> {
         let native_code = NativeKeyCode::Windows(scancode);
 
-        // This feels much like a hack as one would assume that the `keys` map contains every key
-        // mapping. However `MapVirtualKeyExW` sometimes maps virtual keys to odd scancodes that
-        // don't match the scancode coming from the KEYDOWN message for the same key.
-        // For example:
-        // `VK_LEFT` is mapped to `0x004B`, but the scancode for the left arrow is `0xE04B`.
-        let key_from_vkey = vkey_to_non_char_key(vkey, native_code, self.hkl, self.has_alt_graph);
-        if !matches!(key_from_vkey, Key::Unidentified(_)) {
-            return key_from_vkey;
+        let unknown_alt = vkey == winuser::VK_MENU;
+        if !unknown_alt {
+            // Here we try using the virtual key directly but if the virtual key doesn't distinguish
+            // between left and right alt, we can't report AltGr. Therefore we only do this if the
+            // key is not the "unknown alt" key.
+            //
+            // The reason for using the virtual key directly is that `MapVirtualKeyExW` (used when
+            // building the keys map) sometimes maps virtual keys to odd scancodes that don't match
+            // the scancode coming from the KEYDOWN message for the same key. For example: `VK_LEFT`
+            // is mapped to `0x004B`, but the scancode for the left arrow is `0xE04B`.
+            let key_from_vkey =
+                vkey_to_non_char_key(vkey, native_code, self.hkl, self.has_alt_graph);
+
+            if !matches!(key_from_vkey, Key::Unidentified(_)) {
+                return key_from_vkey;
+            }
         }
         if let Some(key) = self.simple_vkeys.get(&vkey) {
             return *key;
