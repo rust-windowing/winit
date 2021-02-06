@@ -62,12 +62,10 @@ lazy_static! {
 }
 
 /// Copies the contents of the ns string into a `String` which gets returned.
-fn ns_string_to_rust(ns_string: id) -> String {
-    unsafe {
-        let slice = slice::from_raw_parts(ns_string.UTF8String() as *mut u8, ns_string.len());
-        let string = str::from_utf8_unchecked(slice);
-        string.to_owned()
-    }
+unsafe fn ns_string_to_rust(ns_string: id) -> String {
+    let slice = slice::from_raw_parts(ns_string.UTF8String() as *mut u8, ns_string.len());
+    let string = str::from_utf8_unchecked(slice);
+    string.to_owned()
 }
 
 extern "C" fn new(class: &Class, _: Sel) -> id {
@@ -112,7 +110,7 @@ extern "C" fn did_resign_active(this: &Object, _: Sel, _: id) {
 
 extern "C" fn application_open_file(_this: &Object, _: Sel, _sender: id, filename: id) -> BOOL {
     trace!("Triggered `application:openFile:`");
-    let string = ns_string_to_rust(filename);
+    let string = unsafe { ns_string_to_rust(filename) };
     let result = AppState::open_files(vec![string.into()]);
     trace!("Completed `application:openFile:`");
 
@@ -126,12 +124,12 @@ extern "C" fn application_open_file(_this: &Object, _: Sel, _sender: id, filenam
 extern "C" fn application_open_files(_this: &Object, _: Sel, sender: id, filenames: id) {
     trace!("Triggered `application:openFiles:`");
     let filenames_len = unsafe { filenames.count() };
-    let mut filenames_vec = Vec::with_capacity(filenames_len as usize);
-    for i in 0..filenames_len {
-        let filename = unsafe { filenames.objectAtIndex(i) };
-        let name_string = ns_string_to_rust(filename);
-        filenames_vec.push(name_string.into());
-    }
+    let filenames_vec = (0..filenames_len)
+        .map(|i| unsafe {
+            let filename = filenames.objectAtIndex(i);
+            ns_string_to_rust(filename).into()
+        })
+        .collect();
     let result = AppState::open_files(filenames_vec);
     let response = match result {
         FileOpenResult::Success => NSApplicationDelegateReplySuccess,

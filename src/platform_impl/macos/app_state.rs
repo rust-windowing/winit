@@ -271,8 +271,7 @@ impl AppState {
     where
         F: FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static,
     {
-        *HANDLER.file_open_callback.lock().unwrap() =
-            callback.map(|c| Box::new(c) as Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send>);
+        *HANDLER.file_open_callback.lock().unwrap() = callback.map(|c| Box::new(c) as _);
     }
 
     pub fn exit() {
