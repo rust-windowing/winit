@@ -253,9 +253,15 @@ pub enum WindowEvent<'a> {
     Focused(bool),
 
     /// An event from the keyboard has been received.
+    ///
+    /// ## Platform-specific
+    /// - **Windows:** The shift key overrides NumLock. In other words, while shift is held down,
+    ///   numpad keys act as if NumLock wasn't active. When this is used the OS sends fake key
+    ///   events which are not marked as `is_synthetic`.
     KeyboardInput {
         device_id: DeviceId,
         event: KeyEvent,
+
         /// If `true`, the event was generated synthetically by winit
         /// in one of the following circumstances:
         ///
