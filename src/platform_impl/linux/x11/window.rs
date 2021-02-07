@@ -1276,7 +1276,7 @@ impl UnownedWindow {
         self.set_cursor_position_physical(x, y)
     }
 
-    pub fn set_drag_window(&self) -> Result<(), ExternalError> {
+    pub fn begin_drag(&self) -> Result<(), ExternalError> {
         let pointer = self
             .xconn
             .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)

@@ -556,7 +556,7 @@ impl Window {
 
     pub fn set_cursor_visible(&self, _: bool) {}
 
-    pub fn set_drag_window(&self) -> Result<(), error::ExternalError> {
+    pub fn begin_drag(&self) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))

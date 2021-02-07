@@ -223,7 +223,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_drag_window(&self) -> Result<(), ExternalError> {
+    pub fn begin_drag(&self) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 

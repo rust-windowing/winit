@@ -35,7 +35,7 @@ fn main() {
                     &window_1
                 };
 
-                window.set_drag_window().unwrap()
+                window.begin_drag().unwrap()
             }
             WindowEvent::CursorEntered { .. } => {
                 let (drag_target, other) = if (window_id == window_1.id() && switched)
