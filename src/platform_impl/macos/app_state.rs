@@ -26,6 +26,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
+        event_loop::CURRENT_PANIC,
         observer::EventLoopWaker,
         util::{IdRef, Never},
         window::get_window_id,
@@ -285,6 +286,9 @@ impl AppState {
     }
 
     pub fn wakeup() {
+        if CURRENT_PANIC.lock().unwrap().is_some() {
+            return;
+        }
         if !HANDLER.is_ready() {
             return;
         }
@@ -338,6 +342,9 @@ impl AppState {
     }
 
     pub fn cleared() {
+        if CURRENT_PANIC.lock().unwrap().is_some() {
+            return;
+        }
         if !HANDLER.is_ready() {
             return;
         }

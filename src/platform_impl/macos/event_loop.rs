@@ -1,19 +1,23 @@
 use std::{
+    any::Any,
     cell::RefCell,
     collections::VecDeque,
     marker::PhantomData,
     mem,
     os::raw::c_void,
+    panic::{catch_unwind, resume_unwind, UnwindSafe},
     process, ptr,
     rc::{Rc, Weak},
-    sync::mpsc,
+    sync::{mpsc, Mutex},
 };
 
 use cocoa::{
-    appkit::NSApp,
-    base::{id, nil},
-    foundation::NSAutoreleasePool,
+    appkit::{NSApp, NSEventType::NSApplicationDefined},
+    base::{id, nil, YES},
+    foundation::{NSAutoreleasePool, NSPoint},
 };
+
+use scopeguard::defer;
 
 use crate::{
     event::Event,
@@ -28,6 +32,11 @@ use crate::{
         util::IdRef,
     },
 };
+
+lazy_static! {
+    pub(crate) static ref CURRENT_PANIC: Mutex<Option<Box<dyn Any + Send + 'static>>> =
+        Mutex::new(None);
+}
 
 pub struct EventLoopWindowTarget<T: 'static> {
     pub sender: mpsc::Sender<T>, // this is only here to be cloned elsewhere
@@ -130,6 +139,7 @@ impl<T> EventLoop<T> {
 
         unsafe {
             let pool = NSAutoreleasePool::new(nil);
+            defer!(pool.drain());
             let app = NSApp();
             assert_ne!(app, nil);
 
@@ -140,13 +150,60 @@ impl<T> EventLoop<T> {
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
             let _: () = msg_send![app, run];
+
+            let mut panic = CURRENT_PANIC.lock().unwrap();
+            if let Some(panic) = panic.take() {
+                resume_unwind(panic);
+            }
             AppState::exit();
-            pool.drain();
         }
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {
         Proxy::new(self.window_target.p.sender.clone())
+    }
+}
+
+/// Catches panics that happen inside `f` and when a panic
+/// happens, stops the `sharedApplication`
+pub(crate) fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(f: F) -> Option<R> {
+    match catch_unwind(f) {
+        Ok(r) => Some(r),
+        Err(e) => {
+            // It's important that we set the panic before requesting a `stop`
+            // because some callback are still called during the `stop` message
+            // and we need to know in those callbacks if the application is currently
+            // panicking
+            {
+                let mut panic = CURRENT_PANIC.lock().unwrap();
+                if panic.is_none() {
+                    *panic = Some(e);
+                }
+            }
+            unsafe {
+                let app_class = class!(NSApplication);
+                let app: id = msg_send![app_class, sharedApplication];
+                let _: () = msg_send![app, stop: nil];
+
+                // Posting an dummy event to get stop to take effect immediately.
+                // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
+                let event_class = class!(NSEvent);
+                let dummy_event: id = msg_send![
+                    event_class,
+                    otherEventWithType: NSApplicationDefined
+                    location: NSPoint::new(0.0, 0.0)
+                    modifierFlags: 0
+                    timestamp: 0
+                    windowNumber: 0
+                    context: nil
+                    subtype: 0
+                    data1: 0
+                    data2: 0
+                ];
+                let _: () = msg_send![app, postEvent: dummy_event atStart: YES];
+            }
+            None
+        }
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{self, os::raw::*, ptr, time::Instant};
 
-use crate::platform_impl::platform::{app_state::AppState, ffi};
+use crate::platform_impl::platform::{app_state::AppState, event_loop::stop_app_on_panic, ffi};
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
@@ -128,16 +128,18 @@ extern "C" fn control_flow_end_handler(
     activity: CFRunLoopActivity,
     _: *mut c_void,
 ) {
-    #[allow(non_upper_case_globals)]
-    match activity {
-        kCFRunLoopBeforeWaiting => {
-            //trace!("Triggered `CFRunLoopBeforeWaiting`");
-            AppState::cleared();
-            //trace!("Completed `CFRunLoopBeforeWaiting`");
+    stop_app_on_panic(|| {
+        #[allow(non_upper_case_globals)]
+        match activity {
+            kCFRunLoopBeforeWaiting => {
+                //trace!("Triggered `CFRunLoopBeforeWaiting`");
+                AppState::cleared();
+                //trace!("Completed `CFRunLoopBeforeWaiting`");
+            }
+            kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
+            _ => unreachable!(),
         }
-        kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
-        _ => unreachable!(),
-    }
+    });
 }
 
 struct RunLoop(CFRunLoopRef);
