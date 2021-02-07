@@ -76,10 +76,10 @@ impl<T> EventHandler for EventLoopHandler<T> {
                 *control_flow = ControlFlow::Exit;
             }
         } else {
-            // Logging an error instead of panicing because might happen while the
-            // application is already panicing.
+            // Logging an error instead of panicking because this might happen while the
+            // application is already panicking.
             error!(
-                "Tried to dispatch an event but the event loop that \
+                "Tried to dispatch an event, but the event loop that \
                 owned the event handler callback seems to be destroyed"
             );
         }
@@ -98,10 +98,10 @@ impl<T> EventHandler for EventLoopHandler<T> {
             }
             self.will_exit = will_exit;
         } else {
-            // Logging an error instead of panicing because might happen while the
-            // application is already panicing.
+            // Logging an error instead of panicking because this might happen while the
+            // application is already panicking.
             error!(
-                "Tried to dispatch an event but the event loop that \
+                "Tried to dispatch an event, but the event loop that \
                 owned the event handler callback seems to be destroyed"
             );
         }

@@ -135,7 +135,7 @@ impl<T> EventLoop<T> {
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Arc::downgrade(&callback);
-            std::mem::drop(callback);
+            mem::drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
             let _: () = msg_send![app, run];
