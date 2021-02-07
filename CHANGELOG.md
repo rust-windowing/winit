@@ -13,6 +13,7 @@
 - On Windows, fixed `WindowEvent::ThemeChanged` not properly firing and fixed `Window::theme` returning the wrong theme.
 - On Web, added support for `DeviceEvent::MouseMotion` to listen for relative mouse movements.
 - Added `Window::set_drag_window`. Implemented on Windows, macOS, X11 and Wayland.
+- Added `Window::set_drag_window`. Implemented on Windows, macOS and X11.
 
 # 0.24.0 (2020-12-09)
 
