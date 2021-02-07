@@ -773,8 +773,9 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **X11:** Un-grabs the cursor.
+    /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
     /// - **macOS:** May prevent the button release event to be triggered.
-    /// - **Wayland / iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_drag_window(&self) -> Result<(), ExternalError> {
         self.window.set_drag_window()

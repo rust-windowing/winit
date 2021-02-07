@@ -360,12 +360,7 @@ impl Window {
 
     #[inline]
     pub fn set_drag_window(&self) -> Result<(), ExternalError> {
-        match self {
-            #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.set_drag_window(),
-            #[cfg(feature = "wayland")]
-            _ => Err(ExternalError::NotSupported(NotSupportedError::new())),
-        }
+        x11_or_wayland!(match self; Window(window) => window.set_drag_window())
     }
 
     #[inline]
