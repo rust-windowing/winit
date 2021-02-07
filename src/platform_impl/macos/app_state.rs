@@ -57,6 +57,26 @@ struct EventLoopHandler<T: 'static> {
     window_target: Rc<RootWindowTarget<T>>,
 }
 
+impl<T> EventLoopHandler<T> {
+    fn with_callback<F>(&mut self, f: F)
+    where
+        F: FnOnce(
+            &mut EventLoopHandler<T>,
+            MutexGuard<'_, Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+        ),
+    {
+        if let Some(callback) = self.callback.upgrade() {
+            let callback = callback.lock().unwrap();
+            (f)(self, callback);
+        } else {
+            panic!(
+                "Tried to dispatch an event, but the event loop that \
+                owned the event handler callback seems to be destroyed"
+            );
+        }
+    }
+}
+
 impl<T> Debug for EventLoopHandler<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -68,43 +88,27 @@ impl<T> Debug for EventLoopHandler<T> {
 
 impl<T> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
-        if let Some(callback) = self.callback.upgrade() {
-            let mut callback = callback.lock().unwrap();
-            (callback)(event.userify(), &self.window_target, control_flow);
-            self.will_exit |= *control_flow == ControlFlow::Exit;
-            if self.will_exit {
+        self.with_callback(|this, mut callback| {
+            (callback)(event.userify(), &this.window_target, control_flow);
+            this.will_exit |= *control_flow == ControlFlow::Exit;
+            if this.will_exit {
                 *control_flow = ControlFlow::Exit;
             }
-        } else {
-            // Logging an error instead of panicking because this might happen while the
-            // application is already panicking.
-            error!(
-                "Tried to dispatch an event, but the event loop that \
-                owned the event handler callback seems to be destroyed"
-            );
-        }
+        });
     }
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
-        let mut will_exit = self.will_exit;
-        if let Some(callback) = self.callback.upgrade() {
-            let mut callback = callback.lock().unwrap();
-            for event in self.window_target.p.receiver.try_iter() {
-                (callback)(Event::UserEvent(event), &self.window_target, control_flow);
+        self.with_callback(|this, mut callback| {
+            let mut will_exit = this.will_exit;
+            for event in this.window_target.p.receiver.try_iter() {
+                (callback)(Event::UserEvent(event), &this.window_target, control_flow);
                 will_exit |= *control_flow == ControlFlow::Exit;
                 if will_exit {
                     *control_flow = ControlFlow::Exit;
                 }
             }
-            self.will_exit = will_exit;
-        } else {
-            // Logging an error instead of panicking because this might happen while the
-            // application is already panicking.
-            error!(
-                "Tried to dispatch an event, but the event loop that \
-                owned the event handler callback seems to be destroyed"
-            );
-        }
+            this.will_exit = will_exit;
+        });
     }
 }
 
