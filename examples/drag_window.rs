@@ -37,6 +37,17 @@ fn main() {
 
                 window.set_drag_window().unwrap()
             }
+            WindowEvent::CursorEntered { .. } => {
+                let (drag_target, other) = if (window_id == window_1.id() && switched)
+                    || (window_id == window_2.id() && !switched)
+                {
+                    (&window_2, &window_1)
+                } else {
+                    (&window_1, &window_2)
+                };
+                drag_target.set_title("drag target");
+                other.set_title("winit window");
+            }
             WindowEvent::KeyboardInput {
                 input:
                     KeyboardInput {
