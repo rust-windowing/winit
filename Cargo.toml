@@ -131,6 +131,3 @@ features = ["experimental_features_which_may_break_on_minor_version_bumps"]
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 console_log = "0.2"
-
-[patch.crates-io]
-smithay-client-toolkit = { git = "https://github.com/smithay/client-toolkit" }

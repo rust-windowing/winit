@@ -34,9 +34,6 @@ pub enum WindowRequest {
     /// Grab cursor.
     GrabCursor(bool),
 
-    /// Drag window.
-    DragWindow,
-
     /// Maximize the window.
     Maximize(bool),
 
@@ -271,12 +268,6 @@ impl WindowHandle {
             pointer.set_cursor(Some(cursor_icon));
         }
     }
-
-    pub fn set_drag_window(&self) {
-        for pointer in self.pointers.iter() {
-            pointer.set_drag_window(&self.window);
-        }
-    }
 }
 
 #[inline]
@@ -307,9 +298,6 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 }
                 WindowRequest::GrabCursor(grab) => {
                     window_handle.set_cursor_grab(grab);
-                }
-                WindowRequest::DragWindow => {
-                    window_handle.set_drag_window();
                 }
                 WindowRequest::Maximize(maximize) => {
                     if maximize {

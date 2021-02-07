@@ -4,7 +4,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use sctk::reexports::client::protocol::wl_pointer::{self, Event as PointerEvent};
-use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_v1::Event as RelativePointerEvent;
 
 use sctk::seat::pointer::ThemedPointer;
@@ -29,7 +28,6 @@ pub(super) fn handle_pointer(
     event: PointerEvent,
     pointer_data: &Rc<RefCell<PointerData>>,
     winit_state: &mut WinitState,
-    seat: WlSeat,
 ) {
     let event_sink = &mut winit_state.event_sink;
     let mut pointer_data = pointer_data.borrow_mut();
@@ -61,7 +59,6 @@ pub(super) fn handle_pointer(
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
-                seat,
             };
             window_handle.pointer_entered(winit_pointer);
 
@@ -104,7 +101,6 @@ pub(super) fn handle_pointer(
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
-                seat,
             };
             window_handle.pointer_left(winit_pointer);
 

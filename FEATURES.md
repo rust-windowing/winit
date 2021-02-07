@@ -209,7 +209,7 @@ Legend:
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |
-|Drag window with cursor |✔️         |✔️       |✔️        |✔️            |**N/A**|**N/A**|**N/A**   |
+|Drag window with cursor |✔️         |✔️       |✔️        |❌           |**N/A**|**N/A**|**N/A**   |
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.
