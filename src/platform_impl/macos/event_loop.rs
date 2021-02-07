@@ -1,11 +1,12 @@
 use std::{
+    cell::RefCell,
     collections::VecDeque,
     marker::PhantomData,
     mem,
     os::raw::c_void,
     process, ptr,
-    rc::Rc,
-    sync::{mpsc, Arc, Mutex, Weak},
+    rc::{Rc, Weak},
+    sync::mpsc,
 };
 
 use cocoa::{
@@ -63,7 +64,7 @@ pub struct EventLoop<T: 'static> {
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
     _callback:
-        Option<Arc<Mutex<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>>,
+        Option<Rc<RefCell<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>>,
 
     _delegate: IdRef,
 }
@@ -118,7 +119,7 @@ impl<T> EventLoop<T> {
         // lifetime will be already 'static. In other cases caller should ensure that all data
         // they passed to callback will actually outlive it, some apps just can't move
         // everything to event loop, so this is something that they should care about.
-        let callback = Arc::new(Mutex::new(unsafe {
+        let callback = Rc::new(RefCell::new(unsafe {
             mem::transmute::<
                 Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
                 Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
@@ -134,7 +135,7 @@ impl<T> EventLoop<T> {
 
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
-            let weak_cb: Weak<_> = Arc::downgrade(&callback);
+            let weak_cb: Weak<_> = Rc::downgrade(&callback);
             mem::drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));

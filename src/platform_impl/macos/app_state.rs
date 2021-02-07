@@ -1,12 +1,13 @@
 use std::{
+    cell::{RefCell, RefMut},
     collections::VecDeque,
     fmt::{self, Debug},
     hint::unreachable_unchecked,
     mem,
-    rc::Rc,
+    rc::{Rc, Weak},
     sync::{
         atomic::{AtomicBool, Ordering},
-        Mutex, MutexGuard, Weak,
+        Mutex, MutexGuard,
     },
     time::Instant,
 };
@@ -52,7 +53,7 @@ pub trait EventHandler: Debug {
 }
 
 struct EventLoopHandler<T: 'static> {
-    callback: Weak<Mutex<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
+    callback: Weak<RefCell<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
     will_exit: bool,
     window_target: Rc<RootWindowTarget<T>>,
 }
@@ -62,11 +63,11 @@ impl<T> EventLoopHandler<T> {
     where
         F: FnOnce(
             &mut EventLoopHandler<T>,
-            MutexGuard<'_, Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+            RefMut<'_, Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
         ),
     {
         if let Some(callback) = self.callback.upgrade() {
-            let callback = callback.lock().unwrap();
+            let callback = callback.borrow_mut();
             (f)(self, callback);
         } else {
             panic!(
@@ -254,7 +255,9 @@ pub enum AppState {}
 
 impl AppState {
     pub fn set_callback<T>(
-        callback: Weak<Mutex<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
+        callback: Weak<
+            RefCell<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+        >,
         window_target: Rc<RootWindowTarget<T>>,
     ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
