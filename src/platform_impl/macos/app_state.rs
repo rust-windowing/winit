@@ -369,7 +369,7 @@ impl AppState {
             Ok(result) => result,
             Err(e) => {
                 error!(
-                    "Paniced when trying to execute open files callback: {:?}",
+                    "Panicked when trying to execute open files callback: {:?}",
                     e
                 );
                 FileOpenResult::Failure

@@ -7,16 +7,14 @@ use super::{
         NSApplicationDelegateReplyCancel, NSApplicationDelegateReplyFailure,
         NSApplicationDelegateReplySuccess,
     },
+    util::ns_string_to_rust,
 };
-use cocoa::{
-    base::id,
-    foundation::{NSArray, NSString},
-};
+use cocoa::{base::id, foundation::NSArray};
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
-use std::{os::raw::c_void, slice, str};
+use std::{os::raw::c_void, str};
 
 pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
@@ -59,13 +57,6 @@ lazy_static! {
 
         AppDelegateClass(decl.register())
     };
-}
-
-/// Copies the contents of the ns string into a `String` which gets returned.
-unsafe fn ns_string_to_rust(ns_string: id) -> String {
-    let slice = slice::from_raw_parts(ns_string.UTF8String() as *mut u8, ns_string.len());
-    let string = str::from_utf8_unchecked(slice);
-    string.to_owned()
 }
 
 extern "C" fn new(class: &Class, _: Sel) -> id {
