@@ -23,7 +23,6 @@ fn main() {
         _ => panic!("Please enter a valid number"),
     });
 
-    let mut is_maximized = false;
     let mut decorations = true;
 
     let window = WindowBuilder::new()
@@ -59,8 +58,8 @@ fn main() {
                         println!("window.fullscreen {:?}", window.fullscreen());
                     }
                     (VirtualKeyCode::M, ElementState::Pressed) => {
-                        is_maximized = !is_maximized;
-                        window.set_maximized(is_maximized);
+                        let is_maximized = window.is_maximized();
+                        window.set_maximized(!is_maximized);
                     }
                     (VirtualKeyCode::D, ElementState::Pressed) => {
                         decorations = !decorations;

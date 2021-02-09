@@ -1,5 +1,7 @@
 # Unreleased
 
+- Added `is_maximized` method to `Window`.
+- On Windows, fix bug where clicking the decoration bar would make the cursor blink.
 - On Windows, fix bug causing newly created windows to erroneously display the "wait" (spinning) cursor.
 - On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
 - On Windows, fix bug causing mouse capture to not be released.
@@ -17,6 +19,8 @@
 - On Windows, fix duplicate device events getting sent if Winit managed multiple windows.
 - On Windows, raw mouse events now report Mouse4 and Mouse5 presses and releases.
 - Added gamepad support on Windows via raw input and XInput.
+- On Windows, added `WindowBuilderExtWindows::with_menu` to set a custom menu at window creation time.
+- On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
 
 # 0.24.0 (2020-12-09)
 

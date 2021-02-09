@@ -597,6 +597,17 @@ impl Window {
         self.window.set_maximized(maximized)
     }
 
+    /// Gets the window's current maximized state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        self.window.is_maximized()
+    }
+
     /// Sets the window to fullscreen or back.
     ///
     /// ## Platform-specific
