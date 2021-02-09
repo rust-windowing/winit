@@ -1,4 +1,4 @@
-use super::event;
+use super::utils;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
 use crate::event::{ModifiersState, MouseButton};
@@ -14,7 +14,7 @@ pub(super) struct MouseHandler {
     on_mouse_move: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_mouse_press: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_mouse_release: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
-    on_mouse_leave_handler: Rc<RefCell<Option<Box<dyn FnMut(i32)>>>>,
+    on_mouse_leave_handler: Rc<RefCell<Option<Box<dyn FnMut()>>>>,
     mouse_capture_state: Rc<RefCell<MouseCaptureState>>,
 }
 
@@ -39,7 +39,7 @@ impl MouseHandler {
     }
     pub fn on_cursor_leave<F>(&mut self, canvas_common: &super::Common, handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
         *self.on_mouse_leave_handler.borrow_mut() = Some(Box::new(handler));
         let on_mouse_leave_handler = self.on_mouse_leave_handler.clone();
@@ -50,7 +50,7 @@ impl MouseHandler {
             // released, therefore we don't send cursor leave events.
             if *mouse_capture_state.borrow() != MouseCaptureState::Captured {
                 if let Some(handler) = on_mouse_leave_handler.borrow_mut().as_mut() {
-                    handler(0);
+                    handler();
                 }
             }
         }));
@@ -58,21 +58,21 @@ impl MouseHandler {
 
     pub fn on_cursor_enter<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
         self.on_mouse_enter = Some(canvas_common.add_event("mouseover", move |_: MouseEvent| {
             // We don't send cursor leave events when the mouse is being
             // captured, therefore we do the same with cursor enter events.
             if *mouse_capture_state.borrow() != MouseCaptureState::Captured {
-                handler(0);
+                handler();
             }
         }));
     }
 
     pub fn on_mouse_release<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         let on_mouse_leave_handler = self.on_mouse_leave_handler.clone();
         let mouse_capture_state = self.mouse_capture_state.clone();
@@ -96,11 +96,7 @@ impl MouseHandler {
                     MouseCaptureState::Captured => {}
                 }
                 event.stop_propagation();
-                handler(
-                    0,
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
-                );
+                handler(0, utils::mouse_button(&event));
                 if event
                     .target()
                     .map_or(false, |target| target != EventTarget::from(canvas))
@@ -109,7 +105,7 @@ impl MouseHandler {
                     // cursor is being captured, we instead send it after
                     // the capture has been released.
                     if let Some(handler) = on_mouse_leave_handler.borrow_mut().as_mut() {
-                        handler(0);
+                        handler();
                     }
                 }
                 if event.buttons() == 0 {
@@ -150,9 +146,9 @@ impl MouseHandler {
                 event.stop_propagation();
                 handler(
                     0,
-                    event::mouse_position(&event).to_physical(super::super::scale_factor()),
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
+                    utils::mouse_position(&event).to_physical(super::super::scale_factor()),
+                    utils::mouse_button(&event),
+                    utils::mouse_modifiers(&event),
                 );
             },
         ));
@@ -160,7 +156,7 @@ impl MouseHandler {
 
     pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
+        F: 'static + FnMut(PhysicalPosition<f64>, ModifiersState),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
         let canvas = canvas_common.raw.clone();
@@ -184,16 +180,15 @@ impl MouseHandler {
                             event.stop_propagation();
                         }
                         let mouse_pos = if is_over_canvas {
-                            event::mouse_position(&event)
+                            utils::mouse_position(&event)
                         } else {
                             // Since the mouse is not on the canvas, we cannot
                             // use `offsetX`/`offsetY`.
-                            event::mouse_position_by_client(&event, &canvas)
+                            utils::mouse_position_by_client(&event, &canvas)
                         };
                         handler(
-                            0,
                             mouse_pos.to_physical(super::super::scale_factor()),
-                            event::mouse_modifiers(&event),
+                            utils::mouse_modifiers(&event),
                         );
                     }
                 }

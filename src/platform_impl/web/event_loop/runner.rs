@@ -1,6 +1,7 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
 use crate::event::{Event, StartCause};
 use crate::event_loop as root;
+use crate::platform_impl::platform::device::gamepad;
 use crate::window::WindowId;
 
 use instant::{Duration, Instant};
@@ -30,6 +31,7 @@ pub struct Execution<T: 'static> {
     destroy_pending: RefCell<VecDeque<WindowId>>,
     scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
     unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
+    gamepad_manager: RefCell<gamepad::Manager>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -106,7 +108,15 @@ impl<T: 'static> Shared<T> {
             destroy_pending: RefCell::new(VecDeque::new()),
             scale_change_detector: RefCell::new(None),
             unload_event_handle: RefCell::new(None),
+            gamepad_manager: RefCell::new(gamepad::Manager::new()),
         }))
+    }
+
+    pub fn set_global_window(&self, global_window: super::global::Shared) {
+        self.0
+            .gamepad_manager
+            .borrow_mut()
+            .set_global_window(global_window);
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
@@ -279,6 +289,14 @@ impl<T: 'static> Shared<T> {
         for window_id in redraw_events {
             self.handle_event(Event::RedrawRequested(window_id), &mut control);
         }
+
+        // Collect all global events
+        let mut gamepad_manager = self.0.gamepad_manager.borrow_mut();
+        let instance = self.clone();
+        gamepad_manager.collect_events(move |(handle, event)| {
+            instance.handle_event(Event::GamepadEvent(handle, event), &mut control);
+        });
+
         self.handle_event(Event::RedrawEventsCleared, &mut control);
 
         self.apply_control_flow(control);

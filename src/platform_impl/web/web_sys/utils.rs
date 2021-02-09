@@ -1,20 +1,23 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
+use crate::platform_impl::platform;
 
-use stdweb::web::event::{IKeyboardEvent, IMouseEvent, MouseWheelDeltaMode, MouseWheelEvent};
-use stdweb::{js, unstable::TryInto, JsSerialize};
+use std::convert::TryInto;
+use web_sys::{
+    Gamepad, GamepadButton, GamepadMappingType, HtmlCanvasElement, KeyboardEvent, MouseEvent,
+    WheelEvent,
+};
 
-pub fn mouse_button(event: &impl IMouseEvent) -> MouseButton {
+pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     match event.button() {
-        stdweb::web::event::MouseButton::Left => MouseButton::Left,
-        stdweb::web::event::MouseButton::Right => MouseButton::Right,
-        stdweb::web::event::MouseButton::Wheel => MouseButton::Middle,
-        stdweb::web::event::MouseButton::Button4 => MouseButton::Other(0),
-        stdweb::web::event::MouseButton::Button5 => MouseButton::Other(1),
+        0 => MouseButton::Left,
+        1 => MouseButton::Middle,
+        2 => MouseButton::Right,
+        i => MouseButton::Other((i - 3).try_into().expect("very large mouse button value")),
     }
 }
 
-pub fn mouse_modifiers(event: &impl IMouseEvent) -> ModifiersState {
+pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
     let mut m = ModifiersState::empty();
     m.set(ModifiersState::SHIFT, event.shift_key());
     m.set(ModifiersState::CTRL, event.ctrl_key());
@@ -23,36 +26,39 @@ pub fn mouse_modifiers(event: &impl IMouseEvent) -> ModifiersState {
     m
 }
 
-pub fn mouse_position(event: &impl IMouseEvent) -> LogicalPosition<f64> {
+pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     LogicalPosition {
         x: event.offset_x() as f64,
         y: event.offset_y() as f64,
     }
 }
 
-pub fn mouse_scroll_delta(event: &MouseWheelEvent) -> Option<MouseScrollDelta> {
-    let x = event.delta_x();
-    let y = -event.delta_y();
-
-    match event.delta_mode() {
-        MouseWheelDeltaMode::Line => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
-        MouseWheelDeltaMode::Pixel => {
-            let delta = LogicalPosition::new(x, y).to_physical(super::scale_factor());
-            Some(MouseScrollDelta::PixelDelta(delta))
-        }
-        MouseWheelDeltaMode::Page => None,
+pub fn mouse_position_by_client(
+    event: &MouseEvent,
+    canvas: &HtmlCanvasElement,
+) -> LogicalPosition<f64> {
+    let bounding_client_rect = canvas.get_bounding_client_rect();
+    LogicalPosition {
+        x: event.client_x() as f64 - bounding_client_rect.x(),
+        y: event.client_y() as f64 - bounding_client_rect.y(),
     }
 }
 
-pub fn scan_code<T: JsSerialize>(event: &T) -> ScanCode {
-    let key_code = js! ( return @{event}.keyCode; );
+pub fn mouse_scroll_delta(event: &WheelEvent) -> (f64, f64) {
+    let x = event.delta_x();
+    let y = -event.delta_y();
 
-    key_code
-        .try_into()
-        .expect("The which value should be a number")
+    (x, y)
 }
 
-pub fn virtual_key_code(event: &impl IKeyboardEvent) -> Option<VirtualKeyCode> {
+pub fn scan_code(event: &KeyboardEvent) -> ScanCode {
+    match event.key_code() {
+        0 => event.char_code(),
+        i => i,
+    }
+}
+
+pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
     Some(match &event.code()[..] {
         "Digit1" => VirtualKeyCode::Key1,
         "Digit2" => VirtualKeyCode::Key2,
@@ -215,7 +221,7 @@ pub fn virtual_key_code(event: &impl IKeyboardEvent) -> Option<VirtualKeyCode> {
     })
 }
 
-pub fn keyboard_modifiers(event: &impl IKeyboardEvent) -> ModifiersState {
+pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
     let mut m = ModifiersState::empty();
     m.set(ModifiersState::SHIFT, event.shift_key());
     m.set(ModifiersState::CTRL, event.ctrl_key());
@@ -224,9 +230,50 @@ pub fn keyboard_modifiers(event: &impl IKeyboardEvent) -> ModifiersState {
     m
 }
 
-pub fn codepoint(event: &impl IKeyboardEvent) -> char {
+pub fn codepoint(event: &KeyboardEvent) -> char {
     // `event.key()` always returns a non-empty `String`. Therefore, this should
     // never panic.
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
     event.key().chars().next().unwrap()
+}
+
+pub fn create_mapping(raw: &Gamepad) -> platform::device::gamepad::Mapping {
+    match raw.mapping() {
+        GamepadMappingType::Standard => {
+            let mut buttons = [false; 16];
+            let mut axes = [0.0; 6];
+
+            let gbuttons = raw.buttons();
+            for index in 0..buttons.len() {
+                let button: GamepadButton = gbuttons.get(index as u32).into();
+                buttons[index] = button.pressed();
+            }
+
+            let gaxes = raw.axes();
+            for index in 0..axes.len() {
+                let axe: f64 = gaxes.get(index as u32).as_f64().unwrap_or(0.0);
+                axes[index] = axe;
+            }
+
+            platform::device::gamepad::Mapping::Standard { buttons, axes }
+        }
+        _ => {
+            let mut buttons: Vec<bool> = Vec::new();
+            let mut axes: Vec<f64> = Vec::new();
+
+            let gbuttons = raw.buttons();
+            for index in 0..gbuttons.length() {
+                let button: GamepadButton = gbuttons.get(index as u32).into();
+                buttons.push(button.pressed());
+            }
+
+            let gaxes = raw.axes();
+            for index in 0..gaxes.length() {
+                let axe: f64 = gaxes.get(index as u32).as_f64().unwrap_or(0.0);
+                axes.push(axe);
+            }
+
+            platform::device::gamepad::Mapping::NoMapping { buttons, axes }
+        }
+    }
 }

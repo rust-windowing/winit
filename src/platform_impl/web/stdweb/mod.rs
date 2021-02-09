@@ -1,9 +1,11 @@
 #![deprecated(since = "0.23.0", note = "Please migrate to web-sys over stdweb")]
 
 mod canvas;
-mod event;
+pub mod gamepad;
 mod scaling;
 mod timeout;
+mod utils;
+pub mod window;
 
 pub use self::canvas::Canvas;
 pub use self::scaling::ScaleChangeDetector;
@@ -89,6 +91,12 @@ pub fn is_fullscreen(canvas: &CanvasElement) -> bool {
         }
         None => false,
     }
+}
+
+pub fn get_gamepads() -> impl Iterator<Item = gamepad::Gamepad> {
+    stdweb::web::Gamepad::get_all()
+        .into_iter()
+        .filter_map(|gamepad| gamepad.map(|gamepad| gamepad::Gamepad::new(gamepad)))
 }
 
 pub type RawCanvasType = CanvasElement;

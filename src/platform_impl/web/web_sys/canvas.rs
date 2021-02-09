@@ -1,9 +1,9 @@
-use super::event;
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
+use super::utils;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
@@ -142,9 +142,9 @@ impl Canvas {
             move |event: KeyboardEvent| {
                 event.prevent_default();
                 handler(
-                    event::scan_code(&event),
-                    event::virtual_key_code(&event),
-                    event::keyboard_modifiers(&event),
+                    utils::scan_code(&event),
+                    utils::virtual_key_code(&event),
+                    utils::keyboard_modifiers(&event),
                 );
             },
         ));
@@ -169,9 +169,9 @@ impl Canvas {
                     event.prevent_default();
                 }
                 handler(
-                    event::scan_code(&event),
-                    event::virtual_key_code(&event),
-                    event::keyboard_modifiers(&event),
+                    utils::scan_code(&event),
+                    utils::virtual_key_code(&event),
+                    utils::keyboard_modifiers(&event),
                 );
             },
         ));
@@ -191,14 +191,14 @@ impl Canvas {
             move |event: KeyboardEvent| {
                 // Supress further handling to stop keys like the space key from scrolling the page.
                 event.prevent_default();
-                handler(event::codepoint(&event));
+                handler(utils::codepoint(&event));
             },
         ));
     }
 
     pub fn on_cursor_leave<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
@@ -208,7 +208,7 @@ impl Canvas {
 
     pub fn on_cursor_enter<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
@@ -218,7 +218,7 @@ impl Canvas {
 
     pub fn on_mouse_release<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_mouse_release(&self.common, handler),
@@ -238,7 +238,7 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
+        F: 'static + FnMut(PhysicalPosition<f64>, ModifiersState),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_cursor_move(&self.common, handler),
@@ -248,12 +248,12 @@ impl Canvas {
 
     pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
+        F: 'static + FnMut(i32, (f64, f64)),
     {
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
             event.prevent_default();
-            if let Some(delta) = event::mouse_scroll_delta(&event) {
-                handler(0, delta, event::mouse_modifiers(&event));
+            if let delta = utils::mouse_scroll_delta(&event) {
+                handler(0, delta);
             }
         }));
     }

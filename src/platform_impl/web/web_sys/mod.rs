@@ -1,9 +1,11 @@
 mod canvas;
-mod event;
 mod event_handle;
+pub mod gamepad;
 mod media_query_handle;
 mod scaling;
 mod timeout;
+mod utils;
+pub mod window;
 
 pub use self::canvas::Canvas;
 pub use self::scaling::ScaleChangeDetector;
@@ -115,3 +117,21 @@ pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
 }
 
 pub type RawCanvasType = HtmlCanvasElement;
+
+pub fn get_gamepads() -> impl Iterator<Item = gamepad::Gamepad> {
+    let mut gamepads: Vec<gamepad::Gamepad> = Vec::new();
+    let web_gamepads = web_sys::window()
+        .unwrap()
+        .navigator()
+        .get_gamepads()
+        .ok()
+        .unwrap();
+    for index in 0..web_gamepads.length() {
+        let jsvalue = web_gamepads.get(index);
+        if !jsvalue.is_null() {
+            let gamepad: web_sys::Gamepad = jsvalue.into();
+            gamepads.push(gamepad::Gamepad::new(gamepad));
+        }
+    }
+    gamepads.into_iter()
+}

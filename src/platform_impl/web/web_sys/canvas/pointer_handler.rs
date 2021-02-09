@@ -1,4 +1,4 @@
-use super::event;
+use super::utils;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
 use crate::event::{ModifiersState, MouseButton};
@@ -26,40 +26,36 @@ impl PointerHandler {
 
     pub fn on_cursor_leave<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
         self.on_cursor_leave = Some(canvas_common.add_event(
             "pointerout",
             move |event: PointerEvent| {
-                handler(event.pointer_id());
+                handler();
             },
         ));
     }
 
     pub fn on_cursor_enter<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32),
+        F: 'static + FnMut(),
     {
         self.on_cursor_enter = Some(canvas_common.add_event(
             "pointerover",
             move |event: PointerEvent| {
-                handler(event.pointer_id());
+                handler();
             },
         ));
     }
 
     pub fn on_mouse_release<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         self.on_pointer_release = Some(canvas_common.add_user_event(
             "pointerup",
             move |event: PointerEvent| {
-                handler(
-                    event.pointer_id(),
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
-                );
+                handler(event.pointer_id(), utils::mouse_button(&event));
             },
         ));
     }
@@ -74,9 +70,9 @@ impl PointerHandler {
             move |event: PointerEvent| {
                 handler(
                     event.pointer_id(),
-                    event::mouse_position(&event).to_physical(super::super::scale_factor()),
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
+                    utils::mouse_position(&event).to_physical(super::super::scale_factor()),
+                    utils::mouse_button(&event),
+                    utils::mouse_modifiers(&event),
                 );
                 canvas
                     .set_pointer_capture(event.pointer_id())
@@ -87,15 +83,14 @@ impl PointerHandler {
 
     pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
+        F: 'static + FnMut(PhysicalPosition<f64>, ModifiersState),
     {
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
             move |event: PointerEvent| {
                 handler(
-                    event.pointer_id(),
-                    event::mouse_position(&event).to_physical(super::super::scale_factor()),
-                    event::mouse_modifiers(&event),
+                    utils::mouse_position(&event).to_physical(super::super::scale_factor()),
+                    utils::mouse_modifiers(&event),
                 );
             },
         ));
