@@ -147,6 +147,7 @@ pub trait EventLoopExtUnix {
 fn wrap_ev<T>(event_loop: LinuxEventLoop<T>) -> EventLoop<T> {
     EventLoop {
         event_loop,
+        hook: (),
         _marker: std::marker::PhantomData,
     }
 }

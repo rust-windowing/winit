@@ -10,10 +10,27 @@
 //! [event_loop_proxy]: crate::event_loop::EventLoopProxy
 //! [send_event]: crate::event_loop::EventLoopProxy::send_event
 use instant::Instant;
-use std::ops::Deref;
+use std::{marker::PhantomData, ops::Deref};
 use std::{error, fmt};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
+
+/// Hook an event loop to wrap the user-specified event handler.
+/// See [`EventLoop::set_hook`].
+pub trait Hook<T> {
+    fn run<F>(&mut self, handler: F, event: Event<'_, T>, target: &EventLoopWindowTarget<T>, control_flow: &mut ControlFlow)
+    where
+        F: FnOnce(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow);
+}
+
+impl<T> Hook<T> for () {
+    fn run<F>(&mut self, handler: F, event: Event<'_, T>, target: &EventLoopWindowTarget<T>, control_flow: &mut ControlFlow)
+    where
+        F: FnOnce(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
+    {
+        handler(event, target, control_flow);
+    }
+}
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -29,8 +46,9 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
 ///
-pub struct EventLoop<T: 'static> {
+pub struct EventLoop<T: 'static, H = ()> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
+    pub(crate) hook: H,
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
 }
 
@@ -45,7 +63,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
 }
 
-impl<T> fmt::Debug for EventLoop<T> {
+impl<T, H> fmt::Debug for EventLoop<T, H> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("EventLoop { .. }")
     }
@@ -132,10 +150,13 @@ impl<T> EventLoop<T> {
     pub fn with_user_event() -> EventLoop<T> {
         EventLoop {
             event_loop: platform_impl::EventLoop::new(),
+            hook: (),
             _marker: ::std::marker::PhantomData,
         }
     }
+}
 
+impl<T, H> EventLoop<T, H> {
     /// Hijacks the calling thread and initializes the winit event loop with the provided
     /// closure. Since the closure is `'static`, it must be a `move` closure if it needs to
     /// access any data from the calling context.
@@ -147,11 +168,15 @@ impl<T> EventLoop<T> {
     ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
-    pub fn run<F>(self, event_handler: F) -> !
+    pub fn run<F>(self, mut event_handler: F) -> !
     where
         F: 'static + FnMut(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
+        H: Hook<T> + 'static,
     {
-        self.event_loop.run(event_handler)
+        let mut hook = self.hook;
+        self.event_loop.run(move |event, target, control_flow| {
+            hook.run(&mut event_handler, event, target, control_flow);
+        })
     }
 
     /// Creates an `EventLoopProxy` that can be used to dispatch user events to the main event loop.
@@ -160,9 +185,44 @@ impl<T> EventLoop<T> {
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }
+
+    /// Add a hook to this event loop that will wrap the user-specified event handler
+    /// provided to [`EventLoop::run`].
+    ///
+    /// ```rust
+    /// # use winit::event_loop::{EventLoop, EventLoopWindowTarget, ControlFlow};
+    /// # use winit::event::Event;
+    /// use winit::event_loop::Hook;
+    ///
+    /// struct ExampleHook;
+    ///
+    /// impl<T: std::fmt::Debug> Hook<T> for ExampleHook {
+    ///     fn run<F>(&mut self, handler: F, event: Event<'_, T>, target: &EventLoopWindowTarget<T>, control_flow: &mut ControlFlow)
+    ///     where
+    ///         F: FnOnce(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
+    ///     {
+    ///         println!("before event handler: {:?}", event);
+    ///         handler(event, target, control_flow);
+    ///         println!("after event handler: {:?}", control_flow);
+    ///     }
+    /// }
+    ///
+    /// let event_loop = EventLoop::new()
+    ///     .set_hook(ExampleHook);
+    /// ```
+    pub fn set_hook<U>(self, new_hook: U) -> EventLoop<T, U>
+    where
+        U: Hook<T>,
+    {
+        EventLoop {
+            event_loop: self.event_loop,
+            hook: new_hook,
+            _marker: PhantomData,
+        }
+    }
 }
 
-impl<T> Deref for EventLoop<T> {
+impl<T, H> Deref for EventLoop<T, H> {
     type Target = EventLoopWindowTarget<T>;
     fn deref(&self) -> &EventLoopWindowTarget<T> {
         self.event_loop.window_target()

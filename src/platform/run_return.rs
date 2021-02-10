@@ -9,10 +9,7 @@
     target_os = "openbsd"
 ))]
 
-use crate::{
-    event::Event,
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
-};
+use crate::{event::Event, event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget, Hook}};
 
 /// Additional methods on `EventLoop` to return control flow to the caller.
 pub trait EventLoopExtRunReturn {
@@ -42,10 +39,13 @@ pub trait EventLoopExtRunReturn {
         );
 }
 
-impl<T> EventLoopExtRunReturn for EventLoop<T> {
+impl<T, H> EventLoopExtRunReturn for EventLoop<T, H>
+where
+    H: Hook<T>,
+{
     type UserEvent = T;
 
-    fn run_return<F>(&mut self, event_handler: F)
+    fn run_return<F>(&mut self, mut event_handler: F)
     where
         F: FnMut(
             Event<'_, Self::UserEvent>,
@@ -53,6 +53,9 @@ impl<T> EventLoopExtRunReturn for EventLoop<T> {
             &mut ControlFlow,
         ),
     {
-        self.event_loop.run_return(event_handler)
+        let hook = &mut self.hook;
+        self.event_loop.run_return(move |event, target, control_flow| {
+            hook.run(&mut event_handler, event, target, control_flow);
+        })
     }
 }
