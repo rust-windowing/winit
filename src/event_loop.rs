@@ -10,23 +10,33 @@
 //! [event_loop_proxy]: crate::event_loop::EventLoopProxy
 //! [send_event]: crate::event_loop::EventLoopProxy::send_event
 use instant::Instant;
-use std::{marker::PhantomData, ops::Deref};
 use std::{error, fmt};
+use std::{marker::PhantomData, ops::Deref};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Hook an event loop to wrap the user-specified event handler.
 /// See [`EventLoop::set_hook`].
 pub trait Hook<T> {
-    fn run<F>(&mut self, handler: F, event: Event<'_, T>, target: &EventLoopWindowTarget<T>, control_flow: &mut ControlFlow)
-    where
+    fn run<F>(
+        &mut self,
+        handler: F,
+        event: Event<'_, T>,
+        target: &EventLoopWindowTarget<T>,
+        control_flow: &mut ControlFlow,
+    ) where
         F: FnOnce(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow);
 }
 
 impl<T> Hook<T> for () {
-    fn run<F>(&mut self, handler: F, event: Event<'_, T>, target: &EventLoopWindowTarget<T>, control_flow: &mut ControlFlow)
-    where
-        F: FnOnce(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
+    fn run<F>(
+        &mut self,
+        handler: F,
+        event: Event<'_, T>,
+        target: &EventLoopWindowTarget<T>,
+        control_flow: &mut ControlFlow,
+    ) where
+        F: FnOnce(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         handler(event, target, control_flow);
     }
@@ -189,7 +199,7 @@ impl<T, H> EventLoop<T, H> {
     /// Add a hook to this event loop that will wrap the user-specified event handler
     /// provided to [`EventLoop::run`].
     ///
-    /// ```rust
+    /// ```rust,ignore
     /// # use winit::event_loop::{EventLoop, EventLoopWindowTarget, ControlFlow};
     /// # use winit::event::Event;
     /// use winit::event_loop::Hook;

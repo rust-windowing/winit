@@ -1,12 +1,21 @@
 use simple_logger::SimpleLogger;
-use winit::{event::{ElementState, Event, WindowEvent}, event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget, Hook}, window::WindowBuilder};
+use winit::{
+    event::{ElementState, Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget, Hook},
+    window::WindowBuilder,
+};
 
 struct ExampleHook;
 
 impl<T: std::fmt::Debug> Hook<T> for ExampleHook {
-    fn run<F>(&mut self, handler: F, event: Event<'_, T>, target: &EventLoopWindowTarget<T>, control_flow: &mut ControlFlow)
-    where
-        F: FnOnce(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow)
+    fn run<F>(
+        &mut self,
+        handler: F,
+        event: Event<'_, T>,
+        target: &EventLoopWindowTarget<T>,
+        control_flow: &mut ControlFlow,
+    ) where
+        F: FnOnce(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         println!("before event handler: {:?}", event);
         handler(event, target, control_flow);
@@ -17,10 +26,7 @@ impl<T: std::fmt::Debug> Hook<T> for ExampleHook {
 fn main() {
     SimpleLogger::new().init().unwrap();
 
-    let hook = ExampleHook;
-
-    let event_loop = EventLoop::new()
-        .set_hook(ExampleHook);
+    let event_loop = EventLoop::new().set_hook(ExampleHook);
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
