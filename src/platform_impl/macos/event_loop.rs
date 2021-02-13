@@ -1,14 +1,14 @@
 use std::{
     any::Any,
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::VecDeque,
     marker::PhantomData,
     mem,
     os::raw::c_void,
-    panic::{catch_unwind, resume_unwind, UnwindSafe},
+    panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
     process, ptr,
     rc::{Rc, Weak},
-    sync::{mpsc, Mutex},
+    sync::mpsc,
 };
 
 use cocoa::{
@@ -33,8 +33,36 @@ use crate::{
     },
 };
 
-lazy_static! {
-    pub(crate) static ref CURRENT_PANIC: Mutex<Option<Box<dyn Any + Send + 'static>>> = None.into();
+//pub type PanicData = Option<Box<dyn Any + Send + 'static>>;
+
+#[derive(Default)]
+pub(crate) struct PanicInfo {
+    inner: Cell<Option<Box<dyn Any + Send + 'static>>>,
+}
+// ------------------------------------
+// WARNING:
+// This struct is UnwindSafe if `get_mut` is never called on the inner data.
+// (`get_mut` can be used in ways such that it is unwind safe but it can also be used
+// in ways that breaks unwind safety)
+// ------------------------------------
+impl UnwindSafe for PanicInfo {}
+impl RefUnwindSafe for PanicInfo {}
+impl PanicInfo {
+    pub fn is_panicking(&self) -> bool {
+        let inner = self.inner.take();
+        let result = inner.is_some();
+        self.inner.set(inner);
+        result
+    }
+    /// Overwrites the curret state if the current state is not panicking
+    pub fn set_panic(&self, p: Box<dyn Any + Send + 'static>) {
+        if !self.is_panicking() {
+            self.inner.set(Some(p));
+        }
+    }
+    pub fn take(&self) -> Option<Box<dyn Any + Send + 'static>> {
+        self.inner.take()
+    }
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -64,6 +92,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
 pub struct EventLoop<T: 'static> {
     window_target: Rc<RootWindowTarget<T>>,
+    panic_info: Rc<PanicInfo>,
 
     /// We make sure that the callback closure is dropped during a panic
     /// by making the event loop own it.
@@ -72,7 +101,6 @@ pub struct EventLoop<T: 'static> {
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
     _callback: Option<Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
-
     _delegate: IdRef,
 }
 
@@ -95,12 +123,14 @@ impl<T> EventLoop<T> {
             let _: () = msg_send![pool, drain];
             delegate
         };
-        setup_control_flow_observers();
+        let panic_info: Rc<PanicInfo> = Default::default();
+        setup_control_flow_observers(Rc::downgrade(&panic_info));
         EventLoop {
             window_target: Rc::new(RootWindowTarget {
                 p: Default::default(),
                 _marker: PhantomData,
             }),
+            panic_info,
             _callback: None,
             _delegate: delegate,
         }
@@ -147,10 +177,9 @@ impl<T> EventLoop<T> {
             mem::drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
-            let _: () = msg_send![app, run];
+            let () = msg_send![app, run];
 
-            let mut panic = CURRENT_PANIC.lock().unwrap();
-            if let Some(panic) = panic.take() {
+            if let Some(panic) = self.panic_info.take() {
                 resume_unwind(panic);
             }
             AppState::exit();
@@ -181,7 +210,10 @@ pub(crate) unsafe fn post_dummy_event(target: id) {
 
 /// Catches panics that happen inside `f` and when a panic
 /// happens, stops the `sharedApplication`
-pub(crate) fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(f: F) -> Option<R> {
+pub(crate) fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
+    panic_info: Weak<PanicInfo>,
+    f: F,
+) -> Option<R> {
     match catch_unwind(f) {
         Ok(r) => Some(r),
         Err(e) => {
@@ -190,10 +222,8 @@ pub(crate) fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(f: F) -> Optio
             // and we need to know in those callbacks if the application is currently
             // panicking
             {
-                let mut panic = CURRENT_PANIC.lock().unwrap();
-                if panic.is_none() {
-                    *panic = Some(e);
-                }
+                let panic_info = panic_info.upgrade().unwrap();
+                panic_info.set_panic(e);
             }
             unsafe {
                 let app_class = class!(NSApplication);

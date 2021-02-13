@@ -1,6 +1,18 @@
-use std::{self, os::raw::*, ptr, time::Instant};
+use core::panic;
+use std::{
+    self,
+    os::raw::*,
+    panic::{AssertUnwindSafe, UnwindSafe},
+    ptr,
+    rc::Weak,
+    time::Instant,
+};
 
-use crate::platform_impl::platform::{app_state::AppState, event_loop::stop_app_on_panic, ffi};
+use crate::platform_impl::platform::{
+    app_state::AppState,
+    event_loop::{stop_app_on_panic, PanicInfo},
+    ffi,
+};
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
@@ -85,8 +97,17 @@ pub type CFRunLoopObserverCallBack =
     extern "C" fn(observer: CFRunLoopObserverRef, activity: CFRunLoopActivity, info: *mut c_void);
 pub type CFRunLoopTimerCallBack = extern "C" fn(timer: CFRunLoopTimerRef, info: *mut c_void);
 
-pub enum CFRunLoopObserverContext {}
 pub enum CFRunLoopTimerContext {}
+
+#[allow(non_snake_case)]
+#[repr(C)]
+pub struct CFRunLoopObserverContext {
+    pub version: CFIndex,
+    pub info: *mut c_void,
+    pub retain: Option<extern "C" fn(info: *const c_void) -> *const c_void>,
+    pub release: Option<extern "C" fn(info: *const c_void)>,
+    pub copyDescription: Option<extern "C" fn(info: *const c_void) -> CFStringRef>,
+}
 
 #[allow(non_snake_case)]
 #[repr(C)]
@@ -103,22 +124,39 @@ pub struct CFRunLoopSourceContext {
     pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
+fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
+where
+    F: FnOnce(Weak<PanicInfo>) + UnwindSafe,
+{
+    let panic_info = unsafe { AssertUnwindSafe(Weak::from_raw(panic_info as *mut PanicInfo)) };
+    // `from_raw` takes ownership of the data behind the pointer.
+    // But if this scope takes ownership of the weak pointer, then
+    // the weak pointer will get free'd at the end of the scope.
+    // However we want to keep that weak reference around after the function.
+    let forgotten = panic_info.clone();
+    std::mem::forget(forgotten);
+
+    stop_app_on_panic(panic_info.clone(), move || f(panic_info.0));
+}
+
 // begin is queued with the highest priority to ensure it is processed before other observers
 extern "C" fn control_flow_begin_handler(
     _: CFRunLoopObserverRef,
     activity: CFRunLoopActivity,
-    _: *mut c_void,
+    panic_info: *mut c_void,
 ) {
-    #[allow(non_upper_case_globals)]
-    match activity {
-        kCFRunLoopAfterWaiting => {
-            //trace!("Triggered `CFRunLoopAfterWaiting`");
-            AppState::wakeup();
-            //trace!("Completed `CFRunLoopAfterWaiting`");
+    control_flow_handler(panic_info, |panic_info| {
+        #[allow(non_upper_case_globals)]
+        match activity {
+            kCFRunLoopAfterWaiting => {
+                //trace!("Triggered `CFRunLoopAfterWaiting`");
+                AppState::wakeup(panic_info);
+                //trace!("Completed `CFRunLoopAfterWaiting`");
+            }
+            kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
+            _ => unreachable!(),
         }
-        kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
-        _ => unreachable!(),
-    }
+    });
 }
 
 // end is queued with the lowest priority to ensure it is processed after other observers
@@ -126,14 +164,14 @@ extern "C" fn control_flow_begin_handler(
 extern "C" fn control_flow_end_handler(
     _: CFRunLoopObserverRef,
     activity: CFRunLoopActivity,
-    _: *mut c_void,
+    panic_info: *mut c_void,
 ) {
-    stop_app_on_panic(|| {
+    control_flow_handler(panic_info, |panic_info| {
         #[allow(non_upper_case_globals)]
         match activity {
             kCFRunLoopBeforeWaiting => {
                 //trace!("Triggered `CFRunLoopBeforeWaiting`");
-                AppState::cleared();
+                AppState::cleared(panic_info);
                 //trace!("Completed `CFRunLoopBeforeWaiting`");
             }
             kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
@@ -154,6 +192,7 @@ impl RunLoop {
         flags: CFOptionFlags,
         priority: CFIndex,
         handler: CFRunLoopObserverCallBack,
+        context: *mut CFRunLoopObserverContext,
     ) {
         let observer = CFRunLoopObserverCreate(
             ptr::null_mut(),
@@ -161,24 +200,33 @@ impl RunLoop {
             ffi::TRUE, // Indicates we want this to run repeatedly
             priority,  // The lower the value, the sooner this will run
             handler,
-            ptr::null_mut(),
+            context,
         );
         CFRunLoopAddObserver(self.0, observer, kCFRunLoopCommonModes);
     }
 }
 
-pub fn setup_control_flow_observers() {
+pub(crate) fn setup_control_flow_observers(panic_info: Weak<PanicInfo>) {
     unsafe {
+        let mut context = CFRunLoopObserverContext {
+            info: Weak::into_raw(panic_info) as *mut _,
+            version: 0,
+            retain: None,
+            release: None,
+            copyDescription: None,
+        };
         let run_loop = RunLoop::get();
         run_loop.add_observer(
             kCFRunLoopEntry | kCFRunLoopAfterWaiting,
             CFIndex::min_value(),
             control_flow_begin_handler,
+            &mut context as *mut _,
         );
         run_loop.add_observer(
             kCFRunLoopExit | kCFRunLoopBeforeWaiting,
             CFIndex::max_value(),
             control_flow_end_handler,
+            &mut context as *mut _,
         );
     }
 }

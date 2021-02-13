@@ -24,7 +24,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
-        event_loop::{post_dummy_event, CURRENT_PANIC},
+        event_loop::{post_dummy_event, PanicInfo},
         observer::EventLoopWaker,
         util::{IdRef, Never},
         window::get_window_id,
@@ -250,7 +250,7 @@ impl Handler {
 
 pub static INTERRUPT_EVENT_LOOP_EXIT: AtomicBool = AtomicBool::new(false);
 
-pub enum AppState {}
+pub(crate) enum AppState {}
 
 impl AppState {
     pub fn set_callback<T>(
@@ -281,8 +281,9 @@ impl AppState {
         HANDLER.set_in_callback(false);
     }
 
-    pub fn wakeup() {
-        if CURRENT_PANIC.lock().unwrap().is_some() || !HANDLER.is_ready() {
+    pub fn wakeup(panic_info: Weak<PanicInfo>) {
+        let panic_info = panic_info.upgrade().unwrap();
+        if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }
         let start = HANDLER.get_start_time().unwrap();
@@ -334,8 +335,9 @@ impl AppState {
         HANDLER.events().append(&mut wrappers);
     }
 
-    pub fn cleared() {
-        if CURRENT_PANIC.lock().unwrap().is_some() || !HANDLER.is_ready() {
+    pub fn cleared(panic_info: Weak<PanicInfo>) {
+        let panic_info = panic_info.upgrade().unwrap();
+        if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }
         if !HANDLER.get_in_callback() {
