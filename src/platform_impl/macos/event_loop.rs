@@ -34,8 +34,7 @@ use crate::{
 };
 
 lazy_static! {
-    pub(crate) static ref CURRENT_PANIC: Mutex<Option<Box<dyn Any + Send + 'static>>> =
-        Mutex::new(None);
+    pub(crate) static ref CURRENT_PANIC: Mutex<Option<Box<dyn Any + Send + 'static>>> = None.into();
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -72,8 +71,7 @@ pub struct EventLoop<T: 'static> {
     /// Every other reference should be a Weak reference which is only upgraded
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
-    _callback:
-        Option<Rc<RefCell<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>>,
+    callback: Option<Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
 
     _delegate: IdRef,
 }
@@ -103,7 +101,7 @@ impl<T> EventLoop<T> {
                 p: Default::default(),
                 _marker: PhantomData,
             }),
-            _callback: None,
+            callback: None,
             _delegate: delegate,
         }
     }
@@ -128,14 +126,14 @@ impl<T> EventLoop<T> {
         // lifetime will be already 'static. In other cases caller should ensure that all data
         // they passed to callback will actually outlive it, some apps just can't move
         // everything to event loop, so this is something that they should care about.
-        let callback = Rc::new(RefCell::new(unsafe {
+        let callback = unsafe {
             mem::transmute::<
-                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
-                Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
-            >(Box::new(callback))
-        }));
+                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+            >(Rc::new(RefCell::new(callback)))
+        };
 
-        self._callback = Some(callback.clone());
+        self.callback = Some(callback.clone());
 
         unsafe {
             let pool = NSAutoreleasePool::new(nil);
@@ -164,6 +162,23 @@ impl<T> EventLoop<T> {
     }
 }
 
+pub(crate) unsafe fn post_dummy_event(target: id) {
+    let event_class = class!(NSEvent);
+    let dummy_event: id = msg_send![
+        event_class,
+        otherEventWithType: NSApplicationDefined
+        location: NSPoint::new(0.0, 0.0)
+        modifierFlags: 0
+        timestamp: 0
+        windowNumber: 0
+        context: nil
+        subtype: 0
+        data1: 0
+        data2: 0
+    ];
+    let () = msg_send![target, postEvent: dummy_event atStart: YES];
+}
+
 /// Catches panics that happen inside `f` and when a panic
 /// happens, stops the `sharedApplication`
 pub(crate) fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(f: F) -> Option<R> {
@@ -183,24 +198,11 @@ pub(crate) fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(f: F) -> Optio
             unsafe {
                 let app_class = class!(NSApplication);
                 let app: id = msg_send![app_class, sharedApplication];
-                let _: () = msg_send![app, stop: nil];
+                let () = msg_send![app, stop: nil];
 
                 // Posting an dummy event to get stop to take effect immediately.
                 // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
-                let event_class = class!(NSEvent);
-                let dummy_event: id = msg_send![
-                    event_class,
-                    otherEventWithType: NSApplicationDefined
-                    location: NSPoint::new(0.0, 0.0)
-                    modifierFlags: 0
-                    timestamp: 0
-                    windowNumber: 0
-                    context: nil
-                    subtype: 0
-                    data1: 0
-                    data2: 0
-                ];
-                let _: () = msg_send![app, postEvent: dummy_event atStart: YES];
+                post_dummy_event(app);
             }
             None
         }

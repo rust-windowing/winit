@@ -13,12 +13,10 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{NSApp, NSEventType::NSApplicationDefined, NSWindow},
+    appkit::{NSApp, NSWindow},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSPoint, NSSize},
+    foundation::{NSAutoreleasePool, NSSize},
 };
-
-use objc::runtime::YES;
 
 use crate::{
     dpi::LogicalSize,
@@ -26,7 +24,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
-        event_loop::CURRENT_PANIC,
+        event_loop::{post_dummy_event, CURRENT_PANIC},
         observer::EventLoopWaker,
         util::{IdRef, Never},
         window::get_window_id,
@@ -54,7 +52,7 @@ pub trait EventHandler: Debug {
 }
 
 struct EventLoopHandler<T: 'static> {
-    callback: Weak<RefCell<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
+    callback: Weak<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
     will_exit: bool,
     window_target: Rc<RootWindowTarget<T>>,
 }
@@ -64,7 +62,7 @@ impl<T> EventLoopHandler<T> {
     where
         F: FnOnce(
             &mut EventLoopHandler<T>,
-            RefMut<'_, Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+            RefMut<'_, dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
         ),
     {
         if let Some(callback) = self.callback.upgrade() {
@@ -256,9 +254,7 @@ pub enum AppState {}
 
 impl AppState {
     pub fn set_callback<T>(
-        callback: Weak<
-            RefCell<Box<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-        >,
+        callback: Weak<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
         window_target: Rc<RootWindowTarget<T>>,
     ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
@@ -286,10 +282,7 @@ impl AppState {
     }
 
     pub fn wakeup() {
-        if CURRENT_PANIC.lock().unwrap().is_some() {
-            return;
-        }
-        if !HANDLER.is_ready() {
+        if CURRENT_PANIC.lock().unwrap().is_some() || !HANDLER.is_ready() {
             return;
         }
         let start = HANDLER.get_start_time().unwrap();
@@ -342,10 +335,7 @@ impl AppState {
     }
 
     pub fn cleared() {
-        if CURRENT_PANIC.lock().unwrap().is_some() {
-            return;
-        }
-        if !HANDLER.is_ready() {
+        if CURRENT_PANIC.lock().unwrap().is_some() || !HANDLER.is_ready() {
             return;
         }
         if !HANDLER.get_in_callback() {
@@ -385,21 +375,9 @@ impl AppState {
                     && !dialog_open
                     && !dialog_is_closing
                 {
-                    let _: () = msg_send![app, stop: nil];
-
-                    let dummy_event: id = msg_send![class!(NSEvent),
-                        otherEventWithType: NSApplicationDefined
-                        location: NSPoint::new(0.0, 0.0)
-                        modifierFlags: 0
-                        timestamp: 0
-                        windowNumber: 0
-                        context: nil
-                        subtype: 0
-                        data1: 0
-                        data2: 0
-                    ];
+                    let () = msg_send![app, stop: nil];
                     // To stop event loop immediately, we need to post some event here.
-                    let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
+                    post_dummy_event(window);
                 }
                 pool.drain();
 
