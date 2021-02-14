@@ -16,7 +16,7 @@ pub trait KeyEventExtModifierSupplement {
     /// Identical to `KeyEvent::text` but this is affected by <kbd>Ctrl</kbd>.
     ///
     /// For example, pressing <kbd>Ctrl</kbd>+<kbd>a</kbd> produces `Some("\x01")`.
-    fn text_with_all_modifers(&self) -> Option<&str>;
+    fn text_with_all_modifiers(&self) -> Option<&str>;
 
     /// This value ignores all modifiers including
     /// but not limited to <kbd>Shift</kbd>, <kbd>Caps Lock</kbd>,
