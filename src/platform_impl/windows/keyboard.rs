@@ -440,7 +440,7 @@ impl KeyEventBuilder {
         }
         let event_info = PartialKeyEventInfo {
             vkey: vk,
-            logical_key,
+            logical_key: PartialLogicalKey::This(logical_key),
             key_without_modifiers: key_without_modifers,
             key_state,
             scancode,
@@ -467,6 +467,15 @@ enum PartialText {
     Text(Option<&'static str>),
 }
 
+enum PartialLogicalKey {
+    /// Use the text provided by the WM_UNICHAR messages and report that as
+    /// a `Character` variant
+    Text,
+
+    /// Use the value directly provided by this variant
+    This(Key<'static>),
+}
+
 struct PartialKeyEventInfo {
     vkey: c_int,
     scancode: ExScancode,
@@ -474,7 +483,7 @@ struct PartialKeyEventInfo {
     is_repeat: bool,
     code: KeyCode,
     location: KeyLocation,
-    logical_key: Key<'static>,
+    logical_key: PartialLogicalKey,
 
     key_without_modifiers: Key<'static>,
 
@@ -518,7 +527,18 @@ impl PartialKeyEventInfo {
         let mods = WindowsModifiers::active_modifiers(&kbd_state);
         let mods_without_ctrl = mods.remove_only_ctrl();
 
-        let logical_key = layout.get_key(mods_without_ctrl, vkey, scancode, code);
+        let preliminary_logical_key = layout.get_key(mods_without_ctrl, vkey, scancode, code);
+        let key_is_char = matches!(preliminary_logical_key, Key::Character(_));
+        let is_pressed = state == ElementState::Pressed;
+
+        // In some cases we want to use the UNICHAR text for logical_key in order to allow
+        // dead keys to have an effect on the character reported by `logical_key`.
+        let logical_key;
+        if is_pressed && key_is_char && !mods.contains(WindowsModifiers::CONTROL) {
+            logical_key = PartialLogicalKey::Text;
+        } else {
+            logical_key = PartialLogicalKey::This(preliminary_logical_key);
+        }
         let key_without_modifiers = match layout.get_key(NO_MODS, vkey, scancode, code) {
             // We convert dead keys into their character.
             // The reason for this is that `key_without_modifiers` is designed for key-bindings
@@ -579,9 +599,17 @@ impl PartialKeyEventInfo {
             }
         }
 
+        let logical_key = match self.logical_key {
+            PartialLogicalKey::Text => match text {
+                Some(s) => Key::Character(s),
+                None => Key::Unidentified(NativeKeyCode::Windows(self.scancode)),
+            },
+            PartialLogicalKey::This(v) => v,
+        };
+
         KeyEvent {
             physical_key: self.code,
-            logical_key: self.logical_key,
+            logical_key,
             text,
             location: self.location,
             state: self.key_state,

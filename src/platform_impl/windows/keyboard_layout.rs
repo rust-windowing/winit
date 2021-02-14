@@ -115,9 +115,9 @@ impl WindowsModifiers {
             key_state[winuser::VK_RMENU as usize] &= !0x80;
         }
         if self.intersects(Self::CAPS_LOCK) {
-            key_state[winuser::VK_CAPITAL as usize] |= 0x80;
+            key_state[winuser::VK_CAPITAL as usize] |= 0x01;
         } else {
-            key_state[winuser::VK_CAPITAL as usize] &= !0x80;
+            key_state[winuser::VK_CAPITAL as usize] &= !0x01;
         }
     }
 
