@@ -527,37 +527,59 @@ impl PartialKeyEventInfo {
         let mods = WindowsModifiers::active_modifiers(&kbd_state);
         let mods_without_ctrl = mods.remove_only_ctrl();
 
+        // On Windows Ctrl+NumLock = Pause (and apparently Ctrl+Pause -> NumLock). In these cases
+        // the KeyCode still stores the real key, so in the name of consistency across platforms, we
+        // circumvent this mapping and force the key values to match the keycode.
+        // For more on this, read the article by Raymond Chen, titled:
+        // "Why does Ctrl+ScrollLock cancel dialogs?"
+        // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
+        let code_as_key = if mods.contains(WindowsModifiers::CONTROL) {
+            match code {
+                KeyCode::NumLock => Some(Key::NumLock),
+                KeyCode::Pause => Some(Key::Pause),
+                _ => None,
+            }
+        } else {
+            None
+        };
+
         let preliminary_logical_key = layout.get_key(mods_without_ctrl, vkey, scancode, code);
         let key_is_char = matches!(preliminary_logical_key, Key::Character(_));
         let is_pressed = state == ElementState::Pressed;
 
-        // In some cases we want to use the UNICHAR text for logical_key in order to allow
-        // dead keys to have an effect on the character reported by `logical_key`.
-        let logical_key;
-        if is_pressed && key_is_char && !mods.contains(WindowsModifiers::CONTROL) {
-            logical_key = PartialLogicalKey::Text;
+        let logical_key = if let Some(key) = code_as_key {
+            PartialLogicalKey::This(key)
+        } else if is_pressed && key_is_char && !mods.contains(WindowsModifiers::CONTROL) {
+            // In some cases we want to use the UNICHAR text for logical_key in order to allow
+            // dead keys to have an effect on the character reported by `logical_key`.
+            PartialLogicalKey::Text
         } else {
-            logical_key = PartialLogicalKey::This(preliminary_logical_key);
-        }
-        let key_without_modifiers = match layout.get_key(NO_MODS, vkey, scancode, code) {
-            // We convert dead keys into their character.
-            // The reason for this is that `key_without_modifiers` is designed for key-bindings
-            // but for example the US International treats `'` (apostrophe) as a dead key and
-            // reguar US keyboard treats it a character. In order for a single binding configuration
-            // to work with both layouts we forward each dead key as a character.
-            Key::Dead(k) => {
-                if let Some(ch) = k {
-                    // I'm avoiding the heap allocation. I don't want to talk about it :(
-                    let mut utf8 = [0; 4];
-                    let s = ch.encode_utf8(&mut utf8);
-                    let static_str = get_or_insert_str(&mut layouts.strings, s);
-                    Key::Character(static_str)
-                } else {
-                    Key::Unidentified(NativeKeyCode::Unidentified)
-                }
-            }
-            key => key,
+            PartialLogicalKey::This(preliminary_logical_key)
         };
+        let key_without_modifiers = if let Some(key) = code_as_key {
+            key
+        } else {
+            match layout.get_key(NO_MODS, vkey, scancode, code) {
+                // We convert dead keys into their character.
+                // The reason for this is that `key_without_modifiers` is designed for key-bindings
+                // but for example the US International treats `'` (apostrophe) as a dead key and
+                // reguar US keyboard treats it a character. In order for a single binding configuration
+                // to work with both layouts we forward each dead key as a character.
+                Key::Dead(k) => {
+                    if let Some(ch) = k {
+                        // I'm avoiding the heap allocation. I don't want to talk about it :(
+                        let mut utf8 = [0; 4];
+                        let s = ch.encode_utf8(&mut utf8);
+                        let static_str = get_or_insert_str(&mut layouts.strings, s);
+                        Key::Character(static_str)
+                    } else {
+                        Key::Unidentified(NativeKeyCode::Unidentified)
+                    }
+                }
+                key => key,
+            }
+        };
+
         PartialKeyEventInfo {
             vkey,
             scancode,
