@@ -137,13 +137,13 @@ pub(crate) struct Layout {
 
     /// Maps a Windows virtual key to a `Key`.
     ///
-    /// Only those keys are mapped for which the modifier state is not needed when mapping. Making
-    /// this field separate from the `keys` field, saves having to add NumLock as a modifier to
-    /// `WindowsModifiers`, which would double the number of items in keys.
+    /// The only keys that are mapped are ones which don't require knowing the modifier state when
+    /// mapping. Making this field separate from the `keys` field saves having to add NumLock as a
+    /// modifier to `WindowsModifiers`, which would double the number of items in keys.
     pub simple_vkeys: HashMap<c_int, Key<'static>>,
 
     /// Maps a modifier state to group of key strings
-    /// Not using `ModifiersState` here because that object cannot express caps lock
+    /// We're not using `ModifiersState` here because that object cannot express caps lock,
     /// but we need to handle caps lock too.
     ///
     /// This map shouldn't need to exist.
@@ -151,7 +151,7 @@ pub(crate) struct Layout {
     /// of getting the label for the pressed key. Note that calling `ToUnicode`
     /// just when the key is pressed/released would be enough if `ToUnicode` wouldn't
     /// change the keyboard state (it clears the dead key). There is a flag to prevent
-    /// changing the state but that flag requires Windows 10, version 1607 or newer)
+    /// changing the state, but that flag requires Windows 10, version 1607 or newer)
     pub keys: HashMap<WindowsModifiers, HashMap<KeyCode, Key<'static>>>,
     pub has_alt_graph: bool,
 }
@@ -169,7 +169,7 @@ impl Layout {
         let unknown_alt = vkey == winuser::VK_MENU;
         if !unknown_alt {
             // Here we try using the virtual key directly but if the virtual key doesn't distinguish
-            // between left and right alt, we can't report AltGr. Therefore we only do this if the
+            // between left and right alt, we can't report AltGr. Therefore, we only do this if the
             // key is not the "unknown alt" key.
             //
             // The reason for using the virtual key directly is that `MapVirtualKeyExW` (used when
@@ -249,7 +249,7 @@ impl LayoutCache {
         // simulate a scenario when no modifier is active.
         let mut key_state = [0u8; 256];
 
-        // First, generate all the simple vkeys
+        // First, generate all the simple vkeys.
         // Some numpad keys generate different charcaters based on the locale.
         // For example `VK_DECIMAL` is sometimes "." and sometimes ","
         layout.simple_vkeys.reserve(NUMPAD_VKEYS.len());
@@ -382,7 +382,7 @@ impl LayoutCache {
                 locale_id as HKL,
             );
             if wide_len < 0 {
-                // If it's dead, let's run `ToUnicode` again, to consume the dead-key
+                // If it's dead, we run `ToUnicode` again to consume the dead-key
                 wide_len = winuser::ToUnicodeEx(
                     vkey,
                     scancode,
@@ -436,14 +436,14 @@ enum ToUnicodeResult {
     None,
 }
 
-/// This converts virtual keys to `Key`s. Only those virtual keys are converted which can be
-/// unambigously converted to a `Key` with only information passed in as arguments.
+/// This converts virtual keys to `Key`s. Only virtual keys which can be unambiguously converted to
+/// a `Key`, with only the information passed in as arguments, are converted.
 ///
-/// In other words this function does not need to "prepare" the current layout in order to do
-/// the conversion but as such it cannot convert language specific character keys for example.
+/// In other words: this function does not need to "prepare" the current layout in order to do
+/// the conversion, but as such it cannot convert certain keys, like language-specific character keys.
 ///
 /// The result includes all non-character keys defined within `Key` plus characters from numpad keys.
-/// So for example backspace and tab are included.
+/// For example, backspace and tab are included.
 fn vkey_to_non_char_key(
     vkey: i32,
     native_code: NativeKeyCode,
@@ -479,7 +479,7 @@ fn vkey_to_non_char_key(
 
         //winuser::VK_HANGEUL => Key::HangulMode, // Deprecated in favour of VK_HANGUL
 
-        // VK_HANGUL and VK_KANA are defined as the same constant therefore
+        // VK_HANGUL and VK_KANA are defined as the same constant, therefore
         // we use appropriate conditions to differentate between them
         winuser::VK_HANGUL if is_korean => Key::HangulMode,
         winuser::VK_KANA if is_japanese => Key::KanaMode,
@@ -487,7 +487,7 @@ fn vkey_to_non_char_key(
         winuser::VK_JUNJA => Key::JunjaMode,
         winuser::VK_FINAL => Key::FinalMode,
 
-        // VK_HANJA and VK_KANJI are defined as the same constant therefore
+        // VK_HANJA and VK_KANJI are defined as the same constant, therefore
         // we use appropriate conditions to differentate between them
         winuser::VK_HANJA if is_korean => Key::HanjaMode,
         winuser::VK_KANJI if is_japanese => Key::KanjiMode,
@@ -672,7 +672,7 @@ fn vkey_to_non_char_key(
             } else {
                 // This matches IE and Firefox behaviour according to
                 // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key/Key_Values
-                // At the time of writing there is no `Key::Finish` variant as
+                // At the time of writing, there is no `Key::Finish` variant as
                 // Finish is not mentionned at https://w3c.github.io/uievents-key/
                 // Also see: https://github.com/pyfisch/keyboard-types/issues/9
                 Key::Unidentified(native_code)

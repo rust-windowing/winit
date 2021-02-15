@@ -33,7 +33,7 @@ pub struct KeyLParam {
     pub scancode: u8,
     pub extended: bool,
 
-    /// This is `previous_state XOR transition_state` see the lParam for WM_KEYDOWN and WM_KEYUP.
+    /// This is `previous_state XOR transition_state`. See the lParam for WM_KEYDOWN and WM_KEYUP for further details.
     pub is_repeat: bool,
 }
 
@@ -58,36 +58,36 @@ pub struct MessageAsKeyEvent {
 
 /// Stores information required to make `KeyEvent`s.
 ///
-/// A single winint `KeyEvent` contains information which the windows API passes to the application
-/// in multiple window messages. In other words a winit `KeyEvent` cannot be build from a single
-/// window message. Therefore this type keeps track of certain information from previous events so
+/// A single Winit `KeyEvent` contains information which the Windows API passes to the application
+/// in multiple window messages. In other words: a Winit `KeyEvent` cannot be built from a single
+/// window message. Therefore, this type keeps track of certain information from previous events so
 /// that a `KeyEvent` can be constructed when the last event related to a keypress is received.
 ///
-/// `PeekMessage` is sometimes used to determine wheter the next window message still belongs to the
+/// `PeekMessage` is sometimes used to determine whether the next window message still belongs to the
 /// current keypress. If it doesn't and the current state represents a key event waiting to be
-/// dispatched, than said event is considered complete and is dispatched.
+/// dispatched, then said event is considered complete and is dispatched.
 ///
 /// The sequence of window messages for a key press event is the following:
 /// - Exactly one WM_KEYDOWN / WM_SYSKEYDOWN
 /// - Zero or one WM_DEADCHAR / WM_SYSDEADCHAR
 /// - Zero or more WM_CHAR / WM_SYSCHAR. These messages each come with a UTF-16 code unit which when
-/// put together in the sequence they arrived in, forms the text which is the result of pressing the
-/// key.
+///   put together in the sequence they arrived in, forms the text which is the result of pressing the
+///   key.
 ///
 /// Key release messages are a bit different due to the fact that they don't contribute to
 /// text input. The "sequence" only consists of one WM_KEYUP / WM_SYSKEYUP event.
 pub struct KeyEventBuilder {
     event_info: Option<PartialKeyEventInfo>,
 
-    /// The keyup event needs to call `ToUnicode` to determine what's the text produced by the
-    /// key with all modifiers except CTRL (the `logical_key`).
+    /// The keyup event needs to call `ToUnicode` to determine what the text produced by the
+    /// key with all modifiers except CTRL (the `logical_key`) is.
     ///
     /// But `ToUnicode` without the non-modifying flag (see `key_labels`), resets the dead key
     /// state which would be incorrect during every keyup event. Therefore this variable is used
     /// to determine whether the last keydown event produced a dead key.
     ///
     /// Note that this variable is not always correct because it does
-    /// not track key presses outside of this window. However the ONLY situation where this
+    /// not track key presses outside of this window. However, the ONLY situation where this
     /// doesn't work as intended is when the user presses a dead key outside of this window, and
     /// switches to this window BEFORE releasing it then releases the dead key. In this case
     /// the `ToUnicode` function will be called, incorrectly clearing the dead key state. Having
@@ -177,7 +177,7 @@ impl KeyEventBuilder {
             }
             winuser::WM_DEADCHAR | winuser::WM_SYSDEADCHAR => {
                 self.prev_down_was_dead = true;
-                // At this point we know that there isn't going to be any more events related to
+                // At this point, we know that there isn't going to be any more events related to
                 // this key press
                 let event_info = self.event_info.take().unwrap();
                 *retval = Some(0);
@@ -225,8 +225,8 @@ impl KeyEventBuilder {
                         .utf16parts
                         .push(wparam as u16);
                 } else {
-                    // Otherwise wparam holds a utf32 character.
-                    // Let's encode it as utf16 appending it to the end of utf16parts
+                    // In this case, wparam holds a UTF-32 character.
+                    // Let's encode it as UTF-16 and append it to the end of `utf16parts`
                     let utf16parts = &mut self.event_info.as_mut().unwrap().utf16parts;
                     let start_offset = utf16parts.len();
                     let new_size = utf16parts.len() + 2;
@@ -241,7 +241,7 @@ impl KeyEventBuilder {
                     let mut event_info = self.event_info.take().unwrap();
 
                     let mut layouts = LAYOUT_CACHE.lock().unwrap();
-                    // Here it's okay to call `ToUnicode` because at this point the dead key
+                    // It's okay to call `ToUnicode` here, because at this point the dead key
                     // is already consumed by the character.
                     let kbd_state = get_kbd_state();
                     let mod_state = WindowsModifiers::active_modifiers(&kbd_state);
@@ -255,9 +255,9 @@ impl KeyEventBuilder {
                         ctrl_on = mod_state.contains(WindowsModifiers::CONTROL)
                     }
 
-                    // If CTRL is not pressed, just use the text with all
-                    // modifiers because that already consumed the dead key and otherwise
-                    // we would interpret the character incorretly, missing the dead key.
+                    // If Ctrl is not pressed, just use the text with all
+                    // modifiers because that already consumed the dead key. Otherwise,
+                    // we would interpret the character incorrectly, missing the dead key.
                     if !ctrl_on {
                         event_info.text = PartialText::System(event_info.utf16parts.clone());
                     } else {
@@ -310,17 +310,17 @@ impl KeyEventBuilder {
             };
         }
 
-        // Is caps-lock active? Be careful that this is different from caps-lock
+        // Is caps-lock active? Note that this is different from caps-lock
         // being held down.
         let caps_lock_on = kbd_state[winuser::VK_CAPITAL as usize] & 1 != 0;
 
-        // We are synthesizing the press event for caps-lock first. The reason:
-        // 1, if caps-lock is *not* held down but it's active, than we have to
-        // synthesize all printable keys, respecting the calps-lock state
-        // 2, if caps-lock is held down, we could choose to sythesize it's
-        // keypress after every other key, in which case all other keys *must*
-        // be sythesized as if the caps-lock state would be the opposite
-        // of what it currently is.
+        // We are synthesizing the press event for caps-lock first for the following reasons:
+        // 1. If caps-lock is *not* held down but *is* active, then we have to
+        //    synthesize all printable keys, respecting the caps-lock state.
+        // 2. If caps-lock is held down, we could choose to sythesize its
+        //    keypress after every other key, in which case all other keys *must*
+        //    be sythesized as if the caps-lock state was be the opposite
+        //    of what it currently is.
         // --
         // For the sake of simplicity we are choosing to always sythesize
         // caps-lock first, and always use the current caps-lock state
@@ -487,7 +487,7 @@ struct PartialKeyEventInfo {
 
     key_without_modifiers: Key<'static>,
 
-    /// The utf16 code units of the text that was produced by the keypress event.
+    /// The UTF-16 code units of the text that was produced by the keypress event.
     /// This take all modifiers into account. Including CTRL
     utf16parts: Vec<u16>,
 
@@ -541,10 +541,10 @@ impl PartialKeyEventInfo {
         }
         let key_without_modifiers = match layout.get_key(NO_MODS, vkey, scancode, code) {
             // We convert dead keys into their character.
-            // The reason for this is that `key_without_modifiers` is designed for key-bindings
-            // but for example the US International treats `'` (apostrophe) as a dead key and
-            // reguar US keyboard treats it a character. In order for a single binding configuration
-            // to work with both layouts we forward each dead key as a character.
+            // The reason for this is that `key_without_modifiers` is designed for key-bindings,
+            // but the US International layout treats `'` (apostrophe) as a dead key and the
+            // reguar US layout treats it a character. In order for a single binding configuration
+            // to work with both layouts, we forward each dead key as a character.
             Key::Dead(k) => {
                 if let Some(ch) = k {
                     // I'm avoiding the heap allocation. I don't want to talk about it :(
@@ -582,7 +582,7 @@ impl PartialKeyEventInfo {
             }
         }
 
-        // The text without ctrl
+        // The text without Ctrl
         let mut text = None;
         match self.text {
             PartialText::System(wide) => {
@@ -643,7 +643,7 @@ fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
     };
 
     // Use the native VKEY and the extended flag to cover most cases
-    // This is taken from the `druid` software within
+    // This is taken from the `druid` GUI library, specifically
     // druid-shell/src/platform/windows/keyboard.rs
     match vkey {
         VK_LSHIFT | VK_LCONTROL | VK_LMENU | VK_LWIN => KeyLocation::Left,

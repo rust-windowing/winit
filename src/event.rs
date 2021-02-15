@@ -256,7 +256,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     /// - **Windows:** The shift key overrides NumLock. In other words, while shift is held down,
-    ///   numpad keys act as if NumLock wasn't active. When this is used the OS sends fake key
+    ///   numpad keys act as if NumLock wasn't active. When this is used, the OS sends fake key
     ///   events which are not marked as `is_synthetic`.
     KeyboardInput {
         device_id: DeviceId,
@@ -620,10 +620,10 @@ pub struct RawKeyEvent {
 pub struct KeyEvent {
     /// Represents the position of a key independent of the currently active layout.
     ///
-    /// It also uniquely identifies the physical key (i.e. it's synonymous with a scancode).
+    /// It also uniquely identifies the physical key (i.e. it's mostly synonymous with a scancode).
     ///
-    /// Note that `Fn` and `FnLock` key events are not guaranteed to be emmited by `winit`. These
-    /// keys are usually handled at the hardware or at the OS level.
+    /// Note that `Fn` and `FnLock` key events are not guaranteed to be emitted by `winit`. These
+    /// keys are usually handled at the hardware or OS level.
     pub physical_key: keyboard::KeyCode,
 
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.

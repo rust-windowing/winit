@@ -22,7 +22,7 @@ pub fn is_msg_ime_related(msg_kind: u32) -> bool {
 }
 
 pub struct MinimalIme {
-    // True if currently receiving messages belonging to finished IME session.
+    // True if we're currently receiving messages belonging to a finished IME session.
     getting_ime_text: bool,
 
     utf16parts: Vec<u16>,

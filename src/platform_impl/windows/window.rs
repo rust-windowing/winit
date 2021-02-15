@@ -658,7 +658,7 @@ impl Window {
 
     #[inline]
     pub fn reset_dead_keys(&self) {
-        // `ToUnicode` consumes the dead-key by default so we are constructing a fake (but valid)
+        // `ToUnicode` consumes the dead-key by default, so we are constructing a fake (but valid)
         // key input which we can call `ToUnicode` with.
         unsafe {
             let vk = 'a' as u32;
