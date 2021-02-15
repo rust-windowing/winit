@@ -43,8 +43,8 @@ bitflags! {
         // const RALT = 0b001 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
         const SUPER = 0b100 << 9;
-        // const LLOGO = 0b010 << 9;
-        // const RLOGO = 0b001 << 9;
+        // const LSUPER  = 0b010 << 9;
+        // const RSUPER  = 0b001 << 9;
     }
 }
 
@@ -159,7 +159,7 @@ pub enum KeyCode {
     /// Used for both the US <kbd>\\</kbd> (on the 101-key layout) and also for the key
     /// located between the <kbd>"</kbd> and <kbd>Enter</kbd> keys on row C of the 102-,
     /// 104- and 106-key layouts.
-    /// Labelled <kbd>#</kbd> on a UK (102) keyboard.
+    /// Labeled <kbd>#</kbd> on a UK (102) keyboard.
     Backslash,
     /// <kbd>[</kbd> on a US keyboard.
     BracketLeft,
@@ -181,7 +181,7 @@ pub enum KeyCode {
     Digit5,
     /// <kbd>6</kbd> on a US keyboard.
     Digit6,
-    /// <kbd>7&amp;</kbd> on a US keyboard.
+    /// <kbd>7</kbd> on a US keyboard.
     Digit7,
     /// <kbd>8</kbd> on a US keyboard.
     Digit8,
@@ -190,17 +190,17 @@ pub enum KeyCode {
     /// <kbd>=</kbd> on a US keyboard.
     Equal,
     /// Located between the left <kbd>Shift</kbd> and <kbd>Z</kbd> keys.
-    /// Labelled <kbd>\\</kbd> on a UK keyboard.
+    /// Labeled <kbd>\\</kbd> on a UK keyboard.
     IntlBackslash,
     /// Located between the <kbd>/</kbd> and right <kbd>Shift</kbd> keys.
-    /// Labelled <kbd>\\</kbd> (ro) on a Japanese keyboard.
+    /// Labeled <kbd>\\</kbd> (ro) on a Japanese keyboard.
     IntlRo,
     /// Located between the <kbd>=</kbd> and <kbd>Backspace</kbd> keys.
-    /// Labelled <kbd>¥</kbd> (yen) on a Japanese keyboard. <kbd>\\</kbd> on a
+    /// Labeled <kbd>¥</kbd> (yen) on a Japanese keyboard. <kbd>\\</kbd> on a
     /// Russian keyboard.
     IntlYen,
     /// <kbd>a</kbd> on a US keyboard.
-    /// Labelled <kbd>q</kbd> on an AZERTY (e.g., French) keyboard.
+    /// Labeled <kbd>q</kbd> on an AZERTY (e.g., French) keyboard.
     KeyA,
     /// <kbd>b</kbd> on a US keyboard.
     KeyB,
@@ -233,7 +233,7 @@ pub enum KeyCode {
     /// <kbd>p</kbd> on a US keyboard.
     KeyP,
     /// <kbd>q</kbd> on a US keyboard.
-    /// Labelled <kbd>a</kbd> on an AZERTY (e.g., French) keyboard.
+    /// Labeled <kbd>a</kbd> on an AZERTY (e.g., French) keyboard.
     KeyQ,
     /// <kbd>r</kbd> on a US keyboard.
     KeyR,
@@ -246,15 +246,15 @@ pub enum KeyCode {
     /// <kbd>v</kbd> on a US keyboard.
     KeyV,
     /// <kbd>w</kbd> on a US keyboard.
-    /// Labelled <kbd>z</kbd> on an AZERTY (e.g., French) keyboard.
+    /// Labeled <kbd>z</kbd> on an AZERTY (e.g., French) keyboard.
     KeyW,
     /// <kbd>x</kbd> on a US keyboard.
     KeyX,
     /// <kbd>y</kbd> on a US keyboard.
-    /// Labelled <kbd>z</kbd> on a QWERTZ (e.g., German) keyboard.
+    /// Labeled <kbd>z</kbd> on a QWERTZ (e.g., German) keyboard.
     KeyY,
     /// <kbd>z</kbd> on a US keyboard.
-    /// Labelled <kbd>w</kbd> on an AZERTY (e.g., French) keyboard, and <kbd>y</kbd> on a
+    /// Labeled <kbd>w</kbd> on an AZERTY (e.g., French) keyboard, and <kbd>y</kbd> on a
     /// QWERTZ (e.g., German) keyboard.
     KeyZ,
     /// <kbd>-</kbd> on a US keyboard.
@@ -267,13 +267,13 @@ pub enum KeyCode {
     Semicolon,
     /// <kbd>/</kbd> on a US keyboard.
     Slash,
-    /// <kbd>Alt</kbd> <kbd>Option</kbd> or <kbd>⌥</kbd>.
+    /// <kbd>Alt</kbd>, <kbd>Option</kbd>, or <kbd>⌥</kbd>.
     AltLeft,
-    /// <kbd>Alt</kbd> <kbd>Option</kbd> or <kbd>⌥</kbd>.
-    /// This is labelled <kbd>AltGr</kbd> key on many keyboard layouts.
+    /// <kbd>Alt</kbd>, <kbd>Option</kbd>, or <kbd>⌥</kbd>.
+    /// This is labeled <kbd>AltGr</kbd> on many keyboard layouts.
     AltRight,
     /// <kbd>Backspace</kbd> or <kbd>⌫</kbd>.
-    /// Labelled <kbd>Delete</kbd> on Apple keyboards.
+    /// Labeled <kbd>Delete</kbd> on Apple keyboards.
     Backspace,
     /// <kbd>CapsLock</kbd> or <kbd>⇪</kbd>
     CapsLock,
@@ -284,11 +284,11 @@ pub enum KeyCode {
     ControlLeft,
     /// <kbd>Control</kbd> or <kbd>⌃</kbd>
     ControlRight,
-    /// <kbd>Enter</kbd> or <kbd>↵</kbd>. Labelled <kbd>Return</kbd> on Apple keyboards.
+    /// <kbd>Enter</kbd> or <kbd>↵</kbd>. Labeled <kbd>Return</kbd> on Apple keyboards.
     Enter,
-    /// The Windows, <kbd>⌘</kbd> <kbd>Command</kbd> or other OS symbol key.
+    /// The Windows, <kbd>⌘</kbd>, <kbd>Command</kbd>, or other OS symbol key.
     SuperLeft,
-    /// The Windows, <kbd>⌘</kbd> <kbd>Command</kbd> or other OS symbol key.
+    /// The Windows, <kbd>⌘</kbd>, <kbd>Command</kbd>, or other OS symbol key.
     SuperRight,
     /// <kbd>Shift</kbd> or <kbd>⇧</kbd>
     ShiftLeft,
@@ -320,9 +320,11 @@ pub enum KeyCode {
     NonConvert,
     /// <kbd>⌦</kbd>. The forward delete key.
     /// Note that on Apple keyboards, the key labelled <kbd>Delete</kbd> on the main part of
-    /// the keyboard should be encoded as <kbd>"Backspace"</kbd>.
+    /// the keyboard is encoded as [`Backspace`].
+    ///
+    /// [`Backspace`]: Self::Backspace
     Delete,
-    /// <kbd>Page Down</kbd> <kbd>End</kbd> or <kbd>↘</kbd>
+    /// <kbd>Page Down</kbd>, <kbd>End</kbd>, or <kbd>↘</kbd>
     End,
     /// <kbd>Help</kbd>. Not present on standard PC keyboards.
     Help,
@@ -330,9 +332,9 @@ pub enum KeyCode {
     Home,
     /// <kbd>Insert</kbd> or <kbd>Ins</kbd>. Not present on Apple keyboards.
     Insert,
-    /// <kbd>Page Down</kbd> <kbd>PgDn</kbd> or <kbd>⇟</kbd>
+    /// <kbd>Page Down</kbd>, <kbd>PgDn</kbd>, or <kbd>⇟</kbd>
     PageDown,
-    /// <kbd>Page Up</kbd> <kbd>PgUp</kbd> or <kbd>⇞</kbd>
+    /// <kbd>Page Up</kbd>, <kbd>PgUp</kbd>, or <kbd>⇞</kbd>
     PageUp,
     /// <kbd>↓</kbd>
     ArrowDown,
@@ -342,8 +344,7 @@ pub enum KeyCode {
     ArrowRight,
     /// <kbd>↑</kbd>
     ArrowUp,
-    /// On the Mac, the <kbd>"NumLock"</kbd> code should be used for the numpad <kbd>Clear</kbd>
-    /// key.
+    /// On the Mac, this is used for the numpad <kbd>Clear</kbd> key.
     NumLock,
     /// <kbd>0 Ins</kbd> on a keyboard. <kbd>0</kbd> on a phone or remote control
     Numpad0,
@@ -373,7 +374,9 @@ pub enum KeyCode {
     NumpadBackspace,
     /// <kbd>C</kbd> or <kbd>A</kbd> (All Clear). Also for use with numpads that have a
     /// <kbd>Clear</kbd> key that is separate from the <kbd>NumLock</kbd> key. On the Mac, the
-    /// numpad <kbd>Clear</kbd> key should always be encoded as <kbd>"NumLock"</kbd>.
+    /// numpad <kbd>Clear</kbd> key is encoded as [`NumLock`].
+    ///
+    /// [`NumLock`]: Self::NumLock
     NumpadClear,
     /// <kbd>C</kbd> (Clear Entry)
     NumpadClearEntry,
@@ -404,13 +407,14 @@ pub enum KeyCode {
     /// <kbd>*</kbd> on a keyboard. For use with numpads that provide mathematical
     /// operations (<kbd>+</kbd>, <kbd>-</kbd> <kbd>*</kbd> and <kbd>/</kbd>).
     ///
-    /// Use <kbd>"NumpadStar"</kbd> for the <kbd>*</kbd> key on phones and remote controls.
+    /// Use `NumpadStar` for the <kbd>*</kbd> key on phones and remote controls.
     NumpadMultiply,
     /// <kbd>(</kbd> Found on the Microsoft Natural Keyboard.
     NumpadParenLeft,
     /// <kbd>)</kbd> Found on the Microsoft Natural Keyboard.
     NumpadParenRight,
     /// <kbd>*</kbd> on a phone or remote control device.
+    ///
     /// This key is typically found below the <kbd>7</kbd> key and to the left of
     /// the <kbd>0</kbd> key.
     ///
@@ -421,9 +425,7 @@ pub enum KeyCode {
     NumpadSubtract,
     /// <kbd>Esc</kbd> or <kbd>⎋</kbd>
     Escape,
-    /// <kbd>F</kbd> This is typically a hardware key that does not generate a separate
-    /// code. Most keyboards do not place this key in the function section, but it is
-    /// included here to keep it with related keys.
+    /// <kbd>Fn</kbd> This is typically a hardware key that does not generate a separate code. 
     Fn,
     /// <kbd>FLock</kbd> or <kbd>FnLock</kbd>. Function Lock key. Found on the Microsoft
     /// Natural Keyboard.
@@ -592,7 +594,7 @@ pub enum KeyCode {
 ///
 /// This mostly conforms to the UI Events Specification's [`KeyboardEvent.key`] with a few
 /// exceptions:
-/// - The `Super` variant here, is named `Meta` in the aforementionned specification. (There's
+/// - The `Super` variant here, is named `Meta` in the aforementioned specification. (There's
 ///   another key which the specification calls `Super`. That does not exist here.)
 /// - The `Space` variant here, can be identified by the character it generates in the
 ///   specificaiton.
@@ -625,12 +627,12 @@ pub enum Key<'a> {
     /// The `Alt` (Alternative) key.
     ///
     /// This key enables the alternate modifier function for interpreting concurrent or subsequent
-    /// keyboard input. This key value is also used for the Apple `Option` key.
+    /// keyboard input. This key value is also used for the Apple <kbd>Option</kbd> key.
     Alt,
-    /// The Alternate Graphics (`AltGr` or `AltGraph`) key.
+    /// The Alternate Graphics (<kbd>AltGr</kbd> or <kbd>AltGraph</kbd>) key.
     ///
     /// This key is used enable the ISO Level 3 shift modifier (the standard `Shift` key is the
-    /// level 2 modifier). See [ISO9995-1].
+    /// level 2 modifier).
     AltGraph,
     /// The `Caps Lock` (Capital) key.
     ///
@@ -685,7 +687,9 @@ pub enum Key<'a> {
     /// The End key, used with keyboard entry to go to the end of content (`KEYCODE_MOVE_END`).
     End,
     /// The Home key, used with keyboard entry, to go to start of content (`KEYCODE_MOVE_HOME`).
-    /// For the mobile phone `Home` key (which goes to the phone’s main screen), use `"GoHome"`.
+    /// For the mobile phone `Home` key (which goes to the phone’s main screen), use [`GoHome`].
+    ///
+    /// [`GoHome`]: Self::GoHome
     Home,
     /// Scroll down or display next page of content.
     PageDown,

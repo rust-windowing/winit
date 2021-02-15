@@ -2195,9 +2195,9 @@ unsafe fn handle_raw_input<T: 'static>(
         if scancode == 0xE11D || scancode == 0xE02A {
             // At the hardware (or driver?) level, pressing the Pause key is equivalent to pressing
             // Ctrl+NumLock.
-            // This equvalence means that if the user presses Pause, the keyboard will emmit two
+            // This equvalence means that if the user presses Pause, the keyboard will emit two
             // subsequent keypresses:
-            // 1, 0xE11D - Which is a left ctrl (0x1D) with an extension flag (0xE100)
+            // 1, 0xE11D - Which is a left Ctrl (0x1D) with an extension flag (0xE100)
             // 2, 0x0045 - Which on its own can be interpreted as Pause
             //
             // There's another combination which isn't quite an equivalence:
@@ -2207,7 +2207,7 @@ unsafe fn handle_raw_input<T: 'static>(
             // 2, 0xE037 - Which is a numpad multiply (0x37) with an exteion flag (0xE000). This on
             //             its own it can be interpreted as PrtSc
             //
-            // For this reason if we encounter the first keypress, we simply ignore it, trusting
+            // For this reason, if we encounter the first keypress, we simply ignore it, trusting
             // that there's going to be another event coming, from which we can extract the
             // appropriate key.
             // For more on this, read the article by Raymond Chen, titled:
@@ -2217,7 +2217,7 @@ unsafe fn handle_raw_input<T: 'static>(
         }
         let code;
         if keyboard.VKey as c_int == winuser::VK_NUMLOCK {
-            // Historically the NumLock and the Pause key were one and the same physical key.
+            // Historically, the NumLock and the Pause key were one and the same physical key.
             // The user could trigger Pause by pressing Ctrl+NumLock.
             // Now these are often physically separate and the two keys can be differentiated by
             // checking the extension flag of the scancode. NumLock is 0xE045, Pause is 0x0045.
@@ -2253,7 +2253,7 @@ unsafe fn handle_raw_input<T: 'static>(
                     // as well.
                     //
                     // The issue is that in the raw device event (here), the fake shift release
-                    // event reports the numpad key as the scancode. Unfortunately the event doesn't
+                    // event reports the numpad key as the scancode. Unfortunately, the event doesn't
                     // have any information to tell whether it's the left shift or the right shift
                     // that needs to get the fake release (or press) event so we don't forward this
                     // event to the application at all.
