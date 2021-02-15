@@ -425,7 +425,7 @@ pub enum KeyCode {
     NumpadSubtract,
     /// <kbd>Esc</kbd> or <kbd>⎋</kbd>
     Escape,
-    /// <kbd>Fn</kbd> This is typically a hardware key that does not generate a separate code. 
+    /// <kbd>Fn</kbd> This is typically a hardware key that does not generate a separate code.
     Fn,
     /// <kbd>FLock</kbd> or <kbd>FnLock</kbd>. Function Lock key. Found on the Microsoft
     /// Natural Keyboard.
