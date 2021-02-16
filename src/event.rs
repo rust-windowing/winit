@@ -621,6 +621,10 @@ pub struct KeyEvent {
     /// Represents the position of a key independent of the currently active layout.
     ///
     /// It also uniquely identifies the physical key (i.e. it's mostly synonymous with a scancode).
+    /// The most prevalent use case for this is games. For example the default keys for the player
+    /// to move around might be the W, A, S, and D keys on a US layout. The position of these keys
+    /// is more important than their label, so they should map to Z, Q, S, and D on an "AZERTY"
+    /// layout. (This value is `KeyCode::KeyW` for the Z key on an AZERTY layout.)
     ///
     /// Note that `Fn` and `FnLock` key events are not guaranteed to be emitted by `winit`. These
     /// keys are usually handled at the hardware or OS level.
