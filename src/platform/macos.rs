@@ -2,6 +2,8 @@
 
 use std::{os::raw::c_void, path::PathBuf};
 
+use cocoa::{base::nil, foundation::NSAutoreleasePool};
+
 use crate::{
     dpi::LogicalSize,
     event_loop::EventLoopWindowTarget,
@@ -231,9 +233,10 @@ pub trait EventLoopWindowTargetExtMacOS {
     ///
     /// Other systems usually provide the path as a program argument.
     /// See: `std::env::args`.
-    fn set_file_open_callback<F>(&self, callback: Option<F>)
-    where
-        F: FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static;
+    fn set_file_open_callback(
+        &self,
+        callback: Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static>>,
+    );
 }
 
 impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
@@ -249,10 +252,25 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
         unsafe { msg_send![app, hideOtherApplications: 0] }
     }
 
-    fn set_file_open_callback<F>(&self, callback: Option<F>)
-    where
-        F: FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static,
-    {
-        AppState::set_file_open_callback(callback);
+    fn set_file_open_callback(
+        &self,
+        callback: Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static>>,
+    ) {
+        let has_callback = callback.is_some();
+        let should_change_delegate = AppState::set_file_open_callback(callback);
+        if should_change_delegate {
+            unsafe {
+                let cls = class!(NSApplication);
+                let app: cocoa::base::id = msg_send![cls, sharedApplication];
+                let delegate = if has_callback {
+                    *self.p.delegate_with_file_open
+                } else {
+                    *self.p.delegate
+                };
+                let pool = NSAutoreleasePool::new(nil);
+                let () = msg_send![app, setDelegate: delegate];
+                let () = msg_send![pool, drain];
+            }
+        }
     }
 }

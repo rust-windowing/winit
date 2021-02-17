@@ -268,11 +268,15 @@ impl AppState {
         }));
     }
 
-    pub fn set_file_open_callback<F>(callback: Option<F>)
-    where
-        F: FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static,
-    {
-        *HANDLER.file_open_callback.lock().unwrap() = callback.map(|c| Box::new(c) as _);
+    /// Returns `true` if the previous value of `callback.is_some()` is different
+    /// from its new value.
+    pub fn set_file_open_callback(
+        callback: Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static>>,
+    ) -> bool {
+        let mut guard: MutexGuard<'_, _> = HANDLER.file_open_callback.lock().unwrap();
+        let was_some = guard.is_some();
+        *guard = callback;
+        was_some != guard.is_some()
     }
 
     pub fn exit() {

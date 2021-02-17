@@ -23,13 +23,16 @@ use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     monitor::MonitorHandle as RootMonitorHandle,
-    platform_impl::platform::{
-        app::APP_CLASS,
-        app_delegate::APP_DELEGATE_CLASS,
-        app_state::AppState,
-        monitor::{self, MonitorHandle},
-        observer::*,
-        util::IdRef,
+    platform_impl::{
+        self,
+        platform::{
+            app::APP_CLASS,
+            app_delegate::{APP_DELEGATE_CLASS, APP_DELEGATE_CLASS_WITH_FILE_OPEN},
+            app_state::AppState,
+            monitor::{self, MonitorHandle},
+            observer::*,
+            util::IdRef,
+        },
     },
 };
 
@@ -64,12 +67,19 @@ impl PanicInfo {
 pub struct EventLoopWindowTarget<T: 'static> {
     pub sender: mpsc::Sender<T>, // this is only here to be cloned elsewhere
     pub receiver: mpsc::Receiver<T>,
+    pub delegate: IdRef,
+    pub delegate_with_file_open: IdRef,
 }
 
-impl<T> Default for EventLoopWindowTarget<T> {
-    fn default() -> Self {
+impl<T> EventLoopWindowTarget<T> {
+    pub fn new(delegate: IdRef, delegate_with_file_open: IdRef) -> Self {
         let (sender, receiver) = mpsc::channel();
-        EventLoopWindowTarget { sender, receiver }
+        EventLoopWindowTarget {
+            sender,
+            receiver,
+            delegate,
+            delegate_with_file_open,
+        }
     }
 }
 
@@ -98,11 +108,12 @@ pub struct EventLoop<T: 'static> {
     /// strong reference should be dropped as soon as possible.
     _callback: Option<Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
     _delegate: IdRef,
+    _delegate_with_file_open: IdRef,
 }
 
 impl<T> EventLoop<T> {
     pub fn new() -> Self {
-        let delegate = unsafe {
+        let (delegate, delegate_with_file_open) = unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
                 panic!("On macOS, `EventLoop` must be created on the main thread!");
             }
@@ -114,21 +125,27 @@ impl<T> EventLoop<T> {
             let app: id = msg_send![APP_CLASS.0, sharedApplication];
 
             let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
+            let delegate_with_file_open =
+                IdRef::new(msg_send![APP_DELEGATE_CLASS_WITH_FILE_OPEN.0, new]);
             let pool = NSAutoreleasePool::new(nil);
             let _: () = msg_send![app, setDelegate:*delegate];
             let _: () = msg_send![pool, drain];
-            delegate
+            (delegate, delegate_with_file_open)
         };
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
         EventLoop {
             window_target: Rc::new(RootWindowTarget {
-                p: Default::default(),
+                p: platform_impl::EventLoopWindowTarget::new(
+                    delegate.clone(),
+                    delegate_with_file_open.clone(),
+                ),
                 _marker: PhantomData,
             }),
             panic_info,
             _callback: None,
             _delegate: delegate,
+            _delegate_with_file_open: delegate_with_file_open,
         }
     }
 

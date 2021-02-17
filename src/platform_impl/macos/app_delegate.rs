@@ -20,10 +20,10 @@ pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
 unsafe impl Sync for AppDelegateClass {}
 
-lazy_static! {
-    pub static ref APP_DELEGATE_CLASS: AppDelegateClass = unsafe {
+fn get_app_deleget_class_decl(name: &str) -> ClassDecl {
+    unsafe {
         let superclass = class!(NSResponder);
-        let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
+        let mut decl = ClassDecl::new(name, superclass).unwrap();
 
         decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
         decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
@@ -45,7 +45,17 @@ lazy_static! {
             sel!(activationHackMouseMoved:),
             activation_hack::mouse_moved as extern "C" fn(&Object, Sel, id),
         );
+        decl
+    }
+}
 
+lazy_static! {
+    pub static ref APP_DELEGATE_CLASS: AppDelegateClass = {
+        let decl = get_app_deleget_class_decl("WinitAppDelegate");
+        AppDelegateClass(decl.register())
+    };
+    pub static ref APP_DELEGATE_CLASS_WITH_FILE_OPEN: AppDelegateClass = unsafe {
+        let mut decl = get_app_deleget_class_decl("WinitAppDelegateWithFileOpen");
         decl.add_method(
             sel!(application:openFile:),
             application_open_file as extern "C" fn(&Object, Sel, id, id) -> BOOL,
@@ -54,7 +64,6 @@ lazy_static! {
             sel!(application:openFiles:),
             application_open_files as extern "C" fn(&Object, Sel, id, id),
         );
-
         AppDelegateClass(decl.register())
     };
 }
