@@ -262,10 +262,11 @@ impl KeyEventBuilder {
                         event_info.text = PartialText::System(event_info.utf16parts.clone());
                     } else {
                         let mod_no_ctrl = mod_state.remove_only_ctrl();
+                        let num_lock_on = kbd_state[winuser::VK_NUMLOCK as usize] & 1 != 0;
                         let vkey = event_info.vkey;
                         let scancode = event_info.scancode;
                         let keycode = event_info.code;
-                        let key = layout.get_key(mod_no_ctrl, vkey, scancode, keycode);
+                        let key = layout.get_key(mod_no_ctrl, num_lock_on, vkey, scancode, keycode);
                         event_info.text = PartialText::Text(key.to_text());
                     }
                     let ev = event_info.finalize(&mut layouts.strings);
@@ -313,6 +314,7 @@ impl KeyEventBuilder {
         // Is caps-lock active? Note that this is different from caps-lock
         // being held down.
         let caps_lock_on = kbd_state[winuser::VK_CAPITAL as usize] & 1 != 0;
+        let num_lock_on = kbd_state[winuser::VK_NUMLOCK as usize] & 1 != 0;
 
         // We are synthesizing the press event for caps-lock first for the following reasons:
         // 1. If caps-lock is *not* held down but *is* active, then we have to
@@ -330,6 +332,7 @@ impl KeyEventBuilder {
                 winuser::VK_CAPITAL,
                 key_state,
                 caps_lock_on,
+                num_lock_on,
                 locale_id as HKL,
                 &mut layouts,
             );
@@ -355,8 +358,14 @@ impl KeyEventBuilder {
                 if !is_key_pressed!(vk) {
                     continue;
                 }
-                let event =
-                    self.create_synthetic(vk, key_state, caps_lock_on, locale_id as HKL, layouts);
+                let event = self.create_synthetic(
+                    vk,
+                    key_state,
+                    caps_lock_on,
+                    num_lock_on,
+                    locale_id as HKL,
+                    layouts,
+                );
                 if let Some(event) = event {
                     key_events.push(event);
                 }
@@ -377,6 +386,7 @@ impl KeyEventBuilder {
                         *vk,
                         key_state,
                         caps_lock_on,
+                        num_lock_on,
                         locale_id as HKL,
                         layouts,
                     );
@@ -409,6 +419,7 @@ impl KeyEventBuilder {
         vk: i32,
         key_state: ElementState,
         caps_lock_on: bool,
+        num_lock_on: bool,
         locale_id: HKL,
         layouts: &mut MutexGuard<'_, LayoutCache>,
     ) -> Option<MessageAsKeyEvent> {
@@ -425,13 +436,10 @@ impl KeyEventBuilder {
         } else {
             WindowsModifiers::empty()
         };
-        let logical_key;
-        let key_without_modifers;
-        {
-            let layout = layouts.layouts.get(&(locale_id as u64)).unwrap();
-            logical_key = layout.get_key(mods, vk, scancode, code);
-            key_without_modifers = layout.get_key(WindowsModifiers::empty(), vk, scancode, code);
-        }
+        let layout = layouts.layouts.get(&(locale_id as u64)).unwrap();
+        let logical_key = layout.get_key(mods, num_lock_on, vk, scancode, code);
+        let key_without_modifiers =
+            layout.get_key(WindowsModifiers::empty(), false, vk, scancode, code);
         let text;
         if key_state == ElementState::Pressed {
             text = logical_key.to_text();
@@ -441,7 +449,7 @@ impl KeyEventBuilder {
         let event_info = PartialKeyEventInfo {
             vkey: vk,
             logical_key: PartialLogicalKey::This(logical_key),
-            key_without_modifiers: key_without_modifers,
+            key_without_modifiers,
             key_state,
             scancode,
             is_repeat: false,
@@ -526,6 +534,7 @@ impl PartialKeyEventInfo {
         let kbd_state = get_kbd_state();
         let mods = WindowsModifiers::active_modifiers(&kbd_state);
         let mods_without_ctrl = mods.remove_only_ctrl();
+        let num_lock_on = kbd_state[winuser::VK_NUMLOCK as usize] & 1 != 0;
 
         // On Windows Ctrl+NumLock = Pause (and apparently Ctrl+Pause -> NumLock). In these cases
         // the KeyCode still stores the real key, so in the name of consistency across platforms, we
@@ -543,7 +552,8 @@ impl PartialKeyEventInfo {
             None
         };
 
-        let preliminary_logical_key = layout.get_key(mods_without_ctrl, vkey, scancode, code);
+        let preliminary_logical_key =
+            layout.get_key(mods_without_ctrl, num_lock_on, vkey, scancode, code);
         let key_is_char = matches!(preliminary_logical_key, Key::Character(_));
         let is_pressed = state == ElementState::Pressed;
 
@@ -559,7 +569,7 @@ impl PartialKeyEventInfo {
         let key_without_modifiers = if let Some(key) = code_as_key {
             key
         } else {
-            match layout.get_key(NO_MODS, vkey, scancode, code) {
+            match layout.get_key(NO_MODS, false, vkey, scancode, code) {
                 // We convert dead keys into their character.
                 // The reason for this is that `key_without_modifiers` is designed for key-bindings,
                 // but the US International layout treats `'` (apostrophe) as a dead key and the
@@ -638,7 +648,7 @@ impl PartialKeyEventInfo {
             repeat: self.is_repeat,
             platform_specific: KeyEventExtra {
                 text_with_all_modifers: char_with_all_modifiers,
-                key_without_modifers: self.key_without_modifiers,
+                key_without_modifiers: self.key_without_modifiers,
             },
         }
     }

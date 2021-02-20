@@ -49,6 +49,29 @@ const NUMPAD_VKEYS: [c_int; 16] = [
     winuser::VK_DIVIDE,
 ];
 
+lazy_static! {
+    static ref NUMPAD_KEYCODES: HashSet<KeyCode> = {
+        let mut keycodes = HashSet::new();
+        keycodes.insert(KeyCode::Numpad0);
+        keycodes.insert(KeyCode::Numpad1);
+        keycodes.insert(KeyCode::Numpad2);
+        keycodes.insert(KeyCode::Numpad3);
+        keycodes.insert(KeyCode::Numpad4);
+        keycodes.insert(KeyCode::Numpad5);
+        keycodes.insert(KeyCode::Numpad6);
+        keycodes.insert(KeyCode::Numpad7);
+        keycodes.insert(KeyCode::Numpad8);
+        keycodes.insert(KeyCode::Numpad9);
+        keycodes.insert(KeyCode::NumpadMultiply);
+        keycodes.insert(KeyCode::NumpadAdd);
+        keycodes.insert(KeyCode::NumpadComma);
+        keycodes.insert(KeyCode::NumpadSubtract);
+        keycodes.insert(KeyCode::NumpadDecimal);
+        keycodes.insert(KeyCode::NumpadDivide);
+        keycodes
+    };
+}
+
 bitflags! {
     pub struct WindowsModifiers : u8 {
         const SHIFT = 1 << 0;
@@ -135,12 +158,18 @@ impl WindowsModifiers {
 pub(crate) struct Layout {
     pub hkl: u64,
 
-    /// Maps a Windows virtual key to a `Key`.
+    /// Maps numpad keys from Windows virtual key to a `Key`.
     ///
-    /// The only keys that are mapped are ones which don't require knowing the modifier state when
-    /// mapping. Making this field separate from the `keys` field saves having to add NumLock as a
-    /// modifier to `WindowsModifiers`, which would double the number of items in keys.
-    pub simple_vkeys: HashMap<c_int, Key<'static>>,
+    /// This is useful because some numpad keys generate different charcaters based on the locale.
+    /// For example `VK_DECIMAL` is sometimes "." and sometimes ",". Note: numpad-specific virtual
+    /// keys are only produced by Windows when the NumLock is active.
+    ///
+    /// Making this field separate from the `keys` field saves having to add NumLock as a modifier
+    /// to `WindowsModifiers`, which would double the number of items in keys.
+    pub numlock_on_keys: HashMap<c_int, Key<'static>>,
+    /// Like `numlock_on_keys` but this will map to the key that would be produced if numlock was
+    /// off. The keys of this map are identical to the keys of `numlock_on_keys`.
+    pub numlock_off_keys: HashMap<c_int, Key<'static>>,
 
     /// Maps a modifier state to group of key strings
     /// We're not using `ModifiersState` here because that object cannot express caps lock,
@@ -160,6 +189,7 @@ impl Layout {
     pub fn get_key(
         &self,
         mods: WindowsModifiers,
+        num_lock_on: bool,
         vkey: c_int,
         scancode: ExScancode,
         keycode: KeyCode,
@@ -183,8 +213,14 @@ impl Layout {
                 return key_from_vkey;
             }
         }
-        if let Some(key) = self.simple_vkeys.get(&vkey) {
-            return *key;
+        if num_lock_on {
+            if let Some(key) = self.numlock_on_keys.get(&vkey) {
+                return *key;
+            }
+        } else {
+            if let Some(key) = self.numlock_off_keys.get(&vkey) {
+                return *key;
+            }
         }
         if let Some(keys) = self.keys.get(&mods) {
             if let Some(key) = keys.get(&keycode) {
@@ -240,7 +276,8 @@ impl LayoutCache {
     fn prepare_layout(strings: &mut HashSet<&'static str>, locale_id: u64) -> Layout {
         let mut layout = Layout {
             hkl: locale_id,
-            simple_vkeys: Default::default(),
+            numlock_on_keys: Default::default(),
+            numlock_off_keys: Default::default(),
             keys: Default::default(),
             has_alt_graph: false,
         };
@@ -249,10 +286,43 @@ impl LayoutCache {
         // simulate a scenario when no modifier is active.
         let mut key_state = [0u8; 256];
 
-        // First, generate all the simple vkeys.
-        // Some numpad keys generate different charcaters based on the locale.
-        // For example `VK_DECIMAL` is sometimes "." and sometimes ","
-        layout.simple_vkeys.reserve(NUMPAD_VKEYS.len());
+        // `MapVirtualKeyExW` maps (non-numpad-specific) virtual keys to scancodes as if numlock
+        // was off. We rely on this behavior to find all virtual keys which are not numpad-specific
+        // but map to the numpad.
+        //
+        // src_vkey: VK  ==>  scancode: u16 (on the numpad)
+        //
+        // Then we convert the source virtual key into a `Key` and the scancode into a virtual key
+        // to get the reverse mapping.
+        //
+        // src_vkey: VK  ==>  scancode: u16 (on the numpad)
+        //    ||                    ||
+        //    \/                    \/
+        // map_value: Key  <-  map_vkey: VK
+        layout.numlock_off_keys.reserve(NUMPAD_KEYCODES.len());
+        for vk in 0..256 {
+            let scancode = unsafe {
+                winuser::MapVirtualKeyExW(vk, winuser::MAPVK_VK_TO_VSC_EX, locale_id as HKL)
+            };
+            if scancode == 0 {
+                continue;
+            }
+            let keycode = KeyCode::from_scancode(scancode);
+            if !is_numpad_specific(vk as i32) && NUMPAD_KEYCODES.contains(&keycode) {
+                let native_code = NativeKeyCode::Windows(scancode as u16);
+                let map_vkey = keycode_to_vkey(keycode, locale_id);
+                if map_vkey == 0 {
+                    continue;
+                }
+                let map_value = vkey_to_non_char_key(vk as i32, native_code, locale_id, false);
+                if matches!(map_value, Key::Unidentified(_)) {
+                    continue;
+                }
+                layout.numlock_off_keys.insert(map_vkey, map_value);
+            }
+        }
+
+        layout.numlock_on_keys.reserve(NUMPAD_VKEYS.len());
         for vk in NUMPAD_VKEYS.iter() {
             let vk = (*vk) as u32;
             let scancode = unsafe {
@@ -262,7 +332,7 @@ impl LayoutCache {
             if let ToUnicodeResult::Str(s) = unicode {
                 let static_str = get_or_insert_str(strings, s);
                 layout
-                    .simple_vkeys
+                    .numlock_on_keys
                     .insert(vk as i32, Key::Character(static_str));
             }
         }
@@ -434,6 +504,442 @@ enum ToUnicodeResult {
     Str(String),
     Dead(Option<char>),
     None,
+}
+
+fn is_numpad_specific(vk: i32) -> bool {
+    match vk {
+        winuser::VK_NUMPAD0 => true,
+        winuser::VK_NUMPAD1 => true,
+        winuser::VK_NUMPAD2 => true,
+        winuser::VK_NUMPAD3 => true,
+        winuser::VK_NUMPAD4 => true,
+        winuser::VK_NUMPAD5 => true,
+        winuser::VK_NUMPAD6 => true,
+        winuser::VK_NUMPAD7 => true,
+        winuser::VK_NUMPAD8 => true,
+        winuser::VK_NUMPAD9 => true,
+        winuser::VK_ADD => true,
+        winuser::VK_SUBTRACT => true,
+        winuser::VK_DIVIDE => true,
+        winuser::VK_DECIMAL => true,
+        winuser::VK_SEPARATOR => true,
+        _ => false,
+    }
+}
+
+fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> i32 {
+    let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
+    let is_korean = primary_lang_id == LANG_KOREAN;
+    let is_japanese = primary_lang_id == LANG_JAPANESE;
+
+    match keycode {
+        KeyCode::Backquote => 0,
+        KeyCode::Backslash => 0,
+        KeyCode::BracketLeft => 0,
+        KeyCode::BracketRight => 0,
+        KeyCode::Comma => 0,
+        KeyCode::Digit0 => 0,
+        KeyCode::Digit1 => 0,
+        KeyCode::Digit2 => 0,
+        KeyCode::Digit3 => 0,
+        KeyCode::Digit4 => 0,
+        KeyCode::Digit5 => 0,
+        KeyCode::Digit6 => 0,
+        KeyCode::Digit7 => 0,
+        KeyCode::Digit8 => 0,
+        KeyCode::Digit9 => 0,
+        KeyCode::Equal => 0,
+        KeyCode::IntlBackslash => 0,
+        KeyCode::IntlRo => 0,
+        KeyCode::IntlYen => 0,
+        KeyCode::KeyA => 0,
+        KeyCode::KeyB => 0,
+        KeyCode::KeyC => 0,
+        KeyCode::KeyD => 0,
+        KeyCode::KeyE => 0,
+        KeyCode::KeyF => 0,
+        KeyCode::KeyG => 0,
+        KeyCode::KeyH => 0,
+        KeyCode::KeyI => 0,
+        KeyCode::KeyJ => 0,
+        KeyCode::KeyK => 0,
+        KeyCode::KeyL => 0,
+        KeyCode::KeyM => 0,
+        KeyCode::KeyN => 0,
+        KeyCode::KeyO => 0,
+        KeyCode::KeyP => 0,
+        KeyCode::KeyQ => 0,
+        KeyCode::KeyR => 0,
+        KeyCode::KeyS => 0,
+        KeyCode::KeyT => 0,
+        KeyCode::KeyU => 0,
+        KeyCode::KeyV => 0,
+        KeyCode::KeyW => 0,
+        KeyCode::KeyX => 0,
+        KeyCode::KeyY => 0,
+        KeyCode::KeyZ => 0,
+        KeyCode::Minus => 0,
+        KeyCode::Period => 0,
+        KeyCode::Quote => 0,
+        KeyCode::Semicolon => 0,
+        KeyCode::Slash => 0,
+        KeyCode::AltLeft => winuser::VK_LMENU,
+        KeyCode::AltRight => winuser::VK_RMENU,
+        KeyCode::Backspace => winuser::VK_BACK,
+        KeyCode::CapsLock => winuser::VK_CAPITAL,
+        KeyCode::ContextMenu => winuser::VK_APPS,
+        KeyCode::ControlLeft => winuser::VK_LCONTROL,
+        KeyCode::ControlRight => winuser::VK_RCONTROL,
+        KeyCode::Enter => winuser::VK_RETURN,
+        KeyCode::SuperLeft => winuser::VK_LWIN,
+        KeyCode::SuperRight => winuser::VK_RWIN,
+        KeyCode::ShiftLeft => winuser::VK_RSHIFT,
+        KeyCode::ShiftRight => winuser::VK_LSHIFT,
+        KeyCode::Space => winuser::VK_SPACE,
+        KeyCode::Tab => winuser::VK_TAB,
+        KeyCode::Convert => winuser::VK_CONVERT,
+        KeyCode::KanaMode => winuser::VK_KANA,
+        KeyCode::Lang1 if is_korean => winuser::VK_HANGUL,
+        KeyCode::Lang1 if is_japanese => winuser::VK_KANA,
+        KeyCode::Lang2 if is_korean => winuser::VK_HANJA,
+        KeyCode::Lang2 if is_japanese => 0,
+        KeyCode::Lang3 if is_japanese => winuser::VK_OEM_FINISH,
+        KeyCode::Lang4 if is_japanese => 0,
+        KeyCode::Lang5 if is_japanese => 0,
+        KeyCode::NonConvert => winuser::VK_NONCONVERT,
+        KeyCode::Delete => winuser::VK_DELETE,
+        KeyCode::End => winuser::VK_END,
+        KeyCode::Help => winuser::VK_HELP,
+        KeyCode::Home => winuser::VK_HOME,
+        KeyCode::Insert => winuser::VK_INSERT,
+        KeyCode::PageDown => winuser::VK_NEXT,
+        KeyCode::PageUp => winuser::VK_PRIOR,
+        KeyCode::ArrowDown => winuser::VK_DOWN,
+        KeyCode::ArrowLeft => winuser::VK_LEFT,
+        KeyCode::ArrowRight => winuser::VK_RIGHT,
+        KeyCode::ArrowUp => winuser::VK_UP,
+        KeyCode::NumLock => winuser::VK_NUMLOCK,
+        KeyCode::Numpad0 => winuser::VK_NUMPAD0,
+        KeyCode::Numpad1 => winuser::VK_NUMPAD1,
+        KeyCode::Numpad2 => winuser::VK_NUMPAD2,
+        KeyCode::Numpad3 => winuser::VK_NUMPAD3,
+        KeyCode::Numpad4 => winuser::VK_NUMPAD4,
+        KeyCode::Numpad5 => winuser::VK_NUMPAD5,
+        KeyCode::Numpad6 => winuser::VK_NUMPAD6,
+        KeyCode::Numpad7 => winuser::VK_NUMPAD7,
+        KeyCode::Numpad8 => winuser::VK_NUMPAD8,
+        KeyCode::Numpad9 => winuser::VK_NUMPAD9,
+        KeyCode::NumpadAdd => winuser::VK_ADD,
+        KeyCode::NumpadBackspace => winuser::VK_BACK,
+        KeyCode::NumpadClear => winuser::VK_CLEAR,
+        KeyCode::NumpadClearEntry => 0,
+        KeyCode::NumpadComma => winuser::VK_SEPARATOR,
+        KeyCode::NumpadDecimal => winuser::VK_DECIMAL,
+        KeyCode::NumpadDivide => winuser::VK_DIVIDE,
+        KeyCode::NumpadEnter => winuser::VK_RETURN,
+        KeyCode::NumpadEqual => 0,
+        KeyCode::NumpadHash => 0,
+        KeyCode::NumpadMemoryAdd => 0,
+        KeyCode::NumpadMemoryClear => 0,
+        KeyCode::NumpadMemoryRecall => 0,
+        KeyCode::NumpadMemoryStore => 0,
+        KeyCode::NumpadMemorySubtract => 0,
+        KeyCode::NumpadMultiply => winuser::VK_MULTIPLY,
+        KeyCode::NumpadParenLeft => 0,
+        KeyCode::NumpadParenRight => 0,
+        KeyCode::NumpadStar => 0,
+        KeyCode::NumpadSubtract => winuser::VK_SUBTRACT,
+        KeyCode::Escape => winuser::VK_ESCAPE,
+        KeyCode::Fn => 0,
+        KeyCode::FnLock => 0,
+        KeyCode::PrintScreen => winuser::VK_SNAPSHOT,
+        KeyCode::ScrollLock => winuser::VK_SCROLL,
+        KeyCode::Pause => winuser::VK_PAUSE,
+        KeyCode::BrowserBack => winuser::VK_BROWSER_BACK,
+        KeyCode::BrowserFavorites => winuser::VK_BROWSER_FAVORITES,
+        KeyCode::BrowserForward => winuser::VK_BROWSER_FORWARD,
+        KeyCode::BrowserHome => winuser::VK_BROWSER_HOME,
+        KeyCode::BrowserRefresh => winuser::VK_BROWSER_REFRESH,
+        KeyCode::BrowserSearch => winuser::VK_BROWSER_SEARCH,
+        KeyCode::BrowserStop => winuser::VK_BROWSER_STOP,
+        KeyCode::Eject => 0,
+        KeyCode::LaunchApp1 => winuser::VK_LAUNCH_APP1,
+        KeyCode::LaunchApp2 => winuser::VK_LAUNCH_APP2,
+        KeyCode::LaunchMail => winuser::VK_LAUNCH_MAIL,
+        KeyCode::MediaPlayPause => winuser::VK_MEDIA_PLAY_PAUSE,
+        KeyCode::MediaSelect => winuser::VK_LAUNCH_MEDIA_SELECT,
+        KeyCode::MediaStop => winuser::VK_MEDIA_STOP,
+        KeyCode::MediaTrackNext => winuser::VK_MEDIA_NEXT_TRACK,
+        KeyCode::MediaTrackPrevious => winuser::VK_MEDIA_PREV_TRACK,
+        KeyCode::Power => 0,
+        KeyCode::Sleep => 0,
+        KeyCode::AudioVolumeDown => winuser::VK_VOLUME_DOWN,
+        KeyCode::AudioVolumeMute => winuser::VK_VOLUME_MUTE,
+        KeyCode::AudioVolumeUp => winuser::VK_VOLUME_UP,
+        KeyCode::WakeUp => 0,
+        KeyCode::Hyper => 0,
+        KeyCode::Turbo => 0,
+        KeyCode::Abort => 0,
+        KeyCode::Resume => 0,
+        KeyCode::Suspend => 0,
+        KeyCode::Again => 0,
+        KeyCode::Copy => 0,
+        KeyCode::Cut => 0,
+        KeyCode::Find => 0,
+        KeyCode::Open => 0,
+        KeyCode::Paste => 0,
+        KeyCode::Props => 0,
+        KeyCode::Select => winuser::VK_SELECT,
+        KeyCode::Undo => 0,
+        KeyCode::Hiragana => 0,
+        KeyCode::Katakana => 0,
+        KeyCode::F1 => winuser::VK_F1,
+        KeyCode::F2 => winuser::VK_F2,
+        KeyCode::F3 => winuser::VK_F3,
+        KeyCode::F4 => winuser::VK_F4,
+        KeyCode::F5 => winuser::VK_F5,
+        KeyCode::F6 => winuser::VK_F6,
+        KeyCode::F7 => winuser::VK_F7,
+        KeyCode::F8 => winuser::VK_F8,
+        KeyCode::F9 => winuser::VK_F9,
+        KeyCode::F10 => winuser::VK_F10,
+        KeyCode::F11 => winuser::VK_F11,
+        KeyCode::F12 => winuser::VK_F12,
+        KeyCode::F13 => winuser::VK_F13,
+        KeyCode::F14 => winuser::VK_F14,
+        KeyCode::F15 => winuser::VK_F15,
+        KeyCode::F16 => winuser::VK_F16,
+        KeyCode::F17 => winuser::VK_F17,
+        KeyCode::F18 => winuser::VK_F18,
+        KeyCode::F19 => winuser::VK_F19,
+        KeyCode::F20 => winuser::VK_F20,
+        KeyCode::F21 => winuser::VK_F21,
+        KeyCode::F22 => winuser::VK_F22,
+        KeyCode::F23 => winuser::VK_F23,
+        KeyCode::F24 => winuser::VK_F24,
+        KeyCode::F25 => 0,
+        KeyCode::F26 => 0,
+        KeyCode::F27 => 0,
+        KeyCode::F28 => 0,
+        KeyCode::F29 => 0,
+        KeyCode::F30 => 0,
+        KeyCode::F31 => 0,
+        KeyCode::F32 => 0,
+        KeyCode::F33 => 0,
+        KeyCode::F34 => 0,
+        KeyCode::F35 => 0,
+        KeyCode::Unidentified(_) => 0,
+        _ => 0,
+    }
+}
+
+fn key_code_to_non_char_key(
+    key_code: KeyCode,
+    native_code: NativeKeyCode,
+    hkl: u64,
+) -> Key<'static> {
+    let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
+    let is_korean = primary_lang_id == LANG_KOREAN;
+    let is_japanese = primary_lang_id == LANG_JAPANESE;
+
+    match key_code {
+        KeyCode::Backquote => Key::Unidentified(native_code),
+        KeyCode::Backslash => Key::Unidentified(native_code),
+        KeyCode::BracketLeft => Key::Unidentified(native_code),
+        KeyCode::BracketRight => Key::Unidentified(native_code),
+        KeyCode::Comma => Key::Unidentified(native_code),
+        KeyCode::Digit0 => Key::Unidentified(native_code),
+        KeyCode::Digit1 => Key::Unidentified(native_code),
+        KeyCode::Digit2 => Key::Unidentified(native_code),
+        KeyCode::Digit3 => Key::Unidentified(native_code),
+        KeyCode::Digit4 => Key::Unidentified(native_code),
+        KeyCode::Digit5 => Key::Unidentified(native_code),
+        KeyCode::Digit6 => Key::Unidentified(native_code),
+        KeyCode::Digit7 => Key::Unidentified(native_code),
+        KeyCode::Digit8 => Key::Unidentified(native_code),
+        KeyCode::Digit9 => Key::Unidentified(native_code),
+        KeyCode::Equal => Key::Unidentified(native_code),
+        KeyCode::IntlBackslash => Key::Unidentified(native_code),
+        KeyCode::IntlRo => Key::Unidentified(native_code),
+        KeyCode::IntlYen => Key::Unidentified(native_code),
+        KeyCode::KeyA => Key::Unidentified(native_code),
+        KeyCode::KeyB => Key::Unidentified(native_code),
+        KeyCode::KeyC => Key::Unidentified(native_code),
+        KeyCode::KeyD => Key::Unidentified(native_code),
+        KeyCode::KeyE => Key::Unidentified(native_code),
+        KeyCode::KeyF => Key::Unidentified(native_code),
+        KeyCode::KeyG => Key::Unidentified(native_code),
+        KeyCode::KeyH => Key::Unidentified(native_code),
+        KeyCode::KeyI => Key::Unidentified(native_code),
+        KeyCode::KeyJ => Key::Unidentified(native_code),
+        KeyCode::KeyK => Key::Unidentified(native_code),
+        KeyCode::KeyL => Key::Unidentified(native_code),
+        KeyCode::KeyM => Key::Unidentified(native_code),
+        KeyCode::KeyN => Key::Unidentified(native_code),
+        KeyCode::KeyO => Key::Unidentified(native_code),
+        KeyCode::KeyP => Key::Unidentified(native_code),
+        KeyCode::KeyQ => Key::Unidentified(native_code),
+        KeyCode::KeyR => Key::Unidentified(native_code),
+        KeyCode::KeyS => Key::Unidentified(native_code),
+        KeyCode::KeyT => Key::Unidentified(native_code),
+        KeyCode::KeyU => Key::Unidentified(native_code),
+        KeyCode::KeyV => Key::Unidentified(native_code),
+        KeyCode::KeyW => Key::Unidentified(native_code),
+        KeyCode::KeyX => Key::Unidentified(native_code),
+        KeyCode::KeyY => Key::Unidentified(native_code),
+        KeyCode::KeyZ => Key::Unidentified(native_code),
+        KeyCode::Minus => Key::Unidentified(native_code),
+        KeyCode::Period => Key::Unidentified(native_code),
+        KeyCode::Quote => Key::Unidentified(native_code),
+        KeyCode::Semicolon => Key::Unidentified(native_code),
+        KeyCode::Slash => Key::Unidentified(native_code),
+        KeyCode::AltLeft => Key::Alt,
+        KeyCode::AltRight => Key::Alt,
+        KeyCode::Backspace => Key::Backspace,
+        KeyCode::CapsLock => Key::CapsLock,
+        KeyCode::ContextMenu => Key::ContextMenu,
+        KeyCode::ControlLeft => Key::Control,
+        KeyCode::ControlRight => Key::Control,
+        KeyCode::Enter => Key::Enter,
+        KeyCode::SuperLeft => Key::Super,
+        KeyCode::SuperRight => Key::Super,
+        KeyCode::ShiftLeft => Key::Shift,
+        KeyCode::ShiftRight => Key::Shift,
+        KeyCode::Space => Key::Space,
+        KeyCode::Tab => Key::Tab,
+        KeyCode::Convert => Key::Convert,
+        KeyCode::KanaMode => Key::KanaMode,
+        KeyCode::Lang1 if is_korean => Key::HangulMode,
+        KeyCode::Lang1 if is_japanese => Key::KanaMode,
+        KeyCode::Lang2 if is_korean => Key::HanjaMode,
+        KeyCode::Lang2 if is_japanese => Key::Eisu,
+        KeyCode::Lang3 if is_japanese => Key::Katakana,
+        KeyCode::Lang4 if is_japanese => Key::Hiragana,
+        KeyCode::Lang5 if is_japanese => Key::ZenkakuHankaku,
+        KeyCode::NonConvert => Key::NonConvert,
+        KeyCode::Delete => Key::Delete,
+        KeyCode::End => Key::End,
+        KeyCode::Help => Key::Help,
+        KeyCode::Home => Key::Home,
+        KeyCode::Insert => Key::Insert,
+        KeyCode::PageDown => Key::PageDown,
+        KeyCode::PageUp => Key::PageUp,
+        KeyCode::ArrowDown => Key::ArrowDown,
+        KeyCode::ArrowLeft => Key::ArrowLeft,
+        KeyCode::ArrowRight => Key::ArrowRight,
+        KeyCode::ArrowUp => Key::ArrowUp,
+        KeyCode::NumLock => Key::NumLock,
+        KeyCode::Numpad0 => Key::Unidentified(native_code),
+        KeyCode::Numpad1 => Key::Unidentified(native_code),
+        KeyCode::Numpad2 => Key::Unidentified(native_code),
+        KeyCode::Numpad3 => Key::Unidentified(native_code),
+        KeyCode::Numpad4 => Key::Unidentified(native_code),
+        KeyCode::Numpad5 => Key::Unidentified(native_code),
+        KeyCode::Numpad6 => Key::Unidentified(native_code),
+        KeyCode::Numpad7 => Key::Unidentified(native_code),
+        KeyCode::Numpad8 => Key::Unidentified(native_code),
+        KeyCode::Numpad9 => Key::Unidentified(native_code),
+        KeyCode::NumpadAdd => Key::Unidentified(native_code),
+        KeyCode::NumpadBackspace => Key::Unidentified(native_code),
+        KeyCode::NumpadClear => Key::Clear,
+        KeyCode::NumpadClearEntry => Key::Unidentified(native_code),
+        KeyCode::NumpadComma => Key::Unidentified(native_code),
+        KeyCode::NumpadDecimal => Key::Unidentified(native_code),
+        KeyCode::NumpadDivide => Key::Unidentified(native_code),
+        KeyCode::NumpadEnter => Key::Enter,
+        KeyCode::NumpadEqual => Key::Unidentified(native_code),
+        KeyCode::NumpadHash => Key::Unidentified(native_code),
+        KeyCode::NumpadMemoryAdd => Key::Unidentified(native_code),
+        KeyCode::NumpadMemoryClear => Key::Unidentified(native_code),
+        KeyCode::NumpadMemoryRecall => Key::Unidentified(native_code),
+        KeyCode::NumpadMemoryStore => Key::Unidentified(native_code),
+        KeyCode::NumpadMemorySubtract => Key::Unidentified(native_code),
+        KeyCode::NumpadMultiply => Key::Unidentified(native_code),
+        KeyCode::NumpadParenLeft => Key::Unidentified(native_code),
+        KeyCode::NumpadParenRight => Key::Unidentified(native_code),
+        KeyCode::NumpadStar => Key::Unidentified(native_code),
+        KeyCode::NumpadSubtract => Key::Unidentified(native_code),
+        KeyCode::Escape => Key::Escape,
+        KeyCode::Fn => Key::Fn,
+        KeyCode::FnLock => Key::FnLock,
+        KeyCode::PrintScreen => Key::PrintScreen,
+        KeyCode::ScrollLock => Key::ScrollLock,
+        KeyCode::Pause => Key::Pause,
+        KeyCode::BrowserBack => Key::BrowserBack,
+        KeyCode::BrowserFavorites => Key::BrowserFavorites,
+        KeyCode::BrowserForward => Key::BrowserForward,
+        KeyCode::BrowserHome => Key::BrowserHome,
+        KeyCode::BrowserRefresh => Key::BrowserRefresh,
+        KeyCode::BrowserSearch => Key::BrowserSearch,
+        KeyCode::BrowserStop => Key::BrowserStop,
+        KeyCode::Eject => Key::Eject,
+        KeyCode::LaunchApp1 => Key::LaunchApplication1,
+        KeyCode::LaunchApp2 => Key::LaunchApplication2,
+        KeyCode::LaunchMail => Key::LaunchMail,
+        KeyCode::MediaPlayPause => Key::MediaPlayPause,
+        KeyCode::MediaSelect => Key::Unidentified(native_code),
+        KeyCode::MediaStop => Key::MediaStop,
+        KeyCode::MediaTrackNext => Key::MediaTrackNext,
+        KeyCode::MediaTrackPrevious => Key::MediaTrackPrevious,
+        KeyCode::Power => Key::Power,
+        KeyCode::Sleep => Key::Standby,
+        KeyCode::AudioVolumeDown => Key::AudioVolumeDown,
+        KeyCode::AudioVolumeMute => Key::AudioVolumeMute,
+        KeyCode::AudioVolumeUp => Key::AudioVolumeUp,
+        KeyCode::WakeUp => Key::WakeUp,
+        KeyCode::Hyper => Key::Hyper,
+        KeyCode::Turbo => Key::Unidentified(native_code),
+        KeyCode::Abort => Key::Unidentified(native_code),
+        KeyCode::Resume => Key::Unidentified(native_code),
+        KeyCode::Suspend => Key::Unidentified(native_code),
+        KeyCode::Again => Key::Again,
+        KeyCode::Copy => Key::Copy,
+        KeyCode::Cut => Key::Cut,
+        KeyCode::Find => Key::Find,
+        KeyCode::Open => Key::Open,
+        KeyCode::Paste => Key::Paste,
+        KeyCode::Props => Key::Props,
+        KeyCode::Select => Key::Select,
+        KeyCode::Undo => Key::Undo,
+        KeyCode::Hiragana => Key::Hiragana,
+        KeyCode::Katakana => Key::Katakana,
+        KeyCode::F1 => Key::F1,
+        KeyCode::F2 => Key::F2,
+        KeyCode::F3 => Key::F3,
+        KeyCode::F4 => Key::F4,
+        KeyCode::F5 => Key::F5,
+        KeyCode::F6 => Key::F6,
+        KeyCode::F7 => Key::F7,
+        KeyCode::F8 => Key::F8,
+        KeyCode::F9 => Key::F9,
+        KeyCode::F10 => Key::F10,
+        KeyCode::F11 => Key::F11,
+        KeyCode::F12 => Key::F12,
+        KeyCode::F13 => Key::F13,
+        KeyCode::F14 => Key::F14,
+        KeyCode::F15 => Key::F15,
+        KeyCode::F16 => Key::F16,
+        KeyCode::F17 => Key::F17,
+        KeyCode::F18 => Key::F18,
+        KeyCode::F19 => Key::F19,
+        KeyCode::F20 => Key::F20,
+        KeyCode::F21 => Key::F21,
+        KeyCode::F22 => Key::F22,
+        KeyCode::F23 => Key::F23,
+        KeyCode::F24 => Key::F24,
+        KeyCode::F25 => Key::F25,
+        KeyCode::F26 => Key::F26,
+        KeyCode::F27 => Key::F27,
+        KeyCode::F28 => Key::F28,
+        KeyCode::F29 => Key::F29,
+        KeyCode::F30 => Key::F30,
+        KeyCode::F31 => Key::F31,
+        KeyCode::F32 => Key::F32,
+        KeyCode::F33 => Key::F33,
+        KeyCode::F34 => Key::F34,
+        KeyCode::F35 => Key::F35,
+        _ => Key::Unidentified(native_code),
+    }
 }
 
 /// This converts virtual keys to `Key`s. Only virtual keys which can be unambiguously converted to

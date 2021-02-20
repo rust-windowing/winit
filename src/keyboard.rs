@@ -208,6 +208,7 @@ impl std::fmt::Debug for NativeKeyCode {
 /// exceptions:
 /// - The keys that the specification calls "MetaLeft" and "MetaRight" are named "SuperLeft" and
 ///   "SuperRight" here.
+/// - The key that the specification calls "Super" is reported as `Unidentified` here.
 /// - The `Unidentified` variant here, can still identifiy a key through it's `NativeKeyCode`.
 ///
 /// [`KeyboardEvent.code`]: https://w3c.github.io/uievents-code/#code-value-tables
@@ -536,7 +537,6 @@ pub enum KeyCode {
     AudioVolumeUp,
     WakeUp,
     Hyper,
-    Super,
     Turbo,
     Abort,
     Resume,
