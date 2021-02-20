@@ -250,7 +250,7 @@ impl<T: 'static> EventLoop<T> {
                                                     virtual_keycode: None,
                                                     modifiers: event::ModifiersState::default(),
                                                 },
-                                                is_synthetic: true,
+                                                is_synthetic: false,
                                             },
                                         };
                                         call_event_handler!(
