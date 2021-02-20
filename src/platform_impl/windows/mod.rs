@@ -100,7 +100,6 @@ mod util;
 mod dark_mode;
 mod dpi;
 mod drop_handler;
-mod event;
 mod event_loop;
 mod icon;
 mod keyboard;
