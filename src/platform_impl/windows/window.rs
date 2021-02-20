@@ -668,12 +668,12 @@ impl Window {
         // `ToUnicode` consumes the dead-key by default, so we are constructing a fake (but valid)
         // key input which we can call `ToUnicode` with.
         unsafe {
-            let vk = 'a' as u32;
+            let vk = winuser::VK_SPACE as u32;
             let scancode = winuser::MapVirtualKeyW(vk, winuser::MAPVK_VK_TO_VSC);
             let kbd_state = [0; 256];
             let mut char_buff = [MaybeUninit::uninit(); 8];
             winuser::ToUnicode(
-                'a' as u32,
+                vk,
                 scancode,
                 kbd_state.as_ptr(),
                 char_buff[0].as_mut_ptr(),
