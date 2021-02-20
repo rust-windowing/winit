@@ -81,16 +81,20 @@ pub fn try_theme(hwnd: HWND, preferred_theme: Option<Theme>) -> Theme {
             None => should_use_dark_mode(),
         };
 
-        let theme_name = if is_dark_mode {
-            DARK_THEME_NAME.as_ptr()
+        let theme = if is_dark_mode {
+            Theme::Dark
         } else {
-            LIGHT_THEME_NAME.as_ptr()
+            Theme::Light
+        };
+        let theme_name = match theme {
+            Theme::Dark => DARK_THEME_NAME.as_ptr(),
+            Theme::Light => LIGHT_THEME_NAME.as_ptr(),
         };
 
         let status = unsafe { uxtheme::SetWindowTheme(hwnd, theme_name as _, std::ptr::null()) };
 
         if status == S_OK && set_dark_mode_for_window(hwnd, is_dark_mode) {
-            return Theme::Dark;
+            return theme;
         }
     }
 

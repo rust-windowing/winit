@@ -233,6 +233,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_maximized(&self) -> bool {
+        // Canvas cannot be 'maximized'
+        false
+    }
+
+    #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
             Some(Fullscreen::Borderless(Some(self.current_monitor_inner())))

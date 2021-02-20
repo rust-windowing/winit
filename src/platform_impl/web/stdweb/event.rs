@@ -30,6 +30,13 @@ pub fn mouse_position(event: &impl IMouseEvent) -> LogicalPosition<f64> {
     }
 }
 
+pub fn mouse_delta(event: &impl IMouseEvent) -> LogicalPosition<f64> {
+    LogicalPosition {
+        x: event.movement_x() as f64,
+        y: event.movement_y() as f64,
+    }
+}
+
 pub fn mouse_scroll_delta(event: &MouseWheelEvent) -> Option<MouseScrollDelta> {
     let x = event.delta_x();
     let y = -event.delta_y();

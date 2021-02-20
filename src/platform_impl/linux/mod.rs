@@ -374,6 +374,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_maximized(&self) -> bool {
+        // TODO: Not implemented
+        false
+    }
+
+    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
     }

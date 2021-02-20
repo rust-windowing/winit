@@ -40,7 +40,7 @@ pub struct WindowState {
     pub key_event_builder: KeyEventBuilder,
     pub ime_handler: MinimalIme,
 
-    window_flags: WindowFlags,
+    pub window_flags: WindowFlags,
 }
 
 #[derive(Clone)]
@@ -217,9 +217,6 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
-        }
-        if self.contains(WindowFlags::TRANSPARENT) && self.contains(WindowFlags::DECORATIONS) {
-            style_ex |= WS_EX_LAYERED;
         }
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.

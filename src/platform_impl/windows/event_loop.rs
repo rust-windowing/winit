@@ -24,7 +24,7 @@ use winapi::shared::basetsd::{DWORD_PTR, UINT_PTR};
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WPARAM},
+        minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WORD, WPARAM},
         windef::{HWND, POINT, RECT},
         windowsx, winerror,
     },
@@ -931,7 +931,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
         winuser::WM_NCLBUTTONDOWN => {
             if wparam == winuser::HTCAPTION as _ {
-                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
+                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, lparam);
             }
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
@@ -1400,8 +1400,13 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         winuser::WM_CAPTURECHANGED => {
-            // window lost mouse capture
-            subclass_input.window_state.lock().mouse.capture_count = 0;
+            // lparam here is a handle to the window which is gaining mouse capture.
+            // If it is the same as our window, then we're essentially retaining the capture. This
+            // can happen if `SetCapture` is called on our window when it already has the mouse
+            // capture.
+            if lparam != window as isize {
+                subclass_input.window_state.lock().mouse.capture_count = 0;
+            }
             0
         }
 
@@ -1625,11 +1630,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
         winuser::WM_SETCURSOR => {
             let set_cursor_to = {
                 let window_state = subclass_input.window_state.lock();
-                if window_state
-                    .mouse
-                    .cursor_flags()
-                    .contains(CursorFlags::IN_WINDOW)
-                {
+                // The return value for the preceding `WM_NCHITTEST` message is conveniently
+                // provided through the low-order word of lParam. We use that here since
+                // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
+                let in_client_area = LOWORD(lparam as DWORD) == winuser::HTCLIENT as WORD;
+                if in_client_area {
                     Some(window_state.mouse.cursor)
                 } else {
                     None
