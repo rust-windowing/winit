@@ -11,6 +11,8 @@ use winapi::{
     um::winuser,
 };
 
+use unicode_segmentation::UnicodeSegmentation;
+
 use crate::{
     event::{ElementState, KeyEvent},
     keyboard::{Key, KeyCode, KeyLocation, NativeKeyCode},
@@ -476,9 +478,11 @@ enum PartialText {
 }
 
 enum PartialLogicalKey {
-    /// Use the text provided by the WM_UNICHAR messages and report that as
-    /// a `Character` variant
-    Text,
+    /// Use the text provided by the WM_CHAR messages and report that as a `Character` variant. If
+    /// the text consists of multiple grapheme clusters (user-precieved characters) that means that
+    /// dead key could not be combined with the second input, and in that case we should fall back
+    /// to using what would have without a dead-key input.
+    TextOr(Key<'static>),
 
     /// Use the value directly provided by this variant
     This(Key<'static>),
@@ -562,7 +566,7 @@ impl PartialKeyEventInfo {
         } else if is_pressed && key_is_char && !mods.contains(WindowsModifiers::CONTROL) {
             // In some cases we want to use the UNICHAR text for logical_key in order to allow
             // dead keys to have an effect on the character reported by `logical_key`.
-            PartialLogicalKey::Text
+            PartialLogicalKey::TextOr(preliminary_logical_key)
         } else {
             PartialLogicalKey::This(preliminary_logical_key)
         };
@@ -632,8 +636,14 @@ impl PartialKeyEventInfo {
         }
 
         let logical_key = match self.logical_key {
-            PartialLogicalKey::Text => match text {
-                Some(s) => Key::Character(s),
+            PartialLogicalKey::TextOr(fallback) => match text {
+                Some(s) => {
+                    if s.grapheme_indices(true).count() > 1 {
+                        fallback
+                    } else {
+                        Key::Character(s)
+                    }
+                }
                 None => Key::Unidentified(NativeKeyCode::Windows(self.scancode)),
             },
             PartialLogicalKey::This(v) => v,
