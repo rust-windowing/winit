@@ -240,13 +240,18 @@ impl<T: 'static> EventLoop<T> {
                                         }
                                     }
                                     InputEvent::KeyEvent(key) => {
+                                        state = match key.action() {
+                                            KeyAction::Down => event::ElementState::Pressed,
+                                            KeyAction::Up => event::ElementState::Released,
+                                            _ => event::ElementState::Released,
+                                        };
                                         let event = event::Event::WindowEvent {
                                             window_id,
                                             event: event::WindowEvent::KeyboardInput {
                                                 device_id,
                                                 input: event::KeyboardInput {
-                                                    scancode: key.key_code() as u32,
-                                                    state: event::ElementState::Released,
+                                                    scancode: key.scan_code() as u32,
+                                                    state,
                                                     virtual_keycode: None,
                                                     modifiers: event::ModifiersState::default(),
                                                 },
