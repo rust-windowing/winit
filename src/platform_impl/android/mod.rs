@@ -8,7 +8,7 @@ use crate::{
 };
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, MotionAction},
+    event::{InputEvent, KeyAction, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
@@ -240,7 +240,7 @@ impl<T: 'static> EventLoop<T> {
                                         }
                                     }
                                     InputEvent::KeyEvent(key) => {
-                                        state = match key.action() {
+                                        let state = match key.action() {
                                             KeyAction::Down => event::ElementState::Pressed,
                                             KeyAction::Up => event::ElementState::Released,
                                             _ => event::ElementState::Released,
