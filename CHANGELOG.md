@@ -3,7 +3,46 @@
 - On Android, InputEvent::KeyEvent is partially implemented providing the key
 scancode.
 - On Android, calling `WindowEvent::Focused` now works properly instead of always returning false.
+- Added `is_maximized` method to `Window`.
+- On Windows, fix bug where clicking the decoration bar would make the cursor blink.
+- On Windows, fix bug causing newly created windows to erroneously display the "wait" (spinning) cursor.
+- On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
+- On Windows, fix bug causing mouse capture to not be released.
+- On Windows, fix fullscreen not preserving minimized/maximized state.
+- On Android, unimplemented events are marked as unhandled on the native event loop.
+- On Windows, added `WindowBuilderExtWindows::with_menu` to set a custom menu at window creation time.
+- On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
+- On Windows, fixed `WindowEvent::ThemeChanged` not properly firing and fixed `Window::theme` returning the wrong theme.
+- On Web, added support for `DeviceEvent::MouseMotion` to listen for relative mouse movements.
+
+# 0.24.0 (2020-12-09)
+
+- On Windows, fix applications not exiting gracefully due to thread_event_target_callback accessing corrupted memory.
+- On Windows, implement `Window::set_ime_position`.
+- **Breaking:** On Windows, Renamed `WindowBuilderExtWindows`'s `is_dark_mode` to `theme`.
+- **Breaking:** On Windows, renamed `WindowBuilderExtWindows::is_dark_mode` to `theme`.
+- On Windows, add `WindowBuilderExtWindows::with_theme` to set a preferred theme.
+- On Windows, fix bug causing message boxes to appear delayed.
+- On Android, calling `WindowEvent::Focused` now works properly instead of always returning false.
+- On Windows, fix Alt-Tab behaviour by removing borderless fullscreen "always on top" flag.
 - On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.
+- **Breaking:** On Windows, include prefix byte in scancodes.
+- On Wayland, fix window not being resizeable when using `WindowBuilder::with_min_inner_size`.
+- On Unix, fix cross-compiling to wasm32 without enabling X11 or Wayland.
+- On Windows, fix use-after-free crash during window destruction.
+- On Web, fix `WindowEvent::ReceivedCharacter` never being sent on key input.
+- On macOS, fix compilation when targeting aarch64.
+- On X11, fix `Window::request_redraw` not waking the event loop.
+- On Wayland, the keypad arrow keys are now recognized.
+- **Breaking** Rename `desktop::EventLoopExtDesktop` to `run_return::EventLoopExtRunReturn`.
+- Added `request_user_attention` method to `Window`.
+- **Breaking:** On macOS, removed `WindowExt::request_user_attention`, use `Window::request_user_attention`.
+- **Breaking:** On X11, removed `WindowExt::set_urgent`, use `Window::request_user_attention`.
+- On Wayland, default font size in CSD increased from 11 to 17.
+- On Windows, fix bug causing message boxes to appear delayed.
+- On Android, support multi-touch.
+- On Wayland, extra mouse buttons are not dropped anymore.
+- **Breaking**: `MouseButton::Other` now uses `u16`.
 
 # 0.23.0 (2020-10-02)
 
