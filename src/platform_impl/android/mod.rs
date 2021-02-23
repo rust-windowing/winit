@@ -8,7 +8,7 @@ use crate::{
 };
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, MotionAction},
+    event::{InputEvent, KeyAction, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
@@ -239,9 +239,31 @@ impl<T: 'static> EventLoop<T> {
                                             }
                                         }
                                     }
-                                    InputEvent::KeyEvent(_) => {
-                                        // TODO
-                                        handled = false;
+                                    InputEvent::KeyEvent(key) => {
+                                        let state = match key.action() {
+                                            KeyAction::Down => event::ElementState::Pressed,
+                                            KeyAction::Up => event::ElementState::Released,
+                                            _ => event::ElementState::Released,
+                                        };
+                                        let event = event::Event::WindowEvent {
+                                            window_id,
+                                            event: event::WindowEvent::KeyboardInput {
+                                                device_id,
+                                                input: event::KeyboardInput {
+                                                    scancode: key.scan_code() as u32,
+                                                    state,
+                                                    virtual_keycode: None,
+                                                    modifiers: event::ModifiersState::default(),
+                                                },
+                                                is_synthetic: false,
+                                            },
+                                        };
+                                        call_event_handler!(
+                                            event_handler,
+                                            self.window_target(),
+                                            control_flow,
+                                            event
+                                        );
                                     }
                                 };
                                 input_queue.finish_event(event, handled);
