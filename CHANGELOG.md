@@ -1,8 +1,6 @@
 # Unreleased
 
-- On Android, InputEvent::KeyEvent is partially implemented providing the key
-scancode.
-- On Android, calling `WindowEvent::Focused` now works properly instead of always returning false.
+- On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.
 - Added `is_maximized` method to `Window`.
 - On Windows, fix bug where clicking the decoration bar would make the cursor blink.
 - On Windows, fix bug causing newly created windows to erroneously display the "wait" (spinning) cursor.
