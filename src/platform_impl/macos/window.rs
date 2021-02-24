@@ -1151,6 +1151,20 @@ impl WindowExtMacOS for UnownedWindow {
                 .setHasShadow_(if has_shadow { YES } else { NO })
         }
     }
+
+    #[inline]
+    fn focus(&self) {
+        unsafe {
+            self.ns_window.makeKeyWindow();
+        }
+    }
+
+    #[inline]
+    fn focus_and_front(&self) {
+        unsafe {
+            self.ns_window.makeKeyAndOrderFront_(nil);
+        }
+    }
 }
 
 impl Drop for UnownedWindow {

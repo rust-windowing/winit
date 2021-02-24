@@ -38,6 +38,12 @@ pub trait WindowExtMacOS {
 
     /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
+
+    /// Focus the window
+    fn focus(&self);
+
+    /// Focus the window, and moves the window to the front of the screen list
+    fn focus_and_front(&self);
 }
 
 impl WindowExtMacOS for Window {
@@ -69,6 +75,16 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window.set_has_shadow(has_shadow)
+    }
+
+    #[inline]
+    fn focus(&self) {
+        self.window.focus();
+    }
+
+    #[inline]
+    fn focus_and_front(&self) {
+        self.window.focus_and_front();
     }
 }
 
