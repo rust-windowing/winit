@@ -6,6 +6,7 @@ use std::path::Path;
 use libc;
 use winapi::shared::minwindef::WORD;
 use winapi::shared::windef::{HMENU, HWND};
+use winapi::um::winuser::SetFocus;
 
 use crate::{
     dpi::PhysicalSize,
@@ -83,6 +84,9 @@ pub trait WindowExtWindows {
 
     /// Returns the current window theme.
     fn theme(&self) -> Theme;
+
+    /// Focus the window, and moves the window to the front of the screen list
+    fn focus_and_front(&self);
 }
 
 impl WindowExtWindows for Window {
@@ -104,6 +108,13 @@ impl WindowExtWindows for Window {
     #[inline]
     fn theme(&self) -> Theme {
         self.window.theme()
+    }
+
+    #[inline]
+    fn focus_and_front(&self) {
+        unsafe {
+            SetFocus(self.window.hwnd());
+        }
     }
 }
 
