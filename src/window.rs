@@ -526,7 +526,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Andraid / Web:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
         self.window.set_max_inner_size(max_size.map(|s| s.into()))
