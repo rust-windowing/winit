@@ -18,7 +18,7 @@ use crate::{
     keyboard::{Key, KeyCode, KeyLocation, NativeKeyCode},
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
-        keyboard_layout::{get_or_insert_str, LayoutCache, WindowsModifiers, LAYOUT_CACHE},
+        keyboard_layout::{get_or_insert_str, Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE},
         KeyEventExtra,
     },
 };
@@ -30,55 +30,7 @@ pub fn is_msg_keyboard_related(msg: u32) -> bool {
     is_keyboard_msg || msg == WM_SETFOCUS || msg == WM_KILLFOCUS
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct KeyLParam {
-    pub scancode: u8,
-    pub extended: bool,
-
-    /// This is `previous_state XOR transition_state`. See the lParam for WM_KEYDOWN and WM_KEYUP for further details.
-    pub is_repeat: bool,
-}
-
 pub type ExScancode = u16;
-
-fn new_ex_scancode(scancode: u8, extended: bool) -> ExScancode {
-    (scancode as u16) | (if extended { 0xE000 } else { 0 })
-}
-
-/// Gets the keyboard state as reported by messages that have been removed from the event queue.
-/// See also: get_async_kbd_state
-fn get_kbd_state() -> [u8; 256] {
-    unsafe {
-        let mut kbd_state: MaybeUninit<[u8; 256]> = MaybeUninit::uninit();
-        winuser::GetKeyboardState(kbd_state.as_mut_ptr() as *mut u8);
-        kbd_state.assume_init()
-    }
-}
-
-/// Gets the current keyboard state regardless of whether the corresponding keyboard events have
-/// been removed from the event queue. See also: get_kbd_state
-fn get_async_kbd_state() -> [u8; 256] {
-    unsafe {
-        let mut kbd_state: [u8; 256] = MaybeUninit::uninit().assume_init();
-        for (vk, state) in kbd_state.iter_mut().enumerate() {
-            let vk = vk as c_int;
-            let async_state = winuser::GetAsyncKeyState(vk as c_int);
-            let is_down = (async_state & (1 << 15)) != 0;
-            *state = if is_down { 0x80 } else { 0 };
-
-            if matches!(
-                vk,
-                winuser::VK_CAPITAL | winuser::VK_NUMLOCK | winuser::VK_SCROLL
-            ) {
-                // Toggle states aren't reported by `GetAsyncKeyState`
-                let toggle_state = winuser::GetKeyState(vk);
-                let is_active = (toggle_state & 1) != 0;
-                *state |= if is_active { 1 } else { 0 };
-            }
-        }
-        kbd_state
-    }
-}
 
 pub struct MessageAsKeyEvent {
     pub event: KeyEvent,
@@ -175,7 +127,6 @@ impl KeyEventBuilder {
                     ElementState::Pressed,
                     &mut layouts,
                 );
-                let mut event_info = Some(event_info);
 
                 let mut next_msg = MaybeUninit::uninit();
                 let peek_retval = unsafe {
@@ -190,20 +141,31 @@ impl KeyEventBuilder {
                 let has_next_key_message = peek_retval != 0;
                 *retval = Some(0);
                 self.event_info = None;
+                let mut finished_event_info = Some(event_info);
                 if has_next_key_message {
-                    let next_msg = unsafe { next_msg.assume_init().message };
+                    let next_msg = unsafe { next_msg.assume_init() };
+                    let next_msg_kind = next_msg.message;
                     let next_belongs_to_this = !matches!(
-                        next_msg,
+                        next_msg_kind,
                         winuser::WM_KEYDOWN
                             | winuser::WM_SYSKEYDOWN
                             | winuser::WM_KEYUP
                             | winuser::WM_SYSKEYUP
                     );
                     if next_belongs_to_this {
-                        self.event_info = event_info.take();
+                        self.event_info = finished_event_info.take();
+                    } else {
+                        let (_, layout) = layouts.get_current_layout();
+                        let is_fake = {
+                            let curr_event = finished_event_info.as_ref().unwrap();
+                            is_current_fake(curr_event, next_msg, layout)
+                        };
+                        if is_fake {
+                            finished_event_info = None;
+                        }
                     }
                 }
-                if let Some(event_info) = event_info {
+                if let Some(event_info) = finished_event_info {
                     let ev = event_info.finalize(&mut layouts.strings);
                     return vec![MessageAsKeyEvent {
                         event: ev,
@@ -322,11 +284,36 @@ impl KeyEventBuilder {
                     ElementState::Released,
                     &mut layouts,
                 );
-                let event = event_info.finalize(&mut layouts.strings);
-                return vec![MessageAsKeyEvent {
-                    event,
-                    is_synthetic: false,
-                }];
+                let mut next_msg = MaybeUninit::uninit();
+                let peek_retval = unsafe {
+                    winuser::PeekMessageW(
+                        next_msg.as_mut_ptr(),
+                        hwnd,
+                        winuser::WM_KEYFIRST,
+                        winuser::WM_KEYLAST,
+                        winuser::PM_NOREMOVE,
+                    )
+                };
+                let has_next_key_message = peek_retval != 0;
+                let mut valid_event_info = Some(event_info);
+                if has_next_key_message {
+                    let next_msg = unsafe { next_msg.assume_init() };
+                    let (_, layout) = layouts.get_current_layout();
+                    let is_fake = {
+                        let event_info = valid_event_info.as_ref().unwrap();
+                        is_current_fake(&event_info, next_msg, layout)
+                    };
+                    if is_fake {
+                        valid_event_info = None;
+                    }
+                }
+                if let Some(event_info) = valid_event_info {
+                    let event = event_info.finalize(&mut layouts.strings);
+                    return vec![MessageAsKeyEvent {
+                        event,
+                        is_synthetic: false,
+                    }];
+                }
             }
             _ => (),
         }
@@ -701,7 +688,16 @@ impl PartialKeyEventInfo {
     }
 }
 
-pub fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
+#[derive(Debug, Copy, Clone)]
+struct KeyLParam {
+    pub scancode: u8,
+    pub extended: bool,
+
+    /// This is `previous_state XOR transition_state`. See the lParam for WM_KEYDOWN and WM_KEYUP for further details.
+    pub is_repeat: bool,
+}
+
+fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
     let previous_state = (lparam >> 30) & 0x01;
     let transition_state = (lparam >> 31) & 0x01;
     KeyLParam {
@@ -709,6 +705,74 @@ pub fn destructure_key_lparam(lparam: LPARAM) -> KeyLParam {
         extended: ((lparam >> 24) & 0x01) != 0,
         is_repeat: (previous_state ^ transition_state) != 0,
     }
+}
+
+#[inline]
+fn new_ex_scancode(scancode: u8, extended: bool) -> ExScancode {
+    (scancode as u16) | (if extended { 0xE000 } else { 0 })
+}
+
+#[inline]
+fn ex_scancode_from_lparam(lparam: LPARAM) -> ExScancode {
+    let lparam = destructure_key_lparam(lparam);
+    new_ex_scancode(lparam.scancode, lparam.extended)
+}
+
+/// Gets the keyboard state as reported by messages that have been removed from the event queue.
+/// See also: get_async_kbd_state
+fn get_kbd_state() -> [u8; 256] {
+    unsafe {
+        let mut kbd_state: MaybeUninit<[u8; 256]> = MaybeUninit::uninit();
+        winuser::GetKeyboardState(kbd_state.as_mut_ptr() as *mut u8);
+        kbd_state.assume_init()
+    }
+}
+
+/// Gets the current keyboard state regardless of whether the corresponding keyboard events have
+/// been removed from the event queue. See also: get_kbd_state
+fn get_async_kbd_state() -> [u8; 256] {
+    unsafe {
+        let mut kbd_state: [u8; 256] = MaybeUninit::uninit().assume_init();
+        for (vk, state) in kbd_state.iter_mut().enumerate() {
+            let vk = vk as c_int;
+            let async_state = winuser::GetAsyncKeyState(vk as c_int);
+            let is_down = (async_state & (1 << 15)) != 0;
+            *state = if is_down { 0x80 } else { 0 };
+
+            if matches!(
+                vk,
+                winuser::VK_CAPITAL | winuser::VK_NUMLOCK | winuser::VK_SCROLL
+            ) {
+                // Toggle states aren't reported by `GetAsyncKeyState`
+                let toggle_state = winuser::GetKeyState(vk);
+                let is_active = (toggle_state & 1) != 0;
+                *state |= if is_active { 1 } else { 0 };
+            }
+        }
+        kbd_state
+    }
+}
+
+/// On windows, AltGr == Ctrl + Alt
+///
+/// Due to this equivalence, the system generates a fake Ctrl key-press (and key-release) preceeding
+/// every AltGr key-press (and key-release). We check if the current event is a Ctrl event and if
+/// the next event is a right Alt (AltGr) event. If this is the case, the current event must be the
+/// fake Ctrl event.
+fn is_current_fake(
+    curr_info: &PartialKeyEventInfo,
+    next_msg: winuser::MSG,
+    layout: &Layout,
+) -> bool {
+    let curr_is_ctrl = matches!(curr_info.logical_key, PartialLogicalKey::This(Key::Control));
+    if layout.has_alt_graph {
+        let next_code = ex_scancode_from_lparam(next_msg.lParam);
+        let next_is_altgr = next_code == 0xE038; // 0xE038 is right alt
+        if curr_is_ctrl && next_is_altgr {
+            return true;
+        }
+    }
+    false
 }
 
 fn get_location(scancode: ExScancode, hkl: HKL) -> KeyLocation {
