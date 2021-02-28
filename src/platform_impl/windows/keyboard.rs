@@ -192,9 +192,14 @@ impl KeyEventBuilder {
                 self.event_info = None;
                 if has_next_key_message {
                     let next_msg = unsafe { next_msg.assume_init().message };
-                    let is_next_keydown =
-                        next_msg == winuser::WM_KEYDOWN || next_msg == winuser::WM_SYSKEYDOWN;
-                    if !is_next_keydown {
+                    let next_belongs_to_this = !matches!(
+                        next_msg,
+                        winuser::WM_KEYDOWN
+                            | winuser::WM_SYSKEYDOWN
+                            | winuser::WM_KEYUP
+                            | winuser::WM_SYSKEYUP
+                    );
+                    if next_belongs_to_this {
                         self.event_info = event_info.take();
                     }
                 }
