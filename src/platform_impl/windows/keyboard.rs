@@ -45,11 +45,38 @@ fn new_ex_scancode(scancode: u8, extended: bool) -> ExScancode {
     (scancode as u16) | (if extended { 0xE000 } else { 0 })
 }
 
+/// Gets the keyboard state as reported by messages that have been removed from the event queue.
+/// See also: get_async_kbd_state
 fn get_kbd_state() -> [u8; 256] {
     unsafe {
         let mut kbd_state: MaybeUninit<[u8; 256]> = MaybeUninit::uninit();
         winuser::GetKeyboardState(kbd_state.as_mut_ptr() as *mut u8);
         kbd_state.assume_init()
+    }
+}
+
+/// Gets the current keyboard state regardless of whether the corresponding keyboard events have
+/// been removed from the event queue. See also: get_kbd_state
+fn get_async_kbd_state() -> [u8; 256] {
+    unsafe {
+        let mut kbd_state: [u8; 256] = MaybeUninit::uninit().assume_init();
+        for (vk, state) in kbd_state.iter_mut().enumerate() {
+            let vk = vk as c_int;
+            let async_state = winuser::GetAsyncKeyState(vk as c_int);
+            let is_down = (async_state & (1 << 15)) != 0;
+            *state = if is_down { 0x80 } else { 0 };
+
+            if matches!(
+                vk,
+                winuser::VK_CAPITAL | winuser::VK_NUMLOCK | winuser::VK_SCROLL
+            ) {
+                // Toggle states aren't reported by `GetAsyncKeyState`
+                let toggle_state = winuser::GetKeyState(vk);
+                let is_active = (toggle_state & 1) != 0;
+                *state |= if is_active { 1 } else { 0 };
+            }
+        }
+        kbd_state
     }
 }
 
@@ -119,14 +146,16 @@ impl KeyEventBuilder {
         match msg_kind {
             winuser::WM_SETFOCUS => {
                 // synthesize keydown events
-                let key_events = self.synthesize_kbd_state(ElementState::Pressed);
+                let kbd_state = get_async_kbd_state();
+                let key_events = self.synthesize_kbd_state(ElementState::Pressed, &kbd_state);
                 if !key_events.is_empty() {
                     return key_events;
                 }
             }
             winuser::WM_KILLFOCUS => {
                 // sythesize keyup events
-                let key_events = self.synthesize_kbd_state(ElementState::Released);
+                let kbd_state = get_kbd_state();
+                let key_events = self.synthesize_kbd_state(ElementState::Released, &kbd_state);
                 if !key_events.is_empty() {
                     return key_events;
                 }
@@ -300,13 +329,16 @@ impl KeyEventBuilder {
         Vec::new()
     }
 
-    fn synthesize_kbd_state(&mut self, key_state: ElementState) -> Vec<MessageAsKeyEvent> {
+    fn synthesize_kbd_state(
+        &mut self,
+        key_state: ElementState,
+        kbd_state: &[u8; 256],
+    ) -> Vec<MessageAsKeyEvent> {
         let mut key_events = Vec::new();
 
         let mut layouts = LAYOUT_CACHE.lock().unwrap();
         let (locale_id, _) = layouts.get_current_layout();
 
-        let kbd_state = get_kbd_state();
         macro_rules! is_key_pressed {
             ($vk:expr) => {
                 kbd_state[$vk as usize] & 0x80 != 0
