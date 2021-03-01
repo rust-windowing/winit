@@ -116,6 +116,24 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub max_inner_size: Option<Size>,
 
+    /// The desired position of the window. If this is `None`, some platform-specific position
+    /// will be chosen.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **macOS**: This sets the top left corner position of the window content, the window
+    /// title bar will be placed above it. If you need to precisely position the top left corner
+    /// of the whole window you have to use [`Window::set_outer_position`] after creating
+    /// the window. The window will be positioned such that it fits on screen, maintaining set
+    /// `inner_size` if any.
+    ///
+    /// See [`Window::set_outer_position`].
+    ///
+    /// [`Window::set_outer_position`]: crate::window::Window::set_outer_position
+    pub outer_position: Option<Position>,
+
     /// Whether the window is resizable or not.
     ///
     /// The default is `true`.
@@ -170,6 +188,7 @@ impl Default for WindowAttributes {
             inner_size: None,
             min_inner_size: None,
             max_inner_size: None,
+            outer_position: None,
             resizable: true,
             title: "winit window".to_owned(),
             maximized: false,
@@ -220,6 +239,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
         self.window.max_inner_size = Some(max_size.into());
+        self
+    }
+
+    /// Sets a desired initial position for the window.
+    ///
+    /// See [`WindowAttributes::outer_position`] for details.
+    ///
+    /// [`WindowAttributes::outer_position`]: crate::window::WindowAttributes::outer_position
+    #[inline]
+    pub fn with_outer_position<P: Into<Position>>(mut self, position: P) -> Self {
+        self.window.outer_position = Some(position.into());
         self
     }
 

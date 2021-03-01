@@ -146,6 +146,10 @@ impl UnownedWindow {
             .min_inner_size
             .map(|size| size.to_physical::<u32>(scale_factor).into());
 
+        let position = window_attrs
+            .outer_position
+            .map(|position| position.to_physical::<i32>(scale_factor).into());
+
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
             // by the user, so we have to manually apply the initial constraints
@@ -211,8 +215,8 @@ impl UnownedWindow {
             (xconn.xlib.XCreateWindow)(
                 xconn.display,
                 root,
-                0,
-                0,
+                position.map_or(0, |p: PhysicalPosition<i32>| p.x as c_int),
+                position.map_or(0, |p: PhysicalPosition<i32>| p.y as c_int),
                 dimensions.0 as c_uint,
                 dimensions.1 as c_uint,
                 0,
@@ -344,6 +348,7 @@ impl UnownedWindow {
                 }
 
                 let mut normal_hints = util::NormalHints::new(xconn);
+                normal_hints.set_position(position.map(|PhysicalPosition { x, y }| (x, y)));
                 normal_hints.set_size(Some(dimensions));
                 normal_hints.set_min_size(min_inner_size.map(Into::into));
                 normal_hints.set_max_size(max_inner_size.map(Into::into));
@@ -439,6 +444,12 @@ impl UnownedWindow {
                 window
                     .set_fullscreen_inner(window_attrs.fullscreen.clone())
                     .map(|flusher| flusher.queue());
+
+                if let Some(PhysicalPosition { x, y }) = position {
+                    let shared_state = window.shared_state.get_mut();
+
+                    shared_state.restore_position = Some((x, y));
+                }
             }
             if window_attrs.always_on_top {
                 window
