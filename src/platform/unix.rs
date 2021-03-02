@@ -30,7 +30,7 @@ use crate::platform_impl::{
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
-pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
+pub use crate::platform_impl::{x11::util::{WindowType as XWindowType, WindowStrut as XWindowStrut}, XNotSupported};
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
@@ -355,6 +355,9 @@ pub trait WindowBuilderExtUnix {
     /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
     #[cfg(feature = "x11")]
     fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
+
+    #[cfg(feature = "x11")]
+    fn with_x11_window_strut(self, x11_window_strut: Vec<XWindowStrut>) -> Self;
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(self, variant: String) -> Self;
@@ -410,6 +413,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     #[cfg(feature = "x11")]
     fn with_x11_window_type(mut self, x11_window_types: Vec<XWindowType>) -> Self {
         self.platform_specific.x11_window_types = x11_window_types;
+        self
+    }
+
+    #[inline]
+    #[cfg(feature = "x11")]
+    fn with_x11_window_strut(mut self, x11_window_struts: Vec<XWindowStrut>) -> Self {
+        self.platform_specific.x11_window_struts = x11_window_struts;
         self
     }
 

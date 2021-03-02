@@ -315,6 +315,8 @@ impl UnownedWindow {
 
             window.set_window_types(pl_attribs.x11_window_types).queue();
 
+            window.set_window_struts(pl_attribs.x11_window_struts).queue();
+
             if let Some(variant) = pl_attribs.gtk_theme_variant {
                 window.set_gtk_theme_variant(variant).queue();
             }
@@ -508,6 +510,32 @@ impl UnownedWindow {
             util::PropMode::Replace,
             &atoms,
         )
+    }
+
+    fn set_window_struts(&self, window_struts: Vec<util::WindowStrut>) -> util::Flusher<'_> {
+       use util::WindowStrut::*;
+       let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"CARDINAL\0") };
+       window_struts.iter().fold(util::Flusher::new(&self.xconn), |flusher, strut| {
+         let atom = strut.as_atom(&self.xconn);
+         match strut {
+            Strut(props) => 
+               self.xconn.change_property(
+                  self.xwindow,
+                  atom,
+                  hint_atom,
+                  util::PropMode::Replace,
+                  props
+               ),
+            StrutPatial(props) => 
+               self.xconn.change_property(
+                  self.xwindow,
+                  atom,
+                  hint_atom,
+                  util::PropMode::Replace,
+                  props
+               )
+         }
+       })
     }
 
     fn set_gtk_theme_variant(&self, variant: String) -> util::Flusher<'_> {

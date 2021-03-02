@@ -93,6 +93,51 @@ impl WindowType {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum WindowStrut {
+   Strut([u64; 4]),
+   StrutPatial([u64; 12]),
+}
+
+impl WindowStrut {
+   pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::Atom {
+      use WindowStrut::*;
+      let atom_name: &[u8] = match *self {
+         Strut(_) => b"_NET_WM_STRUT\0",
+         StrutPatial(_) => b"_NET_WM_STRUT_PATIAL\0",
+      };
+
+      unsafe { xconn.get_atom_unchecked(atom_name) }
+   }
+}
+
+// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+// pub struct StrutProperty {
+//    left: u32,
+//    right: u32,
+//    top: u32,
+//    bottom: u32,
+// }
+
+// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+// pub struct StrutPatialProperty {
+//    left: u32,
+//    right: u32,
+//    top: u32,
+//    bottom: u32,
+//    left_start_y: u32,
+//    left_end_y: u32,
+//    right_start_y: u32, 
+//    right_end_y: u32, 
+//    top_start_x: u32, 
+//    top_end_x: u32, 
+//    bottom_start_x: u32,
+//    bottom_end_x: u32,
+// }
+
 pub struct MotifHints {
     hints: MwmHints,
 }
