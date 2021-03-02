@@ -30,7 +30,10 @@ use crate::platform_impl::{
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
-pub use crate::platform_impl::{x11::util::{WindowType as XWindowType, WindowStrut as XWindowStrut}, XNotSupported};
+pub use crate::platform_impl::{
+    x11::util::{WindowStrut as XWindowStrut, WindowType as XWindowType},
+    XNotSupported,
+};
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {

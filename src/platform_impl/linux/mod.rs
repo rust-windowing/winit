@@ -22,7 +22,10 @@ use raw_window_handle::RawWindowHandle;
 #[cfg(feature = "x11")]
 pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
-use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, util::WindowStrut as XWindowStrut, XConnection, XError};
+use self::x11::{
+    ffi::XVisualInfo, util::WindowStrut as XWindowStrut, util::WindowType as XWindowType,
+    XConnection, XError,
+};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},

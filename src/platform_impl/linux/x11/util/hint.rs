@@ -98,53 +98,27 @@ impl WindowType {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowStrut {
-   /// This property is used to reserved space at the edge of the screen.
-   /// This required 4 cardinals specifying the width of the reserved area. 
-   /// The order of the values is left, right, top, botttom.
-   Strut([u64; 4]),
-   /// This property is used to reserved space at the edge of the screen.
-   /// This required 4 cardinals specifying the width of the reserved area and 8 cardinals specifying the beginning and end corresponding to each of the four struts.
-   /// The order of the values is left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x.
-   StrutPartial([u64; 12]),
+    /// This property is used to reserved space at the edge of the screen.
+    /// This required 4 cardinals specifying the width of the reserved area.
+    /// The order of the values is left, right, top, botttom.
+    Strut([u64; 4]),
+    /// This property is used to reserved space at the edge of the screen.
+    /// This required 4 cardinals specifying the width of the reserved area and 8 cardinals specifying the beginning and end corresponding to each of the four struts.
+    /// The order of the values is left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x.
+    StrutPartial([u64; 12]),
 }
 
 impl WindowStrut {
-   pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::Atom {
-      use WindowStrut::*;
-      let atom_name: &[u8] = match *self {
-         Strut(_) => b"_NET_WM_STRUT\0",
-         StrutPartial(_) => b"_NET_WM_STRUT_PARTIAL\0",
-      };
+    pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::Atom {
+        use WindowStrut::*;
+        let atom_name: &[u8] = match *self {
+            Strut(_) => b"_NET_WM_STRUT\0",
+            StrutPartial(_) => b"_NET_WM_STRUT_PARTIAL\0",
+        };
 
-      unsafe { xconn.get_atom_unchecked(atom_name) }
-   }
+        unsafe { xconn.get_atom_unchecked(atom_name) }
+    }
 }
-
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-// pub struct StrutProperty {
-//    left: u32,
-//    right: u32,
-//    top: u32,
-//    bottom: u32,
-// }
-
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-// pub struct StrutPatialProperty {
-//    left: u32,
-//    right: u32,
-//    top: u32,
-//    bottom: u32,
-//    left_start_y: u32,
-//    left_end_y: u32,
-//    right_start_y: u32, 
-//    right_end_y: u32, 
-//    top_start_x: u32, 
-//    top_end_x: u32, 
-//    bottom_start_x: u32,
-//    bottom_end_x: u32,
-// }
 
 pub struct MotifHints {
     hints: MwmHints,
