@@ -341,9 +341,7 @@ impl AppState {
             unsafe {
                 let app: id = NSApp();
                 let windows: id = msg_send![app, windows];
-                let window: id = msg_send![windows, objectAtIndex:0];
                 let window_count: usize = msg_send![windows, count];
-                assert_ne!(window, nil);
 
                 let dialog_open = if window_count > 1 {
                     let dialog: id = msg_send![windows, lastObject];
@@ -373,16 +371,19 @@ impl AppState {
                         data2: 0
                     ];
                     // To stop event loop immediately, we need to post some event here.
-                    let _: () = msg_send![window, postEvent: dummy_event atStart: YES];
+                    let _: () = msg_send![app, postEvent: dummy_event atStart: YES];
                 }
                 pool.drain();
 
-                let window_has_focus = msg_send![window, isKeyWindow];
-                if !dialog_open && window_has_focus && dialog_is_closing {
-                    HANDLER.dialog_is_closing.store(false, Ordering::SeqCst);
-                }
-                if dialog_open {
-                    HANDLER.dialog_is_closing.store(true, Ordering::SeqCst);
+                if window_count > 0 {
+                    let window: id = msg_send![windows, objectAtIndex:0];
+                    let window_has_focus = msg_send![window, isKeyWindow];
+                    if !dialog_open && window_has_focus && dialog_is_closing {
+                        HANDLER.dialog_is_closing.store(false, Ordering::SeqCst);
+                    }
+                    if dialog_open {
+                        HANDLER.dialog_is_closing.store(true, Ordering::SeqCst);
+                    }
                 }
             };
         }
