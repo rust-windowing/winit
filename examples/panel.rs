@@ -1,41 +1,42 @@
-use std::collections::HashMap;
-
-#[cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
+#[cfg(all(
+    any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ),
+    feature = "x11"
 ))]
-#[cfg(feature = "x11")]
-use winit::platform::unix::{WindowBuilderExtUnix, XWindowStrut, XWindowType};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize, Position},
     event::Event,
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
+    platform::unix::{WindowBuilderExtUnix, XWindowStrut, XWindowType},
+    window::{Window, WindowBuilder},
 };
 
-#[cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
+#[cfg(all(
+    any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ),
+    feature = "x11"
 ))]
-#[cfg(feature = "x11")]
 fn main() {
     let event_loop = EventLoop::new();
-    let mut desktop_shells = HashMap::new();
 
     // Template Window
     let window = |wtype, on_top, with_strut: Option<Vec<XWindowStrut>>| {
         let mut win_builder = WindowBuilder::new()
             .with_decorations(false)
             .with_resizable(false)
-            .with_always_on_top(on_top);
+            .with_always_on_top(on_top)
+            .with_x11_window_type(wtype);
 
-        win_builder = win_builder.with_x11_window_type(wtype);
         if let Some(with_strut) = with_strut {
             win_builder = win_builder.with_x11_window_strut(with_strut);
         }
@@ -47,7 +48,6 @@ fn main() {
     let primary_monitor = desktop.primary_monitor().unwrap();
     desktop.set_inner_size(primary_monitor.size());
     desktop.set_outer_position(primary_monitor.position());
-    desktop_shells.insert(desktop.id(), &desktop);
 
     let toolbar_height: u32 = 30;
     let toolbar = window(
@@ -60,7 +60,6 @@ fn main() {
         toolbar_height,
     ));
     toolbar.set_outer_position(Position::Physical(primary_monitor.position()));
-    desktop_shells.insert(toolbar.id(), &toolbar);
 
     let dock_height: u32 = 50;
     let dock = window(
@@ -74,7 +73,6 @@ fn main() {
         0,
         bottom_at as i32,
     )));
-    desktop_shells.insert(dock.id(), &dock);
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -102,9 +100,9 @@ fn main() {
     not(target_os = "dragonfly"),
     not(target_os = "freebsd"),
     not(target_os = "netbsd"),
-    not(target_os = "openbsd")
+    not(target_os = "openbsd"),
+    not(feature = "x11")
 ))]
-#[cfg(not(feature = "x11"))]
 fn main() {
     eprintln!("This example is only supported on Unix X11.")
 }
