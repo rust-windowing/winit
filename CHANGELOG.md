@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Unix X11, add Window Strut supported to reserve space at the edge of screen.
 - On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.
 - Added `is_maximized` method to `Window`.
 - On Windows, fix bug where clicking the decoration bar would make the cursor blink.

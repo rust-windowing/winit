@@ -1,13 +1,13 @@
-#![cfg(any(
+use std::collections::HashMap;
+
+#[cfg(any(
     target_os = "linux",
     target_os = "dragonfly",
     target_os = "freebsd",
     target_os = "netbsd",
     target_os = "openbsd"
 ))]
-#![cfg(feature = "x11")]
-
-use std::collections::HashMap;
+#[cfg(feature = "x11")]
 use winit::platform::unix::{WindowBuilderExtUnix, XWindowStrut, XWindowType};
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize, Position},
@@ -16,6 +16,14 @@ use winit::{
     window::WindowBuilder,
 };
 
+#[cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+#[cfg(feature = "x11")]
 fn main() {
     let event_loop = EventLoop::new();
     let mut desktop_shells = HashMap::new();
@@ -87,4 +95,16 @@ fn main() {
             _ => (),
         }
     });
+}
+
+#[cfg(all(
+    not(target_os = "linux"),
+    not(target_os = "dragonfly"),
+    not(target_os = "freebsd"),
+    not(target_os = "netbsd"),
+    not(target_os = "openbsd")
+))]
+#[cfg(not(feature = "x11"))]
+fn main() {
+    eprintln!("This example is only supported on Unix X11.")
 }
