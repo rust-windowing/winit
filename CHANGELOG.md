@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix segmentation fault after dropping the main window.
 - On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.
 - Added `is_maximized` method to `Window`.
 - On Windows, fix bug where clicking the decoration bar would make the cursor blink.
