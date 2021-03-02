@@ -515,7 +515,7 @@ impl UnownedWindow {
     fn set_window_struts(&self, window_struts: Vec<util::WindowStrut>) -> util::Flusher<'_> {
        use util::WindowStrut::*;
        let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"CARDINAL\0") };
-       window_struts.iter().fold(util::Flusher::new(&self.xconn), |flusher, strut| {
+       window_struts.iter().fold(util::Flusher::new(&self.xconn), |_, strut| {
          let atom = strut.as_atom(&self.xconn);
          match strut {
             Strut(props) => 
