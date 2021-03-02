@@ -13,7 +13,7 @@ use winit::{
     event::Event,
     event_loop::{ControlFlow, EventLoop},
     platform::unix::{WindowBuilderExtUnix, XWindowStrut, XWindowType},
-    window::{Window, WindowBuilder},
+    window::WindowBuilder,
 };
 
 #[cfg(all(
