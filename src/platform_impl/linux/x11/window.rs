@@ -526,7 +526,7 @@ impl UnownedWindow {
                   util::PropMode::Replace,
                   props
                ),
-            StrutPatial(props) => 
+            StrutPartial(props) => 
                self.xconn.change_property(
                   self.xwindow,
                   atom,
