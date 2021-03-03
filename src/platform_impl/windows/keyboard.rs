@@ -5,7 +5,7 @@ use std::{
 
 use winapi::{
     shared::{
-        minwindef::{HKL, LPARAM, LRESULT, UINT, WPARAM},
+        minwindef::{HKL, LPARAM, UINT, WPARAM},
         windef::HWND,
     },
     um::winuser,
@@ -18,6 +18,7 @@ use crate::{
     keyboard::{Key, KeyCode, KeyLocation, NativeKeyCode},
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
+        event_loop::ProcResult,
         keyboard_layout::{get_or_insert_str, Layout, LayoutCache, WindowsModifiers, LAYOUT_CACHE},
         KeyEventExtra,
     },
@@ -87,13 +88,13 @@ impl KeyEventBuilder {
     /// Call this function for every window message.
     /// Returns Some() if this window message completes a KeyEvent.
     /// Returns None otherwise.
-    pub fn process_message(
+    pub(crate) fn process_message(
         &mut self,
         hwnd: HWND,
         msg_kind: u32,
         wparam: WPARAM,
         lparam: LPARAM,
-        retval: &mut Option<LRESULT>,
+        result: &mut ProcResult,
     ) -> Vec<MessageAsKeyEvent> {
         match msg_kind {
             winuser::WM_SETFOCUS => {
@@ -118,6 +119,7 @@ impl KeyEventBuilder {
                     // This is handled in `event_loop.rs`
                     return vec![];
                 }
+                *result = ProcResult::Value(0);
                 self.prev_down_was_dead = false;
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
@@ -139,7 +141,6 @@ impl KeyEventBuilder {
                     )
                 };
                 let has_next_key_message = peek_retval != 0;
-                *retval = Some(0);
                 self.event_info = None;
                 let mut finished_event_info = Some(event_info);
                 if has_next_key_message {
@@ -174,11 +175,11 @@ impl KeyEventBuilder {
                 }
             }
             winuser::WM_DEADCHAR | winuser::WM_SYSDEADCHAR => {
+                *result = ProcResult::Value(0);
                 self.prev_down_was_dead = true;
                 // At this point, we know that there isn't going to be any more events related to
                 // this key press
                 let event_info = self.event_info.take().unwrap();
-                *retval = Some(0);
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
                 let ev = event_info.finalize(&mut layouts.strings);
                 return vec![MessageAsKeyEvent {
@@ -187,7 +188,7 @@ impl KeyEventBuilder {
                 }];
             }
             winuser::WM_CHAR | winuser::WM_SYSCHAR => {
-                *retval = Some(0);
+                *result = ProcResult::Value(0);
                 let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
                 let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
 
@@ -275,7 +276,7 @@ impl KeyEventBuilder {
                 }
             }
             winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
-                *retval = Some(0);
+                *result = ProcResult::Value(0);
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
                 let event_info = PartialKeyEventInfo::from_message(
