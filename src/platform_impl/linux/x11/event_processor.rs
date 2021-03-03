@@ -7,7 +7,7 @@ use parking_lot::MutexGuard;
 use super::{
     events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
     DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
-    XExtension,
+    XExtension, ValuatorInfo
 };
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
@@ -630,7 +630,7 @@ impl<T: 'static> EventProcessor<T> {
                     Touch,
                     WindowEvent::{
                         AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseInput,
-                        MouseWheel,
+                        MouseWheel, StylusMoved
                     },
                 };
 
@@ -731,14 +731,46 @@ impl<T: 'static> EventProcessor<T> {
                         if cursor_moved == Some(true) {
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
-                            callback(Event::WindowEvent {
-                                window_id,
-                                event: CursorMoved {
-                                    device_id,
-                                    position,
-                                    modifiers,
-                                },
-                            });
+                            if let Some(Device{ stylus: Some(stylus), .. }) = self.devices.borrow().get(&DeviceId(xev.sourceid)) {
+                                let value = xev.valuators.values;
+                                let mask = unsafe {
+                                    slice::from_raw_parts(
+                                        xev.valuators.mask,
+                                        xev.valuators.mask_len as usize,
+                                    )
+                                };
+
+                                let get_value = |vi: ValuatorInfo| -> f64 {
+                                    match ffi::XIMaskIsSet(mask, vi.axis) {
+                                        true => unsafe { *value.offset(vi.axis as isize) },
+                                        _ => 0.
+                                    }
+                                };
+
+                                let pressure = get_value(stylus.pressure) / stylus.pressure.max;
+                                let tilt_x = if let Some(vi) = stylus.tilt_x { get_value(vi) } else { 0. };
+                                let tilt_y = if let Some(vi) = stylus.tilt_y { get_value(vi) } else { 0. };
+
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: StylusMoved {
+                                        device_id,
+                                        position,
+                                        pressure,
+                                        tilt_x,
+                                        tilt_y
+                                    }
+                                });
+                            } else {
+                                callback(Event::WindowEvent {
+                                    window_id,
+                                    event: CursorMoved {
+                                        device_id,
+                                        position,
+                                        modifiers,
+                                    },
+                                });
+                            }
                         } else if cursor_moved.is_none() {
                             return;
                         }
