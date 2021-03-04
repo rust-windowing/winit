@@ -71,9 +71,9 @@ jobs:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
 
-    - name: Install GCC Multilib
+    - name: Install GCC Multilib & fontconfig
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
-      run: sudo apt-get update && sudo apt-get install gcc-multilib
+      run: sudo apt-get update && sudo apt-get install gcc-multilib libfontconfig-dev
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android')
       run: cargo install cargo-apk
