@@ -776,8 +776,8 @@ impl Window {
     /// - **macOS:** May prevent the button release event to be triggered.
     /// - **Wayland / iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
-    pub fn begin_drag(&self) -> Result<(), ExternalError> {
-        self.window.begin_drag()
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        self.window.drag_window()
     }
 }
 

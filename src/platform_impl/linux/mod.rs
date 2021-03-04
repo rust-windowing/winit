@@ -359,7 +359,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn begin_drag(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
         match self {
             #[cfg(feature = "x11")]
             &Window::X(ref w) => w.begin_drag(),

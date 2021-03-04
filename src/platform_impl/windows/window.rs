@@ -358,7 +358,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn begin_drag(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
         unsafe {
             let points = {
                 let mut pos = mem::zeroed();

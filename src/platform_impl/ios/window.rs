@@ -182,7 +182,7 @@ impl Inner {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
-    pub fn begin_drag(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 

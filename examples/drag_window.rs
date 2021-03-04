@@ -36,7 +36,7 @@ fn main() {
                     &window_1
                 };
 
-                window.begin_drag().unwrap()
+                window.drag_window().unwrap()
             }
             WindowEvent::CursorEntered { .. } => {
                 entered_id = window_id;

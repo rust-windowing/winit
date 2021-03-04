@@ -637,7 +637,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn begin_drag(&self) -> Result<(), ExternalError> {
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
         unsafe {
             let event: id = msg_send![NSApp(), currentEvent];
             let _: () = msg_send![*self.ns_window, performWindowDragWithEvent: event];
