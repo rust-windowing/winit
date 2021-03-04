@@ -362,7 +362,7 @@ impl Window {
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.begin_drag(),
+            &Window::X(ref w) => w.drag_window(),
             #[cfg(feature = "wayland")]
             _ => Err(ExternalError::NotSupported(NotSupportedError::new())),
         }
