@@ -6,7 +6,7 @@ use cocoa::{base::nil, foundation::NSAutoreleasePool};
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::EventLoopWindowTarget,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     platform_impl::AppState,
     window::{Window, WindowBuilder},
@@ -215,13 +215,7 @@ pub enum FileOpenResult {
     Failure,
 }
 
-/// Additional methods on `EventLoopWindowTarget` that are specific to macOS.
-pub trait EventLoopWindowTargetExtMacOS {
-    /// Hide the entire application. In most applications this is typically triggered with Command-H.
-    fn hide_application(&self);
-    /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
-    fn hide_other_applications(&self);
-
+pub trait EventLoopExtMacOS {
     /// Set or remove the callback which gets called when a file or files are requested to
     /// be opened.
     ///
@@ -239,19 +233,7 @@ pub trait EventLoopWindowTargetExtMacOS {
     );
 }
 
-impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
-    fn hide_application(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hide: 0] }
-    }
-
-    fn hide_other_applications(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hideOtherApplications: 0] }
-    }
-
+impl<T> EventLoopExtMacOS for EventLoop<T> {
     fn set_file_open_callback(
         &self,
         callback: Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static>>,
@@ -272,5 +254,27 @@ impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
                 let () = msg_send![pool, drain];
             }
         }
+    }
+}
+
+/// Additional methods on `EventLoopWindowTarget` that are specific to macOS.
+pub trait EventLoopWindowTargetExtMacOS {
+    /// Hide the entire application. In most applications this is typically triggered with Command-H.
+    fn hide_application(&self);
+    /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
+    fn hide_other_applications(&self);
+}
+
+impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
+    fn hide_application(&self) {
+        let cls = objc::runtime::Class::get("NSApplication").unwrap();
+        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+        unsafe { msg_send![app, hide: 0] }
+    }
+
+    fn hide_other_applications(&self) {
+        let cls = objc::runtime::Class::get("NSApplication").unwrap();
+        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+        unsafe { msg_send![app, hideOtherApplications: 0] }
     }
 }
