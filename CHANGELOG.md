@@ -11,6 +11,7 @@
 - On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
 - On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.
+- On macOS, add `EventLoopExtMacOS::set_file_open_callback`.
 - On Android, unimplemented events are marked as unhandled on the native event loop.
 - On Windows, added `WindowBuilderExtWindows::with_menu` to set a custom menu at window creation time.
 - On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
