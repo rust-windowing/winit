@@ -161,7 +161,7 @@ pub fn keysym_to_element(keysym: libc::c_uint) -> Option<VirtualKeyCode> {
         ffi::XK_Shift_R => VirtualKeyCode::RShift,
         ffi::XK_Control_L => VirtualKeyCode::LControl,
         ffi::XK_Control_R => VirtualKeyCode::RControl,
-        //ffi::XK_Caps_Lock => VirtualKeyCode::Caps_lock,
+        ffi::XK_Caps_Lock => VirtualKeyCode::Capital,
         //ffi::XK_Shift_Lock => VirtualKeyCode::Shift_lock,
         //ffi::XK_Meta_L => VirtualKeyCode::Meta_l,
         //ffi::XK_Meta_R => VirtualKeyCode::Meta_r,
