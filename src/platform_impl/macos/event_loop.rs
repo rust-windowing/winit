@@ -33,18 +33,14 @@ use crate::{
     },
 };
 
-//pub type PanicData = Option<Box<dyn Any + Send + 'static>>;
-
 #[derive(Default)]
-pub(crate) struct PanicInfo {
+pub struct PanicInfo {
     inner: Cell<Option<Box<dyn Any + Send + 'static>>>,
 }
-// ------------------------------------
+
 // WARNING:
-// This struct is UnwindSafe if `get_mut` is never called on the inner data.
-// (`get_mut` can be used in ways such that it is unwind safe but it can also be used
-// in ways that breaks unwind safety)
-// ------------------------------------
+// As long as this struct is used through its `impl`, it is UnwindSafe.
+// (If `get_mut` is called on `inner`, unwind safety may get broken.)
 impl UnwindSafe for PanicInfo {}
 impl RefUnwindSafe for PanicInfo {}
 impl PanicInfo {
@@ -191,7 +187,8 @@ impl<T> EventLoop<T> {
     }
 }
 
-pub(crate) unsafe fn post_dummy_event(target: id) {
+#[inline]
+pub unsafe fn post_dummy_event(target: id) {
     let event_class = class!(NSEvent);
     let dummy_event: id = msg_send![
         event_class,
@@ -210,7 +207,8 @@ pub(crate) unsafe fn post_dummy_event(target: id) {
 
 /// Catches panics that happen inside `f` and when a panic
 /// happens, stops the `sharedApplication`
-pub(crate) fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
+#[inline]
+pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     panic_info: Weak<PanicInfo>,
     f: F,
 ) -> Option<R> {

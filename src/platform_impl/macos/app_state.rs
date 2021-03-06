@@ -250,7 +250,7 @@ impl Handler {
 
 pub static INTERRUPT_EVENT_LOOP_EXIT: AtomicBool = AtomicBool::new(false);
 
-pub(crate) enum AppState {}
+pub enum AppState {}
 
 impl AppState {
     pub fn set_callback<T>(
@@ -282,7 +282,9 @@ impl AppState {
     }
 
     pub fn wakeup(panic_info: Weak<PanicInfo>) {
-        let panic_info = panic_info.upgrade().unwrap();
+        let panic_info = panic_info
+            .upgrade()
+            .expect("The panic info must exist here. This failure indicates a developer error.");
         if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }
@@ -336,7 +338,9 @@ impl AppState {
     }
 
     pub fn cleared(panic_info: Weak<PanicInfo>) {
-        let panic_info = panic_info.upgrade().unwrap();
+        let panic_info = panic_info
+            .upgrade()
+            .expect("The panic info must exist here. This failure indicates a developer error.");
         if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }
