@@ -10,7 +10,7 @@ use std::{
 };
 
 use libc;
-use mio_extras::channel::Sender;
+use mio_misc::channel::Sender;
 use parking_lot::Mutex;
 
 use crate::{
