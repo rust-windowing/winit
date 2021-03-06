@@ -845,7 +845,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
         winuser::WM_NCLBUTTONDOWN => {
             if wparam == winuser::HTCAPTION as _ {
-                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
+                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, lparam);
             }
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }

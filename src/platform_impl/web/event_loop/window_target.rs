@@ -1,6 +1,8 @@
 use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
 use crate::dpi::{PhysicalSize, Size};
-use crate::event::{DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent};
+use crate::event::{
+    DeviceEvent, DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent,
+};
 use crate::event_loop::ControlFlow;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId};
@@ -130,13 +132,19 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_cursor_move(move |pointer_id, position, modifiers| {
+        canvas.on_cursor_move(move |pointer_id, position, delta, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::CursorMoved {
                     device_id: DeviceId(device::Id(pointer_id)),
                     position,
                     modifiers,
+                },
+            });
+            runner.send_event(Event::DeviceEvent {
+                device_id: DeviceId(device::Id(pointer_id)),
+                event: DeviceEvent::MouseMotion {
+                    delta: (delta.x, delta.y),
                 },
             });
         });

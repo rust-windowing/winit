@@ -238,7 +238,7 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_cursor_move(&self.common, handler),

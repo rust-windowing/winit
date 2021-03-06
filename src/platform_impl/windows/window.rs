@@ -25,6 +25,7 @@ use winapi::{
         ole2,
         oleidl::LPDROPTARGET,
         shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
+        wingdi::{CreateRectRgn, DeleteObject},
         winnt::LPCWSTR,
         winuser,
     },
@@ -753,20 +754,18 @@ unsafe fn init<T: 'static>(
 
     // making the window transparent
     if attributes.transparent && !pl_attribs.no_redirection_bitmap {
+        // Empty region for the blur effect, so the window is fully transparent
+        let region = CreateRectRgn(0, 0, -1, -1);
+
         let bb = dwmapi::DWM_BLURBEHIND {
-            dwFlags: dwmapi::DWM_BB_ENABLE,
+            dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
             fEnable: 1,
-            hRgnBlur: ptr::null_mut(),
+            hRgnBlur: region,
             fTransitionOnMaximized: 0,
         };
 
         dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
-
-        if attributes.decorations {
-            let opacity = 255;
-
-            winuser::SetLayeredWindowAttributes(real_window.0, 0, opacity, winuser::LWA_ALPHA);
-        }
+        DeleteObject(region as _);
     }
 
     // If the system theme is dark, we need to set the window theme now
