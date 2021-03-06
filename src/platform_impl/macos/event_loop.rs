@@ -163,7 +163,7 @@ impl<T> EventLoop<T> {
             >(Rc::new(RefCell::new(callback)))
         };
 
-        self._callback = Some(callback.clone());
+        self._callback = Some(Rc::clone(&callback));
 
         unsafe {
             let pool = NSAutoreleasePool::new(nil);
@@ -230,7 +230,7 @@ pub(crate) fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
                 let app: id = msg_send![app_class, sharedApplication];
                 let () = msg_send![app, stop: nil];
 
-                // Posting an dummy event to get stop to take effect immediately.
+                // Posting a dummy event to get `stop` to take effect immediately.
                 // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
                 post_dummy_event(app);
             }

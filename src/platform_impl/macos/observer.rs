@@ -124,7 +124,7 @@ pub struct CFRunLoopSourceContext {
     pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
-fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
+unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
 where
     F: FnOnce(Weak<PanicInfo>) + UnwindSafe,
 {
@@ -136,7 +136,7 @@ where
     let forgotten = panic_info.clone();
     std::mem::forget(forgotten);
 
-    stop_app_on_panic(panic_info.clone(), move || f(panic_info.0));
+    stop_app_on_panic(Weak::clone(&panic_info), move || f(panic_info.0));
 }
 
 // begin is queued with the highest priority to ensure it is processed before other observers
