@@ -636,6 +636,16 @@ impl UnownedWindow {
         Ok(())
     }
 
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            let event: id = msg_send![NSApp(), currentEvent];
+            let _: () = msg_send![*self.ns_window, performWindowDragWithEvent: event];
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn is_zoomed(&self) -> bool {
         // because `isZoomed` doesn't work if the window's borderless,
         // we make it resizable temporalily.
