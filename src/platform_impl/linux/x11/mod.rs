@@ -43,7 +43,7 @@ use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 
 use mio_misc::{
     channel::{channel, SendError, Sender},
-    queue::NotificationQueue,
+    queue::{NotificationQueue, Notifier},
     NotificationId,
 };
 
@@ -185,15 +185,14 @@ impl<T: 'static> EventLoop<T> {
 
         let poll = Poll::new().unwrap();
         let waker = Arc::new(Waker::new(poll.registry(), USER_READRAW_TOKEN).unwrap());
+        let queue = Arc::new(NotificationQueue::new(waker));
 
         poll.registry()
             .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
             .unwrap();
 
-        let queue = Arc::new(NotificationQueue::new(Arc::clone(&waker)));
-        let (user_sender, user_channel) = channel(queue, NotificationId::gen_next());
+        let (user_sender, user_channel) = channel(queue.clone(), NotificationId::gen_next());
 
-        let queue = Arc::new(NotificationQueue::new(waker));
         let (redraw_sender, redraw_channel) = channel(queue, NotificationId::gen_next());
 
         let target = Rc::new(RootELW {
