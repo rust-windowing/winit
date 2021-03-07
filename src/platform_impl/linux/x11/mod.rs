@@ -43,7 +43,7 @@ use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 
 use mio_misc::{
     channel::{channel, SendError, Sender},
-    queue::{NotificationQueue, Notifier},
+    queue::NotificationQueue,
     NotificationId,
 };
 
