@@ -62,7 +62,7 @@ use crate::{
 };
 
 const X_TOKEN: Token = Token(0);
-const USER_READRAW_TOKEN: Token = Token(1);
+const USER_REDRAW_TOKEN: Token = Token(1);
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
@@ -184,7 +184,7 @@ impl<T: 'static> EventLoop<T> {
         mod_keymap.reset_from_x_connection(&xconn);
 
         let poll = Poll::new().unwrap();
-        let waker = Arc::new(Waker::new(poll.registry(), USER_READRAW_TOKEN).unwrap());
+        let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
         let queue = Arc::new(NotificationQueue::new(waker));
 
         poll.registry()
