@@ -11,6 +11,7 @@
 - On Android, unimplemented events are marked as unhandled on the native event loop.
 - On Windows, added `WindowBuilderExtWindows::with_menu` to set a custom menu at window creation time.
 - On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
+- On macOS, fix objects captured by the event loop closure not being dropped on panic.
 - On Windows, fixed `WindowEvent::ThemeChanged` not properly firing and fixed `Window::theme` returning the wrong theme.
 - On Web, added support for `DeviceEvent::MouseMotion` to listen for relative mouse movements.
 - Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
