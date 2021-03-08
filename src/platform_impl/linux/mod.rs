@@ -651,14 +651,14 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, callback: F)
     where
-        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_return(callback))
     }
 
     pub fn run<F>(self, callback: F) -> !
     where
-        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(crate::event::Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run(callback))
     }
@@ -728,12 +728,12 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 fn sticky_exit_callback<T, F>(
-    evt: Event<'_, T>,
+    evt: Event<T>,
     target: &RootELW<T>,
     control_flow: &mut ControlFlow,
     callback: &mut F,
 ) where
-    F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
 {
     // make ControlFlow::Exit sticky by providing a dummy
     // control flow reference if it is already Exit.

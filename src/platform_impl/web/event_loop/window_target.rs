@@ -34,7 +34,7 @@ impl<T> WindowTarget<T> {
         Proxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
+    pub fn run(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
         self.runner.set_listener(event_handler);
         let runner = self.runner.clone();
         self.runner.set_on_scale_change(move |arg| {

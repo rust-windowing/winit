@@ -23,7 +23,7 @@ impl<T> Clone for Shared<T> {
 
 pub struct Execution<T: 'static> {
     runner: RefCell<RunnerEnum<T>>,
-    events: RefCell<VecDeque<Event<'static, T>>>,
+    events: RefCell<VecDeque<Event<T>>>,
     id: RefCell<u32>,
     all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
@@ -54,11 +54,11 @@ impl<T: 'static> RunnerEnum<T> {
 
 struct Runner<T: 'static> {
     state: State,
-    event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>,
+    event_handler: Box<dyn FnMut(Event<T>, &mut root::ControlFlow)>,
 }
 
 impl<T: 'static> Runner<T> {
-    pub fn new(event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>) -> Self {
+    pub fn new(event_handler: Box<dyn FnMut(Event<T>, &mut root::ControlFlow)>) -> Self {
         Runner {
             state: State::Init,
             event_handler,
@@ -83,7 +83,7 @@ impl<T: 'static> Runner<T> {
         })
     }
 
-    fn handle_single_event(&mut self, event: Event<'_, T>, control: &mut root::ControlFlow) {
+    fn handle_single_event(&mut self, event: Event<T>, control: &mut root::ControlFlow) {
         let is_closed = *control == root::ControlFlow::Exit;
 
         (self.event_handler)(event, control);
@@ -123,10 +123,7 @@ impl<T: 'static> Shared<T> {
     // Set the event callback to use for the event loop runner
     // This the event callback is a fairly thin layer over the user-provided callback that closes
     // over a RootEventLoopWindowTarget reference
-    pub fn set_listener(
-        &self,
-        event_handler: Box<dyn FnMut(Event<'_, T>, &mut root::ControlFlow)>,
-    ) {
+    pub fn set_listener(&self, event_handler: Box<dyn FnMut(Event<T>, &mut root::ControlFlow)>) {
         {
             let mut runner = self.0.runner.borrow_mut();
             assert!(matches!(*runner, RunnerEnum::Pending));
@@ -184,14 +181,14 @@ impl<T: 'static> Shared<T> {
     // Add an event to the event loop runner, from the user or an event handler
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub fn send_event(&self, event: Event<'static, T>) {
+    pub fn send_event(&self, event: Event<T>) {
         self.send_events(iter::once(event));
     }
 
     // Add a series of events to the event loop runner
     //
     // It will determine if the event should be immediately sent to the user or buffered for later
-    pub fn send_events(&self, events: impl Iterator<Item = Event<'static, T>>) {
+    pub fn send_events(&self, events: impl Iterator<Item = Event<T>>) {
         // If the event loop is closed, it should discard any new events
         if self.is_closed() {
             return;
@@ -266,7 +263,7 @@ impl<T: 'static> Shared<T> {
     // cleared
     //
     // This will also process any events that have been queued or that are queued during processing
-    fn run_until_cleared(&self, events: impl Iterator<Item = Event<'static, T>>) {
+    fn run_until_cleared(&self, events: impl Iterator<Item = Event<T>>) {
         let mut control = self.current_control_flow();
         for event in events {
             self.handle_event(event, &mut control);
@@ -326,17 +323,24 @@ impl<T: 'static> Shared<T> {
                 height: canvas.height() as u32,
             };
             let logical_size = current_size.to_logical::<f64>(old_scale);
-            let mut new_size = logical_size.to_physical(new_scale);
-            self.handle_single_event_sync(
-                Event::WindowEvent {
-                    window_id: id,
-                    event: crate::event::WindowEvent::ScaleFactorChanged {
-                        scale_factor: new_scale,
-                        new_inner_size: &mut new_size,
+
+            let new_size = {
+                let (new_size, _mut_owner) =
+                    scoped_arc_cell::scoped_arc_cell(logical_size.to_physical(new_scale));
+
+                self.handle_single_event_sync(
+                    Event::WindowEvent {
+                        window_id: id,
+                        event: crate::event::WindowEvent::ScaleFactorChanged {
+                            scale_factor: new_scale,
+                            new_inner_size: new_size.clone(),
+                        },
                     },
-                },
-                &mut control,
-            );
+                    &mut control,
+                );
+
+                new_size.get()
+            };
 
             // Then we resize the canvas to the new size and send a `Resized` event:
             backend::set_canvas_size(&canvas, crate::dpi::Size::Physical(new_size));
@@ -379,7 +383,7 @@ impl<T: 'static> Shared<T> {
     // handle_single_event_sync takes in an event and handles it synchronously.
     //
     // It should only ever be called from `scale_changed`.
-    fn handle_single_event_sync(&self, event: Event<'_, T>, control: &mut root::ControlFlow) {
+    fn handle_single_event_sync(&self, event: Event<T>, control: &mut root::ControlFlow) {
         if self.is_closed() {
             *control = root::ControlFlow::Exit;
         }
@@ -394,7 +398,7 @@ impl<T: 'static> Shared<T> {
     // handle_event takes in events and either queues them or applies a callback
     //
     // It should only ever be called from `run_until_cleared` and `scale_changed`.
-    fn handle_event(&self, event: Event<'static, T>, control: &mut root::ControlFlow) {
+    fn handle_event(&self, event: Event<T>, control: &mut root::ControlFlow) {
         if self.is_closed() {
             *control = root::ControlFlow::Exit;
         }

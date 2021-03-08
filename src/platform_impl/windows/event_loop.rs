@@ -92,7 +92,7 @@ pub(crate) struct SubclassInput<T: 'static> {
 }
 
 impl<T> SubclassInput<T> {
-    unsafe fn send_event(&self, event: Event<'_, T>) {
+    unsafe fn send_event(&self, event: Event<T>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -103,7 +103,7 @@ struct ThreadMsgTargetSubclassInput<T: 'static> {
 }
 
 impl<T> ThreadMsgTargetSubclassInput<T> {
-    unsafe fn send_event(&self, event: Event<'_, T>) {
+    unsafe fn send_event(&self, event: Event<T>) {
         self.event_loop_runner.send_event(event);
     }
 }
@@ -186,7 +186,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(mut self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         self.run_return(event_handler);
         ::std::process::exit(0);
@@ -194,7 +194,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, mut event_handler: F)
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<T>, &RootELW<T>, &mut ControlFlow),
     {
         let event_loop_windows_ref = &self.window_target;
 
@@ -1790,24 +1790,29 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
             );
 
-            // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
-            // exiting fullscreen (the restored size is already DPI adjusted).
-            let mut new_physical_inner_size = match allow_resize {
-                // We calculate our own size because the default suggested rect doesn't do a great job
-                // of preserving the window's logical size.
-                true => old_physical_inner_size
-                    .to_logical::<f64>(old_scale_factor)
-                    .to_physical::<u32>(new_scale_factor),
-                false => old_physical_inner_size,
-            };
+            let new_physical_inner_size = {
+                // `allow_resize` prevents us from re-applying DPI adjustment to the restored size after
+                // exiting fullscreen (the restored size is already DPI adjusted).
+                let (new_inner_size, _mut_owner) =
+                    scoped_arc_cell::scoped_arc_cell(match allow_resize {
+                        // We calculate our own size because the default suggested rect doesn't do a great job
+                        // of preserving the window's logical size.
+                        true => old_physical_inner_size
+                            .to_logical::<f64>(old_scale_factor)
+                            .to_physical::<u32>(new_scale_factor),
+                        false => old_physical_inner_size,
+                    });
 
-            let _ = subclass_input.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: ScaleFactorChanged {
-                    scale_factor: new_scale_factor,
-                    new_inner_size: &mut new_physical_inner_size,
-                },
-            });
+                let _ = subclass_input.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: ScaleFactorChanged {
+                        scale_factor: new_scale_factor,
+                        new_inner_size: new_inner_size.clone(),
+                    },
+                });
+
+                new_inner_size.get()
+            };
 
             let dragging_window: bool;
 

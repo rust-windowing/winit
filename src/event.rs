@@ -41,12 +41,15 @@ use crate::{
     platform_impl,
     window::{Theme, WindowId},
 };
+use scoped_arc_cell::ArcCell;
 
 /// Describes a generic event.
 ///
 /// See the module-level docs for more information on the event loop manages each event.
-#[derive(Debug, PartialEq)]
-pub enum Event<'a, T: 'static> {
+///
+/// `T` is a user-defined custom event type (see: `Self::UserEvent(T)`).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Event<T: 'static> {
     /// Emitted when new events arrive from the OS to be processed.
     ///
     /// This event type is useful as a place to put code that should be done before you start
@@ -58,7 +61,7 @@ pub enum Event<'a, T: 'static> {
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
         window_id: WindowId,
-        event: WindowEvent<'a>,
+        event: WindowEvent,
     },
 
     /// Emitted when the OS sends an event to a device.
@@ -118,32 +121,8 @@ pub enum Event<'a, T: 'static> {
     LoopDestroyed,
 }
 
-impl<T: Clone> Clone for Event<'static, T> {
-    fn clone(&self) -> Self {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => WindowEvent {
-                window_id: *window_id,
-                event: event.clone(),
-            },
-            UserEvent(event) => UserEvent(event.clone()),
-            DeviceEvent { device_id, event } => DeviceEvent {
-                device_id: *device_id,
-                event: event.clone(),
-            },
-            NewEvents(cause) => NewEvents(cause.clone()),
-            MainEventsCleared => MainEventsCleared,
-            RedrawRequested(wid) => RedrawRequested(*wid),
-            RedrawEventsCleared => RedrawEventsCleared,
-            LoopDestroyed => LoopDestroyed,
-            Suspended => Suspended,
-            Resumed => Resumed,
-        }
-    }
-}
-
-impl<'a, T> Event<'a, T> {
-    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
+impl<T> Event<T> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
         use self::Event::*;
         match self {
             UserEvent(_) => Err(self),
@@ -156,26 +135,6 @@ impl<'a, T> Event<'a, T> {
             LoopDestroyed => Ok(LoopDestroyed),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
-        }
-    }
-
-    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
-    /// Otherwise, return `None`.
-    pub fn to_static(self) -> Option<Event<'static, T>> {
-        use self::Event::*;
-        match self {
-            WindowEvent { window_id, event } => event
-                .to_static()
-                .map(|event| WindowEvent { window_id, event }),
-            UserEvent(event) => Some(UserEvent(event)),
-            DeviceEvent { device_id, event } => Some(DeviceEvent { device_id, event }),
-            NewEvents(cause) => Some(NewEvents(cause)),
-            MainEventsCleared => Some(MainEventsCleared),
-            RedrawRequested(wid) => Some(RedrawRequested(wid)),
-            RedrawEventsCleared => Some(RedrawEventsCleared),
-            LoopDestroyed => Some(LoopDestroyed),
-            Suspended => Some(Suspended),
-            Resumed => Some(Resumed),
         }
     }
 }
@@ -207,8 +166,8 @@ pub enum StartCause {
 }
 
 /// Describes an event from a `Window`.
-#[derive(Debug, PartialEq)]
-pub enum WindowEvent<'a> {
+#[derive(Debug, Clone, PartialEq)]
+pub enum WindowEvent {
     /// The size of the window has changed. Contains the client area's new dimensions.
     Resized(PhysicalSize<u32>),
 
@@ -336,13 +295,13 @@ pub enum WindowEvent<'a> {
     /// * Moving the window to a display with a different scale factor.
     ///
     /// After this event callback has been processed, the window will be resized to whatever value
-    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
+    /// is contained in the `new_inner_size` reference. By default, this will contain the size suggested
     /// by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
     ScaleFactorChanged {
         scale_factor: f64,
-        new_inner_size: &'a mut PhysicalSize<u32>,
+        new_inner_size: ArcCell<PhysicalSize<u32>>,
     },
 
     /// The system window theme has changed.
@@ -352,181 +311,6 @@ pub enum WindowEvent<'a> {
     ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
-}
-
-impl Clone for WindowEvent<'static> {
-    fn clone(&self) -> Self {
-        use self::WindowEvent::*;
-        return match self {
-            Resized(size) => Resized(size.clone()),
-            Moved(pos) => Moved(pos.clone()),
-            CloseRequested => CloseRequested,
-            Destroyed => Destroyed,
-            DroppedFile(file) => DroppedFile(file.clone()),
-            HoveredFile(file) => HoveredFile(file.clone()),
-            HoveredFileCancelled => HoveredFileCancelled,
-            ReceivedCharacter(c) => ReceivedCharacter(*c),
-            Focused(f) => Focused(*f),
-            KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            } => KeyboardInput {
-                device_id: *device_id,
-                input: *input,
-                is_synthetic: *is_synthetic,
-            },
-
-            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
-            #[allow(deprecated)]
-            CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            } => CursorMoved {
-                device_id: *device_id,
-                position: *position,
-                modifiers: *modifiers,
-            },
-            CursorEntered { device_id } => CursorEntered {
-                device_id: *device_id,
-            },
-            CursorLeft { device_id } => CursorLeft {
-                device_id: *device_id,
-            },
-            #[allow(deprecated)]
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            } => MouseWheel {
-                device_id: *device_id,
-                delta: *delta,
-                phase: *phase,
-                modifiers: *modifiers,
-            },
-            #[allow(deprecated)]
-            MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            } => MouseInput {
-                device_id: *device_id,
-                state: *state,
-                button: *button,
-                modifiers: *modifiers,
-            },
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => TouchpadPressure {
-                device_id: *device_id,
-                pressure: *pressure,
-                stage: *stage,
-            },
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => AxisMotion {
-                device_id: *device_id,
-                axis: *axis,
-                value: *value,
-            },
-            Touch(touch) => Touch(*touch),
-            ThemeChanged(theme) => ThemeChanged(theme.clone()),
-            ScaleFactorChanged { .. } => {
-                unreachable!("Static event can't be about scale factor changing")
-            }
-        };
-    }
-}
-
-impl<'a> WindowEvent<'a> {
-    pub fn to_static(self) -> Option<WindowEvent<'static>> {
-        use self::WindowEvent::*;
-        match self {
-            Resized(size) => Some(Resized(size)),
-            Moved(position) => Some(Moved(position)),
-            CloseRequested => Some(CloseRequested),
-            Destroyed => Some(Destroyed),
-            DroppedFile(file) => Some(DroppedFile(file)),
-            HoveredFile(file) => Some(HoveredFile(file)),
-            HoveredFileCancelled => Some(HoveredFileCancelled),
-            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
-            Focused(focused) => Some(Focused(focused)),
-            KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            } => Some(KeyboardInput {
-                device_id,
-                input,
-                is_synthetic,
-            }),
-            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
-            #[allow(deprecated)]
-            CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            } => Some(CursorMoved {
-                device_id,
-                position,
-                modifiers,
-            }),
-            CursorEntered { device_id } => Some(CursorEntered { device_id }),
-            CursorLeft { device_id } => Some(CursorLeft { device_id }),
-            #[allow(deprecated)]
-            MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            } => Some(MouseWheel {
-                device_id,
-                delta,
-                phase,
-                modifiers,
-            }),
-            #[allow(deprecated)]
-            MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            } => Some(MouseInput {
-                device_id,
-                state,
-                button,
-                modifiers,
-            }),
-            TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            } => Some(TouchpadPressure {
-                device_id,
-                pressure,
-                stage,
-            }),
-            AxisMotion {
-                device_id,
-                axis,
-                value,
-            } => Some(AxisMotion {
-                device_id,
-                axis,
-                value,
-            }),
-            Touch(touch) => Some(Touch(touch)),
-            ThemeChanged(theme) => Some(ThemeChanged(theme)),
-            ScaleFactorChanged { .. } => None,
-        }
-    }
 }
 
 /// Identifier of an input device.

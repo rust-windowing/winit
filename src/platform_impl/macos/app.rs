@@ -9,7 +9,7 @@ use objc::{
     runtime::{Class, Object, Sel},
 };
 
-use super::{activation_hack, app_state::AppState, event::EventWrapper, util, DEVICE_ID};
+use super::{activation_hack, app_state::AppState, util, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
 
 pub struct AppClass(pub *const Class);
@@ -69,32 +69,32 @@ unsafe fn maybe_dispatch_device_event(this: &Object, event: id) {
             let delta_y = event.deltaY() as f64;
 
             if delta_x != 0.0 {
-                events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
+                events.push_back(Event::DeviceEvent {
                     device_id: DEVICE_ID,
                     event: DeviceEvent::Motion {
                         axis: 0,
                         value: delta_x,
                     },
-                }));
+                });
             }
 
             if delta_y != 0.0 {
-                events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
+                events.push_back(Event::DeviceEvent {
                     device_id: DEVICE_ID,
                     event: DeviceEvent::Motion {
                         axis: 1,
                         value: delta_y,
                     },
-                }));
+                });
             }
 
             if delta_x != 0.0 || delta_y != 0.0 {
-                events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
+                events.push_back(Event::DeviceEvent {
                     device_id: DEVICE_ID,
                     event: DeviceEvent::MouseMotion {
                         delta: (delta_x, delta_y),
                     },
-                }));
+                });
             }
 
             AppState::queue_events(events);
@@ -117,26 +117,26 @@ unsafe fn maybe_dispatch_device_event(this: &Object, event: id) {
         appkit::NSLeftMouseDown | appkit::NSRightMouseDown | appkit::NSOtherMouseDown => {
             let mut events = VecDeque::with_capacity(1);
 
-            events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
+            events.push_back(Event::DeviceEvent {
                 device_id: DEVICE_ID,
                 event: DeviceEvent::Button {
                     button: event.buttonNumber() as u32,
                     state: ElementState::Pressed,
                 },
-            }));
+            });
 
             AppState::queue_events(events);
         }
         appkit::NSLeftMouseUp | appkit::NSRightMouseUp | appkit::NSOtherMouseUp => {
             let mut events = VecDeque::with_capacity(1);
 
-            events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
+            events.push_back(Event::DeviceEvent {
                 device_id: DEVICE_ID,
                 event: DeviceEvent::Button {
                     button: event.buttonNumber() as u32,
                     state: ElementState::Released,
                 },
-            }));
+            });
 
             AppState::queue_events(events);
         }
