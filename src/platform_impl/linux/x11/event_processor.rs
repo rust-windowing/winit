@@ -748,18 +748,20 @@ impl<T: 'static> EventProcessor<T> {
                                 };
 
                                 let pressure = get_value(stylus.pressure) / stylus.pressure.max;
-                                let tilt_x = if let Some(vi) = stylus.tilt_x { get_value(vi) } else { 0. };
-                                let tilt_y = if let Some(vi) = stylus.tilt_y { get_value(vi) } else { 0. };
+                                //let tilt_x = if let Some(vi) = stylus.tilt_x { get_value(vi) } else { 0. };
+                                //let tilt_y = if let Some(vi) = stylus.tilt_y { get_value(vi) } else { 0. };
+
+                                let touch = Touch {
+                                    device_id,
+                                    phase: TouchPhase::Moved,
+                                    location: position,
+                                    force: Some(crate::event::Force::Normalized(pressure)),
+                                    id: xev.sourceid as u64
+                                };
 
                                 callback(Event::WindowEvent {
                                     window_id,
-                                    event: StylusMoved {
-                                        device_id,
-                                        position,
-                                        pressure,
-                                        tilt_x,
-                                        tilt_y
-                                    }
+                                    event: crate::event::WindowEvent::Touch(touch),
                                 });
                             } else {
                                 callback(Event::WindowEvent {
