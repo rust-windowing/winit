@@ -1,6 +1,6 @@
 # Unreleased
 
-- On Windows, fix communication of fractional RI_MOUSE_WHEEL events
+- On Windows, fix fractional deltas for mouse wheel device events.
 - On macOS, fix segmentation fault after dropping the main window.
 - On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.
 - Added `is_maximized` method to `Window`.
