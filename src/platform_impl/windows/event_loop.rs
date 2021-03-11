@@ -2106,7 +2106,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         subclass_input.send_event(Event::DeviceEvent {
                             device_id,
                             event: MouseWheel {
-                                delta: LineDelta(0.0, delta as f32),
+                                delta: LineDelta(0.0, delta),
                             },
                         });
                     }
