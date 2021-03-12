@@ -10,7 +10,7 @@ use std::{
 };
 
 use libc;
-use mio_extras::channel::Sender;
+use mio_misc::channel::Sender;
 use parking_lot::Mutex;
 
 use crate::{
@@ -1285,6 +1285,46 @@ impl UnownedWindow {
     pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
         let (x, y) = position.to_physical::<i32>(self.scale_factor()).into();
         self.set_cursor_position_physical(x, y)
+    }
+
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        let pointer = self
+            .xconn
+            .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
+            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))?;
+
+        let window = self.inner_position().map_err(ExternalError::NotSupported)?;
+
+        let message = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_MOVERESIZE\0") };
+
+        // we can't use `set_cursor_grab(false)` here because it doesn't run `XUngrabPointer`
+        // if the cursor isn't currently grabbed
+        let mut grabbed_lock = self.cursor_grabbed.lock();
+        unsafe {
+            (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
+        }
+        self.xconn
+            .flush_requests()
+            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))?;
+        *grabbed_lock = false;
+
+        // we keep the lock until we are done
+        self.xconn
+            .send_client_msg(
+                self.xwindow,
+                self.root,
+                message,
+                Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                [
+                    (window.x as c_long + pointer.win_x as c_long),
+                    (window.y as c_long + pointer.win_y as c_long),
+                    8, // _NET_WM_MOVERESIZE_MOVE
+                    ffi::Button1 as c_long,
+                    1,
+                ],
+            )
+            .flush()
+            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))
     }
 
     pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {

@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Windows, fix fractional deltas for mouse wheel device events.
+- On macOS, fix segmentation fault after dropping the main window.
 - On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.
 - Added `is_maximized` method to `Window`.
 - On Windows, fix bug where clicking the decoration bar would make the cursor blink.
@@ -10,9 +12,12 @@
 - On Android, unimplemented events are marked as unhandled on the native event loop.
 - On Windows, added `WindowBuilderExtWindows::with_menu` to set a custom menu at window creation time.
 - On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
+- On macOS, fix objects captured by the event loop closure not being dropped on panic.
 - On Windows, fixed `WindowEvent::ThemeChanged` not properly firing and fixed `Window::theme` returning the wrong theme.
 - On Web, added support for `DeviceEvent::MouseMotion` to listen for relative mouse movements.
 - Added `WindowBuilder::with_outer_position` to allow setting the position of a `Window` on creation. Supported on Windows, macOS and X11.
+- Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
+- On X11, bump `mio` to 0.7.
 
 # 0.24.0 (2020-12-09)
 

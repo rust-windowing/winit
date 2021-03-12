@@ -587,6 +587,18 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        let drag_window_request = WindowRequest::DragWindow;
+        self.window_requests
+            .lock()
+            .unwrap()
+            .push(drag_window_request);
+        self.event_loop_awakener.ping();
+
+        Ok(())
+    }
+
+    #[inline]
     pub fn set_ime_position(&self, position: Position) {
         let scale_factor = self.scale_factor() as f64;
         let position = position.to_logical(scale_factor);
