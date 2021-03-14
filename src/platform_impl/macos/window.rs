@@ -1137,6 +1137,16 @@ impl WindowExtMacOS for UnownedWindow {
                 .setHasShadow_(if has_shadow { YES } else { NO })
         }
     }
+
+    #[inline]
+    fn get_level(&self) -> isize {
+        unsafe { self.ns_window.level() }
+    }
+
+    #[inline]
+    fn set_level(&self, level: isize) {
+        unsafe { self.ns_window.setLevel_(level) }
+    }
 }
 
 impl Drop for UnownedWindow {
