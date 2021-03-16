@@ -186,6 +186,10 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
+    pub fn set_ignore_mouse_events(&self, _ignore: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub fn set_minimized(&self, _minimized: bool) {
         warn!("`Window::set_minimized` is ignored on iOS")
     }

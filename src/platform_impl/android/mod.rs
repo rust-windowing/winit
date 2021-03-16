@@ -563,6 +563,12 @@ impl Window {
         ))
     }
 
+    pub fn set_ignore_mouse_events(&self, _ignore: bool) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
     pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
             unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
