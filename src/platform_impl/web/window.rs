@@ -240,6 +240,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ignore_mouse_events(&self, _ignore: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn set_minimized(&self, _minimized: bool) {
         // Intentionally a no-op, as canvases cannot be 'minimized'
     }

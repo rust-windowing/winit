@@ -949,6 +949,20 @@ impl Window {
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.drag_window()
     }
+
+    /// Modifies whether the window catches cursor events.
+    ///
+    /// Mouse events pass through the window such that any other window behind it receives them.
+    ///
+    /// If `false`, this will catch the cursor events. If `true`, this will ignore the cursor.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / X11 / Wayland:** Unsupported.
+    #[inline]
+    pub fn set_ignore_mouse_events(&self, ignore: bool) -> Result<(), ExternalError> {
+        self.window.set_ignore_mouse_events(ignore)
+    }
 }
 
 /// Monitor info functions.

@@ -469,6 +469,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ignore_mouse_events(&self, ignore: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn set_ime_position(&self, position: Position) {
         let scale_factor = self.scale_factor() as f64;
         let position = position.to_logical(scale_factor);

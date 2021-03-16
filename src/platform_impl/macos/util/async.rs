@@ -10,7 +10,7 @@ use cocoa::{
 };
 use dispatch::Queue;
 use objc::rc::autoreleasepool;
-use objc::runtime::{BOOL, NO};
+use objc::runtime::{BOOL, NO, YES};
 
 use crate::{
     dpi::LogicalSize,
@@ -90,6 +90,14 @@ pub unsafe fn set_level_async(ns_window: id, level: ffi::NSWindowLevel) {
     let ns_window = MainThreadSafe(ns_window);
     Queue::main().exec_async(move || {
         ns_window.setLevel_(level as _);
+    });
+}
+
+// `setIgnoresMouseEvents_:` isn't thread-safe, and fails silently.
+pub unsafe fn set_ignore_mouse_events(ns_window: id, ignore: bool) {
+    let ns_window = MainThreadSafe(ns_window);
+    Queue::main().exec_async(move || {
+        ns_window.setIgnoresMouseEvents_(if ignore { YES } else { NO });
     });
 }
 
