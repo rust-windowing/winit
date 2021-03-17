@@ -5,11 +5,8 @@ use super::{
     runner, window,
 };
 use crate::dpi::{PhysicalSize, Size};
-use crate::event::{
-    DeviceEvent, DeviceId, ElementState, Event, KeyEvent, RawKeyEvent, TouchPhase, WindowEvent,
-};
+use crate::event::{DeviceEvent, DeviceId, ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId};
 use std::cell::RefCell;
@@ -85,7 +82,7 @@ impl<T> WindowTarget<T> {
                         logical_key,
                         text,
                         location,
-                        state: ElementState::Released,
+                        state: ElementState::Pressed,
                         repeat,
                         platform_specific: KeyEventExtra,
                     },
@@ -115,8 +112,8 @@ impl<T> WindowTarget<T> {
             })
         });
 
-        let runner = self.runner.clone();
         // TODO: What to do here?
+        // let runner = self.runner.clone();
         // canvas.on_received_character(move |char_code| {
         //     runner.send_event(Event::WindowEvent {
         //         window_id: WindowId(id),

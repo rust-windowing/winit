@@ -63,43 +63,58 @@ pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
 }
 
 pub fn key_code(event: &KeyboardEvent) -> KeyCode {
-    // TODO: Fill out stub.
     let code = event.code();
-    KeyCode::Enter
+    KeyCode::from_key_code_attribute_value(&code)
 }
 
 pub fn key(event: &KeyboardEvent) -> Key<'static> {
-    // TODO: Fill out stub.
-    Key::Enter
+    let key = event.key();
+    // TODO: Fix unbounded leak
+    let key = Box::leak(String::from(key).into_boxed_str());
+    Key::from_key_attribute_value(key)
 }
 
 pub fn key_text(event: &KeyboardEvent) -> Option<&'static str> {
-    // TODO: Fill out stub.
-    None
+    let key = event.key();
+    if let Key::Character(text) = Key::from_key_attribute_value(&key) {
+        // TODO: Fix unbounded leak
+        Some(Box::leak(String::from(text).into_boxed_str()))
+    } else {
+        None
+    }
 }
 
 pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
-    // TODO: Fill out stub.
-    KeyLocation::Standard
+    let location = event.location();
+    // TODO: Use constants rather than integer literals?
+    match location {
+        0 => KeyLocation::Standard,
+        1 => KeyLocation::Left,
+        2 => KeyLocation::Right,
+        3 => KeyLocation::Numpad,
+        // TODO: Is this reasonable to do?
+        _ => KeyLocation::Standard,
+    }
 }
 
 pub fn key_repeat(event: &KeyboardEvent) -> bool {
-    // TODO: Fill out stub.
-    false
+    event.repeat()
 }
 
-pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
-    let mut m = ModifiersState::empty();
-    m.set(ModifiersState::SHIFT, event.shift_key());
-    m.set(ModifiersState::CONTROL, event.ctrl_key());
-    m.set(ModifiersState::ALT, event.alt_key());
-    m.set(ModifiersState::SUPER, event.meta_key());
-    m
-}
+// TODO: What should be done about `KeyboardEvent.isComposing`?
 
-pub fn codepoint(event: &KeyboardEvent) -> char {
-    // `event.key()` always returns a non-empty `String`. Therefore, this should
-    // never panic.
-    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
-    event.key().chars().next().unwrap()
-}
+// pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
+//     let mut m = ModifiersState::empty();
+//     m.set(ModifiersState::SHIFT, event.shift_key());
+//     m.set(ModifiersState::CONTROL, event.ctrl_key());
+//     m.set(ModifiersState::ALT, event.alt_key());
+//     m.set(ModifiersState::SUPER, event.meta_key());
+//     m
+// }
+
+// pub fn codepoint(event: &KeyboardEvent) -> char {
+//     // `event.key()` always returns a non-empty `String`. Therefore, this should
+//     // never panic.
+//     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
+//     event.key().chars().next().unwrap()
+// }

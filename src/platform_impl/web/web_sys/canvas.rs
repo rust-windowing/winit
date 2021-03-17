@@ -4,7 +4,7 @@ use super::media_query_handle::MediaQueryListHandle;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{MouseButton, MouseScrollDelta};
-use crate::keyboard::{Key, KeyCode, ModifiersState, KeyLocation};
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
@@ -197,24 +197,24 @@ impl Canvas {
         ));
     }
 
-    pub fn on_received_character<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(char),
-    {
-        // TODO: Use `beforeinput`.
-        //
-        // The `keypress` event is deprecated, but there does not seem to be a
-        // viable/compatible alternative as of now. `beforeinput` is still widely
-        // unsupported.
-        self.on_received_character = Some(self.common.add_user_event(
-            "keypress",
-            move |event: KeyboardEvent| {
-                // Supress further handling to stop keys like the space key from scrolling the page.
-                event.prevent_default();
-                handler(event::codepoint(&event));
-            },
-        ));
-    }
+    // pub fn on_received_character<F>(&mut self, mut handler: F)
+    // where
+    //     F: 'static + FnMut(char),
+    // {
+    //     // TODO: Use `beforeinput`.
+    //     //
+    //     // The `keypress` event is deprecated, but there does not seem to be a
+    //     // viable/compatible alternative as of now. `beforeinput` is still widely
+    //     // unsupported.
+    //     self.on_received_character = Some(self.common.add_user_event(
+    //         "keypress",
+    //         move |event: KeyboardEvent| {
+    //             // Supress further handling to stop keys like the space key from scrolling the page.
+    //             event.prevent_default();
+    //             handler(event::codepoint(&event));
+    //         },
+    //     ));
+    // }
 
     pub fn on_cursor_leave<F>(&mut self, handler: F)
     where
