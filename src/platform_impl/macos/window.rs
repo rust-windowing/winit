@@ -166,7 +166,7 @@ fn create_window(
                     }
                     None => (800.0, 600.0),
                 };
-                let (left, bottom) = match attrs.outer_position {
+                let (left, bottom) = match attrs.position {
                     Some(position) => {
                         let logical = util::window_position(position.to_logical(scale_factor));
                         // macOS wants the position of the bottom left corner,
@@ -259,7 +259,7 @@ fn create_window(
             if !pl_attrs.has_shadow {
                 ns_window.setHasShadow_(NO);
             }
-            if attrs.outer_position.is_none() {
+            if attrs.position.is_none() {
                 ns_window.center();
             }
             ns_window

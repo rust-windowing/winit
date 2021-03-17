@@ -147,7 +147,7 @@ impl UnownedWindow {
             .map(|size| size.to_physical::<u32>(scale_factor).into());
 
         let position = window_attrs
-            .outer_position
+            .position
             .map(|position| position.to_physical::<i32>(scale_factor).into());
 
         let dimensions = {
