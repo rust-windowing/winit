@@ -3,7 +3,8 @@ use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{MouseButton, MouseScrollDelta};
+use crate::keyboard::{Key, KeyCode, ModifiersState, KeyLocation};
 use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
@@ -150,16 +151,18 @@ impl Canvas {
 
     pub fn on_keyboard_release<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
+        F: 'static + FnMut(KeyCode, Key<'static>, Option<&'static str>, KeyLocation, bool),
     {
         self.on_keyboard_release = Some(self.common.add_user_event(
             "keyup",
             move |event: KeyboardEvent| {
                 event.prevent_default();
                 handler(
-                    event::scan_code(&event),
-                    event::virtual_key_code(&event),
-                    event::keyboard_modifiers(&event),
+                    event::key_code(&event),
+                    event::key(&event),
+                    event::key_text(&event),
+                    event::key_location(&event),
+                    event::key_repeat(&event),
                 );
             },
         ));
@@ -167,7 +170,7 @@ impl Canvas {
 
     pub fn on_keyboard_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
+        F: 'static + FnMut(KeyCode, Key<'static>, Option<&'static str>, KeyLocation, bool),
     {
         self.on_keyboard_press = Some(self.common.add_user_event(
             "keydown",
@@ -184,9 +187,11 @@ impl Canvas {
                     event.prevent_default();
                 }
                 handler(
-                    event::scan_code(&event),
-                    event::virtual_key_code(&event),
-                    event::keyboard_modifiers(&event),
+                    event::key_code(&event),
+                    event::key(&event),
+                    event::key_text(&event),
+                    event::key_location(&event),
+                    event::key_repeat(&event),
                 );
             },
         ));

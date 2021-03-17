@@ -330,6 +330,10 @@ impl Window {
         handle.id = self.id.0;
         RawWindowHandle::Web(handle)
     }
+
+    pub fn reset_dead_keys(&self) {
+        // Not supported
+    }
 }
 
 impl Drop for Window {

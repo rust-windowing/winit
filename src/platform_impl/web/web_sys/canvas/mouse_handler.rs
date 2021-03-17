@@ -1,7 +1,8 @@
 use super::event;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::{ModifiersState, MouseButton};
+use crate::event::MouseButton;
+use crate::keyboard::ModifiersState;
 
 use std::cell::RefCell;
 use std::rc::Rc;

@@ -1,9 +1,15 @@
-use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
+use super::{
+    super::{monitor, KeyEventExtra},
+    backend, device,
+    proxy::Proxy,
+    runner, window,
+};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{
-    DeviceEvent, DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent,
+    DeviceEvent, DeviceId, ElementState, Event, KeyEvent, RawKeyEvent, TouchPhase, WindowEvent,
 };
 use crate::event_loop::ControlFlow;
+use crate::keyboard::{Key, KeyCode, KeyLocation, ModifiersState};
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId};
 use std::cell::RefCell;
@@ -68,35 +74,20 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
+        canvas.on_keyboard_press(move |physical_key, logical_key, text, location, repeat| {
             #[allow(deprecated)]
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::KeyboardInput {
                     device_id: DeviceId(unsafe { device::Id::dummy() }),
-                    input: KeyboardInput {
-                        scancode,
-                        state: ElementState::Pressed,
-                        virtual_keycode,
-                        modifiers,
-                    },
-                    is_synthetic: false,
-                },
-            });
-        });
-
-        let runner = self.runner.clone();
-        canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
-            #[allow(deprecated)]
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
-                    input: KeyboardInput {
-                        scancode,
+                    event: KeyEvent {
+                        physical_key,
+                        logical_key,
+                        text,
+                        location,
                         state: ElementState::Released,
-                        virtual_keycode,
-                        modifiers,
+                        repeat,
+                        platform_specific: KeyEventExtra,
                     },
                     is_synthetic: false,
                 },
@@ -104,12 +95,34 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_received_character(move |char_code| {
+        canvas.on_keyboard_release(move |physical_key, logical_key, text, location, repeat| {
+            #[allow(deprecated)]
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
-                event: WindowEvent::ReceivedCharacter(char_code),
-            });
+                event: WindowEvent::KeyboardInput {
+                    device_id: DeviceId(unsafe { device::Id::dummy() }),
+                    event: KeyEvent {
+                        physical_key,
+                        logical_key,
+                        text,
+                        location,
+                        state: ElementState::Released,
+                        repeat,
+                        platform_specific: KeyEventExtra,
+                    },
+                    is_synthetic: false,
+                },
+            })
         });
+
+        let runner = self.runner.clone();
+        // TODO: What to do here?
+        // canvas.on_received_character(move |char_code| {
+        //     runner.send_event(Event::WindowEvent {
+        //         window_id: WindowId(id),
+        //         event: WindowEvent::ReceivedCharacter(char_code),
+        //     });
+        // });
 
         let runner = self.runner.clone();
         canvas.on_cursor_leave(move |pointer_id| {
