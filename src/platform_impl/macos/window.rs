@@ -208,7 +208,7 @@ fn create_window(
             let title = util::ns_string_id_ref(&attrs.title);
             ns_window.setReleasedWhenClosed_(NO);
             ns_window.setTitle_(*title);
-            ns_window.setAcceptsMouseMovedEvents_(YES);
+            ns_window.setAcceptsMouseMovedEvents_(NO);
 
             if pl_attrs.titlebar_transparent {
                 ns_window.setTitlebarAppearsTransparent_(YES);

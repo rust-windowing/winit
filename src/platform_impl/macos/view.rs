@@ -57,7 +57,7 @@ pub(super) struct ViewState {
     raw_characters: Option<String>,
     is_key_down: bool,
     pub(super) modifiers: ModifiersState,
-    tracking_rect: Option<NSInteger>,
+    pub tracking_area: Option<id>,
 }
 
 impl ViewState {
@@ -76,7 +76,7 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         raw_characters: None,
         is_key_down: false,
         modifiers: Default::default(),
-        tracking_rect: None,
+        tracking_area: None,
     };
     unsafe {
         // This is free'd in `dealloc`
@@ -304,18 +304,22 @@ extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        if let Some(tracking_rect) = state.tracking_rect.take() {
-            let _: () = msg_send![this, removeTrackingRect: tracking_rect];
+        if let Some(tracking_area) = state.tracking_area.take() {
+            let _: () = msg_send![this, removeTrackingArea: tracking_area];
         }
 
         let rect: NSRect = msg_send![this, visibleRect];
-        let tracking_rect: NSInteger = msg_send![this,
-            addTrackingRect:rect
-            owner:this
-            userData:nil
-            assumeInside:NO
+        let tracking_area: id = msg_send![class!(NSTrackingArea), alloc];
+        let tracking_area: id = msg_send![
+            tracking_area,
+            initWithRect: rect
+            options: (NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways)
+            owner: this
+            userInfo: nil
         ];
-        state.tracking_rect = Some(tracking_rect);
+
+        let _: () = msg_send![this, addTrackingArea: tracking_area];
+        state.tracking_area = Some(tracking_area);
     }
     trace!("Completed `viewDidMoveToWindow`");
 }
@@ -325,19 +329,22 @@ extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        if let Some(tracking_rect) = state.tracking_rect.take() {
-            let _: () = msg_send![this, removeTrackingRect: tracking_rect];
+        if let Some(tracking_area) = state.tracking_area.take() {
+            let _: () = msg_send![this, removeTrackingArea: tracking_area];
         }
 
         let rect: NSRect = msg_send![this, visibleRect];
-        let tracking_rect: NSInteger = msg_send![this,
-            addTrackingRect:rect
-            owner:this
-            userData:nil
-            assumeInside:NO
+        let tracking_area: id = msg_send![class!(NSTrackingArea), alloc];
+        let tracking_area: id = msg_send![
+            tracking_area,
+            initWithRect: rect
+            options: (NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved | NSTrackingActiveAlways)
+            owner: this
+            userInfo: nil
         ];
 
-        state.tracking_rect = Some(tracking_rect);
+        let _: () = msg_send![this, addTrackingArea: tracking_area];
+        state.tracking_area = Some(tracking_area);
     }
 }
 

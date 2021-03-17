@@ -16,7 +16,7 @@
 - On Web, added support for `DeviceEvent::MouseMotion` to listen for relative mouse movements.
 - Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
 - On X11, bump `mio` to 0.7.
-
+- On macOS, used tracking_area to replace tracking_rect to catch mouse moved when window blured.
 # 0.24.0 (2020-12-09)
 
 - On Windows, fix applications not exiting gracefully due to thread_event_target_callback accessing corrupted memory.
