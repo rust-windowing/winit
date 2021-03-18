@@ -3,11 +3,11 @@
 use std::os::raw::c_void;
 
 use crate::{
-    keyboard::{KeyCode, NativeKeyCode},
-    platform::scancode::KeyCodeExtScancode,
     dpi::LogicalSize,
     event_loop::EventLoopWindowTarget,
+    keyboard::{KeyCode, NativeKeyCode},
     monitor::MonitorHandle,
+    platform::scancode::KeyCodeExtScancode,
     window::{Window, WindowBuilder},
 };
 
@@ -483,10 +483,9 @@ impl KeyCodeExtScancode for KeyCode {
             //0x7f =>  unkown,
 
             // TODO: (Artur) I have no idea what 0xa is supposed to be
-            // it's defined as kVK_ISO_Section in 
+            // it's defined as kVK_ISO_Section in
             // /System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/Events.h
             //0xa => KeyCode::Caret,
-
             _ => KeyCode::Unidentified(NativeKeyCode::MacOS(scancode)),
         }
     }

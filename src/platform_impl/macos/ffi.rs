@@ -7,7 +7,8 @@ use cocoa::{
     foundation::{NSInteger, NSUInteger},
 };
 use core_foundation::{
-    array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef, data::CFDataRef,
+    array::CFArrayRef, data::CFDataRef, dictionary::CFDictionaryRef, string::CFStringRef,
+    uuid::CFUUIDRef,
 };
 use core_graphics::{
     base::CGError,
@@ -236,15 +237,14 @@ pub const kUCKeyActionDisplay: u16 = 3;
 #[allow(non_upper_case_globals)]
 pub const kUCKeyTranslateNoDeadKeysMask: OptionBits = 1;
 
-
 #[link(name = "Carbon", kind = "framework")]
-extern {
+extern "C" {
     pub static kTISPropertyUnicodeKeyLayoutData: CFStringRef;
 
     #[allow(non_snake_case)]
     pub fn TISGetInputSourceProperty(
         inputSource: TISInputSourceRef,
-        propertyKey: CFStringRef
+        propertyKey: CFStringRef,
     ) -> CFDataRef;
 
     pub fn TISCopyCurrentKeyboardLayoutInputSource() -> TISInputSourceRef;

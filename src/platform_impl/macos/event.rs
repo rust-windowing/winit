@@ -1,7 +1,4 @@
-use std::{
-    ffi::c_void,
-    os::raw::c_ushort,
-};
+use std::{ffi::c_void, os::raw::c_ushort};
 
 use cocoa::{
     appkit::{NSEvent, NSEventModifierFlags},
@@ -12,8 +9,8 @@ use core_foundation::{base::CFRelease, data::CFDataGetBytePtr};
 
 use crate::{
     dpi::LogicalSize,
-    keyboard::{ModifiersState, Key, KeyCode, NativeKeyCode},
     event::{ElementState, Event, KeyEvent, WindowEvent},
+    keyboard::{Key, KeyCode, ModifiersState, NativeKeyCode},
     platform::modifier_supplement::KeyEventExtModifierSupplement,
     platform_impl::platform::{
         ffi,
@@ -65,9 +62,8 @@ pub fn get_logical_key(scancode: u32) -> Key<'static> {
             log::error!("`TISCopyCurrentKeyboardLayoutInputSource` returned null ptr");
             return Key::Unidentified(NativeKeyCode::MacOS(scancode));
         }
-        let layout_data = ffi::TISGetInputSourceProperty(
-            input_source, ffi::kTISPropertyUnicodeKeyLayoutData
-        );
+        let layout_data =
+            ffi::TISGetInputSourceProperty(input_source, ffi::kTISPropertyUnicodeKeyLayoutData);
         if layout_data.is_null() {
             CFRelease(input_source as *mut c_void);
             log::error!("`TISGetInputSourceProperty` returned null ptr");
@@ -370,19 +366,19 @@ pub unsafe fn modifier_event(
         // TODO: (Artur) implement this
         None
 
-        // let scancode = get_scancode(ns_event);
-        // let virtual_keycode = scancode_to_keycode(scancode);
-        // #[allow(deprecated)]
-        // Some(WindowEvent::KeyboardInput {
-        //     device_id: DEVICE_ID,
-        //     input: KeyboardInput {
-        //         state,
-        //         scancode: scancode as _,
-        //         virtual_keycode,
-        //         modifiers: event_mods(ns_event),
-        //     },
-        //     is_synthetic: false,
-        // })
+    // let scancode = get_scancode(ns_event);
+    // let virtual_keycode = scancode_to_keycode(scancode);
+    // #[allow(deprecated)]
+    // Some(WindowEvent::KeyboardInput {
+    //     device_id: DEVICE_ID,
+    //     input: KeyboardInput {
+    //         state,
+    //         scancode: scancode as _,
+    //         virtual_keycode,
+    //         modifiers: event_mods(ns_event),
+    //     },
+    //     is_synthetic: false,
+    // })
     } else {
         None
     }

@@ -16,8 +16,8 @@ use objc::{
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
-    keyboard::ModifiersState,
     event::{Event, WindowEvent},
+    keyboard::ModifiersState,
     platform_impl::platform::{
         app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,

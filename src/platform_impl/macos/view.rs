@@ -18,23 +18,19 @@ use objc::{
 
 use crate::{
     dpi::LogicalPosition,
-    platform::scancode::KeyCodeExtScancode,
-    keyboard::{ModifiersState, Key, KeyCode, KeyLocation},
     event::{
-        DeviceEvent, ElementState, Event, KeyEvent, MouseButton,
-        MouseScrollDelta, TouchPhase, WindowEvent,
+        DeviceEvent, ElementState, Event, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
+        WindowEvent,
     },
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState},
+    platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
-        KeyEventExtra,
         app_state::AppState,
-        event::{
-            event_mods, get_scancode, modifier_event, get_logical_key,
-            EventWrapper,
-        },
+        event::{event_mods, get_logical_key, get_scancode, modifier_event, EventWrapper},
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
-        DEVICE_ID,
+        KeyEventExtra, DEVICE_ID,
     },
     window::WindowId,
 };
@@ -693,7 +689,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
                     platform_specific: KeyEventExtra {},
                 },
                 is_synthetic: false,
-            }
+            },
         };
 
         let pass_along = {
