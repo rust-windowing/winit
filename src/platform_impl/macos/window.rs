@@ -1037,6 +1037,10 @@ impl UnownedWindow {
         };
         RawWindowHandle::MacOS(handle)
     }
+
+    pub fn reset_dead_keys(&self) {
+        todo!()
+    }
 }
 
 impl WindowExtMacOS for UnownedWindow {

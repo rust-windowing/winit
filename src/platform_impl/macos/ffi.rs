@@ -7,7 +7,7 @@ use cocoa::{
     foundation::{NSInteger, NSUInteger},
 };
 use core_foundation::{
-    array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
+    array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef, data::CFDataRef,
 };
 use core_graphics::{
     base::CGError,
@@ -217,4 +217,51 @@ extern "C" {
     pub fn CGDisplayModeCopyPixelEncoding(mode: CGDisplayModeRef) -> CFStringRef;
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
     pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
+}
+
+#[repr(transparent)]
+pub struct TISInputSource(std::ffi::c_void);
+pub type TISInputSourceRef = *mut TISInputSource;
+
+#[repr(transparent)]
+pub struct UCKeyboardLayout(std::ffi::c_void);
+
+pub type OptionBits = u32;
+pub type UniCharCount = std::os::raw::c_ulong;
+pub type UniChar = u16;
+pub type OSStatus = i32;
+
+#[allow(non_upper_case_globals)]
+pub const kUCKeyActionDisplay: u16 = 3;
+#[allow(non_upper_case_globals)]
+pub const kUCKeyTranslateNoDeadKeysMask: OptionBits = 1;
+
+
+#[link(name = "Carbon", kind = "framework")]
+extern {
+    pub static kTISPropertyUnicodeKeyLayoutData: CFStringRef;
+
+    #[allow(non_snake_case)]
+    pub fn TISGetInputSourceProperty(
+        inputSource: TISInputSourceRef,
+        propertyKey: CFStringRef
+    ) -> CFDataRef;
+
+    pub fn TISCopyCurrentKeyboardLayoutInputSource() -> TISInputSourceRef;
+
+    pub fn LMGetKbdType() -> u8;
+
+    #[allow(non_snake_case)]
+    pub fn UCKeyTranslate(
+        keyLayoutPtr: *const UCKeyboardLayout,
+        virtualKeyCode: u16,
+        keyAction: u16,
+        modifierKeyState: u32,
+        keyboardType: u32,
+        keyTranslateOptions: OptionBits,
+        deadKeyState: *mut u32,
+        maxStringLength: UniCharCount,
+        actualStringLength: *mut UniCharCount,
+        unicodeString: *mut UniChar,
+    ) -> OSStatus;
 }

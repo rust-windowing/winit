@@ -18,15 +18,18 @@ use objc::{
 
 use crate::{
     dpi::LogicalPosition,
+    platform::scancode::KeyCodeExtScancode,
+    keyboard::{ModifiersState, Key, KeyCode, KeyLocation},
     event::{
-        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, MouseButton,
-        MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
+        DeviceEvent, ElementState, Event, KeyEvent, MouseButton,
+        MouseScrollDelta, TouchPhase, WindowEvent,
     },
     platform_impl::platform::{
+        KeyEventExtra,
         app_state::AppState,
         event::{
-            char_to_keycode, check_function_keys, event_mods, get_scancode, modifier_event,
-            scancode_to_keycode, EventWrapper,
+            event_mods, get_scancode, modifier_event, get_logical_key,
+            EventWrapper,
         },
         ffi::*,
         util::{self, IdRef},
@@ -518,12 +521,14 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
         //let event: id = msg_send![NSApp(), currentEvent];
 
         let mut events = VecDeque::with_capacity(characters.len());
-        for character in string.chars().filter(|c| !is_corporate_character(*c)) {
-            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.ns_window)),
-                event: WindowEvent::ReceivedCharacter(character),
-            }));
-        }
+        // for character in string.chars().filter(|c| !is_corporate_character(*c)) {
+        //     events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+        //         window_id: WindowId(get_window_id(state.ns_window)),
+        //         event: WindowEvent::ReceivedCharacter(character),
+        //     }));
+        // }
+
+        // TODO: (Artur) implement text input handling
 
         AppState::queue_events(events);
     }
@@ -540,13 +545,15 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
 
         let mut events = VecDeque::with_capacity(1);
         if command == sel!(insertNewline:) {
-            // The `else` condition would emit the same character, but I'm keeping this here both...
-            // 1) as a reminder for how `doCommandBySelector` works
-            // 2) to make our use of carriage return explicit
-            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.ns_window)),
-                event: WindowEvent::ReceivedCharacter('\r'),
-            }));
+            // TODO: (Artur) implement this whatever this is :D
+
+            // // The `else` condition would emit the same character, but I'm keeping this here both...
+            // // 1) as a reminder for how `doCommandBySelector` works
+            // // 2) to make our use of carriage return explicit
+            // events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+            //     window_id: WindowId(get_window_id(state.ns_window)),
+            //     event: WindowEvent::ReceivedCharacter('\r'),
+            // }));
         } else {
             let raw_characters = state.raw_characters.take();
             if let Some(raw_characters) = raw_characters {
@@ -554,10 +561,10 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
                     .chars()
                     .filter(|c| !is_corporate_character(*c))
                 {
-                    events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: WindowId(get_window_id(state.ns_window)),
-                        event: WindowEvent::ReceivedCharacter(character),
-                    }));
+                    // events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+                    //     window_id: WindowId(get_window_id(state.ns_window)),
+                    //     event: WindowEvent::ReceivedCharacter(character),
+                    // }));
                 }
             }
         };
@@ -599,29 +606,29 @@ fn is_corporate_character(c: char) -> bool {
     }
 }
 
-// Retrieves a layout-independent keycode given an event.
-fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
-    #[inline]
-    fn get_code(ev: id, raw: bool) -> Option<VirtualKeyCode> {
-        let characters = get_characters(ev, raw);
-        characters.chars().next().and_then(|c| char_to_keycode(c))
-    }
+// // Retrieves a layout-independent keycode given an event.
+// fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
+//     #[inline]
+//     fn get_code(ev: id, raw: bool) -> Option<VirtualKeyCode> {
+//         let characters = get_characters(ev, raw);
+//         characters.chars().next().and_then(|c| char_to_keycode(c))
+//     }
 
-    // Cmd switches Roman letters for Dvorak-QWERTY layout, so we try modified characters first.
-    // If we don't get a match, then we fall back to unmodified characters.
-    let code = get_code(event, false).or_else(|| get_code(event, true));
+//     // Cmd switches Roman letters for Dvorak-QWERTY layout, so we try modified characters first.
+//     // If we don't get a match, then we fall back to unmodified characters.
+//     let code = get_code(event, false).or_else(|| get_code(event, true));
 
-    // We've checked all layout related keys, so fall through to scancode.
-    // Reaching this code means that the key is layout-independent (e.g. Backspace, Return).
-    //
-    // We're additionally checking here for F21-F24 keys, since their keycode
-    // can vary, but we know that they are encoded
-    // in characters property.
-    code.or_else(|| {
-        let scancode = get_scancode(event);
-        scancode_to_keycode(scancode).or_else(|| check_function_keys(&get_characters(event, true)))
-    })
-}
+//     // We've checked all layout related keys, so fall through to scancode.
+//     // Reaching this code means that the key is layout-independent (e.g. Backspace, Return).
+//     //
+//     // We're additionally checking here for F21-F24 keys, since their keycode
+//     // can vary, but we know that they are encoded
+//     // in characters property.
+//     code.or_else(|| {
+//         let scancode = get_scancode(event);
+//         scancode_to_keycode(scancode).or_else(|| check_function_keys(&get_characters(event, true)))
+//     })
+// }
 
 // Update `state.modifiers` if `event` has something different
 fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
@@ -647,37 +654,58 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         state.raw_characters = Some(characters.clone());
 
         let scancode = get_scancode(event) as u32;
-        let virtual_keycode = retrieve_keycode(event);
+        //let virtual_keycode = retrieve_keycode(event);
 
         let is_repeat = msg_send![event, isARepeat];
 
         update_potentially_stale_modifiers(state, event);
 
-        #[allow(deprecated)]
+        // TODO: (Artur) implement this
+
+        // #[allow(deprecated)]
+        // let window_event = Event::WindowEvent {
+        //     window_id,
+        //     event: WindowEvent::KeyboardInput {
+        //         device_id: DEVICE_ID,
+        //         input: KeyboardInput {
+        //             state: ElementState::Pressed,
+        //             scancode,
+        //             virtual_keycode,
+        //             modifiers: event_mods(event),
+        //         },
+        //         is_synthetic: false,
+        //     },
+        // };
+
+        let logical_key = get_logical_key(scancode);
+
         let window_event = Event::WindowEvent {
             window_id,
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
-                input: KeyboardInput {
+                event: KeyEvent {
+                    physical_key: KeyCode::from_scancode(scancode),
+                    logical_key,
+                    text: None,
                     state: ElementState::Pressed,
-                    scancode,
-                    virtual_keycode,
-                    modifiers: event_mods(event),
+                    location: KeyLocation::Standard,
+                    repeat: is_repeat,
+                    platform_specific: KeyEventExtra {},
                 },
                 is_synthetic: false,
-            },
+            }
         };
 
         let pass_along = {
             AppState::queue_event(EventWrapper::StaticEvent(window_event));
             // Emit `ReceivedCharacter` for key repeats
             if is_repeat && state.is_key_down {
-                for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
-                    AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::ReceivedCharacter(character),
-                    }));
-                }
+                // for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
+                //     AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                //         window_id,
+                //         event: WindowEvent::ReceivedCharacter(character),
+                //     }));
+                // }
                 false
             } else {
                 true
@@ -704,26 +732,28 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
         state.is_key_down = false;
 
         let scancode = get_scancode(event) as u32;
-        let virtual_keycode = retrieve_keycode(event);
+        //let virtual_keycode = retrieve_keycode(event);
 
         update_potentially_stale_modifiers(state, event);
 
-        #[allow(deprecated)]
-        let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.ns_window)),
-            event: WindowEvent::KeyboardInput {
-                device_id: DEVICE_ID,
-                input: KeyboardInput {
-                    state: ElementState::Released,
-                    scancode,
-                    virtual_keycode,
-                    modifiers: event_mods(event),
-                },
-                is_synthetic: false,
-            },
-        };
+        // TODO: (Artur) implement this
 
-        AppState::queue_event(EventWrapper::StaticEvent(window_event));
+        // #[allow(deprecated)]
+        // let window_event = Event::WindowEvent {
+        //     window_id: WindowId(get_window_id(state.ns_window)),
+        //     event: WindowEvent::KeyboardInput {
+        //         device_id: DEVICE_ID,
+        //         input: KeyboardInput {
+        //             state: ElementState::Released,
+        //             scancode,
+        //             virtual_keycode,
+        //             modifiers: event_mods(event),
+        //         },
+        //         is_synthetic: false,
+        //     },
+        // };
+
+        // AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `keyUp`");
 }
@@ -739,7 +769,7 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSShiftKeyMask,
-            state.modifiers.shift(),
+            state.modifiers.shift_key(),
         ) {
             state.modifiers.toggle(ModifiersState::SHIFT);
             events.push_back(window_event);
@@ -748,25 +778,25 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSControlKeyMask,
-            state.modifiers.ctrl(),
+            state.modifiers.control_key(),
         ) {
-            state.modifiers.toggle(ModifiersState::CTRL);
+            state.modifiers.toggle(ModifiersState::CONTROL);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSCommandKeyMask,
-            state.modifiers.logo(),
+            state.modifiers.super_key(),
         ) {
-            state.modifiers.toggle(ModifiersState::LOGO);
+            state.modifiers.toggle(ModifiersState::SUPER);
             events.push_back(window_event);
         }
 
         if let Some(window_event) = modifier_event(
             event,
             NSEventModifierFlags::NSAlternateKeyMask,
-            state.modifiers.alt(),
+            state.modifiers.alt_key(),
         ) {
             state.modifiers.toggle(ModifiersState::ALT);
             events.push_back(window_event);
@@ -820,29 +850,31 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
         let state = &mut *(state_ptr as *mut ViewState);
 
         let scancode = 0x2f;
-        let virtual_keycode = scancode_to_keycode(scancode);
-        debug_assert_eq!(virtual_keycode, Some(VirtualKeyCode::Period));
+        // TODO: (Artur) implement this
 
-        let event: id = msg_send![NSApp(), currentEvent];
+        // let virtual_keycode = scancode_to_keycode(scancode);
+        // debug_assert_eq!(virtual_keycode, Some(VirtualKeyCode::Period));
 
-        update_potentially_stale_modifiers(state, event);
+        // let event: id = msg_send![NSApp(), currentEvent];
 
-        #[allow(deprecated)]
-        let window_event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(state.ns_window)),
-            event: WindowEvent::KeyboardInput {
-                device_id: DEVICE_ID,
-                input: KeyboardInput {
-                    state: ElementState::Pressed,
-                    scancode: scancode as _,
-                    virtual_keycode,
-                    modifiers: event_mods(event),
-                },
-                is_synthetic: false,
-            },
-        };
+        // update_potentially_stale_modifiers(state, event);
 
-        AppState::queue_event(EventWrapper::StaticEvent(window_event));
+        // #[allow(deprecated)]
+        // let window_event = Event::WindowEvent {
+        //     window_id: WindowId(get_window_id(state.ns_window)),
+        //     event: WindowEvent::KeyboardInput {
+        //         device_id: DEVICE_ID,
+        //         input: KeyboardInput {
+        //             state: ElementState::Pressed,
+        //             scancode: scancode as _,
+        //             virtual_keycode,
+        //             modifiers: event_mods(event),
+        //         },
+        //         is_synthetic: false,
+        //     },
+        // };
+
+        // AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `cancelOperation`");
 }
