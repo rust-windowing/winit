@@ -151,18 +151,21 @@ impl Canvas {
 
     pub fn on_keyboard_release<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(KeyCode, Key<'static>, Option<&'static str>, KeyLocation, bool),
+        F: 'static
+            + FnMut(KeyCode, Key<'static>, Option<&'static str>, KeyLocation, bool, ModifiersState),
     {
         self.on_keyboard_release = Some(self.common.add_user_event(
             "keyup",
             move |event: KeyboardEvent| {
                 event.prevent_default();
+                let key = event::key(&event);
                 handler(
                     event::key_code(&event),
-                    event::key(&event),
+                    key,
                     event::key_text(&event),
                     event::key_location(&event),
                     event::key_repeat(&event),
+                    event::keyboard_modifiers(key),
                 );
             },
         ));
@@ -170,18 +173,21 @@ impl Canvas {
 
     pub fn on_keyboard_press<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(KeyCode, Key<'static>, Option<&'static str>, KeyLocation, bool),
+        F: 'static
+            + FnMut(KeyCode, Key<'static>, Option<&'static str>, KeyLocation, bool, ModifiersState),
     {
         self.on_keyboard_press = Some(self.common.add_user_event(
             "keydown",
             move |event: KeyboardEvent| {
                 event.prevent_default();
+                let key = event::key(&event);
                 handler(
                     event::key_code(&event),
-                    event::key(&event),
+                    key,
                     event::key_text(&event),
                     event::key_location(&event),
                     event::key_repeat(&event),
+                    event::keyboard_modifiers(key),
                 );
             },
         ));

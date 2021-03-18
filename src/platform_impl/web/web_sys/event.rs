@@ -103,14 +103,15 @@ pub fn key_repeat(event: &KeyboardEvent) -> bool {
 
 // TODO: What should be done about `KeyboardEvent.isComposing`?
 
-// pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
-//     let mut m = ModifiersState::empty();
-//     m.set(ModifiersState::SHIFT, event.shift_key());
-//     m.set(ModifiersState::CONTROL, event.ctrl_key());
-//     m.set(ModifiersState::ALT, event.alt_key());
-//     m.set(ModifiersState::SUPER, event.meta_key());
-//     m
-// }
+pub fn keyboard_modifiers(key: Key<'_>) -> ModifiersState {
+    match key {
+        Key::Shift => ModifiersState::SHIFT,
+        Key::Control => ModifiersState::CONTROL,
+        Key::Alt => ModifiersState::ALT,
+        Key::Super => ModifiersState::SUPER,
+        _ => ModifiersState::empty(),
+    }
+}
 
 // pub fn codepoint(event: &KeyboardEvent) -> char {
 //     // `event.key()` always returns a non-empty `String`. Therefore, this should

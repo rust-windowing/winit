@@ -7,21 +7,43 @@ use super::{
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{DeviceEvent, DeviceId, ElementState, Event, KeyEvent, TouchPhase, WindowEvent};
 use crate::event_loop::ControlFlow;
+use crate::keyboard::ModifiersState;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::rc::Rc;
 
+#[derive(Default)]
+struct ModifiersShared(Rc<Cell<ModifiersState>>);
+
+impl ModifiersShared {
+    fn set(&self, new: ModifiersState) {
+        self.0.set(new)
+    }
+
+    fn get(&self) -> ModifiersState {
+        self.0.get()
+    }
+}
+
+impl Clone for ModifiersShared {
+    fn clone(&self) -> Self {
+        Self(Rc::clone(&self.0))
+    }
+}
+
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
+    modifiers: ModifiersShared,
 }
 
 impl<T> Clone for WindowTarget<T> {
     fn clone(&self) -> Self {
         WindowTarget {
             runner: self.runner.clone(),
+            modifiers: self.modifiers.clone(),
         }
     }
 }
@@ -30,6 +52,7 @@ impl<T> WindowTarget<T> {
     pub fn new() -> Self {
         WindowTarget {
             runner: runner::Shared::new(),
+            modifiers: ModifiersShared::default(),
         }
     }
 
@@ -71,46 +94,78 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_keyboard_press(move |physical_key, logical_key, text, location, repeat| {
-            #[allow(deprecated)]
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
-                    event: KeyEvent {
-                        physical_key,
-                        logical_key,
-                        text,
-                        location,
-                        state: ElementState::Pressed,
-                        repeat,
-                        platform_specific: KeyEventExtra,
-                    },
-                    is_synthetic: false,
-                },
-            });
-        });
+        let modifiers = self.modifiers.clone();
+        canvas.on_keyboard_press(
+            move |physical_key, logical_key, text, location, repeat, new_modifiers| {
+                let active_modifiers = modifiers.get() | new_modifiers;
+                let modifiers_changed = if modifiers.get() != active_modifiers {
+                    modifiers.set(active_modifiers);
+                    Some(Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
+                    })
+                } else {
+                    None
+                };
+
+                runner.send_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::KeyboardInput {
+                            device_id: DeviceId(unsafe { device::Id::dummy() }),
+                            event: KeyEvent {
+                                physical_key,
+                                logical_key,
+                                text,
+                                location,
+                                state: ElementState::Pressed,
+                                repeat,
+                                platform_specific: KeyEventExtra,
+                            },
+                            is_synthetic: false,
+                        },
+                    })
+                    .chain(modifiers_changed),
+                );
+            },
+        );
 
         let runner = self.runner.clone();
-        canvas.on_keyboard_release(move |physical_key, logical_key, text, location, repeat| {
-            #[allow(deprecated)]
-            runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
-                    event: KeyEvent {
-                        physical_key,
-                        logical_key,
-                        text,
-                        location,
-                        state: ElementState::Released,
-                        repeat,
-                        platform_specific: KeyEventExtra,
-                    },
-                    is_synthetic: false,
-                },
-            })
-        });
+        let modifiers = self.modifiers.clone();
+        canvas.on_keyboard_release(
+            move |physical_key, logical_key, text, location, repeat, new_modifiers| {
+                let active_modifiers = modifiers.get() & !new_modifiers;
+                let modifiers_changed = if modifiers.get() != active_modifiers {
+                    modifiers.set(active_modifiers);
+                    Some(Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::ModifiersChanged(active_modifiers),
+                    })
+                } else {
+                    None
+                };
+
+                runner.send_events(
+                    std::iter::once(Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::KeyboardInput {
+                            device_id: DeviceId(unsafe { device::Id::dummy() }),
+                            event: KeyEvent {
+                                physical_key,
+                                logical_key,
+                                text,
+                                location,
+                                state: ElementState::Released,
+                                repeat,
+                                platform_specific: KeyEventExtra,
+                            },
+                            is_synthetic: false,
+                        },
+                    })
+                    .chain(modifiers_changed),
+                )
+            },
+        );
 
         let runner = self.runner.clone();
         canvas.on_composition_end(move |data| {
