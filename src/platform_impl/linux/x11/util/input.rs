@@ -1,7 +1,7 @@
 use std::{slice, str};
 
 use super::*;
-use crate::event::ModifiersState;
+use crate::keyboard::ModifiersState;
 
 pub const VIRTUAL_CORE_POINTER: c_int = 2;
 pub const VIRTUAL_CORE_KEYBOARD: c_int = 3;
@@ -20,8 +20,8 @@ impl ModifiersState {
         let mut m = ModifiersState::empty();
         m.set(ModifiersState::ALT, mask & ffi::Mod1Mask != 0);
         m.set(ModifiersState::SHIFT, mask & ffi::ShiftMask != 0);
-        m.set(ModifiersState::CTRL, mask & ffi::ControlMask != 0);
-        m.set(ModifiersState::LOGO, mask & ffi::Mod4Mask != 0);
+        m.set(ModifiersState::CONTROL, mask & ffi::ControlMask != 0);
+        m.set(ModifiersState::SUPER, mask & ffi::Mod4Mask != 0);
         m
     }
 }

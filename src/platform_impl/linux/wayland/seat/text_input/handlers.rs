@@ -70,7 +70,7 @@ pub(super) fn handle_text_input(
             };
 
             for ch in text.chars() {
-                event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
+                // event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
             }
         }
         _ => (),
