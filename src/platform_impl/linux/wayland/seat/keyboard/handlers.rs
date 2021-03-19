@@ -5,9 +5,10 @@ use sctk::reexports::client::protocol::wl_keyboard::KeyState;
 use sctk::seat::keyboard::Event as KeyboardEvent;
 
 use crate::event::{ElementState, KeyEvent, WindowEvent};
-use crate::keyboard::ModifiersState;
+use crate::keyboard::{Key, KeyLocation, ModifiersState, NativeKeyCode};
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
+use crate::platform_impl::KeyEventExtra;
 
 use super::keymap;
 use super::KeyboardInner;
@@ -69,7 +70,8 @@ pub(super) fn handle_keyboard(
                 _ => unreachable!(),
             };
 
-            // let virtual_keycode = keymap::keysym_to_vkey(keysym);
+            let physical_key = keymap::rawkey_to_keycode(rawkey);
+            let logical_key = keymap::keysym_to_key(keysym);
 
             event_sink.push_window_event(
                 WindowEvent::KeyboardInput {
@@ -77,13 +79,16 @@ pub(super) fn handle_keyboard(
                         DeviceId,
                     )),
                     event: KeyEvent {
-                        physical_key: todo!(),
-                        logical_key: todo!(),
-                        text: todo!(),
-                        location: todo!(),
+                        physical_key,
+                        logical_key,
+                        text: None,
+                        location: KeyLocation::Standard,
                         state,
                         repeat: false,
-                        platform_specific: todo!(),
+                        platform_specific: KeyEventExtra {
+                            key_without_modifiers: Key::Unidentified(NativeKeyCode::Unidentified),
+                            text_with_all_modifers: None,
+                        },
                     },
                     is_synthetic: false,
                 },
@@ -112,7 +117,8 @@ pub(super) fn handle_keyboard(
                 None => return,
             };
 
-            // let virtual_keycode = keymap::keysym_to_vkey(keysym);
+            let physical_key = keymap::rawkey_to_keycode(rawkey);
+            let logical_key = keymap::keysym_to_key(keysym);
 
             event_sink.push_window_event(
                 WindowEvent::KeyboardInput {
@@ -120,13 +126,16 @@ pub(super) fn handle_keyboard(
                         DeviceId,
                     )),
                     event: KeyEvent {
-                        physical_key: todo!(),
-                        logical_key: todo!(),
-                        text: todo!(),
-                        location: todo!(),
+                        physical_key,
+                        logical_key,
+                        text: None,
+                        location: KeyLocation::Standard,
                         state: ElementState::Pressed,
                         repeat: false,
-                        platform_specific: todo!(),
+                        platform_specific: KeyEventExtra {
+                            key_without_modifiers: Key::Unidentified(NativeKeyCode::Unidentified),
+                            text_with_all_modifers: None,
+                        },
                     },
                     is_synthetic: false,
                 },
