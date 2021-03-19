@@ -8,7 +8,8 @@ use sctk::reexports::client::Attached;
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::{ZwpPointerConstraintsV1};
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
 
-use crate::event::{ModifiersState, TouchPhase};
+use crate::event::TouchPhase;
+use crate::keyboard::ModifiersState;
 
 /// A data being used by pointer handlers.
 pub(super) struct PointerData {

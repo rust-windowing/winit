@@ -11,7 +11,7 @@ use sctk::reexports::calloop::{LoopHandle, RegistrationToken};
 
 use sctk::seat::keyboard;
 
-use crate::event::ModifiersState;
+use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::WindowId;
 
@@ -97,9 +97,9 @@ impl From<keyboard::ModifiersState> for ModifiersState {
     fn from(mods: keyboard::ModifiersState) -> ModifiersState {
         let mut wl_mods = ModifiersState::empty();
         wl_mods.set(ModifiersState::SHIFT, mods.shift);
-        wl_mods.set(ModifiersState::CTRL, mods.ctrl);
+        wl_mods.set(ModifiersState::CONTROL, mods.ctrl);
         wl_mods.set(ModifiersState::ALT, mods.alt);
-        wl_mods.set(ModifiersState::LOGO, mods.logo);
+        wl_mods.set(ModifiersState::SUPER, mods.logo);
         wl_mods
     }
 }

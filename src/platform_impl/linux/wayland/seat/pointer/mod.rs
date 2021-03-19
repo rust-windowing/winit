@@ -15,7 +15,7 @@ use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_c
 use sctk::seat::pointer::{ThemeManager, ThemedPointer};
 use sctk::window::Window;
 
-use crate::event::ModifiersState;
+use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::window::WinitFrame;
 use crate::window::CursorIcon;

@@ -4,7 +4,8 @@ use sctk::reexports::client::protocol::wl_keyboard::KeyState;
 
 use sctk::seat::keyboard::Event as KeyboardEvent;
 
-use crate::event::{ElementState, KeyboardInput, ModifiersState, WindowEvent};
+use crate::event::{ElementState, KeyEvent, WindowEvent};
+use crate::keyboard::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
 
@@ -68,19 +69,21 @@ pub(super) fn handle_keyboard(
                 _ => unreachable!(),
             };
 
-            let virtual_keycode = keymap::keysym_to_vkey(keysym);
+            // let virtual_keycode = keymap::keysym_to_vkey(keysym);
 
             event_sink.push_window_event(
-                #[allow(deprecated)]
                 WindowEvent::KeyboardInput {
                     device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
                         DeviceId,
                     )),
-                    input: KeyboardInput {
+                    event: KeyEvent {
+                        physical_key: todo!(),
+                        logical_key: todo!(),
+                        text: todo!(),
+                        location: todo!(),
                         state,
-                        scancode: rawkey,
-                        virtual_keycode,
-                        modifiers: *inner.modifiers_state.borrow(),
+                        repeat: false,
+                        platform_specific: todo!(),
                     },
                     is_synthetic: false,
                 },
@@ -94,7 +97,7 @@ pub(super) fn handle_keyboard(
 
             if let Some(txt) = utf8 {
                 for ch in txt.chars() {
-                    event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
+                    // event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
                 }
             }
         }
@@ -109,19 +112,21 @@ pub(super) fn handle_keyboard(
                 None => return,
             };
 
-            let virtual_keycode = keymap::keysym_to_vkey(keysym);
+            // let virtual_keycode = keymap::keysym_to_vkey(keysym);
 
             event_sink.push_window_event(
-                #[allow(deprecated)]
                 WindowEvent::KeyboardInput {
                     device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
                         DeviceId,
                     )),
-                    input: KeyboardInput {
+                    event: KeyEvent {
+                        physical_key: todo!(),
+                        logical_key: todo!(),
+                        text: todo!(),
+                        location: todo!(),
                         state: ElementState::Pressed,
-                        scancode: rawkey,
-                        virtual_keycode,
-                        modifiers: *inner.modifiers_state.borrow(),
+                        repeat: false,
+                        platform_specific: todo!(),
                     },
                     is_synthetic: false,
                 },
@@ -130,7 +135,7 @@ pub(super) fn handle_keyboard(
 
             if let Some(txt) = utf8 {
                 for ch in txt.chars() {
-                    event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
+                    // event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
                 }
             }
         }

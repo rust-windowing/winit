@@ -2,7 +2,8 @@ use std::{collections::HashMap, slice};
 
 use super::*;
 
-use crate::event::{ElementState, ModifiersState};
+use crate::event::ElementState;
+use crate::keyboard::ModifiersState;
 
 // Offsets within XModifierKeymap to each set of keycodes.
 // We are only interested in Shift, Control, Alt, and Logo.
@@ -116,10 +117,12 @@ impl ModifierKeyState {
         let mut new_state = *state;
 
         match except {
-            Some(Modifier::Alt) => new_state.set(ModifiersState::ALT, self.state.alt()),
-            Some(Modifier::Ctrl) => new_state.set(ModifiersState::CTRL, self.state.ctrl()),
-            Some(Modifier::Shift) => new_state.set(ModifiersState::SHIFT, self.state.shift()),
-            Some(Modifier::Logo) => new_state.set(ModifiersState::LOGO, self.state.logo()),
+            Some(Modifier::Alt) => new_state.set(ModifiersState::ALT, self.state.alt_key()),
+            Some(Modifier::Ctrl) => {
+                new_state.set(ModifiersState::CONTROL, self.state.control_key())
+            }
+            Some(Modifier::Shift) => new_state.set(ModifiersState::SHIFT, self.state.shift_key()),
+            Some(Modifier::Logo) => new_state.set(ModifiersState::SUPER, self.state.super_key()),
             None => (),
         }
 
@@ -170,18 +173,18 @@ impl ModifierKeyState {
 
 fn get_modifier(state: &ModifiersState, modifier: Modifier) -> bool {
     match modifier {
-        Modifier::Alt => state.alt(),
-        Modifier::Ctrl => state.ctrl(),
-        Modifier::Shift => state.shift(),
-        Modifier::Logo => state.logo(),
+        Modifier::Alt => state.alt_key(),
+        Modifier::Ctrl => state.control_key(),
+        Modifier::Shift => state.shift_key(),
+        Modifier::Logo => state.super_key(),
     }
 }
 
 fn set_modifier(state: &mut ModifiersState, modifier: Modifier, value: bool) {
     match modifier {
         Modifier::Alt => state.set(ModifiersState::ALT, value),
-        Modifier::Ctrl => state.set(ModifiersState::CTRL, value),
+        Modifier::Ctrl => state.set(ModifiersState::CONTROL, value),
         Modifier::Shift => state.set(ModifiersState::SHIFT, value),
-        Modifier::Logo => state.set(ModifiersState::LOGO, value),
+        Modifier::Logo => state.set(ModifiersState::SUPER, value),
     }
 }

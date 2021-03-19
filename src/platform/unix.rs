@@ -11,8 +11,11 @@ use std::os::raw;
 use std::{ptr, sync::Arc};
 
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event::KeyEvent,
+    event_loop::{EventLoop, EventLoopBuilder, EventLoopWindowTarget},
+    keyboard::Key,
     monitor::MonitorHandle,
+    platform::modifier_supplement::KeyEventExtModifierSupplement,
     window::{Window, WindowBuilder},
 };
 
@@ -432,5 +435,17 @@ impl MonitorHandleExtUnix for MonitorHandle {
     #[inline]
     fn native_id(&self) -> u32 {
         self.inner.native_identifier()
+    }
+}
+
+impl KeyEventExtModifierSupplement for KeyEvent {
+    #[inline]
+    fn text_with_all_modifiers(&self) -> Option<&str> {
+        self.platform_specific.text_with_all_modifers
+    }
+
+    #[inline]
+    fn key_without_modifiers(&self) -> Key<'static> {
+        self.platform_specific.key_without_modifiers
     }
 }

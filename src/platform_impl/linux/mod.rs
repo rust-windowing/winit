@@ -36,6 +36,7 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
+    keyboard::Key,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
@@ -46,6 +47,12 @@ pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 pub mod wayland;
 #[cfg(feature = "x11")]
 pub mod x11;
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub text_with_all_modifers: Option<&'static str>,
+    pub key_without_modifiers: Key<'static>,
+}
 
 /// Environment variable specifying which backend should be used on unix platform.
 ///
@@ -475,6 +482,10 @@ impl Window {
     #[inline]
     pub fn set_ime_position(&self, position: Position) {
         x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
+    }
+
+    pub fn reset_dead_keys(&self) {
+        todo!()
     }
 
     #[inline]

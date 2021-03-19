@@ -16,10 +16,10 @@ use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRe
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{
-        DeviceEvent, ElementState, Event, Ime, KeyboardInput, ModifiersState, TouchPhase,
-        WindowEvent,
+        DeviceEvent, ElementState, Event, Ime, KeyEvent, RawKeyEvent, TouchPhase, WindowEvent,
     },
     event_loop::EventLoopWindowTarget as RootELW,
+    keyboard::ModifiersState,
 };
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range [8,255]".
@@ -574,7 +574,7 @@ impl<T: 'static> EventProcessor<T> {
                 if keycode != 0 && !self.is_composing {
                     let scancode = keycode - KEYCODE_OFFSET as u32;
                     let keysym = wt.xconn.lookup_keysym(xkev);
-                    let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+                    // let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
                     update_modifiers!(
                         ModifiersState::from_x11_mask(xkev.state),
@@ -583,16 +583,18 @@ impl<T: 'static> EventProcessor<T> {
 
                     let modifiers = self.device_mod_state.modifiers();
 
-                    #[allow(deprecated)]
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::KeyboardInput {
                             device_id,
-                            input: KeyboardInput {
+                            event: KeyEvent {
+                                physical_key: todo!(),
+                                logical_key: todo!(),
+                                text: todo!(),
+                                location: todo!(),
                                 state,
-                                scancode,
-                                virtual_keycode,
-                                modifiers,
+                                repeat: todo!(),
+                                platform_specific: todo!(),
                             },
                             is_synthetic: false,
                         },
@@ -617,6 +619,7 @@ impl<T: 'static> EventProcessor<T> {
                         self.is_composing = false;
                         callback(event);
                     } else {
+                        /*
                         for chr in written.chars() {
                             let event = Event::WindowEvent {
                                 window_id,
@@ -625,6 +628,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             callback(event);
                         }
+                        */
                     }
                 }
             }
@@ -1117,17 +1121,14 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
                         let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
-                        let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+                        // let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
 
-                        #[allow(deprecated)]
                         callback(Event::DeviceEvent {
                             device_id,
-                            event: DeviceEvent::Key(KeyboardInput {
-                                scancode: scancode as u32,
-                                virtual_keycode,
-                                state,
-                                modifiers,
+                            event: DeviceEvent::Key(RawKeyEvent {
+                                physical_key: todo!(),
+                                state: todo!(),
                             }),
                         });
 
@@ -1325,7 +1326,7 @@ impl<T: 'static> EventProcessor<T> {
         {
             let scancode = (keycode - KEYCODE_OFFSET) as u32;
             let keysym = wt.xconn.keycode_to_keysym(keycode);
-            let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+            // let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
             if let Some(modifier) = mod_keymap.get_modifier(keycode as ffi::KeyCode) {
                 device_mod_state.key_event(
@@ -1335,16 +1336,18 @@ impl<T: 'static> EventProcessor<T> {
                 );
             }
 
-            #[allow(deprecated)]
             callback(Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput {
                     device_id,
-                    input: KeyboardInput {
-                        scancode,
-                        state,
-                        virtual_keycode,
-                        modifiers,
+                    event: KeyEvent {
+                        physical_key: todo!(),
+                        logical_key: todo!(),
+                        text: todo!(),
+                        location: todo!(),
+                        state: todo!(),
+                        repeat: todo!(),
+                        platform_specific: todo!(),
                     },
                     is_synthetic: true,
                 },
