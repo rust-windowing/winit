@@ -3,7 +3,10 @@ mod cursor;
 
 pub use self::{cursor::*, r#async::*};
 
-use std::ops::{BitAnd, Deref};
+use std::{
+    ops::{BitAnd, Deref},
+    slice, str,
+};
 
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
@@ -93,6 +96,13 @@ pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
 
 pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
     IdRef::new(NSString::alloc(nil).init_str(s))
+}
+
+/// Copies the contents of the ns string into a `String` which gets returned.
+pub unsafe fn ns_string_to_rust(ns_string: id) -> String {
+    let slice = slice::from_raw_parts(ns_string.UTF8String() as *mut u8, ns_string.len());
+    let string = str::from_utf8_unchecked(slice);
+    string.to_owned()
 }
 
 pub unsafe fn app_name() -> Option<id> {

@@ -174,7 +174,7 @@ mod modifiers_serde {
 pub enum NativeKeyCode {
     Unidentified,
     Windows(u16),
-    MacOS(u32),
+    MacOS(u16),
     XKB(u32),
 }
 impl std::fmt::Debug for NativeKeyCode {
@@ -191,7 +191,7 @@ impl std::fmt::Debug for NativeKeyCode {
             }
             MacOS(v) => {
                 debug_tuple = f.debug_tuple(name_of!(MacOS));
-                debug_tuple.field(v);
+                debug_tuple.field(&format_args!("0x{:02X}", v));
             }
             XKB(v) => {
                 debug_tuple = f.debug_tuple(name_of!(XKB));

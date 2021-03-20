@@ -1,5 +1,7 @@
 use std::{ffi::c_void, os::raw::c_ushort};
 
+use objc::msg_send;
+
 use cocoa::{
     appkit::{NSEvent, NSEventModifierFlags},
     base::id,
@@ -10,11 +12,11 @@ use core_foundation::{base::CFRelease, data::CFDataGetBytePtr};
 use crate::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    keyboard::{Key, KeyCode, ModifiersState, NativeKeyCode},
-    platform::modifier_supplement::KeyEventExtModifierSupplement,
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NativeKeyCode},
+    platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
     platform_impl::platform::{
         ffi,
-        util::{IdRef, Never},
+        util::{ns_string_to_rust, IdRef, Never},
         DEVICE_ID,
     },
 };
@@ -36,24 +38,22 @@ pub enum EventProxy {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KeyEventExtra {
-    // TODO: (Artur) implement without modifiers and all that jazz
+    pub text_with_all_modifiers: Option<&'static str>,
+    pub key_without_modifiers: Key<'static>,
 }
 
 impl KeyEventExtModifierSupplement for KeyEvent {
     fn text_with_all_modifiers(&self) -> Option<&str> {
-        // TODO: (Artur)
-        None
+        self.platform_specific.text_with_all_modifiers
     }
 
     fn key_without_modifiers(&self) -> Key<'static> {
-        // TODO: (Artur)
-        Key::Unidentified(NativeKeyCode::Unidentified)
+        self.platform_specific.key_without_modifiers
     }
 }
 
-pub fn get_logical_key(scancode: u32) -> Key<'static> {
+pub fn get_modifierless_char(scancode: u16) -> Key<'static> {
     let mut string = [0; 16];
-
     let input_source;
     let layout;
     unsafe {
@@ -75,12 +75,11 @@ pub fn get_logical_key(scancode: u32) -> Key<'static> {
 
     let mut result_len = 0;
     let mut dead_keys = 0;
-    // TODO: use the actual modifier state.
     let modifiers = 0;
     let translate_result = unsafe {
         ffi::UCKeyTranslate(
             layout,
-            scancode as u16,
+            scancode,
             ffi::kUCKeyActionDisplay,
             modifiers,
             keyboard_type as u32,
@@ -103,8 +102,199 @@ pub fn get_logical_key(scancode: u32) -> Key<'static> {
         return Key::Unidentified(NativeKeyCode::MacOS(scancode));
     }
     let chars = String::from_utf16_lossy(&string[0..result_len as usize]);
-    // TODO: store the strings in a global or thread local set
+    // TODO: (Artur) store the strings in a global or thread local set
     Key::Character(Box::leak(chars.into_boxed_str()))
+}
+
+fn get_logical_key_char(ns_event: id, modifierless_chars: &str) -> Key<'static> {
+    let characters: id = unsafe { msg_send![ns_event, charactersIgnoringModifiers] };
+    let string = unsafe { ns_string_to_rust(characters) };
+    if string.is_empty() {
+        // Probably a dead key
+        let first_char = modifierless_chars.chars().next();
+        return Key::Dead(first_char);
+    }
+    // TODO: (Artur) store the strings in a global or thread local set
+    Key::Character(Box::leak(string.into_boxed_str()))
+}
+
+fn get_chars_with_all_mods(ns_event: id) -> &'static str {
+    let characters: id = unsafe { msg_send![ns_event, characters] };
+    let string = unsafe { ns_string_to_rust(characters) };
+    // TODO: (Artur) store the strings in a global or thread local set
+    Box::leak(string.into_boxed_str())
+}
+
+pub fn create_key_event(
+    ns_event: id,
+    is_down: bool,
+    is_repeat: bool,
+    key_override: Option<KeyCode>,
+) -> KeyEvent {
+    let scancode = get_scancode(ns_event);
+    let physical_key = key_override.unwrap_or_else(|| KeyCode::from_scancode(scancode as u32));
+
+    let text_with_all_modifiers: Option<&'static str> = {
+        if key_override.is_some() {
+            None
+        } else {
+            let characters: id = unsafe { msg_send![ns_event, characters] };
+            let characters = unsafe { ns_string_to_rust(characters) };
+            if characters.is_empty() {
+                None
+            } else {
+                // TODO: (Artur) store the strings in a global or thread local set
+                Some(Box::leak(characters.into_boxed_str()))
+            }
+        }
+    };
+    let key_from_code = code_to_key(physical_key, scancode);
+    let logical_key;
+    let key_without_modifiers;
+    if !matches!(key_from_code, Key::Unidentified(_)) {
+        logical_key = key_from_code;
+        key_without_modifiers = key_from_code;
+    } else {
+        //println!("Couldn't get key from code: {:?}", physical_key);
+        key_without_modifiers = get_modifierless_char(scancode);
+
+        let modifiers = unsafe { NSEvent::modifierFlags(ns_event) };
+        let has_alt = modifiers.contains(NSEventModifierFlags::NSAlternateKeyMask);
+        let has_ctrl = modifiers.contains(NSEventModifierFlags::NSControlKeyMask);
+        if has_alt || has_ctrl || text_with_all_modifiers.is_none() {
+            let modifierless_chars = match key_without_modifiers {
+                Key::Character(ch) => ch,
+                _ => "",
+            };
+            logical_key = get_logical_key_char(ns_event, modifierless_chars);
+        } else {
+            logical_key = Key::Character(text_with_all_modifiers.unwrap());
+        }
+    }
+
+    KeyEvent {
+        location: code_to_location(physical_key),
+        logical_key,
+        physical_key,
+        repeat: is_repeat,
+        state: if is_down {
+            ElementState::Pressed
+        } else {
+            ElementState::Released
+        },
+        text: None,
+        platform_specific: KeyEventExtra {
+            key_without_modifiers,
+            text_with_all_modifiers,
+        },
+    }
+}
+
+fn code_to_key(code: KeyCode, scancode: u16) -> Key<'static> {
+    match code {
+        KeyCode::Enter => Key::Enter,
+        KeyCode::Tab => Key::Tab,
+        KeyCode::Space => Key::Space,
+        KeyCode::Backspace => Key::Backspace,
+        KeyCode::Escape => Key::Escape,
+        KeyCode::SuperRight => Key::Super,
+        KeyCode::SuperLeft => Key::Super,
+        KeyCode::ShiftLeft => Key::Shift,
+        KeyCode::AltLeft => Key::Alt,
+        KeyCode::ControlLeft => Key::Control,
+        KeyCode::ShiftRight => Key::Shift,
+        KeyCode::AltRight => Key::Alt,
+        KeyCode::ControlRight => Key::Control,
+
+        KeyCode::NumLock => Key::NumLock,
+        KeyCode::AudioVolumeUp => Key::AudioVolumeUp,
+        KeyCode::AudioVolumeDown => Key::AudioVolumeDown,
+
+        // TODO
+        // KeyCode::NumpadDecimal => Some(0x41),
+        // KeyCode::NumpadMultiply => Some(0x43),
+        // KeyCode::NumpadAdd => Some(0x45),
+        // KeyCode::NumpadDivide => Some(0x4b),
+        // KeyCode::NumpadEnter => Some(0x4c),
+        // KeyCode::NumpadSubtract => Some(0x4e),
+        // KeyCode::NumpadEqual => Some(0x51),
+        // KeyCode::Numpad0 => Some(0x52),
+        // KeyCode::Numpad1 => Some(0x53),
+        // KeyCode::Numpad2 => Some(0x54),
+        // KeyCode::Numpad3 => Some(0x55),
+        // KeyCode::Numpad4 => Some(0x56),
+        // KeyCode::Numpad5 => Some(0x57),
+        // KeyCode::Numpad6 => Some(0x58),
+        // KeyCode::Numpad7 => Some(0x59),
+        // KeyCode::Numpad8 => Some(0x5b),
+        // KeyCode::Numpad9 => Some(0x5c),
+        KeyCode::F1 => Key::F1,
+        KeyCode::F2 => Key::F2,
+        KeyCode::F3 => Key::F3,
+        KeyCode::F4 => Key::F4,
+        KeyCode::F5 => Key::F5,
+        KeyCode::F6 => Key::F6,
+        KeyCode::F7 => Key::F7,
+        KeyCode::F8 => Key::F8,
+        KeyCode::F9 => Key::F9,
+        KeyCode::F10 => Key::F10,
+        KeyCode::F11 => Key::F11,
+        KeyCode::F12 => Key::F12,
+        KeyCode::F13 => Key::F13,
+        KeyCode::F14 => Key::F14,
+        KeyCode::F15 => Key::F15,
+        KeyCode::F16 => Key::F16,
+        KeyCode::F17 => Key::F17,
+        KeyCode::F18 => Key::F18,
+        KeyCode::F19 => Key::F19,
+        KeyCode::F20 => Key::F20,
+
+        KeyCode::Insert => Key::Insert,
+        KeyCode::Home => Key::Home,
+        KeyCode::PageUp => Key::PageUp,
+        KeyCode::Delete => Key::Delete,
+        KeyCode::End => Key::End,
+        KeyCode::PageDown => Key::PageDown,
+        KeyCode::ArrowLeft => Key::ArrowLeft,
+        KeyCode::ArrowRight => Key::ArrowRight,
+        KeyCode::ArrowDown => Key::ArrowDown,
+        KeyCode::ArrowUp => Key::ArrowUp,
+        _ => Key::Unidentified(NativeKeyCode::MacOS(scancode)),
+    }
+}
+
+fn code_to_location(code: KeyCode) -> KeyLocation {
+    match code {
+        KeyCode::SuperRight => KeyLocation::Right,
+        KeyCode::SuperLeft => KeyLocation::Left,
+        KeyCode::ShiftLeft => KeyLocation::Left,
+        KeyCode::AltLeft => KeyLocation::Left,
+        KeyCode::ControlLeft => KeyLocation::Left,
+        KeyCode::ShiftRight => KeyLocation::Right,
+        KeyCode::AltRight => KeyLocation::Right,
+        KeyCode::ControlRight => KeyLocation::Right,
+
+        KeyCode::NumLock => KeyLocation::Numpad,
+        KeyCode::NumpadDecimal => KeyLocation::Numpad,
+        KeyCode::NumpadMultiply => KeyLocation::Numpad,
+        KeyCode::NumpadAdd => KeyLocation::Numpad,
+        KeyCode::NumpadDivide => KeyLocation::Numpad,
+        KeyCode::NumpadEnter => KeyLocation::Numpad,
+        KeyCode::NumpadSubtract => KeyLocation::Numpad,
+        KeyCode::NumpadEqual => KeyLocation::Numpad,
+        KeyCode::Numpad0 => KeyLocation::Numpad,
+        KeyCode::Numpad1 => KeyLocation::Numpad,
+        KeyCode::Numpad2 => KeyLocation::Numpad,
+        KeyCode::Numpad3 => KeyLocation::Numpad,
+        KeyCode::Numpad4 => KeyLocation::Numpad,
+        KeyCode::Numpad5 => KeyLocation::Numpad,
+        KeyCode::Numpad6 => KeyLocation::Numpad,
+        KeyCode::Numpad7 => KeyLocation::Numpad,
+        KeyCode::Numpad8 => KeyLocation::Numpad,
+        KeyCode::Numpad9 => KeyLocation::Numpad,
+
+        _ => KeyLocation::Standard,
+    }
 }
 
 // pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
@@ -354,17 +544,35 @@ pub unsafe fn modifier_event(
     keymask: NSEventModifierFlags,
     was_key_pressed: bool,
 ) -> Option<WindowEvent<'static>> {
-    if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
-        || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask)
-    {
-        let state = if was_key_pressed {
-            ElementState::Released
-        } else {
-            ElementState::Pressed
-        };
+    let is_pressed = NSEvent::modifierFlags(ns_event).contains(keymask);
+    if was_key_pressed != is_pressed {
+        let scancode = get_scancode(ns_event);
+        let mut key = KeyCode::from_scancode(scancode as u32);
 
-        // TODO: (Artur) implement this
-        None
+        // When switching keyboard layout using Ctrl+Space, the Ctrl release event
+        // has `KeyA` as its keycode which would produce an incorrect key event.
+        // To avoid this, we detect this scenario and override the key with one
+        // that should be reasonable
+        if key == KeyCode::KeyA {
+            key = match keymask {
+                NSEventModifierFlags::NSAlternateKeyMask => KeyCode::AltLeft,
+                NSEventModifierFlags::NSCommandKeyMask => KeyCode::SuperLeft,
+                NSEventModifierFlags::NSControlKeyMask => KeyCode::ControlLeft,
+                NSEventModifierFlags::NSShiftKeyMask => KeyCode::ShiftLeft,
+                NSEventModifierFlags::NSFunctionKeyMask => KeyCode::Fn,
+                NSEventModifierFlags::NSNumericPadKeyMask => KeyCode::NumLock,
+                _ => {
+                    error!("Unknown keymask hit. This indicates a developer error.");
+                    KeyCode::Unidentified(NativeKeyCode::Unidentified)
+                }
+            };
+        }
+
+        Some(WindowEvent::KeyboardInput {
+            device_id: DEVICE_ID,
+            event: create_key_event(ns_event, is_pressed, false, Some(key)),
+            is_synthetic: false,
+        })
 
     // let scancode = get_scancode(ns_event);
     // let virtual_keycode = scancode_to_keycode(scancode);

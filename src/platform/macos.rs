@@ -482,11 +482,10 @@ impl KeyCodeExtScancode for KeyCode {
             0x7e => KeyCode::ArrowUp,
             //0x7f =>  unkown,
 
-            // TODO: (Artur) I have no idea what 0xa is supposed to be
-            // it's defined as kVK_ISO_Section in
-            // /System/Library/Frameworks/Carbon.framework/Versions/A/Frameworks/HIToolbox.framework/Versions/A/Headers/Events.h
-            //0xa => KeyCode::Caret,
-            _ => KeyCode::Unidentified(NativeKeyCode::MacOS(scancode)),
+            // 0xA is the caret (^) an macOS's German QERTZ layout. This key is at the same location as
+            // backquote (`) on Windows' US layout.
+            0xa => KeyCode::Backquote,
+            _ => KeyCode::Unidentified(NativeKeyCode::MacOS(scancode as u16)),
         }
     }
 }

@@ -26,7 +26,7 @@ use crate::{
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         app_state::AppState,
-        event::{event_mods, get_logical_key, get_scancode, modifier_event, EventWrapper},
+        event::{create_key_event, event_mods, get_scancode, modifier_event, EventWrapper},
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
@@ -649,7 +649,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         state.raw_characters = Some(characters.clone());
 
-        let scancode = get_scancode(event) as u32;
+        //let scancode = get_scancode(event);
         //let virtual_keycode = retrieve_keycode(event);
 
         let is_repeat = msg_send![event, isARepeat];
@@ -673,21 +673,14 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         //     },
         // };
 
-        let logical_key = get_logical_key(scancode);
+        // let key_without_modifiers = get_logical_key(scancode, 0);
+        // let logical_key = get_logical_key(scancode, 0);
 
         let window_event = Event::WindowEvent {
             window_id,
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
-                event: KeyEvent {
-                    physical_key: KeyCode::from_scancode(scancode),
-                    logical_key,
-                    text: None,
-                    state: ElementState::Pressed,
-                    location: KeyLocation::Standard,
-                    repeat: is_repeat,
-                    platform_specific: KeyEventExtra {},
-                },
+                event: create_key_event(event, true, is_repeat, None),
                 is_synthetic: false,
             },
         };
