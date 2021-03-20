@@ -214,24 +214,9 @@ fn code_to_key(code: KeyCode, scancode: u16) -> Key<'static> {
         KeyCode::AudioVolumeUp => Key::AudioVolumeUp,
         KeyCode::AudioVolumeDown => Key::AudioVolumeDown,
 
-        // TODO
-        // KeyCode::NumpadDecimal => Some(0x41),
-        // KeyCode::NumpadMultiply => Some(0x43),
-        // KeyCode::NumpadAdd => Some(0x45),
-        // KeyCode::NumpadDivide => Some(0x4b),
-        // KeyCode::NumpadEnter => Some(0x4c),
-        // KeyCode::NumpadSubtract => Some(0x4e),
-        // KeyCode::NumpadEqual => Some(0x51),
-        // KeyCode::Numpad0 => Some(0x52),
-        // KeyCode::Numpad1 => Some(0x53),
-        // KeyCode::Numpad2 => Some(0x54),
-        // KeyCode::Numpad3 => Some(0x55),
-        // KeyCode::Numpad4 => Some(0x56),
-        // KeyCode::Numpad5 => Some(0x57),
-        // KeyCode::Numpad6 => Some(0x58),
-        // KeyCode::Numpad7 => Some(0x59),
-        // KeyCode::Numpad8 => Some(0x5b),
-        // KeyCode::Numpad9 => Some(0x5c),
+        // Other numpad keys all generate text on macOS (if I understand correctly)
+        KeyCode::NumpadEnter => Key::Enter,
+
         KeyCode::F1 => Key::F1,
         KeyCode::F2 => Key::F2,
         KeyCode::F3 => Key::F3,
