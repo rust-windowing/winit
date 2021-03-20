@@ -10,11 +10,12 @@ use ndk::{
     configuration::Configuration,
     event::{InputEvent, KeyAction, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
+    native_window::NativeWindow,
 };
 use ndk_glue::{Event, Rect};
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard},
     time::{Duration, Instant},
 };
 
@@ -43,6 +44,10 @@ fn poll(poll: Poll) -> Option<EventSource> {
 
 pub struct EventLoop<T: 'static> {
     window_target: event_loop::EventLoopWindowTarget<T>,
+    // This read guard will be held between each pair of `Resumed` and `Suspended`
+    // events to ensure that `ndk_glue` does not release the `NativeWindow` prematurely,
+    // invalidating raw handles obtained by the user through `Window::raw_window_handle()`
+    native_window_lock: Option<RwLockReadGuard<'static, Option<NativeWindow>>>,
     user_queue: Arc<Mutex<VecDeque<T>>>,
     first_event: Option<EventSource>,
     start_cause: event::StartCause,
@@ -69,6 +74,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: std::marker::PhantomData,
             },
+            native_window_lock: None,
             user_queue: Default::default(),
             first_event: None,
             start_cause: event::StartCause::Init,
@@ -106,22 +112,32 @@ impl<T: 'static> EventLoop<T> {
             match self.first_event.take() {
                 Some(EventSource::Callback) => match ndk_glue::poll_events().unwrap() {
                     Event::WindowCreated => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Resumed
-                        );
+                        let native_window_lock = ndk_glue::native_window();
+                        // The window could have gone away before we got the message
+                        if native_window_lock.is_some() {
+                            self.native_window_lock = Some(native_window_lock);
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Resumed
+                            );
+                        }
                     }
                     Event::WindowResized => resized = true,
                     Event::WindowRedrawNeeded => redraw = true,
                     Event::WindowDestroyed => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Suspended
-                        );
+                        let native_window_lock = self.native_window_lock.take();
+                        // This event is ignored if no window was actually grabbed onto
+                        // in `WindowCreated` above
+                        if native_window_lock.is_some() {
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Suspended
+                            );
+                        }
                     }
                     Event::Pause => self.running = false,
                     Event::Resume => self.running = true,
