@@ -136,6 +136,9 @@ pub fn create_key_event(
     is_repeat: bool,
     key_override: Option<KeyCode>,
 ) -> KeyEvent {
+    use ElementState::{Pressed, Released};
+    let state = if is_press { Pressed } else { Released };
+
     let scancode = get_scancode(ns_event);
     let physical_key = key_override.unwrap_or_else(|| KeyCode::from_scancode(scancode as u32));
 
@@ -181,11 +184,7 @@ pub fn create_key_event(
         logical_key,
         physical_key,
         repeat: is_repeat,
-        state: if is_press {
-            ElementState::Pressed
-        } else {
-            ElementState::Released
-        },
+        state,
         text: None,
         platform_specific: KeyEventExtra {
             key_without_modifiers,
