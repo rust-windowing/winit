@@ -1,4 +1,4 @@
-use std::{ffi::c_void, os::raw::c_ushort};
+use std::{collections::HashSet, ffi::c_void, os::raw::c_ushort, sync::Mutex};
 
 use objc::msg_send;
 
@@ -20,6 +20,20 @@ use crate::{
         DEVICE_ID,
     },
 };
+
+lazy_static! {
+    static ref KEY_STRINGS: Mutex<HashSet<&'static str>> = Mutex::new(HashSet::new());
+}
+
+fn insert_or_get_key_str(string: String) -> &'static str {
+    let mut string_set = KEY_STRINGS.lock().unwrap();
+    if let Some(contained) = string_set.get(string.as_str()) {
+        return contained;
+    }
+    let static_str = Box::leak(string.into_boxed_str());
+    string_set.insert(static_str);
+    static_str
+}
 
 #[derive(Debug)]
 pub enum EventWrapper {
@@ -102,8 +116,7 @@ pub fn get_modifierless_char(scancode: u16) -> Key<'static> {
         return Key::Unidentified(NativeKeyCode::MacOS(scancode));
     }
     let chars = String::from_utf16_lossy(&string[0..result_len as usize]);
-    // TODO: (Artur) store the strings in a global or thread local set
-    Key::Character(Box::leak(chars.into_boxed_str()))
+    Key::Character(insert_or_get_key_str(chars))
 }
 
 fn get_logical_key_char(ns_event: id, modifierless_chars: &str) -> Key<'static> {
@@ -114,20 +127,12 @@ fn get_logical_key_char(ns_event: id, modifierless_chars: &str) -> Key<'static> 
         let first_char = modifierless_chars.chars().next();
         return Key::Dead(first_char);
     }
-    // TODO: (Artur) store the strings in a global or thread local set
-    Key::Character(Box::leak(string.into_boxed_str()))
-}
-
-fn get_chars_with_all_mods(ns_event: id) -> &'static str {
-    let characters: id = unsafe { msg_send![ns_event, characters] };
-    let string = unsafe { ns_string_to_rust(characters) };
-    // TODO: (Artur) store the strings in a global or thread local set
-    Box::leak(string.into_boxed_str())
+    Key::Character(insert_or_get_key_str(string))
 }
 
 pub fn create_key_event(
     ns_event: id,
-    is_down: bool,
+    is_press: bool,
     is_repeat: bool,
     key_override: Option<KeyCode>,
 ) -> KeyEvent {
@@ -143,8 +148,7 @@ pub fn create_key_event(
             if characters.is_empty() {
                 None
             } else {
-                // TODO: (Artur) store the strings in a global or thread local set
-                Some(Box::leak(characters.into_boxed_str()))
+                Some(insert_or_get_key_str(characters))
             }
         }
     };
@@ -161,7 +165,7 @@ pub fn create_key_event(
         let modifiers = unsafe { NSEvent::modifierFlags(ns_event) };
         let has_alt = modifiers.contains(NSEventModifierFlags::NSAlternateKeyMask);
         let has_ctrl = modifiers.contains(NSEventModifierFlags::NSControlKeyMask);
-        if has_alt || has_ctrl || text_with_all_modifiers.is_none() {
+        if has_alt || has_ctrl || text_with_all_modifiers.is_none() || !is_press {
             let modifierless_chars = match key_without_modifiers {
                 Key::Character(ch) => ch,
                 _ => "",
@@ -177,7 +181,7 @@ pub fn create_key_event(
         logical_key,
         physical_key,
         repeat: is_repeat,
-        state: if is_down {
+        state: if is_press {
             ElementState::Pressed
         } else {
             ElementState::Released

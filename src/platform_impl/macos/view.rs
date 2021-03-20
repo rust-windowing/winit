@@ -524,7 +524,8 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
         //     }));
         // }
 
-        // TODO: (Artur) implement text input handling
+        // TODO: (Artur) text input handling already seems to work find, but
+        // let's come back to this later.
 
         AppState::queue_events(events);
     }
@@ -541,7 +542,8 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
 
         let mut events = VecDeque::with_capacity(1);
         if command == sel!(insertNewline:) {
-            // TODO: (Artur) implement this whatever this is :D
+            // TODO: (Artur) all these inputs seem to trigger a key event with the correct text
+            // content so this is not needed anymore, it seems.
 
             // // The `else` condition would emit the same character, but I'm keeping this here both...
             // // 1) as a reminder for how `doCommandBySelector` works
@@ -649,32 +651,9 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         state.raw_characters = Some(characters.clone());
 
-        //let scancode = get_scancode(event);
-        //let virtual_keycode = retrieve_keycode(event);
-
         let is_repeat = msg_send![event, isARepeat];
 
         update_potentially_stale_modifiers(state, event);
-
-        // TODO: (Artur) implement this
-
-        // #[allow(deprecated)]
-        // let window_event = Event::WindowEvent {
-        //     window_id,
-        //     event: WindowEvent::KeyboardInput {
-        //         device_id: DEVICE_ID,
-        //         input: KeyboardInput {
-        //             state: ElementState::Pressed,
-        //             scancode,
-        //             virtual_keycode,
-        //             modifiers: event_mods(event),
-        //         },
-        //         is_synthetic: false,
-        //     },
-        // };
-
-        // let key_without_modifiers = get_logical_key(scancode, 0);
-        // let logical_key = get_logical_key(scancode, 0);
 
         let window_event = Event::WindowEvent {
             window_id,
@@ -687,6 +666,9 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         let pass_along = {
             AppState::queue_event(EventWrapper::StaticEvent(window_event));
+            // TODO: (Artur) key repeat already seems to work fine, so I don't think we need this
+            // but come back to this later.
+
             // Emit `ReceivedCharacter` for key repeats
             if is_repeat && state.is_key_down {
                 // for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
@@ -720,29 +702,17 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
 
         state.is_key_down = false;
 
-        let scancode = get_scancode(event) as u32;
-        //let virtual_keycode = retrieve_keycode(event);
-
         update_potentially_stale_modifiers(state, event);
 
-        // TODO: (Artur) implement this
-
-        // #[allow(deprecated)]
-        // let window_event = Event::WindowEvent {
-        //     window_id: WindowId(get_window_id(state.ns_window)),
-        //     event: WindowEvent::KeyboardInput {
-        //         device_id: DEVICE_ID,
-        //         input: KeyboardInput {
-        //             state: ElementState::Released,
-        //             scancode,
-        //             virtual_keycode,
-        //             modifiers: event_mods(event),
-        //         },
-        //         is_synthetic: false,
-        //     },
-        // };
-
-        // AppState::queue_event(EventWrapper::StaticEvent(window_event));
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                event: create_key_event(event, false, false, None),
+                is_synthetic: false,
+            },
+        };
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `keyUp`");
 }
@@ -838,32 +808,22 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
+        let event: id = msg_send![NSApp(), currentEvent];
+        update_potentially_stale_modifiers(state, event);
+
         let scancode = 0x2f;
-        // TODO: (Artur) implement this
+        let key = KeyCode::from_scancode(scancode);
+        debug_assert_eq!(key, KeyCode::Period);
 
-        // let virtual_keycode = scancode_to_keycode(scancode);
-        // debug_assert_eq!(virtual_keycode, Some(VirtualKeyCode::Period));
-
-        // let event: id = msg_send![NSApp(), currentEvent];
-
-        // update_potentially_stale_modifiers(state, event);
-
-        // #[allow(deprecated)]
-        // let window_event = Event::WindowEvent {
-        //     window_id: WindowId(get_window_id(state.ns_window)),
-        //     event: WindowEvent::KeyboardInput {
-        //         device_id: DEVICE_ID,
-        //         input: KeyboardInput {
-        //             state: ElementState::Pressed,
-        //             scancode: scancode as _,
-        //             virtual_keycode,
-        //             modifiers: event_mods(event),
-        //         },
-        //         is_synthetic: false,
-        //     },
-        // };
-
-        // AppState::queue_event(EventWrapper::StaticEvent(window_event));
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                event: create_key_event(event, true, false, Some(key)),
+                is_synthetic: false,
+            },
+        };
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `cancelOperation`");
 }
