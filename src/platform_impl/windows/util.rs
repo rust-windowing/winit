@@ -196,6 +196,15 @@ pub fn is_focused(window: HWND) -> bool {
     window == unsafe { winuser::GetActiveWindow() }
 }
 
+pub fn is_maximized(window: HWND) -> bool {
+    unsafe {
+        let mut placement: winuser::WINDOWPLACEMENT = mem::zeroed();
+        placement.length = mem::size_of::<winuser::WINDOWPLACEMENT>() as u32;
+        winuser::GetWindowPlacement(window, &mut placement);
+        return placement.showCmd == winuser::SW_MAXIMIZE as u32;
+    }
+}
+
 impl CursorIcon {
     pub(crate) fn to_windows_cursor(self) -> *const wchar_t {
         match self {

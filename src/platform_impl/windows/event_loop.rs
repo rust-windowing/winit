@@ -1961,6 +1961,24 @@ unsafe fn public_window_callback_inner<T: 'static>(
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
 
+        winuser::WM_NCCALCSIZE => {
+            let window_state = subclass_input.window_state.lock();
+
+            if !window_state.window_flags.contains(WindowFlags::DECORATIONS) {
+                // adjust the maximized borderless window fill the work area rectangle of the display monitor
+                if util::is_maximized(window) {
+                    let monitor = monitor::current_monitor(window);
+                    if let Ok(monitor_info) = monitor::get_monitor_info(monitor.hmonitor()) {
+                        let params = &mut *(lparam as *mut winuser::NCCALCSIZE_PARAMS);
+                        params.rgrc[0] = monitor_info.rcWork;
+                    }
+                }
+                0 // must return a value here, other wise the window won't be borderless (without decorations)
+            } else {
+                commctrl::DefSubclassProc(window, msg, wparam, lparam)
+            }
+        }
+
         _ => {
             if msg == *DESTROY_MSG_ID {
                 winuser::DestroyWindow(window);

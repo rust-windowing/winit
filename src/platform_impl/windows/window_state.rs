@@ -197,6 +197,8 @@ impl WindowFlags {
         if self.contains(WindowFlags::DECORATIONS) {
             style |= WS_CAPTION | WS_MINIMIZEBOX | WS_BORDER;
             style_ex = WS_EX_WINDOWEDGE;
+        } else {
+            style |= WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SIZEBOX;
         }
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
