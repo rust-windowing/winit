@@ -19,18 +19,18 @@ use objc::{
 use crate::{
     dpi::LogicalPosition,
     event::{
-        DeviceEvent, ElementState, Event, KeyEvent, MouseButton, MouseScrollDelta, TouchPhase,
+        DeviceEvent, ElementState, Event, MouseButton, MouseScrollDelta, TouchPhase,
         WindowEvent,
     },
-    keyboard::{Key, KeyCode, KeyLocation, ModifiersState},
+    keyboard::{KeyCode, ModifiersState},
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         app_state::AppState,
-        event::{create_key_event, event_mods, get_scancode, modifier_event, EventWrapper},
+        event::{create_key_event, event_mods, modifier_event, EventWrapper},
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
-        KeyEventExtra, DEVICE_ID,
+        DEVICE_ID,
     },
     window::WindowId,
 };
@@ -570,43 +570,43 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
     trace!("Completed `insertText`");
 }
 
-extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
+extern "C" fn do_command_by_selector(_this: &Object, _sel: Sel, _command: Sel) {
     trace!("Triggered `doCommandBySelector`");
+    // TODO: (Artur) all these inputs seem to trigger a key event with the correct text
+    // content so this is not needed anymore, it seems.
+
     // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human readable" character
     // happens, i.e. newlines, tabs, and Ctrl+C.
-    unsafe {
-        let state_ptr: *mut c_void = *this.get_ivar("winitState");
-        let state = &mut *(state_ptr as *mut ViewState);
 
-        let mut events = VecDeque::with_capacity(1);
-        if command == sel!(insertNewline:) {
-            // TODO: (Artur) all these inputs seem to trigger a key event with the correct text
-            // content so this is not needed anymore, it seems.
+    // unsafe {
+    //     let state_ptr: *mut c_void = *this.get_ivar("winitState");
+    //     let state = &mut *(state_ptr as *mut ViewState);
 
-            // // The `else` condition would emit the same character, but I'm keeping this here both...
-            // // 1) as a reminder for how `doCommandBySelector` works
-            // // 2) to make our use of carriage return explicit
-            // events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-            //     window_id: WindowId(get_window_id(state.ns_window)),
-            //     event: WindowEvent::ReceivedCharacter('\r'),
-            // }));
-        } else {
-            let raw_characters = state.raw_characters.take();
-            if let Some(raw_characters) = raw_characters {
-                for character in raw_characters
-                    .chars()
-                    .filter(|c| !is_corporate_character(*c))
-                {
-                    // events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-                    //     window_id: WindowId(get_window_id(state.ns_window)),
-                    //     event: WindowEvent::ReceivedCharacter(character),
-                    // }));
-                }
-            }
-        };
-
-        AppState::queue_events(events);
-    }
+    //     let mut events = VecDeque::with_capacity(1);
+    //     if command == sel!(insertNewline:) {
+    //         // The `else` condition would emit the same character, but I'm keeping this here both...
+    //         // 1) as a reminder for how `doCommandBySelector` works
+    //         // 2) to make our use of carriage return explicit
+    //         events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+    //             window_id: WindowId(get_window_id(state.ns_window)),
+    //             event: WindowEvent::ReceivedCharacter('\r'),
+    //         }));
+    //     } else {
+    //         let raw_characters = state.raw_characters.take();
+    //         if let Some(raw_characters) = raw_characters {
+    //             for character in raw_characters
+    //                 .chars()
+    //                 .filter(|c| !is_corporate_character(*c))
+    //             {
+    //                 events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+    //                     window_id: WindowId(get_window_id(state.ns_window)),
+    //                     event: WindowEvent::ReceivedCharacter(character),
+    //                 }));
+    //             }
+    //         }
+    //     };
+    //     AppState::queue_events(events);
+    // }
     trace!("Completed `doCommandBySelector`");
 }
 
