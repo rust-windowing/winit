@@ -134,6 +134,7 @@ pub fn create_key_event(
     ns_event: id,
     is_press: bool,
     is_repeat: bool,
+    in_ime: bool,
     key_override: Option<KeyCode>,
 ) -> KeyEvent {
     use ElementState::{Pressed, Released};
@@ -182,14 +183,18 @@ pub fn create_key_event(
             logical_key = Key::Character(text_with_all_modifiers.unwrap());
         }
     }
-
+    let text = if in_ime || !is_press {
+        None
+    } else {
+        logical_key.to_text()
+    };
     KeyEvent {
         location: code_to_location(physical_key),
         logical_key,
         physical_key,
         repeat: is_repeat,
         state,
-        text: None,
+        text,
         platform_specific: KeyEventExtra {
             key_without_modifiers,
             text_with_all_modifiers,
@@ -367,7 +372,7 @@ pub unsafe fn modifier_event(
 
         Some(WindowEvent::KeyboardInput {
             device_id: DEVICE_ID,
-            event: create_key_event(ns_event, is_pressed, false, Some(key)),
+            event: create_key_event(ns_event, is_pressed, false, false, Some(key)),
             is_synthetic: false,
         })
 

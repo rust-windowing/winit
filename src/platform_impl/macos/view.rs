@@ -53,6 +53,15 @@ pub(super) struct ViewState {
     ns_window: id,
     pub cursor_state: Arc<Mutex<CursorState>>,
     ime_spot: Option<(f64, f64)>,
+
+    /// This is true when we are currently modifying a marked text
+    /// using ime. When the text gets commited, this is set to false.
+    in_ime_preedit: bool,
+
+    /// This is used to detect if a key-press causes an ime event.
+    /// If a key-press does not cause an ime event, that means
+    /// that the key-press cancelled the ime session. (Except arrow keys)
+    key_triggered_ime: bool,
     raw_characters: Option<String>,
     is_key_down: bool,
     pub(super) modifiers: ModifiersState,
@@ -72,6 +81,8 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         ns_window,
         cursor_state,
         ime_spot: None,
+        in_ime_preedit: false,
+        key_triggered_ime: false,
         raw_characters: None,
         is_key_down: false,
         modifiers: Default::default(),
@@ -97,6 +108,23 @@ pub unsafe fn set_ime_position(ns_view: id, input_context: id, x: f64, y: f64) {
     let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
     state.ime_spot = Some((base_x + x, base_y - y));
     let _: () = msg_send![input_context, invalidateCharacterCoordinates];
+}
+
+fn is_arrow_key(keycode: KeyCode) -> bool {
+    matches!(
+        keycode,
+        KeyCode::ArrowUp | KeyCode::ArrowDown | KeyCode::ArrowLeft | KeyCode::ArrowRight
+    )
+}
+
+/// `view` must be the reference to the `WinitView` class
+///
+/// Returns the mutable reference to the `markedText` field.
+unsafe fn clear_marked_text(view: &mut Object) -> &mut id {
+    let marked_text_ref: &mut id = view.get_mut_ivar("markedText");
+    let () = msg_send![(*marked_text_ref), release];
+    *marked_text_ref = NSMutableAttributedString::alloc(nil);
+    marked_text_ref
 }
 
 struct ViewClass(*const Class);
@@ -148,7 +176,10 @@ lazy_static! {
             sel!(setMarkedText:selectedRange:replacementRange:),
             set_marked_text as extern "C" fn(&mut Object, Sel, id, NSRange, NSRange),
         );
-        decl.add_method(sel!(unmarkText), unmark_text as extern "C" fn(&Object, Sel));
+        decl.add_method(
+            sel!(unmarkText),
+            unmark_text as extern "C" fn(&mut Object, Sel),
+        );
         decl.add_method(
             sel!(validAttributesForMarkedText),
             valid_attributes_for_marked_text as extern "C" fn(&Object, Sel) -> id,
@@ -175,7 +206,10 @@ lazy_static! {
             sel!(doCommandBySelector:),
             do_command_by_selector as extern "C" fn(&Object, Sel, Sel),
         );
-        decl.add_method(sel!(keyDown:), key_down as extern "C" fn(&Object, Sel, id));
+        decl.add_method(
+            sel!(keyDown:),
+            key_down as extern "C" fn(&mut Object, Sel, id),
+        );
         decl.add_method(sel!(keyUp:), key_up as extern "C" fn(&Object, Sel, id));
         decl.add_method(
             sel!(flagsChanged:),
@@ -411,6 +445,9 @@ extern "C" fn selected_range(_this: &Object, _sel: Sel) -> NSRange {
     util::EMPTY_RANGE
 }
 
+/// An IME pre-edit operation happened, changing the text that's
+/// currently being pre-edited. This more or less corresponds to
+/// the `compositionupdate` event on the web.
 extern "C" fn set_marked_text(
     this: &mut Object,
     _sel: Sel,
@@ -420,26 +457,26 @@ extern "C" fn set_marked_text(
 ) {
     trace!("Triggered `setMarkedText`");
     unsafe {
-        let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
-        let _: () = msg_send![(*marked_text_ref), release];
-        let marked_text = NSMutableAttributedString::alloc(nil);
+        let marked_text_ref = clear_marked_text(this);
         let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
         if has_attr {
-            marked_text.initWithAttributedString(string);
+            marked_text_ref.initWithAttributedString(string);
         } else {
-            marked_text.initWithString(string);
+            marked_text_ref.initWithString(string);
         };
-        *marked_text_ref = marked_text;
+
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+        state.in_ime_preedit = true;
+        state.key_triggered_ime = true;
     }
     trace!("Completed `setMarkedText`");
 }
 
-extern "C" fn unmark_text(this: &Object, _sel: Sel) {
+extern "C" fn unmark_text(this: &mut Object, _sel: Sel) {
     trace!("Triggered `unmarkText`");
     unsafe {
-        let marked_text: id = *this.get_ivar("markedText");
-        let mutable_string = marked_text.mutableString();
-        let _: () = msg_send![mutable_string, setString:""];
+        clear_marked_text(this);
         let input_context: id = msg_send![this, inputContext];
         let _: () = msg_send![input_context, discardMarkedText];
     }
@@ -510,24 +547,25 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
 
         let slice =
             slice::from_raw_parts(characters.UTF8String() as *const c_uchar, characters.len());
-        let string = str::from_utf8_unchecked(slice);
+        let string: String = str::from_utf8_unchecked(slice)
+            .chars()
+            .filter(|c| !is_corporate_character(*c))
+            .collect();
         state.is_key_down = true;
 
         // We don't need this now, but it's here if that changes.
         //let event: id = msg_send![NSApp(), currentEvent];
 
-        let mut events = VecDeque::with_capacity(characters.len());
-        // for character in string.chars().filter(|c| !is_corporate_character(*c)) {
-        //     events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-        //         window_id: WindowId(get_window_id(state.ns_window)),
-        //         event: WindowEvent::ReceivedCharacter(character),
-        //     }));
-        // }
-
-        // TODO: (Artur) text input handling already seems to work find, but
-        // let's come back to this later.
-
-        AppState::queue_events(events);
+        // We only send the IME text input here. The text coming from the
+        // keyboard is handled by `key_down`
+        if state.in_ime_preedit {
+            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: WindowId(get_window_id(state.ns_window)),
+                event: WindowEvent::ReceivedImeText(string),
+            }));
+            state.in_ime_preedit = false;
+            state.key_triggered_ime = true;
+        }
     }
     trace!("Completed `insertText`");
 }
@@ -641,7 +679,7 @@ fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
     }
 }
 
-extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
+extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
     trace!("Triggered `keyDown`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
@@ -651,45 +689,51 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         state.raw_characters = Some(characters.clone());
 
-        let is_repeat = msg_send![event, isARepeat];
+        let is_repeat: BOOL = msg_send![event, isARepeat];
+        let is_repeat = is_repeat == YES;
 
         update_potentially_stale_modifiers(state, event);
 
-        let window_event = Event::WindowEvent {
-            window_id,
-            event: WindowEvent::KeyboardInput {
-                device_id: DEVICE_ID,
-                event: create_key_event(event, true, is_repeat, None),
-                is_synthetic: false,
-            },
-        };
-
-        let pass_along = {
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
-            // TODO: (Artur) key repeat already seems to work fine, so I don't think we need this
-            // but come back to this later.
-
-            // Emit `ReceivedCharacter` for key repeats
-            if is_repeat && state.is_key_down {
-                // for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
-                //     AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                //         window_id,
-                //         event: WindowEvent::ReceivedCharacter(character),
-                //     }));
-                // }
-                false
-            } else {
-                true
-            }
-        };
-
+        let pass_along = !is_repeat || !state.is_key_down;
         if pass_along {
+            // See below for why we do this.
+            clear_marked_text(this);
+            state.key_triggered_ime = false;
+
             // Some keys (and only *some*, with no known reason) don't trigger `insertText`, while others do...
             // So, we don't give repeats the opportunity to trigger that, since otherwise our hack will cause some
             // keys to generate twice as many characters.
             let array: id = msg_send![class!(NSArray), arrayWithObject: event];
-            let _: () = msg_send![this, interpretKeyEvents: array];
+            let () = msg_send![this, interpretKeyEvents: array];
         }
+        // The `interpretKeyEvents` above, may invoke `set_marked_text` or `insert_text`,
+        // if the event corresponds to an IME event.
+        let in_ime = state.key_triggered_ime;
+        let key_event = create_key_event(event, true, is_repeat, in_ime, None);
+        let is_arrow_key = is_arrow_key(key_event.physical_key);
+        if pass_along {
+            // The `interpretKeyEvents` above, may invoke `set_marked_text` or `insert_text`,
+            // if the event corresponds to an IME event.
+            // If `set_marked_text` or `insert_text` were not invoked, then the IME was deactivated,
+            // and we should cancel the IME session.
+            // When using arrow keys in an IME window, the input context won't invoke the
+            // IME related methods, so in that case we shouldn't cancel the IME session.
+            let is_preediting: bool = state.in_ime_preedit;
+            if is_preediting && !state.key_triggered_ime && !is_arrow_key {
+                // In this case we should cancel the IME session.
+                let () = msg_send![this, unmarkText];
+                state.in_ime_preedit = false;
+            }
+        }
+        let window_event = Event::WindowEvent {
+            window_id,
+            event: WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                event: key_event,
+                is_synthetic: false,
+            },
+        };
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `keyDown`");
 }
@@ -708,7 +752,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
-                event: create_key_event(event, false, false, None),
+                event: create_key_event(event, false, false, false, None),
                 is_synthetic: false,
             },
         };
@@ -819,7 +863,7 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
-                event: create_key_event(event, true, false, Some(key)),
+                event: create_key_event(event, true, false, false, Some(key)),
                 is_synthetic: false,
             },
         };
