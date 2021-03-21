@@ -26,9 +26,11 @@ fn main() {
     eprintln!("  (Q) Quit event loop");
     eprintln!("  (V) Toggle visibility");
     eprintln!("  (X) Toggle maximized");
+    eprintln!("  (B) Toggle Borderless");
 
     let mut minimized = false;
     let mut visible = true;
+    let mut borderless = false;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -110,6 +112,10 @@ fn main() {
                     VirtualKeyCode::X => {
                         let is_maximized = window.is_maximized();
                         window.set_maximized(!is_maximized);
+                    }
+                    VirtualKeyCode::B => {
+                        borderless = !borderless;
+                        window.set_decorations(borderless);
                     }
                     _ => (),
                 },

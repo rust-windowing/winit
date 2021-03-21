@@ -11,10 +11,7 @@ fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window_1 = WindowBuilder::new()
-        .with_decorations(false)
-        .build(&event_loop)
-        .unwrap();
+    let window_1 = WindowBuilder::new().build(&event_loop).unwrap();
     let window_2 = WindowBuilder::new().build(&event_loop).unwrap();
 
     let mut switched = false;
