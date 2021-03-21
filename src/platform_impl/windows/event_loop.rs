@@ -1979,6 +1979,88 @@ unsafe fn public_window_callback_inner<T: 'static>(
             }
         }
 
+        winuser::WM_NCHITTEST => {
+            use {
+                winapi::shared::minwindef::TRUE,
+                winuser::{
+                    GetSystemMetrics, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT,
+                    HTCLIENT, HTLEFT, HTNOWHERE, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, SM_CXFRAME,
+                    SM_CXPADDEDBORDER, SM_CYFRAME,
+                },
+            };
+
+            let window_state = subclass_input.window_state.lock();
+
+            // Only apply this hit test for borderless windows that wants to be resizable
+            if !window_state.window_flags.contains(WindowFlags::DECORATIONS)
+                && window_state.window_flags.contains(WindowFlags::RESIZABLE)
+            {
+                let cursor: POINT = POINT {
+                    x: windowsx::GET_X_LPARAM(lparam),
+                    y: windowsx::GET_Y_LPARAM(lparam),
+                };
+
+                let border = POINT {
+                    x: GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER),
+                    y: GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER),
+                };
+
+                let mut window_rect: RECT = mem::zeroed();
+                if GetWindowRect(window, <*mut _>::cast(&mut window_rect)) == TRUE {
+                    const CLIENT: i32 = 0b0000;
+                    const LEFT: i32 = 00001;
+                    const RIGHT: i32 = 0b0010;
+                    const TOP: i32 = 0b0100;
+                    const BOTTOM: i32 = 0b1000;
+                    const TOPLEFT: i32 = TOP | LEFT;
+                    const TOPRIGHT: i32 = TOP | RIGHT;
+                    const BOTTOMLEFT: i32 = BOTTOM | LEFT;
+                    const BOTTOMRIGHT: i32 = BOTTOM | RIGHT;
+
+                    let result =
+                        LEFT * (if cursor.x < (window_rect.left + border.x) {
+                            1
+                        } else {
+                            0
+                        }) | RIGHT
+                            * (if cursor.x >= (window_rect.right - border.x) {
+                                1
+                            } else {
+                                0
+                            })
+                            | TOP
+                                * (if cursor.y < (window_rect.top + border.y) {
+                                    1
+                                } else {
+                                    0
+                                })
+                            | BOTTOM
+                                * (if cursor.y >= (window_rect.bottom - border.y) {
+                                    1
+                                } else {
+                                    0
+                                });
+
+                    match result {
+                        CLIENT => HTCLIENT,
+                        LEFT => HTLEFT,
+                        RIGHT => HTRIGHT,
+                        TOP => HTTOP,
+                        BOTTOM => HTBOTTOM,
+                        TOPLEFT => HTTOPLEFT,
+                        TOPRIGHT => HTTOPRIGHT,
+                        BOTTOMLEFT => HTBOTTOMLEFT,
+                        BOTTOMRIGHT => HTBOTTOMRIGHT,
+                        _ => HTNOWHERE,
+                    }
+                } else {
+                    HTNOWHERE
+                }
+            } else {
+                commctrl::DefSubclassProc(window, msg, wparam, lparam)
+            }
+        }
+
         _ => {
             if msg == *DESTROY_MSG_ID {
                 winuser::DestroyWindow(window);
