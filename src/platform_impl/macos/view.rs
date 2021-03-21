@@ -19,8 +19,7 @@ use objc::{
 use crate::{
     dpi::LogicalPosition,
     event::{
-        DeviceEvent, ElementState, Event, MouseButton, MouseScrollDelta, TouchPhase,
-        WindowEvent,
+        DeviceEvent, ElementState, Event, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
     },
     keyboard::{KeyCode, ModifiersState},
     platform::scancode::KeyCodeExtScancode,
