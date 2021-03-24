@@ -44,9 +44,11 @@ fn poll(poll: Poll) -> Option<EventSource> {
 
 pub struct EventLoop<T: 'static> {
     window_target: event_loop::EventLoopWindowTarget<T>,
-    // This read guard will be held between each pair of `Resumed` and `Suspended`
-    // events to ensure that `ndk_glue` does not release the `NativeWindow` prematurely,
-    // invalidating raw handles obtained by the user through `Window::raw_window_handle()`
+    /// This read guard will be held between each pair of
+    /// [`event::Event::Resumed`] and [`event::Event::Suspended`] events to
+    /// ensure that [`ndk_glue`] does not release the [`NativeWindow`]
+    /// prematurely, invalidating raw handles obtained by the user through
+    /// [`Window::raw_window_handle()`].
     native_window_lock: Option<RwLockReadGuard<'static, Option<NativeWindow>>>,
     user_queue: Arc<Mutex<VecDeque<T>>>,
     first_event: Option<EventSource>,
