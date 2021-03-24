@@ -13,6 +13,7 @@ use ndk::{
     native_window::NativeWindow,
 };
 use ndk_glue::{Event, Rect};
+use raw_window_handle::RawWindowHandle;
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex, RwLock, RwLockReadGuard},
@@ -72,6 +73,7 @@ impl<T: 'static> EventLoop<T> {
         Self {
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
+                    raw_window_handle: Default::default(),
                     _marker: std::marker::PhantomData,
                 },
                 _marker: std::marker::PhantomData,
@@ -117,6 +119,9 @@ impl<T: 'static> EventLoop<T> {
                         let native_window_lock = ndk_glue::native_window();
                         // The window could have gone away before we got the message
                         if native_window_lock.is_some() {
+                            self.window_target
+                                .p
+                                .update_native_window(native_window_lock.as_ref());
                             self.native_window_lock = Some(native_window_lock);
                             call_event_handler!(
                                 event_handler,
@@ -140,6 +145,7 @@ impl<T: 'static> EventLoop<T> {
                                 event::Event::Suspended
                             );
                         }
+                        self.window_target.p.update_native_window(None);
                     }
                     Event::Pause => self.running = false,
                     Event::Resume => self.running = true,
@@ -418,10 +424,19 @@ impl<T> Clone for EventLoopProxy<T> {
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
+    raw_window_handle: Arc<Mutex<Option<RawWindowHandle>>>,
     _marker: std::marker::PhantomData<T>,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
+    fn update_native_window(&self, native_window: Option<&NativeWindow>) {
+        *self.raw_window_handle.lock().unwrap() = native_window.map(|native_window| {
+            let mut handle = raw_window_handle::android::AndroidHandle::empty();
+            handle.a_native_window = unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ };
+            RawWindowHandle::Android(handle)
+        });
+    }
+
     pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
         Some(monitor::MonitorHandle {
             inner: MonitorHandle,
@@ -456,16 +471,20 @@ impl DeviceId {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
-pub struct Window;
+pub struct Window {
+    raw_window_handle: Arc<Mutex<Option<RawWindowHandle>>>,
+}
 
 impl Window {
     pub fn new<T: 'static>(
-        _el: &EventLoopWindowTarget<T>,
+        el: &EventLoopWindowTarget<T>,
         _window_attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
         // FIXME this ignores requested window attributes
-        Ok(Self)
+        Ok(Self {
+            raw_window_handle: Arc::clone(&el.raw_window_handle),
+        })
     }
 
     pub fn id(&self) -> WindowId {
@@ -581,14 +600,14 @@ impl Window {
     }
 
     pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
-        let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
-            unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
-        } else {
-            panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
-        };
-        let mut handle = raw_window_handle::android::AndroidHandle::empty();
-        handle.a_native_window = a_native_window;
-        raw_window_handle::RawWindowHandle::Android(handle)
+        self.raw_window_handle
+            .lock()
+            .unwrap()
+            .as_ref()
+            .expect(
+                "The window can be obtained only between `Event::Resumed` and `Event::Suspended`!",
+            )
+            .clone()
     }
 
     pub fn config(&self) -> Configuration {
