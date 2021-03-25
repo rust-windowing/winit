@@ -832,6 +832,10 @@ unsafe fn init<T: 'static>(
         force_window_active(win.window.0);
     }
 
+    if let Some(position) = attributes.position {
+        win.set_outer_position(position);
+    }
+
     Ok(win)
 }
 
