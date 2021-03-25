@@ -123,13 +123,18 @@ pub struct WindowAttributes {
     ///
     /// ## Platform-specific
     ///
-    /// **macOS**: This sets the top left corner position of the window content, the window
-    /// title bar will be placed above it. If you need to precisely position the top left corner
-    /// of the whole window you have to use [`Window::set_outer_position`] after creating
-    /// the window. The window will be positioned such that it fits on screen, maintaining set
-    /// `inner_size` if any.
-    /// **Windows**: Borders might be shown outside the set position, so the position is
-    /// approximate.
+    /// - **macOS**: The top left corner position of the window content, the window's "inner"
+    /// position. The window title bar will be placed above it.
+    /// The window will be positioned such that it fits on screen, maintaining
+    /// set `inner_size` if any.
+    /// If you need to precisely position the top left corner of the whole window you have to
+    /// use [`Window::set_outer_position`] after creating the window.
+    /// - **Windows**: The top left corner position of the window title bar, the window's "outer"
+    /// position.
+    /// There may be a small gap between this position and the window due to the specifics of the
+    /// Window Manager.
+    /// - **X11**: The top left corner of the window, the window's "outer" position.
+    /// - **Others**: Ignored.
     ///
     /// See [`Window::set_outer_position`].
     ///
