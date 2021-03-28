@@ -10,7 +10,8 @@ use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
 use crate::platform_impl::KeyEventExtra;
 
-use super::keymap;
+// TODO: This is kind of terrible
+use super::super::super::super::common::keymap;
 use super::KeyboardInner;
 
 #[inline]

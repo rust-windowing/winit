@@ -41,6 +41,9 @@ pub mod wayland;
 #[cfg(feature = "x11")]
 pub mod x11;
 
+#[cfg(any(feature = "x11", feature = "wayland"))]
+mod common;
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
     pub text_with_all_modifers: Option<&'static str>,
