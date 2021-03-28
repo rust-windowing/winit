@@ -16,7 +16,6 @@ use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::WindowId;
 
 mod handlers;
-mod keymap;
 
 pub(crate) struct Keyboard {
     pub keyboard: WlKeyboard,
