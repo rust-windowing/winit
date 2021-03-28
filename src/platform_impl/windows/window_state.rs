@@ -68,6 +68,7 @@ bitflags! {
         const TRANSPARENT    = 1 << 6;
         const CHILD          = 1 << 7;
         const MAXIMIZED      = 1 << 8;
+        const POPUP          = 1 << 14;
 
         /// Marker flag for fullscreen. Should always match `WindowState::fullscreen`, but is
         /// included here to make masking easier.
@@ -212,6 +213,9 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
+        }
+        if self.contains(WindowFlags::POPUP) {
+            style |= WS_POPUP;
         }
         if self.contains(WindowFlags::MINIMIZED) {
             style |= WS_MINIMIZE;

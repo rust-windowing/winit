@@ -12,7 +12,7 @@ use crate::{
     event::DeviceId,
     event_loop::EventLoop,
     monitor::MonitorHandle,
-    platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
+    platform_impl::{EventLoop as WindowsEventLoop, Parent, WinIcon},
     window::{BadIcon, Icon, Theme, Window, WindowBuilder},
 };
 
@@ -78,6 +78,18 @@ pub trait WindowExtWindows {
     /// The pointer will become invalid when the native window was destroyed.
     fn hwnd(&self) -> *mut libc::c_void;
 
+    /// Enables or disables mouse and keyboard input to the specified window or control.
+    /// When input is disabled, the window does not receive input such as mouse clicks and key presses.
+    /// When input is enabled, the window receives all input.
+    ///
+    /// A window must be enabled before it can be activated.
+    /// For example, if an application is displaying a modeless dialog box and has disabled its
+    /// main window, the application must enable the main window before destroying the dialog box.
+    /// Otherwise, another window will receive the keyboard focus and be activated.
+    /// If a child window is disabled, it is ignored when the system tries to determine which
+    /// window should receive mouse messages.
+    fn set_enable(&self, enabled: bool);
+
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
@@ -97,6 +109,13 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
+    fn set_enable(&self, enabled: bool) {
+        unsafe {
+            winapi::um::winuser::EnableWindow(self.hwnd() as _, enabled as _);
+        }
+    }
+
+    #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         self.window.set_taskbar_icon(taskbar_icon)
     }
@@ -110,7 +129,20 @@ impl WindowExtWindows for Window {
 /// Additional methods on `WindowBuilder` that are specific to Windows.
 pub trait WindowBuilderExtWindows {
     /// Sets a parent to the window to be created.
+    ///
+    /// A child window has the WS_CHILD style and is confined to the client area of its parent window.
+    ///
+    /// For more infoation, see https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
+
+    /// Set a owner to the window to be created.
+    ///
+    /// An owned window is always above its owner in the z-order.
+    /// The system automatically destroys an owned window when its owner is destroyed.
+    /// An owned window is hidden when its owner is minimized.
+    ///
+    /// For more information, see https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows
+    fn with_owner_window(self, parent: HWND) -> WindowBuilder;
 
     /// Sets a menu on the window to be created.
     ///
@@ -143,7 +175,13 @@ pub trait WindowBuilderExtWindows {
 impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_parent_window(mut self, parent: HWND) -> WindowBuilder {
-        self.platform_specific.parent = Some(parent);
+        self.platform_specific.parent = Parent::ChildOf(parent);
+        self
+    }
+
+    #[inline]
+    fn with_owner_window(mut self, parent: HWND) -> WindowBuilder {
+        self.platform_specific.parent = Parent::OwnedBy(parent);
         self
     }
 
