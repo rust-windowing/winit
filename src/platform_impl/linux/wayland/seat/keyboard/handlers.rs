@@ -5,13 +5,12 @@ use sctk::reexports::client::protocol::wl_keyboard::KeyState;
 use sctk::seat::keyboard::Event as KeyboardEvent;
 
 use crate::event::{ElementState, KeyEvent, WindowEvent};
-use crate::keyboard::{Key, KeyLocation, ModifiersState, NativeKeyCode};
+use crate::keyboard::{Key, ModifiersState, NativeKeyCode};
+use crate::platform_impl::platform::common::keymap;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
 use crate::platform_impl::KeyEventExtra;
 
-// TODO: This is kind of terrible
-use super::super::super::super::common::keymap;
 use super::KeyboardInner;
 
 #[inline]
@@ -73,6 +72,7 @@ pub(super) fn handle_keyboard(
 
             let physical_key = keymap::rawkey_to_keycode(rawkey);
             let logical_key = keymap::keysym_to_key(keysym);
+            let location = keymap::keysym_location(keysym);
 
             event_sink.push_window_event(
                 WindowEvent::KeyboardInput {
@@ -83,7 +83,7 @@ pub(super) fn handle_keyboard(
                         physical_key,
                         logical_key,
                         text: None,
-                        location: KeyLocation::Standard,
+                        location,
                         state,
                         repeat: false,
                         platform_specific: KeyEventExtra {
@@ -120,6 +120,7 @@ pub(super) fn handle_keyboard(
 
             let physical_key = keymap::rawkey_to_keycode(rawkey);
             let logical_key = keymap::keysym_to_key(keysym);
+            let location = keymap::keysym_location(keysym);
 
             event_sink.push_window_event(
                 WindowEvent::KeyboardInput {
@@ -130,9 +131,9 @@ pub(super) fn handle_keyboard(
                         physical_key,
                         logical_key,
                         text: None,
-                        location: KeyLocation::Standard,
+                        location,
                         state: ElementState::Pressed,
-                        repeat: false,
+                        repeat: true,
                         platform_specific: KeyEventExtra {
                             key_without_modifiers: Key::Unidentified(NativeKeyCode::Unidentified),
                             text_with_all_modifers: None,

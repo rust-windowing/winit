@@ -315,9 +315,9 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         xkb::KEY_Up => Key::ArrowUp,
         xkb::KEY_Right => Key::ArrowRight,
         xkb::KEY_Down => Key::ArrowDown,
-        // xkb::KEY_Prior => Key::Prior,
+        // xkb::KEY_Prior => Key::PageUp,
         xkb::KEY_Page_Up => Key::PageUp,
-        // xkb::KEY_Next => Key::Next,
+        // xkb::KEY_Next => Key::PageDown,
         xkb::KEY_End => Key::End,
         // xkb::KEY_Begin => Key::Begin,
 
@@ -350,9 +350,9 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         xkb::KEY_KP_Up => Key::ArrowLeft,
         xkb::KEY_KP_Right => Key::ArrowRight,
         xkb::KEY_KP_Down => Key::ArrowDown,
-        // xkb::KEY_KP_Prior => Key::Prior,
+        // xkb::KEY_KP_Prior => Key::PageUp,
         xkb::KEY_KP_Page_Up => Key::PageUp,
-        // xkb::KEY_KP_Next => Key::Next,
+        // xkb::KEY_KP_Next => Key::PageDown,
         xkb::KEY_KP_Page_Down => Key::PageDown,
         xkb::KEY_KP_End => Key::End,
         // xkb::KEY_KP_Begin => Key::Begin,
@@ -421,14 +421,15 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         xkb::KEY_Control_R => Key::Control,
         xkb::KEY_Caps_Lock => Key::CapsLock,
         // xkb::KEY_Shift_Lock => Key::ShiftLock,
-        //
+
+        // NOTE: The key xkb calls "Meta" is called "Super" by Winit, and vice versa.
+        //       This is a tad confusing, but these keys have different names depending on who you ask.
         xkb::KEY_Meta_L => Key::Super,
         xkb::KEY_Meta_R => Key::Super,
         xkb::KEY_Alt_L => Key::Alt,
         xkb::KEY_Alt_R => Key::Alt,
-        // NOTE: The key xkb calls "Meta" is called "Super" by Winit.
-        // xkb::KEY_Super_L => Key::Super,
-        // xkb::KEY_Super_R => Key::Super,
+        xkb::KEY_Super_L => Key::Meta,
+        xkb::KEY_Super_R => Key::Meta,
         xkb::KEY_Hyper_L => Key::Hyper,
         xkb::KEY_Hyper_R => Key::Hyper,
 
@@ -681,5 +682,59 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // KEY_SunPowerSwitchShift
         //
         _ => Key::Unidentified(NativeKeyCode::XKB(keysym)),
+    }
+}
+
+pub fn keysym_location(keysym: u32) -> KeyLocation {
+    use xkbcommon::xkb;
+    match keysym {
+        xkb::KEY_Shift_L
+        | xkb::KEY_Control_L
+        | xkb::KEY_Meta_L
+        | xkb::KEY_Alt_L
+        | xkb::KEY_Super_L
+        | xkb::KEY_Hyper_L => KeyLocation::Left,
+        xkb::KEY_Shift_R
+        | xkb::KEY_Control_R
+        | xkb::KEY_Meta_R
+        | xkb::KEY_Alt_R
+        | xkb::KEY_Super_R
+        | xkb::KEY_Hyper_R => KeyLocation::Right,
+        xkb::KEY_KP_0
+        | xkb::KEY_KP_1
+        | xkb::KEY_KP_2
+        | xkb::KEY_KP_3
+        | xkb::KEY_KP_4
+        | xkb::KEY_KP_5
+        | xkb::KEY_KP_6
+        | xkb::KEY_KP_7
+        | xkb::KEY_KP_8
+        | xkb::KEY_KP_9
+        | xkb::KEY_KP_Space
+        | xkb::KEY_KP_Tab
+        | xkb::KEY_KP_Enter
+        | xkb::KEY_KP_F1
+        | xkb::KEY_KP_F2
+        | xkb::KEY_KP_F3
+        | xkb::KEY_KP_F4
+        | xkb::KEY_KP_Home
+        | xkb::KEY_KP_Left
+        | xkb::KEY_KP_Up
+        | xkb::KEY_KP_Right
+        | xkb::KEY_KP_Down
+        | xkb::KEY_KP_Page_Up
+        | xkb::KEY_KP_Page_Down
+        | xkb::KEY_KP_End
+        | xkb::KEY_KP_Begin
+        | xkb::KEY_KP_Insert
+        | xkb::KEY_KP_Delete
+        | xkb::KEY_KP_Equal
+        | xkb::KEY_KP_Multiply
+        | xkb::KEY_KP_Add
+        | xkb::KEY_KP_Separator
+        | xkb::KEY_KP_Subtract
+        | xkb::KEY_KP_Decimal
+        | xkb::KEY_KP_Divide => KeyLocation::Numpad,
+        _ => KeyLocation::Standard,
     }
 }
