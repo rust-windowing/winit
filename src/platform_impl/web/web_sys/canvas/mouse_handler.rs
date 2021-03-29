@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use web_sys::{EventTarget, MouseEvent};
 
+#[allow(dead_code)]
 pub(super) struct MouseHandler {
     on_mouse_leave: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_mouse_enter: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,

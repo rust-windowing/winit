@@ -613,7 +613,7 @@ impl<T: 'static> EventLoop<T> {
             "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
             wayland_err, x11_err,
         );
-        panic!(err_string);
+        std::panic::panic_any(err_string);
     }
 
     #[cfg(feature = "wayland")]

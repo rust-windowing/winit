@@ -32,7 +32,7 @@ impl XConnection {
                     name,
                     self.check_errors(),
                 );
-                panic!(msg);
+                std::panic::panic_any(msg);
             }
             /*println!(
                 "XInternAtom name:{:?} atom:{:?}",
