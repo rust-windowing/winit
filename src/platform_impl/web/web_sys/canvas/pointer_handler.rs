@@ -5,6 +5,7 @@ use crate::event::{ModifiersState, MouseButton};
 
 use web_sys::PointerEvent;
 
+#[allow(dead_code)]
 pub(super) struct PointerHandler {
     on_cursor_leave: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
     on_cursor_enter: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
