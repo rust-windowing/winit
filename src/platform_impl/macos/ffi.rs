@@ -161,6 +161,10 @@ pub const IO8BitOverlayPixels: &str = "O8";
 pub type CGWindowLevel = i32;
 pub type CGDisplayModeRef = *mut libc::c_void;
 
+pub const NSTrackingMouseEnteredAndExited: u8 = 0x01;
+pub const NSTrackingMouseMoved: u8 = 0x02;
+pub const NSTrackingActiveAlways: u8 = 0x80;
+
 #[cfg_attr(
     not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
     link(name = "CoreGraphics", kind = "framework")
