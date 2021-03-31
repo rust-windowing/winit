@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Unix X11, add Window Strut supported to reserve space at the edge of screen.
 - On Windows, fix fractional deltas for mouse wheel device events.
 - On macOS, fix segmentation fault after dropping the main window.
 - On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.

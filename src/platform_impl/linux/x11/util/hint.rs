@@ -93,6 +93,33 @@ impl WindowType {
     }
 }
 
+/// X window strut. Maps directly to
+/// [`_NET_WM_STRUT`](https://specifications.freedesktop.org/wm-spec/1.3/ar01s05.html).
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum WindowStrut {
+    /// This property is used to reserved space at the edge of the screen.
+    /// This required 4 cardinals specifying the width of the reserved area.
+    /// The order of the values is left, right, top, botttom.
+    Strut([c_ulong; 4]),
+    /// This property is used to reserved space at the edge of the screen.
+    /// This required 4 cardinals specifying the width of the reserved area and 8 cardinals specifying the beginning and end corresponding to each of the four struts.
+    /// The order of the values is left, right, top, bottom, left_start_y, left_end_y, right_start_y, right_end_y, top_start_x, top_end_x, bottom_start_x, bottom_end_x.
+    StrutPartial([c_ulong; 12]),
+}
+
+impl WindowStrut {
+    pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::Atom {
+        use WindowStrut::*;
+        let atom_name: &[u8] = match *self {
+            Strut(_) => b"_NET_WM_STRUT\0",
+            StrutPartial(_) => b"_NET_WM_STRUT_PARTIAL\0",
+        };
+
+        unsafe { xconn.get_atom_unchecked(atom_name) }
+    }
+}
+
 pub struct MotifHints {
     hints: MwmHints,
 }
