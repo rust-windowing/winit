@@ -351,8 +351,8 @@ impl KbState {
         Ok(())
     }
 
-    pub(crate) unsafe fn key_repeats(&mut self, xkb_keycode_t: ffi::xkb_keycode_t) -> bool {
-        (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, xkb_keycode_t) == 1
+    pub(crate) unsafe fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
+        (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode + 8) == 1
     }
 
     #[inline]
