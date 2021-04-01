@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::convert::TryInto;
 use std::env;
 use std::ffi::CString;
@@ -28,6 +27,7 @@ pub(crate) struct KbState {
     xkb_compose_state: *mut ffi::xkb_compose_state,
     mods_state: ModifiersState,
     locked: bool,
+    scratch_buffer: Vec<u8>,
 }
 
 /// Represents the current state of the keyboard modifiers
@@ -140,7 +140,7 @@ impl KbState {
         unsafe { (XKBH.xkb_state_key_get_one_sym)(self.xkb_state, keycode + 8) }
     }
 
-    pub(crate) fn get_utf8_raw(&mut self, keycode: u32) -> Option<String> {
+    pub(crate) fn get_utf8_raw(&mut self, keycode: u32) -> Option<&'static str> {
         if !self.ready() {
             return None;
         }
@@ -150,20 +150,21 @@ impl KbState {
         if size <= 1 {
             return None;
         };
-        let mut buffer = Vec::with_capacity(size as usize);
+        self.scratch_buffer.clear();
+        let size = size.try_into().unwrap();
+        self.scratch_buffer.reserve(size);
         unsafe {
-            buffer.set_len(size as usize);
+            self.scratch_buffer.set_len(size);
             (XKBH.xkb_state_key_get_utf8)(
                 self.xkb_state,
                 keycode + 8,
-                buffer.as_mut_ptr() as *mut _,
-                size as usize,
+                self.scratch_buffer.as_mut_ptr() as *mut _,
+                size,
             );
         };
         // remove the final `\0`
-        buffer.pop();
-        // libxkbcommon will always provide valid UTF8
-        Some(unsafe { String::from_utf8_unchecked(buffer) })
+        self.scratch_buffer.pop();
+        Some(byte_slice_to_cached_string(&self.scratch_buffer))
     }
 
     pub(crate) fn compose_feed(&mut self, keysym: u32) -> Option<ffi::xkb_compose_feed_result> {
@@ -180,7 +181,7 @@ impl KbState {
         Some(unsafe { (XKBCH.xkb_compose_state_get_status)(self.xkb_compose_state) })
     }
 
-    pub(crate) fn compose_get_utf8(&mut self) -> Option<String> {
+    pub(crate) fn compose_get_utf8(&mut self) -> Option<&'static str> {
         if !self.ready() || self.xkb_compose_state.is_null() {
             return None;
         }
@@ -190,19 +191,20 @@ impl KbState {
         if size <= 1 {
             return None;
         };
-        let mut buffer = Vec::with_capacity(size as usize);
+        self.scratch_buffer.clear();
+        let size = size.try_into().unwrap();
+        self.scratch_buffer.reserve(size);
         unsafe {
-            buffer.set_len(size as usize);
+            self.scratch_buffer.set_len(size);
             (XKBCH.xkb_compose_state_get_utf8)(
                 self.xkb_compose_state,
-                buffer.as_mut_ptr() as *mut _,
+                self.scratch_buffer.as_mut_ptr() as *mut _,
                 size as usize,
             );
         };
         // remove the final `\0`
-        buffer.pop();
-        // libxkbcommon will always provide valid UTF8
-        Some(unsafe { String::from_utf8_unchecked(buffer) })
+        self.scratch_buffer.pop();
+        Some(byte_slice_to_cached_string(&self.scratch_buffer))
     }
 
     pub(crate) fn new() -> Result<KbState, Error> {
@@ -225,6 +227,7 @@ impl KbState {
             xkb_compose_state: ptr::null_mut(),
             mods_state: ModifiersState::new(),
             locked: false,
+            scratch_buffer: Vec::new(),
         };
 
         unsafe {
@@ -399,6 +402,36 @@ impl KbState {
     pub fn process_key_repeat_event(&mut self, keycode: u32) -> KeyEventResults<'_> {
         KeyEventResults::new(self, keycode, false)
     }
+
+    fn keysym_to_utf8_raw(&mut self, keysym: u32) -> Option<&'static str> {
+        self.scratch_buffer.clear();
+        self.scratch_buffer.reserve(8);
+        loop {
+            unsafe { self.scratch_buffer.set_len(8) };
+            let bytes_written = unsafe {
+                (XKBH.xkb_keysym_to_utf8)(
+                    keysym,
+                    self.scratch_buffer.as_mut_ptr().cast(),
+                    self.scratch_buffer.capacity(),
+                )
+            };
+            if bytes_written == 0 {
+                return None;
+            } else if bytes_written == -1 {
+                self.scratch_buffer.reserve(8);
+            } else {
+                unsafe {
+                    self.scratch_buffer
+                        .set_len(bytes_written.try_into().unwrap())
+                };
+                break;
+            }
+        }
+
+        // remove the final `\0`
+        self.scratch_buffer.pop();
+        Some(byte_slice_to_cached_string(&self.scratch_buffer))
+    }
 }
 
 enum XkbCompose {
@@ -408,7 +441,7 @@ enum XkbCompose {
 }
 
 pub(crate) struct KeyEventResults<'a> {
-    state: RefCell<&'a mut KbState>,
+    state: &'a mut KbState,
     keycode: u32,
     keysym: u32,
     compose: Option<XkbCompose>,
@@ -432,7 +465,7 @@ impl<'a> KeyEventResults<'a> {
         };
 
         KeyEventResults {
-            state: RefCell::new(state),
+            state,
             keycode,
             keysym,
             compose,
@@ -444,7 +477,7 @@ impl<'a> KeyEventResults<'a> {
     }
 
     pub fn key(&mut self) -> (Key<'static>, KeyLocation) {
-        Self::keysym_to_key(self.keysym)
+        self.keysym_to_key(self.keysym)
     }
 
     pub fn key_without_modifiers(&mut self) -> (Key<'static>, KeyLocation) {
@@ -452,7 +485,7 @@ impl<'a> KeyEventResults<'a> {
         let mut keysyms = ptr::null();
         let keysym_count = unsafe {
             (XKBH.xkb_keymap_key_get_syms_by_level)(
-                self.state.borrow_mut().xkb_keymap,
+                self.state.xkb_keymap,
                 self.keycode + 8,
                 0,
                 0,
@@ -464,77 +497,69 @@ impl<'a> KeyEventResults<'a> {
         } else {
             0
         };
-        Self::keysym_to_key(keysym)
+        self.keysym_to_key(keysym)
     }
 
-    fn keysym_to_key(keysym: u32) -> (Key<'static>, KeyLocation) {
+    fn keysym_to_key(&mut self, keysym: u32) -> (Key<'static>, KeyLocation) {
         let location = super::keymap::keysym_location(keysym);
         let mut key = super::keymap::keysym_to_key(keysym);
         if matches!(key, Key::Unidentified(_)) {
-            if let Some(string) = keysym_to_utf8_raw(keysym) {
-                key = Key::Character(cached_string(string));
+            if let Some(string) = self.state.keysym_to_utf8_raw(keysym) {
+                key = Key::Character(string);
             }
         }
         (key, location)
     }
 
     pub fn text(&mut self) -> Option<&'static str> {
-        let keysym = self.keysym;
-        self._text(|| keysym_to_utf8_raw(keysym))
+        self._text(|this| this.state.keysym_to_utf8_raw(this.keysym))
     }
 
     pub fn text_with_all_modifiers(&mut self) -> Option<&'static str> {
         // TODO: Should Ctrl override any attempts to compose text?
         //       gnome-terminal agrees, but konsole disagrees.
         //       Should it be configurable instead?
-        let keycode = self.keycode;
-        self._text(|| self.state.borrow_mut().get_utf8_raw(keycode))
+        self._text(|this| this.state.get_utf8_raw(this.keycode))
     }
 
-    fn _text<F>(&self, fallback: F) -> Option<&'static str>
+    fn _text<F>(&mut self, fallback: F) -> Option<&'static str>
     where
-        F: FnOnce() -> Option<String>,
+        F: FnOnce(&mut Self) -> Option<&'static str>,
     {
         if let Some(compose) = &self.compose {
             match compose {
                 XkbCompose::Accepted(status) => match status {
-                    ffi::xkb_compose_status::XKB_COMPOSE_COMPOSED => {
-                        self.state.borrow_mut().compose_get_utf8()
-                    }
-                    ffi::xkb_compose_status::XKB_COMPOSE_NOTHING => fallback(),
+                    ffi::xkb_compose_status::XKB_COMPOSE_COMPOSED => self.state.compose_get_utf8(),
+                    ffi::xkb_compose_status::XKB_COMPOSE_NOTHING => fallback(self),
                     _ => None,
                 },
-                XkbCompose::Ignored | XkbCompose::Uninitialized => fallback(),
+                XkbCompose::Ignored | XkbCompose::Uninitialized => fallback(self),
             }
         } else {
-            fallback()
+            fallback(self)
         }
-        .map(cached_string)
     }
 }
 
-fn keysym_to_utf8_raw(keysym: u32) -> Option<String> {
-    let mut buffer: Vec<u8> = Vec::with_capacity(8);
-    loop {
-        let bytes_written = unsafe {
-            (XKBH.xkb_keysym_to_utf8)(keysym, buffer.as_mut_ptr().cast(), buffer.capacity())
-        };
-        if bytes_written == 0 {
-            return None;
-        } else if bytes_written == -1 {
-            buffer.reserve(8);
+fn byte_slice_to_cached_string(bytes: &[u8]) -> &'static str {
+    use std::cell::RefCell;
+    use std::collections::HashSet;
+
+    thread_local! {
+        static STRING_CACHE: RefCell<HashSet<&'static str>> = RefCell::new(HashSet::new());
+    }
+
+    let string = std::str::from_utf8(bytes).unwrap();
+
+    STRING_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(string) = cache.get(string) {
+            *string
         } else {
-            unsafe { buffer.set_len(bytes_written.try_into().unwrap()) };
-            break;
+            // borrowck couldn't quite figure out this one on its own
+            let string: &'static str = Box::leak(String::from(string).into_boxed_str());
+            cache.insert(string);
+            string
         }
-    }
-
-    // remove the final `\0`
-    buffer.pop();
-    // libxkbcommon will always provide valid UTF8
-    Some(unsafe { String::from_utf8_unchecked(buffer) })
-}
-
-fn cached_string<S: Into<String>>(string: S) -> &'static str {
-    Box::leak(string.into().into_boxed_str())
+    })
 }
