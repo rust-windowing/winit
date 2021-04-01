@@ -445,7 +445,7 @@ impl<'a> KeyEventResults<'a> {
         let location = super::keymap::keysym_location(self.keysym);
         let mut key = super::keymap::keysym_to_key(self.keysym);
         if matches!(key, Key::Unidentified(_)) {
-            if let Some(string) = self.state.borrow_mut().get_utf8_raw(self.keycode) {
+            if let Some(string) = keysym_to_utf8_raw(self.keysym) {
                 key = Key::Character(cached_string(string));
             }
         }
@@ -510,12 +510,21 @@ impl<'a> KeyEventResults<'a> {
 }
 
 fn keysym_to_utf8_raw(keysym: u32) -> Option<String> {
-    let size = unsafe { (XKBH.xkb_keysym_to_utf8)(keysym, ptr::null_mut(), 0) } + 1;
-    if size <= 1 {
-        return None;
+    let mut buffer: Vec<u8> = Vec::with_capacity(8);
+    loop {
+        let bytes_written = unsafe {
+            (XKBH.xkb_keysym_to_utf8)(keysym, buffer.as_mut_ptr().cast(), buffer.capacity())
+        };
+        if bytes_written == 0 {
+            return None;
+        } else if bytes_written == -1 {
+            buffer.reserve(8);
+        } else {
+            unsafe { buffer.set_len(bytes_written.try_into().unwrap()) };
+            break;
+        }
     }
-    let mut buffer: Vec<u8> = Vec::with_capacity(size.try_into().unwrap());
-    unsafe { (XKBH.xkb_keysym_to_utf8)(keysym, buffer.as_mut_ptr().cast(), buffer.len()) };
+
     // remove the final `\0`
     buffer.pop();
     // libxkbcommon will always provide valid UTF8
