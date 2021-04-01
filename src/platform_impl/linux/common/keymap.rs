@@ -318,6 +318,7 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // keysyms::XKB_KEY_Prior => Key::PageUp,
         keysyms::XKB_KEY_Page_Up => Key::PageUp,
         // keysyms::XKB_KEY_Next => Key::PageDown,
+        keysyms::XKB_KEY_Page_Down => Key::PageDown,
         keysyms::XKB_KEY_End => Key::End,
         // keysyms::XKB_KEY_Begin => Key::Begin,
 
