@@ -7,6 +7,7 @@ use std::os::raw::c_char;
 use std::os::unix::ffi::OsStringExt;
 use std::ptr;
 
+#[cfg(feature = "wayland")]
 use memmap2::MmapOptions;
 use xkbcommon_dl::{
     self as ffi, xkb_state_component, XKBCOMMON_COMPOSE_HANDLE as XKBCH, XKBCOMMON_HANDLE as XKBH,
@@ -313,6 +314,7 @@ impl KbState {
         self.xkb_keymap = ptr::null_mut();
     }
 
+    #[cfg(feature = "wayland")]
     pub(crate) unsafe fn init_with_fd(&mut self, fd: File, size: usize) {
         let map = MmapOptions::new().len(size).map(&fd).unwrap();
 
