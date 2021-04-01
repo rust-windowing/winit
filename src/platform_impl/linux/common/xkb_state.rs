@@ -442,14 +442,7 @@ impl<'a> KeyEventResults<'a> {
     }
 
     pub fn key(&mut self) -> (Key<'static>, KeyLocation) {
-        let location = super::keymap::keysym_location(self.keysym);
-        let mut key = super::keymap::keysym_to_key(self.keysym);
-        if matches!(key, Key::Unidentified(_)) {
-            if let Some(string) = keysym_to_utf8_raw(self.keysym) {
-                key = Key::Character(cached_string(string));
-            }
-        }
-        (key, location)
+        Self::keysym_to_key(self.keysym)
     }
 
     pub fn key_without_modifiers(&mut self) -> (Key<'static>, KeyLocation) {
@@ -458,7 +451,7 @@ impl<'a> KeyEventResults<'a> {
         let keysym_count = unsafe {
             (XKBH.xkb_keymap_key_get_syms_by_level)(
                 self.state.borrow_mut().xkb_keymap,
-                self.keycode,
+                self.keycode + 8,
                 0,
                 0,
                 &mut keysyms,
@@ -469,8 +462,17 @@ impl<'a> KeyEventResults<'a> {
         } else {
             0
         };
-        let key = super::keymap::keysym_to_key(keysym);
+        Self::keysym_to_key(keysym)
+    }
+
+    fn keysym_to_key(keysym: u32) -> (Key<'static>, KeyLocation) {
         let location = super::keymap::keysym_location(keysym);
+        let mut key = super::keymap::keysym_to_key(keysym);
+        if matches!(key, Key::Unidentified(_)) {
+            if let Some(string) = keysym_to_utf8_raw(keysym) {
+                key = Key::Character(cached_string(string));
+            }
+        }
         (key, location)
     }
 
