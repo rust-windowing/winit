@@ -2,15 +2,16 @@
 
 use sctk::reexports::calloop;
 use sctk::reexports::client;
-use sctk::reexports::client::protocol::wl_keyboard::KeyState;
 
-use crate::event::{ElementState, KeyEvent, WindowEvent};
-use crate::keyboard::{Key, ModifiersState, NativeKeyCode};
-use crate::platform_impl::platform::common::keymap;
+use crate::keyboard::{Key, KeyLocation, ModifiersState};
 use crate::platform_impl::platform::common::xkb_state::{self, RMLVO};
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
 use crate::platform_impl::KeyEventExtra;
+use crate::{
+    event::{ElementState, KeyEvent, WindowEvent},
+    keyboard::KeyCode,
+};
 
 use super::KeyboardInner;
 
@@ -54,26 +55,19 @@ pub(super) fn handle_keyboard(
             inner.target_window_id = None;
         }
         Event::Key {
-            rawkey,
-            keysym,
+            physical_key,
+            logical_key,
+            text,
+            location,
             state,
-            utf8,
+            key_without_modifiers,
+            text_with_all_modifiers,
             ..
         } => {
             let window_id = match inner.target_window_id {
                 Some(window_id) => window_id,
                 None => return,
             };
-
-            let state = match state {
-                KeyState::Pressed => ElementState::Pressed,
-                KeyState::Released => ElementState::Released,
-                _ => unreachable!(),
-            };
-
-            let physical_key = keymap::rawkey_to_keycode(rawkey);
-            let logical_key = keymap::keysym_to_key(keysym);
-            let location = keymap::keysym_location(keysym);
 
             event_sink.push_window_event(
                 WindowEvent::KeyboardInput {
@@ -83,45 +77,33 @@ pub(super) fn handle_keyboard(
                     event: KeyEvent {
                         physical_key,
                         logical_key,
-                        text: None,
+                        text,
                         location,
                         state,
                         repeat: false,
                         platform_specific: KeyEventExtra {
-                            key_without_modifiers: Key::Unidentified(NativeKeyCode::Unidentified),
-                            text_with_all_modifers: None,
+                            key_without_modifiers,
+                            text_with_all_modifiers,
                         },
                     },
                     is_synthetic: false,
                 },
                 window_id,
             );
-
-            // Send ReceivedCharacter event only on ElementState::Pressed.
-            if ElementState::Released == state {
-                return;
-            }
-
-            if let Some(txt) = utf8 {
-                for ch in txt.chars() {
-                    // event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
-                }
-            }
         }
         Event::Repeat {
-            rawkey,
-            keysym,
-            utf8,
+            physical_key,
+            logical_key,
+            text,
+            location,
+            key_without_modifiers,
+            text_with_all_modifiers,
             ..
         } => {
             let window_id = match inner.target_window_id {
                 Some(window_id) => window_id,
                 None => return,
             };
-
-            let physical_key = keymap::rawkey_to_keycode(rawkey);
-            let logical_key = keymap::keysym_to_key(keysym);
-            let location = keymap::keysym_location(keysym);
 
             event_sink.push_window_event(
                 WindowEvent::KeyboardInput {
@@ -131,25 +113,19 @@ pub(super) fn handle_keyboard(
                     event: KeyEvent {
                         physical_key,
                         logical_key,
-                        text: None,
+                        text,
                         location,
                         state: ElementState::Pressed,
                         repeat: true,
                         platform_specific: KeyEventExtra {
-                            key_without_modifiers: Key::Unidentified(NativeKeyCode::Unidentified),
-                            text_with_all_modifers: None,
+                            key_without_modifiers,
+                            text_with_all_modifiers,
                         },
                     },
                     is_synthetic: false,
                 },
                 window_id,
             );
-
-            if let Some(txt) = utf8 {
-                for ch in txt.chars() {
-                    // event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
-                }
-            }
         }
         Event::Modifiers { modifiers } => {
             let modifiers = ModifiersState::from(modifiers);
@@ -185,7 +161,6 @@ use sctk::reexports::client::{
     protocol::{wl_keyboard, wl_seat, wl_surface},
     Attached,
 };
-use xkbcommon_dl as ffi;
 
 use super::super::super::super::common::xkb_state::KbState;
 
@@ -194,6 +169,7 @@ const MICROS_IN_SECOND: u32 = 1000000;
 /// Possible kinds of key repetition
 pub enum RepeatKind {
     /// keys will be repeated at a set rate and delay
+    #[allow(dead_code)]
     Fixed {
         /// The number of repetitions per second that should occur.
         rate: u32,
@@ -251,27 +227,24 @@ pub enum Event<'a> {
         serial: u32,
         /// time at which the keypress occurred
         time: u32,
-        /// raw value of the key
-        rawkey: u32,
-        /// interpreted symbol of the key
-        keysym: u32,
-        /// new state of the key
-        state: KeyState,
-        /// utf8 interpretation of the entered text
-        ///
-        /// will always be `None` on key release events
-        utf8: Option<String>,
+        physical_key: KeyCode,
+        logical_key: Key<'static>,
+        text: Option<&'static str>,
+        location: KeyLocation,
+        state: ElementState,
+        key_without_modifiers: Key<'static>,
+        text_with_all_modifiers: Option<&'static str>,
     },
     /// A key repetition event
     Repeat {
         /// time at which the repetition occured
         time: u32,
-        /// raw value of the key
-        rawkey: u32,
-        /// interpreted symbol of the key
-        keysym: u32,
-        /// utf8 interpretation of the entered text
-        utf8: Option<String>,
+        physical_key: KeyCode,
+        logical_key: Key<'static>,
+        text: Option<&'static str>,
+        location: KeyLocation,
+        key_without_modifiers: Key<'static>,
+        text_with_all_modifiers: Option<&'static str>,
     },
 }
 
@@ -564,47 +537,49 @@ impl KbdHandler {
         key_state: wl_keyboard::KeyState,
         dispatch_data: client::DispatchData<'_>,
     ) {
-        let (sym, utf8, repeats) = {
+        let (
+            physical_key,
+            logical_key,
+            text,
+            location,
+            state,
+            key_without_modifiers,
+            text_with_all_modifiers,
+            repeats,
+        ) = {
             let mut state = self.state.borrow_mut();
-            // Get the values to generate a key event
-            let sym = state.get_one_sym_raw(key);
-            let utf8 = if key_state == wl_keyboard::KeyState::Pressed {
-                match state.compose_feed(sym) {
-                    Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED) => {
-                        if let Some(status) = state.compose_status() {
-                            match status {
-                                ffi::xkb_compose_status::XKB_COMPOSE_COMPOSED => {
-                                    state.compose_get_utf8()
-                                }
-                                ffi::xkb_compose_status::XKB_COMPOSE_NOTHING => {
-                                    state.get_utf8_raw(key)
-                                }
-                                _ => None,
-                            }
-                        } else {
-                            state.get_utf8_raw(key)
-                        }
-                    }
-                    Some(_) => {
-                        // XKB_COMPOSE_FEED_IGNORED
-                        None
-                    }
-                    None => {
-                        // XKB COMPOSE is not initialized
-                        state.get_utf8_raw(key)
-                    }
-                }
-            } else {
-                None
+            let key_state = match key_state {
+                wl_keyboard::KeyState::Pressed => ElementState::Pressed,
+                wl_keyboard::KeyState::Released => ElementState::Released,
+                _ => unreachable!(),
             };
+
+            let mut ker = state.process_key_event(key, key_state);
+
+            let physical_key = ker.keycode();
+            let (logical_key, location) = ker.key();
+            let text = ker.text();
+            let (key_without_modifiers, _) = ker.key_without_modifiers();
+            let text_with_all_modifiers = ker.text_with_all_modifiers();
+
             let repeats = unsafe { state.key_repeats(key + 8) };
-            (sym, utf8, repeats)
+
+            (
+                physical_key,
+                logical_key,
+                text,
+                location,
+                key_state,
+                key_without_modifiers,
+                text_with_all_modifiers,
+                repeats,
+            )
         };
 
         {
             if let Some(ref mut repeat_handle) = self.repeat {
                 if repeats {
-                    if key_state == wl_keyboard::KeyState::Pressed {
+                    if state == ElementState::Pressed {
                         repeat_handle.start_repeat(key, object.clone(), time);
                     } else {
                         repeat_handle.stop_repeat(key);
@@ -617,10 +592,13 @@ impl KbdHandler {
             Event::Key {
                 serial,
                 time,
-                rawkey: key,
-                keysym: sym,
-                state: key_state,
-                utf8,
+                physical_key,
+                logical_key,
+                text,
+                location,
+                state,
+                key_without_modifiers,
+                text_with_all_modifiers,
             },
             object,
             dispatch_data,
@@ -711,16 +689,25 @@ impl calloop::EventSource for RepeatSource {
                 if let Some(ref mut data) = *current_repeat.borrow_mut() {
                     // there is something to repeat
                     let mut state = state.borrow_mut();
-                    let keysym = state.get_one_sym_raw(data.keycode);
-                    let utf8 = state.get_utf8_raw(data.keycode);
+                    let mut ker = state.process_key_repeat_event(data.keycode);
+
+                    let physical_key = ker.keycode();
+                    let (logical_key, location) = ker.key();
+                    let text = ker.text();
+                    let (key_without_modifiers, _) = ker.key_without_modifiers();
+                    let text_with_all_modifiers = ker.text_with_all_modifiers();
+
                     let new_time = data.gap + data.time;
                     // Notify the callback.
                     callback(
                         Event::Repeat {
                             time: (new_time / 1000) as u32,
-                            rawkey: data.keycode,
-                            keysym,
-                            utf8,
+                            physical_key,
+                            logical_key,
+                            text,
+                            location,
+                            key_without_modifiers,
+                            text_with_all_modifiers,
                         },
                         &mut data.keyboard,
                     );

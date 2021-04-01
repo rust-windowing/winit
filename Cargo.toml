@@ -113,7 +113,7 @@ percent-encoding = { version = "2.0", optional = true }
 parking_lot = { version = "0.12.0", optional = true }
 libc = "0.2.64"
 memmap2 = { version = "0.2.1", optional = true }
-xkbcommon-dl = { git = "https://github.com/maroider/xkbcommon-dl", rev = "e175ffe" }
+xkbcommon-dl = { git = "https://github.com/maroider/xkbcommon-dl", rev = "f335e626c" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"

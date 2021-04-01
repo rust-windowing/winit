@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::convert::TryInto;
 use std::env;
 use std::ffi::CString;
 use std::fs::File;
@@ -11,6 +13,11 @@ use xkbcommon_dl::{
 };
 
 pub use sctk::seat::keyboard::RMLVO;
+
+use crate::{
+    event::ElementState,
+    keyboard::{Key, KeyCode, KeyLocation},
+};
 
 pub(crate) struct KbState {
     xkb_context: *mut ffi::xkb_context,
@@ -380,4 +387,141 @@ pub enum Error {
     XKBNotFound,
     /// Provided RMLVO specified a keymap that would not be loaded
     BadNames,
+}
+
+impl KbState {
+    pub fn process_key_event(&mut self, keycode: u32, state: ElementState) -> KeyEventResults<'_> {
+        KeyEventResults::new(self, keycode, state == ElementState::Pressed)
+    }
+
+    pub fn process_key_repeat_event(&mut self, keycode: u32) -> KeyEventResults<'_> {
+        KeyEventResults::new(self, keycode, false)
+    }
+}
+
+enum XkbCompose {
+    Accepted(ffi::xkb_compose_status),
+    Ignored,
+    Uninitialized,
+}
+
+pub(crate) struct KeyEventResults<'a> {
+    state: RefCell<&'a mut KbState>,
+    keycode: u32,
+    keysym: u32,
+    compose: Option<XkbCompose>,
+}
+
+impl<'a> KeyEventResults<'a> {
+    fn new(state: &'a mut KbState, keycode: u32, compose: bool) -> Self {
+        let keysym = state.get_one_sym_raw(keycode);
+
+        let compose = if compose {
+            Some(match state.compose_feed(keysym) {
+                Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED) => {
+                    // Unwrapping is safe here, as `compose_feed` returns `None` when composition is uninitialized.
+                    XkbCompose::Accepted(state.compose_status().unwrap())
+                }
+                Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_IGNORED) => XkbCompose::Ignored,
+                None => XkbCompose::Uninitialized,
+            })
+        } else {
+            None
+        };
+
+        KeyEventResults {
+            state: RefCell::new(state),
+            keycode,
+            keysym,
+            compose,
+        }
+    }
+
+    pub fn keycode(&mut self) -> KeyCode {
+        super::keymap::rawkey_to_keycode(self.keycode)
+    }
+
+    pub fn key(&mut self) -> (Key<'static>, KeyLocation) {
+        let location = super::keymap::keysym_location(self.keysym);
+        let mut key = super::keymap::keysym_to_key(self.keysym);
+        if matches!(key, Key::Unidentified(_)) {
+            if let Some(string) = self.state.borrow_mut().get_utf8_raw(self.keycode) {
+                key = Key::Character(cached_string(string));
+            }
+        }
+        (key, location)
+    }
+
+    pub fn key_without_modifiers(&mut self) -> (Key<'static>, KeyLocation) {
+        // This will become a pointer to an array which libxkbcommon owns, so we don't need to deallocate it.
+        let mut keysyms = ptr::null();
+        let keysym_count = unsafe {
+            (XKBH.xkb_keymap_key_get_syms_by_level)(
+                self.state.borrow_mut().xkb_keymap,
+                self.keycode,
+                0,
+                0,
+                &mut keysyms,
+            )
+        };
+        let keysym = if keysym_count == 1 {
+            unsafe { *keysyms }
+        } else {
+            0
+        };
+        let key = super::keymap::keysym_to_key(keysym);
+        let location = super::keymap::keysym_location(keysym);
+        (key, location)
+    }
+
+    pub fn text(&mut self) -> Option<&'static str> {
+        let keysym = self.keysym;
+        self._text(|| keysym_to_utf8_raw(keysym))
+    }
+
+    pub fn text_with_all_modifiers(&mut self) -> Option<&'static str> {
+        // TODO: Should Ctrl override any attempts to compose text?
+        //       gnome-terminal agrees, but konsole disagrees.
+        //       Should it be configurable instead?
+        let keycode = self.keycode;
+        self._text(|| self.state.borrow_mut().get_utf8_raw(keycode))
+    }
+
+    fn _text<F>(&self, fallback: F) -> Option<&'static str>
+    where
+        F: FnOnce() -> Option<String>,
+    {
+        if let Some(compose) = &self.compose {
+            match compose {
+                XkbCompose::Accepted(status) => match status {
+                    ffi::xkb_compose_status::XKB_COMPOSE_COMPOSED => {
+                        self.state.borrow_mut().compose_get_utf8()
+                    }
+                    ffi::xkb_compose_status::XKB_COMPOSE_NOTHING => fallback(),
+                    _ => None,
+                },
+                XkbCompose::Ignored | XkbCompose::Uninitialized => fallback(),
+            }
+        } else {
+            fallback()
+        }
+        .map(cached_string)
+    }
+}
+
+fn keysym_to_utf8_raw(keysym: u32) -> Option<String> {
+    let size = unsafe { (XKBH.xkb_keysym_to_utf8)(keysym, ptr::null_mut(), 0) } + 1;
+    if size <= 1 {
+        return None;
+    }
+    let mut buffer: Vec<u8> = Vec::with_capacity(size.try_into().unwrap());
+    unsafe { (XKBH.xkb_keysym_to_utf8)(keysym, buffer.as_mut_ptr().cast(), buffer.len()) };
+    // remove the final `\0`
+    buffer.pop();
+    // libxkbcommon will always provide valid UTF8
+    Some(unsafe { String::from_utf8_unchecked(buffer) })
+}
+
+fn cached_string<S: Into<String>>(string: S) -> &'static str {
+    Box::leak(string.into().into_boxed_str())
 }
