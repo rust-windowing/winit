@@ -46,8 +46,8 @@ mod common;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {
-    pub text_with_all_modifers: Option<&'static str>,
     pub key_without_modifiers: Key<'static>,
+    pub text_with_all_modifiers: Option<&'static str>,
 }
 
 /// Environment variable specifying which backend should be used on unix platform.

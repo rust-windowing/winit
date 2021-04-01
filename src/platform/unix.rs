@@ -536,7 +536,7 @@ pub struct ARGBColor {
 impl KeyEventExtModifierSupplement for KeyEvent {
     #[inline]
     fn text_with_all_modifiers(&self) -> Option<&str> {
-        self.platform_specific.text_with_all_modifers
+        self.platform_specific.text_with_all_modifiers
     }
 
     #[inline]

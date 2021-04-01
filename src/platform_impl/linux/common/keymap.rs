@@ -421,15 +421,13 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         keysyms::XKB_KEY_Control_R => Key::Control,
         keysyms::XKB_KEY_Caps_Lock => Key::CapsLock,
         // keysyms::XKB_KEY_Shift_Lock => Key::ShiftLock,
-
-        // NOTE: The key xkb calls "Meta" is called "Super" by Winit, and vice versa.
-        //       This is a tad confusing, but these keys have different names depending on who you ask.
-        keysyms::XKB_KEY_Meta_L => Key::Super,
-        keysyms::XKB_KEY_Meta_R => Key::Super,
+        //
+        keysyms::XKB_KEY_Meta_L => Key::Meta,
+        keysyms::XKB_KEY_Meta_R => Key::Meta,
         keysyms::XKB_KEY_Alt_L => Key::Alt,
         keysyms::XKB_KEY_Alt_R => Key::Alt,
-        keysyms::XKB_KEY_Super_L => Key::Meta,
-        keysyms::XKB_KEY_Super_R => Key::Meta,
+        keysyms::XKB_KEY_Super_L => Key::Super,
+        keysyms::XKB_KEY_Super_R => Key::Super,
         keysyms::XKB_KEY_Hyper_L => Key::Hyper,
         keysyms::XKB_KEY_Hyper_R => Key::Hyper,
 
@@ -681,6 +679,7 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         keysyms::XKB_KEY_SunVideoRaiseBrightness => Key::BrightnessUp,
         // XKB_KEY_SunPowerSwitchShift
         //
+        0 => Key::Unidentified(NativeKeyCode::Unidentified),
         _ => Key::Unidentified(NativeKeyCode::XKB(keysym)),
     }
 }
