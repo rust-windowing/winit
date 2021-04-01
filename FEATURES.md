@@ -201,15 +201,17 @@ Legend:
 |Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|❓        |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
-|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
+|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️ \*1       |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
-|Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
+|Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️ \*1    |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |
 |Drag window with cursor |✔️         |✔️       |✔️        |✔️            |**N/A**|**N/A**|**N/A**   |
+
+\*1: `WindowEvent::Touch` is not sent on `stdweb` backend.
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.

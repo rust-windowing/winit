@@ -1,10 +1,13 @@
 use super::event;
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
-use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
-use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
-use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::platform_impl::{DeviceId, OsError, PlatformSpecificWindowBuilderAttributes};
+use crate::{
+    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize},
+    event::Touch,
+};
+use crate::{error::OsError as RootOE, event::TouchPhase};
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -12,7 +15,7 @@ use std::rc::Rc;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
     AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
-    MediaQueryListEvent, MouseEvent, WheelEvent,
+    MediaQueryListEvent, MouseEvent, TouchEvent, WheelEvent,
 };
 
 mod mouse_handler;
@@ -27,6 +30,10 @@ pub struct Canvas {
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
+    on_touch_start: Option<EventListenerHandle<dyn FnMut(TouchEvent)>>,
+    on_touch_move: Option<EventListenerHandle<dyn FnMut(TouchEvent)>>,
+    on_touch_end: Option<EventListenerHandle<dyn FnMut(TouchEvent)>>,
+    on_touch_cancel: Option<EventListenerHandle<dyn FnMut(TouchEvent)>>,
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
     mouse_state: MouseState,
@@ -83,6 +90,10 @@ impl Canvas {
             on_keyboard_press: None,
             on_received_character: None,
             on_mouse_wheel: None,
+            on_touch_start: None,
+            on_touch_move: None,
+            on_touch_end: None,
+            on_touch_cancel: None,
             on_fullscreen_change: None,
             on_dark_mode: None,
             mouse_state,
@@ -257,6 +268,123 @@ impl Canvas {
                 handler(0, delta, event::mouse_modifiers(&event));
             }
         }));
+    }
+
+    pub fn on_touch_start<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(Touch),
+    {
+        self.on_touch_start = Some(self.common.add_user_event(
+            "touchstart",
+            move |event: TouchEvent| {
+                event.prevent_default();
+
+                let device_id = crate::event::DeviceId(DeviceId(0));
+                let phase = TouchPhase::Started;
+
+                let touch_list = event.changed_touches();
+
+                for i in 0..touch_list.length() {
+                    let touch = touch_list.get(i).unwrap();
+
+                    handler(Touch {
+                        device_id,
+                        phase,
+                        location: LogicalPosition::new(touch.client_x(), touch.client_y())
+                            .to_physical(super::scale_factor()),
+                        force: None,
+                        id: touch.identifier() as u64,
+                    });
+                }
+            },
+        ));
+    }
+
+    pub fn on_touch_move<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(Touch),
+    {
+        self.on_touch_move = Some(
+            self.common
+                .add_event("touchmove", move |event: TouchEvent| {
+                    event.prevent_default();
+
+                    let device_id = crate::event::DeviceId(DeviceId(0));
+                    let phase = TouchPhase::Moved;
+
+                    let touch_list = event.changed_touches();
+
+                    for i in 0..touch_list.length() {
+                        let touch = touch_list.get(i).unwrap();
+
+                        handler(Touch {
+                            device_id,
+                            phase,
+                            location: LogicalPosition::new(touch.client_x(), touch.client_y())
+                                .to_physical(super::scale_factor()),
+                            force: None,
+                            id: touch.identifier() as u64,
+                        });
+                    }
+                }),
+        );
+    }
+
+    pub fn on_touch_end<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(Touch),
+    {
+        self.on_touch_end = Some(self.common.add_event("touchend", move |event: TouchEvent| {
+            event.prevent_default();
+
+            let device_id = crate::event::DeviceId(DeviceId(0));
+            let phase = TouchPhase::Ended;
+
+            let touch_list = event.changed_touches();
+
+            for i in 0..touch_list.length() {
+                let touch = touch_list.get(i).unwrap();
+
+                handler(Touch {
+                    device_id,
+                    phase,
+                    location: LogicalPosition::new(touch.client_x(), touch.client_y())
+                        .to_physical(super::scale_factor()),
+                    force: None,
+                    id: touch.identifier() as u64,
+                });
+            }
+        }));
+    }
+
+    pub fn on_touch_cancel<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(Touch),
+    {
+        self.on_touch_cancel = Some(self.common.add_event(
+            "touchcancel",
+            move |event: TouchEvent| {
+                event.prevent_default();
+
+                let device_id = crate::event::DeviceId(DeviceId(0));
+                let phase = TouchPhase::Cancelled;
+
+                let touch_list = event.changed_touches();
+
+                for i in 0..touch_list.length() {
+                    let touch = touch_list.get(i).unwrap();
+
+                    handler(Touch {
+                        device_id,
+                        phase,
+                        location: LogicalPosition::new(touch.client_x(), touch.client_y())
+                            .to_physical(super::scale_factor()),
+                        force: None,
+                        id: touch.identifier() as u64,
+                    });
+                }
+            },
+        ));
     }
 
     pub fn on_fullscreen_change<F>(&mut self, mut handler: F)

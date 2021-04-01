@@ -201,6 +201,41 @@ impl<T> WindowTarget<T> {
             });
         });
 
+        #[cfg(feature = "web-sys")]
+        {
+            let runner = self.runner.clone();
+            canvas.on_touch_start(move |touch| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::Touch(touch),
+                });
+            });
+
+            let runner = self.runner.clone();
+            canvas.on_touch_move(move |touch| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::Touch(touch),
+                });
+            });
+
+            let runner = self.runner.clone();
+            canvas.on_touch_end(move |touch| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::Touch(touch),
+                });
+            });
+
+            let runner = self.runner.clone();
+            canvas.on_touch_cancel(move |touch| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::Touch(touch),
+                });
+            });
+        }
+
         let runner = self.runner.clone();
         let raw = canvas.raw().clone();
 

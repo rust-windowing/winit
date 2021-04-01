@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Web (web-sys only), add support for touch events.
 - On Windows, fix fractional deltas for mouse wheel device events.
 - On macOS, fix segmentation fault after dropping the main window.
 - On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.
