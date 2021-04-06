@@ -327,6 +327,10 @@ impl AppState {
         }
     }
 
+    pub fn handle_redraw(window_id: WindowId) {
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+    }
+
     pub fn queue_event(wrapper: EventWrapper) {
         if !unsafe { msg_send![class!(NSThread), isMainThread] } {
             panic!("Event queued from different thread: {:#?}", wrapper);
