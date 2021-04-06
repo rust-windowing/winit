@@ -100,13 +100,13 @@ fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
         if ns_app == nil {
             None
         } else {
+            // TODO: Move ActivationPolicy from an attribute on the window to something on the EventLoop
             use self::NSApplicationActivationPolicy::*;
             ns_app.setActivationPolicy_(match activation_policy {
                 ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
                 ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
                 ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
             });
-            ns_app.finishLaunching();
             Some(ns_app)
         }
     }
@@ -357,6 +357,7 @@ impl UnownedWindow {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
+        trace!("Creating new window");
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
 
