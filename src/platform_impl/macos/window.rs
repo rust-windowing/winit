@@ -361,7 +361,7 @@ impl UnownedWindow {
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
 
-        let ns_app = create_app(pl_attribs.activation_policy).ok_or_else(|| {
+        create_app(pl_attribs.activation_policy).ok_or_else(|| {
             unsafe { pool.drain() };
             os_error!(OsError::CreationError("Couldn't create `NSApplication`"))
         })?;
@@ -387,7 +387,6 @@ impl UnownedWindow {
                 ns_window.setBackgroundColor_(NSColor::clearColor(nil));
             }
 
-            ns_app.activateIgnoringOtherApps_(YES);
             win_attribs.min_inner_size.map(|dim| {
                 let logical_dim = dim.to_logical(scale_factor);
                 set_min_inner_size(*ns_window, logical_dim)

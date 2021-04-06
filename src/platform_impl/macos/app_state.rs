@@ -13,10 +13,11 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{NSApp, NSWindow},
+    appkit::{NSApp, NSApplication, NSWindow},
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSSize},
 };
+use objc::runtime::YES;
 
 use crate::{
     dpi::LogicalSize,
@@ -273,6 +274,11 @@ impl AppState {
     }
 
     pub fn launched() {
+        unsafe {
+            let ns_app = NSApp();
+            // TODO: Consider allowing the user to specify they don't want their application activated
+            ns_app.activateIgnoringOtherApps_(YES);
+        };
         HANDLER.set_ready();
         HANDLER.waker().start();
         // The menubar initialization should be before the `NewEvents` event, to allow overriding
