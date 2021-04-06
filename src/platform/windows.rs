@@ -84,8 +84,10 @@ pub trait WindowExtWindows {
     ///
     /// A window must be enabled before it can be activated.
     /// For example, if an application is displaying a modeless dialog box and has disabled its
-    /// main window, the application must enable the main window before destroying the dialog box.
+    /// owner window (see [`WindowBuilderExtWindows::with_owner_window`]), the application must enable
+    /// the owner window before destroying the dialog box.
     /// Otherwise, another window will receive the keyboard focus and be activated.
+    ///
     /// If a child window is disabled, it is ignored when the system tries to determine which
     /// window should receive mouse messages.
     fn set_enable(&self, enabled: bool);
@@ -132,16 +134,18 @@ pub trait WindowBuilderExtWindows {
     ///
     /// A child window has the WS_CHILD style and is confined to the client area of its parent window.
     ///
-    /// For more infoation, see https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows
+    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
 
-    /// Set a owner to the window to be created.
+    /// Set a owner to the window to be created. Can be used to create a dialog box, for example.
+    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
+    /// on the owner window to create a modal dialog box.
     ///
     /// An owned window is always above its owner in the z-order.
     /// The system automatically destroys an owned window when its owner is destroyed.
     /// An owned window is hidden when its owner is minimized.
     ///
-    /// For more information, see https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows
+    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows>
     fn with_owner_window(self, parent: HWND) -> WindowBuilder;
 
     /// Sets a menu on the window to be created.
