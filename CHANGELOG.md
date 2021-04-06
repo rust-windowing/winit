@@ -18,7 +18,7 @@
 - Added `WindowBuilder::with_position` to allow setting the position of a `Window` on creation. Supported on Windows, macOS and X11.
 - Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
 - On X11, bump `mio` to 0.7.
-- On macOS, emit `RedrawRequested` events while the window is being resized.
+- On macOS, emit `RedrawRequested` events immediately while the window is being resized.
 
 # 0.24.0 (2020-12-09)
 
