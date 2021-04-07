@@ -78,18 +78,19 @@ pub trait WindowExtWindows {
     /// The pointer will become invalid when the native window was destroyed.
     fn hwnd(&self) -> *mut libc::c_void;
 
-    /// Enables or disables mouse and keyboard input to the specified window or control.
-    /// When input is disabled, the window does not receive input such as mouse clicks and key presses.
-    /// When input is enabled, the window receives all input.
+    /// Enables or disables mouse and keyboard input to the specified window.
     ///
     /// A window must be enabled before it can be activated.
-    /// For example, if an application is displaying a modeless dialog box and has disabled its
-    /// owner window (see [`WindowBuilderExtWindows::with_owner_window`]), the application must enable
+    /// If an application has create a modal dialog box by disabling its owner window
+    /// (as described in [`WindowBuilderExtWindows::with_owner_window`]), the application must enable
     /// the owner window before destroying the dialog box.
     /// Otherwise, another window will receive the keyboard focus and be activated.
     ///
     /// If a child window is disabled, it is ignored when the system tries to determine which
     /// window should receive mouse messages.
+    ///
+    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enablewindow#remarks>
+    /// and <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#disabled-windows>
     fn set_enable(&self, enabled: bool);
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
@@ -141,9 +142,10 @@ pub trait WindowBuilderExtWindows {
     /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
     /// on the owner window to create a modal dialog box.
     ///
-    /// An owned window is always above its owner in the z-order.
-    /// The system automatically destroys an owned window when its owner is destroyed.
-    /// An owned window is hidden when its owner is minimized.
+    /// From MSDN:
+    /// - An owned window is always above its owner in the z-order.
+    /// - The system automatically destroys an owned window when its owner is destroyed.
+    /// - An owned window is hidden when its owner is minimized.
     ///
     /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows>
     fn with_owner_window(self, parent: HWND) -> WindowBuilder;
