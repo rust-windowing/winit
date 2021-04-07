@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix creating new windows when the application has a main menu.
 - On Windows, fix fractional deltas for mouse wheel device events.
 - On macOS, fix segmentation fault after dropping the main window.
 - On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.
