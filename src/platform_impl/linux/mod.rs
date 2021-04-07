@@ -609,11 +609,10 @@ impl<T: 'static> EventLoop<T> {
         #[cfg(not(feature = "x11"))]
         let x11_err = "backend disabled";
 
-        let err_string = format!(
+        panic!(
             "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
             wayland_err, x11_err,
         );
-        panic!(err_string);
     }
 
     #[cfg(feature = "wayland")]

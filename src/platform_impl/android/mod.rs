@@ -245,6 +245,7 @@ impl<T: 'static> EventLoop<T> {
                                             KeyAction::Up => event::ElementState::Released,
                                             _ => event::ElementState::Released,
                                         };
+                                        #[allow(deprecated)]
                                         let event = event::Event::WindowEvent {
                                             window_id,
                                             event: event::WindowEvent::KeyboardInput {

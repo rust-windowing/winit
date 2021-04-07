@@ -346,7 +346,7 @@ extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        AppState::queue_redraw(WindowId(get_window_id(state.ns_window)));
+        AppState::handle_redraw(WindowId(get_window_id(state.ns_window)));
 
         let superclass = util::superclass(this);
         let () = msg_send![super(this, superclass), drawRect: rect];

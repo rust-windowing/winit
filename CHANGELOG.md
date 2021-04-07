@@ -6,6 +6,7 @@
 - Added `is_maximized` method to `Window`.
 - On Windows, fix bug where clicking the decoration bar would make the cursor blink.
 - On Windows, fix bug causing newly created windows to erroneously display the "wait" (spinning) cursor.
+- On macOS, wake up the event loop immediately when a redraw is requested.
 - On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
 - On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.
@@ -20,6 +21,9 @@
 - On X11, bump `mio` to 0.7.
 - On Windows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
 - On Windows, added `WindowExtWindows::set_enable` to allow creating modal popup windows.
+- On macOS, emit `RedrawRequested` events immediately while the window is being resized.
+- On Widows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
+- On Widows, added `WindowExtWindows::set_enabled` to allow creating modal popup windows.
 
 # 0.24.0 (2020-12-09)
 
