@@ -22,8 +22,6 @@
 - On Windows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
 - On Windows, added `WindowExtWindows::set_enable` to allow creating modal popup windows.
 - On macOS, emit `RedrawRequested` events immediately while the window is being resized.
-- On Widows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
-- On Widows, added `WindowExtWindows::set_enabled` to allow creating modal popup windows.
 
 # 0.24.0 (2020-12-09)
 

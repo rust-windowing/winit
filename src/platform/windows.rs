@@ -138,7 +138,7 @@ pub trait WindowBuilderExtWindows {
     /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
 
-    /// Set a owner to the window to be created. Can be used to create a dialog box, for example.
+    /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
     /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
     /// on the owner window to create a modal dialog box.
     ///
