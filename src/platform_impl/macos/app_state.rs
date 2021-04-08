@@ -29,7 +29,7 @@ use crate::{
     platform::macos::FileOpenResult,
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
-        event_loop::{post_dummy_event, PanicInfo, stop_app_on_panic},
+        event_loop::{post_dummy_event, stop_app_on_panic, PanicInfo},
         observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
         util::{IdRef, Never},
         window::get_window_id,
@@ -384,9 +384,9 @@ impl AppState {
     }
 
     pub fn cleared(panic_info: Weak<PanicInfo>) {
-        let panic_info = panic_info
-            .upgrade()
-            .expect("The panic info must exist in `cleared`. This failure indicates a developer error.");
+        let panic_info = panic_info.upgrade().expect(
+            "The panic info must exist in `cleared`. This failure indicates a developer error.",
+        );
         if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }

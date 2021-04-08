@@ -135,7 +135,8 @@ impl<T> EventLoop<T> {
             let delegate_with_file_open =
                 IdRef::new(msg_send![APP_DELEGATE_CLASS_WITH_FILE_OPEN.0, new]);
             let weak_pi = Rc::downgrade(&panic_info);
-            (**delegate_with_file_open).set_ivar(PanicInfo::name(), Weak::into_raw(weak_pi) as *mut c_void);
+            (**delegate_with_file_open)
+                .set_ivar(PanicInfo::name(), Weak::into_raw(weak_pi) as *mut c_void);
 
             let pool = NSAutoreleasePool::new(nil);
             let _: () = msg_send![app, setDelegate:*delegate];
