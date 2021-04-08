@@ -4,9 +4,9 @@ use std::{
     fmt::{self, Debug},
     hint::unreachable_unchecked,
     mem,
-    rc::{Rc, Weak},
     panic::catch_unwind,
     path::PathBuf,
+    rc::{Rc, Weak},
     sync::{
         atomic::{AtomicBool, Ordering},
         Mutex, MutexGuard,
