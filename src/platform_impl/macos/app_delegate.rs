@@ -3,6 +3,7 @@ use crate::platform::macos::FileOpenResult;
 use super::{
     activation_hack,
     app_state::AppState,
+    event_loop::PanicInfo,
     ffi::{
         NSApplicationDelegateReplyCancel, NSApplicationDelegateReplyFailure,
         NSApplicationDelegateReplySuccess,
@@ -41,6 +42,7 @@ fn get_app_deleget_class_decl(name: &str) -> ClassDecl {
         );
 
         decl.add_ivar::<*mut c_void>(activation_hack::State::name());
+        decl.add_ivar::<*mut c_void>(PanicInfo::name());
         decl.add_method(
             sel!(activationHackMouseMoved:),
             activation_hack::mouse_moved as extern "C" fn(&Object, Sel, id),
@@ -108,10 +110,10 @@ extern "C" fn did_resign_active(this: &Object, _: Sel, _: id) {
     trace!("Completed `applicationDidResignActive`");
 }
 
-extern "C" fn application_open_file(_this: &Object, _: Sel, _sender: id, filename: id) -> BOOL {
+extern "C" fn application_open_file(this: &Object, _: Sel, _sender: id, filename: id) -> BOOL {
     trace!("Triggered `application:openFile:`");
     let string = unsafe { ns_string_to_rust(filename) };
-    let result = AppState::open_files(vec![string.into()]);
+    let result = unsafe { AppState::open_files(this, vec![string.into()]) };
     trace!("Completed `application:openFile:`");
 
     if result == FileOpenResult::Success {
@@ -121,7 +123,7 @@ extern "C" fn application_open_file(_this: &Object, _: Sel, _sender: id, filenam
     }
 }
 
-extern "C" fn application_open_files(_this: &Object, _: Sel, sender: id, filenames: id) {
+extern "C" fn application_open_files(this: &Object, _: Sel, sender: id, filenames: id) {
     trace!("Triggered `application:openFiles:`");
     let filenames_len = unsafe { filenames.count() };
     let filenames_vec = (0..filenames_len)
@@ -130,7 +132,7 @@ extern "C" fn application_open_files(_this: &Object, _: Sel, sender: id, filenam
             ns_string_to_rust(filename).into()
         })
         .collect();
-    let result = AppState::open_files(filenames_vec);
+    let result = unsafe { AppState::open_files(this, filenames_vec) };
     let response = match result {
         FileOpenResult::Success => NSApplicationDelegateReplySuccess,
         FileOpenResult::Cancel => NSApplicationDelegateReplyCancel,

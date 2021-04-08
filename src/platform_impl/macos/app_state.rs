@@ -4,7 +4,7 @@ use std::{
     fmt::{self, Debug},
     hint::unreachable_unchecked,
     mem,
-    panic::catch_unwind,
+    os::raw::c_void,
     path::PathBuf,
     rc::{Rc, Weak},
     sync::{
@@ -13,6 +13,8 @@ use std::{
     },
     time::Instant,
 };
+
+use objc::runtime::Object;
 
 use cocoa::{
     appkit::{NSApp, NSWindow},
@@ -27,7 +29,7 @@ use crate::{
     platform::macos::FileOpenResult,
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
-        event_loop::{post_dummy_event, PanicInfo},
+        event_loop::{post_dummy_event, PanicInfo, stop_app_on_panic},
         observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
         util::{IdRef, Never},
         window::get_window_id,
@@ -299,7 +301,7 @@ impl AppState {
     pub fn wakeup(panic_info: Weak<PanicInfo>) {
         let panic_info = panic_info
             .upgrade()
-            .expect("The panic info must exist here. This failure indicates a developer error.");
+            .expect("The panic info must in `wakeup`. This failure indicates a developer error.");
         if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }
@@ -360,8 +362,14 @@ impl AppState {
         HANDLER.events().append(&mut wrappers);
     }
 
-    pub fn open_files(paths: Vec<PathBuf>) -> FileOpenResult {
-        let result = catch_unwind(|| {
+    /// Safety: `delegate` must be either `APP_DELEGATE_CLASS` or `APP_DELEGATE_CLASS_WITH_FILE_OPEN`.
+    pub unsafe fn open_files(delegate: &Object, paths: Vec<PathBuf>) -> FileOpenResult {
+        let raw_weak_pi: &*mut c_void = (*delegate).get_ivar(PanicInfo::name());
+        let original_weak_pi = Weak::from_raw((*raw_weak_pi) as *const PanicInfo);
+        let weak_pi = Weak::clone(&original_weak_pi);
+        // Do not drop the Weak, we intend to use the raw pointer later.
+        mem::forget(original_weak_pi);
+        let result = stop_app_on_panic(weak_pi, || {
             let mut callback = HANDLER.file_open_callback.lock().unwrap();
             if let Some(callback) = &mut *callback {
                 (callback)(paths)
@@ -370,21 +378,15 @@ impl AppState {
             }
         });
         match result {
-            Ok(result) => result,
-            Err(e) => {
-                error!(
-                    "Panicked when trying to execute open files callback: {:?}",
-                    e
-                );
-                FileOpenResult::Failure
-            }
+            Some(result) => result,
+            None => FileOpenResult::Failure,
         }
     }
 
     pub fn cleared(panic_info: Weak<PanicInfo>) {
         let panic_info = panic_info
             .upgrade()
-            .expect("The panic info must exist here. This failure indicates a developer error.");
+            .expect("The panic info must exist in `cleared`. This failure indicates a developer error.");
         if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }

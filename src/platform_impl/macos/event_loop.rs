@@ -47,6 +47,10 @@ pub struct PanicInfo {
 impl UnwindSafe for PanicInfo {}
 impl RefUnwindSafe for PanicInfo {}
 impl PanicInfo {
+    /// Name for the field inside the app delegate, storing a pointer to the panic info.
+    pub fn name() -> &'static str {
+        "panicInfo"
+    }
     pub fn is_panicking(&self) -> bool {
         let inner = self.inner.take();
         let result = inner.is_some();
@@ -113,6 +117,7 @@ pub struct EventLoop<T: 'static> {
 
 impl<T> EventLoop<T> {
     pub fn new() -> Self {
+        let panic_info: Rc<PanicInfo> = Default::default();
         let (delegate, delegate_with_file_open) = unsafe {
             if !msg_send![class!(NSThread), isMainThread] {
                 panic!("On macOS, `EventLoop` must be created on the main thread!");
@@ -125,14 +130,18 @@ impl<T> EventLoop<T> {
             let app: id = msg_send![APP_CLASS.0, sharedApplication];
 
             let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
+            let weak_pi = Rc::downgrade(&panic_info);
+            (**delegate).set_ivar(PanicInfo::name(), Weak::into_raw(weak_pi) as *mut c_void);
             let delegate_with_file_open =
                 IdRef::new(msg_send![APP_DELEGATE_CLASS_WITH_FILE_OPEN.0, new]);
+            let weak_pi = Rc::downgrade(&panic_info);
+            (**delegate_with_file_open).set_ivar(PanicInfo::name(), Weak::into_raw(weak_pi) as *mut c_void);
+
             let pool = NSAutoreleasePool::new(nil);
             let _: () = msg_send![app, setDelegate:*delegate];
             let _: () = msg_send![pool, drain];
             (delegate, delegate_with_file_open)
         };
-        let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
         EventLoop {
             window_target: Rc::new(RootWindowTarget {
@@ -237,7 +246,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             // and we need to know in those callbacks if the application is currently
             // panicking
             {
-                let panic_info = panic_info.upgrade().unwrap();
+                let panic_info = panic_info.upgrade().expect("The panic info must exist in `stop_app_on_panic`. This failure indicates a developer error.");
                 panic_info.set_panic(e);
             }
             unsafe {
