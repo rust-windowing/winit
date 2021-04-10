@@ -20,6 +20,8 @@
 - Added `WindowBuilder::with_position` to allow setting the position of a `Window` on creation. Supported on Windows, macOS and X11.
 - Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
 - On X11, bump `mio` to 0.7.
+- On Windows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
+- On Windows, added `WindowExtWindows::set_enable` to allow creating modal popup windows.
 - On macOS, emit `RedrawRequested` events immediately while the window is being resized.
 
 # 0.24.0 (2020-12-09)
