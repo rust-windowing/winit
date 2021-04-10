@@ -1,11 +1,14 @@
 #![cfg(target_os = "macos")]
 
-use std::os::raw::c_void;
+use std::{os::raw::c_void, path::PathBuf};
+
+use cocoa::{base::nil, foundation::NSAutoreleasePool};
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::EventLoopWindowTarget,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
+    platform_impl::AppState,
     window::{Window, WindowBuilder},
 };
 
@@ -202,6 +205,55 @@ impl MonitorHandleExtMacOS for MonitorHandle {
 
     fn ns_screen(&self) -> Option<*mut c_void> {
         self.inner.ns_screen().map(|s| s as *mut c_void)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum FileOpenResult {
+    Success,
+    Cancel,
+    Failure,
+}
+
+pub trait EventLoopExtMacOS {
+    /// Set or remove the callback which gets called when a file or files are requested to
+    /// be opened.
+    ///
+    /// This for example happens when the user double-clicks on a file in Finder and the
+    /// file's type is associated with this application.
+    ///
+    /// The callback function receives the absolute path to the target files as an argument and it should
+    /// indicate the success of the operation in its return value. See: `application:openFiles:` in AppKit.
+    ///
+    /// Other systems usually provide the path as a program argument.
+    /// See: `std::env::args`.
+    fn set_file_open_callback(
+        &self,
+        callback: Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static>>,
+    );
+}
+
+impl<T> EventLoopExtMacOS for EventLoop<T> {
+    fn set_file_open_callback(
+        &self,
+        callback: Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static>>,
+    ) {
+        let has_callback = callback.is_some();
+        let should_change_delegate = AppState::set_file_open_callback(callback);
+        if should_change_delegate {
+            unsafe {
+                let cls = class!(NSApplication);
+                let app: cocoa::base::id = msg_send![cls, sharedApplication];
+                let delegate = if has_callback {
+                    *self.p.delegate_with_file_open
+                } else {
+                    *self.p.delegate
+                };
+                let pool = NSAutoreleasePool::new(nil);
+                let () = msg_send![app, setDelegate: delegate];
+                let () = msg_send![pool, drain];
+            }
+        }
     }
 }
 

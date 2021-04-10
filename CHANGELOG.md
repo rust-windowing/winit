@@ -11,6 +11,7 @@
 - On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
 - On Windows, fix bug causing mouse capture to not be released.
 - On Windows, fix fullscreen not preserving minimized/maximized state.
+- On macOS, add `EventLoopExtMacOS::set_file_open_callback`.
 - On Android, unimplemented events are marked as unhandled on the native event loop.
 - On Windows, added `WindowBuilderExtWindows::with_menu` to set a custom menu at window creation time.
 - On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
@@ -23,6 +24,7 @@
 - On Windows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
 - On Windows, added `WindowExtWindows::set_enable` to allow creating modal popup windows.
 - On macOS, emit `RedrawRequested` events immediately while the window is being resized.
+- On macOS, add `EventLoopExtMacOS::set_file_open_callback`.
 
 # 0.24.0 (2020-12-09)
 
@@ -52,6 +54,10 @@
 - On Android, support multi-touch.
 - On Wayland, extra mouse buttons are not dropped anymore.
 - **Breaking**: `MouseButton::Other` now uses `u16`.
+- On macOS, add `set_open_files_callback`.
+- On macOS, implement `Event::OpenFiles` to allow opening associated files.
+- **Breaking** On all platfoms, add `Event::OpenFiles` and implement it on macOS.
+- **Breaking** New `Event::OpenFiles` Event, for macOS "open with..." support.
 
 # 0.23.0 (2020-10-02)
 

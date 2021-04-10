@@ -27,6 +27,8 @@ use crate::{
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
+pub(crate) use self::app_state::AppState;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 

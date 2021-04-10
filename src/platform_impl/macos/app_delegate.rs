@@ -1,19 +1,30 @@
-use super::{activation_hack, app_state::AppState};
-use cocoa::base::id;
+use crate::platform::macos::FileOpenResult;
+
+use super::{
+    activation_hack,
+    app_state::AppState,
+    event_loop::PanicInfo,
+    ffi::{
+        NSApplicationDelegateReplyCancel, NSApplicationDelegateReplyFailure,
+        NSApplicationDelegateReplySuccess,
+    },
+    util::ns_string_to_rust,
+};
+use cocoa::{base::id, foundation::NSArray};
 use objc::{
     declare::ClassDecl,
-    runtime::{Class, Object, Sel},
+    runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
-use std::os::raw::c_void;
+use std::{os::raw::c_void, str};
 
 pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
 unsafe impl Sync for AppDelegateClass {}
 
-lazy_static! {
-    pub static ref APP_DELEGATE_CLASS: AppDelegateClass = unsafe {
+fn get_app_deleget_class_decl(name: &str) -> ClassDecl {
+    unsafe {
         let superclass = class!(NSResponder);
-        let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
+        let mut decl = ClassDecl::new(name, superclass).unwrap();
 
         decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
         decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
@@ -31,11 +42,30 @@ lazy_static! {
         );
 
         decl.add_ivar::<*mut c_void>(activation_hack::State::name());
+        decl.add_ivar::<*mut c_void>(PanicInfo::name());
         decl.add_method(
             sel!(activationHackMouseMoved:),
             activation_hack::mouse_moved as extern "C" fn(&Object, Sel, id),
         );
+        decl
+    }
+}
 
+lazy_static! {
+    pub static ref APP_DELEGATE_CLASS: AppDelegateClass = {
+        let decl = get_app_deleget_class_decl("WinitAppDelegate");
+        AppDelegateClass(decl.register())
+    };
+    pub static ref APP_DELEGATE_CLASS_WITH_FILE_OPEN: AppDelegateClass = unsafe {
+        let mut decl = get_app_deleget_class_decl("WinitAppDelegateWithFileOpen");
+        decl.add_method(
+            sel!(application:openFile:),
+            application_open_file as extern "C" fn(&Object, Sel, id, id) -> BOOL,
+        );
+        decl.add_method(
+            sel!(application:openFiles:),
+            application_open_files as extern "C" fn(&Object, Sel, id, id),
+        );
         AppDelegateClass(decl.register())
     };
 }
@@ -78,4 +108,37 @@ extern "C" fn did_resign_active(this: &Object, _: Sel, _: id) {
         activation_hack::refocus(this);
     }
     trace!("Completed `applicationDidResignActive`");
+}
+
+extern "C" fn application_open_file(this: &Object, _: Sel, _sender: id, filename: id) -> BOOL {
+    trace!("Triggered `application:openFile:`");
+    let string = unsafe { ns_string_to_rust(filename) };
+    let result = unsafe { AppState::open_files(this, vec![string.into()]) };
+    trace!("Completed `application:openFile:`");
+
+    if result == FileOpenResult::Success {
+        YES
+    } else {
+        NO
+    }
+}
+
+extern "C" fn application_open_files(this: &Object, _: Sel, sender: id, filenames: id) {
+    trace!("Triggered `application:openFiles:`");
+    let filenames_len = unsafe { filenames.count() };
+    let filenames_vec = (0..filenames_len)
+        .map(|i| unsafe {
+            let filename = filenames.objectAtIndex(i);
+            ns_string_to_rust(filename).into()
+        })
+        .collect();
+    let result = unsafe { AppState::open_files(this, filenames_vec) };
+    let response = match result {
+        FileOpenResult::Success => NSApplicationDelegateReplySuccess,
+        FileOpenResult::Cancel => NSApplicationDelegateReplyCancel,
+        FileOpenResult::Failure => NSApplicationDelegateReplyFailure,
+    };
+    unsafe { msg_send![sender, replyToOpenOrPrint: response] }
+
+    trace!("Completed `application:openFiles:`");
 }

@@ -4,6 +4,8 @@ use std::{
     fmt::{self, Debug},
     hint::unreachable_unchecked,
     mem,
+    os::raw::c_void,
+    path::PathBuf,
     rc::{Rc, Weak},
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -11,6 +13,8 @@ use std::{
     },
     time::Instant,
 };
+
+use objc::runtime::Object;
 
 use cocoa::{
     appkit::{NSApp, NSWindow},
@@ -22,9 +26,10 @@ use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
+    platform::macos::FileOpenResult,
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
-        event_loop::{post_dummy_event, PanicInfo},
+        event_loop::{post_dummy_event, stop_app_on_panic, PanicInfo},
         observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
         util::{IdRef, Never},
         window::get_window_id,
@@ -121,6 +126,7 @@ struct Handler {
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
+    file_open_callback: Mutex<Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
     pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
@@ -264,6 +270,17 @@ impl AppState {
         }));
     }
 
+    /// Returns `true` if the previous value of `callback.is_some()` is different
+    /// from its new value.
+    pub fn set_file_open_callback(
+        callback: Option<Box<dyn FnMut(Vec<PathBuf>) -> FileOpenResult + Send + 'static>>,
+    ) -> bool {
+        let mut guard: MutexGuard<'_, _> = HANDLER.file_open_callback.lock().unwrap();
+        let was_some = guard.is_some();
+        *guard = callback;
+        was_some != guard.is_some()
+    }
+
     pub fn exit() {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopDestroyed));
@@ -284,7 +301,7 @@ impl AppState {
     pub fn wakeup(panic_info: Weak<PanicInfo>) {
         let panic_info = panic_info
             .upgrade()
-            .expect("The panic info must exist here. This failure indicates a developer error.");
+            .expect("The panic info must in `wakeup`. This failure indicates a developer error.");
         if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }
@@ -345,10 +362,31 @@ impl AppState {
         HANDLER.events().append(&mut wrappers);
     }
 
+    /// Safety: `delegate` must be either `APP_DELEGATE_CLASS` or `APP_DELEGATE_CLASS_WITH_FILE_OPEN`.
+    pub unsafe fn open_files(delegate: &Object, paths: Vec<PathBuf>) -> FileOpenResult {
+        let raw_weak_pi: &*mut c_void = (*delegate).get_ivar(PanicInfo::name());
+        let original_weak_pi = Weak::from_raw((*raw_weak_pi) as *const PanicInfo);
+        let weak_pi = Weak::clone(&original_weak_pi);
+        // Do not drop the Weak, we intend to use the raw pointer later.
+        mem::forget(original_weak_pi);
+        let result = stop_app_on_panic(weak_pi, || {
+            let mut callback = HANDLER.file_open_callback.lock().unwrap();
+            if let Some(callback) = &mut *callback {
+                (callback)(paths)
+            } else {
+                FileOpenResult::Failure
+            }
+        });
+        match result {
+            Some(result) => result,
+            None => FileOpenResult::Failure,
+        }
+    }
+
     pub fn cleared(panic_info: Weak<PanicInfo>) {
-        let panic_info = panic_info
-            .upgrade()
-            .expect("The panic info must exist here. This failure indicates a developer error.");
+        let panic_info = panic_info.upgrade().expect(
+            "The panic info must exist in `cleared`. This failure indicates a developer error.",
+        );
         if panic_info.is_panicking() || !HANDLER.is_ready() {
             return;
         }
