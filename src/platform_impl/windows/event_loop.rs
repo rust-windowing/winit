@@ -6,7 +6,6 @@ use parking_lot::Mutex;
 use std::{
     cell::Cell,
     collections::{
-        hash_map::{Entry, HashMap},
         VecDeque,
     },
     marker::PhantomData,
