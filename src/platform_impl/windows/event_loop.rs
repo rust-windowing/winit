@@ -5,9 +5,7 @@ mod runner;
 use parking_lot::Mutex;
 use std::{
     cell::Cell,
-    collections::{
-        VecDeque,
-    },
+    collections::VecDeque,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
