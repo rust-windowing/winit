@@ -34,7 +34,7 @@ pub struct WindowState {
     pub current_theme: Theme,
     pub preferred_theme: Option<Theme>,
     pub high_surrogate: Option<u16>,
-    window_flags: WindowFlags,
+    pub window_flags: WindowFlags,
 }
 
 #[derive(Clone)]
@@ -68,6 +68,7 @@ bitflags! {
         const TRANSPARENT    = 1 << 6;
         const CHILD          = 1 << 7;
         const MAXIMIZED      = 1 << 8;
+        const POPUP          = 1 << 14;
 
         /// Marker flag for fullscreen. Should always match `WindowState::fullscreen`, but is
         /// included here to make masking easier.
@@ -210,11 +211,11 @@ impl WindowFlags {
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
         }
-        if self.contains(WindowFlags::TRANSPARENT) && self.contains(WindowFlags::DECORATIONS) {
-            style_ex |= WS_EX_LAYERED;
-        }
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
+        }
+        if self.contains(WindowFlags::POPUP) {
+            style |= WS_POPUP;
         }
         if self.contains(WindowFlags::MINIMIZED) {
             style |= WS_MINIMIZE;

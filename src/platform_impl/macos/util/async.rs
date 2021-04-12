@@ -207,7 +207,10 @@ pub unsafe fn set_title_async(ns_window: id, title: String) {
 
 // `close:` is thread-safe, but we want the event to be triggered from the main
 // thread. Though, it's a good idea to look into that more...
-pub unsafe fn close_async(ns_window: id) {
+//
+// ArturKovacs: It's important that this operation keeps the underlying window alive
+// through the `IdRef` because otherwise it would dereference free'd memory
+pub unsafe fn close_async(ns_window: IdRef) {
     let ns_window = MainThreadSafe(ns_window);
     Queue::main().exec_async(move || {
         autoreleasepool(move || {

@@ -17,6 +17,7 @@ use stdweb::web::event::{
 use stdweb::web::html_element::CanvasElement;
 use stdweb::web::{document, EventListenerHandle, IElement, IEventTarget, IHtmlElement};
 
+#[allow(dead_code)]
 pub struct Canvas {
     /// Note: resizing the CanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: CanvasElement,
@@ -222,13 +223,14 @@ impl Canvas {
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
     {
         // todo
         self.on_cursor_move = Some(self.add_event(move |event: PointerMoveEvent| {
             handler(
                 event.pointer_id(),
                 event::mouse_position(&event).to_physical(super::scale_factor()),
+                event::mouse_delta(&event).to_physical(super::scale_factor()),
                 event::mouse_modifiers(&event),
             );
         }));

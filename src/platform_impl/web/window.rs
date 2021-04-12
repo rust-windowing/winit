@@ -223,6 +223,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn set_minimized(&self, _minimized: bool) {
         // Intentionally a no-op, as canvases cannot be 'minimized'
     }
@@ -230,6 +235,12 @@ impl Window {
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
         // Intentionally a no-op, as canvases cannot be 'maximized'
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        // Canvas cannot be 'maximized'
+        false
     }
 
     #[inline]

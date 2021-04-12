@@ -8,7 +8,7 @@ use crate::{
 };
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, MotionAction},
+    event::{InputEvent, KeyAction, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
@@ -31,8 +31,8 @@ enum EventSource {
 fn poll(poll: Poll) -> Option<EventSource> {
     match poll {
         Poll::Event { ident, .. } => match ident {
-            0 => Some(EventSource::Callback),
-            1 => Some(EventSource::InputQueue),
+            ndk_glue::NDK_GLUE_LOOPER_EVENT_PIPE_IDENT => Some(EventSource::Callback),
+            ndk_glue::NDK_GLUE_LOOPER_INPUT_QUEUE_IDENT => Some(EventSource::InputQueue),
             _ => unreachable!(),
         },
         Poll::Timeout => None,
@@ -239,9 +239,32 @@ impl<T: 'static> EventLoop<T> {
                                             }
                                         }
                                     }
-                                    InputEvent::KeyEvent(_) => {
-                                        // TODO
-                                        handled = false;
+                                    InputEvent::KeyEvent(key) => {
+                                        let state = match key.action() {
+                                            KeyAction::Down => event::ElementState::Pressed,
+                                            KeyAction::Up => event::ElementState::Released,
+                                            _ => event::ElementState::Released,
+                                        };
+                                        #[allow(deprecated)]
+                                        let event = event::Event::WindowEvent {
+                                            window_id,
+                                            event: event::WindowEvent::KeyboardInput {
+                                                device_id,
+                                                input: event::KeyboardInput {
+                                                    scancode: key.scan_code() as u32,
+                                                    state,
+                                                    virtual_keycode: None,
+                                                    modifiers: event::ModifiersState::default(),
+                                                },
+                                                is_synthetic: false,
+                                            },
+                                        };
+                                        call_event_handler!(
+                                            event_handler,
+                                            self.window_target(),
+                                            control_flow,
+                                            event
+                                        );
                                     }
                                 };
                                 input_queue.finish_event(event, handled);
@@ -496,6 +519,10 @@ impl Window {
 
     pub fn set_maximized(&self, _maximized: bool) {}
 
+    pub fn is_maximized(&self) -> bool {
+        false
+    }
+
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
         warn!("Cannot set fullscreen on Android");
     }
@@ -529,6 +556,12 @@ impl Window {
     }
 
     pub fn set_cursor_visible(&self, _: bool) {}
+
+    pub fn drag_window(&self) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
 
     pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {

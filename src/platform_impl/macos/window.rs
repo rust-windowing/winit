@@ -100,13 +100,13 @@ fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
         if ns_app == nil {
             None
         } else {
+            // TODO: Move ActivationPolicy from an attribute on the window to something on the EventLoop
             use self::NSApplicationActivationPolicy::*;
             ns_app.setActivationPolicy_(match activation_policy {
                 ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
                 ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
                 ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
             });
-            ns_app.finishLaunching();
             Some(ns_app)
         }
     }
@@ -166,7 +166,17 @@ fn create_window(
                     }
                     None => (800.0, 600.0),
                 };
-                NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
+                let (left, bottom) = match attrs.position {
+                    Some(position) => {
+                        let logical = util::window_position(position.to_logical(scale_factor));
+                        // macOS wants the position of the bottom left corner,
+                        // but caller is setting the position of top left corner
+                        (logical.x, logical.y - height)
+                    }
+                    // This value is ignored by calling win.center() below
+                    None => (0.0, 0.0),
+                };
+                NSRect::new(NSPoint::new(left, bottom), NSSize::new(width, height))
             }
         };
 
@@ -249,8 +259,9 @@ fn create_window(
             if !pl_attrs.has_shadow {
                 ns_window.setHasShadow_(NO);
             }
-
-            ns_window.center();
+            if attrs.position.is_none() {
+                ns_window.center();
+            }
             ns_window
         });
         pool.drain();
@@ -346,6 +357,7 @@ impl UnownedWindow {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
+        trace!("Creating new window");
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
 
@@ -496,17 +508,8 @@ impl UnownedWindow {
     pub fn set_outer_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
-        let dummy = NSRect::new(
-            NSPoint::new(
-                position.x,
-                // While it's true that we're setting the top-left position,
-                // it still needs to be in a bottom-left coordinate system.
-                CGDisplay::main().pixels_high() as f64 - position.y,
-            ),
-            NSSize::new(0f64, 0f64),
-        );
         unsafe {
-            util::set_frame_top_left_point_async(*self.ns_window, dummy.origin);
+            util::set_frame_top_left_point_async(*self.ns_window, util::window_position(position));
         }
     }
 
@@ -636,6 +639,16 @@ impl UnownedWindow {
         Ok(())
     }
 
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            let event: id = msg_send![NSApp(), currentEvent];
+            let _: () = msg_send![*self.ns_window, performWindowDragWithEvent: event];
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn is_zoomed(&self) -> bool {
         // because `isZoomed` doesn't work if the window's borderless,
         // we make it resizable temporalily.
@@ -728,6 +741,11 @@ impl UnownedWindow {
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen.clone()
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        self.is_zoomed()
     }
 
     #[inline]
@@ -1153,7 +1171,7 @@ impl Drop for UnownedWindow {
         trace!("Dropping `UnownedWindow` ({:?})", self as *mut _);
         // Close the window if it has not yet been closed.
         if *self.ns_window != nil {
-            unsafe { util::close_async(*self.ns_window) };
+            unsafe { util::close_async(self.ns_window.clone()) };
         }
     }
 }

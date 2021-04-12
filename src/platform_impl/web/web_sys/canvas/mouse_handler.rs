@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use web_sys::{EventTarget, MouseEvent};
 
+#[allow(dead_code)]
 pub(super) struct MouseHandler {
     on_mouse_leave: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_mouse_enter: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
@@ -160,7 +161,7 @@ impl MouseHandler {
 
     pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
     {
         let mouse_capture_state = self.mouse_capture_state.clone();
         let canvas = canvas_common.raw.clone();
@@ -190,9 +191,11 @@ impl MouseHandler {
                             // use `offsetX`/`offsetY`.
                             event::mouse_position_by_client(&event, &canvas)
                         };
+                        let mouse_delta = event::mouse_delta(&event);
                         handler(
                             0,
                             mouse_pos.to_physical(super::super::scale_factor()),
+                            mouse_delta.to_physical(super::super::scale_factor()),
                             event::mouse_modifiers(&event),
                         );
                     }

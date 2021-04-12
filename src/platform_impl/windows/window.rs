@@ -14,8 +14,8 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{HINSTANCE, UINT},
-        windef::{HWND, POINT, RECT},
+        minwindef::{HINSTANCE, LPARAM, UINT, WPARAM},
+        windef::{HWND, POINT, POINTS, RECT},
     },
     um::{
         combaseapi, dwmapi,
@@ -25,7 +25,8 @@ use winapi::{
         ole2,
         oleidl::LPDROPTARGET,
         shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
-        winnt::LPCWSTR,
+        wingdi::{CreateRectRgn, DeleteObject},
+        winnt::{LPCWSTR, SHORT},
         winuser,
     },
 };
@@ -43,7 +44,7 @@ use crate::{
         icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        PlatformSpecificWindowBuilderAttributes, WindowId,
+        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
@@ -278,7 +279,7 @@ impl Window {
 
     #[inline]
     pub fn hinstance(&self) -> HINSTANCE {
-        unsafe { winuser::GetWindowLongW(self.hwnd(), winuser::GWL_HINSTANCE) as *mut _ }
+        unsafe { winuser::GetWindowLongPtrW(self.hwnd(), winuser::GWLP_HINSTANCE) as *mut _ }
     }
 
     #[inline]
@@ -357,6 +358,30 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            let points = {
+                let mut pos = mem::zeroed();
+                winuser::GetCursorPos(&mut pos);
+                pos
+            };
+            let points = POINTS {
+                x: points.x as SHORT,
+                y: points.y as SHORT,
+            };
+            winuser::ReleaseCapture();
+            winuser::PostMessageW(
+                self.window.0,
+                winuser::WM_NCLBUTTONDOWN,
+                winuser::HTCAPTION as WPARAM,
+                &points as *const _ as LPARAM,
+            );
+        }
+
+        Ok(())
+    }
+
+    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.0)
     }
@@ -383,6 +408,12 @@ impl Window {
                 f.set(WindowFlags::MAXIMIZED, maximized)
             });
         });
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        let window_state = self.window_state.lock();
+        window_state.window_flags.contains(WindowFlags::MAXIMIZED)
     }
 
     #[inline]
@@ -702,8 +733,24 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
-    window_flags.set(WindowFlags::CHILD, pl_attribs.parent.is_some());
-    window_flags.set(WindowFlags::ON_TASKBAR, true);
+
+    let parent = match pl_attribs.parent {
+        Parent::ChildOf(parent) => {
+            window_flags.set(WindowFlags::CHILD, true);
+            if pl_attribs.menu.is_some() {
+                warn!("Setting a menu on a child window is unsupported");
+            }
+            Some(parent)
+        }
+        Parent::OwnedBy(parent) => {
+            window_flags.set(WindowFlags::POPUP, true);
+            Some(parent)
+        }
+        Parent::None => {
+            window_flags.set(WindowFlags::ON_TASKBAR, true);
+            None
+        }
+    };
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
@@ -717,8 +764,8 @@ unsafe fn init<T: 'static>(
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
-            pl_attribs.parent.unwrap_or(ptr::null_mut()),
-            ptr::null_mut(),
+            parent.unwrap_or(ptr::null_mut()),
+            pl_attribs.menu.unwrap_or(ptr::null_mut()),
             libloaderapi::GetModuleHandleW(ptr::null()),
             ptr::null_mut(),
         );
@@ -743,20 +790,18 @@ unsafe fn init<T: 'static>(
 
     // making the window transparent
     if attributes.transparent && !pl_attribs.no_redirection_bitmap {
+        // Empty region for the blur effect, so the window is fully transparent
+        let region = CreateRectRgn(0, 0, -1, -1);
+
         let bb = dwmapi::DWM_BLURBEHIND {
-            dwFlags: dwmapi::DWM_BB_ENABLE,
+            dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
             fEnable: 1,
-            hRgnBlur: ptr::null_mut(),
+            hRgnBlur: region,
             fTransitionOnMaximized: 0,
         };
 
         dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
-
-        if attributes.decorations {
-            let opacity = 255;
-
-            winuser::SetLayeredWindowAttributes(real_window.0, 0, opacity, winuser::LWA_ALPHA);
-        }
+        DeleteObject(region as _);
     }
 
     // If the system theme is dark, we need to set the window theme now
@@ -797,6 +842,10 @@ unsafe fn init<T: 'static>(
     if let Some(_) = attributes.fullscreen {
         win.set_fullscreen(attributes.fullscreen);
         force_window_active(win.window.0);
+    }
+
+    if let Some(position) = attributes.position {
+        win.set_outer_position(position);
     }
 
     Ok(win)

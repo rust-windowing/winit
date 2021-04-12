@@ -845,7 +845,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
         winuser::WM_NCLBUTTONDOWN => {
             if wparam == winuser::HTCAPTION as _ {
-                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, 0);
+                winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, lparam);
             }
             commctrl::DefSubclassProc(window, msg, wparam, lparam)
         }
@@ -2101,11 +2101,12 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                     }
 
                     if util::has_flag(mouse.usButtonFlags, winuser::RI_MOUSE_WHEEL) {
-                        let delta = mouse.usButtonData as SHORT / winuser::WHEEL_DELTA;
+                        let delta =
+                            mouse.usButtonData as SHORT as f32 / winuser::WHEEL_DELTA as f32;
                         subclass_input.send_event(Event::DeviceEvent {
                             device_id,
                             event: MouseWheel {
-                                delta: LineDelta(0.0, delta as f32),
+                                delta: LineDelta(0.0, delta),
                             },
                         });
                     }
