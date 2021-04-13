@@ -69,9 +69,10 @@
 //!   selection of "nice" scale factors, i.e. 1.0, 1.25, 1.5... on Windows 7, the scale factor is
 //!   global and changing it requires logging out. See [this article][windows_1] for technical
 //!   details.
-//! - **macOS:** "retina displays" have a scale factor of 2.0. Otherwise, the scale factor is 1.0.
-//!   Intermediate scale factors are never used. It's possible for any display to use that 2.0 scale
-//!   factor, given the use of the command line.
+//! - **macOS:** Recent versions of macOS allow the user to change the scaling factor for certain
+//!   displays. When this is available, the user may pick a per-monitor scaling factor from a set
+//!   of pre-defined settings. All "retina displays" have a scaling factor above 1.0 by default but
+//!   the specific value varies across devices.
 //! - **X11:** Many man-hours have been spent trying to figure out how to handle DPI in X11. Winit
 //!   currently uses a three-pronged approach:
 //!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable, if present.
