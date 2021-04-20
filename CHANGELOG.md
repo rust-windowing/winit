@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, remove internally unique DC per window.
 - macOS: Remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.

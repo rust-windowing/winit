@@ -46,7 +46,7 @@ use windows_sys::Win32::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
             GetSystemMetrics, GetWindowPlacement, IsWindowVisible, LoadCursorW, PeekMessageW,
             PostMessageW, RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow,
-            SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_OWNDC, CS_VREDRAW,
+            SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW,
             CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
             GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER,
             SM_IMMENABLED, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
@@ -962,7 +962,7 @@ unsafe fn register_window_class<T: 'static>(
 
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
-        style: CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
+        style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
         cbClsExtra: 0,
         cbWndExtra: 0,
