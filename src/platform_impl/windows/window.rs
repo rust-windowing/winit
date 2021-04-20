@@ -871,7 +871,7 @@ unsafe fn register_window_class(
 
     let class = winuser::WNDCLASSEXW {
         cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
-        style: winuser::CS_HREDRAW | winuser::CS_VREDRAW | winuser::CS_OWNDC,
+        style: winuser::CS_HREDRAW | winuser::CS_VREDRAW,
         lpfnWndProc: Some(winuser::DefWindowProcW),
         cbClsExtra: 0,
         cbWndExtra: 0,
