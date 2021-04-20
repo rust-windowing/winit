@@ -24,6 +24,7 @@
 - On Windows, added `WindowExtWindows::set_enable` to allow creating modal popup windows.
 - On macOS, emit `RedrawRequested` events immediately while the window is being resized.
 - Implement `Default`, `Hash`, and `Eq` for `LogicalPosition`, `PhysicalPosition`, `LogicalSize`, and `PhysicalSize`.
+- On macOS, emit `Resized` events immediately from the callback.
 
 # 0.24.0 (2020-12-09)
 
