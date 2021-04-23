@@ -114,9 +114,8 @@ fn menu_item(
             None => (NSString::alloc(nil).init_str(""), None),
         };
         let item = NSMenuItem::alloc(nil).initWithTitle_action_keyEquivalent_(title, selector, key);
-        match masks {
-            Some(masks) => item.setKeyEquivalentModifierMask_(masks),
-            _ => {}
+        if let Some(masks) = masks {
+            item.setKeyEquivalentModifierMask_(masks)
         }
 
         item
