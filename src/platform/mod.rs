@@ -11,7 +11,7 @@
 //!
 //! And the following platform-specific module:
 //!
-//! - `desktop` (available on `windows`, `unix`, and `macos`)
+//! - `run_return` (available on `windows`, `unix`, `macos`, and `android`)
 //!
 //! However only the module corresponding to the platform you're compiling to will be available.
 
@@ -21,5 +21,5 @@ pub mod macos;
 pub mod unix;
 pub mod windows;
 
-pub mod desktop;
+pub mod run_return;
 pub mod web;

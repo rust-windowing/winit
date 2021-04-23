@@ -161,6 +161,18 @@ pub const IO8BitOverlayPixels: &str = "O8";
 pub type CGWindowLevel = i32;
 pub type CGDisplayModeRef = *mut libc::c_void;
 
+#[cfg_attr(
+    not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
+    link(name = "CoreGraphics", kind = "framework")
+)]
+#[cfg_attr(
+    use_colorsync_cgdisplaycreateuuidfromdisplayid,
+    link(name = "ColorSync", kind = "framework")
+)]
+extern "C" {
+    pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
+}
+
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
     pub fn CGRestorePermanentDisplayConfiguration();
@@ -189,7 +201,6 @@ extern "C" {
         synchronous: Boolean,
     ) -> CGError;
     pub fn CGReleaseDisplayFadeReservation(token: CGDisplayFadeReservationToken) -> CGError;
-    pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
     pub fn CGShieldingWindowLevel() -> CGWindowLevel;
     pub fn CGDisplaySetDisplayMode(
         display: CGDirectDisplayID,

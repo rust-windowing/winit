@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-winit = "0.23.0"
+winit = "0.24.0"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -110,3 +110,13 @@ fn main() {
 ```
 
 And run the application with `cargo apk run --example request_redraw_threaded`
+
+#### MacOS
+
+To ensure compatibility with older MacOS systems, winit links to
+CGDisplayCreateUUIDFromDisplayID through the CoreGraphics framework.
+However, under certain setups this function is only available to be linked
+through the newer ColorSync framework. So, winit provides the
+`WINIT_LINK_COLORSYNC` environment variable which can be set to `1` or `true` 
+while compiling to enable linking via ColorSync.
+

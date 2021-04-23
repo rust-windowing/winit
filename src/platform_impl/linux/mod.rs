@@ -30,7 +30,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -359,6 +359,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.drag_window())
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         x11_or_wayland!(match self; Window(w) => w.scale_factor() as f64)
     }
@@ -371,6 +376,12 @@ impl Window {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_maximized(maximized))
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        // TODO: Not implemented
+        false
     }
 
     #[inline]
@@ -416,6 +427,16 @@ impl Window {
     #[inline]
     pub fn set_ime_position(&self, position: Position) {
         x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
+        match self {
+            #[cfg(feature = "x11")]
+            &Window::X(ref w) => w.request_user_attention(_request_type),
+            #[cfg(feature = "wayland")]
+            _ => (),
+        }
     }
 
     #[inline]
@@ -588,11 +609,10 @@ impl<T: 'static> EventLoop<T> {
         #[cfg(not(feature = "x11"))]
         let x11_err = "backend disabled";
 
-        let err_string = format!(
+        panic!(
             "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
             wayland_err, x11_err,
         );
-        panic!(err_string);
     }
 
     #[cfg(feature = "wayland")]

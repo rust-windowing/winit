@@ -32,15 +32,20 @@ use std::{
     ptr,
     rc::Rc,
     slice,
-    sync::{mpsc, Arc, Mutex, Weak},
+    sync::mpsc::Receiver,
+    sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use mio::{unix::EventedFd, Events, Poll, PollOpt, Ready, Token};
+use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 
-use mio_extras::channel::{channel, Receiver, SendError, Sender};
+use mio_misc::{
+    channel::{channel, SendError, Sender},
+    queue::NotificationQueue,
+    NotificationId,
+};
 
 use self::{
     dnd::{Dnd, DndState},
@@ -57,7 +62,7 @@ use crate::{
 };
 
 const X_TOKEN: Token = Token(0);
-const USER_TOKEN: Token = Token(1);
+const USER_REDRAW_TOKEN: Token = Token(1);
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
@@ -67,13 +72,14 @@ pub struct EventLoopWindowTarget<T> {
     root: ffi::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    pending_redraws: Arc<Mutex<HashSet<WindowId>>>,
+    redraw_sender: Sender<WindowId>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
 pub struct EventLoop<T: 'static> {
     poll: Poll,
     event_processor: EventProcessor<T>,
+    redraw_channel: Receiver<WindowId>,
     user_channel: Receiver<T>,
     user_sender: Sender<T>,
     target: Rc<RootELW<T>>,
@@ -129,7 +135,7 @@ impl<T: 'static> EventLoop<T> {
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!(format!("Failed to open input method: {:#?}", state));
+                panic!("Failed to open input method: {:#?}", state);
             }
             result.expect("Failed to set input method destruction callback")
         });
@@ -174,10 +180,20 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
-        let pending_redraws: Arc<Mutex<HashSet<WindowId>>> = Default::default();
-
         let mut mod_keymap = ModifierKeymap::new();
         mod_keymap.reset_from_x_connection(&xconn);
+
+        let poll = Poll::new().unwrap();
+        let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
+        let queue = Arc::new(NotificationQueue::new(waker));
+
+        poll.registry()
+            .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
+            .unwrap();
+
+        let (user_sender, user_channel) = channel(queue.clone(), NotificationId::gen_next());
+
+        let (redraw_sender, redraw_channel) = channel(queue, NotificationId::gen_next());
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
@@ -189,30 +205,10 @@ impl<T: 'static> EventLoop<T> {
                 xconn,
                 wm_delete_window,
                 net_wm_ping,
-                pending_redraws: pending_redraws.clone(),
+                redraw_sender,
             }),
             _marker: ::std::marker::PhantomData,
         });
-
-        let poll = Poll::new().unwrap();
-
-        let (user_sender, user_channel) = channel();
-
-        poll.register(
-            &EventedFd(&get_xtarget(&target).xconn.x11_fd),
-            X_TOKEN,
-            Ready::readable(),
-            PollOpt::level(),
-        )
-        .unwrap();
-
-        poll.register(
-            &user_channel,
-            USER_TOKEN,
-            Ready::readable(),
-            PollOpt::level(),
-        )
-        .unwrap();
 
         let event_processor = EventProcessor {
             target: target.clone(),
@@ -239,6 +235,7 @@ impl<T: 'static> EventLoop<T> {
 
         let result = EventLoop {
             poll,
+            redraw_channel,
             user_channel,
             user_sender,
             event_processor,
@@ -277,8 +274,6 @@ impl<T: 'static> EventLoop<T> {
             // Process all pending events
             self.drain_events(&mut callback, &mut control_flow);
 
-            let wt = get_xtarget(&self.target);
-
             // Empty the user event buffer
             {
                 while let Ok(event) = self.user_channel.try_recv() {
@@ -301,12 +296,16 @@ impl<T: 'static> EventLoop<T> {
             }
             // Empty the redraw requests
             {
-                // Release the lock to prevent deadlock
-                let windows: Vec<_> = wt.pending_redraws.lock().unwrap().drain().collect();
+                let mut windows = HashSet::new();
 
-                for wid in windows {
+                while let Ok(window_id) = self.redraw_channel.try_recv() {
+                    windows.insert(window_id);
+                }
+
+                for window_id in windows {
+                    let window_id = crate::window::WindowId(super::WindowId::X(window_id));
                     sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(super::WindowId::X(wid))),
+                        Event::RedrawRequested(window_id),
                         &self.target,
                         &mut control_flow,
                         &mut callback,
@@ -408,7 +407,7 @@ impl<T: 'static> EventLoop<T> {
                             super::WindowId::X(wid),
                         )) = event
                         {
-                            wt.pending_redraws.lock().unwrap().insert(wid);
+                            wt.redraw_sender.send(wid).unwrap();
                         } else {
                             callback(event, window_target, control_flow);
                         }

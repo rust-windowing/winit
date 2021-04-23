@@ -16,7 +16,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
+    platform::macos::{ActivationPolicy, WindowExtMacOS},
     platform_impl::platform::{
         app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
@@ -28,7 +28,9 @@ use crate::{
         window_delegate::new_delegate,
         OsError,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
+    window::{
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+    },
 };
 use cocoa::{
     appkit::{
@@ -98,13 +100,13 @@ fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
         if ns_app == nil {
             None
         } else {
+            // TODO: Move ActivationPolicy from an attribute on the window to something on the EventLoop
             use self::NSApplicationActivationPolicy::*;
             ns_app.setActivationPolicy_(match activation_policy {
                 ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
                 ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
                 ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
             });
-            ns_app.finishLaunching();
             Some(ns_app)
         }
     }
@@ -164,7 +166,17 @@ fn create_window(
                     }
                     None => (800.0, 600.0),
                 };
-                NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
+                let (left, bottom) = match attrs.position {
+                    Some(position) => {
+                        let logical = util::window_position(position.to_logical(scale_factor));
+                        // macOS wants the position of the bottom left corner,
+                        // but caller is setting the position of top left corner
+                        (logical.x, logical.y - height)
+                    }
+                    // This value is ignored by calling win.center() below
+                    None => (0.0, 0.0),
+                };
+                NSRect::new(NSPoint::new(left, bottom), NSSize::new(width, height))
             }
         };
 
@@ -247,8 +259,9 @@ fn create_window(
             if !pl_attrs.has_shadow {
                 ns_window.setHasShadow_(NO);
             }
-
-            ns_window.center();
+            if attrs.position.is_none() {
+                ns_window.center();
+            }
             ns_window
         });
         pool.drain();
@@ -344,6 +357,7 @@ impl UnownedWindow {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
+        trace!("Creating new window");
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
 
@@ -494,17 +508,8 @@ impl UnownedWindow {
     pub fn set_outer_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
-        let dummy = NSRect::new(
-            NSPoint::new(
-                position.x,
-                // While it's true that we're setting the top-left position,
-                // it still needs to be in a bottom-left coordinate system.
-                CGDisplay::main().pixels_high() as f64 - position.y,
-            ),
-            NSSize::new(0f64, 0f64),
-        );
         unsafe {
-            util::set_frame_top_left_point_async(*self.ns_window, dummy.origin);
+            util::set_frame_top_left_point_async(*self.ns_window, util::window_position(position));
         }
     }
 
@@ -634,6 +639,16 @@ impl UnownedWindow {
         Ok(())
     }
 
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            let event: id = msg_send![NSApp(), currentEvent];
+            let _: () = msg_send![*self.ns_window, performWindowDragWithEvent: event];
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn is_zoomed(&self) -> bool {
         // because `isZoomed` doesn't work if the window's borderless,
         // we make it resizable temporalily.
@@ -653,7 +668,7 @@ impl UnownedWindow {
             self.set_style_mask_async(curr_mask);
         }
 
-        is_zoomed != 0
+        is_zoomed != NO
     }
 
     fn saved_style(&self, shared_state: &mut SharedState) -> NSWindowStyleMask {
@@ -726,6 +741,11 @@ impl UnownedWindow {
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen.clone()
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        self.is_zoomed()
     }
 
     #[inline]
@@ -978,6 +998,19 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let ns_request_type = request_type.map(|ty| match ty {
+            UserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
+            UserAttentionType::Informational => NSRequestUserAttentionType::NSInformationalRequest,
+        });
+        unsafe {
+            if let Some(ty) = ns_request_type {
+                NSApp().requestUserAttention_(ty);
+            }
+        }
+    }
+
+    #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
     pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
@@ -1028,18 +1061,6 @@ impl WindowExtMacOS for UnownedWindow {
     #[inline]
     fn ns_view(&self) -> *mut c_void {
         *self.ns_view as *mut _
-    }
-
-    #[inline]
-    fn request_user_attention(&self, request_type: RequestUserAttentionType) {
-        unsafe {
-            NSApp().requestUserAttention_(match request_type {
-                RequestUserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
-                RequestUserAttentionType::Informational => {
-                    NSRequestUserAttentionType::NSInformationalRequest
-                }
-            });
-        }
     }
 
     #[inline]
@@ -1150,7 +1171,7 @@ impl Drop for UnownedWindow {
         trace!("Dropping `UnownedWindow` ({:?})", self as *mut _);
         // Close the window if it has not yet been closed.
         if *self.ns_window != nil {
-            unsafe { util::close_async(*self.ns_window) };
+            unsafe { util::close_async(self.ns_window.clone()) };
         }
     }
 }
@@ -1168,14 +1189,14 @@ unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: Logica
     // If necessary, resize the window to match constraint
     if current_rect.size.width < min_size.width {
         current_rect.size.width = min_size.width;
-        window.setFrame_display_(current_rect, 0)
+        window.setFrame_display_(current_rect, NO)
     }
     if current_rect.size.height < min_size.height {
         // The origin point of a rectangle is at its bottom left in Cocoa.
         // To ensure the window's top-left point remains the same:
         current_rect.origin.y += current_rect.size.height - min_size.height;
         current_rect.size.height = min_size.height;
-        window.setFrame_display_(current_rect, 0)
+        window.setFrame_display_(current_rect, NO)
     }
 }
 
@@ -1192,13 +1213,13 @@ unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: Logica
     // If necessary, resize the window to match constraint
     if current_rect.size.width > max_size.width {
         current_rect.size.width = max_size.width;
-        window.setFrame_display_(current_rect, 0)
+        window.setFrame_display_(current_rect, NO)
     }
     if current_rect.size.height > max_size.height {
         // The origin point of a rectangle is at its bottom left in Cocoa.
         // To ensure the window's top-left point remains the same:
         current_rect.origin.y += current_rect.size.height - max_size.height;
         current_rect.size.height = max_size.height;
-        window.setFrame_display_(current_rect, 0)
+        window.setFrame_display_(current_rect, NO)
     }
 }

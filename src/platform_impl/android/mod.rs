@@ -8,7 +8,7 @@ use crate::{
 };
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, MotionAction},
+    event::{InputEvent, KeyAction, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
@@ -30,9 +30,9 @@ enum EventSource {
 
 fn poll(poll: Poll) -> Option<EventSource> {
     match poll {
-        Poll::Event { data, .. } => match data as usize {
-            0 => Some(EventSource::Callback),
-            1 => Some(EventSource::InputQueue),
+        Poll::Event { ident, .. } => match ident {
+            ndk_glue::NDK_GLUE_LOOPER_EVENT_PIPE_IDENT => Some(EventSource::Callback),
+            ndk_glue::NDK_GLUE_LOOPER_INPUT_QUEUE_IDENT => Some(EventSource::InputQueue),
             _ => unreachable!(),
         },
         Poll::Timeout => None,
@@ -175,49 +175,99 @@ impl<T: 'static> EventLoop<T> {
                 Some(EventSource::InputQueue) => {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
                         while let Some(event) = input_queue.get_event() {
-                            println!("event {:?}", event);
                             if let Some(event) = input_queue.pre_dispatch(event) {
+                                let mut handled = true;
                                 let window_id = window::WindowId(WindowId);
                                 let device_id = event::DeviceId(DeviceId);
                                 match &event {
                                     InputEvent::MotionEvent(motion_event) => {
                                         let phase = match motion_event.action() {
-                                            MotionAction::Down => Some(event::TouchPhase::Started),
-                                            MotionAction::Up => Some(event::TouchPhase::Ended),
+                                            MotionAction::Down | MotionAction::PointerDown => {
+                                                Some(event::TouchPhase::Started)
+                                            }
+                                            MotionAction::Up | MotionAction::PointerUp => {
+                                                Some(event::TouchPhase::Ended)
+                                            }
                                             MotionAction::Move => Some(event::TouchPhase::Moved),
                                             MotionAction::Cancel => {
                                                 Some(event::TouchPhase::Cancelled)
                                             }
-                                            _ => None, // TODO mouse events
+                                            _ => {
+                                                handled = false;
+                                                None // TODO mouse events
+                                            }
                                         };
-                                        let pointer = motion_event.pointer_at_index(0);
-                                        let location = PhysicalPosition {
-                                            x: pointer.x() as _,
-                                            y: pointer.y() as _,
-                                        };
-
                                         if let Some(phase) = phase {
-                                            let event = event::Event::WindowEvent {
-                                                window_id,
-                                                event: event::WindowEvent::Touch(event::Touch {
-                                                    device_id,
-                                                    phase,
-                                                    location,
-                                                    id: 0,
-                                                    force: None,
-                                                }),
+                                            let pointers: Box<
+                                                dyn Iterator<Item = ndk::event::Pointer<'_>>,
+                                            > = match phase {
+                                                event::TouchPhase::Started
+                                                | event::TouchPhase::Ended => Box::new(
+                                                    std::iter::once(motion_event.pointer_at_index(
+                                                        motion_event.pointer_index(),
+                                                    )),
+                                                ),
+                                                event::TouchPhase::Moved
+                                                | event::TouchPhase::Cancelled => {
+                                                    Box::new(motion_event.pointers())
+                                                }
                                             };
-                                            call_event_handler!(
-                                                event_handler,
-                                                self.window_target(),
-                                                control_flow,
-                                                event
-                                            );
+
+                                            for pointer in pointers {
+                                                let location = PhysicalPosition {
+                                                    x: pointer.x() as _,
+                                                    y: pointer.y() as _,
+                                                };
+                                                let event = event::Event::WindowEvent {
+                                                    window_id,
+                                                    event: event::WindowEvent::Touch(
+                                                        event::Touch {
+                                                            device_id,
+                                                            phase,
+                                                            location,
+                                                            id: pointer.pointer_id() as u64,
+                                                            force: None,
+                                                        },
+                                                    ),
+                                                };
+                                                call_event_handler!(
+                                                    event_handler,
+                                                    self.window_target(),
+                                                    control_flow,
+                                                    event
+                                                );
+                                            }
                                         }
                                     }
-                                    InputEvent::KeyEvent(_) => {} // TODO
+                                    InputEvent::KeyEvent(key) => {
+                                        let state = match key.action() {
+                                            KeyAction::Down => event::ElementState::Pressed,
+                                            KeyAction::Up => event::ElementState::Released,
+                                            _ => event::ElementState::Released,
+                                        };
+                                        #[allow(deprecated)]
+                                        let event = event::Event::WindowEvent {
+                                            window_id,
+                                            event: event::WindowEvent::KeyboardInput {
+                                                device_id,
+                                                input: event::KeyboardInput {
+                                                    scancode: key.scan_code() as u32,
+                                                    state,
+                                                    virtual_keycode: None,
+                                                    modifiers: event::ModifiersState::default(),
+                                                },
+                                                is_synthetic: false,
+                                            },
+                                        };
+                                        call_event_handler!(
+                                            event_handler,
+                                            self.window_target(),
+                                            control_flow,
+                                            event
+                                        );
+                                    }
                                 };
-                                input_queue.finish_event(event, true);
+                                input_queue.finish_event(event, handled);
                             }
                         }
                     }
@@ -469,6 +519,10 @@ impl Window {
 
     pub fn set_maximized(&self, _maximized: bool) {}
 
+    pub fn is_maximized(&self) -> bool {
+        false
+    }
+
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
         warn!("Cannot set fullscreen on Android");
     }
@@ -485,6 +539,8 @@ impl Window {
 
     pub fn set_ime_position(&self, _position: Position) {}
 
+    pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
+
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
@@ -500,6 +556,12 @@ impl Window {
     }
 
     pub fn set_cursor_visible(&self, _: bool) {}
+
+    pub fn drag_window(&self) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
 
     pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {

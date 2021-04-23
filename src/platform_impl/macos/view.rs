@@ -346,7 +346,7 @@ extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        AppState::queue_redraw(WindowId(get_window_id(state.ns_window)));
+        AppState::handle_redraw(WindowId(get_window_id(state.ns_window)));
 
         let superclass = util::superclass(this);
         let () = msg_send![super(this, superclass), drawRect: rect];
@@ -388,7 +388,7 @@ extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
         trace!("Triggered `hasMarkedText`");
         let marked_text: id = *this.get_ivar("markedText");
         trace!("Completed `hasMarkedText`");
-        (marked_text.length() > 0) as i8
+        (marked_text.length() > 0) as BOOL
     }
 }
 

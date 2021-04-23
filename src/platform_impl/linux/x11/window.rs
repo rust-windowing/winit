@@ -1,8 +1,6 @@
 use raw_window_handle::unix::XlibHandle;
 use std::{
-    cmp,
-    collections::HashSet,
-    env,
+    cmp, env,
     ffi::CString,
     mem::{self, replace, MaybeUninit},
     os::raw::*,
@@ -12,6 +10,7 @@ use std::{
 };
 
 use libc;
+use mio_misc::channel::Sender;
 use parking_lot::Mutex;
 
 use crate::{
@@ -23,7 +22,7 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -104,7 +103,7 @@ pub struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    pending_redraws: Arc<::std::sync::Mutex<HashSet<WindowId>>>,
+    redraw_sender: Sender<WindowId>,
 }
 
 impl UnownedWindow {
@@ -146,6 +145,10 @@ impl UnownedWindow {
         let min_inner_size: Option<(u32, u32)> = window_attrs
             .min_inner_size
             .map(|size| size.to_physical::<u32>(scale_factor).into());
+
+        let position = window_attrs
+            .position
+            .map(|position| position.to_physical::<i32>(scale_factor).into());
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
@@ -212,8 +215,8 @@ impl UnownedWindow {
             (xconn.xlib.XCreateWindow)(
                 xconn.display,
                 root,
-                0,
-                0,
+                position.map_or(0, |p: PhysicalPosition<i32>| p.x as c_int),
+                position.map_or(0, |p: PhysicalPosition<i32>| p.y as c_int),
                 dimensions.0 as c_uint,
                 dimensions.1 as c_uint,
                 0,
@@ -249,7 +252,7 @@ impl UnownedWindow {
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
-            pending_redraws: event_loop.pending_redraws.clone(),
+            redraw_sender: event_loop.redraw_sender.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -345,6 +348,7 @@ impl UnownedWindow {
                 }
 
                 let mut normal_hints = util::NormalHints::new(xconn);
+                normal_hints.set_position(position.map(|PhysicalPosition { x, y }| (x, y)));
                 normal_hints.set_size(Some(dimensions));
                 normal_hints.set_min_size(min_inner_size.map(Into::into));
                 normal_hints.set_max_size(max_inner_size.map(Into::into));
@@ -440,6 +444,12 @@ impl UnownedWindow {
                 window
                     .set_fullscreen_inner(window_attrs.fullscreen.clone())
                     .map(|flusher| flusher.queue());
+
+                if let Some(PhysicalPosition { x, y }) = position {
+                    let shared_state = window.shared_state.get_mut();
+
+                    shared_state.restore_position = Some((x, y));
+                }
             }
             if window_attrs.always_on_top {
                 window
@@ -522,23 +532,6 @@ impl UnownedWindow {
             util::PropMode::Replace,
             variant.as_bytes(),
         )
-    }
-
-    #[inline]
-    pub fn set_urgent(&self, is_urgent: bool) {
-        let mut wm_hints = self
-            .xconn
-            .get_wm_hints(self.xwindow)
-            .expect("`XGetWMHints` failed");
-        if is_urgent {
-            (*wm_hints).flags |= ffi::XUrgencyHint;
-        } else {
-            (*wm_hints).flags &= !ffi::XUrgencyHint;
-        }
-        self.xconn
-            .set_wm_hints(self.xwindow, wm_hints)
-            .flush()
-            .expect("Failed to set urgency hint");
     }
 
     fn set_netwm(
@@ -1294,6 +1287,46 @@ impl UnownedWindow {
         self.set_cursor_position_physical(x, y)
     }
 
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        let pointer = self
+            .xconn
+            .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
+            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))?;
+
+        let window = self.inner_position().map_err(ExternalError::NotSupported)?;
+
+        let message = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_MOVERESIZE\0") };
+
+        // we can't use `set_cursor_grab(false)` here because it doesn't run `XUngrabPointer`
+        // if the cursor isn't currently grabbed
+        let mut grabbed_lock = self.cursor_grabbed.lock();
+        unsafe {
+            (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
+        }
+        self.xconn
+            .flush_requests()
+            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))?;
+        *grabbed_lock = false;
+
+        // we keep the lock until we are done
+        self.xconn
+            .send_client_msg(
+                self.xwindow,
+                self.root,
+                message,
+                Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                [
+                    (window.x as c_long + pointer.win_x as c_long),
+                    (window.y as c_long + pointer.win_y as c_long),
+                    8, // _NET_WM_MOVERESIZE_MOVE
+                    ffi::Button1 as c_long,
+                    1,
+                ],
+            )
+            .flush()
+            .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))
+    }
+
     pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
         let _ = self
             .ime_sender
@@ -1308,16 +1341,30 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let mut wm_hints = self
+            .xconn
+            .get_wm_hints(self.xwindow)
+            .expect("`XGetWMHints` failed");
+        if request_type.is_some() {
+            (*wm_hints).flags |= ffi::XUrgencyHint;
+        } else {
+            (*wm_hints).flags &= !ffi::XUrgencyHint;
+        }
+        self.xconn
+            .set_wm_hints(self.xwindow, wm_hints)
+            .flush()
+            .expect("Failed to set urgency hint");
+    }
+
+    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.xwindow)
     }
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.pending_redraws
-            .lock()
-            .unwrap()
-            .insert(WindowId(self.xwindow));
+        self.redraw_sender.send(WindowId(self.xwindow)).unwrap();
     }
 
     #[inline]
