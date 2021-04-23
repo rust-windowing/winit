@@ -24,11 +24,11 @@ pub fn initialize() {
         app.setMainMenu_(menubar);
 
         let app_menu = NSMenu::new(nil).autorelease();
+        let process_name = NSProcessInfo::processInfo(nil).processName();
 
         // About menu item
         let about_item_prefix = NSString::alloc(nil).init_str("About ");
-        let about_item_title = about_item_prefix
-            .stringByAppendingString_(NSProcessInfo::processInfo(nil).processName());
+        let about_item_title = about_item_prefix.stringByAppendingString_(process_name);
         let about_item = menu_item(
             about_item_title,
             selector("orderFrontStandardAboutPanel:"),
@@ -41,8 +41,7 @@ pub fn initialize() {
 
         // Hide application menu item
         let hide_item_prefix = NSString::alloc(nil).init_str("Hide ");
-        let hide_item_title = hide_item_prefix
-            .stringByAppendingString_(NSProcessInfo::processInfo(nil).processName());
+        let hide_item_title = hide_item_prefix.stringByAppendingString_(process_name);
         let hide_item = menu_item(
             hide_item_title,
             selector("hide:"),
@@ -82,8 +81,7 @@ pub fn initialize() {
 
         // Quit application menu item
         let quit_item_prefix = NSString::alloc(nil).init_str("Quit ");
-        let quit_item_title = quit_item_prefix
-            .stringByAppendingString_(NSProcessInfo::processInfo(nil).processName());
+        let quit_item_title = quit_item_prefix.stringByAppendingString_(process_name);
         let quit_item = menu_item(
             quit_item_title,
             selector("terminate:"),
