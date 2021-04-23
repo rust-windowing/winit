@@ -2,11 +2,13 @@ use std::mem::MaybeUninit;
 
 use winapi::{
     shared::{
-        minwindef::{LPARAM, LRESULT, WPARAM},
+        minwindef::{LPARAM, WPARAM},
         windef::HWND,
     },
     um::winuser,
 };
+
+use crate::platform_impl::platform::event_loop::ProcResult;
 
 pub fn is_msg_ime_related(msg_kind: u32) -> bool {
     match msg_kind {
@@ -36,13 +38,13 @@ impl Default for MinimalIme {
     }
 }
 impl MinimalIme {
-    pub fn process_message(
+    pub(crate) fn process_message(
         &mut self,
         hwnd: HWND,
         msg_kind: u32,
         wparam: WPARAM,
         _lparam: LPARAM,
-        retval: &mut Option<LRESULT>,
+        result: &mut ProcResult,
     ) -> Option<String> {
         match msg_kind {
             winuser::WM_IME_ENDCOMPOSITION => {
@@ -50,7 +52,7 @@ impl MinimalIme {
             }
             winuser::WM_CHAR | winuser::WM_SYSCHAR => {
                 if self.getting_ime_text {
-                    *retval = Some(0);
+                    *result = ProcResult::Value(0);
                     self.utf16parts.push(wparam as u16);
 
                     let more_char_coming;

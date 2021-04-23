@@ -607,12 +607,17 @@ pub enum DeviceEvent {
 }
 
 /// Describes a keyboard input as a raw device event.
+///
+/// Note that holding down a key may produce repeated `RawKeyEvent`s. The
+/// operating system doesn't provide information whether such an event is a
+/// repeat or the initial keypress. An application may emulate this by, for
+/// example keeping a Map/Set of pressed keys and determining whether a keypress
+/// corresponds to an already pressed key.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
     pub physical_key: keyboard::KeyCode,
     pub state: ElementState,
-    pub repeat: bool,
 }
 
 /// Describes a keyboard input targeting a window.
