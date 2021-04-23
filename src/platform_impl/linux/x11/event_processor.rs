@@ -1104,7 +1104,6 @@ impl<T: 'static> EventProcessor<T> {
                             event: DeviceEvent::Key(RawKeyEvent {
                                 physical_key: todo!(),
                                 state: todo!(),
-                                repeat: todo!(),
                             }),
                         });
 
