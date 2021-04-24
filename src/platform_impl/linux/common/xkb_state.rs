@@ -8,6 +8,11 @@ use std::ptr;
 
 #[cfg(feature = "wayland")]
 use memmap2::MmapOptions;
+#[cfg(feature = "x11")]
+use x11_dl::xlib_xcb::xcb_connection_t;
+#[cfg(feature = "x11")]
+use xkbcommon_dl::x11::XKBCOMMON_X11_HANDLE as XKBXH;
+
 use xkbcommon_dl::{
     self as ffi, xkb_state_component, XKBCOMMON_COMPOSE_HANDLE as XKBCH, XKBCOMMON_HANDLE as XKBH,
 };
@@ -233,6 +238,42 @@ impl KbState {
         unsafe {
             me.init_compose();
         }
+
+        Ok(me)
+    }
+
+    #[cfg(feature = "x11")]
+    pub(crate) fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<KbState, Error> {
+        let mut me = Self::new()?;
+
+        let result = unsafe {
+            (XKBXH.xkb_x11_setup_xkb_extension)(
+                connection,
+                1,
+                2,
+                xkbcommon_dl::x11::xkb_x11_setup_xkb_extension_flags::XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+            )
+        };
+        assert_eq!(result, 1, "Failed to initialize libxkbcommon");
+
+        // TODO: Support keyboards other than the "virtual core keyboard device".
+        let core_keyboard_id = unsafe { (XKBXH.xkb_x11_get_core_keyboard_device_id)(connection) };
+        let keymap = unsafe {
+            (XKBXH.xkb_x11_keymap_new_from_device)(
+                me.xkb_context,
+                connection,
+                core_keyboard_id,
+                xkbcommon_dl::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
+            )
+        };
+        assert_ne!(keymap, ptr::null_mut());
+        me.xkb_keymap = keymap;
+
+        unsafe { me.post_init(keymap) };
 
         Ok(me)
     }
