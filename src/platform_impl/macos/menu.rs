@@ -16,12 +16,10 @@ struct KeyEquivalent<'a> {
 
 pub fn initialize() {
     autoreleasepool(|| unsafe {
-        let app = NSApp();
-        app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
-
         let menubar = NSMenu::new(nil).autorelease();
         let app_menu_item = NSMenuItem::new(nil).autorelease();
         menubar.addItem_(app_menu_item);
+        let app = NSApp();
         app.setMainMenu_(menubar);
 
         let app_menu = NSMenu::new(nil);
