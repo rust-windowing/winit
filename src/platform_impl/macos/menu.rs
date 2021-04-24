@@ -4,7 +4,10 @@ use cocoa::appkit::{
 };
 use cocoa::base::{nil, selector};
 use cocoa::foundation::{NSAutoreleasePool, NSProcessInfo, NSString};
-use objc::runtime::{Object, Sel};
+use objc::{
+    rc::autoreleasepool,
+    runtime::{Object, Sel},
+};
 
 struct KeyEquivalent<'a> {
     key: &'a str,
@@ -12,9 +15,7 @@ struct KeyEquivalent<'a> {
 }
 
 pub fn initialize() {
-    unsafe {
-        let _pool = NSAutoreleasePool::new(nil);
-
+    autoreleasepool(|| unsafe {
         let app = NSApp();
         app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
 
@@ -23,7 +24,7 @@ pub fn initialize() {
         menubar.addItem_(app_menu_item);
         app.setMainMenu_(menubar);
 
-        let app_menu = NSMenu::new(nil).autorelease();
+        let app_menu = NSMenu::new(nil);
         let process_name = NSProcessInfo::processInfo(nil).processName();
 
         // About menu item
@@ -33,11 +34,10 @@ pub fn initialize() {
             about_item_title,
             selector("orderFrontStandardAboutPanel:"),
             None,
-        )
-        .autorelease();
+        );
 
         // Seperator menu item
-        let sep_first = NSMenuItem::separatorItem(nil).autorelease();
+        let sep_first = NSMenuItem::separatorItem(nil);
 
         // Hide application menu item
         let hide_item_prefix = NSString::alloc(nil).init_str("Hide ");
@@ -49,8 +49,7 @@ pub fn initialize() {
                 key: "h",
                 masks: None,
             }),
-        )
-        .autorelease();
+        );
 
         // Hide other applications menu item
         let hide_others_item_title = NSString::alloc(nil).init_str("Hide Others");
@@ -64,8 +63,7 @@ pub fn initialize() {
                         | NSEventModifierFlags::NSCommandKeyMask,
                 ),
             }),
-        )
-        .autorelease();
+        );
 
         // Show applications menu item
         let show_all_item_title = NSString::alloc(nil).init_str("Show All");
@@ -73,11 +71,10 @@ pub fn initialize() {
             show_all_item_title,
             selector("unhideAllApplications:"),
             None,
-        )
-        .autorelease();
+        );
 
         // Seperator menu item
-        let sep = NSMenuItem::separatorItem(nil).autorelease();
+        let sep = NSMenuItem::separatorItem(nil);
 
         // Quit application menu item
         let quit_item_prefix = NSString::alloc(nil).init_str("Quit ");
@@ -89,8 +86,7 @@ pub fn initialize() {
                 key: "q",
                 masks: None,
             }),
-        )
-        .autorelease();
+        );
 
         app_menu.addItem_(about_item);
         app_menu.addItem_(sep_first);
@@ -100,7 +96,7 @@ pub fn initialize() {
         app_menu.addItem_(sep);
         app_menu.addItem_(quit_item);
         app_menu_item.setSubmenu_(app_menu);
-    }
+    });
 }
 
 fn menu_item(
