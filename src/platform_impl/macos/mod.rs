@@ -7,6 +7,7 @@ mod app_state;
 mod event;
 mod event_loop;
 mod ffi;
+mod menu;
 mod monitor;
 mod observer;
 mod util;

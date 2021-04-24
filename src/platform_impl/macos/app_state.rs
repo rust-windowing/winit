@@ -25,6 +25,7 @@ use crate::{
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
         event_loop::{post_dummy_event, PanicInfo},
+        menu,
         observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
         util::{IdRef, Never},
         window::get_window_id,
@@ -274,6 +275,9 @@ impl AppState {
     pub fn launched() {
         HANDLER.set_ready();
         HANDLER.waker().start();
+        // The menubar initialization should be before the `NewEvents` event, to allow overriding
+        // of the default menu in the event
+        menu::initialize();
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
             StartCause::Init,
