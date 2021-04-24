@@ -195,7 +195,7 @@ impl std::fmt::Debug for NativeKeyCode {
             }
             XKB(v) => {
                 debug_tuple = f.debug_tuple(name_of!(XKB));
-                debug_tuple.field(v);
+                debug_tuple.field(&format_args!("0x{:04X}", v));
             }
         }
         debug_tuple.finish()
