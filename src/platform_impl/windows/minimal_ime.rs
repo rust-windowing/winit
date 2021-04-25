@@ -78,10 +78,10 @@ impl MinimalIme {
                         }
                     }
                     if !more_char_coming {
-                        let result = String::from_utf16(&self.utf16parts).unwrap();
+                        let result = String::from_utf16(&self.utf16parts).ok();
                         self.utf16parts.clear();
                         self.getting_ime_text = false;
-                        return Some(result);
+                        return result;
                     }
                 }
             }

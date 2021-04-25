@@ -536,9 +536,6 @@ pub enum KeyCode {
     AudioVolumeMute,
     AudioVolumeUp,
     WakeUp,
-    // Legacy modifier key. Also called "Super" in certain places.
-    Meta,
-    // Legacy modifier key.
     Hyper,
     Turbo,
     Abort,
@@ -734,9 +731,6 @@ pub enum Key<'a> {
     /// The Symbol modifier key (used on some virtual keyboards).
     Symbol,
     SymbolLock,
-    // Legacy modifier key. Also called "Super" in certain places.
-    Meta,
-    // Legacy modifier key.
     Hyper,
     /// Used to enable "super" modifier function for interpreting concurrent or subsequent keyboard
     /// input. This key value is used for the "Windows Logo" key and the Apple `Command` or `⌘` key.
