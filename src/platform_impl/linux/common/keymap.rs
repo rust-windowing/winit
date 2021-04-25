@@ -423,8 +423,9 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         keysyms::XKB_KEY_Caps_Lock => Key::CapsLock,
         // keysyms::XKB_KEY_Shift_Lock => Key::ShiftLock,
         //
-        keysyms::XKB_KEY_Meta_L => Key::Meta,
-        keysyms::XKB_KEY_Meta_R => Key::Meta,
+        // TODO: Address how renaming `Meta` to `Super` affects this set of keys.
+        // keysyms::XKB_KEY_Meta_L => Key::Meta,
+        // keysyms::XKB_KEY_Meta_R => Key::Meta,
         keysyms::XKB_KEY_Alt_L => Key::Alt,
         keysyms::XKB_KEY_Alt_R => Key::Alt,
         keysyms::XKB_KEY_Super_L => Key::Super,
