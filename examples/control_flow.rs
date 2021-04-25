@@ -2,8 +2,9 @@ use std::{thread, time};
 
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{Event, KeyboardInput, WindowEvent},
+    event::{ElementState, Event, KeyEvent, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
+    keyboard::Key,
     window::WindowBuilder,
 };
 
@@ -38,7 +39,7 @@ fn main() {
     let mut close_requested = false;
 
     event_loop.run(move |event, _, control_flow| {
-        use winit::event::{ElementState, StartCause, VirtualKeyCode};
+        use winit::event::StartCause;
         println!("{:?}", event);
         match event {
             Event::NewEvents(start_cause) => {
@@ -52,31 +53,33 @@ fn main() {
                     close_requested = true;
                 }
                 WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
+                    event:
+                        KeyEvent {
+                            logical_key: key,
                             state: ElementState::Pressed,
                             ..
                         },
                     ..
-                } => match virtual_code {
-                    VirtualKeyCode::Key1 => {
+                } => match key {
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
+                    Key::Character("1") => {
                         mode = Mode::Wait;
                         println!("\nmode: {:?}\n", mode);
                     }
-                    VirtualKeyCode::Key2 => {
+                    Key::Character("2") => {
                         mode = Mode::WaitUntil;
                         println!("\nmode: {:?}\n", mode);
                     }
-                    VirtualKeyCode::Key3 => {
+                    Key::Character("3") => {
                         mode = Mode::Poll;
                         println!("\nmode: {:?}\n", mode);
                     }
-                    VirtualKeyCode::R => {
+                    Key::Character("r") => {
                         request_redraw = !request_redraw;
                         println!("\nrequest_redraw: {}\n", request_redraw);
                     }
-                    VirtualKeyCode::Escape => {
+                    Key::Escape => {
                         close_requested = true;
                     }
                     _ => (),

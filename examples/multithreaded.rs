@@ -5,8 +5,9 @@ fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-        event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+        event::{ElementState, Event, KeyEvent, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
+        keyboard::{Key, ModifiersState},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
 
@@ -27,6 +28,7 @@ fn main() {
 
         let (tx, rx) = mpsc::channel();
         window_senders.insert(window.id(), tx);
+        let mut modifiers = ModifiersState::default();
         thread::spawn(move || {
             while let Ok(event) = rx.recv() {
                 match event {
@@ -49,93 +51,98 @@ fn main() {
                             );
                         }
                     }
-                    #[allow(deprecated)]
+                    WindowEvent::ModifiersChanged(mod_state) => {
+                        modifiers = mod_state;
+                    }
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
+                        event:
+                            KeyEvent {
                                 state: ElementState::Released,
-                                virtual_keycode: Some(key),
-                                modifiers,
+                                logical_key: key,
                                 ..
                             },
                         ..
                     } => {
+                        use Key::{ArrowLeft, ArrowRight, Character};
                         window.set_title(&format!("{:?}", key));
-                        let state = !modifiers.shift();
-                        use VirtualKeyCode::*;
-                        match key {
-                            A => window.set_always_on_top(state),
-                            C => window.set_cursor_icon(match state {
-                                true => CursorIcon::Progress,
-                                false => CursorIcon::Default,
-                            }),
-                            D => window.set_decorations(!state),
-                            // Cycle through video modes
-                            Right | Left => {
-                                video_mode_id = match key {
-                                    Left => video_mode_id.saturating_sub(1),
-                                    Right => (video_modes.len() - 1).min(video_mode_id + 1),
+                        let state = !modifiers.shift_key();
+                        match &key {
+                            // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                            // See the `key_binding` example
+                            Character(string) => match string.to_lowercase().as_str() {
+                                "a" => window.set_always_on_top(state),
+                                "c" => window.set_cursor_icon(match state {
+                                    true => CursorIcon::Progress,
+                                    false => CursorIcon::Default,
+                                }),
+                                "d" => window.set_decorations(!state),
+                                "f" => window.set_fullscreen(match (state, modifiers.alt_key()) {
+                                    (true, false) => Some(Fullscreen::Borderless(None)),
+                                    (true, true) => Some(Fullscreen::Exclusive(
+                                        video_modes.iter().nth(video_mode_id).unwrap().clone(),
+                                    )),
+                                    (false, _) => None,
+                                }),
+                                "g" => window.set_cursor_grab(state).unwrap(),
+                                "h" => window.set_cursor_visible(!state),
+                                "i" => {
+                                    println!("Info:");
+                                    println!("-> outer_position : {:?}", window.outer_position());
+                                    println!("-> inner_position : {:?}", window.inner_position());
+                                    println!("-> outer_size     : {:?}", window.outer_size());
+                                    println!("-> inner_size     : {:?}", window.inner_size());
+                                    println!("-> fullscreen     : {:?}", window.fullscreen());
+                                }
+                                "l" => window.set_min_inner_size(match state {
+                                    true => Some(WINDOW_SIZE),
+                                    false => None,
+                                }),
+                                "m" => window.set_maximized(state),
+                                "p" => window.set_outer_position({
+                                    let mut position = window.outer_position().unwrap();
+                                    let sign = if state { 1 } else { -1 };
+                                    position.x += 10 * sign;
+                                    position.y += 10 * sign;
+                                    position
+                                }),
+                                "q" => window.request_redraw(),
+                                "r" => window.set_resizable(state),
+                                "s" => window.set_inner_size(match state {
+                                    true => PhysicalSize::new(
+                                        WINDOW_SIZE.width + 100,
+                                        WINDOW_SIZE.height + 100,
+                                    ),
+                                    false => WINDOW_SIZE,
+                                }),
+                                "w" => {
+                                    if let Size::Physical(size) = WINDOW_SIZE.into() {
+                                        window
+                                            .set_cursor_position(Position::Physical(
+                                                PhysicalPosition::new(
+                                                    size.width as i32 / 2,
+                                                    size.height as i32 / 2,
+                                                ),
+                                            ))
+                                            .unwrap()
+                                    }
+                                }
+                                "z" => {
+                                    window.set_visible(false);
+                                    thread::sleep(Duration::from_secs(1));
+                                    window.set_visible(true);
+                                }
+                                _ => (),
+                            },
+                            ArrowRight | ArrowLeft => {
+                                video_mode_id = match &key {
+                                    ArrowLeft => video_mode_id.saturating_sub(1),
+                                    ArrowRight => (video_modes.len() - 1).min(video_mode_id + 1),
                                     _ => unreachable!(),
                                 };
                                 println!(
                                     "Picking video mode: {}",
                                     video_modes.iter().nth(video_mode_id).unwrap()
                                 );
-                            }
-                            F => window.set_fullscreen(match (state, modifiers.alt()) {
-                                (true, false) => Some(Fullscreen::Borderless(None)),
-                                (true, true) => Some(Fullscreen::Exclusive(
-                                    video_modes.iter().nth(video_mode_id).unwrap().clone(),
-                                )),
-                                (false, _) => None,
-                            }),
-                            G => window.set_cursor_grab(state).unwrap(),
-                            H => window.set_cursor_visible(!state),
-                            I => {
-                                println!("Info:");
-                                println!("-> outer_position : {:?}", window.outer_position());
-                                println!("-> inner_position : {:?}", window.inner_position());
-                                println!("-> outer_size     : {:?}", window.outer_size());
-                                println!("-> inner_size     : {:?}", window.inner_size());
-                                println!("-> fullscreen     : {:?}", window.fullscreen());
-                            }
-                            L => window.set_min_inner_size(match state {
-                                true => Some(WINDOW_SIZE),
-                                false => None,
-                            }),
-                            M => window.set_maximized(state),
-                            P => window.set_outer_position({
-                                let mut position = window.outer_position().unwrap();
-                                let sign = if state { 1 } else { -1 };
-                                position.x += 10 * sign;
-                                position.y += 10 * sign;
-                                position
-                            }),
-                            Q => window.request_redraw(),
-                            R => window.set_resizable(state),
-                            S => window.set_inner_size(match state {
-                                true => PhysicalSize::new(
-                                    WINDOW_SIZE.width + 100,
-                                    WINDOW_SIZE.height + 100,
-                                ),
-                                false => WINDOW_SIZE,
-                            }),
-                            W => {
-                                if let Size::Physical(size) = WINDOW_SIZE.into() {
-                                    window
-                                        .set_cursor_position(Position::Physical(
-                                            PhysicalPosition::new(
-                                                size.width as i32 / 2,
-                                                size.height as i32 / 2,
-                                            ),
-                                        ))
-                                        .unwrap()
-                                }
-                            }
-                            Z => {
-                                window.set_visible(false);
-                                thread::sleep(Duration::from_secs(1));
-                                window.set_visible(true);
                             }
                             _ => (),
                         }
@@ -155,10 +162,10 @@ fn main() {
                 WindowEvent::CloseRequested
                 | WindowEvent::Destroyed
                 | WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
+                    event:
+                        KeyEvent {
                             state: ElementState::Released,
-                            virtual_keycode: Some(VirtualKeyCode::Escape),
+                            logical_key: Key::Escape,
                             ..
                         },
                     ..

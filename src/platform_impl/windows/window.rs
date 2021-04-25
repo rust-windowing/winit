@@ -1,5 +1,6 @@
 #![cfg(target_os = "windows")]
 
+use mem::MaybeUninit;
 use parking_lot::Mutex;
 use raw_window_handle::{windows::WindowsHandle, RawWindowHandle};
 use std::{
@@ -660,6 +661,26 @@ impl Window {
     #[inline]
     pub fn theme(&self) -> Theme {
         self.window_state.lock().current_theme
+    }
+
+    #[inline]
+    pub fn reset_dead_keys(&self) {
+        // `ToUnicode` consumes the dead-key by default, so we are constructing a fake (but valid)
+        // key input which we can call `ToUnicode` with.
+        unsafe {
+            let vk = winuser::VK_SPACE as u32;
+            let scancode = winuser::MapVirtualKeyW(vk, winuser::MAPVK_VK_TO_VSC);
+            let kbd_state = [0; 256];
+            let mut char_buff = [MaybeUninit::uninit(); 8];
+            winuser::ToUnicode(
+                vk,
+                scancode,
+                kbd_state.as_ptr(),
+                char_buff[0].as_mut_ptr(),
+                char_buff.len() as i32,
+                0,
+            );
+        }
     }
 }
 
