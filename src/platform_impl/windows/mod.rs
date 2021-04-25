@@ -13,6 +13,7 @@ pub use self::icon::WinIcon as PlatformIcon;
 
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
+use crate::keyboard::Key;
 use crate::window::Theme;
 
 #[derive(Clone)]
@@ -82,6 +83,12 @@ fn wrap_device_id(id: u32) -> RootDeviceId {
 
 pub type OsError = std::io::Error;
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEventExtra {
+    pub text_with_all_modifers: Option<&'static str>,
+    pub key_without_modifiers: Key<'static>,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(HWND);
 unsafe impl Send for WindowId {}
@@ -100,9 +107,11 @@ mod util;
 mod dark_mode;
 mod dpi;
 mod drop_handler;
-mod event;
 mod event_loop;
 mod icon;
+mod keyboard;
+mod keyboard_layout;
+mod minimal_ime;
 mod monitor;
 mod raw_input;
 mod window;

@@ -38,6 +38,7 @@ use std::path::PathBuf;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
+    keyboard::{self, ModifiersState},
     platform_impl,
     window::{Theme, WindowId},
 };
@@ -239,8 +240,12 @@ pub enum WindowEvent<'a> {
     /// hovered.
     HoveredFileCancelled,
 
-    /// The window received a unicode character.
-    ReceivedCharacter(char),
+    /// The user commited an IME string for this window.
+    ///
+    /// This is a temporary API until [#1497] gets completed.
+    ///
+    /// [#1497]: https://github.com/rust-windowing/winit/issues/1497
+    ReceivedImeText(String),
 
     /// The window gained or lost focus.
     ///
@@ -248,9 +253,15 @@ pub enum WindowEvent<'a> {
     Focused(bool),
 
     /// An event from the keyboard has been received.
+    ///
+    /// ## Platform-specific
+    /// - **Windows:** The shift key overrides NumLock. In other words, while shift is held down,
+    ///   numpad keys act as if NumLock wasn't active. When this is used, the OS sends fake key
+    ///   events which are not marked as `is_synthetic`.
     KeyboardInput {
         device_id: DeviceId,
-        input: KeyboardInput,
+        event: KeyEvent,
+
         /// If `true`, the event was generated synthetically by winit
         /// in one of the following circumstances:
         ///
@@ -365,15 +376,15 @@ impl Clone for WindowEvent<'static> {
             DroppedFile(file) => DroppedFile(file.clone()),
             HoveredFile(file) => HoveredFile(file.clone()),
             HoveredFileCancelled => HoveredFileCancelled,
-            ReceivedCharacter(c) => ReceivedCharacter(*c),
+            ReceivedImeText(s) => ReceivedImeText(s.clone()),
             Focused(f) => Focused(*f),
             KeyboardInput {
                 device_id,
-                input,
+                event,
                 is_synthetic,
             } => KeyboardInput {
                 device_id: *device_id,
-                input: *input,
+                event: event.clone(),
                 is_synthetic: *is_synthetic,
             },
 
@@ -456,15 +467,15 @@ impl<'a> WindowEvent<'a> {
             DroppedFile(file) => Some(DroppedFile(file)),
             HoveredFile(file) => Some(HoveredFile(file)),
             HoveredFileCancelled => Some(HoveredFileCancelled),
-            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
+            ReceivedImeText(s) => Some(ReceivedImeText(s)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput {
                 device_id,
-                input,
+                event,
                 is_synthetic,
             } => Some(KeyboardInput {
                 device_id,
-                input,
+                event,
                 is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
@@ -593,38 +604,82 @@ pub enum DeviceEvent {
         state: ElementState,
     },
 
-    Key(KeyboardInput),
+    Key(RawKeyEvent),
 
     Text {
         codepoint: char,
     },
 }
 
-/// Describes a keyboard input event.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Describes a keyboard input as a raw device event.
+///
+/// Note that holding down a key may produce repeated `RawKeyEvent`s. The
+/// operating system doesn't provide information whether such an event is a
+/// repeat or the initial keypress. An application may emulate this by, for
+/// example keeping a Map/Set of pressed keys and determining whether a keypress
+/// corresponds to an already pressed key.
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct KeyboardInput {
-    /// Identifies the physical key pressed
-    ///
-    /// This should not change if the user adjusts the host's keyboard map. Use when the physical location of the
-    /// key is more important than the key's host GUI semantics, such as for movement controls in a first-person
-    /// game.
-    pub scancode: ScanCode,
-
+pub struct RawKeyEvent {
+    pub physical_key: keyboard::KeyCode,
     pub state: ElementState,
+}
 
-    /// Identifies the semantic meaning of the key
+/// Describes a keyboard input targeting a window.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct KeyEvent {
+    /// Represents the position of a key independent of the currently active layout.
     ///
-    /// Use when the semantics of the key are more important than the physical location of the key, such as when
-    /// implementing appropriate behavior for "page up."
-    pub virtual_keycode: Option<VirtualKeyCode>,
+    /// It also uniquely identifies the physical key (i.e. it's mostly synonymous with a scancode).
+    /// The most prevalent use case for this is games. For example the default keys for the player
+    /// to move around might be the W, A, S, and D keys on a US layout. The position of these keys
+    /// is more important than their label, so they should map to Z, Q, S, and D on an "AZERTY"
+    /// layout. (This value is `KeyCode::KeyW` for the Z key on an AZERTY layout.)
+    ///
+    /// Note that `Fn` and `FnLock` key events are not guaranteed to be emitted by `winit`. These
+    /// keys are usually handled at the hardware or OS level.
+    pub physical_key: keyboard::KeyCode,
 
-    /// Modifier keys active at the time of this input.
+    /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
     ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-    pub modifiers: ModifiersState,
+    /// This has two use cases:
+    /// - Allows querying whether the current input is a Dead key.
+    /// - Allows handling key-bindings on platforms which don't
+    /// support [`key_without_modifiers`].
+    ///
+    /// ## Platform-specific
+    /// - **Web:** Dead keys might be reported as the real key instead
+    /// of `Dead` depending on the browser/OS.
+    ///
+    /// [`key_without_modifiers`]: crate::platform::modifier_supplement::KeyEventExtModifierSupplement::key_without_modifiers
+    pub logical_key: keyboard::Key<'static>,
+
+    /// Contains the text produced by this keypress.
+    ///
+    /// In most cases this is identical to the content
+    /// of the `Character` variant of `logical_key`.
+    /// However, on Windows when a dead key was pressed earlier
+    /// but cannot be combined with the character from this
+    /// keypress, the produced text will consist of two characters:
+    /// the dead-key-character followed by the character resulting
+    /// from this keypress.
+    ///
+    /// An additional difference from `logical_key` is that
+    /// this field stores the text representation of any key
+    /// that has such a representation. For example when
+    /// `logical_key` is `Key::Enter`, this field is `Some("\r")`.
+    ///
+    /// This is `None` if the current keypress cannot
+    /// be interpreted as text.
+    ///
+    /// See also: `text_with_all_modifiers()`
+    pub text: Option<&'static str>,
+
+    pub location: keyboard::KeyLocation,
+    pub state: ElementState,
+    pub repeat: bool,
+
+    pub(crate) platform_specific: platform_impl::KeyEventExtra,
 }
 
 /// Describes touch-screen input state.
@@ -725,9 +780,6 @@ impl Force {
     }
 }
 
-/// Hardware-dependent keyboard scan code.
-pub type ScanCode = u32;
-
 /// Identifier for a specific analog axis on some device.
 pub type AxisId = u32;
 
@@ -769,304 +821,4 @@ pub enum MouseScrollDelta {
     /// supported by the device (eg. a touchpad) and
     /// platform.
     PixelDelta(PhysicalPosition<f64>),
-}
-
-/// Symbolic name for a keyboard key.
-#[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
-#[repr(u32)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum VirtualKeyCode {
-    /// The '1' key over the letters.
-    Key1,
-    /// The '2' key over the letters.
-    Key2,
-    /// The '3' key over the letters.
-    Key3,
-    /// The '4' key over the letters.
-    Key4,
-    /// The '5' key over the letters.
-    Key5,
-    /// The '6' key over the letters.
-    Key6,
-    /// The '7' key over the letters.
-    Key7,
-    /// The '8' key over the letters.
-    Key8,
-    /// The '9' key over the letters.
-    Key9,
-    /// The '0' key over the 'O' and 'P' keys.
-    Key0,
-
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-
-    /// The Escape key, next to F1.
-    Escape,
-
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-
-    /// Print Screen/SysRq.
-    Snapshot,
-    /// Scroll Lock.
-    Scroll,
-    /// Pause/Break key, next to Scroll lock.
-    Pause,
-
-    /// `Insert`, next to Backspace.
-    Insert,
-    Home,
-    Delete,
-    End,
-    PageDown,
-    PageUp,
-
-    Left,
-    Up,
-    Right,
-    Down,
-
-    /// The Backspace key, right over Enter.
-    // TODO: rename
-    Back,
-    /// The Enter key.
-    Return,
-    /// The space bar.
-    Space,
-
-    /// The "Compose" key on Linux.
-    Compose,
-
-    Caret,
-
-    Numlock,
-    Numpad0,
-    Numpad1,
-    Numpad2,
-    Numpad3,
-    Numpad4,
-    Numpad5,
-    Numpad6,
-    Numpad7,
-    Numpad8,
-    Numpad9,
-    NumpadAdd,
-    NumpadDivide,
-    NumpadDecimal,
-    NumpadComma,
-    NumpadEnter,
-    NumpadEquals,
-    NumpadMultiply,
-    NumpadSubtract,
-
-    AbntC1,
-    AbntC2,
-    Apostrophe,
-    Apps,
-    Asterisk,
-    At,
-    Ax,
-    Backslash,
-    Calculator,
-    Capital,
-    Colon,
-    Comma,
-    Convert,
-    Equals,
-    Grave,
-    Kana,
-    Kanji,
-    LAlt,
-    LBracket,
-    LControl,
-    LShift,
-    LWin,
-    Mail,
-    MediaSelect,
-    MediaStop,
-    Minus,
-    Mute,
-    MyComputer,
-    // also called "Next"
-    NavigateForward,
-    // also called "Prior"
-    NavigateBackward,
-    NextTrack,
-    NoConvert,
-    OEM102,
-    Period,
-    PlayPause,
-    Plus,
-    Power,
-    PrevTrack,
-    RAlt,
-    RBracket,
-    RControl,
-    RShift,
-    RWin,
-    Semicolon,
-    Slash,
-    Sleep,
-    Stop,
-    Sysrq,
-    Tab,
-    Underline,
-    Unlabeled,
-    VolumeDown,
-    VolumeUp,
-    Wake,
-    WebBack,
-    WebFavorites,
-    WebForward,
-    WebHome,
-    WebRefresh,
-    WebSearch,
-    WebStop,
-    Yen,
-    Copy,
-    Paste,
-    Cut,
-}
-
-impl ModifiersState {
-    /// Returns `true` if the shift key is pressed.
-    pub fn shift(&self) -> bool {
-        self.intersects(Self::SHIFT)
-    }
-    /// Returns `true` if the control key is pressed.
-    pub fn ctrl(&self) -> bool {
-        self.intersects(Self::CTRL)
-    }
-    /// Returns `true` if the alt key is pressed.
-    pub fn alt(&self) -> bool {
-        self.intersects(Self::ALT)
-    }
-    /// Returns `true` if the logo key is pressed.
-    pub fn logo(&self) -> bool {
-        self.intersects(Self::LOGO)
-    }
-}
-
-bitflags! {
-    /// Represents the current state of the keyboard modifiers
-    ///
-    /// Each flag represents a modifier and is set if this modifier is active.
-    #[derive(Default)]
-    pub struct ModifiersState: u32 {
-        // left and right modifiers are currently commented out, but we should be able to support
-        // them in a future release
-        /// The "shift" key.
-        const SHIFT = 0b100;
-        // const LSHIFT = 0b010;
-        // const RSHIFT = 0b001;
-        /// The "control" key.
-        const CTRL = 0b100 << 3;
-        // const LCTRL = 0b010 << 3;
-        // const RCTRL = 0b001 << 3;
-        /// The "alt" key.
-        const ALT = 0b100 << 6;
-        // const LALT = 0b010 << 6;
-        // const RALT = 0b001 << 6;
-        /// This is the "windows" key on PC and "command" key on Mac.
-        const LOGO = 0b100 << 9;
-        // const LLOGO = 0b010 << 9;
-        // const RLOGO = 0b001 << 9;
-    }
-}
-
-#[cfg(feature = "serde")]
-mod modifiers_serde {
-    use super::ModifiersState;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    #[derive(Default, Serialize, Deserialize)]
-    #[serde(default)]
-    #[serde(rename = "ModifiersState")]
-    pub struct ModifiersStateSerialize {
-        pub shift: bool,
-        pub ctrl: bool,
-        pub alt: bool,
-        pub logo: bool,
-    }
-
-    impl Serialize for ModifiersState {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
-        {
-            let s = ModifiersStateSerialize {
-                shift: self.shift(),
-                ctrl: self.ctrl(),
-                alt: self.alt(),
-                logo: self.logo(),
-            };
-            s.serialize(serializer)
-        }
-    }
-
-    impl<'de> Deserialize<'de> for ModifiersState {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            let ModifiersStateSerialize {
-                shift,
-                ctrl,
-                alt,
-                logo,
-            } = ModifiersStateSerialize::deserialize(deserializer)?;
-            let mut m = ModifiersState::empty();
-            m.set(ModifiersState::SHIFT, shift);
-            m.set(ModifiersState::CTRL, ctrl);
-            m.set(ModifiersState::ALT, alt);
-            m.set(ModifiersState::LOGO, logo);
-            Ok(m)
-        }
-    }
 }

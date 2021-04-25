@@ -1,8 +1,10 @@
 extern crate winit;
 
 use simple_logger::SimpleLogger;
-use winit::event::{Event, VirtualKeyCode, WindowEvent};
+
+use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
+use winit::keyboard::Key;
 use winit::window::WindowBuilder;
 
 fn main() {
@@ -25,12 +27,14 @@ fn main() {
 
             // Keyboard input event to handle minimize via a hotkey
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
+                event: WindowEvent::KeyboardInput { event, .. },
                 window_id,
             } => {
                 if window_id == window.id() {
-                    // Pressing the 'M' key will minimize the window
-                    if input.virtual_keycode == Some(VirtualKeyCode::M) {
+                    // Pressing the 'm' key will minimize the window
+                    // WARNING: Consider using `key_without_modifers()` if available on your platform.
+                    // See the `key_binding` example
+                    if let Key::Character("m") = event.logical_key {
                         window.set_minimized(true);
                     }
                 }
