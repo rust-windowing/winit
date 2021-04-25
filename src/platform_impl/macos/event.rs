@@ -108,7 +108,10 @@ pub fn get_modifierless_char(scancode: u16) -> Key<'static> {
         CFRelease(input_source as *mut c_void);
     }
     if translate_result != 0 {
-        log::error!("`UCKeyTranslate` returned 0");
+        log::error!(
+            "`UCKeyTranslate` returned with the non-zero value: {}",
+            translate_result
+        );
         return Key::Unidentified(NativeKeyCode::MacOS(scancode));
     }
     if result_len == 0 {
