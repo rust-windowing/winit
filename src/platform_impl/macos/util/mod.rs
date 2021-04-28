@@ -8,11 +8,12 @@ use std::ops::{BitAnd, Deref};
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSRect, NSString, NSUInteger},
+    foundation::{NSAutoreleasePool, NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
 
+use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
 
 // Replace with `!` once stable
@@ -89,6 +90,16 @@ impl Clone for IdRef {
 // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
 pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
     CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)
+}
+
+/// Converts from winit screen-coordinates to macOS screen-coordinates.
+/// Winit: top-left is (0, 0) and y increasing downwards
+/// macOS: bottom-left is (0, 0) and y increasing upwards
+pub fn window_position(position: LogicalPosition<f64>) -> NSPoint {
+    NSPoint::new(
+        position.x,
+        CGDisplay::main().pixels_high() as f64 - position.y,
+    )
 }
 
 pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {

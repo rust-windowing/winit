@@ -69,9 +69,10 @@
 //!   selection of "nice" scale factors, i.e. 1.0, 1.25, 1.5... on Windows 7, the scale factor is
 //!   global and changing it requires logging out. See [this article][windows_1] for technical
 //!   details.
-//! - **macOS:** "retina displays" have a scale factor of 2.0. Otherwise, the scale factor is 1.0.
-//!   Intermediate scale factors are never used. It's possible for any display to use that 2.0 scale
-//!   factor, given the use of the command line.
+//! - **macOS:** Recent versions of macOS allow the user to change the scaling factor for certain
+//!   displays. When this is available, the user may pick a per-monitor scaling factor from a set
+//!   of pre-defined settings. All "retina displays" have a scaling factor above 1.0 by default but
+//!   the specific value varies across devices.
 //! - **X11:** Many man-hours have been spent trying to figure out how to handle DPI in X11. Winit
 //!   currently uses a three-pronged approach:
 //!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable, if present.
@@ -163,7 +164,7 @@ pub fn validate_scale_factor(scale_factor: f64) -> bool {
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the
 /// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
 /// implementation is provided which does the rounding for you.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalPosition<P> {
     pub x: P,
@@ -228,7 +229,7 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalPosition<P> {
 }
 
 /// A position represented in physical pixels.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalPosition<P> {
     pub x: P,
@@ -293,7 +294,7 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalPosition<P> {
 }
 
 /// A size represented in logical pixels.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalSize<P> {
     pub width: P,
@@ -358,7 +359,7 @@ impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalSize<P> {
 }
 
 /// A size represented in physical pixels.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalSize<P> {
     pub width: P,

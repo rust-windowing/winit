@@ -135,7 +135,7 @@ impl<T: 'static> EventLoop<T> {
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!(format!("Failed to open input method: {:#?}", state));
+                panic!("Failed to open input method: {:#?}", state);
             }
             result.expect("Failed to set input method destruction callback")
         });

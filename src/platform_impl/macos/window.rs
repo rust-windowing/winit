@@ -100,13 +100,13 @@ fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
         if ns_app == nil {
             None
         } else {
+            // TODO: Move ActivationPolicy from an attribute on the window to something on the EventLoop
             use self::NSApplicationActivationPolicy::*;
             ns_app.setActivationPolicy_(match activation_policy {
                 ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
                 ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
                 ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
             });
-            ns_app.finishLaunching();
             Some(ns_app)
         }
     }
@@ -166,7 +166,17 @@ fn create_window(
                     }
                     None => (800.0, 600.0),
                 };
-                NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
+                let (left, bottom) = match attrs.position {
+                    Some(position) => {
+                        let logical = util::window_position(position.to_logical(scale_factor));
+                        // macOS wants the position of the bottom left corner,
+                        // but caller is setting the position of top left corner
+                        (logical.x, logical.y - height)
+                    }
+                    // This value is ignored by calling win.center() below
+                    None => (0.0, 0.0),
+                };
+                NSRect::new(NSPoint::new(left, bottom), NSSize::new(width, height))
             }
         };
 
@@ -249,8 +259,9 @@ fn create_window(
             if !pl_attrs.has_shadow {
                 ns_window.setHasShadow_(NO);
             }
-
-            ns_window.center();
+            if attrs.position.is_none() {
+                ns_window.center();
+            }
             ns_window
         });
         pool.drain();
@@ -346,6 +357,7 @@ impl UnownedWindow {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
+        trace!("Creating new window");
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
 
@@ -496,17 +508,8 @@ impl UnownedWindow {
     pub fn set_outer_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
-        let dummy = NSRect::new(
-            NSPoint::new(
-                position.x,
-                // While it's true that we're setting the top-left position,
-                // it still needs to be in a bottom-left coordinate system.
-                CGDisplay::main().pixels_high() as f64 - position.y,
-            ),
-            NSSize::new(0f64, 0f64),
-        );
         unsafe {
-            util::set_frame_top_left_point_async(*self.ns_window, dummy.origin);
+            util::set_frame_top_left_point_async(*self.ns_window, util::window_position(position));
         }
     }
 
