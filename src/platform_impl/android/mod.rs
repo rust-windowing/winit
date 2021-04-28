@@ -247,10 +247,12 @@ impl<T: 'static> EventLoop<T> {
                                         };
 
                                         match key.key_code() {
-                                            Keycode::VolumeUp | Keycode::VolumeDown => handled = false,
+                                            Keycode::VolumeUp | Keycode::VolumeDown => {
+                                                handled = false
+                                            }
                                             _ => {
                                                 #[allow(deprecated)]
-                                                    let event = event::Event::WindowEvent {
+                                                let event = event::Event::WindowEvent {
                                                     window_id,
                                                     event: event::WindowEvent::KeyboardInput {
                                                         device_id,
@@ -258,7 +260,8 @@ impl<T: 'static> EventLoop<T> {
                                                             scancode: key.scan_code() as u32,
                                                             state,
                                                             virtual_keycode: None,
-                                                            modifiers: event::ModifiersState::default(),
+                                                            modifiers:
+                                                                event::ModifiersState::default(),
                                                         },
                                                         is_synthetic: false,
                                                     },
