@@ -1995,15 +1995,17 @@ unsafe fn public_window_callback_inner<T: 'static>(
             if !window_state.window_flags.contains(WindowFlags::DECORATIONS)
                 && window_state.window_flags.contains(WindowFlags::RESIZABLE)
             {
-                let cursor: POINT = POINT {
-                    x: windowsx::GET_X_LPARAM(lparam),
-                    y: windowsx::GET_Y_LPARAM(lparam),
-                };
+                // cursor location
+                let (cx, cy) = (
+                    windowsx::GET_X_LPARAM(lparam),
+                    windowsx::GET_Y_LPARAM(lparam),
+                );
 
-                let border = POINT {
-                    x: GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER),
-                    y: GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER),
-                };
+                // border size
+                let (bx, by) = (
+                    GetSystemMetrics(SM_CXFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER),
+                    GetSystemMetrics(SM_CYFRAME) + GetSystemMetrics(SM_CXPADDEDBORDER),
+                );
 
                 let mut window_rect: RECT = mem::zeroed();
                 if GetWindowRect(window, <*mut _>::cast(&mut window_rect)) == TRUE {
@@ -2017,29 +2019,17 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     const BOTTOMLEFT: i32 = BOTTOM | LEFT;
                     const BOTTOMRIGHT: i32 = BOTTOM | RIGHT;
 
-                    let result =
-                        LEFT * (if cursor.x < (window_rect.left + border.x) {
-                            1
-                        } else {
-                            0
-                        }) | RIGHT
-                            * (if cursor.x >= (window_rect.right - border.x) {
-                                1
-                            } else {
-                                0
-                            })
-                            | TOP
-                                * (if cursor.y < (window_rect.top + border.y) {
-                                    1
-                                } else {
-                                    0
-                                })
-                            | BOTTOM
-                                * (if cursor.y >= (window_rect.bottom - border.y) {
-                                    1
-                                } else {
-                                    0
-                                });
+                    let RECT {
+                        left,
+                        right,
+                        bottom,
+                        top,
+                    } = window_rect;
+
+                    let result = LEFT * (if cx < (left + bx) { 1 } else { 0 })
+                        | RIGHT * (if cx >= (right - bx) { 1 } else { 0 })
+                        | TOP * (if cy < (top + by) { 1 } else { 0 })
+                        | BOTTOM * (if cy >= (bottom - by) { 1 } else { 0 });
 
                     match result {
                         CLIENT => HTCLIENT,
