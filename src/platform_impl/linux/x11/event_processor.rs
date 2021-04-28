@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc, slice, sync::Arc};
+use std::{cell::RefCell, collections::HashMap, convert::identity, rc::Rc, slice, sync::Arc};
 
 use libc::{c_char, c_int, c_long, c_ulong};
 
@@ -31,6 +31,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) randr_event_offset: c_int,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
+    pub(super) xkbext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
     pub(super) kb_state: KbState,
     pub(super) mod_keymap: ModifierKeymap,
@@ -1168,6 +1169,27 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
             _ => {
+                if event_type == self.xkbext.first_event_id {
+                    let xev = unsafe { &*(identity(xev) as *const _ as *const ffi::XkbAnyEvent) };
+                    match xev.xkb_type {
+                        ffi::XkbStateNotify => {
+                            let xev =
+                                unsafe { &*(xev as *const _ as *const ffi::XkbStateNotifyEvent) };
+                            if matches!(xev.event_type, 2 | 3) {
+                                // TODO: Is `as u32` fine here?
+                                self.kb_state.update_modifiers(
+                                    xev.base_mods,
+                                    xev.latched_mods,
+                                    xev.locked_mods,
+                                    u32::from_ne_bytes(xev.base_group.to_ne_bytes()),
+                                    u32::from_ne_bytes(xev.latched_group.to_ne_bytes()),
+                                    u32::from_ne_bytes(xev.locked_group.to_ne_bytes()),
+                                )
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 if event_type == self.randr_event_offset {
                     // In the future, it would be quite easy to emit monitor hotplug events.
                     let prev_list = monitor::invalidate_cached_monitor_list();

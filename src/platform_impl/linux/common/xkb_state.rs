@@ -116,7 +116,9 @@ impl KbState {
         mods_depressed: u32,
         mods_latched: u32,
         mods_locked: u32,
-        group: u32,
+        depressed_group: u32,
+        latched_group: u32,
+        locked_group: u32,
     ) {
         if !self.ready() {
             return;
@@ -127,9 +129,9 @@ impl KbState {
                 mods_depressed,
                 mods_latched,
                 mods_locked,
-                0,
-                0,
-                group,
+                depressed_group,
+                latched_group,
+                locked_group,
             )
         };
         if mask.contains(xkb_state_component::XKB_STATE_MODS_EFFECTIVE) {

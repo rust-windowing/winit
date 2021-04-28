@@ -616,7 +616,7 @@ impl KbdHandler {
     ) {
         {
             let mut state = self.state.borrow_mut();
-            state.update_modifiers(mods_depressed, mods_latched, mods_locked, group);
+            state.update_modifiers(mods_depressed, mods_latched, mods_locked, 0, 0, group);
             (&mut *self.callback.borrow_mut())(
                 Event::Modifiers {
                     modifiers: state.mods_state(),
