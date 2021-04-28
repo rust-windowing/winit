@@ -661,6 +661,11 @@ impl Window {
     pub fn theme(&self) -> Theme {
         self.window_state.lock().current_theme
     }
+
+    #[inline]
+    pub fn focus_and_front(&self) {
+        unsafe { force_window_active(self.window.0); }
+    }
 }
 
 impl Drop for Window {

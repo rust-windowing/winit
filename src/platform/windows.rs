@@ -6,7 +6,6 @@ use std::path::Path;
 use libc;
 use winapi::shared::minwindef::WORD;
 use winapi::shared::windef::{HMENU, HWND};
-use winapi::um::winuser::SetFocus;
 
 use crate::{
     dpi::PhysicalSize,
@@ -112,9 +111,7 @@ impl WindowExtWindows for Window {
 
     #[inline]
     fn focus_and_front(&self) {
-        unsafe {
-            SetFocus(self.window.hwnd());
-        }
+        self.window.focus_and_front();
     }
 }
 
