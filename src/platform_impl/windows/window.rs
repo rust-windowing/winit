@@ -664,7 +664,9 @@ impl Window {
 
     #[inline]
     pub fn focus_and_front(&self) {
-        unsafe { force_window_active(self.window.0); }
+        unsafe {
+            force_window_active(self.window.0);
+        }
     }
 }
 
