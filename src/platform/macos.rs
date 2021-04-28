@@ -4,8 +4,9 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::EventLoopWindowTarget,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
+    platform_impl::get_aux_state_mut,
     window::{Window, WindowBuilder},
 };
 
@@ -100,8 +101,6 @@ impl Default for ActivationPolicy {
 ///  - `with_titlebar_buttons_hidden`
 ///  - `with_fullsize_content_view`
 pub trait WindowBuilderExtMacOS {
-    /// Sets the activation policy for the window being built.
-    fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
     fn with_movable_by_window_background(self, movable_by_window_background: bool)
         -> WindowBuilder;
@@ -122,12 +121,6 @@ pub trait WindowBuilderExtMacOS {
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
-    #[inline]
-    fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
-        self.platform_specific.activation_policy = activation_policy;
-        self
-    }
-
     #[inline]
     fn with_movable_by_window_background(
         mut self,
@@ -183,6 +176,20 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
         self
+    }
+}
+
+pub trait EventLoopExtMacOS {
+    /// Sets the activation policy for the application.
+    /// It is set to `NSApplicationActivationPolicyRegular` by default.
+    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy);
+}
+impl<T> EventLoopExtMacOS for EventLoop<T> {
+    #[inline]
+    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy) {
+        unsafe {
+            get_aux_state_mut(&**self.event_loop.delegate).activation_policy = activation_policy;
+        }
     }
 }
 

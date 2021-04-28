@@ -1,10 +1,26 @@
-use super::{activation_hack, app_state::AppState};
+use crate::{
+    platform::macos::ActivationPolicy,
+    platform_impl::platform::{activation_hack, app_state::AppState},
+};
+
 use cocoa::base::id;
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel},
 };
-use std::os::raw::c_void;
+use std::{
+    cell::{RefCell, RefMut},
+    os::raw::c_void,
+};
+
+static AUX_DELEGATE_STATE_NAME: &str = "auxState";
+
+pub struct AuxDelegateState {
+    /// We store this value in order to be able defer setting the activation policy until
+    /// after the app has finished launching. If the activation policy is set earlier, the
+    /// menubar is unresponsive for example.
+    pub activation_policy: ActivationPolicy,
+}
 
 pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
@@ -30,6 +46,7 @@ lazy_static! {
             did_resign_active as extern "C" fn(&Object, Sel, id),
         );
 
+        decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
         decl.add_ivar::<*mut c_void>(activation_hack::State::name());
         decl.add_method(
             sel!(activationHackMouseMoved:),
@@ -40,10 +57,23 @@ lazy_static! {
     };
 }
 
+/// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
+pub unsafe fn get_aux_state_mut(this: &Object) -> RefMut<'_, AuxDelegateState> {
+    let ptr: *mut c_void = *this.get_ivar(AUX_DELEGATE_STATE_NAME);
+    // Watch out that this needs to be the correct type
+    (*(ptr as *mut RefCell<AuxDelegateState>)).borrow_mut()
+}
+
 extern "C" fn new(class: &Class, _: Sel) -> id {
     unsafe {
         let this: id = msg_send![class, alloc];
         let this: id = msg_send![this, init];
+        (*this).set_ivar(
+            AUX_DELEGATE_STATE_NAME,
+            Box::into_raw(Box::new(RefCell::new(AuxDelegateState {
+                activation_policy: ActivationPolicy::Regular,
+            }))) as *mut c_void,
+        );
         (*this).set_ivar(
             activation_hack::State::name(),
             activation_hack::State::new(),
@@ -58,9 +88,9 @@ extern "C" fn dealloc(this: &Object, _: Sel) {
     }
 }
 
-extern "C" fn did_finish_launching(_: &Object, _: Sel, _: id) {
+extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
     trace!("Triggered `applicationDidFinishLaunching`");
-    AppState::launched();
+    AppState::launched(this);
     trace!("Completed `applicationDidFinishLaunching`");
 }
 

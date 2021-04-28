@@ -18,17 +18,23 @@ use cocoa::{
     foundation::{NSAutoreleasePool, NSSize},
 };
 
+use objc::runtime::Object;
+
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
-    platform_impl::platform::{
-        event::{EventProxy, EventWrapper},
-        event_loop::{post_dummy_event, PanicInfo},
-        menu,
-        observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
-        util::{IdRef, Never},
-        window::get_window_id,
+    platform::macos::ActivationPolicy,
+    platform_impl::{
+        get_aux_state_mut,
+        platform::{
+            event::{EventProxy, EventWrapper},
+            event_loop::{post_dummy_event, PanicInfo},
+            menu,
+            observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
+            util::{IdRef, Never},
+            window::get_window_id,
+        },
     },
     window::WindowId,
 };
@@ -141,18 +147,6 @@ impl Handler {
 
     fn waker(&self) -> MutexGuard<'_, EventLoopWaker> {
         self.waker.lock().unwrap()
-    }
-
-    fn fix_activation_policy(&self) {
-        unsafe {
-            use cocoa::appkit::{NSApplication, NSApplicationActivationPolicy::*};
-            use objc::runtime::YES;
-            let ns_app = NSApp();
-            // We need to delay setting the activation policy and activating the app
-            // until we have the main menu all set up. Otherwise the menu won't be interactable.
-            ns_app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
-            let () = msg_send![ns_app, activateIgnoringOtherApps: YES];
-        }
     }
 
     fn is_ready(&self) -> bool {
@@ -284,8 +278,8 @@ impl AppState {
         HANDLER.callback.lock().unwrap().take();
     }
 
-    pub fn launched() {
-        HANDLER.fix_activation_policy();
+    pub fn launched(app_delegate: &Object) {
+        apply_activation_policy(app_delegate);
         HANDLER.set_ready();
         HANDLER.waker().start();
         // The menubar initialization should be before the `NewEvents` event, to allow overriding
@@ -430,5 +424,22 @@ impl AppState {
             (_, ControlFlow::WaitUntil(instant)) => HANDLER.waker().start_at(instant),
             (_, ControlFlow::Poll) => HANDLER.waker().start(),
         }
+    }
+}
+
+fn apply_activation_policy(app_delegate: &Object) {
+    unsafe {
+        use cocoa::appkit::{NSApplication, NSApplicationActivationPolicy::*};
+        use objc::runtime::YES;
+        let ns_app = NSApp();
+        // We need to delay setting the activation policy and activating the app
+        // until we have the main menu all set up. Otherwise the menu won't be interactable.
+        let act_pol = get_aux_state_mut(app_delegate).activation_policy;
+        ns_app.setActivationPolicy_(match act_pol {
+            ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
+            ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
+            ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
+        });
+        let () = msg_send![ns_app, activateIgnoringOtherApps: YES];
     }
 }
