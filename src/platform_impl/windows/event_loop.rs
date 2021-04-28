@@ -1962,9 +1962,9 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         winuser::WM_NCCALCSIZE => {
-            let window_state = subclass_input.window_state.lock();
+            let win_flags = subclass_input.window_state.lock().window_flags();
 
-            if !window_state.window_flags.contains(WindowFlags::DECORATIONS) {
+            if !win_flags.contains(WindowFlags::DECORATIONS) {
                 // adjust the maximized borderless window fill the work area rectangle of the display monitor
                 if util::is_maximized(window) {
                     let monitor = monitor::current_monitor(window);
@@ -1989,11 +1989,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 },
             };
 
-            let window_state = subclass_input.window_state.lock();
+            let win_flags = subclass_input.window_state.lock().window_flags();
 
             // Only apply this hit test for borderless windows that wants to be resizable
-            if !window_state.window_flags.contains(WindowFlags::DECORATIONS)
-                && window_state.window_flags.contains(WindowFlags::RESIZABLE)
+            if !win_flags.contains(WindowFlags::DECORATIONS)
+                && win_flags.contains(WindowFlags::RESIZABLE)
             {
                 // cursor location
                 let (cx, cy) = (
