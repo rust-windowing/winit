@@ -8,7 +8,7 @@ use crate::{
 };
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, KeyAction, MotionAction},
+    event::{InputEvent, KeyAction, Keycode, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
@@ -245,26 +245,32 @@ impl<T: 'static> EventLoop<T> {
                                             KeyAction::Up => event::ElementState::Released,
                                             _ => event::ElementState::Released,
                                         };
-                                        #[allow(deprecated)]
-                                        let event = event::Event::WindowEvent {
-                                            window_id,
-                                            event: event::WindowEvent::KeyboardInput {
-                                                device_id,
-                                                input: event::KeyboardInput {
-                                                    scancode: key.scan_code() as u32,
-                                                    state,
-                                                    virtual_keycode: None,
-                                                    modifiers: event::ModifiersState::default(),
-                                                },
-                                                is_synthetic: false,
-                                            },
-                                        };
-                                        call_event_handler!(
-                                            event_handler,
-                                            self.window_target(),
-                                            control_flow,
-                                            event
-                                        );
+
+                                        match key.key_code() {
+                                            Keycode::VolumeUp | Keycode::VolumeDown => handled = false,
+                                            _ => {
+                                                #[allow(deprecated)]
+                                                    let event = event::Event::WindowEvent {
+                                                    window_id,
+                                                    event: event::WindowEvent::KeyboardInput {
+                                                        device_id,
+                                                        input: event::KeyboardInput {
+                                                            scancode: key.scan_code() as u32,
+                                                            state,
+                                                            virtual_keycode: None,
+                                                            modifiers: event::ModifiersState::default(),
+                                                        },
+                                                        is_synthetic: false,
+                                                    },
+                                                };
+                                                call_event_handler!(
+                                                    event_handler,
+                                                    self.window_target(),
+                                                    control_flow,
+                                                    event
+                                                );
+                                            }
+                                        }
                                     }
                                 };
                                 input_queue.finish_event(event, handled);
