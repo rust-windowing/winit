@@ -143,6 +143,18 @@ impl Handler {
         self.waker.lock().unwrap()
     }
 
+    fn fix_activation_policy(&self) {
+        unsafe {
+            use cocoa::appkit::{NSApplication, NSApplicationActivationPolicy::*};
+            use objc::runtime::YES;
+            let ns_app = NSApp();
+            // We need to delay setting the activation policy and activating the app
+            // until we have the main menu all set up. Otherwise the menu won't be interactable.
+            ns_app.setActivationPolicy_(NSApplicationActivationPolicyRegular);
+            let () = msg_send![ns_app, activateIgnoringOtherApps: YES];
+        }
+    }
+
     fn is_ready(&self) -> bool {
         self.ready.load(Ordering::Acquire)
     }
@@ -273,6 +285,7 @@ impl AppState {
     }
 
     pub fn launched() {
+        HANDLER.fix_activation_policy();
         HANDLER.set_ready();
         HANDLER.waker().start();
         // The menubar initialization should be before the `NewEvents` event, to allow overriding

@@ -101,12 +101,12 @@ fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
             None
         } else {
             // TODO: Move ActivationPolicy from an attribute on the window to something on the EventLoop
-            use self::NSApplicationActivationPolicy::*;
-            ns_app.setActivationPolicy_(match activation_policy {
-                ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
-                ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
-                ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
-            });
+            // use self::NSApplicationActivationPolicy::*;
+            // ns_app.setActivationPolicy_(match activation_policy {
+            //     ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
+            //     ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
+            //     ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
+            // });
             Some(ns_app)
         }
     }
