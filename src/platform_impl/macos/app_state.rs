@@ -466,7 +466,7 @@ unsafe fn window_activation_hack(ns_app: id) {
 }
 fn apply_activation_policy(app_delegate: &Object) {
     unsafe {
-        use cocoa::appkit::{NSApplicationActivationPolicy::*};
+        use cocoa::appkit::NSApplicationActivationPolicy::*;
         let ns_app = NSApp();
         // We need to delay setting the activation policy and activating the app
         // until we have the main menu all set up. Otherwise the menu won't be interactable.

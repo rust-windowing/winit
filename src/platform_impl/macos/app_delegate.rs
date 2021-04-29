@@ -1,7 +1,4 @@
-use crate::{
-    platform::macos::ActivationPolicy,
-    platform_impl::platform::{app_state::AppState},
-};
+use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
 
 use cocoa::base::id;
 use objc::{
@@ -33,7 +30,7 @@ lazy_static! {
 
         decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
         decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
-        
+
         decl.add_method(
             sel!(applicationDidFinishLaunching:),
             did_finish_launching as extern "C" fn(&Object, Sel, id),
