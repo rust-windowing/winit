@@ -5,6 +5,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
+    menu::Menu,
     monitor::{MonitorHandle, VideoMode},
     platform_impl,
 };
@@ -186,6 +187,11 @@ pub struct WindowAttributes {
     ///
     /// The default is `None`.
     pub window_icon: Option<Icon>,
+
+    /// The window menu.
+    ///
+    /// The default is `None`.
+    pub window_menu: Option<Vec<Menu>>,
 }
 
 impl Default for WindowAttributes {
@@ -205,6 +211,7 @@ impl Default for WindowAttributes {
             decorations: true,
             always_on_top: false,
             window_icon: None,
+            window_menu: None,
         }
     }
 }
@@ -352,6 +359,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
+        self
+    }
+
+    /// Requests a specific title for the window.
+    ///
+    /// See [`Window::set_menu`] for details.
+    ///
+    /// [`Window::set_menu`]: crate::window::Window::set_menu
+    #[inline]
+    pub fn with_menu<M: Into<Vec<Menu>>>(mut self, menu: M) -> Self {
+        self.window.window_menu = Some(menu.into());
         self
     }
 
@@ -746,6 +764,17 @@ impl Window {
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         self.window.request_user_attention(request_type)
+    }
+
+    /// Modifies the menu of the window.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only supported on macOS.
+
+    #[inline]
+    pub fn set_menu(&self, menu: Option<Vec<Menu>>) {
+        self.window.set_menu(menu)
     }
 }
 

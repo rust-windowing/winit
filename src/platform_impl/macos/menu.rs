@@ -1,105 +1,225 @@
-use cocoa::appkit::{
-    NSApp, NSApplication, NSApplicationActivationPolicyRegular, NSEventModifierFlags, NSMenu,
-    NSMenuItem,
-};
-use cocoa::base::{nil, selector};
-use cocoa::foundation::{NSAutoreleasePool, NSProcessInfo, NSString};
+use cocoa::appkit::{NSApp, NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
+use cocoa::base::{id, nil, selector};
+use cocoa::foundation::{NSAutoreleasePool, NSString};
 use objc::{
+    declare::ClassDecl,
     rc::autoreleasepool,
-    runtime::{Object, Sel},
+    runtime::{Class, Object, Sel},
 };
+use std::sync::Once;
+
+use crate::menu::{Menu, MenuItem};
+
+static BLOCK_PTR: &'static str = "winitMenuItemBlockPtr";
 
 struct KeyEquivalent<'a> {
     key: &'a str,
     masks: Option<NSEventModifierFlags>,
 }
 
-pub fn initialize() {
+struct Action(Box<dyn Fn() + 'static>);
+
+pub fn initialize(menu: Vec<Menu>) {
     autoreleasepool(|| unsafe {
         let menubar = NSMenu::new(nil).autorelease();
-        let app_menu_item = NSMenuItem::new(nil).autorelease();
-        menubar.addItem_(app_menu_item);
+
+        for menu in menu {
+            // create our menu
+            let menu_item = NSMenuItem::new(nil).autorelease();
+            menubar.addItem_(menu_item);
+            // prepare our submenu tree
+            let menu_title = NSString::alloc(nil).init_str(&menu.title);
+            let menu_object = NSMenu::alloc(nil).initWithTitle_(menu_title).autorelease();
+
+            // create menu
+            for item in &menu.items {
+                let item_obj: *mut Object = match item {
+                    MenuItem::Custom(custom_menu) => {
+                        let title = NSString::alloc(nil).init_str(custom_menu.name.as_str());
+                        make_menu_item(title, None, None)
+                    }
+                    MenuItem::Separator => NSMenuItem::separatorItem(nil),
+                    MenuItem::About(app_name) => {
+                        let title = format!("About {}", app_name);
+                        let title_alloc = NSString::alloc(nil).init_str(title.as_str());
+                        make_menu_item(
+                            title_alloc,
+                            Some(selector("orderFrontStandardAboutPanel:")),
+                            None,
+                        )
+                    }
+                    MenuItem::CloseWindow => {
+                        let title = NSString::alloc(nil).init_str("Close Window");
+                        make_menu_item(
+                            title,
+                            Some(selector("performClose:")),
+                            Some(KeyEquivalent {
+                                key: "w",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::Quit => {
+                        let title = NSString::alloc(nil).init_str("Quit");
+                        make_menu_item(
+                            title,
+                            Some(selector("terminate:")),
+                            Some(KeyEquivalent {
+                                key: "q",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::Hide => {
+                        let title = NSString::alloc(nil).init_str("Hide");
+                        make_menu_item(
+                            title,
+                            Some(selector("hide:")),
+                            Some(KeyEquivalent {
+                                key: "h",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::HideOthers => {
+                        let title = NSString::alloc(nil).init_str("Hide Others");
+                        make_menu_item(
+                            title,
+                            Some(selector("hideOtherApplications:")),
+                            Some(KeyEquivalent {
+                                key: "h",
+                                masks: Some(
+                                    NSEventModifierFlags::NSAlternateKeyMask
+                                        | NSEventModifierFlags::NSCommandKeyMask,
+                                ),
+                            }),
+                        )
+                    }
+                    MenuItem::ShowAll => {
+                        let title = NSString::alloc(nil).init_str("Show All");
+                        make_menu_item(title, Some(selector("unhideAllApplications:")), None)
+                    }
+                    MenuItem::EnterFullScreen => {
+                        let title = NSString::alloc(nil).init_str("Enter Full Screen");
+                        make_menu_item(
+                            title,
+                            Some(selector("toggleFullScreen:")),
+                            Some(KeyEquivalent {
+                                key: "h",
+                                masks: Some(
+                                    NSEventModifierFlags::NSCommandKeyMask
+                                        | NSEventModifierFlags::NSControlKeyMask,
+                                ),
+                            }),
+                        )
+                    }
+                    MenuItem::Minimize => {
+                        let title = NSString::alloc(nil).init_str("Minimize");
+                        make_menu_item(
+                            title,
+                            Some(selector("performMiniaturize:")),
+                            Some(KeyEquivalent {
+                                key: "m",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::Zoom => {
+                        let title = NSString::alloc(nil).init_str("Zoom");
+                        make_menu_item(title, Some(selector("performZoom:")), None)
+                    }
+                    MenuItem::Copy => {
+                        let title = NSString::alloc(nil).init_str("Copy");
+                        make_menu_item(
+                            title,
+                            Some(selector("copy:")),
+                            Some(KeyEquivalent {
+                                key: "c",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::Cut => {
+                        let title = NSString::alloc(nil).init_str("Cut");
+                        make_menu_item(
+                            title,
+                            Some(selector("cut:")),
+                            Some(KeyEquivalent {
+                                key: "x",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::Paste => {
+                        let title = NSString::alloc(nil).init_str("Paste");
+                        make_menu_item(
+                            title,
+                            Some(selector("paste:")),
+                            Some(KeyEquivalent {
+                                key: "v",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::Undo => {
+                        let title = NSString::alloc(nil).init_str("Undo");
+                        make_menu_item(
+                            title,
+                            Some(selector("undo:")),
+                            Some(KeyEquivalent {
+                                key: "z",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::Redo => {
+                        let title = NSString::alloc(nil).init_str("Redo");
+                        make_menu_item(
+                            title,
+                            Some(selector("redo:")),
+                            Some(KeyEquivalent {
+                                key: "Z",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::SelectAll => {
+                        let title = NSString::alloc(nil).init_str("Select All");
+                        make_menu_item(
+                            title,
+                            Some(selector("selectAll:")),
+                            Some(KeyEquivalent {
+                                key: "a",
+                                masks: None,
+                            }),
+                        )
+                    }
+                    MenuItem::Services => {
+                        let title = NSString::alloc(nil).init_str("Services");
+                        let item = make_menu_item(title, None, None);
+                        let app_class = class!(NSApplication);
+                        let app: id = msg_send![app_class, sharedApplication];
+                        let services: id = msg_send![app, servicesMenu];
+                        let _: () = msg_send![&*item, setSubmenu: services];
+                        item
+                    }
+                };
+
+                menu_object.addItem_(item_obj);
+            }
+
+            menu_item.setSubmenu_(menu_object);
+        }
+
+        // Set the menu as main menu for the app
         let app = NSApp();
         app.setMainMenu_(menubar);
-
-        let app_menu = NSMenu::new(nil);
-        let process_name = NSProcessInfo::processInfo(nil).processName();
-
-        // About menu item
-        let about_item_prefix = NSString::alloc(nil).init_str("About ");
-        let about_item_title = about_item_prefix.stringByAppendingString_(process_name);
-        let about_item = menu_item(
-            about_item_title,
-            selector("orderFrontStandardAboutPanel:"),
-            None,
-        );
-
-        // Seperator menu item
-        let sep_first = NSMenuItem::separatorItem(nil);
-
-        // Hide application menu item
-        let hide_item_prefix = NSString::alloc(nil).init_str("Hide ");
-        let hide_item_title = hide_item_prefix.stringByAppendingString_(process_name);
-        let hide_item = menu_item(
-            hide_item_title,
-            selector("hide:"),
-            Some(KeyEquivalent {
-                key: "h",
-                masks: None,
-            }),
-        );
-
-        // Hide other applications menu item
-        let hide_others_item_title = NSString::alloc(nil).init_str("Hide Others");
-        let hide_others_item = menu_item(
-            hide_others_item_title,
-            selector("hideOtherApplications:"),
-            Some(KeyEquivalent {
-                key: "h",
-                masks: Some(
-                    NSEventModifierFlags::NSAlternateKeyMask
-                        | NSEventModifierFlags::NSCommandKeyMask,
-                ),
-            }),
-        );
-
-        // Show applications menu item
-        let show_all_item_title = NSString::alloc(nil).init_str("Show All");
-        let show_all_item = menu_item(
-            show_all_item_title,
-            selector("unhideAllApplications:"),
-            None,
-        );
-
-        // Seperator menu item
-        let sep = NSMenuItem::separatorItem(nil);
-
-        // Quit application menu item
-        let quit_item_prefix = NSString::alloc(nil).init_str("Quit ");
-        let quit_item_title = quit_item_prefix.stringByAppendingString_(process_name);
-        let quit_item = menu_item(
-            quit_item_title,
-            selector("terminate:"),
-            Some(KeyEquivalent {
-                key: "q",
-                masks: None,
-            }),
-        );
-
-        app_menu.addItem_(about_item);
-        app_menu.addItem_(sep_first);
-        app_menu.addItem_(hide_item);
-        app_menu.addItem_(hide_others_item);
-        app_menu.addItem_(show_all_item);
-        app_menu.addItem_(sep);
-        app_menu.addItem_(quit_item);
-        app_menu_item.setSubmenu_(app_menu);
     });
 }
 
-fn menu_item(
+fn make_menu_item(
     title: *mut Object,
-    selector: Sel,
+    selector: Option<Sel>,
     key_equivalent: Option<KeyEquivalent<'_>>,
 ) -> *mut Object {
     unsafe {
@@ -107,11 +227,66 @@ fn menu_item(
             Some(ke) => (NSString::alloc(nil).init_str(ke.key), ke.masks),
             None => (NSString::alloc(nil).init_str(""), None),
         };
-        let item = NSMenuItem::alloc(nil).initWithTitle_action_keyEquivalent_(title, selector, key);
+        // if no selector defined, that mean it's a custom
+        // menu so fire our handler
+        let selector = match selector {
+            Some(selector) => selector,
+            None => sel!(fireBlockAction:),
+        };
+
+        // allocate our item to our class
+        let alloc: id = msg_send![make_menu_item_class(), alloc];
+        let item =
+            NSMenuItem::alloc(alloc).initWithTitle_action_keyEquivalent_(title, selector, key);
+
         if let Some(masks) = masks {
             item.setKeyEquivalentModifierMask_(masks)
         }
 
         item
+    }
+}
+
+fn make_menu_item_class() -> *const Class {
+    static mut APP_CLASS: *const Class = 0 as *const Class;
+    static INIT: Once = Once::new();
+
+    INIT.call_once(|| unsafe {
+        let superclass = class!(NSMenuItem);
+        let mut decl = ClassDecl::new("WinitMenuItem", superclass).unwrap();
+        decl.add_ivar::<usize>(BLOCK_PTR);
+
+        decl.add_method(
+            sel!(dealloc),
+            dealloc_custom_menuitem as extern "C" fn(&Object, _),
+        );
+        decl.add_method(
+            sel!(fireBlockAction:),
+            fire_custom_menu_click as extern "C" fn(&Object, _, id),
+        );
+
+        APP_CLASS = decl.register();
+    });
+
+    unsafe { APP_CLASS }
+}
+
+extern "C" fn fire_custom_menu_click(this: &Object, _: Sel, _item: id) {
+    println!("CLICK");
+}
+
+extern "C" fn dealloc_custom_menuitem(this: &Object, _: Sel) {
+    println!("DEALOC");
+    unsafe {
+        let ptr: usize = *this.get_ivar(BLOCK_PTR);
+        let obj = ptr as *mut Action;
+        println!("Action {:?}", obj);
+
+        if !obj.is_null() {
+            let _handler = Box::from_raw(obj);
+        }
+
+        //let _: () = msg_send![this, setTarget:nil];
+        let _: () = msg_send![super(this, class!(NSMenuItem)), dealloc];
     }
 }

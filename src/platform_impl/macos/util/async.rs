@@ -14,6 +14,7 @@ use objc::runtime::NO;
 
 use crate::{
     dpi::LogicalSize,
+    menu::Menu,
     platform_impl::platform::{ffi, util::IdRef, window::SharedState},
 };
 
@@ -203,6 +204,11 @@ pub unsafe fn set_title_async(ns_window: id, title: String) {
         let title = IdRef::new(NSString::alloc(nil).init_str(&title));
         ns_window.setTitle_(*title);
     });
+}
+
+// `setMenu:` isn't thread-safe.
+pub unsafe fn set_menu_async(_ns_window: id, menu: Option<Vec<Menu>>) {
+    dbg!(menu);
 }
 
 // `close:` is thread-safe, but we want the event to be triggered from the main
