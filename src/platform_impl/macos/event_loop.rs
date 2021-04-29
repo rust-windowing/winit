@@ -87,6 +87,8 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
+    pub(crate) delegate: IdRef,
+
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
 
@@ -97,7 +99,6 @@ pub struct EventLoop<T: 'static> {
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
     _callback: Option<Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
-    _delegate: IdRef,
 }
 
 impl<T> EventLoop<T> {
@@ -122,13 +123,13 @@ impl<T> EventLoop<T> {
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
         EventLoop {
+            delegate,
             window_target: Rc::new(RootWindowTarget {
                 p: Default::default(),
                 _marker: PhantomData,
             }),
             panic_info,
             _callback: None,
-            _delegate: delegate,
         }
     }
 

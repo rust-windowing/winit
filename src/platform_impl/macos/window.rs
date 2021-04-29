@@ -16,7 +16,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform::macos::{ActivationPolicy, WindowExtMacOS},
+    platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
@@ -34,9 +34,8 @@ use crate::{
 };
 use cocoa::{
     appkit::{
-        self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
-        NSApplicationPresentationOptions, NSColor, NSRequestUserAttentionType, NSScreen, NSView,
-        NSWindow, NSWindowButton, NSWindowStyleMask,
+        self, CGFloat, NSApp, NSApplication, NSApplicationPresentationOptions, NSColor,
+        NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
@@ -64,7 +63,6 @@ pub fn get_window_id(window_cocoa_id: id) -> Id {
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
     pub title_hidden: bool,
@@ -80,7 +78,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     #[inline]
     fn default() -> Self {
         Self {
-            activation_policy: Default::default(),
             movable_by_window_background: false,
             titlebar_transparent: false,
             title_hidden: false,
@@ -90,24 +87,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
-        }
-    }
-}
-
-fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
-    unsafe {
-        let ns_app = NSApp();
-        if ns_app == nil {
-            None
-        } else {
-            // TODO: Move ActivationPolicy from an attribute on the window to something on the EventLoop
-            use self::NSApplicationActivationPolicy::*;
-            ns_app.setActivationPolicy_(match activation_policy {
-                ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
-                ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
-                ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
-            });
-            Some(ns_app)
         }
     }
 }
@@ -359,11 +338,11 @@ impl UnownedWindow {
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
 
-        create_app(pl_attribs.activation_policy).ok_or_else(|| {
+        let ns_app = unsafe { NSApp() };
+        if ns_app == nil {
             unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSApplication`"))
-        })?;
-
+            return Err(os_error!(OsError::CreationError("`NSApp()` returned nil")));
+        }
         let ns_window = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
             unsafe { pool.drain() };
             os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
