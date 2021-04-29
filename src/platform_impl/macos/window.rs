@@ -436,12 +436,8 @@ impl UnownedWindow {
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
-        unsafe {
-            if visible {
-                window.ns_window.makeKeyAndOrderFront_(nil);
-            } else {
-                window.ns_window.makeKeyWindow();
-            }
+        if visible {
+            unsafe { window.ns_window.makeKeyAndOrderFront_(nil) };
         }
 
         if maximized {
