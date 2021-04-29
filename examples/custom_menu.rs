@@ -60,6 +60,7 @@ fn main() {
         ])
         .build(&event_loop)
         .unwrap();
+
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
@@ -70,6 +71,10 @@ fn main() {
             } if window_id == window.id() => *control_flow = ControlFlow::Exit,
             Event::MainEventsCleared => {
                 window.request_redraw();
+            }
+            Event::MenuEvent(menu_id) => {
+                println!("Clicked on {}", menu_id);
+                window.set_title("New window title!");
             }
             _ => (),
         }

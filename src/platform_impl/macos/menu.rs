@@ -8,7 +8,10 @@ use objc::{
 };
 use std::sync::Once;
 
+use crate::event::Event;
 use crate::menu::{Menu, MenuItem};
+
+use super::{app_state::AppState, event::EventWrapper};
 
 static BLOCK_PTR: &'static str = "winitMenuItemBlockPtr";
 
@@ -16,7 +19,7 @@ struct KeyEquivalent<'a> {
     key: &'a str,
     masks: Option<NSEventModifierFlags>,
 }
-
+#[derive(Debug)]
 struct Action(Box<String>);
 
 pub fn initialize(menu: Vec<Menu>) {
@@ -230,9 +233,7 @@ fn make_menu_item_from_alloc(
         };
 
         // allocate our item to our class
-        let item =
-            NSMenuItem::alloc(alloc).initWithTitle_action_keyEquivalent_(title, selector, key);
-
+        let item: id = msg_send![alloc, initWithTitle:&*title action:selector keyEquivalent:&*key];
         if let Some(masks) = masks {
             item.setKeyEquivalentModifierMask_(masks)
         }
@@ -266,20 +267,22 @@ fn make_menu_item_class() -> *const Class {
 }
 
 extern "C" fn fire_custom_menu_click(this: &Object, _: Sel, _item: id) {
-    println!("CLICK");
+    let menu_id = unsafe {
+        let ptr: usize = *this.get_ivar(BLOCK_PTR);
+        let obj = ptr as *const Action;
+        &*obj
+    };
+    let event = Event::MenuEvent(menu_id.0.to_string());
+    AppState::queue_event(EventWrapper::StaticEvent(event));
 }
 
 extern "C" fn dealloc_custom_menuitem(this: &Object, _: Sel) {
     unsafe {
         let ptr: usize = *this.get_ivar(BLOCK_PTR);
         let obj = ptr as *mut Action;
-        println!("Action {:?}", obj);
-
         if !obj.is_null() {
             let _handler = Box::from_raw(obj);
         }
-
-        //let _: () = msg_send![this, setTarget:nil];
         let _: () = msg_send![super(this, class!(NSMenuItem)), dealloc];
     }
 }

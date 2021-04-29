@@ -70,6 +70,9 @@ pub enum Event<'a, T: 'static> {
     /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
 
+    /// Emitted when a menu has been clicked.
+    MenuEvent(String),
+
     /// Emitted when the application has been suspended.
     Suspended,
 
@@ -138,6 +141,7 @@ impl<T: Clone> Clone for Event<'static, T> {
             LoopDestroyed => LoopDestroyed,
             Suspended => Suspended,
             Resumed => Resumed,
+            MenuEvent(event) => MenuEvent(event.clone()),
         }
     }
 }
@@ -156,6 +160,7 @@ impl<'a, T> Event<'a, T> {
             LoopDestroyed => Ok(LoopDestroyed),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
+            MenuEvent(event) => Ok(MenuEvent(event)),
         }
     }
 
@@ -176,6 +181,7 @@ impl<'a, T> Event<'a, T> {
             LoopDestroyed => Some(LoopDestroyed),
             Suspended => Some(Suspended),
             Resumed => Some(Resumed),
+            MenuEvent(event) => Some(MenuEvent(event)),
         }
     }
 }
