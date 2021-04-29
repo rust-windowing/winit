@@ -26,7 +26,7 @@ fn main() {
     eprintln!("  (Q) Quit event loop");
     eprintln!("  (V) Toggle visibility");
     eprintln!("  (X) Toggle maximized");
-    eprintln!("  (B) Toggle Borderless");
+    eprintln!("  (B) Toggle borderless");
 
     let mut minimized = false;
     let mut visible = true;

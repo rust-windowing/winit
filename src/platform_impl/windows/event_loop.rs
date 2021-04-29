@@ -1965,7 +1965,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let win_flags = subclass_input.window_state.lock().window_flags();
 
             if !win_flags.contains(WindowFlags::DECORATIONS) {
-                // adjust the maximized borderless window fill the work area rectangle of the display monitor
+                // adjust the maximized borderless window to fill the work area rectangle of the display monitor
                 if util::is_maximized(window) {
                     let monitor = monitor::current_monitor(window);
                     if let Ok(monitor_info) = monitor::get_monitor_info(monitor.hmonitor()) {
@@ -1973,7 +1973,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                         params.rgrc[0] = monitor_info.rcWork;
                     }
                 }
-                0 // must return a value here, other wise the window won't be borderless (without decorations)
+                0 // must return a value here, otherwise the window won't be borderless (without decorations)
             } else {
                 commctrl::DefSubclassProc(window, msg, wparam, lparam)
             }
