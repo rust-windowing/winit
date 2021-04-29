@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Android, ignoring volume up/down key events since most applications should not override the default behavior.
 - On macOS, fix creating new windows when the application has a main menu.
 - On Windows, fix fractional deltas for mouse wheel device events.
 - On macOS, fix segmentation fault after dropping the main window.
