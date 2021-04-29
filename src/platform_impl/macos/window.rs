@@ -131,8 +131,6 @@ unsafe fn create_view(
             ns_view.setWantsLayer(YES);
         }
 
-        ns_window.setContentView_(*ns_view);
-        ns_window.makeFirstResponder_(*ns_view);
         (ns_view, cursor_state)
     })
 }
@@ -376,6 +374,12 @@ impl UnownedWindow {
                 unsafe { pool.drain() };
                 os_error!(OsError::CreationError("Couldn't create `NSView`"))
             })?;
+
+        // Configure the new view as the "key view" for the window
+        unsafe {
+            ns_window.setContentView_(*ns_view);
+            ns_window.setInitialFirstResponder_(*ns_view);
+        }
 
         let input_context = unsafe { util::create_input_context(*ns_view) };
 
