@@ -13,10 +13,11 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{NSApp, NSWindow},
+    appkit::{NSApp, NSApplication, NSWindow},
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSSize},
 };
+use objc::runtime::YES;
 
 use crate::{
     dpi::LogicalSize,
@@ -273,6 +274,12 @@ impl AppState {
     }
 
     pub fn launched() {
+        unsafe {
+            let ns_app = NSApp();
+            window_activation_hack(ns_app);
+            // TODO: Consider allowing the user to specify they don't want their application activated
+            ns_app.activateIgnoringOtherApps_(YES);
+        };
         HANDLER.set_ready();
         HANDLER.waker().start();
         // The menubar initialization should be before the `NewEvents` event, to allow overriding
@@ -416,6 +423,37 @@ impl AppState {
             (_, ControlFlow::Wait) => HANDLER.waker().stop(),
             (_, ControlFlow::WaitUntil(instant)) => HANDLER.waker().start_at(instant),
             (_, ControlFlow::Poll) => HANDLER.waker().start(),
+        }
+    }
+}
+
+/// A hack to make activation of multiple windows work when creating them before
+/// `applicationDidFinishLaunching:` / `Event::Event::NewEvents(StartCause::Init)`.
+///
+/// Alternative to this would be the user calling `window.set_visible(true)` in
+/// `StartCause::Init`.
+///
+/// If this becomes too bothersome to maintain, it can probably be removed
+/// without too much damage.
+unsafe fn window_activation_hack(ns_app: id) {
+    // Get the application's windows
+    // TODO: Proper ordering of the windows
+    let ns_windows: id = msg_send![ns_app, windows];
+    let ns_enumerator: id = msg_send![ns_windows, objectEnumerator];
+    loop {
+        // Enumerate over the windows
+        let ns_window: id = msg_send![ns_enumerator, nextObject];
+        if ns_window == nil {
+            break;
+        }
+        // And call `makeKeyAndOrderFront` if it was called on the window in `UnownedWindow::new`
+        // This way we preserve the user's desired initial visiblity status
+        // TODO: Also filter on the type/"level" of the window, and maybe other things?
+        if ns_window.isVisible() == YES {
+            trace!("Activating visible window");
+            ns_window.makeKeyAndOrderFront_(nil);
+        } else {
+            trace!("Skipping activating invisible window");
         }
     }
 }

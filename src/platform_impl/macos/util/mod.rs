@@ -106,6 +106,7 @@ pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
     IdRef::new(NSString::alloc(nil).init_str(s))
 }
 
+#[allow(dead_code)] // In case we want to use this function in the future
 pub unsafe fn app_name() -> Option<id> {
     let bundle: id = msg_send![class!(NSBundle), mainBundle];
     let dict: id = msg_send![bundle, infoDictionary];
