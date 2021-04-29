@@ -437,6 +437,7 @@ impl UnownedWindow {
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
         if visible {
+            // Tightly linked with `app_state::window_activation_hack`
             unsafe { window.ns_window.makeKeyAndOrderFront_(nil) };
         }
 
