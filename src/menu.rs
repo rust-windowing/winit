@@ -15,6 +15,7 @@ impl Menu {
 
 #[derive(Debug, Clone)]
 pub struct CustomMenu {
+    pub id: String,
     pub name: String,
     pub key: Option<String>,
 }
@@ -86,8 +87,9 @@ pub enum MenuItem {
 }
 
 impl MenuItem {
-    pub fn new(title: String) -> Self {
+    pub fn new(unique_menu_id: String, title: String) -> Self {
         MenuItem::Custom(CustomMenu {
+            id: unique_menu_id,
             key: None,
             name: title,
         })

@@ -22,7 +22,7 @@ fn main() {
                 vec![
                     MenuItem::About("Todos".to_string()),
                     MenuItem::Separator,
-                    MenuItem::new("Preferences".to_string()).key(","),
+                    MenuItem::new("preferences".to_string(), "Preferences".to_string()).key(","),
                     MenuItem::Separator,
                     MenuItem::Services,
                     MenuItem::Separator,
@@ -34,11 +34,9 @@ fn main() {
                 ],
             ),
             Menu::new(
-                "File",
+                "Custom menu",
                 vec![
-                    MenuItem::new("Open/Show Window".to_string()).key("n"),
-                    MenuItem::Separator,
-                    MenuItem::new("Add Todo".to_string()).key("+"),
+                    MenuItem::new("add_todo".to_string(), "Add Todo".to_string()).key("+"),
                     MenuItem::Separator,
                     MenuItem::CloseWindow,
                 ],
@@ -57,20 +55,11 @@ fn main() {
                 ],
             ),
             Menu::new("View", vec![MenuItem::EnterFullScreen]),
-            Menu::new(
-                "Window",
-                vec![
-                    MenuItem::Minimize,
-                    MenuItem::Zoom,
-                    MenuItem::Separator,
-                    MenuItem::new("Bring All to Front".to_string()),
-                ],
-            ),
+            Menu::new("Window", vec![MenuItem::Minimize, MenuItem::Zoom]),
             Menu::new("Help", vec![]),
         ])
         .build(&event_loop)
         .unwrap();
-
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
