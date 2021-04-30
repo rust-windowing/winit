@@ -186,12 +186,28 @@ pub trait EventLoopExtMacOS {
     /// This function only takes effect if it's called before calling [`run`](crate::event_loop::EventLoop::run) or
     /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
     fn set_activation_policy(&mut self, activation_policy: ActivationPolicy);
+
+    /// Used to prevent a default menubar menu from getting created
+    ///
+    /// The default menu creation is enabled by default.
+    ///
+    /// This function only takes effect if it's called before calling
+    /// [`run`](crate::event_loop::EventLoop::run) or
+    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
+    fn enable_default_menu_creation(&mut self, enable: bool);
 }
 impl<T> EventLoopExtMacOS for EventLoop<T> {
     #[inline]
     fn set_activation_policy(&mut self, activation_policy: ActivationPolicy) {
         unsafe {
             get_aux_state_mut(&**self.event_loop.delegate).activation_policy = activation_policy;
+        }
+    }
+
+    #[inline]
+    fn enable_default_menu_creation(&mut self, enable: bool) {
+        unsafe {
+            get_aux_state_mut(&**self.event_loop.delegate).create_default_menu = enable;
         }
     }
 }
