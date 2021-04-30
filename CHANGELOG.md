@@ -26,6 +26,7 @@
 - On macOS, emit `RedrawRequested` events immediately while the window is being resized.
 - Implement `Default`, `Hash`, and `Eq` for `LogicalPosition`, `PhysicalPosition`, `LogicalSize`, and `PhysicalSize`.
 - On macOS, initialize the Menu Bar with minimal defaults.
+- On macOS, change the default behavior for first click when the window was unfocused. Now the window becomes focused and then emits a `MouseInput` event on a "first mouse click".
 
 # 0.24.0 (2020-12-09)
 
