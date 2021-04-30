@@ -19,17 +19,23 @@ use cocoa::{
 };
 use objc::runtime::YES;
 
+use objc::runtime::Object;
+
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
-    platform_impl::platform::{
-        event::{EventProxy, EventWrapper},
-        event_loop::{post_dummy_event, PanicInfo},
-        menu,
-        observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
-        util::{IdRef, Never},
-        window::get_window_id,
+    platform::macos::ActivationPolicy,
+    platform_impl::{
+        get_aux_state_mut,
+        platform::{
+            event::{EventProxy, EventWrapper},
+            event_loop::{post_dummy_event, PanicInfo},
+            menu,
+            observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
+            util::{IdRef, Never},
+            window::get_window_id,
+        },
     },
     window::WindowId,
 };
@@ -273,7 +279,8 @@ impl AppState {
         HANDLER.callback.lock().unwrap().take();
     }
 
-    pub fn launched() {
+    pub fn launched(app_delegate: &Object) {
+        apply_activation_policy(app_delegate);
         unsafe {
             let ns_app = NSApp();
             window_activation_hack(ns_app);
@@ -455,5 +462,20 @@ unsafe fn window_activation_hack(ns_app: id) {
         } else {
             trace!("Skipping activating invisible window");
         }
+    }
+}
+fn apply_activation_policy(app_delegate: &Object) {
+    unsafe {
+        use cocoa::appkit::NSApplicationActivationPolicy::*;
+        let ns_app = NSApp();
+        // We need to delay setting the activation policy and activating the app
+        // until `applicationDidFinishLaunching` has been called. Otherwise the
+        // menu bar won't be interactable.
+        let act_pol = get_aux_state_mut(app_delegate).activation_policy;
+        ns_app.setActivationPolicy_(match act_pol {
+            ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
+            ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
+            ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
+        });
     }
 }

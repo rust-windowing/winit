@@ -1,7 +1,4 @@
-use cocoa::appkit::{
-    NSApp, NSApplication, NSApplicationActivationPolicyRegular, NSEventModifierFlags, NSMenu,
-    NSMenuItem,
-};
+use cocoa::appkit::{NSApp, NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
 use cocoa::base::{nil, selector};
 use cocoa::foundation::{NSAutoreleasePool, NSProcessInfo, NSString};
 use objc::{
