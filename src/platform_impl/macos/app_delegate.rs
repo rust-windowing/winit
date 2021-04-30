@@ -17,6 +17,8 @@ pub struct AuxDelegateState {
     /// after the app has finished launching. If the activation policy is set earlier, the
     /// menubar is initially unresponsive on macOS 10.15 for example.
     pub activation_policy: ActivationPolicy,
+
+    pub create_default_menu: bool,
 }
 
 pub struct AppDelegateClass(pub *const Class);
@@ -56,6 +58,7 @@ extern "C" fn new(class: &Class, _: Sel) -> id {
             AUX_DELEGATE_STATE_NAME,
             Box::into_raw(Box::new(RefCell::new(AuxDelegateState {
                 activation_policy: ActivationPolicy::Regular,
+                create_default_menu: true,
             }))) as *mut c_void,
         );
         this
