@@ -469,7 +469,8 @@ fn apply_activation_policy(app_delegate: &Object) {
         use cocoa::appkit::NSApplicationActivationPolicy::*;
         let ns_app = NSApp();
         // We need to delay setting the activation policy and activating the app
-        // until we have the main menu all set up. Otherwise the menu won't be interactable.
+        // until `applicationDidFinishLaunching` has been called. Otherwise the
+        // menu bar won't be interactable.
         let act_pol = get_aux_state_mut(app_delegate).activation_policy;
         ns_app.setActivationPolicy_(match act_pol {
             ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
