@@ -476,6 +476,5 @@ fn apply_activation_policy(app_delegate: &Object) {
             ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
             ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
         });
-        let () = msg_send![ns_app, activateIgnoringOtherApps: YES];
     }
 }

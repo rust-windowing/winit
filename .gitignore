@@ -7,3 +7,4 @@ rls/
 *.ts
 *.js
 #*#
+.DS_Store

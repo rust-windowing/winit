@@ -337,12 +337,6 @@ impl UnownedWindow {
         trace!("Creating new window");
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
-
-        let ns_app = unsafe { NSApp() };
-        if ns_app == nil {
-            unsafe { pool.drain() };
-            return Err(os_error!(OsError::CreationError("`NSApp()` returned nil")));
-        }
         let ns_window = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
             unsafe { pool.drain() };
             os_error!(OsError::CreationError("Couldn't create `NSWindow`"))

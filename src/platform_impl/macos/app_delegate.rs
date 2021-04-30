@@ -13,9 +13,9 @@ use std::{
 static AUX_DELEGATE_STATE_NAME: &str = "auxState";
 
 pub struct AuxDelegateState {
-    /// We store this value in order to be able defer setting the activation policy until
+    /// We store this value in order to be able to defer setting the activation policy until
     /// after the app has finished launching. If the activation policy is set earlier, the
-    /// menubar is unresponsive for example.
+    /// menubar is initially unresponsive on macOS 10.15 for example.
     pub activation_policy: ActivationPolicy,
 }
 

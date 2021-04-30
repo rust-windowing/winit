@@ -180,8 +180,11 @@ impl WindowBuilderExtMacOS for WindowBuilder {
 }
 
 pub trait EventLoopExtMacOS {
-    /// Sets the activation policy for the application.
-    /// It is set to `NSApplicationActivationPolicyRegular` by default.
+    /// Sets the activation policy for the application. It is set to
+    /// `NSApplicationActivationPolicyRegular` by default.
+    ///
+    /// This function only takes effect if it's called before calling [`run`](crate::event_loop::EventLoop::run) or
+    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
     fn set_activation_policy(&mut self, activation_policy: ActivationPolicy);
 }
 impl<T> EventLoopExtMacOS for EventLoop<T> {
