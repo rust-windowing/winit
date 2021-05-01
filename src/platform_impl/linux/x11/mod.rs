@@ -590,6 +590,7 @@ impl<T> EventLoopWindowTarget<T> {
                 | ffi::XI_RawKeyPressMask
                 | ffi::XI_RawKeyReleaseMask;
         }
+        mask |= ffi::XI_KeyPressMask | ffi::XI_KeyReleaseMask;
 
         self.xconn
             .select_xinput_events(self.root, ffi::XIAllDevices, mask)
