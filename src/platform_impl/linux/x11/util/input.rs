@@ -81,12 +81,12 @@ impl XConnection {
         Flusher::new(self)
     }
 
-    #[allow(dead_code)]
     pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher<'_>> {
         let status = unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id, mask, mask) };
         if status == ffi::True {
             Some(Flusher::new(self))
         } else {
+            // This should only happen if the XKB extension isn't initialized.
             None
         }
     }

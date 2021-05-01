@@ -548,81 +548,6 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
 
-            ffi::KeyPress | ffi::KeyRelease => {
-                use crate::event::ElementState::{Pressed, Released};
-
-                // Note that in compose/pre-edit sequences, this will always be Released.
-                let state = if xev.get_type() == ffi::KeyPress {
-                    Pressed
-                } else {
-                    Released
-                };
-
-                let xkev: &mut ffi::XKeyEvent = xev.as_mut();
-
-                let window = xkev.window;
-                let window_id = mkwid(window);
-
-                // Standard virtual core keyboard ID. XInput2 needs to be used to get a reliable
-                // value, though this should only be an issue under multiseat configurations.
-                let device = util::VIRTUAL_CORE_KEYBOARD;
-                let device_id = mkdid(device);
-                let keycode = xkev.keycode;
-
-                // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
-                // a keycode of 0.
-                if keycode != 0 {
-                    let keycode = keycode - KEYCODE_OFFSET as u32;
-                    let mut ker = self.kb_state.process_key_event(keycode, state);
-                    let physical_key = ker.keycode();
-                    let (logical_key, location) = ker.key();
-                    let text = ker.text();
-                    let (key_without_modifiers, _) = ker.key_without_modifiers();
-                    let text_with_all_modifiers = ker.text_with_all_modifiers();
-
-                    update_modifiers!(
-                        ModifiersState::from_x11_mask(xkev.state),
-                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
-                    );
-
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::KeyboardInput {
-                            device_id,
-                            event: KeyEvent {
-                                physical_key,
-                                logical_key,
-                                text,
-                                location,
-                                state,
-                                repeat: false,
-                                platform_specific: KeyEventExtra {
-                                    key_without_modifiers,
-                                    text_with_all_modifiers,
-                                },
-                            },
-                            is_synthetic: false,
-                        },
-                    });
-                }
-
-                if state == Pressed {
-                    let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
-                        wt.xconn.lookup_utf8(ic, xkev)
-                    } else {
-                        return;
-                    };
-
-                    for chr in written.chars() {
-                        // let event = Event::WindowEvent {
-                        //     window_id,
-                        //     event: WindowEvent::ReceivedCharacter(chr),
-                        // };
-                        // callback(event);
-                    }
-                }
-            }
-
             ffi::GenericEvent => {
                 let guard = if let Some(e) = GenericEventCookie::from_event(&wt.xconn, *xev) {
                     e
@@ -1092,6 +1017,56 @@ impl<T: 'static> EventProcessor<T> {
                         }
                     }
 
+                    // The regular KeyPress event has a problem where if you press a dead key, a KeyPress
+                    // event won't be emitted. XInput 2 does not have this problem.
+                    ffi::XI_KeyPress | ffi::XI_KeyRelease => {
+                        if let Some(active_window) = self.active_window {
+                            let state = if xev.evtype == ffi::XI_KeyPress {
+                                Pressed
+                            } else {
+                                Released
+                            };
+
+                            let xkev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
+
+                            // We use `self.active_window` here as `xkev.event` has a completely different
+                            // value for some reason.
+                            let window_id = mkwid(active_window);
+
+                            let device_id = mkdid(xkev.deviceid);
+                            let keycode = xkev.detail as u32;
+
+                            let keycode = keycode - KEYCODE_OFFSET as u32;
+                            let mut ker = self.kb_state.process_key_event(keycode, state);
+                            let physical_key = ker.keycode();
+                            let (logical_key, location) = ker.key();
+                            let text = ker.text();
+                            let (key_without_modifiers, _) = ker.key_without_modifiers();
+                            let text_with_all_modifiers = ker.text_with_all_modifiers();
+                            let repeat = xkev.flags & ffi::XIKeyRepeat == ffi::XIKeyRepeat;
+
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::KeyboardInput {
+                                    device_id,
+                                    event: KeyEvent {
+                                        physical_key,
+                                        logical_key,
+                                        text,
+                                        location,
+                                        state,
+                                        repeat,
+                                        platform_specific: KeyEventExtra {
+                                            key_without_modifiers,
+                                            text_with_all_modifiers,
+                                        },
+                                    },
+                                    is_synthetic: false,
+                                },
+                            });
+                        }
+                    }
+
                     ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
 
@@ -1118,8 +1093,8 @@ impl<T: 'static> EventProcessor<T> {
                             }),
                         });
 
-                        // `ModifiersChanged` is dispatched here because we assume that every `KeyPress` is
-                        // preceeded by a `RawKeyPress`.
+                        // `ModifiersChanged` is dispatched here because we assume that every `XI_KeyPress`
+                        // is preceeded by a `XI_RawKeyPress`.
                         if let Some(modifier) =
                             self.mod_keymap.get_modifier(keycode as ffi::KeyCode)
                         {
@@ -1273,7 +1248,6 @@ impl<T: 'static> EventProcessor<T> {
         F: FnMut(Event<'_, T>),
     {
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-        let modifiers = device_mod_state.modifiers();
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
         for keycode in wt

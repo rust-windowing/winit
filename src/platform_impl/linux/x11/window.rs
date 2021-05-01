@@ -189,8 +189,6 @@ impl UnownedWindow {
             swa.event_mask = ffi::ExposureMask
                 | ffi::StructureNotifyMask
                 | ffi::VisibilityChangeMask
-                | ffi::KeyPressMask
-                | ffi::KeyReleaseMask
                 | ffi::KeymapStateMask
                 | ffi::ButtonPressMask
                 | ffi::ButtonReleaseMask

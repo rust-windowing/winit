@@ -671,7 +671,9 @@ impl Device {
                 | ffi::XI_RawButtonPressMask
                 | ffi::XI_RawButtonReleaseMask
                 | ffi::XI_RawKeyPressMask
-                | ffi::XI_RawKeyReleaseMask;
+                | ffi::XI_RawKeyReleaseMask
+                | ffi::XI_KeyPressMask
+                | ffi::XI_KeyReleaseMask;
             // The request buffer is flushed when we poll for events
             wt.xconn
                 .select_xinput_events(wt.root, info.deviceid, mask)
