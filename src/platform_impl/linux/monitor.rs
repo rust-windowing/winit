@@ -1,6 +1,6 @@
 use crate::{
-    dpi::{PhysicalSize, PhysicalPosition},
-    monitor::{ MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -57,4 +57,3 @@ impl VideoMode {
         todo!()
     }
 }
-

@@ -1,8 +1,4 @@
-#![cfg(any(
-    target_os = "windows",
-    target_os = "macos",
-    target_os = "android",
-))]
+#![cfg(any(target_os = "windows", target_os = "macos", target_os = "android",))]
 
 use crate::{
     event::Event,

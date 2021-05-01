@@ -5,5 +5,3 @@
     target_os = "netbsd",
     target_os = "openbsd"
 ))]
-
-

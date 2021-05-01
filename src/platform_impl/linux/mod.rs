@@ -10,9 +10,9 @@ mod event_loop;
 mod monitor;
 mod window;
 
-pub use window::{WindowId, Window, PlatformSpecificWindowBuilderAttributes, PlatformIcon};
 pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 pub use monitor::{MonitorHandle, VideoMode};
+pub use window::{PlatformIcon, PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 #[derive(Debug, Clone)]
 pub struct OsError;
