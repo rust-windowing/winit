@@ -559,6 +559,15 @@ impl Window {
     pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         todo!()
     }
+
+    pub fn skip_taskbar(&self) {
+        if let Err(e) = self
+            .window_requests_tx
+            .send((self.window_id, WindowRequest::SkipTaskbar))
+        {
+            log::warn!("Fail to send skip taskbar request: {}", e);
+        }
+    }
 }
 
 // We need GtkWindow to initialize WebView, so we have to keep it in the field.
