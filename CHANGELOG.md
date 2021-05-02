@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, fix a bug that caused an exception getting thrown during exit.
 - **Breaking:** On macOS, replace `WindowBuilderExtMacOS::with_activation_policy` with `EventLoopExtMacOS::set_activation_policy`
 - On macOS, wait with activating the application until the application has initialized.
 - On macOS, fix creating new windows when the application has a main menu.
