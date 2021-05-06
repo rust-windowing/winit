@@ -1155,14 +1155,14 @@ impl WindowExtMacOS for UnownedWindow {
     #[inline]
     fn focus(&self) {
         unsafe {
-            self.ns_window.makeKeyWindow();
+            util::make_key_window_async(*self.ns_window);
         }
     }
 
     #[inline]
     fn focus_and_front(&self) {
         unsafe {
-            self.ns_window.makeKeyAndOrderFront_(nil);
+            util::make_key_and_order_front_async(*self.ns_window);
         }
     }
 }

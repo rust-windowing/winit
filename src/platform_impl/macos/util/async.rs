@@ -194,6 +194,15 @@ pub unsafe fn make_key_and_order_front_async(ns_window: id) {
     });
 }
 
+// `makeKeyWindow:` isn't thread-safe. Calling it from another thread
+// actually works, but with an odd delay.
+pub unsafe fn make_key_window_async(ns_window: id) {
+    let ns_window = MainThreadSafe(ns_window);
+    Queue::main().exec_async(move || {
+        ns_window.makeKeyWindow();
+    });
+}
+
 // `setTitle:` isn't thread-safe. Calling it from another thread invalidates the
 // window drag regions, which throws an exception when not done in the main
 // thread
