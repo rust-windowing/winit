@@ -40,7 +40,7 @@ use crate::{
         dark_mode::try_theme,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
+        event_loop::{self, EventLoopWindowTarget, WindowData, DESTROY_MSG_ID},
         icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
@@ -73,7 +73,7 @@ impl Window {
         // done. you owe me -- ossi
         unsafe {
             let drag_and_drop = pl_attr.drag_and_drop;
-            init(w_attr, pl_attr, event_loop).map(|win| {
+            init(w_attr, pl_attr, event_loop).map(|(win, userdata)| {
                 let file_drop_handler = if drag_and_drop {
                     use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
 
@@ -111,15 +111,17 @@ impl Window {
                     None
                 };
 
-                let subclass_input = event_loop::SubclassInput {
+                event_loop.runner_shared.register_window(win.window.0);
+
+                let userdata = &mut *userdata;
+                *userdata = Some(event_loop::WindowData {
                     window_state: win.window_state.clone(),
                     event_loop_runner: event_loop.runner_shared.clone(),
                     file_drop_handler,
-                    subclass_removed: Cell::new(false),
+                    userdata_removed: Cell::new(false),
                     recurse_depth: Cell::new(0),
-                };
+                });
 
-                event_loop::subclass_window(win.window.0, subclass_input);
                 win
             })
         }
@@ -728,14 +730,14 @@ unsafe fn init<T: 'static>(
     attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
-) -> Result<Window, RootOsError> {
+) -> Result<(Window, *mut Option<WindowData<T>>), RootOsError> {
     let title = OsStr::new(&attributes.title)
         .encode_wide()
         .chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
     // registering the window class
-    let class_name = register_window_class(&attributes.window_icon, &pl_attribs.taskbar_icon);
+    let class_name = register_window_class::<T>(&attributes.window_icon, &pl_attribs.taskbar_icon);
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::DECORATIONS, attributes.decorations);
@@ -766,6 +768,8 @@ unsafe fn init<T: 'static>(
         }
     };
 
+    let userdata: *mut Option<WindowData<T>> = Box::into_raw(Box::new(None));
+
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
         let (style, ex_style) = window_flags.to_window_styles();
@@ -781,7 +785,7 @@ unsafe fn init<T: 'static>(
             parent.unwrap_or(ptr::null_mut()),
             pl_attribs.menu.unwrap_or(ptr::null_mut()),
             libloaderapi::GetModuleHandleW(ptr::null()),
-            ptr::null_mut(),
+            userdata.cast(),
         );
 
         if handle.is_null() {
@@ -862,10 +866,10 @@ unsafe fn init<T: 'static>(
         win.set_outer_position(position);
     }
 
-    Ok(win)
+    Ok((win, userdata))
 }
 
-unsafe fn register_window_class(
+unsafe fn register_window_class<T: 'static>(
     window_icon: &Option<Icon>,
     taskbar_icon: &Option<Icon>,
 ) -> Vec<u16> {
@@ -886,7 +890,7 @@ unsafe fn register_window_class(
     let class = winuser::WNDCLASSEXW {
         cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
         style: winuser::CS_HREDRAW | winuser::CS_VREDRAW | winuser::CS_OWNDC,
-        lpfnWndProc: Some(winuser::DefWindowProcW),
+        lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
