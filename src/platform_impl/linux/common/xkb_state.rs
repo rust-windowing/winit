@@ -30,6 +30,7 @@ pub(crate) struct KbState {
     xkb_state: *mut ffi::xkb_state,
     xkb_compose_table: *mut ffi::xkb_compose_table,
     xkb_compose_state: *mut ffi::xkb_compose_state,
+    xkb_compose_state_2: *mut ffi::xkb_compose_state,
     mods_state: ModifiersState,
     locked: bool,
     scratch_buffer: Vec<u8>,
@@ -174,27 +175,62 @@ impl KbState {
         Some(byte_slice_to_cached_string(&self.scratch_buffer))
     }
 
-    pub(crate) fn compose_feed(&mut self, keysym: u32) -> Option<ffi::xkb_compose_feed_result> {
-        if !self.ready() || self.xkb_compose_state.is_null() {
-            return None;
-        }
-        Some(unsafe { (XKBCH.xkb_compose_state_feed)(self.xkb_compose_state, keysym) })
+    fn compose_feed_normal(&mut self, keysym: u32) -> Option<ffi::xkb_compose_feed_result> {
+        self.compose_feed(self.xkb_compose_state, keysym)
     }
 
-    pub(crate) fn compose_status(&mut self) -> Option<ffi::xkb_compose_status> {
-        if !self.ready() || self.xkb_compose_state.is_null() {
-            return None;
-        }
-        Some(unsafe { (XKBCH.xkb_compose_state_get_status)(self.xkb_compose_state) })
+    fn compose_feed_2(&mut self, keysym: u32) -> Option<ffi::xkb_compose_feed_result> {
+        self.compose_feed(self.xkb_compose_state_2, keysym)
     }
 
-    pub(crate) fn compose_get_utf8(&mut self) -> Option<&'static str> {
+    fn compose_feed(
+        &mut self,
+        xkb_compose_state: *mut ffi::xkb_compose_state,
+        keysym: u32,
+    ) -> Option<ffi::xkb_compose_feed_result> {
         if !self.ready() || self.xkb_compose_state.is_null() {
             return None;
         }
-        let size = unsafe {
-            (XKBCH.xkb_compose_state_get_utf8)(self.xkb_compose_state, ptr::null_mut(), 0)
-        } + 1;
+        Some(unsafe { (XKBCH.xkb_compose_state_feed)(xkb_compose_state, keysym) })
+    }
+
+    fn compose_status_normal(&mut self) -> Option<ffi::xkb_compose_status> {
+        self.compose_status(self.xkb_compose_state)
+    }
+
+    #[allow(dead_code)]
+    fn compose_status_2(&mut self) -> Option<ffi::xkb_compose_status> {
+        self.compose_status(self.xkb_compose_state_2)
+    }
+
+    fn compose_status(
+        &mut self,
+        xkb_compose_state: *mut ffi::xkb_compose_state,
+    ) -> Option<ffi::xkb_compose_status> {
+        if !self.ready() || xkb_compose_state.is_null() {
+            return None;
+        }
+        Some(unsafe { (XKBCH.xkb_compose_state_get_status)(xkb_compose_state) })
+    }
+
+    fn compose_get_utf8_normal(&mut self) -> Option<&'static str> {
+        self.compose_get_utf8(self.xkb_compose_state)
+    }
+
+    fn compose_get_utf8_2(&mut self) -> Option<&'static str> {
+        self.compose_get_utf8(self.xkb_compose_state_2)
+    }
+
+    fn compose_get_utf8(
+        &mut self,
+        xkb_compose_state: *mut ffi::xkb_compose_state,
+    ) -> Option<&'static str> {
+        if !self.ready() || xkb_compose_state.is_null() {
+            return None;
+        }
+        let size =
+            unsafe { (XKBCH.xkb_compose_state_get_utf8)(xkb_compose_state, ptr::null_mut(), 0) }
+                + 1;
         if size <= 1 {
             return None;
         };
@@ -204,7 +240,7 @@ impl KbState {
         unsafe {
             self.scratch_buffer.set_len(size);
             (XKBCH.xkb_compose_state_get_utf8)(
-                self.xkb_compose_state,
+                xkb_compose_state,
                 self.scratch_buffer.as_mut_ptr() as *mut _,
                 size as usize,
             );
@@ -232,18 +268,19 @@ impl KbState {
             xkb_state: ptr::null_mut(),
             xkb_compose_table: ptr::null_mut(),
             xkb_compose_state: ptr::null_mut(),
+            xkb_compose_state_2: ptr::null_mut(),
             mods_state: ModifiersState::new(),
             locked: false,
             scratch_buffer: Vec::new(),
         };
 
-        unsafe {
-            me.init_compose();
-        }
+        unsafe { me.init_compose() };
 
         Ok(me)
     }
+}
 
+impl KbState {
     #[cfg(feature = "x11")]
     pub(crate) fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<KbState, Error> {
         let mut me = Self::new()?;
@@ -310,7 +347,7 @@ impl KbState {
         Ok(state)
     }
 
-    pub(crate) unsafe fn init_compose(&mut self) {
+    unsafe fn init_compose(&mut self) {
         let locale = env::var_os("LC_ALL")
             .and_then(|v| if v.is_empty() { None } else { Some(v) })
             .or_else(|| env::var_os("LC_CTYPE"))
@@ -336,7 +373,12 @@ impl KbState {
             ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
         );
 
-        if compose_state.is_null() {
+        let compose_state_2 = (XKBCH.xkb_compose_state_new)(
+            compose_table,
+            ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
+        );
+
+        if compose_state.is_null() || compose_state_2.is_null() {
             // init of compose state failed, continue without compose
             (XKBCH.xkb_compose_table_unref)(compose_table);
             return;
@@ -344,6 +386,7 @@ impl KbState {
 
         self.xkb_compose_table = compose_table;
         self.xkb_compose_state = compose_state;
+        self.xkb_compose_state_2 = compose_state_2;
     }
 
     pub(crate) unsafe fn post_init(&mut self, keymap: *mut ffi::xkb_keymap) {
@@ -396,7 +439,9 @@ impl KbState {
 
         Ok(())
     }
+}
 
+impl KbState {
     pub(crate) unsafe fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
         (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode + 8) == 1
     }
@@ -477,6 +522,7 @@ impl KbState {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 enum XkbCompose {
     Accepted(ffi::xkb_compose_status),
     Ignored,
@@ -495,10 +541,10 @@ impl<'a> KeyEventResults<'a> {
         let keysym = state.get_one_sym_raw(keycode);
 
         let compose = if compose {
-            Some(match state.compose_feed(keysym) {
+            Some(match state.compose_feed_normal(keysym) {
                 Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED) => {
                     // Unwrapping is safe here, as `compose_feed` returns `None` when composition is uninitialized.
-                    XkbCompose::Accepted(state.compose_status().unwrap())
+                    XkbCompose::Accepted(state.compose_status_normal().unwrap())
                 }
                 Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_IGNORED) => XkbCompose::Ignored,
                 None => XkbCompose::Uninitialized,
@@ -521,6 +567,34 @@ impl<'a> KeyEventResults<'a> {
 
     pub fn key(&mut self) -> (Key<'static>, KeyLocation) {
         self.keysym_to_key(self.keysym)
+            .unwrap_or_else(|(key, location)| match self.compose {
+                Some(XkbCompose::Accepted(ffi::xkb_compose_status::XKB_COMPOSE_COMPOSING)) => {
+                    // When pressing a dead key twice, the non-combining variant of that character will be
+                    // produced. Since this function only concerns itself with a single keypress, we simulate
+                    // this double press here by feeding the keysym to the compose state twice.
+                    self.state.compose_feed_2(self.keysym);
+                    match self.state.compose_feed_2(self.keysym) {
+                        Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED) => (
+                            // Extracting only a single `char` here *should* be fine, assuming that no dead
+                            // key's non-combining variant ever occupies more than one `char`.
+                            Key::Dead(
+                                self.state
+                                    .compose_get_utf8_2()
+                                    .map(|s| s.chars().nth(0).unwrap()),
+                            ),
+                            location,
+                        ),
+                        _ => (key, location),
+                    }
+                }
+                _ => (
+                    self.composed_text()
+                        .unwrap_or_else(|_| self.state.keysym_to_utf8_raw(self.keysym))
+                        .map(Key::Character)
+                        .unwrap_or(key),
+                    location,
+                ),
+            })
     }
 
     pub fn key_without_modifiers(&mut self) -> (Key<'static>, KeyLocation) {
@@ -541,45 +615,57 @@ impl<'a> KeyEventResults<'a> {
             0
         };
         self.keysym_to_key(keysym)
+            .unwrap_or_else(|(key, location)| {
+                (
+                    self.state
+                        .keysym_to_utf8_raw(keysym)
+                        .map(Key::Character)
+                        .unwrap_or(key),
+                    location,
+                )
+            })
     }
 
-    fn keysym_to_key(&mut self, keysym: u32) -> (Key<'static>, KeyLocation) {
+    fn keysym_to_key(
+        &mut self,
+        keysym: u32,
+    ) -> Result<(Key<'static>, KeyLocation), (Key<'static>, KeyLocation)> {
         let location = super::keymap::keysym_location(keysym);
-        let mut key = super::keymap::keysym_to_key(keysym);
+        let key = super::keymap::keysym_to_key(keysym);
         if matches!(key, Key::Unidentified(_)) {
-            if let Some(string) = self.state.keysym_to_utf8_raw(keysym) {
-                key = Key::Character(string);
-            }
+            Err((key, location))
+        } else {
+            Ok((key, location))
         }
-        (key, location)
     }
 
     pub fn text(&mut self) -> Option<&'static str> {
-        self._text(|this| this.state.keysym_to_utf8_raw(this.keysym))
+        self.composed_text()
+            .unwrap_or_else(|_| self.state.keysym_to_utf8_raw(self.keysym))
     }
 
     pub fn text_with_all_modifiers(&mut self) -> Option<&'static str> {
         // TODO: Should Ctrl override any attempts to compose text?
         //       gnome-terminal agrees, but konsole disagrees.
         //       Should it be configurable instead?
-        self._text(|this| this.state.get_utf8_raw(this.keycode))
+        self.composed_text()
+            .unwrap_or_else(|_| self.state.get_utf8_raw(self.keycode))
     }
 
-    fn _text<F>(&mut self, fallback: F) -> Option<&'static str>
-    where
-        F: FnOnce(&mut Self) -> Option<&'static str>,
-    {
+    fn composed_text(&mut self) -> Result<Option<&'static str>, ()> {
         if let Some(compose) = &self.compose {
             match compose {
                 XkbCompose::Accepted(status) => match status {
-                    ffi::xkb_compose_status::XKB_COMPOSE_COMPOSED => self.state.compose_get_utf8(),
-                    ffi::xkb_compose_status::XKB_COMPOSE_NOTHING => fallback(self),
-                    _ => None,
+                    ffi::xkb_compose_status::XKB_COMPOSE_COMPOSED => {
+                        Ok(self.state.compose_get_utf8_normal())
+                    }
+                    ffi::xkb_compose_status::XKB_COMPOSE_NOTHING => Err(()),
+                    _ => Ok(None),
                 },
-                XkbCompose::Ignored | XkbCompose::Uninitialized => fallback(self),
+                XkbCompose::Ignored | XkbCompose::Uninitialized => Err(()),
             }
         } else {
-            fallback(self)
+            Err(())
         }
     }
 }
