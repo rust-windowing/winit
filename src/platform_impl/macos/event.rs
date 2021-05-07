@@ -11,13 +11,12 @@ use core_foundation::{base::CFRelease, data::CFDataGetBytePtr};
 
 use crate::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, KeyEvent},
     keyboard::{Key, KeyCode, KeyLocation, ModifiersState, NativeKeyCode},
     platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
     platform_impl::platform::{
         ffi,
         util::{ns_string_to_rust, IdRef, Never},
-        DEVICE_ID,
     },
 };
 
@@ -344,55 +343,59 @@ pub fn get_scancode(event: cocoa::base::id) -> c_ushort {
     unsafe { msg_send![event, keyCode] }
 }
 
-pub unsafe fn modifier_event(
-    ns_event: id,
-    keymask: NSEventModifierFlags,
-    was_key_pressed: bool,
-) -> Option<WindowEvent<'static>> {
-    let is_pressed = NSEvent::modifierFlags(ns_event).contains(keymask);
-    if was_key_pressed != is_pressed {
-        let scancode = get_scancode(ns_event);
-        let mut key = KeyCode::from_scancode(scancode as u32);
+// pub unsafe fn modifier_event(
+//     event: &KeyEvent,
+//     keymask: NSEventModifierFlags,
+//     was_key_pressed: bool,
+// ) -> Option<WindowEvent<'static>> {
+//     let is_pressed = NSEvent::modifierFlags(ns_event).contains(keymask);
+//     if was_key_pressed != is_pressed {
+//         let scancode = get_scancode(ns_event);
+//         let mut key = KeyCode::from_scancode(scancode as u32);
 
-        // When switching keyboard layout using Ctrl+Space, the Ctrl release event
-        // has `KeyA` as its keycode which would produce an incorrect key event.
-        // To avoid this, we detect this scenario and override the key with one
-        // that should be reasonable
-        if key == KeyCode::KeyA {
-            key = match keymask {
-                NSEventModifierFlags::NSAlternateKeyMask => KeyCode::AltLeft,
-                NSEventModifierFlags::NSCommandKeyMask => KeyCode::SuperLeft,
-                NSEventModifierFlags::NSControlKeyMask => KeyCode::ControlLeft,
-                NSEventModifierFlags::NSShiftKeyMask => KeyCode::ShiftLeft,
-                NSEventModifierFlags::NSFunctionKeyMask => KeyCode::Fn,
-                NSEventModifierFlags::NSNumericPadKeyMask => KeyCode::NumLock,
-                _ => {
-                    error!("Unknown keymask hit. This indicates a developer error.");
-                    KeyCode::Unidentified(NativeKeyCode::Unidentified)
-                }
-            };
-        }
+//         // When switching keyboard layout using Ctrl+Space, the Ctrl release event
+//         // has `KeyA` as its keycode which would produce an incorrect key event.
+//         // To avoid this, we detect this scenario and override the key with one
+//         // that should be reasonable
+//         if key == KeyCode::KeyA {
+//             key = match keymask {
+//                 NSEventModifierFlags::NSAlternateKeyMask => KeyCode::AltLeft,
+//                 NSEventModifierFlags::NSCommandKeyMask => KeyCode::SuperLeft,
+//                 NSEventModifierFlags::NSControlKeyMask => KeyCode::ControlLeft,
+//                 NSEventModifierFlags::NSShiftKeyMask => KeyCode::ShiftLeft,
+//                 NSEventModifierFlags::NSFunctionKeyMask => KeyCode::Fn,
+//                 NSEventModifierFlags::NSNumericPadKeyMask => KeyCode::NumLock,
+//                 _ => {
+//                     error!("Unknown keymask hit. This indicates a developer error.");
+//                     KeyCode::Unidentified(NativeKeyCode::Unidentified)
+//                 }
+//             };
+//         }
 
-        Some(WindowEvent::KeyboardInput {
-            device_id: DEVICE_ID,
-            event: create_key_event(ns_event, is_pressed, false, false, Some(key)),
-            is_synthetic: false,
-        })
+//         let mut event = event.clone();
+//         event.state = if is_pressed { ElementState::Pressed } else { ElementState::Released };
+//         event.physical_key = key;
+//         println!("DEBUG in modifier_event. key was: {:?}, keymask: {:?}", event.physical_key, keymask);
+//         Some(WindowEvent::KeyboardInput {
+//             device_id: DEVICE_ID,
+//             event,
+//             is_synthetic: false,
+//         })
 
-    // let scancode = get_scancode(ns_event);
-    // let virtual_keycode = scancode_to_keycode(scancode);
-    // #[allow(deprecated)]
-    // Some(WindowEvent::KeyboardInput {
-    //     device_id: DEVICE_ID,
-    //     input: KeyboardInput {
-    //         state,
-    //         scancode: scancode as _,
-    //         virtual_keycode,
-    //         modifiers: event_mods(ns_event),
-    //     },
-    //     is_synthetic: false,
-    // })
-    } else {
-        None
-    }
-}
+//     // let scancode = get_scancode(ns_event);
+//     // let virtual_keycode = scancode_to_keycode(scancode);
+//     // #[allow(deprecated)]
+//     // Some(WindowEvent::KeyboardInput {
+//     //     device_id: DEVICE_ID,
+//     //     input: KeyboardInput {
+//     //         state,
+//     //         scancode: scancode as _,
+//     //         virtual_keycode,
+//     //         modifiers: event_mods(ns_event),
+//     //     },
+//     //     is_synthetic: false,
+//     // })
+//     } else {
+//         None
+//     }
+// }

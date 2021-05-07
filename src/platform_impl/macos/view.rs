@@ -1,6 +1,6 @@
 use std::{
     boxed::Box,
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     os::raw::*,
     slice, str,
     sync::{Arc, Mutex, Weak},
@@ -25,7 +25,7 @@ use crate::{
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         app_state::AppState,
-        event::{create_key_event, event_mods, modifier_event, EventWrapper},
+        event::{create_key_event, event_mods, get_scancode, EventWrapper},
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
@@ -64,6 +64,7 @@ pub(super) struct ViewState {
     raw_characters: Option<String>,
     is_key_down: bool,
     pub(super) modifiers: ModifiersState,
+    phys_modifiers: HashSet<KeyCode>,
     tracking_rect: Option<NSInteger>,
 }
 
@@ -85,6 +86,7 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         raw_characters: None,
         is_key_down: false,
         modifiers: Default::default(),
+        phys_modifiers: Default::default(),
         tracking_rect: None,
     };
     unsafe {
@@ -709,6 +711,7 @@ extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
         // if the event corresponds to an IME event.
         let in_ime = state.key_triggered_ime;
         let key_event = create_key_event(event, true, is_repeat, in_ime, None);
+        println!("DEBUG in key_down. key was: {:?}", key_event.physical_key);
         let is_arrow_key = is_arrow_key(key_event.physical_key);
         if pass_along {
             // The `interpretKeyEvents` above, may invoke `set_marked_text` or `insert_text`,
@@ -760,49 +763,82 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
     trace!("Completed `keyUp`");
 }
 
-extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
+extern "C" fn flags_changed(this: &Object, _sel: Sel, ns_event: id) {
+    use KeyCode::{
+        AltLeft, AltRight, ControlLeft, ControlRight, ShiftLeft, ShiftRight, SuperLeft, SuperRight,
+    };
+
     trace!("Triggered `flagsChanged`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
+        let scancode = get_scancode(ns_event);
+
+        // We'll correct the `is_press` and the `key_override` below.
+        let event = create_key_event(ns_event, false, false, false, Some(KeyCode::SuperLeft));
         let mut events = VecDeque::with_capacity(4);
 
-        if let Some(window_event) = modifier_event(
-            event,
-            NSEventModifierFlags::NSShiftKeyMask,
-            state.modifiers.shift_key(),
-        ) {
-            state.modifiers.toggle(ModifiersState::SHIFT);
-            events.push_back(window_event);
+        macro_rules! proc_ev {
+            ($winit_flag:expr, $ns_flag:expr, $target_key:expr) => {
+                let ns_event_contains_keymask = NSEvent::modifierFlags(ns_event).contains($ns_flag);
+                let mut actual_key = KeyCode::from_scancode(scancode as u32);
+                let was_pressed = state.phys_modifiers.contains(&actual_key);
+                let mut is_pressed = ns_event_contains_keymask;
+                let matching_keys;
+                if actual_key == KeyCode::KeyA {
+                    // When switching keyboard layout using Ctrl+Space, the Ctrl release event
+                    // has `KeyA` as its keycode which would produce an incorrect key event.
+                    // To avoid this, we detect this scenario and override the key with one
+                    // that should be reasonable
+                    actual_key = $target_key;
+                    matching_keys = true;
+                } else {
+                    matching_keys = actual_key == $target_key;
+                    if matching_keys && is_pressed && was_pressed {
+                        // If we received a modifier flags changed event AND the key that triggered
+                        // it was already pressed then this must mean that this event indicates the
+                        // release of that key.
+                        is_pressed = false;
+                    }
+                }
+                if matching_keys {
+                    if is_pressed != was_pressed {
+                        let mut event = event.clone();
+                        event.state = if is_pressed {
+                            ElementState::Pressed
+                        } else {
+                            ElementState::Released
+                        };
+                        event.physical_key = actual_key;
+                        events.push_back(WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            event,
+                            is_synthetic: false,
+                        });
+                        if is_pressed {
+                            state.modifiers.insert($winit_flag);
+                            state.phys_modifiers.insert($target_key);
+                        } else {
+                            state.modifiers.remove($winit_flag);
+                            state.phys_modifiers.remove(&$target_key);
+                        }
+                    }
+                }
+            };
         }
 
-        if let Some(window_event) = modifier_event(
-            event,
-            NSEventModifierFlags::NSControlKeyMask,
-            state.modifiers.control_key(),
-        ) {
-            state.modifiers.toggle(ModifiersState::CONTROL);
-            events.push_back(window_event);
-        }
+        proc_ev!(ModifiersState::SHIFT, NSEventModifierFlags::NSShiftKeyMask, ShiftLeft);
+        proc_ev!(ModifiersState::SHIFT, NSEventModifierFlags::NSShiftKeyMask, ShiftRight);
 
-        if let Some(window_event) = modifier_event(
-            event,
-            NSEventModifierFlags::NSCommandKeyMask,
-            state.modifiers.super_key(),
-        ) {
-            state.modifiers.toggle(ModifiersState::SUPER);
-            events.push_back(window_event);
-        }
+        proc_ev!(ModifiersState::CONTROL,NSEventModifierFlags::NSControlKeyMask,ControlLeft);
+        proc_ev!(ModifiersState::CONTROL,NSEventModifierFlags::NSControlKeyMask,ControlRight);
 
-        if let Some(window_event) = modifier_event(
-            event,
-            NSEventModifierFlags::NSAlternateKeyMask,
-            state.modifiers.alt_key(),
-        ) {
-            state.modifiers.toggle(ModifiersState::ALT);
-            events.push_back(window_event);
-        }
+        proc_ev!(ModifiersState::ALT,NSEventModifierFlags::NSAlternateKeyMask,AltLeft);
+        proc_ev!(ModifiersState::ALT,NSEventModifierFlags::NSAlternateKeyMask,AltRight);
+
+        proc_ev!(ModifiersState::SUPER,NSEventModifierFlags::NSCommandKeyMask,SuperLeft);
+        proc_ev!(ModifiersState::SUPER,NSEventModifierFlags::NSCommandKeyMask,SuperRight);
 
         let window_id = WindowId(get_window_id(state.ns_window));
 
