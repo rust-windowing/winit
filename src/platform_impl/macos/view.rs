@@ -779,7 +779,7 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, ns_event: id) {
         let event = create_key_event(ns_event, false, false, false, Some(KeyCode::SuperLeft));
         let mut events = VecDeque::with_capacity(4);
 
-        macro_rules! proc_ev {
+        macro_rules! process_event {
             ($winit_flag:expr, $ns_flag:expr, $target_key:expr) => {
                 let ns_event_contains_keymask = NSEvent::modifierFlags(ns_event).contains($ns_flag);
                 let mut actual_key = KeyCode::from_scancode(scancode as u32);
@@ -827,18 +827,46 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, ns_event: id) {
                 }
             };
         }
-
-        proc_ev!(ModifiersState::SHIFT, NSEventModifierFlags::NSShiftKeyMask, ShiftLeft);
-        proc_ev!(ModifiersState::SHIFT, NSEventModifierFlags::NSShiftKeyMask, ShiftRight);
-
-        proc_ev!(ModifiersState::CONTROL,NSEventModifierFlags::NSControlKeyMask,ControlLeft);
-        proc_ev!(ModifiersState::CONTROL,NSEventModifierFlags::NSControlKeyMask,ControlRight);
-
-        proc_ev!(ModifiersState::ALT,NSEventModifierFlags::NSAlternateKeyMask,AltLeft);
-        proc_ev!(ModifiersState::ALT,NSEventModifierFlags::NSAlternateKeyMask,AltRight);
-
-        proc_ev!(ModifiersState::SUPER,NSEventModifierFlags::NSCommandKeyMask,SuperLeft);
-        proc_ev!(ModifiersState::SUPER,NSEventModifierFlags::NSCommandKeyMask,SuperRight);
+        process_event!(
+            ModifiersState::SHIFT,
+            NSEventModifierFlags::NSShiftKeyMask,
+            ShiftLeft
+        );
+        process_event!(
+            ModifiersState::SHIFT,
+            NSEventModifierFlags::NSShiftKeyMask,
+            ShiftRight
+        );
+        process_event!(
+            ModifiersState::CONTROL,
+            NSEventModifierFlags::NSControlKeyMask,
+            ControlLeft
+        );
+        process_event!(
+            ModifiersState::CONTROL,
+            NSEventModifierFlags::NSControlKeyMask,
+            ControlRight
+        );
+        process_event!(
+            ModifiersState::ALT,
+            NSEventModifierFlags::NSAlternateKeyMask,
+            AltLeft
+        );
+        process_event!(
+            ModifiersState::ALT,
+            NSEventModifierFlags::NSAlternateKeyMask,
+            AltRight
+        );
+        process_event!(
+            ModifiersState::SUPER,
+            NSEventModifierFlags::NSCommandKeyMask,
+            SuperLeft
+        );
+        process_event!(
+            ModifiersState::SUPER,
+            NSEventModifierFlags::NSCommandKeyMask,
+            SuperRight
+        );
 
         let window_id = WindowId(get_window_id(state.ns_window));
 
