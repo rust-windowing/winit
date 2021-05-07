@@ -711,7 +711,6 @@ extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
         // if the event corresponds to an IME event.
         let in_ime = state.key_triggered_ime;
         let key_event = create_key_event(event, true, is_repeat, in_ime, None);
-        println!("DEBUG in key_down. key was: {:?}", key_event.physical_key);
         let is_arrow_key = is_arrow_key(key_event.physical_key);
         if pass_along {
             // The `interpretKeyEvents` above, may invoke `set_marked_text` or `insert_text`,
