@@ -1,14 +1,12 @@
-
 #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 use winit::{
     dpi::LogicalSize,
     event::{ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{Key, ModifiersState},
-    window::WindowBuilder,
-
     // WARNING: This is not available on all platforms (for example on the web).
-    platform::modifier_supplement::KeyEventExtModifierSupplement
+    platform::modifier_supplement::KeyEventExtModifierSupplement,
+    window::WindowBuilder,
 };
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
