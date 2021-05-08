@@ -816,11 +816,14 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, ns_event: id) {
                             is_synthetic: false,
                         });
                         if is_pressed {
-                            state.modifiers.insert($winit_flag);
                             state.phys_modifiers.insert($target_key);
                         } else {
-                            state.modifiers.remove($winit_flag);
                             state.phys_modifiers.remove(&$target_key);
+                        }
+                        if ns_event_contains_keymask {
+                            state.modifiers.insert($winit_flag);
+                        } else {
+                            state.modifiers.remove($winit_flag);
                         }
                     }
                 }
