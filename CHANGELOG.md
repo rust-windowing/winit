@@ -1,5 +1,7 @@
 # Unreleased
 
+- **Breaking:** On macOS, replace `WindowBuilderExtMacOS::with_activation_policy` with `EventLoopExtMacOS::set_activation_policy`
+- On macOS, wait with activating the application until the application has initialized.
 - On macOS, fix creating new windows when the application has a main menu.
 - On Windows, fix fractional deltas for mouse wheel device events.
 - On macOS, fix segmentation fault after dropping the main window.
@@ -20,7 +22,12 @@
 - Added `WindowBuilder::with_position` to allow setting the position of a `Window` on creation. Supported on Windows, macOS and X11.
 - Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
 - On X11, bump `mio` to 0.7.
+- On Windows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
+- On Windows, added `WindowExtWindows::set_enable` to allow creating modal popup windows.
 - On macOS, emit `RedrawRequested` events immediately while the window is being resized.
+- Implement `Default`, `Hash`, and `Eq` for `LogicalPosition`, `PhysicalPosition`, `LogicalSize`, and `PhysicalSize`.
+- On macOS, initialize the Menu Bar with minimal defaults. (Can be prevented using `enable_default_menu_creation`)
+- On macOS, change the default behavior for first click when the window was unfocused. Now the window becomes focused and then emits a `MouseInput` event on a "first mouse click".
 
 # 0.24.0 (2020-12-09)
 
@@ -59,7 +66,7 @@
 - On X11, fix deadlock when calling `set_fullscreen_inner`.
 - On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
 - On Web, calling `window.set_cursor_icon` no longer breaks HiDPI scaling
-- On Windows, drag and drop is now optional and must be enabled with `WindowBuilderExtWindows::with_drag_and_drop(true)`.
+- On Windows, drag and drop is now optional (enabled by default) and can be disabled with `WindowBuilderExtWindows::with_drag_and_drop(false)`.
 - On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
 - On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
 - On android added support for `run_return`.
@@ -132,7 +139,6 @@
 - On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
 - On Web, fix a possible panic during event handling
 - On macOS, fix `EventLoopProxy` leaking memory for every instance.
-- On Windows, drag and drop can now be disabled with `WindowBuilderExtWindows::with_drag_and_drop(false)`.
 
 # 0.22.0 (2020-03-09)
 

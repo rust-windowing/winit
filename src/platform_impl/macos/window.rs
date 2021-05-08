@@ -16,7 +16,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform::macos::{ActivationPolicy, WindowExtMacOS},
+    platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
@@ -34,9 +34,8 @@ use crate::{
 };
 use cocoa::{
     appkit::{
-        self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
-        NSApplicationPresentationOptions, NSColor, NSRequestUserAttentionType, NSScreen, NSView,
-        NSWindow, NSWindowButton, NSWindowStyleMask,
+        self, CGFloat, NSApp, NSApplication, NSApplicationPresentationOptions, NSColor,
+        NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
@@ -64,7 +63,6 @@ pub fn get_window_id(window_cocoa_id: id) -> Id {
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
     pub title_hidden: bool,
@@ -80,7 +78,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     #[inline]
     fn default() -> Self {
         Self {
-            activation_policy: Default::default(),
             movable_by_window_background: false,
             titlebar_transparent: false,
             title_hidden: false,
@@ -90,24 +87,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
-        }
-    }
-}
-
-fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
-    unsafe {
-        let ns_app = NSApp();
-        if ns_app == nil {
-            None
-        } else {
-            // TODO: Move ActivationPolicy from an attribute on the window to something on the EventLoop
-            use self::NSApplicationActivationPolicy::*;
-            ns_app.setActivationPolicy_(match activation_policy {
-                ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
-                ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
-                ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
-            });
-            Some(ns_app)
         }
     }
 }
@@ -131,8 +110,6 @@ unsafe fn create_view(
             ns_view.setWantsLayer(YES);
         }
 
-        ns_window.setContentView_(*ns_view);
-        ns_window.makeFirstResponder_(*ns_view);
         (ns_view, cursor_state)
     })
 }
@@ -360,12 +337,6 @@ impl UnownedWindow {
         trace!("Creating new window");
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
-
-        let ns_app = create_app(pl_attribs.activation_policy).ok_or_else(|| {
-            unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSApplication`"))
-        })?;
-
         let ns_window = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
             unsafe { pool.drain() };
             os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
@@ -377,6 +348,12 @@ impl UnownedWindow {
                 os_error!(OsError::CreationError("Couldn't create `NSView`"))
             })?;
 
+        // Configure the new view as the "key view" for the window
+        unsafe {
+            ns_window.setContentView_(*ns_view);
+            ns_window.setInitialFirstResponder_(*ns_view);
+        }
+
         let input_context = unsafe { util::create_input_context(*ns_view) };
 
         let scale_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
@@ -387,7 +364,6 @@ impl UnownedWindow {
                 ns_window.setBackgroundColor_(NSColor::clearColor(nil));
             }
 
-            ns_app.activateIgnoringOtherApps_(YES);
             win_attribs.min_inner_size.map(|dim| {
                 let logical_dim = dim.to_logical(scale_factor);
                 set_min_inner_size(*ns_window, logical_dim)
@@ -437,12 +413,9 @@ impl UnownedWindow {
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
-        unsafe {
-            if visible {
-                window.ns_window.makeKeyAndOrderFront_(nil);
-            } else {
-                window.ns_window.makeKeyWindow();
-            }
+        if visible {
+            // Tightly linked with `app_state::window_activation_hack`
+            unsafe { window.ns_window.makeKeyAndOrderFront_(nil) };
         }
 
         if maximized {

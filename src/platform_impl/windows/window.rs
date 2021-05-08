@@ -45,7 +45,7 @@ use crate::{
         icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        PlatformSpecificWindowBuilderAttributes, WindowId,
+        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
@@ -754,12 +754,24 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
-    window_flags.set(WindowFlags::CHILD, pl_attribs.parent.is_some());
-    window_flags.set(WindowFlags::ON_TASKBAR, true);
 
-    if pl_attribs.parent.is_some() && pl_attribs.menu.is_some() {
-        warn!("Setting a menu on windows that have a parent is unsupported");
-    }
+    let parent = match pl_attribs.parent {
+        Parent::ChildOf(parent) => {
+            window_flags.set(WindowFlags::CHILD, true);
+            if pl_attribs.menu.is_some() {
+                warn!("Setting a menu on a child window is unsupported");
+            }
+            Some(parent)
+        }
+        Parent::OwnedBy(parent) => {
+            window_flags.set(WindowFlags::POPUP, true);
+            Some(parent)
+        }
+        Parent::None => {
+            window_flags.set(WindowFlags::ON_TASKBAR, true);
+            None
+        }
+    };
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
@@ -773,7 +785,7 @@ unsafe fn init<T: 'static>(
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
-            pl_attribs.parent.unwrap_or(ptr::null_mut()),
+            parent.unwrap_or(ptr::null_mut()),
             pl_attribs.menu.unwrap_or(ptr::null_mut()),
             libloaderapi::GetModuleHandleW(ptr::null()),
             ptr::null_mut(),
