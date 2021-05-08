@@ -414,7 +414,7 @@ impl Window {
     /// follow-up text input won't be affected by the dead key.
     ///
     /// ## Platform-specific
-    /// - **Web:** Does nothing
+    /// - **Web, macOS:** Does nothing
     // ---------------------------
     // Developers' Note: If this cannot be implemented on every desktop platform
     // at least, then this function should be provided through a platform specific

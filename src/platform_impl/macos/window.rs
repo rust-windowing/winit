@@ -1039,7 +1039,7 @@ impl UnownedWindow {
     }
 
     pub fn reset_dead_keys(&self) {
-        todo!()
+        // (Artur) I couldn't find a way to implement this.
     }
 }
 
