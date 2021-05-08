@@ -1,19 +1,24 @@
-use simple_logger::SimpleLogger;
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
 use winit::{
     dpi::LogicalSize,
-    event::{ElementState, Event, KeyEvent, WindowEvent},
+    event::{ElementState, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::{Key, ModifiersState},
     window::WindowBuilder,
+
+    // WARNING: This is not available on all platforms (for example on the web).
+    platform::modifier_supplement::KeyEventExtModifierSupplement
 };
 
-/////////////////////////////////////////////////////////////////////////////
-// WARNING: This is not available on all platforms (for example on the web).
-use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-/////////////////////////////////////////////////////////////////////////////
-
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 fn main() {
-    SimpleLogger::new().init().unwrap();
+    println!("This example is not supported on this platform");
+}
+
+#[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+fn main() {
+    simple_logger::SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()
@@ -33,26 +38,22 @@ fn main() {
                     modifiers = new_state;
                 }
                 WindowEvent::KeyboardInput { event, .. } => {
-                    handle_key_event(modifiers, event);
+                    if event.state == ElementState::Pressed && !event.repeat {
+                        match event.key_without_modifiers() {
+                            Key::Character("1") => {
+                                if modifiers.shift_key() {
+                                    println!("Shift + 1 | logical_key: {:?}", event.logical_key);
+                                } else {
+                                    println!("1");
+                                }
+                            }
+                            _ => (),
+                        }
+                    }
                 }
                 _ => (),
             },
             _ => (),
         };
     });
-}
-
-fn handle_key_event(modifiers: ModifiersState, event: KeyEvent) {
-    if event.state == ElementState::Pressed && !event.repeat {
-        match event.key_without_modifiers() {
-            Key::Character("1") => {
-                if modifiers.shift_key() {
-                    println!("Shift + 1 | logical_key: {:?}", event.logical_key);
-                } else {
-                    println!("1");
-                }
-            }
-            _ => (),
-        }
-    }
 }
