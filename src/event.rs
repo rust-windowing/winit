@@ -637,7 +637,6 @@ pub struct KeyEvent {
 
     // Allowing `broken_intra_doc_links` for `logical_key`, because
     // `key_without_modifiers` is not available on all platforms
-    // #[allow(broken_intra_doc_links)]
     #[cfg_attr(
         any(target_os = "ios", target_os = "android", target_arch = "wasm32"),
         allow(broken_intra_doc_links)
