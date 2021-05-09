@@ -15,8 +15,8 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{HINSTANCE, UINT},
-        windef::{HWND, POINT, RECT},
+        minwindef::{HINSTANCE, LPARAM, UINT, WPARAM},
+        windef::{HWND, POINT, POINTS, RECT},
     },
     um::{
         combaseapi, dwmapi,
@@ -27,7 +27,7 @@ use winapi::{
         oleidl::LPDROPTARGET,
         shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
         wingdi::{CreateRectRgn, DeleteObject},
-        winnt::LPCWSTR,
+        winnt::{LPCWSTR, SHORT},
         winuser,
     },
 };
@@ -45,7 +45,7 @@ use crate::{
         icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        PlatformSpecificWindowBuilderAttributes, WindowId,
+        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
     window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
@@ -355,6 +355,30 @@ impl Window {
                 return Err(ExternalError::Os(os_error!(io::Error::last_os_error())));
             }
         }
+        Ok(())
+    }
+
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            let points = {
+                let mut pos = mem::zeroed();
+                winuser::GetCursorPos(&mut pos);
+                pos
+            };
+            let points = POINTS {
+                x: points.x as SHORT,
+                y: points.y as SHORT,
+            };
+            winuser::ReleaseCapture();
+            winuser::PostMessageW(
+                self.window.0,
+                winuser::WM_NCLBUTTONDOWN,
+                winuser::HTCAPTION as WPARAM,
+                &points as *const _ as LPARAM,
+            );
+        }
+
         Ok(())
     }
 
@@ -730,12 +754,24 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
-    window_flags.set(WindowFlags::CHILD, pl_attribs.parent.is_some());
-    window_flags.set(WindowFlags::ON_TASKBAR, true);
 
-    if pl_attribs.parent.is_some() && pl_attribs.menu.is_some() {
-        warn!("Setting a menu on windows that have a parent is unsupported");
-    }
+    let parent = match pl_attribs.parent {
+        Parent::ChildOf(parent) => {
+            window_flags.set(WindowFlags::CHILD, true);
+            if pl_attribs.menu.is_some() {
+                warn!("Setting a menu on a child window is unsupported");
+            }
+            Some(parent)
+        }
+        Parent::OwnedBy(parent) => {
+            window_flags.set(WindowFlags::POPUP, true);
+            Some(parent)
+        }
+        Parent::None => {
+            window_flags.set(WindowFlags::ON_TASKBAR, true);
+            None
+        }
+    };
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
@@ -749,7 +785,7 @@ unsafe fn init<T: 'static>(
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
-            pl_attribs.parent.unwrap_or(ptr::null_mut()),
+            parent.unwrap_or(ptr::null_mut()),
             pl_attribs.menu.unwrap_or(ptr::null_mut()),
             libloaderapi::GetModuleHandleW(ptr::null()),
             ptr::null_mut(),
@@ -827,6 +863,10 @@ unsafe fn init<T: 'static>(
     if let Some(_) = attributes.fullscreen {
         win.set_fullscreen(attributes.fullscreen);
         force_window_active(win.window.0);
+    }
+
+    if let Some(position) = attributes.position {
+        win.set_outer_position(position);
     }
 
     Ok(win)

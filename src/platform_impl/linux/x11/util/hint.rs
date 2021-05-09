@@ -190,6 +190,24 @@ impl<'a> NormalHints<'a> {
         }
     }
 
+    pub fn get_position(&self) -> Option<(i32, i32)> {
+        if has_flag(self.size_hints.flags, ffi::PPosition) {
+            Some((self.size_hints.x as i32, self.size_hints.y as i32))
+        } else {
+            None
+        }
+    }
+
+    pub fn set_position(&mut self, position: Option<(i32, i32)>) {
+        if let Some((x, y)) = position {
+            self.size_hints.flags |= ffi::PPosition;
+            self.size_hints.x = x as c_int;
+            self.size_hints.y = y as c_int;
+        } else {
+            self.size_hints.flags &= !ffi::PPosition;
+        }
+    }
+
     // WARNING: This hint is obsolete
     pub fn set_size(&mut self, size: Option<(u32, u32)>) {
         if let Some((width, height)) = size {

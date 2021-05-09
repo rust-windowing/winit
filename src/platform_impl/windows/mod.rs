@@ -17,8 +17,15 @@ use crate::keyboard::Key;
 use crate::window::Theme;
 
 #[derive(Clone)]
+pub enum Parent {
+    None,
+    ChildOf(HWND),
+    OwnedBy(HWND),
+}
+
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub parent: Option<HWND>,
+    pub parent: Parent,
     pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
@@ -29,7 +36,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            parent: None,
+            parent: Parent::None,
             menu: None,
             taskbar_icon: None,
             no_redirection_bitmap: false,

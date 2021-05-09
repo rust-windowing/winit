@@ -27,12 +27,11 @@ impl XConnection {
                 (self.xlib.XInternAtom)(self.display, name.as_ptr() as *const c_char, ffi::False)
             };
             if atom == 0 {
-                let msg = format!(
+                panic!(
                     "`XInternAtom` failed, which really shouldn't happen. Atom: {:?}, Error: {:#?}",
                     name,
                     self.check_errors(),
                 );
-                panic!(msg);
             }
             /*println!(
                 "XInternAtom name:{:?} atom:{:?}",

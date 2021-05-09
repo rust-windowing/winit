@@ -255,6 +255,10 @@ lazy_static! {
             sel!(frameDidChange:),
             frame_did_change as extern "C" fn(&Object, Sel, id),
         );
+        decl.add_method(
+            sel!(acceptsFirstMouse:),
+            accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL,
+        );
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -346,7 +350,7 @@ extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        AppState::queue_redraw(WindowId(get_window_id(state.ns_window)));
+        AppState::handle_redraw(WindowId(get_window_id(state.ns_window)));
 
         let superclass = util::superclass(this);
         let () = msg_send![super(this, superclass), drawRect: rect];
@@ -1076,5 +1080,9 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
 // Note that this *doesn't* help with any missing Cmd inputs.
 // https://github.com/chromium/chromium/blob/a86a8a6bcfa438fa3ac2eba6f02b3ad1f8e0756f/ui/views/cocoa/bridged_content_view.mm#L816
 extern "C" fn wants_key_down_for_event(_this: &Object, _sel: Sel, _event: id) -> BOOL {
+    YES
+}
+
+extern "C" fn accepts_first_mouse(_this: &Object, _sel: Sel, _event: id) -> BOOL {
     YES
 }

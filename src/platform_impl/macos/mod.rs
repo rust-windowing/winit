@@ -1,12 +1,12 @@
 #![cfg(target_os = "macos")]
 
-mod activation_hack;
 mod app;
 mod app_delegate;
 mod app_state;
 mod event;
 mod event_loop;
 mod ffi;
+mod menu;
 mod monitor;
 mod observer;
 mod util;
@@ -17,6 +17,7 @@ mod window_delegate;
 use std::{fmt, ops::Deref, sync::Arc};
 
 pub use self::{
+    app_delegate::{get_aux_state_mut, AuxDelegateState},
     event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
     monitor::{MonitorHandle, VideoMode},
     window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
