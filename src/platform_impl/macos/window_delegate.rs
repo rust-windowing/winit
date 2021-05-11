@@ -7,10 +7,11 @@ use std::{
 use cocoa::{
     appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSUInteger},
+    foundation::NSUInteger,
 };
 use objc::{
     declare::ClassDecl,
+    rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 
@@ -274,11 +275,11 @@ extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillClose:`");
     with_state(this, |state| unsafe {
         // `setDelegate:` retains the previous value and then autoreleases it
-        let pool = NSAutoreleasePool::new(nil);
-        // Since El Capitan, we need to be careful that delegate methods can't
-        // be called after the window closes.
-        let () = msg_send![*state.ns_window, setDelegate: nil];
-        pool.drain();
+        autoreleasepool(|| {
+            // Since El Capitan, we need to be careful that delegate methods can't
+            // be called after the window closes.
+            let () = msg_send![*state.ns_window, setDelegate: nil];
+        });
         state.emit_event(WindowEvent::Destroyed);
     });
     trace!("Completed `windowWillClose:`");

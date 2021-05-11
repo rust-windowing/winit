@@ -8,7 +8,7 @@ use std::ops::{BitAnd, Deref};
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSPoint, NSRect, NSString, NSUInteger},
+    foundation::{NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
@@ -61,9 +61,7 @@ impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
             unsafe {
-                let pool = NSAutoreleasePool::new(nil);
                 let () = msg_send![self.0, release];
-                pool.drain();
             };
         }
     }

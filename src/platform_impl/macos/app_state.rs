@@ -15,11 +15,12 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSApplication, NSWindow},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSSize},
+    foundation::NSSize,
 };
-use objc::runtime::YES;
-
-use objc::runtime::Object;
+use objc::{
+    rc::autoreleasepool,
+    runtime::{Object, YES},
+};
 
 use crate::{
     dpi::LogicalSize,
@@ -403,16 +404,16 @@ impl AppState {
                 };
 
                 let dialog_is_closing = HANDLER.dialog_is_closing.load(Ordering::SeqCst);
-                let pool = NSAutoreleasePool::new(nil);
-                if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst)
-                    && !dialog_open
-                    && !dialog_is_closing
-                {
-                    let () = msg_send![app, stop: nil];
-                    // To stop event loop immediately, we need to post some event here.
-                    post_dummy_event(app);
-                }
-                pool.drain();
+                autoreleasepool(|| {
+                    if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst)
+                        && !dialog_open
+                        && !dialog_is_closing
+                    {
+                        let () = msg_send![app, stop: nil];
+                        // To stop event loop immediately, we need to post some event here.
+                        post_dummy_event(app);
+                    }
+                });
 
                 if window_count > 0 {
                     let window: id = msg_send![windows, objectAtIndex:0];
