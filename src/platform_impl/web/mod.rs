@@ -22,6 +22,7 @@ mod error;
 mod event_loop;
 mod monitor;
 mod window;
+mod keyboard;
 
 #[path = "web_sys/mod.rs"]
 mod backend;
