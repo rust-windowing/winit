@@ -1,5 +1,5 @@
 // Brief introduction to the internals of the web backend:
-// Currently, the web backend supports both wasm-bindgen and stdweb as methods of binding to the
+// The web backend used to support both wasm-bindgen and stdweb as methods of binding to the
 // environment. Because they are both supporting the same underlying APIs, the actual web bindings
 // are cordoned off into backend abstractions, which present the thinnest unifying layer possible.
 //
@@ -30,12 +30,8 @@ mod window;
 #[path = "web_sys/mod.rs"]
 mod backend;
 
-#[cfg(feature = "stdweb")]
-#[path = "stdweb/mod.rs"]
-mod backend;
-
-#[cfg(not(any(feature = "web-sys", feature = "stdweb")))]
-compile_error!("Please select a feature to build for web: `web-sys`, `stdweb`");
+#[cfg(not(feature = "web-sys"))]
+compile_error!("Please select a feature to build for web: `web-sys`");
 
 pub use self::device::Id as DeviceId;
 pub use self::error::OsError;

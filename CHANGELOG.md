@@ -1,3 +1,7 @@
+# Unreleased
+
+- On Web, remove the `stdweb` backend.
+
 # 0.25.0 (2021-05-15)
 
 - **Breaking:** On macOS, replace `WindowBuilderExtMacOS::with_activation_policy` with `EventLoopExtMacOS::set_activation_policy`

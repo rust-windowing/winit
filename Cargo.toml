@@ -17,9 +17,8 @@ default-target = "x86_64-unknown-linux-gnu"
 targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
 
 [features]
-default = ["x11", "wayland"]
+default = ["x11", "wayland", "web-sys"]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
-stdweb = ["std_web", "instant/stdweb"]
 x11 = ["x11-dl", "mio", "mio-misc", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "sctk"]
 
@@ -124,12 +123,6 @@ features = [
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
 version = "0.2.45"
 optional = true
-
-[target.'cfg(target_arch = "wasm32")'.dependencies.std_web]
-package = "stdweb"
-version = "=0.4.20"
-optional = true
-features = ["experimental_features_which_may_break_on_minor_version_bumps"]
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 console_log = "0.2"

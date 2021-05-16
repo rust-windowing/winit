@@ -26,27 +26,11 @@ pub fn main() {
             .expect("Append canvas to HTML body");
     }
 
-    #[cfg(feature = "stdweb")]
-    {
-        use std_web::web::INode;
-        use winit::platform::web::WindowExtStdweb;
-
-        let canvas = window.canvas();
-
-        let document = std_web::web::document();
-        let body: std_web::web::Node = document.body().expect("Get HTML body").into();
-
-        body.append_child(&canvas);
-    }
-
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         #[cfg(feature = "web-sys")]
         log::debug!("{:?}", event);
-
-        #[cfg(feature = "stdweb")]
-        std_web::console!(log, "%s", format!("{:?}", event));
 
         match event {
             Event::WindowEvent {
