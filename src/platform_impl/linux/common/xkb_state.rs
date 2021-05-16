@@ -8,6 +8,9 @@ use std::ptr;
 
 #[cfg(feature = "wayland")]
 use memmap2::MmapOptions;
+#[cfg(feature = "wayland")]
+pub use sctk::seat::keyboard::RMLVO;
+
 #[cfg(feature = "x11")]
 use x11_dl::xlib_xcb::xcb_connection_t;
 #[cfg(feature = "x11")]
@@ -16,8 +19,6 @@ use xkbcommon_dl::x11::XKBCOMMON_X11_HANDLE as XKBXH;
 use xkbcommon_dl::{
     self as ffi, xkb_state_component, XKBCOMMON_COMPOSE_HANDLE as XKBCH, XKBCOMMON_HANDLE as XKBH,
 };
-
-pub use sctk::seat::keyboard::RMLVO;
 
 use crate::{
     event::ElementState,
@@ -317,6 +318,7 @@ impl KbState {
         Ok(me)
     }
 
+    #[cfg(feature = "wayland")]
     pub(crate) fn from_rmlvo(rmlvo: RMLVO) -> Result<KbState, Error> {
         fn to_cstring(s: Option<String>) -> Result<Option<CString>, Error> {
             s.map_or(Ok(None), |s| CString::new(s).map(Option::Some))
@@ -421,6 +423,7 @@ impl KbState {
         self.post_init(keymap);
     }
 
+    #[cfg(feature = "wayland")]
     pub(crate) unsafe fn init_with_rmlvo(
         &mut self,
         names: ffi::xkb_rule_names,
