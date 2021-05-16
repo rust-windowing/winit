@@ -5,7 +5,6 @@
     target_os = "netbsd",
     target_os = "openbsd"
 ))]
-#![allow(non_fmt_panic)]
 
 mod dnd;
 mod event_processor;
