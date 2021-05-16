@@ -1151,14 +1151,13 @@ impl<T: 'static> EventProcessor<T> {
                             let xev =
                                 unsafe { &*(xev as *const _ as *const ffi::XkbStateNotifyEvent) };
                             if matches!(xev.event_type, 2 | 3) {
-                                // TODO: Is `as u32` fine here?
                                 self.kb_state.update_modifiers(
                                     xev.base_mods,
                                     xev.latched_mods,
                                     xev.locked_mods,
-                                    u32::from_ne_bytes(xev.base_group.to_ne_bytes()),
-                                    u32::from_ne_bytes(xev.latched_group.to_ne_bytes()),
-                                    u32::from_ne_bytes(xev.locked_group.to_ne_bytes()),
+                                    xev.base_group as u32,
+                                    xev.latched_group as u32,
+                                    xev.locked_group as u32,
                                 )
                             }
                         }
