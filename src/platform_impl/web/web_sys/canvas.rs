@@ -12,7 +12,7 @@ use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    AddEventListenerOptions, CompositionEvent, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
     MediaQueryListEvent, MouseEvent, WheelEvent,
 };
 
@@ -26,7 +26,7 @@ pub struct Canvas {
     on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
-    on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
@@ -82,7 +82,7 @@ impl Canvas {
             on_focus: None,
             on_keyboard_release: None,
             on_keyboard_press: None,
-            on_received_character: None,
+            on_composition_end: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
             on_dark_mode: None,
@@ -175,17 +175,7 @@ impl Canvas {
         self.on_keyboard_press = Some(self.common.add_user_event(
             "keydown",
             move |event: KeyboardEvent| {
-                // event.prevent_default() would suppress subsequent on_received_character() calls. That
-                // supression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
-                // scroll, etc. We should not do it for key sequences that result in meaningful character
-                // input though.
-                let event_key = &event.key();
-                let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
-                let is_shortcut_modifiers =
-                    (event.ctrl_key() || event.alt_key()) && !event.get_modifier_state("AltGr");
-                if !is_key_string || is_shortcut_modifiers {
-                    event.prevent_default();
-                }
+                event.prevent_default();
                 handler(
                     event::key_code(&event),
                     event::key(&event),
@@ -197,24 +187,17 @@ impl Canvas {
         ));
     }
 
-    // pub fn on_received_character<F>(&mut self, mut handler: F)
-    // where
-    //     F: 'static + FnMut(char),
-    // {
-    //     // TODO: Use `beforeinput`.
-    //     //
-    //     // The `keypress` event is deprecated, but there does not seem to be a
-    //     // viable/compatible alternative as of now. `beforeinput` is still widely
-    //     // unsupported.
-    //     self.on_received_character = Some(self.common.add_user_event(
-    //         "keypress",
-    //         move |event: KeyboardEvent| {
-    //             // Supress further handling to stop keys like the space key from scrolling the page.
-    //             event.prevent_default();
-    //             handler(event::codepoint(&event));
-    //         },
-    //     ));
-    // }
+    pub fn on_composition_end<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(Option<String>),
+    {
+        self.on_composition_end = Some(self.common.add_user_event(
+            "compositionend",
+            move |event: CompositionEvent| {
+                handler(event.data());
+            },
+        ));
+    }
 
     pub fn on_cursor_leave<F>(&mut self, handler: F)
     where
@@ -313,7 +296,6 @@ impl Canvas {
         self.on_blur = None;
         self.on_keyboard_release = None;
         self.on_keyboard_press = None;
-        self.on_received_character = None;
         self.on_mouse_wheel = None;
         self.on_fullscreen_change = None;
         self.on_dark_mode = None;

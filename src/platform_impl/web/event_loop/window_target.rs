@@ -112,14 +112,15 @@ impl<T> WindowTarget<T> {
             })
         });
 
-        // TODO: What to do here?
-        // let runner = self.runner.clone();
-        // canvas.on_received_character(move |char_code| {
-        //     runner.send_event(Event::WindowEvent {
-        //         window_id: WindowId(id),
-        //         event: WindowEvent::ReceivedCharacter(char_code),
-        //     });
-        // });
+        let runner = self.runner.clone();
+        canvas.on_composition_end(move |data| {
+            if let Some(data) = data {
+                runner.send_event(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::ReceivedImeText(data),
+                });
+            }
+        });
 
         let runner = self.runner.clone();
         canvas.on_cursor_leave(move |pointer_id| {

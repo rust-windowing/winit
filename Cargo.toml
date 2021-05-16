@@ -104,6 +104,7 @@ features = [
     'console',
     "AddEventListenerOptions",
     'CssStyleDeclaration',
+    'CompositionEvent',
     'BeforeUnloadEvent',
     'Document',
     'DomRect',
