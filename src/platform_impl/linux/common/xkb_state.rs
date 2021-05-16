@@ -252,11 +252,10 @@ impl KbState {
     }
 
     pub(crate) fn new() -> Result<KbState, Error> {
-        {
-            if ffi::XKBCOMMON_OPTION.as_ref().is_none() {
-                return Err(Error::XKBNotFound);
-            }
+        if ffi::XKBCOMMON_OPTION.as_ref().is_none() {
+            return Err(Error::XKBNotFound);
         }
+
         let context =
             unsafe { (XKBH.xkb_context_new)(ffi::xkb_context_flags::XKB_CONTEXT_NO_FLAGS) };
         if context.is_null() {
