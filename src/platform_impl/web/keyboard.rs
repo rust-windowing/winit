@@ -3,8 +3,7 @@ use crate::keyboard::{Key, KeyCode, NativeKeyCode};
 impl<'a> Key<'a> {
     pub(crate) fn from_key_attribute_value(kav: &'a str) -> Self {
         match kav {
-            // TODO: Report this in a better way.
-            "Unidentified" => Key::Unidentified(NativeKeyCode::Web("Unidentified")),
+            "Unidentified" => Key::Unidentified(NativeKeyCode::Web()),
             "Dead" => Key::Dead(None),
             "Alt" => Key::Alt,
             "AltGraph" => Key::AltGraph,
@@ -512,10 +511,7 @@ impl KeyCode {
             "F33" => KeyCode::F33,
             "F34" => KeyCode::F34,
             "F35" => KeyCode::F35,
-            // TODO: Fix unbounded leak
-            string @ _ => KeyCode::Unidentified(NativeKeyCode::Web(Box::leak(
-                String::from(string).into_boxed_str(),
-            ))),
+            _ => KeyCode::Unidentified(NativeKeyCode::Web()),
         }
     }
 }

@@ -176,7 +176,8 @@ pub enum NativeKeyCode {
     Windows(u16),
     MacOS(u32),
     XKB(u32),
-    Web(&'static str),
+    // TODO: Embed the non-matched string in a way that pleases serde.
+    Web(),
 }
 impl std::fmt::Debug for NativeKeyCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -198,9 +199,8 @@ impl std::fmt::Debug for NativeKeyCode {
                 debug_tuple = f.debug_tuple(name_of!(XKB));
                 debug_tuple.field(v);
             }
-            Web(v) => {
+            Web() => {
                 debug_tuple = f.debug_tuple(name_of!(Web));
-                debug_tuple.field(v);
             }
         }
         debug_tuple.finish()
