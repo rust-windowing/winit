@@ -269,7 +269,6 @@ lazy_static! {
 #[derive(Default)]
 pub struct SharedState {
     pub resizable: bool,
-    pub visible: bool,
     pub fullscreen: Option<Fullscreen>,
     // This is true between windowWillEnterFullScreen and windowDidEnterFullScreen
     // or windowWillExitFullScreen and windowDidExitFullScreen.
@@ -299,7 +298,6 @@ impl From<WindowAttributes> for SharedState {
     fn from(attribs: WindowAttributes) -> Self {
         SharedState {
             resizable: attribs.resizable,
-            visible: attribs.visible,
             // This fullscreen field tracks the current state of the window
             // (as seen by `WindowDelegate`), and since the window hasn't
             // actually been fullscreened yet, we can't set it yet. This is
@@ -448,7 +446,6 @@ impl UnownedWindow {
     }
 
     pub fn set_visible(&self, visible: bool) {
-        self.shared_state.lock().unwrap().visible = visible;
         match visible {
             true => unsafe { util::make_key_and_order_front_async(*self.ns_window) },
             false => unsafe { util::order_out_async(*self.ns_window) },
@@ -977,7 +974,8 @@ impl UnownedWindow {
     pub fn focus_window(&self) {
         let is_minimized: BOOL = unsafe { msg_send![*self.ns_window, isMiniaturized] };
         let is_minimized = is_minimized == YES;
-        let is_visible = self.shared_state.lock().unwrap().visible;
+        let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
+        let is_visible = is_visible == YES;
 
         if !is_minimized && is_visible {
             unsafe {
