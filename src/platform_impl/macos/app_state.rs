@@ -414,6 +414,8 @@ impl AppState {
                 }
                 pool.drain();
 
+                let windows: id = msg_send![app, windows];
+                let window_count: usize = msg_send![windows, count];
                 if window_count > 0 {
                     let window: id = msg_send![windows, objectAtIndex:0];
                     let window_has_focus = msg_send![window, isKeyWindow];
