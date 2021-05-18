@@ -299,6 +299,7 @@ impl From<WindowAttributes> for SharedState {
     fn from(attribs: WindowAttributes) -> Self {
         SharedState {
             resizable: attribs.resizable,
+            visible: attribs.visible,
             // This fullscreen field tracks the current state of the window
             // (as seen by `WindowDelegate`), and since the window hasn't
             // actually been fullscreened yet, we can't set it yet. This is
