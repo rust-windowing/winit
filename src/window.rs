@@ -754,6 +754,7 @@ impl Window {
     /// user attention might not be done automatically by the WM when the window receives input.
     ///
     /// ## Platform-specific
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
     /// - **macOS:** `None` has no effect.
     /// - **X11:** Requests for user attention must be manually cleared.
     #[inline]
