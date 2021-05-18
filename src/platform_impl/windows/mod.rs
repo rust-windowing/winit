@@ -1,6 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use winapi::{self, shared::windef::HWND};
+use winapi::{self, shared::windef::HMENU, shared::windef::HWND};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
@@ -13,22 +13,34 @@ pub use self::icon::WinIcon as PlatformIcon;
 
 use crate::event::DeviceId as RootDeviceId;
 use crate::icon::Icon;
+use crate::window::Theme;
+
+#[derive(Clone)]
+pub enum Parent {
+    None,
+    ChildOf(HWND),
+    OwnedBy(HWND),
+}
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub parent: Option<HWND>,
+    pub parent: Parent,
+    pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
+    pub preferred_theme: Option<Theme>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
-            parent: None,
+            parent: Parent::None,
+            menu: None,
             taskbar_icon: None,
             no_redirection_bitmap: false,
             drag_and_drop: true,
+            preferred_theme: None,
         }
     }
 }

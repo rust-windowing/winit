@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use sctk::reexports::client::protocol::wl_pointer::{self, Event as PointerEvent};
+use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_v1::Event as RelativePointerEvent;
 
 use sctk::seat::pointer::ThemedPointer;
@@ -17,12 +18,18 @@ use crate::platform_impl::wayland::{self, DeviceId};
 
 use super::{PointerData, WinitPointer};
 
+// These values are comming from <linux/input-event-codes.h>.
+const BTN_LEFT: u32 = 0x110;
+const BTN_RIGHT: u32 = 0x111;
+const BTN_MIDDLE: u32 = 0x112;
+
 #[inline]
 pub(super) fn handle_pointer(
     pointer: ThemedPointer,
     event: PointerEvent,
     pointer_data: &Rc<RefCell<PointerData>>,
     winit_state: &mut WinitState,
+    seat: WlSeat,
 ) {
     let event_sink = &mut winit_state.event_sink;
     let mut pointer_data = pointer_data.borrow_mut();
@@ -54,6 +61,7 @@ pub(super) fn handle_pointer(
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
+                seat,
             };
             window_handle.pointer_entered(winit_pointer);
 
@@ -96,6 +104,7 @@ pub(super) fn handle_pointer(
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
+                seat,
             };
             window_handle.pointer_left(winit_pointer);
 
@@ -153,11 +162,10 @@ pub(super) fn handle_pointer(
             };
 
             let button = match button {
-                0x110 => MouseButton::Left,
-                0x111 => MouseButton::Right,
-                0x112 => MouseButton::Middle,
-                // TODO - figure out the translation.
-                _ => return,
+                BTN_LEFT => MouseButton::Left,
+                BTN_RIGHT => MouseButton::Right,
+                BTN_MIDDLE => MouseButton::Middle,
+                button => MouseButton::Other(button as u16),
             };
 
             event_sink.push_window_event(

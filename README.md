@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-winit = "0.23.0"
+winit = "0.25.0"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -66,6 +66,7 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 * `x11` (enabled by default): On Unix platform, compiles with the X11 backend
 * `wayland` (enabled by default): On Unix platform, compiles with the Wayland backend
+* `mint`: Enables mint (math interoperability standard types) conversions.
 
 ### Platform-specific usage
 
@@ -110,3 +111,13 @@ fn main() {
 ```
 
 And run the application with `cargo apk run --example request_redraw_threaded`
+
+#### MacOS
+
+To ensure compatibility with older MacOS systems, winit links to
+CGDisplayCreateUUIDFromDisplayID through the CoreGraphics framework.
+However, under certain setups this function is only available to be linked
+through the newer ColorSync framework. So, winit provides the
+`WINIT_LINK_COLORSYNC` environment variable which can be set to `1` or `true` 
+while compiling to enable linking via ColorSync.
+

@@ -22,7 +22,9 @@ use crate::{
         },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
+    window::{
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+    },
 };
 
 pub struct Inner {
@@ -180,12 +182,21 @@ impl Inner {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub fn set_minimized(&self, _minimized: bool) {
         warn!("`Window::set_minimized` is ignored on iOS")
     }
 
     pub fn set_maximized(&self, _maximized: bool) {
         warn!("`Window::set_maximized` is ignored on iOS")
+    }
+
+    pub fn is_maximized(&self) -> bool {
+        warn!("`Window::is_maximized` is ignored on iOS");
+        false
     }
 
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
@@ -262,6 +273,10 @@ impl Inner {
 
     pub fn focus_window(&self) {
         warn!("`Window::set_focus` is ignored on iOS")
+    }
+
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
+        warn!("`Window::request_user_attention` is ignored on iOS")
     }
 
     // Allow directly accessing the current monitor internally without unwrapping.

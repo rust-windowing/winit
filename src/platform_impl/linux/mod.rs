@@ -30,7 +30,7 @@ use crate::{
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -359,6 +359,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.drag_window())
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         x11_or_wayland!(match self; Window(w) => w.scale_factor() as f64)
     }
@@ -371,6 +376,12 @@ impl Window {
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_maximized(maximized))
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        // TODO: Not implemented
+        false
     }
 
     #[inline]
@@ -423,6 +434,14 @@ impl Window {
         match self {
             #[cfg(feature = "x11")]
             &Window::X(ref w) => w.focus_window(),
+            #[cfg(feature = "wayland")]
+            _ => (),
+        }
+    }
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
+        match self {
+            #[cfg(feature = "x11")]
+            &Window::X(ref w) => w.request_user_attention(_request_type),
             #[cfg(feature = "wayland")]
             _ => (),
         }

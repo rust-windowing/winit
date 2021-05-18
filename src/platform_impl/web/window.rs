@@ -3,7 +3,9 @@ use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
-use crate::window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWI};
+use crate::window::{
+    CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+};
 
 use raw_window_handle::web::WebHandle;
 
@@ -221,6 +223,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn set_minimized(&self, _minimized: bool) {
         // Intentionally a no-op, as canvases cannot be 'minimized'
     }
@@ -228,6 +235,12 @@ impl Window {
     #[inline]
     pub fn set_maximized(&self, _maximized: bool) {
         // Intentionally a no-op, as canvases cannot be 'maximized'
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        // Canvas cannot be 'maximized'
+        false
     }
 
     #[inline]
@@ -271,6 +284,11 @@ impl Window {
     #[inline]
     pub fn focus_window(&self) {
         // Currently a no-op as it does not seem there is good support for this on web
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
+        // Currently an intentional no-op
     }
 
     #[inline]

@@ -5,15 +5,15 @@ use std::path::Path;
 
 use libc;
 use winapi::shared::minwindef::WORD;
-use winapi::shared::windef::HWND;
+use winapi::shared::windef::{HMENU, HWND};
 
 use crate::{
     dpi::PhysicalSize,
     event::DeviceId,
     event_loop::EventLoop,
     monitor::MonitorHandle,
-    platform_impl::{EventLoop as WindowsEventLoop, WinIcon},
-    window::{BadIcon, Icon, Window, WindowBuilder},
+    platform_impl::{EventLoop as WindowsEventLoop, Parent, WinIcon},
+    window::{BadIcon, Icon, Theme, Window, WindowBuilder},
 };
 
 /// Additional methods on `EventLoop` that are specific to Windows.
@@ -78,11 +78,26 @@ pub trait WindowExtWindows {
     /// The pointer will become invalid when the native window was destroyed.
     fn hwnd(&self) -> *mut libc::c_void;
 
+    /// Enables or disables mouse and keyboard input to the specified window.
+    ///
+    /// A window must be enabled before it can be activated.
+    /// If an application has create a modal dialog box by disabling its owner window
+    /// (as described in [`WindowBuilderExtWindows::with_owner_window`]), the application must enable
+    /// the owner window before destroying the dialog box.
+    /// Otherwise, another window will receive the keyboard focus and be activated.
+    ///
+    /// If a child window is disabled, it is ignored when the system tries to determine which
+    /// window should receive mouse messages.
+    ///
+    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enablewindow#remarks>
+    /// and <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#disabled-windows>
+    fn set_enable(&self, enabled: bool);
+
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
-    /// Whether the system theme is currently Windows 10's "Dark Mode".
-    fn is_dark_mode(&self) -> bool;
+    /// Returns the current window theme.
+    fn theme(&self) -> Theme;
 }
 
 impl WindowExtWindows for Window {
@@ -97,20 +112,53 @@ impl WindowExtWindows for Window {
     }
 
     #[inline]
+    fn set_enable(&self, enabled: bool) {
+        unsafe {
+            winapi::um::winuser::EnableWindow(self.hwnd() as _, enabled as _);
+        }
+    }
+
+    #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         self.window.set_taskbar_icon(taskbar_icon)
     }
 
     #[inline]
-    fn is_dark_mode(&self) -> bool {
-        self.window.is_dark_mode()
+    fn theme(&self) -> Theme {
+        self.window.theme()
     }
 }
 
 /// Additional methods on `WindowBuilder` that are specific to Windows.
 pub trait WindowBuilderExtWindows {
     /// Sets a parent to the window to be created.
+    ///
+    /// A child window has the WS_CHILD style and is confined to the client area of its parent window.
+    ///
+    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
+
+    /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
+    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
+    /// on the owner window to create a modal dialog box.
+    ///
+    /// From MSDN:
+    /// - An owned window is always above its owner in the z-order.
+    /// - The system automatically destroys an owned window when its owner is destroyed.
+    /// - An owned window is hidden when its owner is minimized.
+    ///
+    /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#owned-windows>
+    fn with_owner_window(self, parent: HWND) -> WindowBuilder;
+
+    /// Sets a menu on the window to be created.
+    ///
+    /// Parent and menu are mutually exclusive; a child window cannot have a menu!
+    ///
+    /// The menu must have been manually created beforehand with [`winapi::um::winuser::CreateMenu`] or similar.
+    ///
+    /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
+    /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
+    fn with_menu(self, menu: HMENU) -> WindowBuilder;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn with_taskbar_icon(self, taskbar_icon: Option<Icon>) -> WindowBuilder;
@@ -123,14 +171,29 @@ pub trait WindowBuilderExtWindows {
     /// `COINIT_APARTMENTTHREADED`) on the same thread. Note that winit may still attempt to initialize
     /// COM API regardless of this option. Currently only fullscreen mode does that, but there may be more in the future.
     /// If you need COM API with `COINIT_MULTITHREADED` you must initialize it before calling any winit functions.
-    /// See https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks for more information.
+    /// See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
     fn with_drag_and_drop(self, flag: bool) -> WindowBuilder;
+
+    /// Forces a theme or uses the system settings if `None` was provided.
+    fn with_theme(self, theme: Option<Theme>) -> WindowBuilder;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_parent_window(mut self, parent: HWND) -> WindowBuilder {
-        self.platform_specific.parent = Some(parent);
+        self.platform_specific.parent = Parent::ChildOf(parent);
+        self
+    }
+
+    #[inline]
+    fn with_owner_window(mut self, parent: HWND) -> WindowBuilder {
+        self.platform_specific.parent = Parent::OwnedBy(parent);
+        self
+    }
+
+    #[inline]
+    fn with_menu(mut self, menu: HMENU) -> WindowBuilder {
+        self.platform_specific.menu = Some(menu);
         self
     }
 
@@ -149,6 +212,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_drag_and_drop(mut self, flag: bool) -> WindowBuilder {
         self.platform_specific.drag_and_drop = flag;
+        self
+    }
+
+    #[inline]
+    fn with_theme(mut self, theme: Option<Theme>) -> WindowBuilder {
+        self.platform_specific.preferred_theme = theme;
         self
     }
 }

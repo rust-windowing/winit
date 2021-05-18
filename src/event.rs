@@ -745,7 +745,7 @@ pub enum MouseButton {
     Left,
     Right,
     Middle,
-    Other(u8),
+    Other(u16),
 }
 
 /// Describes a difference in the mouse scroll wheel state.

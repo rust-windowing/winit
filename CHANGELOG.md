@@ -1,18 +1,67 @@
 # Unreleased
 
-- On Android, calling `WindowEvent::Focused` now works properly instead of always returning false. 
-- On Windows, fix alt-tab behaviour by removing borderless fullscreen "always on top" flag.
+- Added `Window::focus_window`to bring the window to the front and set input focus.
+
+# 0.25.0 (2021-05-15)
+
+- **Breaking:** On macOS, replace `WindowBuilderExtMacOS::with_activation_policy` with `EventLoopExtMacOS::set_activation_policy`
+- On macOS, wait with activating the application until the application has initialized.
+- On macOS, fix creating new windows when the application has a main menu.
+- On Windows, fix fractional deltas for mouse wheel device events.
+- On macOS, fix segmentation fault after dropping the main window.
+- On Android, `InputEvent::KeyEvent` is partially implemented providing the key scancode.
+- Added `is_maximized` method to `Window`.
+- On Windows, fix bug where clicking the decoration bar would make the cursor blink.
+- On Windows, fix bug causing newly created windows to erroneously display the "wait" (spinning) cursor.
+- On macOS, wake up the event loop immediately when a redraw is requested.
+- On Windows, change the default window size (1024x768) to match the default on other desktop platforms (800x600).
+- On Windows, fix bug causing mouse capture to not be released.
+- On Windows, fix fullscreen not preserving minimized/maximized state.
+- On Android, unimplemented events are marked as unhandled on the native event loop.
+- On Windows, added `WindowBuilderExtWindows::with_menu` to set a custom menu at window creation time.
+- On Android, bump `ndk` and `ndk-glue` to 0.3: use predefined constants for event `ident`.
+- On macOS, fix objects captured by the event loop closure not being dropped on panic.
+- On Windows, fixed `WindowEvent::ThemeChanged` not properly firing and fixed `Window::theme` returning the wrong theme.
+- On Web, added support for `DeviceEvent::MouseMotion` to listen for relative mouse movements.
+- Added `WindowBuilder::with_position` to allow setting the position of a `Window` on creation. Supported on Windows, macOS and X11.
+- Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
+- On X11, bump `mio` to 0.7.
+- On Windows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
+- On Windows, added `WindowExtWindows::set_enable` to allow creating modal popup windows.
+- On macOS, emit `RedrawRequested` events immediately while the window is being resized.
+- Implement `Default`, `Hash`, and `Eq` for `LogicalPosition`, `PhysicalPosition`, `LogicalSize`, and `PhysicalSize`.
+- On macOS, initialize the Menu Bar with minimal defaults. (Can be prevented using `enable_default_menu_creation`)
+- On macOS, change the default behavior for first click when the window was unfocused. Now the window becomes focused and then emits a `MouseInput` event on a "first mouse click".
+- Implement mint (math interoperability standard types) conversions (under feature flag `mint`).
+
+# 0.24.0 (2020-12-09)
+
+- On Windows, fix applications not exiting gracefully due to thread_event_target_callback accessing corrupted memory.
+- On Windows, implement `Window::set_ime_position`.
+- **Breaking:** On Windows, Renamed `WindowBuilderExtWindows`'s `is_dark_mode` to `theme`.
+- **Breaking:** On Windows, renamed `WindowBuilderExtWindows::is_dark_mode` to `theme`.
+- On Windows, add `WindowBuilderExtWindows::with_theme` to set a preferred theme.
+- On Windows, fix bug causing message boxes to appear delayed.
+- On Android, calling `WindowEvent::Focused` now works properly instead of always returning false.
+- On Windows, fix Alt-Tab behaviour by removing borderless fullscreen "always on top" flag.
 - On Windows, fix bug preventing windows with transparency enabled from having fully-opaque regions.
 - **Breaking:** On Windows, include prefix byte in scancodes.
-- On Wayland, fix window not being resizeable when using `with_min_inner_size` in `WindowBuilder`.
+- On Wayland, fix window not being resizeable when using `WindowBuilder::with_min_inner_size`.
 - On Unix, fix cross-compiling to wasm32 without enabling X11 or Wayland.
-- On Windows, fix use after free crash during window destruction.
+- On Windows, fix use-after-free crash during window destruction.
 - On Web, fix `WindowEvent::ReceivedCharacter` never being sent on key input.
-- On macOS, fix compilation when targeting aarch64
+- On macOS, fix compilation when targeting aarch64.
 - On X11, fix `Window::request_redraw` not waking the event loop.
 - On Wayland, the keypad arrow keys are now recognized.
 - **Breaking** Rename `desktop::EventLoopExtDesktop` to `run_return::EventLoopExtRunReturn`.
-- Added `Window::focus_window`to bring the window to the front and set input focus.
+- Added `request_user_attention` method to `Window`.
+- **Breaking:** On macOS, removed `WindowExt::request_user_attention`, use `Window::request_user_attention`.
+- **Breaking:** On X11, removed `WindowExt::set_urgent`, use `Window::request_user_attention`.
+- On Wayland, default font size in CSD increased from 11 to 17.
+- On Windows, fix bug causing message boxes to appear delayed.
+- On Android, support multi-touch.
+- On Wayland, extra mouse buttons are not dropped anymore.
+- **Breaking**: `MouseButton::Other` now uses `u16`.
 
 # 0.23.0 (2020-10-02)
 
@@ -22,7 +71,7 @@
 - On X11, fix deadlock when calling `set_fullscreen_inner`.
 - On Web, prevent the webpage from scrolling when the user is focused on a winit canvas
 - On Web, calling `window.set_cursor_icon` no longer breaks HiDPI scaling
-- On Windows, drag and drop is now optional and must be enabled with `WindowBuilderExtWindows::with_drag_and_drop(true)`.
+- On Windows, drag and drop is now optional (enabled by default) and can be disabled with `WindowBuilderExtWindows::with_drag_and_drop(false)`.
 - On Wayland, fix deadlock when calling to `set_inner_size` from a callback.
 - On macOS, add `hide__other_applications` to `EventLoopWindowTarget` via existing `EventLoopWindowTargetExtMacOS` trait. `hide_other_applications` will hide other applications by calling `-[NSApplication hideOtherApplications: nil]`.
 - On android added support for `run_return`.
@@ -95,7 +144,6 @@
 - On Web, replaced zero timeout for `ControlFlow::Poll` with `requestAnimationFrame`
 - On Web, fix a possible panic during event handling
 - On macOS, fix `EventLoopProxy` leaking memory for every instance.
-- On Windows, drag and drop can now be disabled with `WindowBuilderExtWindows::with_drag_and_drop(false)`.
 
 # 0.22.0 (2020-03-09)
 
