@@ -1,7 +1,7 @@
 use super::event;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::{ModifiersState, MouseButton};
+use crate::event::{ModifiersState, MouseButton, PointerType};
 
 use web_sys::PointerEvent;
 
@@ -12,6 +12,10 @@ pub(super) struct PointerHandler {
     on_cursor_move: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
     on_pointer_press: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
     on_pointer_release: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_pointer_move: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_pointer_down: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_pointer_up: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
+    on_pointer_cancel: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
 }
 
 impl PointerHandler {
@@ -22,6 +26,10 @@ impl PointerHandler {
             on_cursor_move: None,
             on_pointer_press: None,
             on_pointer_release: None,
+            on_pointer_move: None,
+            on_pointer_down: None,
+            on_pointer_up: None,
+            on_pointer_cancel: None,
         }
     }
 
@@ -105,11 +113,111 @@ impl PointerHandler {
         ));
     }
 
+    pub fn on_pointer_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PointerType),
+    {
+        self.on_pointer_move = Some(canvas_common.add_event(
+            "pointermove",
+            move |event: PointerEvent| {
+                handler(
+                    event.pointer_id(),
+                    PhysicalPosition {
+                        x: event.offset_x() as f64,
+                        y: event.offset_y() as f64,
+                    },
+                    match event.pointer_type().as_str() {
+                        "mouse" => PointerType::Mouse,
+                        "pen" => PointerType::Pen,
+                        "touch" => PointerType::Touch,
+                        _ => PointerType::Unknown,
+                    },
+                );
+            },
+        ));
+    }
+
+    pub fn on_pointer_down<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PointerType),
+    {
+        self.on_pointer_down = Some(canvas_common.add_event(
+            "pointerdown",
+            move |event: PointerEvent| {
+                handler(
+                    event.pointer_id(),
+                    PhysicalPosition {
+                        x: event.offset_x() as f64,
+                        y: event.offset_y() as f64,
+                    },
+                    match event.pointer_type().as_str() {
+                        "mouse" => PointerType::Mouse,
+                        "pen" => PointerType::Pen,
+                        "touch" => PointerType::Touch,
+                        _ => PointerType::Unknown,
+                    },
+                );
+            },
+        ));
+    }
+
+    pub fn on_pointer_up<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PointerType),
+    {
+        self.on_pointer_up = Some(canvas_common.add_event(
+            "pointerup",
+            move |event: PointerEvent| {
+                handler(
+                    event.pointer_id(),
+                    PhysicalPosition {
+                        x: event.offset_x() as f64,
+                        y: event.offset_y() as f64,
+                    },
+                    match event.pointer_type().as_str() {
+                        "mouse" => PointerType::Mouse,
+                        "pen" => PointerType::Pen,
+                        "touch" => PointerType::Touch,
+                        _ => PointerType::Unknown,
+                    },
+                );
+            },
+        ));
+    }
+
+    pub fn on_pointer_cancel<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    where
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PointerType),
+    {
+        self.on_pointer_cancel = Some(canvas_common.add_event(
+            "pointercancel",
+            move |event: PointerEvent| {
+                handler(
+                    event.pointer_id(),
+                    PhysicalPosition {
+                        x: event.offset_x() as f64,
+                        y: event.offset_y() as f64,
+                    },
+                    match event.pointer_type().as_str() {
+                        "mouse" => PointerType::Mouse,
+                        "pen" => PointerType::Pen,
+                        "touch" => PointerType::Touch,
+                        _ => PointerType::Unknown,
+                    },
+                );
+            },
+        ));
+    }
+
     pub fn remove_listeners(&mut self) {
         self.on_cursor_leave = None;
         self.on_cursor_enter = None;
         self.on_cursor_move = None;
         self.on_pointer_press = None;
         self.on_pointer_release = None;
+        self.on_pointer_move = None;
+        self.on_pointer_down = None;
+        self.on_pointer_up = None;
+        self.on_pointer_cancel = None;
     }
 }
