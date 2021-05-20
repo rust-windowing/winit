@@ -663,6 +663,21 @@ pub struct Touch {
     pub force: Option<Force>,
     /// Unique identifier of a finger.
     pub id: u64,
+    /// Type of pointer used when touching.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Currently only available on Web targets.
+    pub pointer_type: Option<PointerType>,
+}
+
+/// Describes the types of pointers available.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PointerType {
+    Mouse,
+    Pen,
+    Touch,
+    Unknown,
 }
 
 /// Describes the force of a touch event

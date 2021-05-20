@@ -118,7 +118,8 @@ features = [
     'Node',
     'PointerEvent',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
+    'PointerEvent',
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
