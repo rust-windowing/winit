@@ -1,6 +1,6 @@
 # Unreleased
 
-- On Web, remove the `stdweb` backend.
+- **Breaking:** On Web, remove the `stdweb` backend.
 
 # 0.25.0 (2021-05-15)
 
