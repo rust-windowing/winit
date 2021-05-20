@@ -971,6 +971,21 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn focus_window(&self) {
+        let is_minimized: BOOL = unsafe { msg_send![*self.ns_window, isMiniaturized] };
+        let is_minimized = is_minimized == YES;
+        let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
+        let is_visible = is_visible == YES;
+
+        if !is_minimized && is_visible {
+            unsafe {
+                NSApp().activateIgnoringOtherApps_(YES);
+                util::make_key_and_order_front_async(*self.ns_window);
+            }
+        }
+    }
+
+    #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let ns_request_type = request_type.map(|ty| match ty {
             UserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,

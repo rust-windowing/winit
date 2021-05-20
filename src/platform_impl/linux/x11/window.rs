@@ -1341,6 +1341,41 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn focus_window(&self) {
+        let state_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_STATE\0") };
+        let state_type_atom = unsafe { self.xconn.get_atom_unchecked(b"CARD32\0") };
+        let is_minimized = if let Ok(state) =
+            self.xconn
+                .get_property(self.xwindow, state_atom, state_type_atom)
+        {
+            state.contains(&(ffi::IconicState as c_ulong))
+        } else {
+            false
+        };
+        let is_visible = match self.shared_state.lock().visibility {
+            Visibility::Yes => true,
+            Visibility::YesWait | Visibility::No => false,
+        };
+
+        if is_visible && !is_minimized {
+            let atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_ACTIVE_WINDOW\0") };
+            let flusher = self.xconn.send_client_msg(
+                self.xwindow,
+                self.root,
+                atom,
+                Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                [1, ffi::CurrentTime as c_long, 0, 0, 0],
+            );
+            if let Err(e) = flusher.flush() {
+                log::error!(
+                    "`flush` returned an error when focusing the window. Error was: {}",
+                    e
+                );
+            }
+        }
+    }
+
+    #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let mut wm_hints = self
             .xconn

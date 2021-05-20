@@ -271,6 +271,10 @@ impl Inner {
         warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
+    pub fn focus_window(&self) {
+        warn!("`Window::set_focus` is ignored on iOS")
+    }
+
     pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         warn!("`Window::request_user_attention` is ignored on iOS")
     }
