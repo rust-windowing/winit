@@ -17,21 +17,14 @@
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
 
-// Silence warnings from use of deprecated stdweb backend
-#![allow(deprecated)]
-
 mod device;
 mod error;
 mod event_loop;
 mod monitor;
 mod window;
 
-#[cfg(feature = "web-sys")]
 #[path = "web_sys/mod.rs"]
 mod backend;
-
-#[cfg(not(feature = "web-sys"))]
-compile_error!("Please select a feature to build for web: `web-sys`");
 
 pub use self::device::Id as DeviceId;
 pub use self::error::OsError;

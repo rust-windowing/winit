@@ -12,7 +12,6 @@ pub fn main() {
         .build(&event_loop)
         .unwrap();
 
-    #[cfg(feature = "web-sys")]
     {
         use winit::platform::web::WindowExtWebSys;
 
@@ -29,7 +28,6 @@ pub fn main() {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
-        #[cfg(feature = "web-sys")]
         log::debug!("{:?}", event);
 
         match event {
@@ -45,7 +43,6 @@ pub fn main() {
     });
 }
 
-#[cfg(feature = "web-sys")]
 mod wasm {
     use wasm_bindgen::prelude::*;
 
