@@ -236,7 +236,7 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_pointer_move(move |device_id, location, pointer_type| {
+        canvas.on_pointer_move(move |device_id, location| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Touch(Touch {
@@ -244,14 +244,13 @@ impl<T> EventLoopWindowTarget<T> {
                     device_id: RootDeviceId(DeviceId(device_id)),
                     phase: TouchPhase::Moved,
                     force: None, // Todo
-                    pointer_type: Some(pointer_type),
                     location,
                 }),
             });
         });
 
         let runner = self.runner.clone();
-        canvas.on_pointer_down(move |device_id, location, pointer_type| {
+        canvas.on_pointer_down(move |device_id, location| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Touch(Touch {
@@ -259,14 +258,13 @@ impl<T> EventLoopWindowTarget<T> {
                     device_id: RootDeviceId(DeviceId(device_id)),
                     phase: TouchPhase::Started,
                     force: None, // Todo
-                    pointer_type: Some(pointer_type),
                     location,
                 }),
             });
         });
 
         let runner = self.runner.clone();
-        canvas.on_pointer_up(move |device_id, location, pointer_type| {
+        canvas.on_pointer_up(move |device_id, location| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Touch(Touch {
@@ -274,14 +272,13 @@ impl<T> EventLoopWindowTarget<T> {
                     device_id: RootDeviceId(DeviceId(device_id)),
                     phase: TouchPhase::Ended,
                     force: None, // Todo
-                    pointer_type: Some(pointer_type),
                     location,
                 }),
             });
         });
 
         let runner = self.runner.clone();
-        canvas.on_pointer_cancel(move |device_id, location, pointer_type| {
+        canvas.on_pointer_cancel(move |device_id, location| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::Touch(Touch {
@@ -289,7 +286,6 @@ impl<T> EventLoopWindowTarget<T> {
                     device_id: RootDeviceId(DeviceId(device_id)),
                     phase: TouchPhase::Cancelled,
                     force: None, // Todo
-                    pointer_type: Some(pointer_type),
                     location,
                 }),
             });
