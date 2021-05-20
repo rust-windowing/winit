@@ -22,7 +22,7 @@ x11 = ["x11-dl", "mio", "mio-misc", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "sctk"]
 
 [dependencies]
-instant = { version = "0.1", features = "instant/wasm-bindgen" }
+instant = { version = "0.1", features = ["wasm-bindgen"] }
 lazy_static = "1"
 libc = "0.2.64"
 log = "0.4"
