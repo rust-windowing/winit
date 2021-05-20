@@ -40,6 +40,7 @@ pub(super) fn handle_touch(
                     location: position.to_physical(scale_factor),
                     force: None, // TODO
                     id: id as u64,
+                    pointer_type: None,
                 }),
                 window_id,
             );
@@ -67,6 +68,7 @@ pub(super) fn handle_touch(
                     location,
                     force: None, // TODO
                     id: id as u64,
+                    pointer_type: None,
                 }),
                 window_id,
             );
@@ -92,6 +94,7 @@ pub(super) fn handle_touch(
                     location,
                     force: None, // TODO
                     id: id as u64,
+                    pointer_type: None,
                 }),
                 window_id,
             );
@@ -112,6 +115,7 @@ pub(super) fn handle_touch(
                         location,
                         force: None, // TODO
                         id: touch_point.id as u64,
+                        pointer_type: None,
                     }),
                     window_id,
                 );
