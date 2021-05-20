@@ -115,6 +115,6 @@ To ensure compatibility with older MacOS systems, winit links to
 CGDisplayCreateUUIDFromDisplayID through the CoreGraphics framework.
 However, under certain setups this function is only available to be linked
 through the newer ColorSync framework. So, winit provides the
-`WINIT_LINK_COLORSYNC` environment variable which can be set to `1` or `true`
+`WINIT_LINK_COLORSYNC` environment variable which can be set to `1` or `true` 
 while compiling to enable linking via ColorSync.
 
