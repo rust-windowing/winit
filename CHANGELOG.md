@@ -1,7 +1,7 @@
 # Unreleased
 
-- Added `Window::focus_window`to bring the window to the front and set input focus.
 - On Web, added support for `Event::Touch`.
+- Added `Window::focus_window`to bring the window to the front and set input focus.
 
 # 0.25.0 (2021-05-15)
 
