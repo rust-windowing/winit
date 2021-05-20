@@ -12,6 +12,7 @@ pub fn main() {
         .build(&event_loop)
         .unwrap();
 
+    #[cfg(target_arch = "wasm32")]
     {
         use winit::platform::web::WindowExtWebSys;
 
@@ -28,6 +29,7 @@ pub fn main() {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
+        #[cfg(target_arch = "wasm32")]
         log::debug!("{:?}", event);
 
         match event {
@@ -43,6 +45,7 @@ pub fn main() {
     });
 }
 
+#[cfg(target_arch = "wasm32")]
 mod wasm {
     use wasm_bindgen::prelude::*;
 
