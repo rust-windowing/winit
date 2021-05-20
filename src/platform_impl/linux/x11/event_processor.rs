@@ -1006,7 +1006,6 @@ impl<T: 'static> EventProcessor<T> {
                                     location,
                                     force: None, // TODO
                                     id,
-                                    pointer_type: None,
                                 }),
                             })
                         }

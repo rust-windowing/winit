@@ -271,7 +271,6 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                             device_id: RootDeviceId(DeviceId { uiscreen }),
                             id: touch_id,
                             location: physical_location,
-                            pointer_type: None,
                             force,
                             phase,
                         }),

@@ -227,7 +227,6 @@ impl<T: 'static> EventLoop<T> {
                                                             location,
                                                             id: pointer.pointer_id() as u64,
                                                             force: None,
-                                                            pointer_type: None,
                                                         },
                                                     ),
                                                 };
