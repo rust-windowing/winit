@@ -43,7 +43,66 @@ pub fn main() {
         *control_flow = ControlFlow::Wait;
 
         #[cfg(feature = "web-sys")]
-        log::debug!("{:?}", event);
+        {
+            use wasm_bindgen::closure::Closure;
+            use wasm_bindgen::JsCast;
+            use web_sys::{FileReader, HtmlImageElement, Url};
+
+            log::debug!("{:?}", event);
+            match &event {
+                Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::DroppedFile(file),
+                } => {
+                    // let reader = FileReader::new().unwrap();
+                    // let f = Closure::wrap(Box::new(move |event: web_sys::Event| {
+                    //     let reader: FileReader = event.target().unwrap().dyn_into().unwrap();
+                    //     let file = reader.result().unwrap();
+                    //     log::debug!("dropped filed {:?}", file);
+
+                    //     let window = web_sys::window().unwrap();
+                    //     let document = window.document().unwrap();
+                    //     let body = document.body().unwrap();
+
+                    //     let img = document.create_element("img").unwrap();
+                    //     img.set_src(Url::create_object_url_with_blob(file));
+                    //     img.set_height(60);
+                    //     img.set_onload(|| {
+                    //         Url::revoke_object_url(img.src());
+
+                    //     });
+
+                    //     body.append_child(&img)
+                    //         .expect("Append canvas to HTML body");
+
+                    // }) as Box<dyn FnMut(_)>);
+                    // reader.set_onload(Some(f.as_ref().unchecked_ref()));
+                    // reader.read_as_array_buffer(&file.slice().unwrap());
+                    // f.forget();
+
+                    let window = web_sys::window().unwrap();
+                    let document = window.document().unwrap();
+                    let body = document.body().unwrap();
+
+                    let img = HtmlImageElement::new().unwrap();
+                    img.set_src(&Url::create_object_url_with_blob(file).unwrap());
+                    img.set_height(60);
+
+                    let f = Closure::wrap(Box::new(|event: web_sys::Event| {
+                        let img: HtmlImageElement = event.target().unwrap().dyn_into().unwrap();
+                        Url::revoke_object_url(&img.src());
+                    }) as Box<dyn FnMut(_)>);
+
+                    img.set_onload(Some(f.as_ref().unchecked_ref()));
+
+                    f.forget();
+
+                    body.append_child(&img).expect("Append img to body");
+                }
+
+                _ => {}
+            }
+        }
 
         #[cfg(feature = "stdweb")]
         std_web::console!(log, "%s", format!("{:?}", event));
