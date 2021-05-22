@@ -1,13 +1,16 @@
-use std::{fmt, io, iter::once, mem, os::windows::ffi::OsStrExt, path::Path, ptr, sync::Arc};
+use std::{fmt, io, iter::once, mem, os::windows::ffi::OsStrExt, path::Path, sync::Arc};
 
-use winapi::{
-    ctypes::{c_int, wchar_t},
-    shared::{
-        minwindef::{BYTE, LPARAM, WORD, WPARAM},
-        windef::{HICON, HWND},
+use winapi::Windows::Win32::{
+    System::SystemServices::{GetModuleHandleW, HANDLE, PWSTR},
+    UI::WindowsAndMessaging::{
+        CreateIcon, DestroyIcon, LoadImageW, SendMessageW, HWND, ICON_BIG, ICON_SMALL, LPARAM,
+        WM_SETICON, WPARAM,
     },
-    um::libloaderapi,
-    um::winuser,
+    UI::{
+        Controls::{LR_DEFAULTSIZE, LR_LOADFROMFILE},
+        MenusAndResources::HICON,
+        WindowsAndMessaging::IMAGE_ICON,
+    },
 };
 
 use crate::dpi::PhysicalSize;
@@ -32,18 +35,18 @@ impl RgbaIcon {
         }
         assert_eq!(and_mask.len(), pixel_count);
         let handle = unsafe {
-            winuser::CreateIcon(
-                ptr::null_mut(),
-                self.width as c_int,
-                self.height as c_int,
+            CreateIcon(
+                None,
+                self.width as i32,
+                self.height as i32,
                 1,
-                (PIXEL_SIZE * 8) as BYTE,
-                and_mask.as_ptr() as *const BYTE,
-                rgba.as_ptr() as *const BYTE,
-            ) as HICON
+                (PIXEL_SIZE * 8) as u8,
+                and_mask.as_ptr(),
+                rgba.as_ptr(),
+            )
         };
         if !handle.is_null() {
-            Ok(WinIcon::from_handle(handle))
+            Ok(WinIcon::from_icon(handle))
         } else {
             Err(BadIcon::OsError(io::Error::last_os_error()))
         }
@@ -52,13 +55,13 @@ impl RgbaIcon {
 
 #[derive(Debug)]
 pub enum IconType {
-    Small = winuser::ICON_SMALL as isize,
-    Big = winuser::ICON_BIG as isize,
+    Small = ICON_SMALL as isize,
+    Big = ICON_BIG as isize,
 }
 
 #[derive(Debug)]
 struct RaiiIcon {
-    handle: HICON,
+    handle: HANDLE,
 }
 
 #[derive(Clone)]
@@ -69,7 +72,7 @@ pub struct WinIcon {
 unsafe impl Send for WinIcon {}
 
 impl WinIcon {
-    pub fn as_raw_handle(&self) -> HICON {
+    pub fn as_raw_handle(&self) -> HANDLE {
         self.inner.handle
     }
 
@@ -88,14 +91,14 @@ impl WinIcon {
         let (width, height) = size.map(Into::into).unwrap_or((0, 0));
 
         let handle = unsafe {
-            winuser::LoadImageW(
-                ptr::null_mut(),
-                wide_path.as_ptr() as *const wchar_t,
-                winuser::IMAGE_ICON,
-                width as c_int,
-                height as c_int,
-                winuser::LR_DEFAULTSIZE | winuser::LR_LOADFROMFILE,
-            ) as HICON
+            LoadImageW(
+                None,
+                PWSTR(wide_path.as_mut_ptr()),
+                IMAGE_ICON,
+                width,
+                height,
+                LR_DEFAULTSIZE | LR_LOADFROMFILE,
+            )
         };
         if !handle.is_null() {
             Ok(WinIcon::from_handle(handle))
@@ -105,20 +108,20 @@ impl WinIcon {
     }
 
     pub fn from_resource(
-        resource_id: WORD,
+        resource_id: u32,
         size: Option<PhysicalSize<u32>>,
     ) -> Result<Self, BadIcon> {
         // width / height of 0 along with LR_DEFAULTSIZE tells windows to load the default icon size
         let (width, height) = size.map(Into::into).unwrap_or((0, 0));
         let handle = unsafe {
-            winuser::LoadImageW(
-                libloaderapi::GetModuleHandleW(ptr::null_mut()),
-                winuser::MAKEINTRESOURCEW(resource_id),
-                winuser::IMAGE_ICON,
-                width as c_int,
-                height as c_int,
-                winuser::LR_DEFAULTSIZE,
-            ) as HICON
+            LoadImageW(
+                GetModuleHandleW(None),
+                PWSTR(resource_id as *mut u16),
+                IMAGE_ICON,
+                width,
+                height,
+                LR_DEFAULTSIZE,
+            )
         };
         if !handle.is_null() {
             Ok(WinIcon::from_handle(handle))
@@ -134,16 +137,24 @@ impl WinIcon {
 
     pub fn set_for_window(&self, hwnd: HWND, icon_type: IconType) {
         unsafe {
-            winuser::SendMessageW(
+            SendMessageW(
                 hwnd,
-                winuser::WM_SETICON,
-                icon_type as WPARAM,
-                self.as_raw_handle() as LPARAM,
+                WM_SETICON,
+                WPARAM(icon_type as usize),
+                LPARAM(self.as_raw_handle().0),
             );
         }
     }
 
-    fn from_handle(handle: HICON) -> Self {
+    fn from_icon(handle: HICON) -> Self {
+        Self {
+            inner: Arc::new(RaiiIcon {
+                handle: HANDLE(handle.0),
+            }),
+        }
+    }
+
+    fn from_handle(handle: HANDLE) -> Self {
         Self {
             inner: Arc::new(RaiiIcon { handle }),
         }
@@ -152,7 +163,7 @@ impl WinIcon {
 
 impl Drop for RaiiIcon {
     fn drop(&mut self) {
-        unsafe { winuser::DestroyIcon(self.handle) };
+        unsafe { DestroyIcon(HICON(self.handle.0)) };
     }
 }
 
@@ -164,6 +175,6 @@ impl fmt::Debug for WinIcon {
 
 pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
     unsafe {
-        winuser::SendMessageW(hwnd, winuser::WM_SETICON, icon_type as WPARAM, 0 as LPARAM);
+        SendMessageW(hwnd, WM_SETICON, WPARAM(icon_type as usize), LPARAM(0));
     }
 }

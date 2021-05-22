@@ -7,9 +7,9 @@ use std::{
     time::Instant,
 };
 
-use winapi::{
-    shared::{minwindef::DWORD, windef::HWND},
-    um::winuser,
+use winapi::Windows::Win32::{
+    Graphics::Gdi::{RedrawWindow, RDW_INTERNALPAINT},
+    UI::WindowsAndMessaging::HWND,
 };
 
 use crate::{
@@ -24,7 +24,7 @@ pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
 pub(crate) struct EventLoopRunner<T: 'static> {
     // The event loop's win32 handles
     thread_msg_target: HWND,
-    wait_thread_id: DWORD,
+    wait_thread_id: u32,
 
     control_flow: Cell<ControlFlow>,
     runner_state: Cell<RunnerState>,
@@ -33,7 +33,7 @@ pub(crate) struct EventLoopRunner<T: 'static> {
     event_handler: Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>,
     event_buffer: RefCell<VecDeque<BufferedEvent<T>>>,
 
-    owned_windows: Cell<HashSet<HWND>>,
+    owned_windows: Cell<HashSet<isize>>,
 
     panic_error: Cell<Option<PanicError>>,
 }
@@ -63,7 +63,7 @@ enum BufferedEvent<T: 'static> {
 }
 
 impl<T> EventLoopRunner<T> {
-    pub(crate) fn new(thread_msg_target: HWND, wait_thread_id: DWORD) -> EventLoopRunner<T> {
+    pub(crate) fn new(thread_msg_target: HWND, wait_thread_id: u32) -> EventLoopRunner<T> {
         EventLoopRunner {
             thread_msg_target,
             wait_thread_id,
@@ -113,7 +113,7 @@ impl<T> EventLoopRunner<T> {
         self.thread_msg_target
     }
 
-    pub fn wait_thread_id(&self) -> DWORD {
+    pub fn wait_thread_id(&self) -> u32 {
         self.wait_thread_id
     }
 
@@ -174,20 +174,20 @@ impl<T> EventLoopRunner<T> {
     }
     pub fn register_window(&self, window: HWND) {
         let mut owned_windows = self.owned_windows.take();
-        owned_windows.insert(window);
+        owned_windows.insert(window.0);
         self.owned_windows.set(owned_windows);
     }
 
     pub fn remove_window(&self, window: HWND) {
         let mut owned_windows = self.owned_windows.take();
-        owned_windows.remove(&window);
+        owned_windows.remove(&window.0);
         self.owned_windows.set(owned_windows);
     }
 
     pub fn owned_windows(&self, mut f: impl FnMut(HWND)) {
         let mut owned_windows = self.owned_windows.take();
         for hwnd in &owned_windows {
-            f(*hwnd);
+            f(HWND(*hwnd));
         }
         let new_owned_windows = self.owned_windows.take();
         owned_windows.extend(&new_owned_windows);
@@ -208,18 +208,16 @@ impl<T> EventLoopRunner<T> {
                 self.move_state_to(RunnerState::HandlingRedrawEvents);
             }
             self.call_event_handler(event);
+        } else if self.should_buffer() {
+            // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
+            // the event to a buffer to be processed later.
+            self.event_buffer
+                .borrow_mut()
+                .push_back(BufferedEvent::from_event(event))
         } else {
-            if self.should_buffer() {
-                // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
-                // the event to a buffer to be processed later.
-                self.event_buffer
-                    .borrow_mut()
-                    .push_back(BufferedEvent::from_event(event))
-            } else {
-                self.move_state_to(RunnerState::HandlingMainEvents);
-                self.call_event_handler(event);
-                self.dispatch_buffered_events();
-            }
+            self.move_state_to(RunnerState::HandlingMainEvents);
+            self.call_event_handler(event);
+            self.dispatch_buffered_events();
         }
     }
 
@@ -392,12 +390,7 @@ impl<T> EventLoopRunner<T> {
         };
         self.call_event_handler(Event::NewEvents(start_cause));
         self.dispatch_buffered_events();
-        winuser::RedrawWindow(
-            self.thread_msg_target,
-            ptr::null(),
-            ptr::null_mut(),
-            winuser::RDW_INTERNALPAINT,
-        );
+        RedrawWindow(self.thread_msg_target, ptr::null(), None, RDW_INTERNALPAINT);
     }
 
     unsafe fn call_redraw_events_cleared(&self) {
@@ -433,7 +426,7 @@ impl<T> BufferedEvent<T> {
                     },
                 });
                 util::set_inner_size_physical(
-                    (window_id.0).0,
+                    HWND((window_id.0).0),
                     new_inner_size.width as _,
                     new_inner_size.height as _,
                 );

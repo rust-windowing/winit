@@ -3,9 +3,9 @@
 use std::os::raw::c_void;
 use std::path::Path;
 
-use libc;
-use winapi::shared::minwindef::WORD;
-use winapi::shared::windef::{HMENU, HWND};
+use winapi::Windows::Win32::UI::{
+    KeyboardAndMouseInput::EnableWindow, MenusAndResources::HMENU, WindowsAndMessaging::HWND,
+};
 
 use crate::{
     dpi::PhysicalSize,
@@ -72,11 +72,11 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExtWindows {
     /// Returns the HINSTANCE of the window
-    fn hinstance(&self) -> *mut libc::c_void;
+    fn hinstance(&self) -> *mut c_void;
     /// Returns the native handle that is used by this window.
     ///
     /// The pointer will become invalid when the native window was destroyed.
-    fn hwnd(&self) -> *mut libc::c_void;
+    fn hwnd(&self) -> *mut c_void;
 
     /// Enables or disables mouse and keyboard input to the specified window.
     ///
@@ -102,19 +102,19 @@ pub trait WindowExtWindows {
 
 impl WindowExtWindows for Window {
     #[inline]
-    fn hinstance(&self) -> *mut libc::c_void {
-        self.window.hinstance() as *mut _
+    fn hinstance(&self) -> *mut c_void {
+        self.window.hinstance().0 as *mut _
     }
 
     #[inline]
-    fn hwnd(&self) -> *mut libc::c_void {
-        self.window.hwnd() as *mut _
+    fn hwnd(&self) -> *mut c_void {
+        self.window.hwnd().0 as *mut _
     }
 
     #[inline]
     fn set_enable(&self, enabled: bool) {
         unsafe {
-            winapi::um::winuser::EnableWindow(self.hwnd() as _, enabled as _);
+            EnableWindow(HWND(self.hwnd() as isize), enabled);
         }
     }
 
@@ -239,7 +239,7 @@ impl MonitorHandleExtWindows for MonitorHandle {
 
     #[inline]
     fn hmonitor(&self) -> *mut c_void {
-        self.inner.hmonitor() as *mut _
+        self.inner.hmonitor().0 as *mut _
     }
 }
 
@@ -277,7 +277,7 @@ pub trait IconExtWindows: Sized {
     ///
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
+    fn from_resource(ordinal: u32, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
 }
 
 impl IconExtWindows for Icon {
@@ -289,7 +289,7 @@ impl IconExtWindows for Icon {
         Ok(Icon { inner: win_icon })
     }
 
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
+    fn from_resource(ordinal: u32, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
         let win_icon = WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
     }

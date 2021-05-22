@@ -14,7 +14,14 @@ categories = ["gui"]
 [package.metadata.docs.rs]
 features = ["serde", "web-sys"]
 default-target = "x86_64-unknown-linux-gnu"
-targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
+targets = [
+    "i686-pc-windows-msvc",
+    "x86_64-pc-windows-msvc",
+    "i686-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "wasm32-unknown-unknown",
+]
 
 [features]
 default = ["x11", "wayland"]
@@ -59,34 +66,10 @@ features = ["display_link"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
 parking_lot = "0.11"
-
-[target.'cfg(target_os = "windows")'.dependencies.winapi]
-version = "0.3.6"
-features = [
-    "combaseapi",
-    "commctrl",
-    "dwmapi",
-    "errhandlingapi",
-    "imm",
-    "hidusage",
-    "libloaderapi",
-    "objbase",
-    "ole2",
-    "processthreadsapi",
-    "shellapi",
-    "shellscalingapi",
-    "shobjidl_core",
-    "unknwnbase",
-    "winbase",
-    "windowsx",
-    "winerror",
-    "wingdi",
-    "winnt",
-    "winuser",
-]
+winapi = { path = "winapi" }
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.28", features = [ "dlopen"] , optional = true }
+wayland-client = { version = "0.28", features = ["dlopen"], optional = true }
 sctk = { package = "smithay-client-toolkit", version = "0.12.3", optional = true }
 mio = { version = "0.7", features = ["os-ext"], optional = true }
 mio-misc = { version = "1.0", optional = true }
@@ -118,7 +101,7 @@ features = [
     'Node',
     'PointerEvent',
     'Window',
-    'WheelEvent'
+    'WheelEvent',
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
