@@ -72,10 +72,7 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 #### WebAssembly
 
-Winit supports compiling to the `wasm32-unknown-unknown` target with either a
-`stdweb` or a `web-sys` backend for use on web browsers. However, please note
-that **the `stdweb` backend is being deprecated and may be removed in a future
-release of Winit**. The `web-sys` backend is also more feature complete.
+Winit supports compiling to the `wasm32-unknown-unknown` target with `web-sys`.
 
 On the web platform, a Winit window is backed by a `<canvas>` element. You can
 either [provide Winit with a `<canvas>` element][web with_canvas], or [let Winit

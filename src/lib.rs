@@ -146,8 +146,6 @@ extern crate bitflags;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
-#[cfg(all(target_arch = "wasm32", feature = "std_web"))]
-extern crate std_web as stdweb;
 
 pub mod dpi;
 #[macro_use]
