@@ -199,7 +199,7 @@ Legend:
 |Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|❓        |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
-|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
+|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️        |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
