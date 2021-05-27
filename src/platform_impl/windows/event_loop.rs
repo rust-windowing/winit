@@ -268,8 +268,6 @@ impl<T> EventLoopWindowTarget<T> {
 /// Returns the id of the main thread.
 ///
 /// Windows has no real API to check if the current executing thread is the "main thread", unlike macOS.
-/// Unix-like OSes have some APIs or semantics that exist regarding whether the main thread is in use or
-/// if the main thread id equals the pid like on Linux.
 ///
 /// Windows will let us look up the current thread's id, but there's no API that lets us check what the
 /// id of the main thread is.
@@ -277,8 +275,8 @@ impl<T> EventLoopWindowTarget<T> {
 /// threads inside of the main entrypoint in order to emulate the capabilities of other platforms.
 ///
 /// We can get the id of the main thread by using CRT initialization.
-/// CRT initialization can be used to setup global state within a program by calling a list of
-/// function pointers which should assign a value to a static field.
+/// CRT initialization can be used to setup global state within a program.
+/// The OS will call a list of function pointers which assign a values to a static fields.
 /// To have get a hold of the main thread id, we need to place our function pointer inside
 /// of the `.CRT$XCU` section so it is called before the main entrypoint.
 ///
