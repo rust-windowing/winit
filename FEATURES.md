@@ -183,10 +183,8 @@ Legend:
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |**N/A**|
-|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️ \*1|
+|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️    |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
-
-\*1: `WindowEvent::ScaleFactorChanged` is not sent on `stdweb` backend.
 
 ### System information
 |Feature          |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS      |WASM      |
