@@ -1,3 +1,5 @@
+// TODO: This file can be transitioned to windows-rs once https://github.com/microsoft/windows-rs/issues/81 lands
+
 use std::{
     ffi::OsString,
     os::windows::ffi::OsStringExt,
@@ -6,21 +8,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
-use winapi::{
-    ctypes::c_void,
-    shared::{
-        guiddef::REFIID,
-        minwindef::{DWORD, UINT, ULONG},
-        windef::{HWND, POINTL},
-        winerror::S_OK,
-    },
-    um::{
-        objidl::IDataObject,
-        oleidl::{IDropTarget, IDropTargetVtbl, DROPEFFECT_COPY, DROPEFFECT_NONE},
-        shellapi, unknwnbase,
-        winnt::HRESULT,
-    },
-};
+use winapi::Windows::Win32::{System::Com::IDropTarget, UI::WindowsAndMessaging::HWND};
 
 use crate::platform_impl::platform::WindowId;
 

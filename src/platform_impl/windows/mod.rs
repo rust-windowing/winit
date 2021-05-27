@@ -1,6 +1,9 @@
 #![cfg(target_os = "windows")]
 
-use winapi::{self, shared::windef::HMENU, shared::windef::HWND};
+use winapi::Windows::Win32::{
+    System::SystemServices::HANDLE,
+    UI::{MenusAndResources::HMENU, WindowsAndMessaging::HWND},
+};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
@@ -50,12 +53,12 @@ unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
 
 // Cursor name in UTF-16. Used to set cursor in `WM_SETCURSOR`.
 #[derive(Debug, Clone, Copy)]
-pub struct Cursor(pub *const winapi::ctypes::wchar_t);
+pub struct Cursor(pub *const u16);
 unsafe impl Send for Cursor {}
 unsafe impl Sync for Cursor {}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(u32);
+pub struct DeviceId(isize);
 
 impl DeviceId {
     pub unsafe fn dummy() -> Self {
@@ -66,7 +69,7 @@ impl DeviceId {
 impl DeviceId {
     pub fn persistent_identifier(&self) -> Option<String> {
         if self.0 != 0 {
-            raw_input::get_raw_input_device_name(self.0 as _)
+            raw_input::get_raw_input_device_name(HANDLE(self.0))
         } else {
             None
         }
@@ -76,22 +79,18 @@ impl DeviceId {
 // Constant device ID, to be removed when this backend is updated to report real device IDs.
 const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId(0));
 
-fn wrap_device_id(id: u32) -> RootDeviceId {
+fn wrap_device_id(id: isize) -> RootDeviceId {
     RootDeviceId(DeviceId(id))
 }
 
 pub type OsError = std::io::Error;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(HWND);
-unsafe impl Send for WindowId {}
-unsafe impl Sync for WindowId {}
+pub struct WindowId(isize);
 
 impl WindowId {
     pub unsafe fn dummy() -> Self {
-        use std::ptr::null_mut;
-
-        WindowId(null_mut())
+        WindowId(0)
     }
 }
 
