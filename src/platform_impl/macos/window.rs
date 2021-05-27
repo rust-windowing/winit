@@ -38,11 +38,12 @@ use cocoa::{
         NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
+    foundation::{NSDictionary, NSPoint, NSRect, NSSize},
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassDecl,
+    rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 
@@ -118,8 +119,7 @@ fn create_window(
     attrs: &WindowAttributes,
     pl_attrs: &PlatformSpecificWindowBuilderAttributes,
 ) -> Option<IdRef> {
-    unsafe {
-        let pool = NSAutoreleasePool::new(nil);
+    autoreleasepool(|| unsafe {
         let screen = match attrs.fullscreen {
             Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
             | Some(Fullscreen::Exclusive(RootVideoMode {
@@ -241,9 +241,8 @@ fn create_window(
             }
             ns_window
         });
-        pool.drain();
         res
-    }
+    })
 }
 
 struct WindowClass(*const Class);
@@ -336,17 +335,11 @@ impl UnownedWindow {
         }
         trace!("Creating new window");
 
-        let pool = unsafe { NSAutoreleasePool::new(nil) };
-        let ns_window = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
-            unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
-        })?;
+        let ns_window = create_window(&win_attribs, &pl_attribs)
+            .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        let (ns_view, cursor_state) =
-            unsafe { create_view(*ns_window, &pl_attribs) }.ok_or_else(|| {
-                unsafe { pool.drain() };
-                os_error!(OsError::CreationError("Couldn't create `NSView`"))
-            })?;
+        let (ns_view, cursor_state) = unsafe { create_view(*ns_window, &pl_attribs) }
+            .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSView`")))?;
 
         // Configure the new view as the "key view" for the window
         unsafe {
@@ -421,8 +414,6 @@ impl UnownedWindow {
         if maximized {
             window.set_maximized(maximized);
         }
-
-        unsafe { pool.drain() };
 
         Ok((window, delegate))
     }

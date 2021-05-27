@@ -289,7 +289,7 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
             let notification_center: &Object =
                 msg_send![class!(NSNotificationCenter), defaultCenter];
             let notification_name =
-                NSString::alloc(nil).init_str("NSViewFrameDidChangeNotification");
+                IdRef::new(NSString::alloc(nil).init_str("NSViewFrameDidChangeNotification"));
             let _: () = msg_send![
                 notification_center,
                 addObserver: this

@@ -14,10 +14,9 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSEventType::NSApplicationDefined},
     base::{id, nil, YES},
-    foundation::{NSAutoreleasePool, NSPoint},
+    foundation::NSPoint,
 };
-
-use scopeguard::defer;
+use objc::rc::autoreleasepool;
 
 use crate::{
     event::Event,
@@ -115,9 +114,9 @@ impl<T> EventLoop<T> {
             let app: id = msg_send![APP_CLASS.0, sharedApplication];
 
             let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
-            let pool = NSAutoreleasePool::new(nil);
-            let _: () = msg_send![app, setDelegate:*delegate];
-            let _: () = msg_send![pool, drain];
+            autoreleasepool(|| {
+                let _: () = msg_send![app, setDelegate:*delegate];
+            });
             delegate
         };
         let panic_info: Rc<PanicInfo> = Default::default();
@@ -162,9 +161,7 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        unsafe {
-            let pool = NSAutoreleasePool::new(nil);
-            defer!(pool.drain());
+        autoreleasepool(|| unsafe {
             let app = NSApp();
             assert_ne!(app, nil);
 
@@ -180,7 +177,7 @@ impl<T> EventLoop<T> {
                 resume_unwind(panic);
             }
             AppState::exit();
-        }
+        });
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {

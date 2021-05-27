@@ -25,6 +25,7 @@ pub use self::{
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
 };
+use objc::rc::autoreleasepool;
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
@@ -69,7 +70,7 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = UnownedWindow::new(attributes, pl_attribs)?;
+        let (window, _delegate) = autoreleasepool(|| UnownedWindow::new(attributes, pl_attribs))?;
         Ok(Window { window, _delegate })
     }
 }
