@@ -276,7 +276,7 @@ impl<T> EventLoopWindowTarget<T> {
 ///
 /// We can get the id of the main thread by using CRT initialization. CRT initialization can be used
 /// to setup global state within a program. The OS will call a list of function pointers which assign
-/// values to a static fields. To have get a hold of the main thread id, we need to place our
+/// values to a static variable. To have get a hold of the main thread id, we need to place our
 /// function pointer inside of the `.CRT$XCU` section so it is called before the main entrypoint.
 ///
 /// Full details of CRT initialization can be found here:
