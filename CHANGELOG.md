@@ -1,8 +1,8 @@
 # Unreleased
 
+- On Android, implement `Window::request_redraw`
 - **Breaking:** On Web, remove the `stdweb` backend.
 - Added `Window::focus_window`to bring the window to the front and set input focus.
-- Implement `Window::request_redraw` on Android
 
 # 0.25.0 (2021-05-15)
 
