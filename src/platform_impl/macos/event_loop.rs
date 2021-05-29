@@ -141,8 +141,7 @@ impl<T> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         self.run_return(callback);
-        // Drop the callback before exiting
-        self._callback = None;
+        drop(self._callback.take());
         process::exit(0);
     }
 
