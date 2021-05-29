@@ -1,5 +1,6 @@
 # Unreleased
 
+- On macOS, drop the event callback before exiting.
 - **Breaking:** On Web, remove the `stdweb` backend.
 - Added `Window::focus_window`to bring the window to the front and set input focus.
 
