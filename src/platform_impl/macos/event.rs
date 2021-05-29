@@ -204,7 +204,7 @@ pub fn create_key_event(
     }
 }
 
-fn code_to_key(code: KeyCode, scancode: u16) -> Key<'static> {
+pub fn code_to_key(code: KeyCode, scancode: u16) -> Key<'static> {
     match code {
         KeyCode::Enter => Key::Enter,
         KeyCode::Tab => Key::Tab,

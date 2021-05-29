@@ -25,7 +25,7 @@ use crate::{
     platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         app_state::AppState,
-        event::{create_key_event, event_mods, get_scancode, EventWrapper},
+        event::{code_to_key, create_key_event, event_mods, get_scancode, EventWrapper},
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
@@ -810,6 +810,7 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, ns_event: id) {
                             ElementState::Released
                         };
                         event.physical_key = actual_key;
+                        event.logical_key = code_to_key(event.physical_key, scancode);
                         events.push_back(WindowEvent::KeyboardInput {
                             device_id: DEVICE_ID,
                             event,
