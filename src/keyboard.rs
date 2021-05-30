@@ -174,12 +174,16 @@ mod modifiers_serde {
 pub enum NativeKeyCode {
     Unidentified,
     Windows(u16),
-    MacOS(u32),
+    MacOS(u16),
     XKB(u32),
+
+    /// This is the android "key code" of the event as returned by
+    /// `KeyEvent.getKeyCode()`
+    Android(u32),
 }
 impl std::fmt::Debug for NativeKeyCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKeyCode::{MacOS, Unidentified, Windows, XKB};
+        use NativeKeyCode::{Android, MacOS, Unidentified, Windows, XKB};
         let mut debug_tuple;
         match self {
             Unidentified => {
@@ -191,11 +195,15 @@ impl std::fmt::Debug for NativeKeyCode {
             }
             MacOS(v) => {
                 debug_tuple = f.debug_tuple(name_of!(MacOS));
-                debug_tuple.field(v);
+                debug_tuple.field(&format_args!("0x{:02X}", v));
             }
             XKB(v) => {
                 debug_tuple = f.debug_tuple(name_of!(XKB));
                 debug_tuple.field(v);
+            }
+            Android(v) => {
+                debug_tuple = f.debug_tuple(name_of!(Android));
+                debug_tuple.field(&format_args!("0x{:04X}", v));
             }
         }
         debug_tuple.finish()
@@ -223,7 +231,8 @@ pub enum KeyCode {
     /// to allow the user to specify keybindings for keys which
     /// are not defined by this API.
     Unidentified(NativeKeyCode),
-    /// <kbd>`</kbd> on a US keyboard. This is the <kbd>半角</kbd>/<kbd>全角</kbd>/<kbd>漢字</kbd>
+    /// <kbd>`</kbd> on a US keyboard. This is also called a backtick or grave.
+    /// This is the <kbd>半角</kbd>/<kbd>全角</kbd>/<kbd>漢字</kbd>
     /// (hankaku/zenkaku/kanji) key on Japanese keyboards
     Backquote,
     /// Used for both the US <kbd>\\</kbd> (on the 101-key layout) and also for the key
@@ -507,10 +516,13 @@ pub enum KeyCode {
     /// <kbd>Pause Break</kbd>
     Pause,
     /// Some laptops place this key to the left of the <kbd>↑</kbd> key.
+    ///
+    /// This also the "back" button (triangle) on Android.
     BrowserBack,
     BrowserFavorites,
     /// Some laptops place this key to the right of the <kbd>↑</kbd> key.
     BrowserForward,
+    /// The "home" button on Android.
     BrowserHome,
     BrowserRefresh,
     BrowserSearch,

@@ -311,6 +311,10 @@ impl Inner {
         };
         RawWindowHandle::IOS(handle)
     }
+
+    pub fn reset_dead_keys(&self) {
+        // Noop
+    }
 }
 
 pub struct Window {

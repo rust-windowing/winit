@@ -1,6 +1,6 @@
 use std::{
     boxed::Box,
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
     os::raw::*,
     slice, str,
     sync::{Arc, Mutex, Weak},
@@ -19,15 +19,13 @@ use objc::{
 use crate::{
     dpi::LogicalPosition,
     event::{
-        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, MouseButton,
-        MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
+        DeviceEvent, ElementState, Event, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
     },
+    keyboard::{KeyCode, ModifiersState},
+    platform::scancode::KeyCodeExtScancode,
     platform_impl::platform::{
         app_state::AppState,
-        event::{
-            char_to_keycode, check_function_keys, event_mods, get_scancode, modifier_event,
-            scancode_to_keycode, EventWrapper,
-        },
+        event::{code_to_key, create_key_event, event_mods, get_scancode, EventWrapper},
         ffi::*,
         util::{self, IdRef},
         window::get_window_id,
@@ -54,9 +52,19 @@ pub(super) struct ViewState {
     ns_window: id,
     pub cursor_state: Arc<Mutex<CursorState>>,
     ime_spot: Option<(f64, f64)>,
+
+    /// This is true when we are currently modifying a marked text
+    /// using ime. When the text gets commited, this is set to false.
+    in_ime_preedit: bool,
+
+    /// This is used to detect if a key-press causes an ime event.
+    /// If a key-press does not cause an ime event, that means
+    /// that the key-press cancelled the ime session. (Except arrow keys)
+    key_triggered_ime: bool,
     raw_characters: Option<String>,
     is_key_down: bool,
     pub(super) modifiers: ModifiersState,
+    phys_modifiers: HashSet<KeyCode>,
     tracking_rect: Option<NSInteger>,
 }
 
@@ -73,9 +81,12 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         ns_window,
         cursor_state,
         ime_spot: None,
+        in_ime_preedit: false,
+        key_triggered_ime: false,
         raw_characters: None,
         is_key_down: false,
         modifiers: Default::default(),
+        phys_modifiers: Default::default(),
         tracking_rect: None,
     };
     unsafe {
@@ -98,6 +109,23 @@ pub unsafe fn set_ime_position(ns_view: id, input_context: id, x: f64, y: f64) {
     let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
     state.ime_spot = Some((base_x + x, base_y - y));
     let _: () = msg_send![input_context, invalidateCharacterCoordinates];
+}
+
+fn is_arrow_key(keycode: KeyCode) -> bool {
+    matches!(
+        keycode,
+        KeyCode::ArrowUp | KeyCode::ArrowDown | KeyCode::ArrowLeft | KeyCode::ArrowRight
+    )
+}
+
+/// `view` must be the reference to the `WinitView` class
+///
+/// Returns the mutable reference to the `markedText` field.
+unsafe fn clear_marked_text(view: &mut Object) -> &mut id {
+    let marked_text_ref: &mut id = view.get_mut_ivar("markedText");
+    let () = msg_send![(*marked_text_ref), release];
+    *marked_text_ref = NSMutableAttributedString::alloc(nil);
+    marked_text_ref
 }
 
 struct ViewClass(*const Class);
@@ -149,7 +177,10 @@ lazy_static! {
             sel!(setMarkedText:selectedRange:replacementRange:),
             set_marked_text as extern "C" fn(&mut Object, Sel, id, NSRange, NSRange),
         );
-        decl.add_method(sel!(unmarkText), unmark_text as extern "C" fn(&Object, Sel));
+        decl.add_method(
+            sel!(unmarkText),
+            unmark_text as extern "C" fn(&mut Object, Sel),
+        );
         decl.add_method(
             sel!(validAttributesForMarkedText),
             valid_attributes_for_marked_text as extern "C" fn(&Object, Sel) -> id,
@@ -176,7 +207,10 @@ lazy_static! {
             sel!(doCommandBySelector:),
             do_command_by_selector as extern "C" fn(&Object, Sel, Sel),
         );
-        decl.add_method(sel!(keyDown:), key_down as extern "C" fn(&Object, Sel, id));
+        decl.add_method(
+            sel!(keyDown:),
+            key_down as extern "C" fn(&mut Object, Sel, id),
+        );
         decl.add_method(sel!(keyUp:), key_up as extern "C" fn(&Object, Sel, id));
         decl.add_method(
             sel!(flagsChanged:),
@@ -416,6 +450,9 @@ extern "C" fn selected_range(_this: &Object, _sel: Sel) -> NSRange {
     util::EMPTY_RANGE
 }
 
+/// An IME pre-edit operation happened, changing the text that's
+/// currently being pre-edited. This more or less corresponds to
+/// the `compositionupdate` event on the web.
 extern "C" fn set_marked_text(
     this: &mut Object,
     _sel: Sel,
@@ -425,26 +462,26 @@ extern "C" fn set_marked_text(
 ) {
     trace!("Triggered `setMarkedText`");
     unsafe {
-        let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
-        let _: () = msg_send![(*marked_text_ref), release];
-        let marked_text = NSMutableAttributedString::alloc(nil);
+        let marked_text_ref = clear_marked_text(this);
         let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
         if has_attr {
-            marked_text.initWithAttributedString(string);
+            marked_text_ref.initWithAttributedString(string);
         } else {
-            marked_text.initWithString(string);
+            marked_text_ref.initWithString(string);
         };
-        *marked_text_ref = marked_text;
+
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+        state.in_ime_preedit = true;
+        state.key_triggered_ime = true;
     }
     trace!("Completed `setMarkedText`");
 }
 
-extern "C" fn unmark_text(this: &Object, _sel: Sel) {
+extern "C" fn unmark_text(this: &mut Object, _sel: Sel) {
     trace!("Triggered `unmarkText`");
     unsafe {
-        let marked_text: id = *this.get_ivar("markedText");
-        let mutable_string = marked_text.mutableString();
-        let _: () = msg_send![mutable_string, setString:""];
+        clear_marked_text(this);
         let input_context: id = msg_send![this, inputContext];
         let _: () = msg_send![input_context, discardMarkedText];
     }
@@ -515,59 +552,66 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
 
         let slice =
             slice::from_raw_parts(characters.UTF8String() as *const c_uchar, characters.len());
-        let string = str::from_utf8_unchecked(slice);
+        let string: String = str::from_utf8_unchecked(slice)
+            .chars()
+            .filter(|c| !is_corporate_character(*c))
+            .collect();
         state.is_key_down = true;
 
         // We don't need this now, but it's here if that changes.
         //let event: id = msg_send![NSApp(), currentEvent];
 
-        let mut events = VecDeque::with_capacity(characters.len());
-        for character in string.chars().filter(|c| !is_corporate_character(*c)) {
-            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+        // We only send the IME text input here. The text coming from the
+        // keyboard is handled by `key_down`
+        if state.in_ime_preedit {
+            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
-                event: WindowEvent::ReceivedCharacter(character),
+                event: WindowEvent::ReceivedImeText(string),
             }));
+            state.in_ime_preedit = false;
+            state.key_triggered_ime = true;
         }
-
-        AppState::queue_events(events);
     }
     trace!("Completed `insertText`");
 }
 
-extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
+extern "C" fn do_command_by_selector(_this: &Object, _sel: Sel, _command: Sel) {
     trace!("Triggered `doCommandBySelector`");
+    // TODO: (Artur) all these inputs seem to trigger a key event with the correct text
+    // content so this is not needed anymore, it seems.
+
     // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human readable" character
     // happens, i.e. newlines, tabs, and Ctrl+C.
-    unsafe {
-        let state_ptr: *mut c_void = *this.get_ivar("winitState");
-        let state = &mut *(state_ptr as *mut ViewState);
 
-        let mut events = VecDeque::with_capacity(1);
-        if command == sel!(insertNewline:) {
-            // The `else` condition would emit the same character, but I'm keeping this here both...
-            // 1) as a reminder for how `doCommandBySelector` works
-            // 2) to make our use of carriage return explicit
-            events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-                window_id: WindowId(get_window_id(state.ns_window)),
-                event: WindowEvent::ReceivedCharacter('\r'),
-            }));
-        } else {
-            let raw_characters = state.raw_characters.take();
-            if let Some(raw_characters) = raw_characters {
-                for character in raw_characters
-                    .chars()
-                    .filter(|c| !is_corporate_character(*c))
-                {
-                    events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: WindowId(get_window_id(state.ns_window)),
-                        event: WindowEvent::ReceivedCharacter(character),
-                    }));
-                }
-            }
-        };
+    // unsafe {
+    //     let state_ptr: *mut c_void = *this.get_ivar("winitState");
+    //     let state = &mut *(state_ptr as *mut ViewState);
 
-        AppState::queue_events(events);
-    }
+    //     let mut events = VecDeque::with_capacity(1);
+    //     if command == sel!(insertNewline:) {
+    //         // The `else` condition would emit the same character, but I'm keeping this here both...
+    //         // 1) as a reminder for how `doCommandBySelector` works
+    //         // 2) to make our use of carriage return explicit
+    //         events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+    //             window_id: WindowId(get_window_id(state.ns_window)),
+    //             event: WindowEvent::ReceivedCharacter('\r'),
+    //         }));
+    //     } else {
+    //         let raw_characters = state.raw_characters.take();
+    //         if let Some(raw_characters) = raw_characters {
+    //             for character in raw_characters
+    //                 .chars()
+    //                 .filter(|c| !is_corporate_character(*c))
+    //             {
+    //                 events.push_back(EventWrapper::StaticEvent(Event::WindowEvent {
+    //                     window_id: WindowId(get_window_id(state.ns_window)),
+    //                     event: WindowEvent::ReceivedCharacter(character),
+    //                 }));
+    //             }
+    //         }
+    //     };
+    //     AppState::queue_events(events);
+    // }
     trace!("Completed `doCommandBySelector`");
 }
 
@@ -603,29 +647,29 @@ fn is_corporate_character(c: char) -> bool {
     }
 }
 
-// Retrieves a layout-independent keycode given an event.
-fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
-    #[inline]
-    fn get_code(ev: id, raw: bool) -> Option<VirtualKeyCode> {
-        let characters = get_characters(ev, raw);
-        characters.chars().next().and_then(|c| char_to_keycode(c))
-    }
+// // Retrieves a layout-independent keycode given an event.
+// fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
+//     #[inline]
+//     fn get_code(ev: id, raw: bool) -> Option<VirtualKeyCode> {
+//         let characters = get_characters(ev, raw);
+//         characters.chars().next().and_then(|c| char_to_keycode(c))
+//     }
 
-    // Cmd switches Roman letters for Dvorak-QWERTY layout, so we try modified characters first.
-    // If we don't get a match, then we fall back to unmodified characters.
-    let code = get_code(event, false).or_else(|| get_code(event, true));
+//     // Cmd switches Roman letters for Dvorak-QWERTY layout, so we try modified characters first.
+//     // If we don't get a match, then we fall back to unmodified characters.
+//     let code = get_code(event, false).or_else(|| get_code(event, true));
 
-    // We've checked all layout related keys, so fall through to scancode.
-    // Reaching this code means that the key is layout-independent (e.g. Backspace, Return).
-    //
-    // We're additionally checking here for F21-F24 keys, since their keycode
-    // can vary, but we know that they are encoded
-    // in characters property.
-    code.or_else(|| {
-        let scancode = get_scancode(event);
-        scancode_to_keycode(scancode).or_else(|| check_function_keys(&get_characters(event, true)))
-    })
-}
+//     // We've checked all layout related keys, so fall through to scancode.
+//     // Reaching this code means that the key is layout-independent (e.g. Backspace, Return).
+//     //
+//     // We're additionally checking here for F21-F24 keys, since their keycode
+//     // can vary, but we know that they are encoded
+//     // in characters property.
+//     code.or_else(|| {
+//         let scancode = get_scancode(event);
+//         scancode_to_keycode(scancode).or_else(|| check_function_keys(&get_characters(event, true)))
+//     })
+// }
 
 // Update `state.modifiers` if `event` has something different
 fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
@@ -640,7 +684,7 @@ fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
     }
 }
 
-extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
+extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
     trace!("Triggered `keyDown`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
@@ -650,51 +694,51 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         state.raw_characters = Some(characters.clone());
 
-        let scancode = get_scancode(event) as u32;
-        let virtual_keycode = retrieve_keycode(event);
-
-        let is_repeat = msg_send![event, isARepeat];
+        let is_repeat: BOOL = msg_send![event, isARepeat];
+        let is_repeat = is_repeat == YES;
 
         update_potentially_stale_modifiers(state, event);
 
-        #[allow(deprecated)]
-        let window_event = Event::WindowEvent {
-            window_id,
-            event: WindowEvent::KeyboardInput {
-                device_id: DEVICE_ID,
-                input: KeyboardInput {
-                    state: ElementState::Pressed,
-                    scancode,
-                    virtual_keycode,
-                    modifiers: event_mods(event),
-                },
-                is_synthetic: false,
-            },
-        };
-
-        let pass_along = {
-            AppState::queue_event(EventWrapper::StaticEvent(window_event));
-            // Emit `ReceivedCharacter` for key repeats
-            if is_repeat && state.is_key_down {
-                for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
-                    AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::ReceivedCharacter(character),
-                    }));
-                }
-                false
-            } else {
-                true
-            }
-        };
-
+        let pass_along = !is_repeat || !state.is_key_down;
         if pass_along {
+            // See below for why we do this.
+            clear_marked_text(this);
+            state.key_triggered_ime = false;
+
             // Some keys (and only *some*, with no known reason) don't trigger `insertText`, while others do...
             // So, we don't give repeats the opportunity to trigger that, since otherwise our hack will cause some
             // keys to generate twice as many characters.
             let array: id = msg_send![class!(NSArray), arrayWithObject: event];
-            let _: () = msg_send![this, interpretKeyEvents: array];
+            let () = msg_send![this, interpretKeyEvents: array];
         }
+        // The `interpretKeyEvents` above, may invoke `set_marked_text` or `insert_text`,
+        // if the event corresponds to an IME event.
+        let in_ime = state.key_triggered_ime;
+        let key_event = create_key_event(event, true, is_repeat, in_ime, None);
+        let is_arrow_key = is_arrow_key(key_event.physical_key);
+        if pass_along {
+            // The `interpretKeyEvents` above, may invoke `set_marked_text` or `insert_text`,
+            // if the event corresponds to an IME event.
+            // If `set_marked_text` or `insert_text` were not invoked, then the IME was deactivated,
+            // and we should cancel the IME session.
+            // When using arrow keys in an IME window, the input context won't invoke the
+            // IME related methods, so in that case we shouldn't cancel the IME session.
+            let is_preediting: bool = state.in_ime_preedit;
+            if is_preediting && !state.key_triggered_ime && !is_arrow_key {
+                // In this case we should cancel the IME session.
+                let () = msg_send![this, unmarkText];
+                state.in_ime_preedit = false;
+            }
+        }
+        let window_event = Event::WindowEvent {
+            window_id,
+            event: WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                event: key_event,
+                is_synthetic: false,
+            },
+        };
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `keyDown`");
 }
@@ -707,74 +751,129 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
 
         state.is_key_down = false;
 
-        let scancode = get_scancode(event) as u32;
-        let virtual_keycode = retrieve_keycode(event);
-
         update_potentially_stale_modifiers(state, event);
 
-        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
-                input: KeyboardInput {
-                    state: ElementState::Released,
-                    scancode,
-                    virtual_keycode,
-                    modifiers: event_mods(event),
-                },
+                event: create_key_event(event, false, false, false, None),
                 is_synthetic: false,
             },
         };
-
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `keyUp`");
 }
 
-extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
+extern "C" fn flags_changed(this: &Object, _sel: Sel, ns_event: id) {
+    use KeyCode::{
+        AltLeft, AltRight, ControlLeft, ControlRight, ShiftLeft, ShiftRight, SuperLeft, SuperRight,
+    };
+
     trace!("Triggered `flagsChanged`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
+        let scancode = get_scancode(ns_event);
+
+        // We'll correct the `is_press` and the `key_override` below.
+        let event = create_key_event(ns_event, false, false, false, Some(KeyCode::SuperLeft));
         let mut events = VecDeque::with_capacity(4);
 
-        if let Some(window_event) = modifier_event(
-            event,
+        macro_rules! process_event {
+            ($winit_flag:expr, $ns_flag:expr, $target_key:expr) => {
+                let ns_event_contains_keymask = NSEvent::modifierFlags(ns_event).contains($ns_flag);
+                let mut actual_key = KeyCode::from_scancode(scancode as u32);
+                let was_pressed = state.phys_modifiers.contains(&actual_key);
+                let mut is_pressed = ns_event_contains_keymask;
+                let matching_keys;
+                if actual_key == KeyCode::KeyA {
+                    // When switching keyboard layout using Ctrl+Space, the Ctrl release event
+                    // has `KeyA` as its keycode which would produce an incorrect key event.
+                    // To avoid this, we detect this scenario and override the key with one
+                    // that should be reasonable
+                    actual_key = $target_key;
+                    matching_keys = true;
+                } else {
+                    matching_keys = actual_key == $target_key;
+                    if matching_keys && is_pressed && was_pressed {
+                        // If we received a modifier flags changed event AND the key that triggered
+                        // it was already pressed then this must mean that this event indicates the
+                        // release of that key.
+                        is_pressed = false;
+                    }
+                }
+                if matching_keys {
+                    if is_pressed != was_pressed {
+                        let mut event = event.clone();
+                        event.state = if is_pressed {
+                            ElementState::Pressed
+                        } else {
+                            ElementState::Released
+                        };
+                        event.physical_key = actual_key;
+                        event.logical_key = code_to_key(event.physical_key, scancode);
+                        events.push_back(WindowEvent::KeyboardInput {
+                            device_id: DEVICE_ID,
+                            event,
+                            is_synthetic: false,
+                        });
+                        if is_pressed {
+                            state.phys_modifiers.insert($target_key);
+                        } else {
+                            state.phys_modifiers.remove(&$target_key);
+                        }
+                        if ns_event_contains_keymask {
+                            state.modifiers.insert($winit_flag);
+                        } else {
+                            state.modifiers.remove($winit_flag);
+                        }
+                    }
+                }
+            };
+        }
+        process_event!(
+            ModifiersState::SHIFT,
             NSEventModifierFlags::NSShiftKeyMask,
-            state.modifiers.shift(),
-        ) {
-            state.modifiers.toggle(ModifiersState::SHIFT);
-            events.push_back(window_event);
-        }
-
-        if let Some(window_event) = modifier_event(
-            event,
+            ShiftLeft
+        );
+        process_event!(
+            ModifiersState::SHIFT,
+            NSEventModifierFlags::NSShiftKeyMask,
+            ShiftRight
+        );
+        process_event!(
+            ModifiersState::CONTROL,
             NSEventModifierFlags::NSControlKeyMask,
-            state.modifiers.ctrl(),
-        ) {
-            state.modifiers.toggle(ModifiersState::CTRL);
-            events.push_back(window_event);
-        }
-
-        if let Some(window_event) = modifier_event(
-            event,
-            NSEventModifierFlags::NSCommandKeyMask,
-            state.modifiers.logo(),
-        ) {
-            state.modifiers.toggle(ModifiersState::LOGO);
-            events.push_back(window_event);
-        }
-
-        if let Some(window_event) = modifier_event(
-            event,
+            ControlLeft
+        );
+        process_event!(
+            ModifiersState::CONTROL,
+            NSEventModifierFlags::NSControlKeyMask,
+            ControlRight
+        );
+        process_event!(
+            ModifiersState::ALT,
             NSEventModifierFlags::NSAlternateKeyMask,
-            state.modifiers.alt(),
-        ) {
-            state.modifiers.toggle(ModifiersState::ALT);
-            events.push_back(window_event);
-        }
+            AltLeft
+        );
+        process_event!(
+            ModifiersState::ALT,
+            NSEventModifierFlags::NSAlternateKeyMask,
+            AltRight
+        );
+        process_event!(
+            ModifiersState::SUPER,
+            NSEventModifierFlags::NSCommandKeyMask,
+            SuperLeft
+        );
+        process_event!(
+            ModifiersState::SUPER,
+            NSEventModifierFlags::NSCommandKeyMask,
+            SuperRight
+        );
 
         let window_id = WindowId(get_window_id(state.ns_window));
 
@@ -823,29 +922,21 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        let scancode = 0x2f;
-        let virtual_keycode = scancode_to_keycode(scancode);
-        debug_assert_eq!(virtual_keycode, Some(VirtualKeyCode::Period));
-
         let event: id = msg_send![NSApp(), currentEvent];
-
         update_potentially_stale_modifiers(state, event);
 
-        #[allow(deprecated)]
+        let scancode = 0x2f;
+        let key = KeyCode::from_scancode(scancode);
+        debug_assert_eq!(key, KeyCode::Period);
+
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
                 device_id: DEVICE_ID,
-                input: KeyboardInput {
-                    state: ElementState::Pressed,
-                    scancode: scancode as _,
-                    virtual_keycode,
-                    modifiers: event_mods(event),
-                },
+                event: create_key_event(event, true, false, false, Some(key)),
                 is_synthetic: false,
             },
         };
-
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `cancelOperation`");

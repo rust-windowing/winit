@@ -89,7 +89,6 @@ pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub struct DeviceId {
     uiscreen: ffi::id,
 }
-
 impl DeviceId {
     pub unsafe fn dummy() -> Self {
         DeviceId {
@@ -97,9 +96,11 @@ impl DeviceId {
         }
     }
 }
-
 unsafe impl Send for DeviceId {}
 unsafe impl Sync for DeviceId {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct KeyEventExtra {}
 
 #[derive(Debug)]
 pub enum OsError {}

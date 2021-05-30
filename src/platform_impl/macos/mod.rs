@@ -18,6 +18,7 @@ use std::{fmt, ops::Deref, sync::Arc};
 
 pub use self::{
     app_delegate::{get_aux_state_mut, AuxDelegateState},
+    event::KeyEventExtra,
     event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
     monitor::{MonitorHandle, VideoMode},
     window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},

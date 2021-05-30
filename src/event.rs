@@ -635,6 +635,12 @@ pub struct KeyEvent {
     /// keys are usually handled at the hardware or OS level.
     pub physical_key: keyboard::KeyCode,
 
+    // Allowing `broken_intra_doc_links` for `logical_key`, because
+    // `key_without_modifiers` is not available on all platforms
+    #[cfg_attr(
+        not(any(target_os = "macos", target_os = "windows", target_os = "linux")),
+        allow(broken_intra_doc_links)
+    )]
     /// This value is affected by all modifiers except <kbd>Ctrl</kbd>.
     ///
     /// This has two use cases:
