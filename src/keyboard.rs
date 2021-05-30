@@ -176,10 +176,14 @@ pub enum NativeKeyCode {
     Windows(u16),
     MacOS(u16),
     XKB(u32),
+
+    /// This is the android "key code" of the event as returned by
+    /// `KeyEvent.getKeyCode()`
+    Android(u32),
 }
 impl std::fmt::Debug for NativeKeyCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKeyCode::{MacOS, Unidentified, Windows, XKB};
+        use NativeKeyCode::{Android, MacOS, Unidentified, Windows, XKB};
         let mut debug_tuple;
         match self {
             Unidentified => {
@@ -196,6 +200,10 @@ impl std::fmt::Debug for NativeKeyCode {
             XKB(v) => {
                 debug_tuple = f.debug_tuple(name_of!(XKB));
                 debug_tuple.field(v);
+            }
+            Android(v) => {
+                debug_tuple = f.debug_tuple(name_of!(Android));
+                debug_tuple.field(&format_args!("0x{:04X}", v));
             }
         }
         debug_tuple.finish()
@@ -508,10 +516,13 @@ pub enum KeyCode {
     /// <kbd>Pause Break</kbd>
     Pause,
     /// Some laptops place this key to the left of the <kbd>↑</kbd> key.
+    ///
+    /// This also the "back" button (triangle) on Android.
     BrowserBack,
     BrowserFavorites,
     /// Some laptops place this key to the right of the <kbd>↑</kbd> key.
     BrowserForward,
+    /// The "home" button on Android.
     BrowserHome,
     BrowserRefresh,
     BrowserSearch,
