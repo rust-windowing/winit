@@ -4,10 +4,10 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     keyboard::{KeyCode, NativeKeyCode},
     monitor::MonitorHandle,
     platform::scancode::KeyCodeExtScancode,
-    event_loop::{EventLoop, EventLoopWindowTarget},
     platform_impl::get_aux_state_mut,
     window::{Window, WindowBuilder},
 };
