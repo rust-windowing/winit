@@ -4,10 +4,11 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::EventLoopWindowTarget,
     keyboard::{KeyCode, NativeKeyCode},
     monitor::MonitorHandle,
     platform::scancode::KeyCodeExtScancode,
+    event_loop::{EventLoop, EventLoopWindowTarget},
+    platform_impl::get_aux_state_mut,
     window::{Window, WindowBuilder},
 };
 
@@ -102,8 +103,6 @@ impl Default for ActivationPolicy {
 ///  - `with_titlebar_buttons_hidden`
 ///  - `with_fullsize_content_view`
 pub trait WindowBuilderExtMacOS {
-    /// Sets the activation policy for the window being built.
-    fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
     fn with_movable_by_window_background(self, movable_by_window_background: bool)
         -> WindowBuilder;
@@ -124,12 +123,6 @@ pub trait WindowBuilderExtMacOS {
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
-    #[inline]
-    fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
-        self.platform_specific.activation_policy = activation_policy;
-        self
-    }
-
     #[inline]
     fn with_movable_by_window_background(
         mut self,
@@ -185,6 +178,39 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
         self
+    }
+}
+
+pub trait EventLoopExtMacOS {
+    /// Sets the activation policy for the application. It is set to
+    /// `NSApplicationActivationPolicyRegular` by default.
+    ///
+    /// This function only takes effect if it's called before calling [`run`](crate::event_loop::EventLoop::run) or
+    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
+    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy);
+
+    /// Used to prevent a default menubar menu from getting created
+    ///
+    /// The default menu creation is enabled by default.
+    ///
+    /// This function only takes effect if it's called before calling
+    /// [`run`](crate::event_loop::EventLoop::run) or
+    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
+    fn enable_default_menu_creation(&mut self, enable: bool);
+}
+impl<T> EventLoopExtMacOS for EventLoop<T> {
+    #[inline]
+    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy) {
+        unsafe {
+            get_aux_state_mut(&**self.event_loop.delegate).activation_policy = activation_policy;
+        }
+    }
+
+    #[inline]
+    fn enable_default_menu_creation(&mut self, enable: bool) {
+        unsafe {
+            get_aux_state_mut(&**self.event_loop.delegate).create_default_menu = enable;
+        }
     }
 }
 

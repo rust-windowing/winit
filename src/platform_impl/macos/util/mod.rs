@@ -11,11 +11,12 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSRect, NSString, NSUInteger},
+    foundation::{NSAutoreleasePool, NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
 
+use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
 
 // Replace with `!` once stable
@@ -94,6 +95,16 @@ pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
     CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)
 }
 
+/// Converts from winit screen-coordinates to macOS screen-coordinates.
+/// Winit: top-left is (0, 0) and y increasing downwards
+/// macOS: bottom-left is (0, 0) and y increasing upwards
+pub fn window_position(position: LogicalPosition<f64>) -> NSPoint {
+    NSPoint::new(
+        position.x,
+        CGDisplay::main().pixels_high() as f64 - position.y,
+    )
+}
+
 pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
     IdRef::new(NSString::alloc(nil).init_str(s))
 }
@@ -105,6 +116,7 @@ pub unsafe fn ns_string_to_rust(ns_string: id) -> String {
     string.to_owned()
 }
 
+#[allow(dead_code)] // In case we want to use this function in the future
 pub unsafe fn app_name() -> Option<id> {
     let bundle: id = msg_send![class!(NSBundle), mainBundle];
     let dict: id = msg_send![bundle, infoDictionary];

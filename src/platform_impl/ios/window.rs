@@ -182,6 +182,10 @@ impl Inner {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub fn set_minimized(&self, _minimized: bool) {
         warn!("`Window::set_minimized` is ignored on iOS")
     }
