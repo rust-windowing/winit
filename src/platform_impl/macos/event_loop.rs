@@ -141,7 +141,6 @@ impl<T> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
         self.run_return(callback);
-        drop(self._callback.take());
         process::exit(0);
     }
 
@@ -175,10 +174,12 @@ impl<T> EventLoop<T> {
             let () = msg_send![app, run];
 
             if let Some(panic) = self.panic_info.take() {
+                drop(self._callback.take());
                 resume_unwind(panic);
             }
             AppState::exit();
         });
+        drop(self._callback.take());
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {
