@@ -20,12 +20,24 @@ use std::{
 
 lazy_static! {
     static ref CONFIG: RwLock<Configuration> = RwLock::new(Configuration::new());
+    // If this is `Some()` a `Poll::Wake` is considered an `EventSource::Internal` with the event
+    // contained in the `Option`. The event is moved outside of the `Option` replacing it with a
+    // `None`.
+    //
+    // This allows us to inject event into the event loop without going through `ndk-glue` and
+    // calling unsafe function that should only be called by Android.
+    static ref INTERNAL_EVENT: RwLock<Option<InternalEvent>> = RwLock::new(None);
+}
+
+enum InternalEvent {
+    RedrawRequested,
 }
 
 enum EventSource {
     Callback,
     InputQueue,
     User,
+    Internal(InternalEvent),
 }
 
 fn poll(poll: Poll) -> Option<EventSource> {
@@ -36,7 +48,13 @@ fn poll(poll: Poll) -> Option<EventSource> {
             _ => unreachable!(),
         },
         Poll::Timeout => None,
-        Poll::Wake => Some(EventSource::User),
+        Poll::Wake => Some(
+            INTERNAL_EVENT
+                .write()
+                .unwrap()
+                .take()
+                .map_or(EventSource::User, EventSource::Internal),
+        ),
         Poll::Callback => unreachable!(),
     }
 }
@@ -283,6 +301,9 @@ impl<T: 'static> EventLoop<T> {
                         );
                     }
                 }
+                Some(EventSource::Internal(internal)) => match internal {
+                    InternalEvent::RedrawRequested => redraw = true,
+                },
                 None => {}
             }
 
@@ -478,7 +499,8 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        // TODO
+        *INTERNAL_EVENT.write().unwrap() = Some(InternalEvent::RedrawRequested);
+        ForeignLooper::for_thread().unwrap().wake();
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
