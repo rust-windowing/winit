@@ -8,7 +8,10 @@ future endeavors:
 * [@tomaka]: For creating the Winit project and guiding it through its early
   years of existence.
 * [@francesca64]: For taking over the responsibility of maintaining almost every
-  Winit backend, and standardizing HiDPI support across all of them
+  Winit backend, and standardizing HiDPI support across all of them.
+* [@Osspial]: For heroically landing EventLoop 2.0, and valiantly ushering in a
+  vastly more sustainable era of Winit.
 
 [@tomaka]: https://github.com/tomaka
 [@francesca64]: https://github.com/francesca64
+[@Osspial]: https://github.com/Osspial
