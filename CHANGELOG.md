@@ -3,6 +3,7 @@
 - On Android, implement `Window::request_redraw`
 - **Breaking:** On Web, remove the `stdweb` backend.
 - Added `Window::focus_window`to bring the window to the front and set input focus.
+- On Wayland and X11, implement `is_maximized` method on `Window`.
 
 # 0.25.0 (2021-05-15)
 
