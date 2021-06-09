@@ -13,8 +13,11 @@ future endeavors:
   Winit backend, and standardizing HiDPI support across all of them.
 * [@Osspial]: For heroically landing EventLoop 2.0, and valiantly ushering in a
   vastly more sustainable era of Winit.
+* [@goddessfreya]: For selflessly taking over maintainership of Glutin, and her
+  stellar dedication to improving both Winit and Glutin.
 
 [@tomaka]: https://github.com/tomaka
 [@vberger]: https://github.com/vberger
 [@francesca64]: https://github.com/francesca64
 [@Osspial]: https://github.com/Osspial
+[@goddessfreya]: https://github.com/goddessfreya
