@@ -779,6 +779,30 @@ impl UnownedWindow {
             .expect("Failed to change window minimization");
     }
 
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
+        let state = self
+            .xconn
+            .get_property(self.xwindow, state_atom, ffi::XA_ATOM);
+        let horz_atom = unsafe {
+            self.xconn
+                .get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0")
+        };
+        let vert_atom = unsafe {
+            self.xconn
+                .get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0")
+        };
+        match state {
+            Ok(atoms) => {
+                let horz_maximized = atoms.iter().any(|atom: &ffi::Atom| *atom == horz_atom);
+                let vert_maximized = atoms.iter().any(|atom: &ffi::Atom| *atom == vert_atom);
+                horz_maximized && vert_maximized
+            }
+            _ => false,
+        }
+    }
+
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn

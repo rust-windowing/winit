@@ -54,6 +54,9 @@ pub struct Window {
     /// Fullscreen state.
     fullscreen: Arc<AtomicBool>,
 
+    /// Maximized state.
+    maximized: Arc<AtomicBool>,
+
     /// Available windowing features.
     windowing_features: WindowingFeatures,
 
@@ -87,6 +90,8 @@ impl Window {
         let scale_factor = sctk::get_surface_scale_factor(&surface);
 
         let window_id = super::make_wid(&surface);
+        let maximized = Arc::new(AtomicBool::new(false));
+        let maximzied_clone = maximized.clone();
         let fullscreen = Arc::new(AtomicBool::new(false));
         let fullscreen_clone = fullscreen.clone();
 
@@ -113,6 +118,8 @@ impl Window {
                             window_update.refresh_frame = true;
                         }
                         Event::Configure { new_size, states } => {
+                            let is_maximized = states.contains(&State::Maximized);
+                            maximzied_clone.store(is_maximized, Ordering::Relaxed);
                             let is_fullscreen = states.contains(&State::Fullscreen);
                             fullscreen_clone.store(is_fullscreen, Ordering::Relaxed);
 
@@ -235,6 +242,7 @@ impl Window {
             window_requests,
             event_loop_awakener: event_loop_window_target.event_loop_awakener.clone(),
             fullscreen,
+            maximized,
             windowing_features,
         };
 
@@ -366,6 +374,11 @@ impl Window {
         let minimize_request = WindowRequest::Minimize;
         self.window_requests.lock().unwrap().push(minimize_request);
         self.event_loop_awakener.ping();
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        self.maximized.load(Ordering::Relaxed)
     }
 
     #[inline]
