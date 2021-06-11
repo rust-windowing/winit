@@ -12,6 +12,7 @@ use ndk::{
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
+use raw_window_handle::{AndroidNDKHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex, RwLock},
@@ -587,15 +588,14 @@ impl Window {
         ))
     }
 
-    pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
-        let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut handle = AndroidNDKHandle::empty();
+        handle.a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
             unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
         };
-        let mut handle = raw_window_handle::android::AndroidHandle::empty();
-        handle.a_native_window = a_native_window;
-        raw_window_handle::RawWindowHandle::Android(handle)
+        RawWindowHandle::AndroidNDK(handle)
     }
 
     pub fn config(&self) -> Configuration {

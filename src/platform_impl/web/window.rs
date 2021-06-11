@@ -7,7 +7,7 @@ use crate::window::{
     CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
-use raw_window_handle::web::WebHandle;
+use raw_window_handle::{RawWindowHandle, WebHandle};
 
 use super::{backend, monitor, EventLoopWindowTarget};
 
@@ -322,13 +322,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
-        let handle = WebHandle {
-            id: self.id.0,
-            ..WebHandle::empty()
-        };
-
-        raw_window_handle::RawWindowHandle::Web(handle)
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut handle = WebHandle::empty();
+        handle.id = self.id.0;
+        RawWindowHandle::Web(handle)
     }
 }
 

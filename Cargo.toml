@@ -27,7 +27,8 @@ lazy_static = "1"
 libc = "0.2.64"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
-raw-window-handle = "0.3"
+# PR: https://github.com/rust-windowing/raw-window-handle/pull/70
+raw-window-handle = { git = "https://github.com/Friz64/raw-window-handle.git", rev = "6c0665649435a31cddc5e895bf4f74c656f200ad" }
 bitflags = "1"
 mint = { version = "0.5.6", optional = true }
 

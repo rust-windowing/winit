@@ -11,7 +11,7 @@ use sctk::window::{
     ARGBColor, ButtonColorSpec, ColorSpec, ConceptConfig, ConceptFrame, Decorations,
 };
 
-use raw_window_handle::unix::WaylandHandle;
+use raw_window_handle::WaylandHandle;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -651,14 +651,10 @@ impl Window {
 
     #[inline]
     pub fn raw_window_handle(&self) -> WaylandHandle {
-        let display = self.display.get_display_ptr() as *mut _;
-        let surface = self.surface.as_ref().c_ptr() as *mut _;
-
-        WaylandHandle {
-            display,
-            surface,
-            ..WaylandHandle::empty()
-        }
+        let mut handle = WaylandHandle::empty();
+        handle.display = self.display.get_display_ptr() as *mut _;
+        handle.surface = self.surface.as_ref().c_ptr() as *mut _;
+        handle
     }
 }
 
