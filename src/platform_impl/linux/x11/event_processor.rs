@@ -1164,57 +1164,56 @@ impl<T: 'static> EventProcessor<T> {
                     if let Some(prev_list) = prev_list {
                         let new_list = wt.xconn.available_monitors();
                         for new_monitor in new_list {
-                            prev_list
+                            // Previous list may be empty, in case of disconnecting and
+                            // reconnecting the only one monitor. We still need to emit events in
+                            // this case.
+                            let maybe_prev_scale_factor = prev_list
                                 .iter()
                                 .find(|prev_monitor| prev_monitor.name == new_monitor.name)
-                                .map(|prev_monitor| {
-                                    if new_monitor.scale_factor != prev_monitor.scale_factor {
-                                        for (window_id, window) in wt.windows.borrow().iter() {
-                                            if let Some(window) = window.upgrade() {
-                                                // Check if the window is on this monitor
-                                                let monitor = window.current_monitor();
-                                                if monitor.name == new_monitor.name {
-                                                    let (width, height) =
-                                                        window.inner_size_physical();
-                                                    let (new_width, new_height) = window
-                                                        .adjust_for_dpi(
-                                                            prev_monitor.scale_factor,
-                                                            new_monitor.scale_factor,
-                                                            width,
-                                                            height,
-                                                            &*window.shared_state.lock(),
-                                                        );
+                                .map(|prev_monitor| prev_monitor.scale_factor);
+                            if Some(new_monitor.scale_factor) != maybe_prev_scale_factor {
+                                for (window_id, window) in wt.windows.borrow().iter() {
+                                    if let Some(window) = window.upgrade() {
+                                        // Check if the window is on this monitor
+                                        let monitor = window.current_monitor();
+                                        if monitor.name == new_monitor.name {
+                                            let (width, height) = window.inner_size_physical();
+                                            let (new_width, new_height) = window.adjust_for_dpi(
+                                                // If there all monitors are closed before, scale
+                                                // factor would be already changed to 1.0.
+                                                maybe_prev_scale_factor.unwrap_or(1.0),
+                                                new_monitor.scale_factor,
+                                                width,
+                                                height,
+                                                &*window.shared_state.lock(),
+                                            );
 
-                                                    let window_id = crate::window::WindowId(
-                                                        crate::platform_impl::platform::WindowId::X(
-                                                            *window_id,
-                                                        ),
-                                                    );
-                                                    let old_inner_size =
-                                                        PhysicalSize::new(width, height);
-                                                    let mut new_inner_size =
-                                                        PhysicalSize::new(new_width, new_height);
+                                            let window_id = crate::window::WindowId(
+                                                crate::platform_impl::platform::WindowId::X(
+                                                    *window_id,
+                                                ),
+                                            );
+                                            let old_inner_size = PhysicalSize::new(width, height);
+                                            let mut new_inner_size =
+                                                PhysicalSize::new(new_width, new_height);
 
-                                                    callback(Event::WindowEvent {
-                                                        window_id,
-                                                        event: WindowEvent::ScaleFactorChanged {
-                                                            scale_factor: new_monitor.scale_factor,
-                                                            new_inner_size: &mut new_inner_size,
-                                                        },
-                                                    });
+                                            callback(Event::WindowEvent {
+                                                window_id,
+                                                event: WindowEvent::ScaleFactorChanged {
+                                                    scale_factor: new_monitor.scale_factor,
+                                                    new_inner_size: &mut new_inner_size,
+                                                },
+                                            });
 
-                                                    if new_inner_size != old_inner_size {
-                                                        let (new_width, new_height) =
-                                                            new_inner_size.into();
-                                                        window.set_inner_size_physical(
-                                                            new_width, new_height,
-                                                        );
-                                                    }
-                                                }
+                                            if new_inner_size != old_inner_size {
+                                                let (new_width, new_height) = new_inner_size.into();
+                                                window
+                                                    .set_inner_size_physical(new_width, new_height);
                                             }
                                         }
                                     }
-                                });
+                                }
+                            }
                         }
                     }
                 }
