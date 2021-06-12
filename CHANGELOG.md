@@ -4,6 +4,7 @@
 - **Breaking:** On Web, remove the `stdweb` backend.
 - Added `Window::focus_window`to bring the window to the front and set input focus.
 - On Wayland and X11, implement `is_maximized` method on `Window`.
+- On X11 retry cursor grab on failure (up to 10 times / 500ms)
 
 # 0.25.0 (2021-05-15)
 
