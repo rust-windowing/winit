@@ -174,10 +174,12 @@ impl<T> EventLoop<T> {
             let () = msg_send![app, run];
 
             if let Some(panic) = self.panic_info.take() {
+                drop(self._callback.take());
                 resume_unwind(panic);
             }
             AppState::exit();
         });
+        drop(self._callback.take());
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {
