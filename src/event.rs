@@ -113,7 +113,7 @@ pub enum Event<'a, T: 'static> {
 
     /// Emitted when the event loop is being shut down.
     ///
-    /// This is irreversable - if this event is emitted, it is guaranteed to be the last event that
+    /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as an "do on quit" event.
     LoopDestroyed,
 }
