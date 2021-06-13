@@ -438,7 +438,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Android:** Unsupported.
+    /// - **Android:** Subsequent calls after `MainEventsCleared` are not handled.
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()
