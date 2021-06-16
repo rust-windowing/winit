@@ -31,15 +31,20 @@ use std::{
     ptr,
     rc::Rc,
     slice,
+    sync::mpsc::Receiver,
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use mio::{unix::EventedFd, Events, Poll, PollOpt, Ready, Token};
+use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 
-use mio_extras::channel::{channel, Receiver, SendError, Sender};
+use mio_misc::{
+    channel::{channel, SendError, Sender},
+    queue::NotificationQueue,
+    NotificationId,
+};
 
 use self::{
     dnd::{Dnd, DndState},
@@ -57,8 +62,7 @@ use crate::{
 };
 
 const X_TOKEN: Token = Token(0);
-const USER_TOKEN: Token = Token(1);
-const REDRAW_TOKEN: Token = Token(2);
+const USER_REDRAW_TOKEN: Token = Token(1);
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
@@ -131,7 +135,7 @@ impl<T: 'static> EventLoop<T> {
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!(format!("Failed to open input method: {:#?}", state));
+                panic!("Failed to open input method: {:#?}", state);
             }
             result.expect("Failed to set input method destruction callback")
         });
@@ -201,33 +205,16 @@ impl<T: 'static> EventLoop<T> {
         mod_keymap.reset_from_x_connection(&xconn);
 
         let poll = Poll::new().unwrap();
+        let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
+        let queue = Arc::new(NotificationQueue::new(waker));
 
-        let (user_sender, user_channel) = channel();
-        let (redraw_sender, redraw_channel) = channel();
+        poll.registry()
+            .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
+            .unwrap();
 
-        poll.register(
-            &EventedFd(&xconn.x11_fd),
-            X_TOKEN,
-            Ready::readable(),
-            PollOpt::level(),
-        )
-        .unwrap();
+        let (user_sender, user_channel) = channel(queue.clone(), NotificationId::gen_next());
 
-        poll.register(
-            &user_channel,
-            USER_TOKEN,
-            Ready::readable(),
-            PollOpt::level(),
-        )
-        .unwrap();
-
-        poll.register(
-            &redraw_channel,
-            REDRAW_TOKEN,
-            Ready::readable(),
-            PollOpt::level(),
-        )
-        .unwrap();
+        let (redraw_sender, redraw_channel) = channel(queue, NotificationId::gen_next());
 
         let kb_state =
             KbState::from_x11_xkb(unsafe { (xconn.xlib_xcb.XGetXCBConnection)(xconn.display) })

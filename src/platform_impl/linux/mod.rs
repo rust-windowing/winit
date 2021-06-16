@@ -369,6 +369,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.drag_window())
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         x11_or_wayland!(match self; Window(w) => w.scale_factor() as f64)
     }
@@ -618,11 +623,10 @@ impl<T: 'static> EventLoop<T> {
         #[cfg(not(feature = "x11"))]
         let x11_err = "backend disabled";
 
-        let err_string = format!(
+        panic!(
             "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
             wayland_err, x11_err,
         );
-        panic!(err_string);
     }
 
     #[cfg(feature = "wayland")]

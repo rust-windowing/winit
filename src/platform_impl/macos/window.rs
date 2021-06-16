@@ -16,7 +16,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform::macos::{ActivationPolicy, WindowExtMacOS},
+    platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
@@ -34,9 +34,8 @@ use crate::{
 };
 use cocoa::{
     appkit::{
-        self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
-        NSApplicationPresentationOptions, NSColor, NSRequestUserAttentionType, NSScreen, NSView,
-        NSWindow, NSWindowButton, NSWindowStyleMask,
+        self, CGFloat, NSApp, NSApplication, NSApplicationPresentationOptions, NSColor,
+        NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
     foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
@@ -64,7 +63,6 @@ pub fn get_window_id(window_cocoa_id: id) -> Id {
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
     pub title_hidden: bool,
@@ -80,7 +78,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     #[inline]
     fn default() -> Self {
         Self {
-            activation_policy: Default::default(),
             movable_by_window_background: false,
             titlebar_transparent: false,
             title_hidden: false,
@@ -90,24 +87,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
-        }
-    }
-}
-
-fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
-    unsafe {
-        let ns_app = NSApp();
-        if ns_app == nil {
-            None
-        } else {
-            use self::NSApplicationActivationPolicy::*;
-            ns_app.setActivationPolicy_(match activation_policy {
-                ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
-                ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
-                ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
-            });
-            ns_app.finishLaunching();
-            Some(ns_app)
         }
     }
 }
@@ -131,8 +110,6 @@ unsafe fn create_view(
             ns_view.setWantsLayer(YES);
         }
 
-        ns_window.setContentView_(*ns_view);
-        ns_window.makeFirstResponder_(*ns_view);
         (ns_view, cursor_state)
     })
 }
@@ -166,7 +143,17 @@ fn create_window(
                     }
                     None => (800.0, 600.0),
                 };
-                NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
+                let (left, bottom) = match attrs.position {
+                    Some(position) => {
+                        let logical = util::window_position(position.to_logical(scale_factor));
+                        // macOS wants the position of the bottom left corner,
+                        // but caller is setting the position of top left corner
+                        (logical.x, logical.y - height)
+                    }
+                    // This value is ignored by calling win.center() below
+                    None => (0.0, 0.0),
+                };
+                NSRect::new(NSPoint::new(left, bottom), NSSize::new(width, height))
             }
         };
 
@@ -249,8 +236,9 @@ fn create_window(
             if !pl_attrs.has_shadow {
                 ns_window.setHasShadow_(NO);
             }
-
-            ns_window.center();
+            if attrs.position.is_none() {
+                ns_window.center();
+            }
             ns_window
         });
         pool.drain();
@@ -346,14 +334,9 @@ impl UnownedWindow {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
+        trace!("Creating new window");
 
         let pool = unsafe { NSAutoreleasePool::new(nil) };
-
-        let ns_app = create_app(pl_attribs.activation_policy).ok_or_else(|| {
-            unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSApplication`"))
-        })?;
-
         let ns_window = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
             unsafe { pool.drain() };
             os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
@@ -365,6 +348,12 @@ impl UnownedWindow {
                 os_error!(OsError::CreationError("Couldn't create `NSView`"))
             })?;
 
+        // Configure the new view as the "key view" for the window
+        unsafe {
+            ns_window.setContentView_(*ns_view);
+            ns_window.setInitialFirstResponder_(*ns_view);
+        }
+
         let input_context = unsafe { util::create_input_context(*ns_view) };
 
         let scale_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
@@ -375,7 +364,6 @@ impl UnownedWindow {
                 ns_window.setBackgroundColor_(NSColor::clearColor(nil));
             }
 
-            ns_app.activateIgnoringOtherApps_(YES);
             win_attribs.min_inner_size.map(|dim| {
                 let logical_dim = dim.to_logical(scale_factor);
                 set_min_inner_size(*ns_window, logical_dim)
@@ -425,12 +413,9 @@ impl UnownedWindow {
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
-        unsafe {
-            if visible {
-                window.ns_window.makeKeyAndOrderFront_(nil);
-            } else {
-                window.ns_window.makeKeyWindow();
-            }
+        if visible {
+            // Tightly linked with `app_state::window_activation_hack`
+            unsafe { window.ns_window.makeKeyAndOrderFront_(nil) };
         }
 
         if maximized {
@@ -496,17 +481,8 @@ impl UnownedWindow {
     pub fn set_outer_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
-        let dummy = NSRect::new(
-            NSPoint::new(
-                position.x,
-                // While it's true that we're setting the top-left position,
-                // it still needs to be in a bottom-left coordinate system.
-                CGDisplay::main().pixels_high() as f64 - position.y,
-            ),
-            NSSize::new(0f64, 0f64),
-        );
         unsafe {
-            util::set_frame_top_left_point_async(*self.ns_window, dummy.origin);
+            util::set_frame_top_left_point_async(*self.ns_window, util::window_position(position));
         }
     }
 
@@ -632,6 +608,16 @@ impl UnownedWindow {
             .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
         CGDisplay::associate_mouse_and_mouse_cursor_position(true)
             .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            let event: id = msg_send![NSApp(), currentEvent];
+            let _: () = msg_send![*self.ns_window, performWindowDragWithEvent: event];
+        }
 
         Ok(())
     }
@@ -1158,7 +1144,7 @@ impl Drop for UnownedWindow {
         trace!("Dropping `UnownedWindow` ({:?})", self as *mut _);
         // Close the window if it has not yet been closed.
         if *self.ns_window != nil {
-            unsafe { util::close_async(*self.ns_window) };
+            unsafe { util::close_async(self.ns_window.clone()) };
         }
     }
 }

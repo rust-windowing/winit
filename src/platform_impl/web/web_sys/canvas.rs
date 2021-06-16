@@ -18,6 +18,7 @@ use web_sys::{
 mod mouse_handler;
 mod pointer_handler;
 
+#[allow(dead_code)]
 pub struct Canvas {
     common: Common,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
