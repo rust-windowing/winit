@@ -548,6 +548,25 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
 
+            ffi::KeyPress => {
+                // TODO: Is it possible to exclusively use XInput2 events here?
+                let xkev: &mut ffi::XKeyEvent = xev.as_mut();
+
+                let window = xkev.window;
+                let window_id = mkwid(window);
+
+                let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
+                    wt.xconn.lookup_utf8(ic, xkev)
+                } else {
+                    return;
+                };
+                let event = Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::ReceivedImeText(written),
+                };
+                callback(event);
+            }
+
             ffi::GenericEvent => {
                 let guard = if let Some(e) = GenericEventCookie::from_event(&wt.xconn, *xev) {
                     e
