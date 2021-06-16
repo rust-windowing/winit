@@ -26,6 +26,8 @@ use crate::{
 };
 
 pub(crate) struct KbState {
+    #[cfg(feature = "x11")]
+    xcb_connection: *mut xcb_connection_t,
     xkb_context: *mut ffi::xkb_context,
     xkb_keymap: *mut ffi::xkb_keymap,
     xkb_state: *mut ffi::xkb_state,
@@ -263,6 +265,8 @@ impl KbState {
         }
 
         let mut me = KbState {
+            #[cfg(feature = "x11")]
+            xcb_connection: ptr::null_mut(),
             xkb_context: context,
             xkb_keymap: ptr::null_mut(),
             xkb_state: ptr::null_mut(),
@@ -284,6 +288,7 @@ impl KbState {
     #[cfg(feature = "x11")]
     pub(crate) fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<KbState, Error> {
         let mut me = Self::new()?;
+        me.xcb_connection = connection;
 
         let result = unsafe {
             (XKBXH.xkb_x11_setup_xkb_extension)(
@@ -299,22 +304,29 @@ impl KbState {
         };
         assert_eq!(result, 1, "Failed to initialize libxkbcommon");
 
-        // TODO: Support keyboards other than the "virtual core keyboard device".
-        let core_keyboard_id = unsafe { (XKBXH.xkb_x11_get_core_keyboard_device_id)(connection) };
-        let keymap = unsafe {
-            (XKBXH.xkb_x11_keymap_new_from_device)(
-                me.xkb_context,
-                connection,
-                core_keyboard_id,
-                xkbcommon_dl::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
-            )
-        };
-        assert_ne!(keymap, ptr::null_mut());
-        me.xkb_keymap = keymap;
-
-        unsafe { me.post_init(keymap) };
+        unsafe { me.load_x11_keymap() };
 
         Ok(me)
+    }
+
+    #[cfg(feature = "x11")]
+    pub(crate) unsafe fn load_x11_keymap(&mut self) {
+        if !self.xkb_keymap.is_null() {
+            self.de_init();
+        }
+
+        // TODO: Support keyboards other than the "virtual core keyboard device".
+        let core_keyboard_id = (XKBXH.xkb_x11_get_core_keyboard_device_id)(self.xcb_connection);
+        let keymap = (XKBXH.xkb_x11_keymap_new_from_device)(
+            self.xkb_context,
+            self.xcb_connection,
+            core_keyboard_id,
+            xkbcommon_dl::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
+        );
+        assert_ne!(keymap, ptr::null_mut());
+        self.xkb_keymap = keymap;
+
+        self.post_init(keymap);
     }
 
     #[cfg(feature = "wayland")]
