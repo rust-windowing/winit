@@ -1225,31 +1225,41 @@ impl UnownedWindow {
             (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
         }
         let result = if grab {
-            let result = unsafe {
-                (self.xconn.xlib.XGrabPointer)(
-                    self.xconn.display,
-                    self.xwindow,
-                    ffi::True,
-                    (ffi::ButtonPressMask
-                        | ffi::ButtonReleaseMask
-                        | ffi::EnterWindowMask
-                        | ffi::LeaveWindowMask
-                        | ffi::PointerMotionMask
-                        | ffi::PointerMotionHintMask
-                        | ffi::Button1MotionMask
-                        | ffi::Button2MotionMask
-                        | ffi::Button3MotionMask
-                        | ffi::Button4MotionMask
-                        | ffi::Button5MotionMask
-                        | ffi::ButtonMotionMask
-                        | ffi::KeymapStateMask) as c_uint,
-                    ffi::GrabModeAsync,
-                    ffi::GrabModeAsync,
-                    self.xwindow,
-                    0,
-                    ffi::CurrentTime,
-                )
-            };
+            let mut result = -1;
+            // Retry XGrabPointer a couple of times (up to 500ms) if it failes
+            // This can happen if we try to grab the pointer right after we created the window
+            for _ in 0..10 {
+                result = unsafe {
+                    (self.xconn.xlib.XGrabPointer)(
+                        self.xconn.display,
+                        self.xwindow,
+                        ffi::True,
+                        (ffi::ButtonPressMask
+                            | ffi::ButtonReleaseMask
+                            | ffi::EnterWindowMask
+                            | ffi::LeaveWindowMask
+                            | ffi::PointerMotionMask
+                            | ffi::PointerMotionHintMask
+                            | ffi::Button1MotionMask
+                            | ffi::Button2MotionMask
+                            | ffi::Button3MotionMask
+                            | ffi::Button4MotionMask
+                            | ffi::Button5MotionMask
+                            | ffi::ButtonMotionMask
+                            | ffi::KeymapStateMask) as c_uint,
+                        ffi::GrabModeAsync,
+                        ffi::GrabModeAsync,
+                        self.xwindow,
+                        0,
+                        ffi::CurrentTime,
+                    )
+                };
+
+                if result == ffi::GrabSuccess {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
 
             match result {
                 ffi::GrabSuccess => Ok(()),
