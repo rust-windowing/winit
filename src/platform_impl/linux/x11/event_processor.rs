@@ -554,6 +554,7 @@ impl<T: 'static> EventProcessor<T> {
             }
 
             ffi::KeyPress | ffi::KeyRelease => {
+                // TODO: Is it possible to exclusively use XInput2 events here?
                 use crate::event::ElementState::{Pressed, Released};
 
                 // Note that in compose/pre-edit sequences, this will always be Released.
@@ -568,12 +569,6 @@ impl<T: 'static> EventProcessor<T> {
                 let window = xkev.window;
                 let window_id = mkwid(window);
 
-                // Standard virtual core keyboard ID. XInput2 needs to be used to get a reliable
-                // value, though this should only be an issue under multiseat configurations.
-                let device = util::VIRTUAL_CORE_KEYBOARD;
-                let device_id = mkdid(device);
-                let keycode = xkev.keycode;
-
                 if state == Pressed {
                     let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
                         wt.xconn.lookup_utf8(ic, xkev)
@@ -583,7 +578,7 @@ impl<T: 'static> EventProcessor<T> {
 
                     // If we're composing right now, send the string we've got from X11 via
                     // Ime::Commit.
-                    if self.is_composing && keycode == 0 && !written.is_empty() {
+                    if self.is_composing && xev.keycode == 0 && !written.is_empty() {
                         let event = Event::WindowEvent {
                             window_id,
                             event: WindowEvent::Ime(Ime::Commit(written)),
@@ -591,17 +586,6 @@ impl<T: 'static> EventProcessor<T> {
 
                         self.is_composing = false;
                         callback(event);
-                    } else {
-                        /*
-                        for chr in written.chars() {
-                            let event = Event::WindowEvent {
-                                window_id,
-                                event: WindowEvent::ReceivedCharacter(chr),
-                            };
-
-                            callback(event);
-                        }
-                        */
                     }
                 }
             }
