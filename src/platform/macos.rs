@@ -39,6 +39,14 @@ pub trait WindowExtMacOS {
 
     /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
+
+    /// Toggles the `Option` key being interpretted as an `Alt` modifier.
+    ///
+    /// This will ignore diacritical marks and accent characters from
+    /// being processed as received characters. Instead, the input
+    /// device's raw character will be placed in event queues with the
+    /// Alt modifier set.
+    fn set_option_as_alt(&self, option_as_alt: bool);
 }
 
 impl WindowExtMacOS for Window {
@@ -70,6 +78,11 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window.set_has_shadow(has_shadow)
+    }
+
+    #[inline]
+    fn set_option_as_alt(&self, option_as_alt: bool) {
+        self.window.set_option_as_alt(option_as_alt)
     }
 }
 
@@ -118,6 +131,7 @@ pub trait WindowBuilderExtMacOS {
     fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    fn with_ignore_alt_modifier(self, ignore_alt_modifier: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -175,6 +189,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
+        self
+    }
+
+    #[inline]
+    fn with_ignore_alt_modifier(mut self, ignore_alt_modifier: bool) -> WindowBuilder {
+        self.platform_specific.ignore_alt_modifier = ignore_alt_modifier;
         self
     }
 }

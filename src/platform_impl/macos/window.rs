@@ -24,7 +24,7 @@ use crate::{
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
         view::CursorState,
-        view::{self, new_view},
+        view::{self, new_view, set_option_as_alt},
         window_delegate::new_delegate,
         OsError,
     },
@@ -73,6 +73,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub ignore_alt_modifier: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -88,6 +89,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
+            ignore_alt_modifier: false,
         }
     }
 }
@@ -96,7 +98,7 @@ unsafe fn create_view(
     ns_window: id,
     pl_attribs: &PlatformSpecificWindowBuilderAttributes,
 ) -> Option<(IdRef, Weak<Mutex<CursorState>>)> {
-    let (ns_view, cursor_state) = new_view(ns_window);
+    let (ns_view, cursor_state) = new_view(ns_window, pl_attribs);
     ns_view.non_nil().map(|ns_view| {
         if !pl_attribs.disallow_hidpi {
             ns_view.setWantsBestResolutionOpenGLSurface_(YES);
@@ -1141,6 +1143,13 @@ impl WindowExtMacOS for UnownedWindow {
         unsafe {
             self.ns_window
                 .setHasShadow_(if has_shadow { YES } else { NO })
+        }
+    }
+
+    #[inline]
+    fn set_option_as_alt(&self, option_as_alt: bool) {
+        unsafe {
+            set_option_as_alt(*self.ns_view, option_as_alt);
         }
     }
 }
