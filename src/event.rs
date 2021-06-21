@@ -618,7 +618,7 @@ pub enum DeviceEvent {
 /// repeat or the initial keypress. An application may emulate this by, for
 /// example keeping a Map/Set of pressed keys and determining whether a keypress
 /// corresponds to an already pressed key.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawKeyEvent {
     pub physical_key: keyboard::KeyCode,

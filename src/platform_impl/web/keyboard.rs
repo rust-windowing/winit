@@ -6,7 +6,7 @@ pub(crate) struct KeyEventExtra;
 impl<'a> Key<'a> {
     pub(crate) fn from_key_attribute_value(kav: &'a str) -> Self {
         match kav {
-            "Unidentified" => Key::Unidentified(NativeKeyCode::Web()),
+            "Unidentified" => Key::Unidentified(NativeKeyCode::Web(kav.to_string())),
             "Dead" => Key::Dead(None),
             "Alt" => Key::Alt,
             "AltGraph" => Key::AltGraph,
@@ -514,7 +514,7 @@ impl KeyCode {
             "F33" => KeyCode::F33,
             "F34" => KeyCode::F34,
             "F35" => KeyCode::F35,
-            _ => KeyCode::Unidentified(NativeKeyCode::Web()),
+            _ => KeyCode::Unidentified(NativeKeyCode::Web(kcav.to_string())),
         }
     }
 }
