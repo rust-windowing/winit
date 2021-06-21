@@ -169,17 +169,18 @@ mod modifiers_serde {
 }
 
 /// Contains the platform-native physical key identifier (aka scancode)
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum NativeKeyCode {
     Unidentified,
     Windows(u16),
     MacOS(u32),
     XKB(u32),
+    Web(String),
 }
 impl std::fmt::Debug for NativeKeyCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKeyCode::{MacOS, Unidentified, Windows, XKB};
+        use NativeKeyCode::{MacOS, Unidentified, Web, Windows, XKB};
         let mut debug_tuple;
         match self {
             Unidentified => {
@@ -195,6 +196,10 @@ impl std::fmt::Debug for NativeKeyCode {
             }
             XKB(v) => {
                 debug_tuple = f.debug_tuple(name_of!(XKB));
+                debug_tuple.field(v);
+            }
+            Web(v) => {
+                debug_tuple = f.debug_tuple(name_of!(Web));
                 debug_tuple.field(v);
             }
         }
@@ -213,7 +218,7 @@ impl std::fmt::Debug for NativeKeyCode {
 ///
 /// [`KeyboardEvent.code`]: https://w3c.github.io/uievents-code/#code-value-tables
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum KeyCode {
     /// This variant is used when the key cannot be translated to any
@@ -673,7 +678,7 @@ pub enum KeyCode {
 ///
 /// [`KeyboardEvent.key`]: https://w3c.github.io/uievents-key/
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Key<'a> {
     /// A key string that corresponds to the character typed by the user, taking into account the

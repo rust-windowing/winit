@@ -23,6 +23,7 @@
 mod device;
 mod error;
 mod event_loop;
+mod keyboard;
 mod monitor;
 mod window;
 
@@ -48,6 +49,7 @@ pub use self::window::{
     Window,
 };
 
+pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Copy)]
