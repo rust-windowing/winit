@@ -164,7 +164,7 @@ impl Canvas {
                     key,
                     event::key_text(&event),
                     event::key_location(&event),
-                    event::key_repeat(&event),
+                    event.repeat(),
                     event::keyboard_modifiers(key),
                 );
             },
@@ -186,7 +186,7 @@ impl Canvas {
                     key,
                     event::key_text(&event),
                     event::key_location(&event),
-                    event::key_repeat(&event),
+                    event.repeat(),
                     event::keyboard_modifiers(key),
                 );
             },

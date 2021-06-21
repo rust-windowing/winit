@@ -97,10 +97,6 @@ pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
     }
 }
 
-pub fn key_repeat(event: &KeyboardEvent) -> bool {
-    event.repeat()
-}
-
 // TODO: What should be done about `KeyboardEvent.isComposing`?
 
 pub fn keyboard_modifiers(key: Key<'_>) -> ModifiersState {
