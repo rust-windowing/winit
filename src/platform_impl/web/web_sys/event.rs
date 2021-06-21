@@ -86,13 +86,13 @@ pub fn key_text(event: &KeyboardEvent) -> Option<&'static str> {
 
 pub fn key_location(event: &KeyboardEvent) -> KeyLocation {
     let location = event.location();
-    // TODO: Use constants rather than integer literals?
+    // As defined in the UIEvents specification
+    // https://w3c.github.io/uievents/#idl-keyboardevent
     match location {
         0 => KeyLocation::Standard,
         1 => KeyLocation::Left,
         2 => KeyLocation::Right,
         3 => KeyLocation::Numpad,
-        // TODO: Is this reasonable to do?
         _ => KeyLocation::Standard,
     }
 }
