@@ -76,11 +76,15 @@ pub fn key(event: &KeyboardEvent) -> Key<'static> {
 
 pub fn key_text(event: &KeyboardEvent) -> Option<&'static str> {
     let key = event.key();
-    if let Key::Character(text) = Key::from_key_attribute_value(&key) {
-        // TODO: Fix unbounded leak
-        Some(Box::leak(String::from(text).into_boxed_str()))
-    } else {
-        None
+    match Key::from_key_attribute_value(&key) {
+        Key::Character(text) => {
+            // TODO: Fix unbounded leak
+            Some(Box::leak(String::from(text).into_boxed_str()))
+        }
+        Key::Tab => Some(Box::leak(String::from("\t").into_boxed_str())),
+        Key::Enter => Some(Box::leak(String::from("\r").into_boxed_str())),
+        Key::Space => Some(Box::leak(String::from(" ").into_boxed_str())),
+        _ => None,
     }
 }
 
