@@ -69,22 +69,40 @@ pub fn key_code(event: &KeyboardEvent) -> KeyCode {
 
 pub fn key(event: &KeyboardEvent) -> Key<'static> {
     let key = event.key();
-    // TODO: Fix unbounded leak
-    let key = Box::leak(String::from(key).into_boxed_str());
+    let key = cached_string(key);
     Key::from_key_attribute_value(key)
 }
 
 pub fn key_text(event: &KeyboardEvent) -> Option<&'static str> {
     let key = event.key();
-    match Key::from_key_attribute_value(&key) {
-        Key::Character(text) => {
-            // TODO: Fix unbounded leak
-            Some(Box::leak(String::from(text).into_boxed_str()))
-        }
-        Key::Tab => Some(Box::leak(String::from("\t").into_boxed_str())),
-        Key::Enter => Some(Box::leak(String::from("\r").into_boxed_str())),
-        Key::Space => Some(Box::leak(String::from(" ").into_boxed_str())),
+    let key = Key::from_key_attribute_value(&key);
+    match &key {
+        Key::Character(text) => Some(*text),
+        Key::Tab => Some("\t"),
+        Key::Enter => Some("\r"),
+        Key::Space => Some(" "),
         _ => None,
+    }
+    .map(cached_string)
+}
+
+fn cached_string<S: AsRef<str>>(string: S) -> &'static str {
+    use std::collections::HashSet;
+    use std::sync::Mutex;
+
+    lazy_static::lazy_static! {
+        static ref STRING_CACHE: Mutex<HashSet<&'static str>> = Mutex::new(HashSet::new());
+    };
+
+    let string = string.as_ref();
+    let mut cache = STRING_CACHE.lock().unwrap();
+    if let Some(string) = cache.get(string) {
+        *string
+    } else {
+        // borrowck couldn't quite figure out this one on its own
+        let string: &'static str = Box::leak(String::from(string).into_boxed_str());
+        cache.insert(string);
+        string
     }
 }
 
