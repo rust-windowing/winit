@@ -38,6 +38,7 @@ pub use self::window::{
     Window,
 };
 
+pub(crate) use self::keyboard::KeyEventExtra;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Copy)]
@@ -45,7 +46,3 @@ pub(crate) struct ScaleChangeArgs {
     old_scale: f64,
     new_scale: f64,
 }
-
-// TODO: Where should I put this?
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct KeyEventExtra;

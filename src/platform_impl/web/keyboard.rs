@@ -1,5 +1,8 @@
 use crate::keyboard::{Key, KeyCode, NativeKeyCode};
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub(crate) struct KeyEventExtra;
+
 impl<'a> Key<'a> {
     pub(crate) fn from_key_attribute_value(kav: &'a str) -> Self {
         match kav {
