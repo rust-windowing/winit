@@ -11,7 +11,7 @@ use std::{
     io, mem, ptr,
 };
 
-use super::{util, EventLoop};
+use super::util;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
@@ -62,7 +62,7 @@ impl std::fmt::Debug for VideoMode {
 }
 
 impl VideoMode {
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         self.size.into()
     }
 
@@ -126,24 +126,14 @@ pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
     MonitorHandle::new(hmonitor)
 }
 
-impl<T> EventLoop<T> {
-    // TODO: Investigate opportunities for caching
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        available_monitors()
-    }
-
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor()
-    }
-}
-
 impl Window {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         available_monitors()
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        primary_monitor()
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
     }
 }
 
@@ -168,14 +158,6 @@ impl MonitorHandle {
         MonitorHandle(hmonitor)
     }
 
-    pub(crate) fn contains_point(&self, point: &POINT) -> bool {
-        let monitor_info = get_monitor_info(self.0).unwrap();
-        point.x >= monitor_info.rcMonitor.left
-            && point.x <= monitor_info.rcMonitor.right
-            && point.y >= monitor_info.rcMonitor.top
-            && point.y <= monitor_info.rcMonitor.bottom
-    }
-
     #[inline]
     pub fn name(&self) -> Option<String> {
         let monitor_info = get_monitor_info(self.0).unwrap();
@@ -193,25 +175,25 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn size(&self) -> PhysicalSize {
+    pub fn size(&self) -> PhysicalSize<u32> {
         let monitor_info = get_monitor_info(self.0).unwrap();
         PhysicalSize {
-            width: (monitor_info.rcMonitor.right - monitor_info.rcMonitor.left) as f64,
-            height: (monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top) as f64,
+            width: (monitor_info.rcMonitor.right - monitor_info.rcMonitor.left) as u32,
+            height: (monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top) as u32,
         }
     }
 
     #[inline]
-    pub fn position(&self) -> PhysicalPosition {
+    pub fn position(&self) -> PhysicalPosition<i32> {
         let monitor_info = get_monitor_info(self.0).unwrap();
         PhysicalPosition {
-            x: monitor_info.rcMonitor.left as f64,
-            y: monitor_info.rcMonitor.top as f64,
+            x: monitor_info.rcMonitor.left,
+            y: monitor_info.rcMonitor.top,
         }
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         dpi_to_scale_factor(get_monitor_dpi(self.0).unwrap_or(96))
     }
 

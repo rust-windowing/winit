@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.20.0-alpha4"
+version = "0.25.0"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2018"
@@ -13,43 +13,49 @@ categories = ["gui"]
 
 [package.metadata.docs.rs]
 features = ["serde"]
+default-target = "x86_64-unknown-linux-gnu"
+targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
 
 [features]
-web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
-stdweb = ["std_web", "instant/stdweb"]
+default = ["x11", "wayland"]
+x11 = ["x11-dl", "mio", "mio-misc", "percent-encoding", "parking_lot"]
+wayland = ["wayland-client", "sctk"]
 
 [dependencies]
-instant = "0.1"
+instant = { version = "0.1", features = ["wasm-bindgen"] }
 lazy_static = "1"
 libc = "0.2.64"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 raw-window-handle = "0.3"
+bitflags = "1"
+mint = { version = "0.5.6", optional = true }
 
 [dev-dependencies]
-image = "0.21"
-env_logger = "0.5"
+image = "0.23.12"
+simple_logger = "1.9"
 
-[target.'cfg(target_os = "android")'.dependencies.android_glue]
-version = "0.2"
+[target.'cfg(target_os = "android")'.dependencies]
+ndk = "0.3"
+ndk-sys = "0.2.0"
+ndk-glue = "0.3"
 
-[target.'cfg(target_os = "ios")'.dependencies]
-objc = "0.2.3"
+[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
+objc = "0.2.7"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.19.1"
-core-foundation = "0.6"
-core-graphics = "0.17.3"
-dispatch = "0.1.4"
-objc = "0.2.3"
+cocoa = "0.24"
+core-foundation = "0.9"
+core-graphics = "0.22"
+dispatch = "0.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
-version = "0.1.3"
+version = "0.1.4"
 default_features = false
 features = ["display_link"]
 
-[target.'cfg(any(target_os = "ios", target_os = "windows"))'.dependencies]
-bitflags = "1"
+[target.'cfg(target_os = "windows")'.dependencies]
+parking_lot = "0.11"
 rusty-xinput = "1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
@@ -60,6 +66,7 @@ features = [
     "dwmapi",
     "errhandlingapi",
     "hidpi",
+    "imm",
     "hidusage",
     "libloaderapi",
     "objbase",
@@ -79,21 +86,21 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.23.0", features = [ "dlopen", "egl", "cursor", "eventloop"] }
-calloop = "0.4.2"
-smithay-client-toolkit = "0.6"
-x11-dl = "2.18.3"
-percent-encoding = "2.0"
-
-[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd", target_os = "windows"))'.dependencies.parking_lot]
-version = "0.10"
+wayland-client = { version = "0.28", features = [ "dlopen"] , optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.12.3", optional = true }
+mio = { version = "0.7", features = ["os-ext"], optional = true }
+mio-misc = { version = "1.0", optional = true }
+x11-dl = { version = "2.18.5", optional = true }
+percent-encoding = { version = "2.0", optional = true }
+parking_lot = { version = "0.11.0", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"
 version = "0.3.22"
-optional = true
 features = [
     'console',
+    "AddEventListenerOptions",
+    'CssStyleDeclaration',
     'BeforeUnloadEvent',
     'Document',
     'DomRect',
@@ -104,6 +111,8 @@ features = [
     'HtmlCanvasElement',
     'HtmlElement',
     'KeyboardEvent',
+    'MediaQueryList',
+    'MediaQueryListEvent',
     'MouseEvent',
     'Node',
     'Navigator',
@@ -128,10 +137,6 @@ features = [
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
 version = "0.2.45"
-optional = true
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.std_web]
-package = "stdweb"
-version = "=0.4.20"
-optional = true
-features = ["experimental_features_which_may_break_on_minor_version_bumps"]
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+console_log = "0.2"

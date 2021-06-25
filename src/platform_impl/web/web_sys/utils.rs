@@ -3,7 +3,7 @@ use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
 use crate::platform_impl::platform;
 
 use std::convert::TryInto;
-use web_sys::{Gamepad, GamepadButton, GamepadMappingType, KeyboardEvent, MouseEvent, WheelEvent};
+use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
 
 pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     match event.button() {
@@ -15,25 +15,51 @@ pub fn mouse_button(event: &MouseEvent) -> MouseButton {
 }
 
 pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
-    ModifiersState {
-        shift: event.shift_key(),
-        ctrl: event.ctrl_key(),
-        alt: event.alt_key(),
-        logo: event.meta_key(),
-    }
+    let mut m = ModifiersState::empty();
+    m.set(ModifiersState::SHIFT, event.shift_key());
+    m.set(ModifiersState::CTRL, event.ctrl_key());
+    m.set(ModifiersState::ALT, event.alt_key());
+    m.set(ModifiersState::LOGO, event.meta_key());
+    m
 }
 
-pub fn mouse_position(event: &MouseEvent) -> LogicalPosition {
+pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
     LogicalPosition {
         x: event.offset_x() as f64,
         y: event.offset_y() as f64,
     }
 }
 
-pub fn mouse_scroll_delta(event: &WheelEvent) -> (f64, f64) {
+pub fn mouse_delta(event: &MouseEvent) -> LogicalPosition<f64> {
+    LogicalPosition {
+        x: event.movement_x() as f64,
+        y: event.movement_y() as f64,
+    }
+}
+
+pub fn mouse_position_by_client(
+    event: &MouseEvent,
+    canvas: &HtmlCanvasElement,
+) -> LogicalPosition<f64> {
+    let bounding_client_rect = canvas.get_bounding_client_rect();
+    LogicalPosition {
+        x: event.client_x() as f64 - bounding_client_rect.x(),
+        y: event.client_y() as f64 - bounding_client_rect.y(),
+    }
+}
+
+pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
     let x = event.delta_x();
-    let y = event.delta_y();
-    (x, y)
+    let y = -event.delta_y();
+
+    match event.delta_mode() {
+        WheelEvent::DOM_DELTA_LINE => Some(MouseScrollDelta::LineDelta(x as f32, y as f32)),
+        WheelEvent::DOM_DELTA_PIXEL => {
+            let delta = LogicalPosition::new(x, y).to_physical(super::scale_factor());
+            Some(MouseScrollDelta::PixelDelta(delta))
+        }
+        _ => None,
+    }
 }
 
 pub fn scan_code(event: &KeyboardEvent) -> ScanCode {
@@ -137,7 +163,7 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "Numpad9" => VirtualKeyCode::Numpad9,
         "AbntC1" => VirtualKeyCode::AbntC1,
         "AbntC2" => VirtualKeyCode::AbntC2,
-        "NumpadAdd" => VirtualKeyCode::Add,
+        "NumpadAdd" => VirtualKeyCode::NumpadAdd,
         "Quote" => VirtualKeyCode::Apostrophe,
         "Apps" => VirtualKeyCode::Apps,
         "At" => VirtualKeyCode::At,
@@ -148,8 +174,8 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "Semicolon" => VirtualKeyCode::Semicolon,
         "Comma" => VirtualKeyCode::Comma,
         "Convert" => VirtualKeyCode::Convert,
-        "NumpadDecimal" => VirtualKeyCode::Decimal,
-        "NumpadDivide" => VirtualKeyCode::Divide,
+        "NumpadDecimal" => VirtualKeyCode::NumpadDecimal,
+        "NumpadDivide" => VirtualKeyCode::NumpadDivide,
         "Equal" => VirtualKeyCode::Equals,
         "Backquote" => VirtualKeyCode::Grave,
         "Kana" => VirtualKeyCode::Kana,
@@ -163,7 +189,7 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "MediaSelect" => VirtualKeyCode::MediaSelect,
         "MediaStop" => VirtualKeyCode::MediaStop,
         "Minus" => VirtualKeyCode::Minus,
-        "NumpadMultiply" => VirtualKeyCode::Multiply,
+        "NumpadMultiply" => VirtualKeyCode::NumpadMultiply,
         "Mute" => VirtualKeyCode::Mute,
         "LaunchMyComputer" => VirtualKeyCode::MyComputer,
         "NavigateForward" => VirtualKeyCode::NavigateForward,
@@ -186,7 +212,7 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "Slash" => VirtualKeyCode::Slash,
         "Sleep" => VirtualKeyCode::Sleep,
         "Stop" => VirtualKeyCode::Stop,
-        "NumpadSubtract" => VirtualKeyCode::Subtract,
+        "NumpadSubtract" => VirtualKeyCode::NumpadSubtract,
         "Sysrq" => VirtualKeyCode::Sysrq,
         "Tab" => VirtualKeyCode::Tab,
         "Underline" => VirtualKeyCode::Underline,
@@ -207,12 +233,12 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
 }
 
 pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
-    ModifiersState {
-        shift: event.shift_key(),
-        ctrl: event.ctrl_key(),
-        alt: event.alt_key(),
-        logo: event.meta_key(),
-    }
+    let mut m = ModifiersState::empty();
+    m.set(ModifiersState::SHIFT, event.shift_key());
+    m.set(ModifiersState::CTRL, event.ctrl_key());
+    m.set(ModifiersState::ALT, event.alt_key());
+    m.set(ModifiersState::LOGO, event.meta_key());
+    m
 }
 
 pub fn codepoint(event: &KeyboardEvent) -> char {

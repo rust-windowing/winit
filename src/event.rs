@@ -3,24 +3,64 @@
 //! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
+//! Some of these events represent different "parts" of a traditional event-handling loop. You could
+//! approximate the basic ordering loop of [`EventLoop::run(...)`][event_loop_run] like this:
+//!
+//! ```rust,ignore
+//! let mut control_flow = ControlFlow::Poll;
+//! let mut start_cause = StartCause::Init;
+//!
+//! while control_flow != ControlFlow::Exit {
+//!     event_handler(NewEvents(start_cause), ..., &mut control_flow);
+//!
+//!     for e in (window events, user events, device events) {
+//!         event_handler(e, ..., &mut control_flow);
+//!     }
+//!     event_handler(MainEventsCleared, ..., &mut control_flow);
+//!
+//!     for w in (redraw windows) {
+//!         event_handler(RedrawRequested(w), ..., &mut control_flow);
+//!     }
+//!     event_handler(RedrawEventsCleared, ..., &mut control_flow);
+//!
+//!     start_cause = wait_if_necessary(control_flow);
+//! }
+//!
+//! event_handler(LoopDestroyed, ..., &mut control_flow);
+//! ```
+//!
+//! This leaves out timing details like `ControlFlow::WaitUntil` but hopefully
+//! describes what happens in what order.
+//!
 //! [event_loop_run]: crate::event_loop::EventLoop::run
 use instant::Instant;
 use std::path::PathBuf;
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{PhysicalPosition, PhysicalSize},
+    window::Theme,
     window::WindowId,
 };
 
 pub mod device;
 
-/// A generic event.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Event<T> {
+/// Describes a generic event.
+///
+/// See the module-level docs for more information on the event loop manages each event.
+#[derive(Debug, PartialEq)]
+pub enum Event<'a, T: 'static> {
+    /// Emitted when new events arrive from the OS to be processed.
+    ///
+    /// This event type is useful as a place to put code that should be done before you start
+    /// processing events, such as updating frame timing information for benchmarking or checking
+    /// the [`StartCause`][crate::event::StartCause] to see if a timer set by
+    /// [`ControlFlow::WaitUntil`](crate::event_loop::ControlFlow::WaitUntil) has elapsed.
+    NewEvents(StartCause),
+
     /// Emitted when the OS sends an event to a winit window.
     WindowEvent {
         window_id: WindowId,
-        event: WindowEvent,
+        event: WindowEvent<'a>,
     },
 
     /// Emitted when a mouse device has generated input.
@@ -31,27 +71,83 @@ pub enum Event<T> {
     /// Emitted when a gamepad/joystick device has generated input.
     GamepadEvent(device::GamepadHandle, device::GamepadEvent),
 
-    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](../event_loop/struct.EventLoopProxy.html#method.send_event)
+    /// Emitted when an event is sent from [`EventLoopProxy::send_event`](crate::event_loop::EventLoopProxy::send_event)
     UserEvent(T),
-    /// Emitted when new events arrive from the OS to be processed.
-    NewEvents(StartCause),
-    /// Emitted when all of the event loop's events have been processed and control flow is about
-    /// to be taken away from the program.
-    EventsCleared,
-
-    /// Emitted when the event loop is being shut down. This is irreversable - if this event is
-    /// emitted, it is guaranteed to be the last event emitted.
-    LoopDestroyed,
 
     /// Emitted when the application has been suspended.
     Suspended,
 
     /// Emitted when the application has been resumed.
     Resumed,
+
+    /// Emitted when all of the event loop's input events have been processed and redraw processing
+    /// is about to begin.
+    ///
+    /// This event is useful as a place to put your code that should be run after all
+    /// state-changing events have been handled and you want to do stuff (updating state, performing
+    /// calculations, etc) that happens as the "main body" of your event loop. If your program only draws
+    /// graphics when something changes, it's usually better to do it in response to
+    /// [`Event::RedrawRequested`](crate::event::Event::RedrawRequested), which gets emitted
+    /// immediately after this event. Programs that draw graphics continuously, like most games,
+    /// can render here unconditionally for simplicity.
+    MainEventsCleared,
+
+    /// Emitted after `MainEventsCleared` when a window should be redrawn.
+    ///
+    /// This gets triggered in two scenarios:
+    /// - The OS has performed an operation that's invalidated the window's contents (such as
+    ///   resizing the window).
+    /// - The application has explicitly requested a redraw via
+    ///   [`Window::request_redraw`](crate::window::Window::request_redraw).
+    ///
+    /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
+    /// into a single event, to help avoid duplicating rendering work.
+    ///
+    /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
+    /// something changes, like most non-game GUIs.
+    RedrawRequested(WindowId),
+
+    /// Emitted after all `RedrawRequested` events have been processed and control flow is about to
+    /// be taken away from the program. If there are no `RedrawRequested` events, it is emitted
+    /// immediately after `MainEventsCleared`.
+    ///
+    /// This event is useful for doing any cleanup or bookkeeping work after all the rendering
+    /// tasks have been completed.
+    RedrawEventsCleared,
+
+    /// Emitted when the event loop is being shut down.
+    ///
+    /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
+    /// gets emitted. You generally want to treat this as an "do on quit" event.
+    LoopDestroyed,
 }
 
-impl<T> Event<T> {
-    pub fn map_nonuser_event<U>(self) -> Result<Event<U>, Event<T>> {
+impl<T: Clone> Clone for Event<'static, T> {
+    fn clone(&self) -> Self {
+        use self::Event::*;
+        match self {
+            WindowEvent { window_id, event } => WindowEvent {
+                window_id: *window_id,
+                event: event.clone(),
+            },
+            UserEvent(event) => UserEvent(event.clone()),
+            MouseEvent(id, event) => MouseEvent(id.clone(), event.clone()),
+            KeyboardEvent(id, event) => KeyboardEvent(id.clone(), event.clone()),
+            HidEvent(id, event) => HidEvent(id.clone(), event.clone()),
+            GamepadEvent(id, event) => GamepadEvent(id.clone(), event.clone()),
+            NewEvents(cause) => NewEvents(cause.clone()),
+            MainEventsCleared => MainEventsCleared,
+            RedrawRequested(wid) => RedrawRequested(*wid),
+            RedrawEventsCleared => RedrawEventsCleared,
+            LoopDestroyed => LoopDestroyed,
+            Suspended => Suspended,
+            Resumed => Resumed,
+        }
+    }
+}
+
+impl<'a, T> Event<'a, T> {
+    pub fn map_nonuser_event<U>(self) -> Result<Event<'a, U>, Event<'a, T>> {
         use self::Event::*;
         match self {
             UserEvent(_) => Err(self),
@@ -61,10 +157,35 @@ impl<T> Event<T> {
             HidEvent(id, event) => Ok(HidEvent(id, event)),
             GamepadEvent(id, event) => Ok(GamepadEvent(id, event)),
             NewEvents(cause) => Ok(NewEvents(cause)),
-            EventsCleared => Ok(EventsCleared),
+            MainEventsCleared => Ok(MainEventsCleared),
+            RedrawRequested(wid) => Ok(RedrawRequested(wid)),
+            RedrawEventsCleared => Ok(RedrawEventsCleared),
             LoopDestroyed => Ok(LoopDestroyed),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
+        }
+    }
+
+    /// If the event doesn't contain a reference, turn it into an event with a `'static` lifetime.
+    /// Otherwise, return `None`.
+    pub fn to_static(self) -> Option<Event<'static, T>> {
+        use self::Event::*;
+        match self {
+            WindowEvent { window_id, event } => event
+                .to_static()
+                .map(|event| WindowEvent { window_id, event }),
+            UserEvent(event) => Some(UserEvent(event)),
+            MouseEvent(id, event) => Some(MouseEvent(id, event)),
+            KeyboardEvent(id, event) => Some(KeyboardEvent(id, event)),
+            HidEvent(id, event) => Some(HidEvent(id, event)),
+            GamepadEvent(id, event) => Some(GamepadEvent(id, event)),
+            NewEvents(cause) => Some(NewEvents(cause)),
+            MainEventsCleared => Some(MainEventsCleared),
+            RedrawRequested(wid) => Some(RedrawRequested(wid)),
+            RedrawEventsCleared => Some(RedrawEventsCleared),
+            LoopDestroyed => Some(LoopDestroyed),
+            Suspended => Some(Suspended),
+            Resumed => Some(Resumed),
         }
     }
 }
@@ -95,14 +216,14 @@ pub enum StartCause {
     Init,
 }
 
-/// An event from a `Window`.
-#[derive(Clone, Debug, PartialEq)]
-pub enum WindowEvent {
+/// Describes an event from a `Window`.
+#[derive(Debug, PartialEq)]
+pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
-    Resized(LogicalSize),
+    Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
-    Moved(LogicalPosition),
+    Moved(PhysicalPosition<i32>),
 
     /// The window has been requested to close.
     CloseRequested,
@@ -139,12 +260,20 @@ pub enum WindowEvent {
     /// An event from the keyboard has been received.
     KeyboardInput(KeyboardInput),
 
+    /// The keyboard modifiers have changed.
+    ///
+    /// Platform-specific behavior:
+    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    ///   issue, and it should get fixed - but it's the current state of the API.
+    ModifiersChanged(ModifiersState),
+
     /// The cursor has moved on the window.
     CursorMoved {
         /// (x,y) coords in pixels relative to the top-left corner of the window. Because the range of this data is
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
-        position: LogicalPosition,
+        position: PhysicalPosition<f64>,
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -158,6 +287,7 @@ pub enum WindowEvent {
     MouseWheel {
         delta: MouseScrollDelta,
         phase: TouchPhase,
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -165,6 +295,7 @@ pub enum WindowEvent {
     MouseInput {
         state: ElementState,
         button: MouseButton,
+        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
     },
 
@@ -175,22 +306,145 @@ pub enum WindowEvent {
     /// is being pressed) and stage (integer representing the click level).
     TouchpadPressure { pressure: f32, stage: i64 },
 
-    /// The OS or application has requested that the window be redrawn.
-    RedrawRequested,
-
     /// Touch event has been received
     Touch(Touch),
 
-    /// The DPI factor of the window has changed.
+    /// The window's scale factor has changed.
     ///
     /// The following user actions can cause DPI changes:
     ///
     /// * Changing the display's resolution.
-    /// * Changing the display's DPI factor (e.g. in Control Panel on Windows).
-    /// * Moving the window to a display with a different DPI factor.
+    /// * Changing the display's scale factor (e.g. in Control Panel on Windows).
+    /// * Moving the window to a display with a different scale factor.
+    ///
+    /// After this event callback has been processed, the window will be resized to whatever value
+    /// is pointed to by the `new_inner_size` reference. By default, this will contain the size suggested
+    /// by the OS, but it can be changed to any value.
     ///
     /// For more information about DPI in general, see the [`dpi`](crate::dpi) module.
-    HiDpiFactorChanged(f64),
+    ScaleFactorChanged {
+        scale_factor: f64,
+        new_inner_size: &'a mut PhysicalSize<u32>,
+    },
+
+    /// The system window theme has changed.
+    ///
+    /// Applications might wish to react to this to change the theme of the content of the window
+    /// when the system changes the window theme.
+    ///
+    /// At the moment this is only supported on Windows.
+    ThemeChanged(Theme),
+}
+
+impl Clone for WindowEvent<'static> {
+    fn clone(&self) -> Self {
+        use self::WindowEvent::*;
+        return match self {
+            Resized(size) => Resized(size.clone()),
+            Moved(pos) => Moved(pos.clone()),
+            CloseRequested => CloseRequested,
+            Destroyed => Destroyed,
+            DroppedFile(file) => DroppedFile(file.clone()),
+            HoveredFile(file) => HoveredFile(file.clone()),
+            HoveredFileCancelled => HoveredFileCancelled,
+            ReceivedCharacter(c) => ReceivedCharacter(*c),
+            Focused(f) => Focused(*f),
+            KeyboardInput(keyboard_input) => KeyboardInput(keyboard_input.clone()),
+            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
+            #[allow(deprecated)]
+            CursorMoved {
+                position,
+                modifiers,
+            } => CursorMoved {
+                position: *position,
+                modifiers: *modifiers,
+            },
+            CursorEntered => CursorEntered,
+            CursorLeft => CursorLeft,
+            #[allow(deprecated)]
+            MouseWheel {
+                delta,
+                phase,
+                modifiers,
+            } => MouseWheel {
+                delta: *delta,
+                phase: *phase,
+                modifiers: *modifiers,
+            },
+            #[allow(deprecated)]
+            MouseInput {
+                state,
+                button,
+                modifiers,
+            } => MouseInput {
+                state: *state,
+                button: *button,
+                modifiers: *modifiers,
+            },
+            TouchpadPressure { pressure, stage } => TouchpadPressure {
+                pressure: *pressure,
+                stage: *stage,
+            },
+            Touch(touch) => Touch(*touch),
+            ThemeChanged(theme) => ThemeChanged(theme.clone()),
+            ScaleFactorChanged { .. } => {
+                unreachable!("Static event can't be about scale factor changing")
+            }
+        };
+    }
+}
+
+impl<'a> WindowEvent<'a> {
+    pub fn to_static(self) -> Option<WindowEvent<'static>> {
+        use self::WindowEvent::*;
+        match self {
+            Resized(size) => Some(Resized(size)),
+            Moved(position) => Some(Moved(position)),
+            CloseRequested => Some(CloseRequested),
+            Destroyed => Some(Destroyed),
+            DroppedFile(file) => Some(DroppedFile(file)),
+            HoveredFile(file) => Some(HoveredFile(file)),
+            HoveredFileCancelled => Some(HoveredFileCancelled),
+            ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
+            Focused(focused) => Some(Focused(focused)),
+            KeyboardInput(keyboard_input) => Some(KeyboardInput(keyboard_input)),
+            ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
+            #[allow(deprecated)]
+            CursorMoved {
+                position,
+                modifiers,
+            } => Some(CursorMoved {
+                position,
+                modifiers,
+            }),
+            CursorEntered {} => Some(CursorEntered {}),
+            CursorLeft {} => Some(CursorLeft {}),
+            #[allow(deprecated)]
+            MouseWheel {
+                delta,
+                phase,
+                modifiers,
+            } => Some(MouseWheel {
+                delta,
+                phase,
+                modifiers,
+            }),
+            #[allow(deprecated)]
+            MouseInput {
+                state,
+                button,
+                modifiers,
+            } => Some(MouseInput {
+                state,
+                button,
+                modifiers,
+            }),
+            TouchpadPressure { pressure, stage } => Some(TouchpadPressure { pressure, stage }),
+            Touch(touch) => Some(Touch(touch)),
+            ThemeChanged(theme) => Some(ThemeChanged(theme)),
+            ScaleFactorChanged { .. } => None,
+        }
+    }
 }
 
 /// A keyboard input event.
@@ -216,6 +470,7 @@ pub struct KeyboardInput {
     ///
     /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
     /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
+    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
     pub modifiers: ModifiersState,
 }
 
@@ -251,7 +506,7 @@ pub enum TouchPhase {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Touch {
     pub phase: TouchPhase,
-    pub location: LogicalPosition,
+    pub location: PhysicalPosition<f64>,
     /// Describes how hard the screen was pressed. May be `None` if the platform
     /// does not support pressure sensitivity.
     ///
@@ -345,7 +600,7 @@ pub enum MouseButton {
     Left,
     Right,
     Middle,
-    Other(u8),
+    Other(u16),
 }
 
 /// A difference in the mouse scroll wheel state.
@@ -364,7 +619,7 @@ pub enum MouseScrollDelta {
     /// Scroll events are expressed as a PixelDelta if
     /// supported by the device (eg. a touchpad) and
     /// platform.
-    PixelDelta(LogicalPosition),
+    PixelDelta(PhysicalPosition<f64>),
 }
 
 /// Symbolic name of a keyboard key.
@@ -492,12 +747,20 @@ pub enum VirtualKeyCode {
     Numpad7,
     Numpad8,
     Numpad9,
+    NumpadAdd,
+    NumpadDivide,
+    NumpadDecimal,
+    NumpadComma,
+    NumpadEnter,
+    NumpadEquals,
+    NumpadMultiply,
+    NumpadSubtract,
 
     AbntC1,
     AbntC2,
-    Add,
     Apostrophe,
     Apps,
+    Asterisk,
     At,
     Ax,
     Backslash,
@@ -506,8 +769,6 @@ pub enum VirtualKeyCode {
     Colon,
     Comma,
     Convert,
-    Decimal,
-    Divide,
     Equals,
     Grave,
     Kana,
@@ -521,19 +782,18 @@ pub enum VirtualKeyCode {
     MediaSelect,
     MediaStop,
     Minus,
-    Multiply,
     Mute,
     MyComputer,
-    NavigateForward,  // also called "Prior"
-    NavigateBackward, // also called "Next"
+    // also called "Next"
+    NavigateForward,
+    // also called "Prior"
+    NavigateBackward,
     NextTrack,
     NoConvert,
-    NumpadComma,
-    NumpadEnter,
-    NumpadEquals,
     OEM102,
     Period,
     PlayPause,
+    Plus,
     Power,
     PrevTrack,
     RAlt,
@@ -545,7 +805,6 @@ pub enum VirtualKeyCode {
     Slash,
     Sleep,
     Stop,
-    Subtract,
     Sysrq,
     Tab,
     Underline,
@@ -566,21 +825,99 @@ pub enum VirtualKeyCode {
     Cut,
 }
 
-/// The current state of the keyboard modifiers
-///
-/// Each field of this struct represents a modifier and is `true` if this modifier is active.
-#[derive(Default, Debug, Hash, PartialEq, Eq, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(default))]
-pub struct ModifiersState {
-    /// The "shift" key
-    pub shift: bool,
-    /// The "control" key
-    pub ctrl: bool,
-    /// The "alt" key
-    pub alt: bool,
-    /// The "logo" key
+impl ModifiersState {
+    /// Returns `true` if the shift key is pressed.
+    pub fn shift(&self) -> bool {
+        self.intersects(Self::SHIFT)
+    }
+    /// Returns `true` if the control key is pressed.
+    pub fn ctrl(&self) -> bool {
+        self.intersects(Self::CTRL)
+    }
+    /// Returns `true` if the alt key is pressed.
+    pub fn alt(&self) -> bool {
+        self.intersects(Self::ALT)
+    }
+    /// Returns `true` if the logo key is pressed.
+    pub fn logo(&self) -> bool {
+        self.intersects(Self::LOGO)
+    }
+}
+
+bitflags! {
+    /// Represents the current state of the keyboard modifiers
     ///
-    /// This is the "windows" key on PC and "command" key on Mac.
-    pub logo: bool,
+    /// Each flag represents a modifier and is set if this modifier is active.
+    #[derive(Default)]
+    pub struct ModifiersState: u32 {
+        // left and right modifiers are currently commented out, but we should be able to support
+        // them in a future release
+        /// The "shift" key.
+        const SHIFT = 0b100 << 0;
+        // const LSHIFT = 0b010 << 0;
+        // const RSHIFT = 0b001 << 0;
+        /// The "control" key.
+        const CTRL = 0b100 << 3;
+        // const LCTRL = 0b010 << 3;
+        // const RCTRL = 0b001 << 3;
+        /// The "alt" key.
+        const ALT = 0b100 << 6;
+        // const LALT = 0b010 << 6;
+        // const RALT = 0b001 << 6;
+        /// This is the "windows" key on PC and "command" key on Mac.
+        const LOGO = 0b100 << 9;
+        // const LLOGO = 0b010 << 9;
+        // const RLOGO = 0b001 << 9;
+    }
+}
+
+#[cfg(feature = "serde")]
+mod modifiers_serde {
+    use super::ModifiersState;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Default, Serialize, Deserialize)]
+    #[serde(default)]
+    #[serde(rename = "ModifiersState")]
+    pub struct ModifiersStateSerialize {
+        pub shift: bool,
+        pub ctrl: bool,
+        pub alt: bool,
+        pub logo: bool,
+    }
+
+    impl Serialize for ModifiersState {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            let s = ModifiersStateSerialize {
+                shift: self.shift(),
+                ctrl: self.ctrl(),
+                alt: self.alt(),
+                logo: self.logo(),
+            };
+            s.serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for ModifiersState {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let ModifiersStateSerialize {
+                shift,
+                ctrl,
+                alt,
+                logo,
+            } = ModifiersStateSerialize::deserialize(deserializer)?;
+            let mut m = ModifiersState::empty();
+            m.set(ModifiersState::SHIFT, shift);
+            m.set(ModifiersState::CTRL, ctrl);
+            m.set(ModifiersState::ALT, alt);
+            m.set(ModifiersState::LOGO, logo);
+            Ok(m)
+        }
+    }
 }

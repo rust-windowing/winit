@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+
+use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -6,6 +8,7 @@ use winit::{
 };
 
 fn main() {
+    SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
     let mut windows = HashMap::new();
@@ -16,6 +19,7 @@ fn main() {
 
     event_loop.run(move |event, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
+
         match event {
             Event::WindowEvent { event, window_id } => {
                 match event {

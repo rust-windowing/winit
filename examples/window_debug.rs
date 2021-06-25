@@ -1,49 +1,49 @@
 // This example is used by developers to test various window functions.
 
+use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{
+        device::KeyboardEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent,
+    },
     event_loop::{ControlFlow, EventLoop},
     window::{Fullscreen, WindowBuilder},
 };
 
 fn main() {
+    SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
-        .with_inner_size(LogicalSize::from((100, 100)))
+        .with_inner_size(LogicalSize::new(100.0, 100.0))
         .build(&event_loop)
         .unwrap();
 
     eprintln!("debugging keys:");
     eprintln!("  (E) Enter exclusive fullscreen");
     eprintln!("  (F) Toggle borderless fullscreen");
-    #[cfg(waiting_for_set_minimized)]
+    eprintln!("  (P) Toggle borderless fullscreen on system's preffered monitor");
     eprintln!("  (M) Toggle minimized");
     eprintln!("  (Q) Quit event loop");
     eprintln!("  (V) Toggle visibility");
     eprintln!("  (X) Toggle maximized");
 
-    #[cfg(waiting_for_set_minimized)]
     let mut minimized = false;
-    let mut maximized = false;
     let mut visible = true;
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::DeviceEvent {
-                event:
-                    DeviceEvent::Key(KeyboardInput {
-                        virtual_keycode: Some(key),
-                        state: ElementState::Pressed,
-                        ..
-                    }),
-                ..
-            } => match key {
-                #[cfg(waiting_for_set_minimized)]
+            Event::KeyboardEvent(
+                _,
+                KeyboardEvent::Input(KeyboardInput {
+                    virtual_keycode: Some(key),
+                    state: ElementState::Pressed,
+                    ..
+                }),
+            ) => match key {
                 VirtualKeyCode::M => {
                     if minimized {
                         minimized = !minimized;
@@ -59,7 +59,7 @@ fn main() {
                 _ => (),
             },
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
+                event: WindowEvent::KeyboardInput(input),
                 ..
             } => match input {
                 KeyboardInput {
@@ -68,16 +68,15 @@ fn main() {
                     ..
                 } => match key {
                     VirtualKeyCode::E => {
-                        fn area(size: PhysicalSize) -> f64 {
+                        fn area(size: PhysicalSize<u32>) -> u32 {
                             size.width * size.height
                         }
 
-                        let monitor = window.current_monitor();
-                        if let Some(mode) = monitor.video_modes().max_by(|a, b| {
-                            area(a.size())
-                                .partial_cmp(&area(b.size()))
-                                .expect("NaN in video mode size")
-                        }) {
+                        let monitor = window.current_monitor().unwrap();
+                        if let Some(mode) = monitor
+                            .video_modes()
+                            .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
+                        {
                             window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
                         } else {
                             eprintln!("no video modes available");
@@ -91,7 +90,13 @@ fn main() {
                             window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
                         }
                     }
-                    #[cfg(waiting_for_set_minimized)]
+                    VirtualKeyCode::P => {
+                        if window.fullscreen().is_some() {
+                            window.set_fullscreen(None);
+                        } else {
+                            window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                        }
+                    }
                     VirtualKeyCode::M => {
                         minimized = !minimized;
                         window.set_minimized(minimized);
@@ -104,8 +109,8 @@ fn main() {
                         window.set_visible(visible);
                     }
                     VirtualKeyCode::X => {
-                        maximized = !maximized;
-                        window.set_maximized(maximized);
+                        let is_maximized = window.is_maximized();
+                        window.set_maximized(!is_maximized);
                     }
                     _ => (),
                 },

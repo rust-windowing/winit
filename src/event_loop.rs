@@ -59,7 +59,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 
 /// Set by the user callback given to the `EventLoop::run` method.
 ///
-/// Indicates the desired behavior of the event loop after [`Event::EventsCleared`][events_cleared]
+/// Indicates the desired behavior of the event loop after [`Event::RedrawEventsCleared`][events_cleared]
 /// is emitted. Defaults to `Poll`.
 ///
 /// ## Persistency
@@ -68,11 +68,17 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 /// are **not** persistent between multiple calls to `run_return` - issuing a new call will reset
 /// the control flow to `Poll`.
 ///
-/// [events_cleared]: crate::event::Event::EventsCleared
+/// [events_cleared]: crate::event::Event::RedrawEventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
     /// whether or not new events are available to process.
+    ///
+    /// ## Platform-specific
+    /// - **Web:** Events are queued and usually sent when `requestAnimationFrame` fires but sometimes
+    ///   the events in the queue may be sent before the next `requestAnimationFrame` callback, for
+    ///   example when the scaling of the page has changed. This should be treated as an implementation
+    ///   detail which should not be relied on.
     Poll,
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
     Wait,
@@ -143,7 +149,7 @@ impl<T> EventLoop<T> {
     #[inline]
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         self.event_loop.run(event_handler)
     }
@@ -154,29 +160,35 @@ impl<T> EventLoop<T> {
             event_loop_proxy: self.event_loop.create_proxy(),
         }
     }
-
-    /// Returns the list of all the monitors available on the system.
-    #[inline]
-    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.event_loop
-            .available_monitors()
-            .into_iter()
-            .map(|inner| MonitorHandle { inner })
-    }
-
-    /// Returns the primary monitor of the system.
-    #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle {
-            inner: self.event_loop.primary_monitor(),
-        }
-    }
 }
 
 impl<T> Deref for EventLoop<T> {
     type Target = EventLoopWindowTarget<T>;
     fn deref(&self) -> &EventLoopWindowTarget<T> {
         self.event_loop.window_target()
+    }
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    /// Returns the list of all the monitors available on the system.
+    #[inline]
+    pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
+        self.p
+            .available_monitors()
+            .into_iter()
+            .map(|inner| MonitorHandle { inner })
+    }
+
+    /// Returns the primary monitor of the system.
+    ///
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
+    /// ## Platform-specific
+    ///
+    /// **Wayland:** Always returns `None`.
+    #[inline]
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.p.primary_monitor()
     }
 }
 
@@ -199,7 +211,7 @@ impl<T: 'static> EventLoopProxy<T> {
     /// function.
     ///
     /// Returns an `Err` if the associated `EventLoop` no longer exists.
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed> {
+    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.event_loop_proxy.send_event(event)
     }
 }
@@ -211,18 +223,14 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
 }
 
 /// The error that is returned when an `EventLoopProxy` attempts to wake up an `EventLoop` that
-/// no longer exists.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct EventLoopClosed;
+/// no longer exists. Contains the original event given to `send_event`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct EventLoopClosed<T>(pub T);
 
-impl fmt::Display for EventLoopClosed {
+impl<T> fmt::Display for EventLoopClosed<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", error::Error::description(self))
+        f.write_str("Tried to wake up a closed `EventLoop`")
     }
 }
 
-impl error::Error for EventLoopClosed {
-    fn description(&self) -> &str {
-        "Tried to wake up a closed `EventLoop`"
-    }
-}
+impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}

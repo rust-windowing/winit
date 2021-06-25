@@ -1,17 +1,16 @@
+pub(crate) mod global;
 mod proxy;
 mod runner;
 mod state;
 mod window_target;
-pub(crate) mod global;
 
 pub use self::proxy::Proxy;
 pub use self::window_target::WindowTarget;
 
-use super::{backend, monitor, window};
+use super::{backend, device, window};
 use crate::event::Event;
 use crate::event_loop as root;
 
-use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::marker::PhantomData;
 
 pub struct EventLoop<T: 'static> {
@@ -28,17 +27,9 @@ impl<T> EventLoop<T> {
         }
     }
 
-    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
-        VecDeque::new().into_iter()
-    }
-
-    pub fn primary_monitor(&self) -> monitor::Handle {
-        monitor::Handle
-    }
-
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<T>, &root::EventLoopWindowTarget<T>, &mut root::ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &root::EventLoopWindowTarget<T>, &mut root::ControlFlow),
     {
         let target = root::EventLoopWindowTarget {
             p: self.elw.p.clone(),

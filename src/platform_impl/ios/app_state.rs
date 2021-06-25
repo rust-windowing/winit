@@ -12,15 +12,16 @@ use std::{
 use objc::runtime::{BOOL, YES};
 
 use crate::{
+    dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
     platform_impl::platform::{
-        event_loop::{EventHandler, Never},
+        event_loop::{EventHandler, EventProxy, EventWrapper, Never},
         ffi::{
             id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
             CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, NSInteger, NSOperatingSystemVersion,
-            NSUInteger,
+            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSInteger,
+            NSOperatingSystemVersion, NSUInteger,
         },
     },
     window::WindowId as RootWindowId,
@@ -45,17 +46,13 @@ enum UserCallbackTransitionResult<'a> {
         processing_redraws: bool,
     },
     ReentrancyPrevented {
-        queued_events: &'a mut Vec<Event<Never>>,
+        queued_events: &'a mut Vec<EventWrapper>,
     },
 }
 
-impl Event<Never> {
+impl Event<'static, Never> {
     fn is_redraw(&self) -> bool {
-        if let Event::WindowEvent {
-            window_id: _,
-            event: WindowEvent::RedrawRequested,
-        } = self
-        {
+        if let Event::RedrawRequested(_) = self {
             true
         } else {
             false
@@ -69,12 +66,12 @@ impl Event<Never> {
 enum AppStateImpl {
     NotLaunched {
         queued_windows: Vec<id>,
-        queued_events: Vec<Event<Never>>,
+        queued_events: Vec<EventWrapper>,
         queued_gpu_redraws: HashSet<id>,
     },
     Launching {
         queued_windows: Vec<id>,
-        queued_events: Vec<Event<Never>>,
+        queued_events: Vec<EventWrapper>,
         queued_event_handler: Box<dyn EventHandler>,
         queued_gpu_redraws: HashSet<id>,
     },
@@ -85,7 +82,7 @@ enum AppStateImpl {
     },
     // special state to deal with reentrancy and prevent mutable aliasing.
     InUserCallback {
-        queued_events: Vec<Event<Never>>,
+        queued_events: Vec<EventWrapper>,
         queued_gpu_redraws: HashSet<id>,
     },
     ProcessingRedraws {
@@ -226,7 +223,7 @@ impl AppState {
         });
     }
 
-    fn did_finish_launching_transition(&mut self) -> (Vec<id>, Vec<Event<Never>>) {
+    fn did_finish_launching_transition(&mut self) -> (Vec<id>, Vec<EventWrapper>) {
         let (windows, events, event_handler, queued_gpu_redraws) = match self.take_state() {
             AppStateImpl::Launching {
                 queued_windows,
@@ -249,7 +246,7 @@ impl AppState {
         (windows, events)
     }
 
-    fn wakeup_transition(&mut self) -> Option<Event<Never>> {
+    fn wakeup_transition(&mut self) -> Option<EventWrapper> {
         // before `AppState::did_finish_launching` is called, pretend there is no running
         // event loop.
         if !self.has_launched() {
@@ -262,7 +259,10 @@ impl AppState {
                 AppStateImpl::PollFinished {
                     waiting_event_handler,
                 },
-            ) => (waiting_event_handler, Event::NewEvents(StartCause::Poll)),
+            ) => (
+                waiting_event_handler,
+                EventWrapper::StaticEvent(Event::NewEvents(StartCause::Poll)),
+            ),
             (
                 ControlFlow::Wait,
                 AppStateImpl::Waiting {
@@ -271,10 +271,10 @@ impl AppState {
                 },
             ) => (
                 waiting_event_handler,
-                Event::NewEvents(StartCause::WaitCancelled {
+                EventWrapper::StaticEvent(Event::NewEvents(StartCause::WaitCancelled {
                     start,
                     requested_resume: None,
-                }),
+                })),
             ),
             (
                 ControlFlow::WaitUntil(requested_resume),
@@ -284,15 +284,15 @@ impl AppState {
                 },
             ) => {
                 let event = if Instant::now() >= requested_resume {
-                    Event::NewEvents(StartCause::ResumeTimeReached {
+                    EventWrapper::StaticEvent(Event::NewEvents(StartCause::ResumeTimeReached {
                         start,
                         requested_resume,
-                    })
+                    }))
                 } else {
-                    Event::NewEvents(StartCause::WaitCancelled {
+                    EventWrapper::StaticEvent(Event::NewEvents(StartCause::WaitCancelled {
                         start,
                         requested_resume: Some(requested_resume),
-                    })
+                    }))
                 };
                 (waiting_event_handler, event)
             }
@@ -591,7 +591,10 @@ pub unsafe fn did_finish_launching() {
 
     let (windows, events) = AppState::get_mut().did_finish_launching_transition();
 
-    let events = std::iter::once(Event::NewEvents(StartCause::Init)).chain(events);
+    let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(
+        StartCause::Init,
+    )))
+    .chain(events);
     handle_nonuser_events(events);
 
     // the above window dance hack, could possibly trigger new windows to be created.
@@ -620,12 +623,12 @@ pub unsafe fn handle_wakeup_transition() {
 }
 
 // requires main thread
-pub unsafe fn handle_nonuser_event(event: Event<Never>) {
+pub unsafe fn handle_nonuser_event(event: EventWrapper) {
     handle_nonuser_events(std::iter::once(event))
 }
 
 // requires main thread
-pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<Never>>>(events: I) {
+pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events: I) {
     let mut this = AppState::get_mut();
     let (mut event_handler, active_control_flow, processing_redraws) =
         match this.try_user_callback_transition() {
@@ -642,16 +645,23 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<Never>>>(events
     let mut control_flow = this.control_flow;
     drop(this);
 
-    for event in events {
-        if !processing_redraws && event.is_redraw() {
-            log::info!("processing `RedrawRequested` during the main event loop");
-        } else if processing_redraws && !event.is_redraw() {
-            log::warn!(
-                "processing non `RedrawRequested` event after the main event loop: {:#?}",
-                event
-            );
+    for wrapper in events {
+        match wrapper {
+            EventWrapper::StaticEvent(event) => {
+                if !processing_redraws && event.is_redraw() {
+                    log::info!("processing `RedrawRequested` during the main event loop");
+                } else if processing_redraws && !event.is_redraw() {
+                    log::warn!(
+                        "processing non `RedrawRequested` event after the main event loop: {:#?}",
+                        event
+                    );
+                }
+                event_handler.handle_nonuser_event(event, &mut control_flow)
+            }
+            EventWrapper::EventProxy(proxy) => {
+                handle_event_proxy(&mut event_handler, control_flow, proxy)
+            }
         }
-        event_handler.handle_nonuser_event(event, &mut control_flow)
     }
 
     loop {
@@ -692,16 +702,23 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = Event<Never>>>(events
         }
         drop(this);
 
-        for event in queued_events {
-            if !processing_redraws && event.is_redraw() {
-                log::info!("processing `RedrawRequested` during the main event loop");
-            } else if processing_redraws && !event.is_redraw() {
-                log::warn!(
-                    "processing non-`RedrawRequested` event after the main event loop: {:#?}",
-                    event
-                );
+        for wrapper in queued_events {
+            match wrapper {
+                EventWrapper::StaticEvent(event) => {
+                    if !processing_redraws && event.is_redraw() {
+                        log::info!("processing `RedrawRequested` during the main event loop");
+                    } else if processing_redraws && !event.is_redraw() {
+                        log::warn!(
+                            "processing non-`RedrawRequested` event after the main event loop: {:#?}",
+                            event
+                        );
+                    }
+                    event_handler.handle_nonuser_event(event, &mut control_flow)
+                }
+                EventWrapper::EventProxy(proxy) => {
+                    handle_event_proxy(&mut event_handler, control_flow, proxy)
+                }
             }
-            event_handler.handle_nonuser_event(event, &mut control_flow)
         }
     }
 }
@@ -755,8 +772,15 @@ unsafe fn handle_user_events() {
         }
         drop(this);
 
-        for event in queued_events {
-            event_handler.handle_nonuser_event(event, &mut control_flow)
+        for wrapper in queued_events {
+            match wrapper {
+                EventWrapper::StaticEvent(event) => {
+                    event_handler.handle_nonuser_event(event, &mut control_flow)
+                }
+                EventWrapper::EventProxy(proxy) => {
+                    handle_event_proxy(&mut event_handler, control_flow, proxy)
+                }
+            }
         }
         event_handler.handle_user_events(&mut control_flow);
     }
@@ -776,16 +800,20 @@ pub unsafe fn handle_main_events_cleared() {
 
     // User events are always sent out at the end of the "MainEventLoop"
     handle_user_events();
-    handle_nonuser_event(Event::EventsCleared);
+    handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
 
     let mut this = AppState::get_mut();
-    let redraw_events = this
+    let mut redraw_events: Vec<EventWrapper> = this
         .main_events_cleared_transition()
         .into_iter()
-        .map(|window| Event::WindowEvent {
-            window_id: RootWindowId(window.into()),
-            event: WindowEvent::RedrawRequested,
-        });
+        .map(|window| {
+            EventWrapper::StaticEvent(Event::RedrawRequested(RootWindowId(window.into())))
+        })
+        .collect();
+
+    if !redraw_events.is_empty() {
+        redraw_events.push(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
+    }
     drop(this);
 
     handle_nonuser_events(redraw_events);
@@ -804,6 +832,66 @@ pub unsafe fn terminated() {
     drop(this);
 
     event_handler.handle_nonuser_event(Event::LoopDestroyed, &mut control_flow)
+}
+
+fn handle_event_proxy(
+    event_handler: &mut Box<dyn EventHandler>,
+    control_flow: ControlFlow,
+    proxy: EventProxy,
+) {
+    match proxy {
+        EventProxy::DpiChangedProxy {
+            suggested_size,
+            scale_factor,
+            window_id,
+        } => handle_hidpi_proxy(
+            event_handler,
+            control_flow,
+            suggested_size,
+            scale_factor,
+            window_id,
+        ),
+    }
+}
+
+fn handle_hidpi_proxy(
+    event_handler: &mut Box<dyn EventHandler>,
+    mut control_flow: ControlFlow,
+    suggested_size: LogicalSize<f64>,
+    scale_factor: f64,
+    window_id: id,
+) {
+    let mut size = suggested_size.to_physical(scale_factor);
+    let new_inner_size = &mut size;
+    let event = Event::WindowEvent {
+        window_id: RootWindowId(window_id.into()),
+        event: WindowEvent::ScaleFactorChanged {
+            scale_factor,
+            new_inner_size,
+        },
+    };
+    event_handler.handle_nonuser_event(event, &mut control_flow);
+    let (view, screen_frame) = get_view_and_screen_frame(window_id);
+    let physical_size = *new_inner_size;
+    let logical_size = physical_size.to_logical(scale_factor);
+    let size = CGSize::new(logical_size);
+    let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
+    unsafe {
+        let () = msg_send![view, setFrame: new_frame];
+    }
+}
+
+fn get_view_and_screen_frame(window_id: id) -> (id, CGRect) {
+    unsafe {
+        let view_controller: id = msg_send![window_id, rootViewController];
+        let view: id = msg_send![view_controller, view];
+        let bounds: CGRect = msg_send![window_id, bounds];
+        let screen: id = msg_send![window_id, screen];
+        let screen_space: id = msg_send![screen, coordinateSpace];
+        let screen_frame: CGRect =
+            msg_send![window_id, convertRect:bounds toCoordinateSpace:screen_space];
+        (view, screen_frame)
+    }
 }
 
 struct EventLoopWaker {

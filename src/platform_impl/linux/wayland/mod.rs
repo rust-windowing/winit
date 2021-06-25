@@ -1,20 +1,21 @@
-#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd",
-           target_os = "netbsd", target_os = "openbsd"))]
+#![cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 
-pub use self::{
-    event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, MonitorHandle, VideoMode,
-        WindowEventsSink,
-    },
-    window::Window,
-};
+use sctk::reexports::client::protocol::wl_surface::WlSurface;
 
-use smithay_client_toolkit::reexports::client::protocol::wl_surface;
+pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
+pub use output::{MonitorHandle, VideoMode};
+pub use window::Window;
 
+mod env;
 mod event_loop;
-mod keyboard;
-mod pointer;
-mod touch;
+mod output;
+mod seat;
 mod window;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -36,6 +37,6 @@ impl WindowId {
 }
 
 #[inline]
-fn make_wid(s: &wl_surface::WlSurface) -> WindowId {
-    WindowId(s.as_ref().c_ptr() as usize)
+fn make_wid(surface: &WlSurface) -> WindowId {
+    WindowId(surface.as_ref().c_ptr() as usize)
 }

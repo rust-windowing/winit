@@ -4,6 +4,7 @@ use std::sync::Arc;
 use super::*;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum StateOperation {
     Remove = 0, // _NET_WM_STATE_REMOVE
     Add = 1,    // _NET_WM_STATE_ADD
@@ -189,20 +190,22 @@ impl<'a> NormalHints<'a> {
         }
     }
 
-    pub fn has_flag(&self, flag: c_long) -> bool {
-        has_flag(self.size_hints.flags, flag)
-    }
-
-    fn getter(&self, flag: c_long, field1: &c_int, field2: &c_int) -> Option<(u32, u32)> {
-        if self.has_flag(flag) {
-            Some((*field1 as _, *field2 as _))
+    pub fn get_position(&self) -> Option<(i32, i32)> {
+        if has_flag(self.size_hints.flags, ffi::PPosition) {
+            Some((self.size_hints.x as i32, self.size_hints.y as i32))
         } else {
             None
         }
     }
 
-    pub fn get_size(&self) -> Option<(u32, u32)> {
-        self.getter(ffi::PSize, &self.size_hints.width, &self.size_hints.height)
+    pub fn set_position(&mut self, position: Option<(i32, i32)>) {
+        if let Some((x, y)) = position {
+            self.size_hints.flags |= ffi::PPosition;
+            self.size_hints.x = x as c_int;
+            self.size_hints.y = y as c_int;
+        } else {
+            self.size_hints.flags &= !ffi::PPosition;
+        }
     }
 
     // WARNING: This hint is obsolete
@@ -216,14 +219,6 @@ impl<'a> NormalHints<'a> {
         }
     }
 
-    pub fn get_max_size(&self) -> Option<(u32, u32)> {
-        self.getter(
-            ffi::PMaxSize,
-            &self.size_hints.max_width,
-            &self.size_hints.max_height,
-        )
-    }
-
     pub fn set_max_size(&mut self, max_size: Option<(u32, u32)>) {
         if let Some((max_width, max_height)) = max_size {
             self.size_hints.flags |= ffi::PMaxSize;
@@ -232,14 +227,6 @@ impl<'a> NormalHints<'a> {
         } else {
             self.size_hints.flags &= !ffi::PMaxSize;
         }
-    }
-
-    pub fn get_min_size(&self) -> Option<(u32, u32)> {
-        self.getter(
-            ffi::PMinSize,
-            &self.size_hints.min_width,
-            &self.size_hints.min_height,
-        )
     }
 
     pub fn set_min_size(&mut self, min_size: Option<(u32, u32)>) {
@@ -252,14 +239,6 @@ impl<'a> NormalHints<'a> {
         }
     }
 
-    pub fn get_resize_increments(&self) -> Option<(u32, u32)> {
-        self.getter(
-            ffi::PResizeInc,
-            &self.size_hints.width_inc,
-            &self.size_hints.height_inc,
-        )
-    }
-
     pub fn set_resize_increments(&mut self, resize_increments: Option<(u32, u32)>) {
         if let Some((width_inc, height_inc)) = resize_increments {
             self.size_hints.flags |= ffi::PResizeInc;
@@ -268,14 +247,6 @@ impl<'a> NormalHints<'a> {
         } else {
             self.size_hints.flags &= !ffi::PResizeInc;
         }
-    }
-
-    pub fn get_base_size(&self) -> Option<(u32, u32)> {
-        self.getter(
-            ffi::PBaseSize,
-            &self.size_hints.base_width,
-            &self.size_hints.base_height,
-        )
     }
 
     pub fn set_base_size(&mut self, base_size: Option<(u32, u32)>) {

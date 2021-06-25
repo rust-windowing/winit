@@ -14,38 +14,39 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{DWORD, HINSTANCE, LPARAM, UINT, WORD, WPARAM},
-        windef::{HWND, POINT, RECT},
+        minwindef::{HINSTANCE, LPARAM, UINT, WPARAM},
+        windef::{HWND, POINT, POINTS, RECT},
     },
     um::{
-        combaseapi, dwmapi, libloaderapi,
+        combaseapi, dwmapi,
+        imm::{CFS_POINT, COMPOSITIONFORM},
+        libloaderapi,
         objbase::COINIT_APARTMENTTHREADED,
         ole2,
         oleidl::LPDROPTARGET,
         shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
         wingdi::{CreateRectRgn, DeleteObject},
-        winnt::{LONG, LPCWSTR},
+        winnt::{LPCWSTR, SHORT},
         winuser,
     },
 };
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
+        dark_mode::try_theme,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{
-            self, EventLoopWindowTarget, DESTROY_MSG_ID, INITIAL_DPI_MSG_ID,
-            REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID,
-        },
-        icon::{self, IconType, WinIcon},
+        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
+        icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        PlatformSpecificWindowBuilderAttributes, WindowId,
+        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Fullscreen, Icon, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -71,8 +72,9 @@ impl Window {
         //
         // done. you owe me -- ossi
         unsafe {
+            let drag_and_drop = pl_attr.drag_and_drop;
             init(w_attr, pl_attr, event_loop).map(|win| {
-                let file_drop_handler = {
+                let file_drop_handler = if drag_and_drop {
                     use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
 
                     let ole_init_result = ole2::OleInitialize(ptr::null_mut());
@@ -81,7 +83,11 @@ impl Window {
                     if ole_init_result == OLE_E_WRONGCOMPOBJ {
                         panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
                     } else if ole_init_result == RPC_E_CHANGED_MODE {
-                        panic!("OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`");
+                        panic!(
+                            "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. \
+                            Make sure other crates are not using multithreaded COM library \
+                            on the same thread or disable drag and drop support."
+                        );
                     }
 
                     let shared_data = event_loop.shared_data.clone();
@@ -100,13 +106,17 @@ impl Window {
                         ole2::RegisterDragDrop(win.window.0, handler_interface_ptr),
                         S_OK
                     );
-                    file_drop_handler
+                    Some(file_drop_handler)
+                } else {
+                    None
                 };
 
                 let subclass_input = event_loop::SubclassInput {
                     window_state: win.window_state.clone(),
                     shared_data: event_loop.shared_data.clone(),
                     file_drop_handler,
+                    subclass_removed: Cell::new(false),
+                    recurse_depth: Cell::new(0),
                 };
 
                 event_loop::subclass_window(win.window.0, subclass_input);
@@ -127,71 +137,55 @@ impl Window {
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
-        match visible {
-            true => unsafe {
-                winuser::ShowWindow(self.window.0, winuser::SW_SHOW);
-            },
-            false => unsafe {
-                winuser::ShowWindow(self.window.0, winuser::SW_HIDE);
-            },
-        }
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::VISIBLE, visible)
+            });
+        });
     }
 
     #[inline]
     pub fn request_redraw(&self) {
         unsafe {
-            if self.thread_executor.trigger_newevents_on_redraw() {
-                winuser::RedrawWindow(
-                    self.window.0,
-                    ptr::null(),
-                    ptr::null_mut(),
-                    winuser::RDW_INTERNALPAINT,
-                );
-            } else {
-                let mut window_state = self.window_state.lock();
-                if !window_state.queued_out_of_band_redraw {
-                    window_state.queued_out_of_band_redraw = true;
-                    winuser::PostMessageW(self.window.0, *REQUEST_REDRAW_NO_NEWEVENTS_MSG_ID, 0, 0);
-                }
-            }
+            winuser::RedrawWindow(
+                self.window.0,
+                ptr::null(),
+                ptr::null_mut(),
+                winuser::RDW_INTERNALPAINT,
+            );
         }
     }
 
-    pub(crate) fn outer_position_physical(&self) -> (i32, i32) {
+    #[inline]
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         util::get_window_rect(self.window.0)
-            .map(|rect| (rect.left as i32, rect.top as i32))
-            .unwrap()
+            .map(|rect| Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32)))
+            .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
     }
 
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        let physical_position = self.outer_position_physical();
-        let dpi_factor = self.hidpi_factor();
-        Ok(LogicalPosition::from_physical(
-            physical_position,
-            dpi_factor,
-        ))
-    }
-
-    pub(crate) fn inner_position_physical(&self) -> (i32, i32) {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         let mut position: POINT = unsafe { mem::zeroed() };
         if unsafe { winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
             panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        (position.x, position.y)
+        Ok(PhysicalPosition::new(position.x as i32, position.y as i32))
     }
 
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
-        let physical_position = self.inner_position_physical();
-        let dpi_factor = self.hidpi_factor();
-        Ok(LogicalPosition::from_physical(
-            physical_position,
-            dpi_factor,
-        ))
-    }
+    pub fn set_outer_position(&self, position: Position) {
+        let (x, y): (i32, i32) = position.to_physical::<i32>(self.scale_factor()).into();
 
-    pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
+        let window_state = Arc::clone(&self.window_state);
+        let window = self.window.clone();
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::MAXIMIZED, false)
+            });
+        });
+
         unsafe {
             winuser::SetWindowPos(
                 self.window.0,
@@ -205,48 +199,27 @@ impl Window {
                     | winuser::SWP_NOSIZE
                     | winuser::SWP_NOACTIVATE,
             );
-            winuser::UpdateWindow(self.window.0);
+            winuser::InvalidateRgn(self.window.0, ptr::null_mut(), 0);
         }
     }
 
     #[inline]
-    pub fn set_outer_position(&self, logical_position: LogicalPosition) {
-        let dpi_factor = self.hidpi_factor();
-        let (x, y) = logical_position.to_physical(dpi_factor).into();
-
-        let window_state = Arc::clone(&self.window_state);
-        let window = self.window.clone();
-        self.thread_executor.execute_in_thread(move || {
-            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
-                f.set(WindowFlags::MAXIMIZED, false)
-            });
-        });
-
-        self.set_position_physical(x, y);
-    }
-
-    pub(crate) fn inner_size_physical(&self) -> (u32, u32) {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         let mut rect: RECT = unsafe { mem::zeroed() };
         if unsafe { winuser::GetClientRect(self.window.0, &mut rect) } == 0 {
             panic!("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        (
+        PhysicalSize::new(
             (rect.right - rect.left) as u32,
             (rect.bottom - rect.top) as u32,
         )
     }
 
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
-        let physical_size = self.inner_size_physical();
-        let dpi_factor = self.hidpi_factor();
-        LogicalSize::from_physical(physical_size, dpi_factor)
-    }
-
-    pub(crate) fn outer_size_physical(&self) -> (u32, u32) {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         util::get_window_rect(self.window.0)
             .map(|rect| {
-                (
+                PhysicalSize::new(
                     (rect.right - rect.left) as u32,
                     (rect.bottom - rect.top) as u32,
                 )
@@ -255,48 +228,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
-        let physical_size = self.outer_size_physical();
-        let dpi_factor = self.hidpi_factor();
-        LogicalSize::from_physical(physical_size, dpi_factor)
-    }
-
-    pub(crate) fn set_inner_size_physical(&self, x: u32, y: u32) {
-        unsafe {
-            let rect = util::adjust_window_rect(
-                self.window.0,
-                RECT {
-                    top: 0,
-                    left: 0,
-                    bottom: y as LONG,
-                    right: x as LONG,
-                },
-            )
-            .expect("adjust_window_rect failed");
-
-            let outer_x = (rect.right - rect.left).abs() as c_int;
-            let outer_y = (rect.top - rect.bottom).abs() as c_int;
-            winuser::SetWindowPos(
-                self.window.0,
-                ptr::null_mut(),
-                0,
-                0,
-                outer_x,
-                outer_y,
-                winuser::SWP_ASYNCWINDOWPOS
-                    | winuser::SWP_NOZORDER
-                    | winuser::SWP_NOREPOSITION
-                    | winuser::SWP_NOMOVE
-                    | winuser::SWP_NOACTIVATE,
-            );
-            winuser::UpdateWindow(self.window.0);
-        }
-    }
-
-    #[inline]
-    pub fn set_inner_size(&self, logical_size: LogicalSize) {
-        let dpi_factor = self.hidpi_factor();
-        let (width, height) = logical_size.to_physical(dpi_factor).into();
+    pub fn set_inner_size(&self, size: Size) {
+        let scale_factor = self.scale_factor();
+        let (width, height) = size.to_physical::<u32>(scale_factor).into();
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
@@ -306,39 +240,23 @@ impl Window {
             });
         });
 
-        self.set_inner_size_physical(width, height);
-    }
-
-    pub(crate) fn set_min_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
-        self.window_state.lock().min_size = dimensions.map(Into::into);
-        // Make windows re-check the window size bounds.
-        let (width, height) = self.inner_size_physical();
-        self.set_inner_size_physical(width, height);
+        util::set_inner_size_physical(self.window.0, width, height);
     }
 
     #[inline]
-    pub fn set_min_inner_size(&self, logical_size: Option<LogicalSize>) {
-        let physical_size = logical_size.map(|logical_size| {
-            let dpi_factor = self.hidpi_factor();
-            logical_size.to_physical(dpi_factor).into()
-        });
-        self.set_min_inner_size_physical(physical_size);
-    }
-
-    pub fn set_max_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
-        self.window_state.lock().max_size = dimensions.map(Into::into);
+    pub fn set_min_inner_size(&self, size: Option<Size>) {
+        self.window_state.lock().min_size = size;
         // Make windows re-check the window size bounds.
-        let (width, height) = self.inner_size_physical();
-        self.set_inner_size_physical(width, height);
+        let size = self.inner_size();
+        self.set_inner_size(size.into());
     }
 
     #[inline]
-    pub fn set_max_inner_size(&self, logical_size: Option<LogicalSize>) {
-        let physical_size = logical_size.map(|logical_size| {
-            let dpi_factor = self.hidpi_factor();
-            logical_size.to_physical(dpi_factor).into()
-        });
-        self.set_max_inner_size_physical(physical_size);
+    pub fn set_max_inner_size(&self, size: Option<Size>) {
+        self.window_state.lock().max_size = size;
+        // Make windows re-check the window size bounds.
+        let size = self.inner_size();
+        self.set_inner_size(size.into());
     }
 
     #[inline]
@@ -361,7 +279,7 @@ impl Window {
 
     #[inline]
     pub fn hinstance(&self) -> HINSTANCE {
-        unsafe { winuser::GetWindowLongW(self.hwnd(), winuser::GWL_HINSTANCE) as *mut _ }
+        unsafe { winuser::GetWindowLongPtrW(self.hwnd(), winuser::GWLP_HINSTANCE) as *mut _ }
     }
 
     #[inline]
@@ -418,11 +336,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.window_state.lock().dpi_factor
+    pub fn scale_factor(&self) -> f64 {
+        self.window_state.lock().scale_factor
     }
 
-    fn set_cursor_position_physical(&self, x: i32, y: i32) -> Result<(), ExternalError> {
+    #[inline]
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        let scale_factor = self.scale_factor();
+        let (x, y) = position.to_physical::<i32>(scale_factor).into();
+
         let mut point = POINT { x, y };
         unsafe {
             if winuser::ClientToScreen(self.window.0, &mut point) == 0 {
@@ -436,18 +358,44 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(
-        &self,
-        logical_position: LogicalPosition,
-    ) -> Result<(), ExternalError> {
-        let dpi_factor = self.hidpi_factor();
-        let (x, y) = logical_position.to_physical(dpi_factor).into();
-        self.set_cursor_position_physical(x, y)
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            let points = {
+                let mut pos = mem::zeroed();
+                winuser::GetCursorPos(&mut pos);
+                pos
+            };
+            let points = POINTS {
+                x: points.x as SHORT,
+                y: points.y as SHORT,
+            };
+            winuser::ReleaseCapture();
+            winuser::PostMessageW(
+                self.window.0,
+                winuser::WM_NCLBUTTONDOWN,
+                winuser::HTCAPTION as WPARAM,
+                &points as *const _ as LPARAM,
+            );
+        }
+
+        Ok(())
     }
 
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.window.0)
+    }
+
+    #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::MINIMIZED, minimized)
+            });
+        });
     }
 
     #[inline]
@@ -460,6 +408,12 @@ impl Window {
                 f.set(WindowFlags::MAXIMIZED, maximized)
             });
         });
+    }
+
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        let window_state = self.window_state.lock();
+        window_state.window_flags.contains(WindowFlags::MAXIMIZED)
     }
 
     #[inline]
@@ -482,20 +436,6 @@ impl Window {
         drop(window_state_lock);
 
         self.thread_executor.execute_in_thread(move || {
-            let mut window_state_lock = window_state.lock();
-
-            // Save window bounds before entering fullscreen
-            match (&old_fullscreen, &fullscreen) {
-                (&None, &Some(_)) => {
-                    let client_rect = util::get_client_rect(window.0).unwrap();
-                    window_state_lock.saved_window = Some(SavedWindow {
-                        client_rect,
-                        dpi_factor: window_state_lock.dpi_factor,
-                    });
-                }
-                _ => (),
-            }
-
             // Change video mode if we're transitioning to or from exclusive
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
@@ -569,16 +509,35 @@ impl Window {
             }
 
             // Update window style
-            WindowState::set_window_flags(window_state_lock, window.0, |f| {
-                f.set(WindowFlags::MARKER_FULLSCREEN, fullscreen.is_some())
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(
+                    WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Exclusive(_))),
+                );
+                f.set(
+                    WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
+                    matches!(fullscreen, Some(Fullscreen::Borderless(_))),
+                );
             });
 
             // Update window bounds
             match &fullscreen {
                 Some(fullscreen) => {
-                    let monitor = match fullscreen {
-                        Fullscreen::Exclusive(ref video_mode) => video_mode.monitor(),
-                        Fullscreen::Borderless(ref monitor) => monitor.clone(),
+                    // Save window bounds before entering fullscreen
+                    let placement = unsafe {
+                        let mut placement = mem::zeroed();
+                        winuser::GetWindowPlacement(window.0, &mut placement);
+                        placement
+                    };
+
+                    window_state.lock().saved_window = Some(SavedWindow { placement });
+
+                    let monitor = match &fullscreen {
+                        Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
+                        Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
+                        Fullscreen::Borderless(None) => RootMonitorHandle {
+                            inner: monitor::current_monitor(window.0),
+                        },
                     };
 
                     let position: (i32, i32) = monitor.position().into();
@@ -594,33 +553,16 @@ impl Window {
                             size.1 as i32,
                             winuser::SWP_ASYNCWINDOWPOS | winuser::SWP_NOZORDER,
                         );
-                        winuser::UpdateWindow(window.0);
+                        winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                     }
                 }
                 None => {
                     let mut window_state_lock = window_state.lock();
-                    if let Some(SavedWindow {
-                        client_rect,
-                        dpi_factor,
-                    }) = window_state_lock.saved_window.take()
-                    {
-                        window_state_lock.dpi_factor = dpi_factor;
+                    if let Some(SavedWindow { placement }) = window_state_lock.saved_window.take() {
                         drop(window_state_lock);
-                        let client_rect = util::adjust_window_rect(window.0, client_rect).unwrap();
-
                         unsafe {
-                            winuser::SetWindowPos(
-                                window.0,
-                                ptr::null_mut(),
-                                client_rect.left,
-                                client_rect.top,
-                                client_rect.right - client_rect.left,
-                                client_rect.bottom - client_rect.top,
-                                winuser::SWP_ASYNCWINDOWPOS
-                                    | winuser::SWP_NOZORDER
-                                    | winuser::SWP_NOACTIVATE,
-                            );
-                            winuser::UpdateWindow(window.0);
+                            winuser::SetWindowPlacement(window.0, &placement);
+                            winuser::InvalidateRgn(window.0, ptr::null_mut(), 0);
                         }
                     }
                 }
@@ -657,19 +599,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(RootMonitorHandle {
             inner: monitor::current_monitor(self.window.0),
-        }
+        })
     }
 
     #[inline]
-    pub fn set_window_icon(&self, mut window_icon: Option<Icon>) {
-        let window_icon = window_icon
-            .take()
-            .map(|icon| WinIcon::from_icon(icon).expect("Failed to create `ICON_SMALL`"));
+    pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         if let Some(ref window_icon) = window_icon {
-            window_icon.set_for_window(self.window.0, IconType::Small);
+            window_icon
+                .inner
+                .set_for_window(self.window.0, IconType::Small);
         } else {
             icon::unset_for_window(self.window.0, IconType::Small);
         }
@@ -677,21 +618,86 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_taskbar_icon(&self, mut taskbar_icon: Option<Icon>) {
-        let taskbar_icon = taskbar_icon
-            .take()
-            .map(|icon| WinIcon::from_icon(icon).expect("Failed to create `ICON_BIG`"));
+    pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         if let Some(ref taskbar_icon) = taskbar_icon {
-            taskbar_icon.set_for_window(self.window.0, IconType::Big);
+            taskbar_icon
+                .inner
+                .set_for_window(self.window.0, IconType::Big);
         } else {
             icon::unset_for_window(self.window.0, IconType::Big);
         }
         self.window_state.lock().taskbar_icon = taskbar_icon;
     }
 
+    pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
+        if unsafe { winuser::GetSystemMetrics(winuser::SM_IMMENABLED) } != 0 {
+            let mut composition_form = COMPOSITIONFORM {
+                dwStyle: CFS_POINT,
+                ptCurrentPos: POINT { x, y },
+                rcArea: unsafe { mem::zeroed() },
+            };
+            unsafe {
+                let himc = winapi::um::imm::ImmGetContext(self.window.0);
+                winapi::um::imm::ImmSetCompositionWindow(himc, &mut composition_form);
+                winapi::um::imm::ImmReleaseContext(self.window.0, himc);
+            }
+        }
+    }
+
     #[inline]
-    pub fn set_ime_position(&self, _logical_spot: LogicalPosition) {
-        unimplemented!();
+    pub fn set_ime_position(&self, spot: Position) {
+        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
+        self.set_ime_position_physical(x, y);
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let window = self.window.clone();
+        let active_window_handle = unsafe { winuser::GetActiveWindow() };
+        if window.0 == active_window_handle {
+            return;
+        }
+
+        self.thread_executor.execute_in_thread(move || unsafe {
+            let (flags, count) = request_type
+                .map(|ty| match ty {
+                    UserAttentionType::Critical => {
+                        (winuser::FLASHW_ALL | winuser::FLASHW_TIMERNOFG, u32::MAX)
+                    }
+                    UserAttentionType::Informational => {
+                        (winuser::FLASHW_TRAY | winuser::FLASHW_TIMERNOFG, 0)
+                    }
+                })
+                .unwrap_or((winuser::FLASHW_STOP, 0));
+
+            let mut flash_info = winuser::FLASHWINFO {
+                cbSize: mem::size_of::<winuser::FLASHWINFO>() as UINT,
+                hwnd: window.0,
+                dwFlags: flags,
+                uCount: count,
+                dwTimeout: 0,
+            };
+            winuser::FlashWindowEx(&mut flash_info);
+        });
+    }
+
+    #[inline]
+    pub fn theme(&self) -> Theme {
+        self.window_state.lock().current_theme
+    }
+
+    #[inline]
+    pub fn focus_window(&self) {
+        let window = self.window.clone();
+        let window_flags = self.window_state.lock().window_flags();
+
+        let is_visible = window_flags.contains(WindowFlags::VISIBLE);
+        let is_minimized = window_flags.contains(WindowFlags::MINIMIZED);
+        let is_foreground = window.0 == unsafe { winuser::GetForegroundWindow() };
+
+        if is_visible && !is_minimized && !is_foreground {
+            unsafe { force_window_active(window.0) };
+        }
     }
 }
 
@@ -718,24 +724,8 @@ pub struct WindowWrapper(HWND);
 unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
 
-pub unsafe fn adjust_size(
-    physical_size: PhysicalSize,
-    style: DWORD,
-    ex_style: DWORD,
-) -> (LONG, LONG) {
-    let (width, height): (u32, u32) = physical_size.into();
-    let mut rect = RECT {
-        left: 0,
-        right: width as LONG,
-        top: 0,
-        bottom: height as LONG,
-    };
-    winuser::AdjustWindowRectEx(&mut rect, style, 0, ex_style);
-    (rect.right - rect.left, rect.bottom - rect.top)
-}
-
 unsafe fn init<T: 'static>(
-    mut attributes: WindowAttributes,
+    attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
 ) -> Result<Window, RootOsError> {
@@ -744,60 +734,8 @@ unsafe fn init<T: 'static>(
         .chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
-    let window_icon = {
-        let icon = attributes.window_icon.take().map(WinIcon::from_icon);
-        if let Some(icon) = icon {
-            Some(icon.map_err(|e| os_error!(e))?)
-        } else {
-            None
-        }
-    };
-    let taskbar_icon = {
-        let icon = attributes.window_icon.take().map(WinIcon::from_icon);
-        if let Some(icon) = icon {
-            Some(icon.map_err(|e| os_error!(e))?)
-        } else {
-            None
-        }
-    };
-
     // registering the window class
-    let class_name = register_window_class(&window_icon, &taskbar_icon);
-
-    let guessed_dpi_factor = {
-        let monitors = monitor::available_monitors();
-        let dpi_factor = if !monitors.is_empty() {
-            let mut dpi_factor = Some(monitors[0].hidpi_factor());
-            for monitor in &monitors {
-                if Some(monitor.hidpi_factor()) != dpi_factor {
-                    dpi_factor = None;
-                }
-            }
-            dpi_factor
-        } else {
-            return Err(os_error!(io::Error::new(
-                io::ErrorKind::NotFound,
-                "No monitors were detected."
-            )));
-        };
-        dpi_factor.unwrap_or_else(|| {
-            util::get_cursor_pos()
-                .and_then(|cursor_pos| {
-                    let mut dpi_factor = None;
-                    for monitor in &monitors {
-                        if monitor.contains_point(&cursor_pos) {
-                            dpi_factor = Some(monitor.hidpi_factor());
-                            break;
-                        }
-                    }
-                    dpi_factor
-                })
-                .unwrap_or(1.0)
-        })
-    };
-    info!("Guessed window DPI factor: {}", guessed_dpi_factor);
-
-    let dimensions = attributes.inner_size.unwrap_or_else(|| (1024, 768).into());
+    let class_name = register_window_class(&attributes.window_icon, &pl_attribs.taskbar_icon);
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::DECORATIONS, attributes.decorations);
@@ -809,8 +747,24 @@ unsafe fn init<T: 'static>(
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
-    window_flags.set(WindowFlags::CHILD, pl_attribs.parent.is_some());
-    window_flags.set(WindowFlags::ON_TASKBAR, true);
+
+    let parent = match pl_attribs.parent {
+        Parent::ChildOf(parent) => {
+            window_flags.set(WindowFlags::CHILD, true);
+            if pl_attribs.menu.is_some() {
+                warn!("Setting a menu on a child window is unsupported");
+            }
+            Some(parent)
+        }
+        Parent::OwnedBy(parent) => {
+            window_flags.set(WindowFlags::POPUP, true);
+            Some(parent)
+        }
+        Parent::None => {
+            window_flags.set(WindowFlags::ON_TASKBAR, true);
+            None
+        }
+    };
 
     // creating the real window this time, by using the functions in `extra_functions`
     let real_window = {
@@ -824,8 +778,8 @@ unsafe fn init<T: 'static>(
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
             winuser::CW_USEDEFAULT,
-            pl_attribs.parent.unwrap_or(ptr::null_mut()),
-            ptr::null_mut(),
+            parent.unwrap_or(ptr::null_mut()),
+            pl_attribs.menu.unwrap_or(ptr::null_mut()),
             libloaderapi::GetModuleHandleW(ptr::null()),
             ptr::null_mut(),
         );
@@ -846,25 +800,12 @@ unsafe fn init<T: 'static>(
     }
 
     let dpi = hwnd_dpi(real_window.0);
-    let dpi_factor = dpi_to_scale_factor(dpi);
-    if dpi_factor != guessed_dpi_factor {
-        let (width, height): (u32, u32) = dimensions.into();
-        let mut packed_dimensions = 0;
-        // MAKELPARAM isn't provided by winapi yet.
-        let ptr = &mut packed_dimensions as *mut LPARAM as *mut WORD;
-        *ptr.offset(0) = width as WORD;
-        *ptr.offset(1) = height as WORD;
-        winuser::PostMessageW(
-            real_window.0,
-            *INITIAL_DPI_MSG_ID,
-            dpi as WPARAM,
-            packed_dimensions,
-        );
-    }
+    let scale_factor = dpi_to_scale_factor(dpi);
 
     // making the window transparent
     if attributes.transparent && !pl_attribs.no_redirection_bitmap {
-        let region = CreateRectRgn(0, 0, -1, -1); // makes the window transparent
+        // Empty region for the blur effect, so the window is fully transparent
+        let region = CreateRectRgn(0, 0, -1, -1);
 
         let bb = dwmapi::DWM_BLURBEHIND {
             dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
@@ -875,30 +816,21 @@ unsafe fn init<T: 'static>(
 
         dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
         DeleteObject(region as _);
-
-        if attributes.decorations {
-            // HACK: When opaque (opacity 255), there is a trail whenever
-            // the transparent window is moved. By reducing it to 254,
-            // the window is rendered properly.
-            let opacity = 254;
-
-            // The color key can be any value except for black (0x0).
-            let color_key = 0x0030c100;
-
-            winuser::SetLayeredWindowAttributes(
-                real_window.0,
-                color_key,
-                opacity,
-                winuser::LWA_ALPHA,
-            );
-        }
     }
 
-    window_flags.set(WindowFlags::VISIBLE, attributes.visible);
-    window_flags.set(WindowFlags::MAXIMIZED, attributes.maximized);
+    // If the system theme is dark, we need to set the window theme now
+    // before we update the window flags (and possibly show the
+    // window for the first time).
+    let current_theme = try_theme(real_window.0, pl_attribs.preferred_theme);
 
     let window_state = {
-        let window_state = WindowState::new(&attributes, window_icon, taskbar_icon, dpi_factor);
+        let window_state = WindowState::new(
+            &attributes,
+            pl_attribs.taskbar_icon,
+            scale_factor,
+            current_theme,
+            pl_attribs.preferred_theme,
+        );
         let window_state = Arc::new(Mutex::new(window_state));
         WindowState::set_window_flags(window_state.lock(), real_window.0, |f| *f = window_flags);
         window_state
@@ -910,21 +842,32 @@ unsafe fn init<T: 'static>(
         thread_executor: event_loop.create_thread_executor(),
     };
 
+    let dimensions = attributes
+        .inner_size
+        .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+    win.set_inner_size(dimensions);
+    if attributes.maximized {
+        // Need to set MAXIMIZED after setting `inner_size` as
+        // `Window::set_inner_size` changes MAXIMIZED to false.
+        win.set_maximized(true);
+    }
+    win.set_visible(attributes.visible);
+
     if let Some(_) = attributes.fullscreen {
         win.set_fullscreen(attributes.fullscreen);
         force_window_active(win.window.0);
     }
 
-    if let Some(dimensions) = attributes.inner_size {
-        win.set_inner_size(dimensions);
+    if let Some(position) = attributes.position {
+        win.set_outer_position(position);
     }
 
     Ok(win)
 }
 
 unsafe fn register_window_class(
-    window_icon: &Option<WinIcon>,
-    taskbar_icon: &Option<WinIcon>,
+    window_icon: &Option<Icon>,
+    taskbar_icon: &Option<Icon>,
 ) -> Vec<u16> {
     let class_name: Vec<_> = OsStr::new("Window Class")
         .encode_wide()
@@ -933,11 +876,11 @@ unsafe fn register_window_class(
 
     let h_icon = taskbar_icon
         .as_ref()
-        .map(|icon| icon.handle)
+        .map(|icon| icon.inner.as_raw_handle())
         .unwrap_or(ptr::null_mut());
     let h_icon_small = window_icon
         .as_ref()
-        .map(|icon| icon.handle)
+        .map(|icon| icon.inner.as_raw_handle())
         .unwrap_or(ptr::null_mut());
 
     let class = winuser::WNDCLASSEXW {

@@ -2,10 +2,9 @@ Cargo.lock
 target/
 rls/
 .vscode/
-.cargo/
-util/
 *~
 *.wasm
 *.ts
 *.js
 #*#
+.DS_Store

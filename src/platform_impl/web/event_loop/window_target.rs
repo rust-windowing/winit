@@ -1,9 +1,15 @@
-use super::{backend, proxy::Proxy, runner, window, global};
-use crate::dpi::LogicalSize;
-use crate::event::{device, ElementState, Event, KeyboardInput, WindowEvent};
+use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
+use crate::dpi::{PhysicalSize, Size};
+use crate::event::{
+    DeviceEvent, DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent,
+};
 use crate::event_loop::ControlFlow;
-use crate::platform_impl::platform::device::{KeyboardId, MouseId};
-use crate::window::WindowId;
+use crate::monitor::MonitorHandle as RootMH;
+use crate::window::{Theme, WindowId};
+use std::cell::RefCell;
+use std::clone::Clone;
+use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
+use std::rc::Rc;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
@@ -31,27 +37,24 @@ impl<T> WindowTarget<T> {
         Proxy::new(self.runner.clone())
     }
 
-    pub fn run(&self, event_handler: Box<dyn FnMut(Event<T>, &mut ControlFlow)>) {
-        self.runner.set_global_window(self.global_window.clone());
+    pub fn run(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
         self.runner.set_listener(event_handler);
+        let runner = self.runner.clone();
+        self.runner.set_on_scale_change(move |arg| {
+            runner.handle_scale_changed(arg.old_scale, arg.new_scale)
+        });
     }
 
     pub fn generate_id(&self) -> window::Id {
         window::Id(self.runner.generate_id())
     }
 
-    pub fn collect_gamepads(&self) -> Vec<crate::event::device::GamepadHandle> {
-        self.global_window.get_gamepad_handles()
-    }
-
-    pub fn register_global_events(&self) -> Result<(), crate::error::OsError> {
-        self.global_window.register_events()
-    }
-
-    pub fn register(&self, canvas: &mut backend::Canvas, id: window::Id) {
-        let runner = self.runner.clone();
+    pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: window::Id) {
+        self.runner.add_canvas(WindowId(id), canvas);
+        let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
+        let runner = self.runner.clone();
         canvas.on_blur(move || {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
@@ -69,28 +72,38 @@ impl<T> WindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
-            runner.send_event(Event::KeyboardEvent(
-                device::KeyboardId(unsafe { KeyboardId::dummy() }),
-                device::KeyboardEvent::Input(KeyboardInput {
-                    scancode,
-                    state: ElementState::Pressed,
-                    virtual_keycode,
-                    modifiers,
-                }),
-            ));
+            #[allow(deprecated)]
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::KeyboardInput {
+                    device_id: DeviceId(unsafe { device::Id::dummy() }),
+                    input: KeyboardInput {
+                        scancode,
+                        state: ElementState::Pressed,
+                        virtual_keycode,
+                        modifiers,
+                    },
+                    is_synthetic: false,
+                },
+            });
         });
 
         let runner = self.runner.clone();
         canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
-            runner.send_event(Event::KeyboardEvent(
-                device::KeyboardId(unsafe { KeyboardId::dummy() }),
-                device::KeyboardEvent::Input(KeyboardInput {
-                    scancode,
-                    state: ElementState::Released,
-                    virtual_keycode,
-                    modifiers,
-                }),
-            ));
+            #[allow(deprecated)]
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::KeyboardInput {
+                    device_id: DeviceId(unsafe { device::Id::dummy() }),
+                    input: KeyboardInput {
+                        scancode,
+                        state: ElementState::Released,
+                        virtual_keycode,
+                        modifiers,
+                    },
+                    is_synthetic: false,
+                },
+            });
         });
 
         let runner = self.runner.clone();
@@ -118,7 +131,7 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_cursor_move(move |position, modifiers| {
+        canvas.on_cursor_move(move |pointer_id, position, delta, modifiers| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::CursorMoved {
@@ -126,17 +139,38 @@ impl<T> WindowTarget<T> {
                     modifiers,
                 },
             });
+            runner.send_event(Event::DeviceEvent {
+                device_id: DeviceId(device::Id(pointer_id)),
+                event: DeviceEvent::MouseMotion {
+                    delta: (delta.x, delta.y),
+                },
+            });
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_press(move |pointer_id, button| {
-            runner.send_event(Event::MouseEvent(
-                device::MouseId(MouseId(pointer_id)),
-                device::MouseEvent::Button {
-                    state: ElementState::Pressed,
-                    button,
-                },
-            ));
+        canvas.on_mouse_press(move |pointer_id, position, button, modifiers| {
+            // A mouse down event may come in without any prior CursorMoved events,
+            // therefore we should send a CursorMoved event to make sure that the
+            // user code has the correct cursor position.
+            runner.send_events(
+                std::iter::once(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::CursorMoved {
+                        device_id: DeviceId(device::Id(pointer_id)),
+                        position,
+                        modifiers,
+                    },
+                })
+                .chain(std::iter::once(Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::MouseInput {
+                        device_id: DeviceId(device::Id(pointer_id)),
+                        state: ElementState::Pressed,
+                        button,
+                        modifiers,
+                    },
+                })),
+            );
         });
 
         let runner = self.runner.clone();
@@ -160,30 +194,55 @@ impl<T> WindowTarget<T> {
 
         let runner = self.runner.clone();
         let raw = canvas.raw().clone();
-        let mut intended_size = LogicalSize {
-            width: raw.width() as f64,
-            height: raw.height() as f64,
+
+        // The size to restore to after exiting fullscreen.
+        let mut intended_size = PhysicalSize {
+            width: raw.width() as u32,
+            height: raw.height() as u32,
         };
         canvas.on_fullscreen_change(move || {
             // If the canvas is marked as fullscreen, it is moving *into* fullscreen
             // If it is not, it is moving *out of* fullscreen
             let new_size = if backend::is_fullscreen(&raw) {
-                intended_size = LogicalSize {
-                    width: raw.width() as f64,
-                    height: raw.height() as f64,
+                intended_size = PhysicalSize {
+                    width: raw.width() as u32,
+                    height: raw.height() as u32,
                 };
 
-                backend::window_size()
+                backend::window_size().to_physical(backend::scale_factor())
             } else {
                 intended_size
             };
-            raw.set_width(new_size.width as u32);
-            raw.set_height(new_size.height as u32);
+
+            backend::set_canvas_size(&raw, Size::Physical(new_size));
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::Resized(new_size),
             });
             runner.request_redraw(WindowId(id));
         });
+
+        let runner = self.runner.clone();
+        canvas.on_dark_mode(move |is_dark_mode| {
+            let theme = if is_dark_mode {
+                Theme::Dark
+            } else {
+                Theme::Light
+            };
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::ThemeChanged(theme),
+            });
+        });
+    }
+
+    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
+        VecDeque::new().into_iter()
+    }
+
+    pub fn primary_monitor(&self) -> Option<RootMH> {
+        Some(RootMH {
+            inner: monitor::Handle,
+        })
     }
 }

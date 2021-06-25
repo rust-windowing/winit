@@ -1,53 +1,61 @@
-use super::utils;
-use crate::dpi::{LogicalPosition, LogicalSize};
+use super::event;
+use super::event_handle::EventListenerHandle;
+use super::media_query_handle::MediaQueryListHandle;
+use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
-use crate::event::{ModifiersState, MouseButton, ScanCode, VirtualKeyCode};
-use crate::platform_impl::OsError;
+use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
-    Event, FocusEvent, HtmlCanvasElement, KeyboardEvent, PointerEvent, WheelEvent,
+    AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
+    MediaQueryListEvent, MouseEvent, WheelEvent,
 };
 
+mod mouse_handler;
+mod pointer_handler;
+
+#[allow(dead_code)]
 pub struct Canvas {
+    common: Common,
+    on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
+    on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
+    on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
+    on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
+    on_dark_mode: Option<MediaQueryListHandle>,
+    mouse_state: MouseState,
+}
+
+struct Common {
+    /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: HtmlCanvasElement,
-    on_focus: Option<Closure<dyn FnMut(FocusEvent)>>,
-    on_blur: Option<Closure<dyn FnMut(FocusEvent)>>,
-    on_keyboard_release: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_keyboard_press: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_received_character: Option<Closure<dyn FnMut(KeyboardEvent)>>,
-    on_cursor_leave: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_cursor_enter: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_cursor_move: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_press: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_release: Option<Closure<dyn FnMut(PointerEvent)>>,
-    on_mouse_wheel: Option<Closure<dyn FnMut(WheelEvent)>>,
-    on_fullscreen_change: Option<Closure<dyn FnMut(Event)>>,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
 
-impl Drop for Canvas {
-    fn drop(&mut self) {
-        self.raw.remove();
-    }
-}
-
 impl Canvas {
-    pub fn create() -> Result<Self, RootOE> {
-        let window =
-            web_sys::window().ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+    pub fn create(attr: PlatformSpecificWindowBuilderAttributes) -> Result<Self, RootOE> {
+        let canvas = match attr.canvas {
+            Some(canvas) => canvas,
+            None => {
+                let window = web_sys::window()
+                    .ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
 
-        let document = window
-            .document()
-            .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
+                let document = window
+                    .document()
+                    .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
 
-        let canvas: HtmlCanvasElement = document
-            .create_element("canvas")
-            .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
-            .unchecked_into();
+                document
+                    .create_element("canvas")
+                    .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
+                    .unchecked_into()
+            }
+        };
 
         // A tabindex is needed in order to capture local keyboard events.
         // A "0" value means that the element should be focusable in
@@ -58,84 +66,82 @@ impl Canvas {
             .set_attribute("tabindex", "0")
             .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
 
+        let mouse_state = if has_pointer_event() {
+            MouseState::HasPointerEvent(pointer_handler::PointerHandler::new())
+        } else {
+            MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
+        };
+
         Ok(Canvas {
-            raw: canvas,
+            common: Common {
+                raw: canvas,
+                wants_fullscreen: Rc::new(RefCell::new(false)),
+            },
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
             on_keyboard_press: None,
             on_received_character: None,
-            on_cursor_leave: None,
-            on_cursor_enter: None,
-            on_cursor_move: None,
-            on_mouse_release: None,
-            on_mouse_press: None,
             on_mouse_wheel: None,
             on_fullscreen_change: None,
-            wants_fullscreen: Rc::new(RefCell::new(false)),
+            on_dark_mode: None,
+            mouse_state,
         })
     }
 
     pub fn set_attribute(&self, attribute: &str, value: &str) {
-        self.raw
+        self.common
+            .raw
             .set_attribute(attribute, value)
             .expect(&format!("Set attribute: {}", attribute));
     }
 
-    pub fn position(&self) -> (f64, f64) {
-        let bounds = self.raw.get_bounding_client_rect();
+    pub fn position(&self) -> LogicalPosition<f64> {
+        let bounds = self.common.raw.get_bounding_client_rect();
 
-        (bounds.x(), bounds.y())
+        LogicalPosition {
+            x: bounds.x(),
+            y: bounds.y(),
+        }
     }
 
-    pub fn width(&self) -> f64 {
-        self.raw.width() as f64
-    }
-
-    pub fn height(&self) -> f64 {
-        self.raw.height() as f64
-    }
-
-    pub fn set_size(&self, size: LogicalSize) {
-        self.raw.set_width(size.width as u32);
-        self.raw.set_height(size.height as u32);
+    pub fn size(&self) -> PhysicalSize<u32> {
+        PhysicalSize {
+            width: self.common.raw.width(),
+            height: self.common.raw.height(),
+        }
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
-        &self.raw
+        &self.common.raw
     }
 
     pub fn on_blur<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
-        self.on_blur = Some(self.add_event(
-            "blur",
-            move |_: FocusEvent| {
-                handler();
-            },
-        ));
+        self.on_blur = Some(self.common.add_event("blur", move |_: FocusEvent| {
+            handler();
+        }));
     }
 
     pub fn on_focus<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
-        self.on_focus = Some(self.add_event(
-            "focus",
-            move |_: FocusEvent| {
-                handler();
-            },
-        ));
+        self.on_focus = Some(self.common.add_event("focus", move |_: FocusEvent| {
+            handler();
+        }));
     }
 
     pub fn on_keyboard_release<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
-        self.on_keyboard_release = Some(self.add_user_event(
+        self.on_keyboard_release = Some(self.common.add_user_event(
             "keyup",
             move |event: KeyboardEvent| {
+                event.prevent_default();
                 handler(
                     utils::scan_code(&event),
                     utils::virtual_key_code(&event),
@@ -149,9 +155,20 @@ impl Canvas {
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
-        self.on_keyboard_press = Some(self.add_user_event(
+        self.on_keyboard_press = Some(self.common.add_user_event(
             "keydown",
             move |event: KeyboardEvent| {
+                // event.prevent_default() would suppress subsequent on_received_character() calls. That
+                // supression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
+                // scroll, etc. We should not do it for key sequences that result in meaningful character
+                // input though.
+                let event_key = &event.key();
+                let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
+                let is_shortcut_modifiers =
+                    (event.ctrl_key() || event.alt_key()) && !event.get_modifier_state("AltGr");
+                if !is_key_string || is_shortcut_modifiers {
+                    event.prevent_default();
+                }
                 handler(
                     utils::scan_code(&event),
                     utils::virtual_key_code(&event),
@@ -170,103 +187,130 @@ impl Canvas {
         // The `keypress` event is deprecated, but there does not seem to be a
         // viable/compatible alternative as of now. `beforeinput` is still widely
         // unsupported.
-        self.on_received_character = Some(self.add_user_event(
+        self.on_received_character = Some(self.common.add_user_event(
             "keypress",
             move |event: KeyboardEvent| {
-                handler(utils::codepoint(&event));
+                // Supress further handling to stop keys like the space key from scrolling the page.
+                event.prevent_default();
+                handler(event::codepoint(&event));
             },
         ));
     }
 
-    pub fn on_mouse_release<F>(&mut self, mut handler: F)
+    pub fn on_cursor_leave<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, MouseButton),
     {
-        self.on_mouse_release = Some(self.add_event(
-            "pointerup",
-            move |event: PointerEvent| {
-                handler(event.pointer_id(), utils::mouse_button(&event));
-            },
-        ));
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
+            MouseState::NoPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
+        }
     }
 
-    pub fn on_mouse_press<F>(&mut self, mut handler: F)
+    pub fn on_cursor_enter<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, MouseButton),
     {
-        self.on_mouse_press = Some(self.add_event(
-            "pointerdown",
-            move |event: PointerEvent| {
-                handler(event.pointer_id(), utils::mouse_button(&event));
-            },
-        ));
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
+            MouseState::NoPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
+        }
     }
 
-    pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
+    pub fn on_mouse_release<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, (f64, f64)),
     {
-        self.on_mouse_wheel = Some(self.add_event(
-            "wheel",
-            move |event: WheelEvent| {
-                let delta = utils::mouse_scroll_delta(&event);
-                handler(0, delta);
-            },
-        ));
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => h.on_mouse_release(&self.common, handler),
+            MouseState::NoPointerEvent(h) => h.on_mouse_release(&self.common, handler),
+        }
     }
 
-    pub fn on_cursor_leave<F>(&mut self, mut handler: F)
+    pub fn on_mouse_press<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
     {
-        self.on_cursor_leave = Some(self.add_event(
-            "pointerout",
-            move |_event: PointerEvent| {
-                handler();
-            },
-        ));
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => h.on_mouse_press(&self.common, handler),
+            MouseState::NoPointerEvent(h) => h.on_mouse_press(&self.common, handler),
+        }
     }
 
-    pub fn on_cursor_enter<F>(&mut self, mut handler: F)
+    pub fn on_cursor_move<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
     {
-        self.on_cursor_enter = Some(self.add_event(
-            "pointerover",
-            move |_event: PointerEvent| {
-                handler();
-            },
-        ));
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => h.on_cursor_move(&self.common, handler),
+            MouseState::NoPointerEvent(h) => h.on_cursor_move(&self.common, handler),
+        }
     }
 
     pub fn on_cursor_move<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(LogicalPosition, ModifiersState),
     {
-        self.on_cursor_move = Some(self.add_event(
-            "pointermove",
-            move |event: PointerEvent| {
-                handler(
-                    utils::mouse_position(&event),
-                    utils::mouse_modifiers(&event),
-                );
-            },
-        ));
+        self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
+            event.prevent_default();
+            if let Some(delta) = event::mouse_scroll_delta(&event) {
+                handler(0, delta, event::mouse_modifiers(&event));
+            }
+        }));
     }
 
     pub fn on_fullscreen_change<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),
     {
-        self.on_fullscreen_change =
-            Some(self.add_event("fullscreenchange", move |_: Event| handler()));
+        self.on_fullscreen_change = Some(
+            self.common
+                .add_event("fullscreenchange", move |_: Event| handler()),
+        );
     }
 
+    pub fn on_dark_mode<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(bool),
+    {
+        let closure =
+            Closure::wrap(
+                Box::new(move |event: MediaQueryListEvent| handler(event.matches()))
+                    as Box<dyn FnMut(_)>,
+            );
+        self.on_dark_mode = MediaQueryListHandle::new("(prefers-color-scheme: dark)", closure);
+    }
+
+    pub fn request_fullscreen(&self) {
+        self.common.request_fullscreen()
+    }
+
+    pub fn is_fullscreen(&self) -> bool {
+        self.common.is_fullscreen()
+    }
+
+    pub fn remove_listeners(&mut self) {
+        self.on_focus = None;
+        self.on_blur = None;
+        self.on_keyboard_release = None;
+        self.on_keyboard_press = None;
+        self.on_received_character = None;
+        self.on_mouse_wheel = None;
+        self.on_fullscreen_change = None;
+        self.on_dark_mode = None;
+        match &mut self.mouse_state {
+            MouseState::HasPointerEvent(h) => h.remove_listeners(),
+            MouseState::NoPointerEvent(h) => h.remove_listeners(),
+        }
+    }
+}
+
+impl Common {
     fn add_event<E, F>(
         &self,
-        event_name: &str,
+        event_name: &'static str,
         mut handler: F,
-    ) -> Closure<dyn FnMut(E)>
+    ) -> EventListenerHandle<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
@@ -281,11 +325,9 @@ impl Canvas {
             handler(event);
         }) as Box<dyn FnMut(E)>);
 
-        self.raw
-            .add_event_listener_with_callback(event_name, &closure.as_ref().unchecked_ref())
-            .expect("Failed to add event listener with callback");
+        let listener = EventListenerHandle::new(&self.raw, event_name, closure);
 
-        closure
+        listener
     }
 
     // The difference between add_event and add_user_event is that the latter has a special meaning
@@ -293,9 +335,9 @@ impl Canvas {
     // press) and is the only time things like a fullscreen request may be successfully completed.)
     fn add_user_event<E, F>(
         &self,
-        event_name: &str,
+        event_name: &'static str,
         mut handler: F,
-    ) -> Closure<dyn FnMut(E)>
+    ) -> EventListenerHandle<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
@@ -303,19 +345,53 @@ impl Canvas {
         let wants_fullscreen = self.wants_fullscreen.clone();
         let canvas = self.raw.clone();
 
-        self.add_event(
-            event_name,
-            move |event: E| {
-                handler(event);
+        self.add_event(event_name, move |event: E| {
+            handler(event);
 
-                if *wants_fullscreen.borrow() {
-                    canvas
-                        .request_fullscreen()
-                        .expect("Failed to enter fullscreen");
-                    *wants_fullscreen.borrow_mut() = false;
-                }
-            },
-        )
+            if *wants_fullscreen.borrow() {
+                canvas
+                    .request_fullscreen()
+                    .expect("Failed to enter fullscreen");
+                *wants_fullscreen.borrow_mut() = false;
+            }
+        })
+    }
+
+    // This function is used exclusively for mouse events (not pointer events).
+    // Due to the need for mouse capturing, the mouse event handlers are added
+    // to the window instead of the canvas element, which requires special
+    // handling to control event propagation.
+    fn add_window_mouse_event<F>(
+        &self,
+        event_name: &'static str,
+        mut handler: F,
+    ) -> EventListenerHandle<dyn FnMut(MouseEvent)>
+    where
+        F: 'static + FnMut(MouseEvent),
+    {
+        let wants_fullscreen = self.wants_fullscreen.clone();
+        let canvas = self.raw.clone();
+        let window = web_sys::window().expect("Failed to obtain window");
+
+        let closure = Closure::wrap(Box::new(move |event: MouseEvent| {
+            handler(event);
+
+            if *wants_fullscreen.borrow() {
+                canvas
+                    .request_fullscreen()
+                    .expect("Failed to enter fullscreen");
+                *wants_fullscreen.borrow_mut() = false;
+            }
+        }) as Box<dyn FnMut(_)>);
+
+        let listener = EventListenerHandle::with_options(
+            &window,
+            event_name,
+            closure,
+            AddEventListenerOptions::new().capture(true),
+        );
+
+        listener
     }
 
     pub fn request_fullscreen(&self) {
@@ -324,5 +400,22 @@ impl Canvas {
 
     pub fn is_fullscreen(&self) -> bool {
         super::is_fullscreen(&self.raw)
+    }
+}
+
+enum MouseState {
+    HasPointerEvent(pointer_handler::PointerHandler),
+    NoPointerEvent(mouse_handler::MouseHandler),
+}
+
+/// Returns whether pointer events are supported.
+/// Used to decide whether to use pointer events
+/// or plain mouse events. Note that Safari
+/// doesn't support pointer events now.
+fn has_pointer_event() -> bool {
+    if let Some(window) = web_sys::window() {
+        window.get("PointerEvent").is_some()
+    } else {
+        false
     }
 }

@@ -111,12 +111,7 @@ pub struct XError {
     pub minor_code: u8,
 }
 
-impl Error for XError {
-    #[inline]
-    fn description(&self) -> &str {
-        &self.description
-    }
-}
+impl Error for XError {}
 
 impl fmt::Display for XError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
@@ -144,17 +139,18 @@ impl From<ffi::OpenError> for XNotSupported {
     }
 }
 
-impl Error for XNotSupported {
-    #[inline]
-    fn description(&self) -> &str {
-        match *self {
+impl XNotSupported {
+    fn description(&self) -> &'static str {
+        match self {
             XNotSupported::LibraryOpenError(_) => "Failed to load one of xlib's shared libraries",
             XNotSupported::XOpenDisplayFailed => "Failed to open connection to X server",
         }
     }
+}
 
+impl Error for XNotSupported {
     #[inline]
-    fn cause(&self) -> Option<&dyn Error> {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         match *self {
             XNotSupported::LibraryOpenError(ref err) => Some(err),
             _ => None,

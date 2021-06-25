@@ -10,14 +10,17 @@
 ))]
 fn main() {
     use std::{thread::sleep, time::Duration};
+
+    use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
-        platform::desktop::EventLoopExtDesktop,
+        platform::run_return::EventLoopExtRunReturn,
         window::WindowBuilder,
     };
     let mut event_loop = EventLoop::new();
 
+    SimpleLogger::new().init().unwrap();
     let _window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)
@@ -27,6 +30,8 @@ fn main() {
 
     while !quit {
         event_loop.run_return(|event, _, control_flow| {
+            *control_flow = ControlFlow::Wait;
+
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
                 println!("{:?}", event);
@@ -38,16 +43,16 @@ fn main() {
                     ..
                 } => {
                     quit = true;
+                }
+                Event::MainEventsCleared => {
                     *control_flow = ControlFlow::Exit;
                 }
-                Event::EventsCleared => {
-                    *control_flow = ControlFlow::Exit;
-                }
-                _ => *control_flow = ControlFlow::Wait,
+                _ => (),
             }
         });
 
         // Sleep for 1/60 second to simulate rendering
+        println!("rendering");
         sleep(Duration::from_millis(16));
     }
 }

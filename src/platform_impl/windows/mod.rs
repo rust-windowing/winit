@@ -1,41 +1,59 @@
 #![cfg(target_os = "windows")]
 
-#[macro_use]
-mod util;
-mod dpi;
-mod drop_handler;
-mod event;
-mod event_loop;
-mod gamepad;
-mod icon;
-mod monitor;
-mod raw_input;
-mod window;
-mod window_state;
-mod xinput;
-
 use std::{
     cmp::{Eq, Ord, Ordering, PartialEq, PartialOrd},
     fmt,
     hash::{Hash, Hasher},
     ptr,
 };
-use winapi::{self, shared::windef::HWND, um::winnt::HANDLE};
+use winapi::{
+    self,
+    shared::windef::{HMENU, HWND},
+    um::winnt::HANDLE,
+};
 
 pub use self::{
     event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
     gamepad::GamepadShared,
+    icon::WinIcon,
     monitor::{MonitorHandle, VideoMode},
     window::Window,
 };
 
-use crate::{event::device, window::Icon};
+pub use self::icon::WinIcon as PlatformIcon;
 
-#[derive(Clone, Default)]
+use crate::event::device;
+use crate::icon::Icon;
+use crate::window::Theme;
+
+#[derive(Clone)]
+pub enum Parent {
+    None,
+    ChildOf(HWND),
+    OwnedBy(HWND),
+}
+
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub parent: Option<HWND>,
+    pub parent: Parent,
+    pub menu: Option<HMENU>,
     pub taskbar_icon: Option<Icon>,
     pub no_redirection_bitmap: bool,
+    pub drag_and_drop: bool,
+    pub preferred_theme: Option<Theme>,
+}
+
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    fn default() -> Self {
+        Self {
+            parent: Parent::None,
+            menu: None,
+            taskbar_icon: None,
+            no_redirection_bitmap: false,
+            drag_and_drop: true,
+            preferred_theme: None,
+        }
+    }
 }
 
 unsafe impl Send for PlatformSpecificWindowBuilderAttributes {}
@@ -193,3 +211,18 @@ impl Hash for GamepadHandle {
         self.handle.hash(state);
     }
 }
+
+#[macro_use]
+mod util;
+mod dark_mode;
+mod dpi;
+mod drop_handler;
+mod event;
+mod event_loop;
+mod gamepad;
+mod icon;
+mod monitor;
+mod raw_input;
+mod window;
+mod window_state;
+mod xinput;

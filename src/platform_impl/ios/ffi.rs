@@ -4,7 +4,10 @@ use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
 
 use objc::{runtime::Object, Encode, Encoding};
 
-use crate::platform::ios::{Idiom, ScreenEdge, ValidOrientations};
+use crate::{
+    dpi::LogicalSize,
+    platform::ios::{Idiom, ScreenEdge, ValidOrientations},
+};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
@@ -26,24 +29,39 @@ pub struct NSOperatingSystemVersion {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGPoint {
     pub x: CGFloat,
     pub y: CGFloat,
 }
 
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGSize {
     pub width: CGFloat,
     pub height: CGFloat,
 }
 
+impl CGSize {
+    pub fn new(size: LogicalSize<f64>) -> CGSize {
+        CGSize {
+            width: size.width as _,
+            height: size.height as _,
+        }
+    }
+}
+
 #[repr(C)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGRect {
     pub origin: CGPoint,
     pub size: CGSize,
+}
+
+impl CGRect {
+    pub fn new(origin: CGPoint, size: CGSize) -> CGRect {
+        CGRect { origin, size }
+    }
 }
 
 unsafe impl Encode for CGRect {
@@ -341,7 +359,10 @@ pub struct CFRunLoopSourceContext {
     pub perform: Option<extern "C" fn(*mut c_void)>,
 }
 
-pub trait NSString: Sized {
+// This is named NSStringRust rather than NSString because the "Debug View Heirarchy" feature of
+// Xcode requires a non-ambiguous reference to NSString for unclear reasons. This makes Xcode happy
+// so please test if you change the name back to NSString.
+pub trait NSStringRust: Sized {
     unsafe fn alloc(_: Self) -> id {
         msg_send![class!(NSString), alloc]
     }
@@ -352,7 +373,7 @@ pub trait NSString: Sized {
     unsafe fn UTF8String(self) -> *const c_char;
 }
 
-impl NSString for id {
+impl NSStringRust for id {
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id {
         msg_send![self, initWithUTF8String: c_string as id]
     }

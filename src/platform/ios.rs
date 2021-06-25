@@ -43,14 +43,14 @@ pub trait WindowExtIOS {
     /// [`UIView`]: https://developer.apple.com/documentation/uikit/uiview?language=objc
     fn ui_view(&self) -> *mut c_void;
 
-    /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `hidpi_factor`.
+    /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to [`MonitorHandle::hidpi_factor()`].
+    /// this to [`MonitorHandle::scale_factor()`].
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
-    fn set_hidpi_factor(&self, hidpi_factor: f64);
+    fn set_scale_factor(&self, scale_factor: f64);
 
     /// Sets the valid orientations for the [`Window`].
     ///
@@ -113,8 +113,8 @@ impl WindowExtIOS for Window {
     }
 
     #[inline]
-    fn set_hidpi_factor(&self, hidpi_factor: f64) {
-        self.window.set_hidpi_factor(hidpi_factor)
+    fn set_scale_factor(&self, scale_factor: f64) {
+        self.window.set_scale_factor(scale_factor)
     }
 
     #[inline]
@@ -148,14 +148,14 @@ pub trait WindowBuilderExtIOS {
     /// [`UIView`]: https://developer.apple.com/documentation/uikit/uiview?language=objc
     fn with_root_view_class(self, root_view_class: *const c_void) -> WindowBuilder;
 
-    /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `hidpi_factor`.
+    /// Sets the [`contentScaleFactor`] of the underlying [`UIWindow`] to `scale_factor`.
     ///
     /// The default value is device dependent, and it's recommended GLES or Metal applications set
-    /// this to [`MonitorHandle::hidpi_factor()`].
+    /// this to [`MonitorHandle::scale_factor()`].
     ///
     /// [`UIWindow`]: https://developer.apple.com/documentation/uikit/uiwindow?language=objc
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
-    fn with_hidpi_factor(self, hidpi_factor: f64) -> WindowBuilder;
+    fn with_scale_factor(self, scale_factor: f64) -> WindowBuilder;
 
     /// Sets the valid orientations for the [`Window`].
     ///
@@ -204,8 +204,8 @@ impl WindowBuilderExtIOS for WindowBuilder {
     }
 
     #[inline]
-    fn with_hidpi_factor(mut self, hidpi_factor: f64) -> WindowBuilder {
-        self.platform_specific.hidpi_factor = Some(hidpi_factor);
+    fn with_scale_factor(mut self, scale_factor: f64) -> WindowBuilder {
+        self.platform_specific.scale_factor = Some(scale_factor);
         self
     }
 

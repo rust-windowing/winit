@@ -2,14 +2,14 @@
 use std::fmt;
 
 use crate::{
-    dpi::{LogicalPosition, LogicalSize},
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoMode},
     platform_impl,
 };
 
-pub use crate::icon::*;
+pub use crate::icon::{BadIcon, Icon};
 
 /// Represents a window.
 ///
@@ -26,12 +26,14 @@ pub use crate::icon::*;
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
+///     *control_flow = ControlFlow::Wait;
+///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
 ///         } => *control_flow = ControlFlow::Exit,
-///         _ => *control_flow = ControlFlow::Wait,
+///         _ => (),
 ///     }
 /// });
 /// ```
@@ -78,7 +80,7 @@ impl WindowId {
 }
 
 /// Object that allows you to build windows.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
@@ -102,17 +104,42 @@ pub struct WindowAttributes {
     /// used.
     ///
     /// The default is `None`.
-    pub inner_size: Option<LogicalSize>,
+    pub inner_size: Option<Size>,
 
     /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
     ///
     /// The default is `None`.
-    pub min_inner_size: Option<LogicalSize>,
+    pub min_inner_size: Option<Size>,
 
     /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
     ///
     /// The default is `None`.
-    pub max_inner_size: Option<LogicalSize>,
+    pub max_inner_size: Option<Size>,
+
+    /// The desired position of the window. If this is `None`, some platform-specific position
+    /// will be chosen.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: The top left corner position of the window content, the window's "inner"
+    /// position. The window title bar will be placed above it.
+    /// The window will be positioned such that it fits on screen, maintaining
+    /// set `inner_size` if any.
+    /// If you need to precisely position the top left corner of the whole window you have to
+    /// use [`Window::set_outer_position`] after creating the window.
+    /// - **Windows**: The top left corner position of the window title bar, the window's "outer"
+    /// position.
+    /// There may be a small gap between this position and the window due to the specifics of the
+    /// Window Manager.
+    /// - **X11**: The top left corner of the window, the window's "outer" position.
+    /// - **Others**: Ignored.
+    ///
+    /// See [`Window::set_outer_position`].
+    ///
+    /// [`Window::set_outer_position`]: crate::window::Window::set_outer_position
+    pub position: Option<Position>,
 
     /// Whether the window is resizable or not.
     ///
@@ -168,6 +195,7 @@ impl Default for WindowAttributes {
             inner_size: None,
             min_inner_size: None,
             max_inner_size: None,
+            position: None,
             resizable: true,
             title: "winit window".to_owned(),
             maximized: false,
@@ -185,10 +213,7 @@ impl WindowBuilder {
     /// Initializes a new `WindowBuilder` with default values.
     #[inline]
     pub fn new() -> Self {
-        WindowBuilder {
-            window: Default::default(),
-            platform_specific: Default::default(),
-        }
+        Default::default()
     }
 
     /// Requests the window to be of specific dimensions.
@@ -197,8 +222,8 @@ impl WindowBuilder {
     ///
     /// [`Window::set_inner_size`]: crate::window::Window::set_inner_size
     #[inline]
-    pub fn with_inner_size(mut self, size: LogicalSize) -> Self {
-        self.window.inner_size = Some(size);
+    pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> Self {
+        self.window.inner_size = Some(size.into());
         self
     }
 
@@ -208,8 +233,8 @@ impl WindowBuilder {
     ///
     /// [`Window::set_min_inner_size`]: crate::window::Window::set_min_inner_size
     #[inline]
-    pub fn with_min_inner_size(mut self, min_size: LogicalSize) -> Self {
-        self.window.min_inner_size = Some(min_size);
+    pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> Self {
+        self.window.min_inner_size = Some(min_size.into());
         self
     }
 
@@ -219,8 +244,19 @@ impl WindowBuilder {
     ///
     /// [`Window::set_max_inner_size`]: crate::window::Window::set_max_inner_size
     #[inline]
-    pub fn with_max_inner_size(mut self, max_size: LogicalSize) -> Self {
-        self.window.max_inner_size = Some(max_size);
+    pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
+        self.window.max_inner_size = Some(max_size.into());
+        self
+    }
+
+    /// Sets a desired initial position for the window.
+    ///
+    /// See [`WindowAttributes::position`] for details.
+    ///
+    /// [`WindowAttributes::position`]: crate::window::WindowAttributes::position
+    #[inline]
+    pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
+        self.window.position = Some(position.into());
         self
     }
 
@@ -252,8 +288,8 @@ impl WindowBuilder {
     ///
     /// [`Window::set_fullscreen`]: crate::window::Window::set_fullscreen
     #[inline]
-    pub fn with_fullscreen(mut self, monitor: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = monitor;
+    pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
+        self.window.fullscreen = fullscreen;
         self
     }
 
@@ -366,25 +402,25 @@ impl Window {
         WindowId(self.window.id())
     }
 
-    /// Returns the DPI factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
     ///
     /// See the [`dpi`](crate::dpi) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking `WindowEvent::HiDpiFactorChanged` events is
+    /// moved to another screen); as such, tracking `WindowEvent::ScaleFactorChanged` events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_HIDPI_FACTOR` environment variable.
+    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
     /// - **Android:** Always returns 1.0.
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
     ///
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
-    pub fn hidpi_factor(&self) -> f64 {
-        self.window.hidpi_factor()
+    pub fn scale_factor(&self) -> f64 {
+        self.window.scale_factor()
     }
 
     /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
@@ -393,15 +429,16 @@ impl Window {
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
-    /// This function can cause `RedrawRequested` events to be emitted after `Event::EventsCleared`
+    /// This function can cause `RedrawRequested` events to be emitted after `Event::MainEventsCleared`
     /// but before `Event::NewEvents` if called in the following circumstances:
-    /// * While processing `EventsCleared`.
-    /// * While processing a `RedrawRequested` event that was sent during `EventsCleared` or any
+    /// * While processing `MainEventsCleared`.
+    /// * While processing a `RedrawRequested` event that was sent during `MainEventsCleared` or any
     ///   directly subsequent `RedrawRequested` event.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Android:** Subsequent calls after `MainEventsCleared` are not handled.
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()
@@ -419,10 +456,13 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window's [safe area] in the screen space coordinate system.
+    /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns the
+    ///    same value as `outer_position`._
+    /// - **Android / Wayland:** Always returns [`NotSupportedError`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.inner_position()
     }
 
@@ -440,8 +480,10 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window in the screen space coordinate system.
+    /// - **Web:** Returns the top-left coordinates relative to the viewport.
+    /// - **Android / Wayland:** Always returns [`NotSupportedError`].
     #[inline]
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         self.window.outer_position()
     }
 
@@ -454,25 +496,26 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
     ///   window in the screen space coordinate system.
+    /// - **Web:** Sets the top-left coordinates relative to the viewport.
+    /// - **Android / Wayland:** Unsupported.
     #[inline]
-    pub fn set_outer_position(&self, position: LogicalPosition) {
-        self.window.set_outer_position(position)
+    pub fn set_outer_position<P: Into<Position>>(&self, position: P) {
+        self.window.set_outer_position(position.into())
     }
 
-    /// Returns the logical size of the window's client area.
+    /// Returns the physical size of the window's client area.
     ///
     /// The client area is the content of the window, excluding the title bar and borders.
     ///
-    /// Converting the returned `LogicalSize` to `PhysicalSize` produces the size your framebuffer should be.
-    ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window's
+    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window's
     ///   [safe area] in screen space coordinates.
+    /// - **Web:** Returns the size of the canvas element.
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         self.window.inner_size()
     }
 
@@ -483,24 +526,26 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Unimplemented. Currently this panics, as it's not clear what `set_inner_size`
-    ///   would mean for iOS.
+    /// - **iOS / Android:** Unsupported.
+    /// - **Web:** Sets the size of the canvas element.
     #[inline]
-    pub fn set_inner_size(&self, size: LogicalSize) {
-        self.window.set_inner_size(size)
+    pub fn set_inner_size<S: Into<Size>>(&self, size: S) {
+        self.window.set_inner_size(size.into())
     }
 
-    /// Returns the logical size of the entire window.
+    /// Returns the physical size of the entire window.
     ///
     /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
     /// use `inner_size` instead.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `LogicalSize` of the window in
+    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window in
     ///   screen space coordinates.
+    /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
+    ///   `inner_size`._
     #[inline]
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         self.window.outer_size()
     }
 
@@ -508,22 +553,20 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
-    pub fn set_min_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_min_inner_size(dimensions)
+    pub fn set_min_inner_size<S: Into<Size>>(&self, min_size: Option<S>) {
+        self.window.set_min_inner_size(min_size.map(|s| s.into()))
     }
 
     /// Sets a maximum dimension size for the window.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
-    pub fn set_max_inner_size(&self, dimensions: Option<LogicalSize>) {
-        self.window.set_max_inner_size(dimensions)
+    pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
+        self.window.set_max_inner_size(max_size.map(|s| s.into()))
     }
 }
 
@@ -533,7 +576,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - Has no effect on iOS.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title)
@@ -544,9 +587,8 @@ impl Window {
     /// If `false`, this will hide the window. If `true`, this will show the window.
     /// ## Platform-specific
     ///
-    /// - **Android:** Has no effect.
+    /// - **Android / Wayland / Web:** Unsupported.
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Web:** Has no effect.
     #[inline]
     pub fn set_visible(&self, visible: bool) {
         self.window.set_visible(visible)
@@ -565,22 +607,42 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
+    }
+
+    /// Sets the window to minimized or back
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
+    /// - **Wayland:** Un-minimize is unsupported.
+    #[inline]
+    pub fn set_minimized(&self, minimized: bool) {
+        self.window.set_minimized(minimized);
     }
 
     /// Sets the window to maximized or back.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window.set_maximized(maximized)
+    }
+
+    /// Gets the window's current maximized state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        self.window.is_maximized()
     }
 
     /// Sets the window to fullscreen or back.
@@ -600,8 +662,9 @@ impl Window {
     ///
     ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Wayland:** Does not support exclusive fullscreen mode.
+    /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    /// - **Android:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         self.window.set_fullscreen(fullscreen)
@@ -612,6 +675,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
+    /// - **Android:** Will always return `None`.
+    /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
@@ -620,9 +685,8 @@ impl Window {
     /// Turn window decorations on or off.
     ///
     /// ## Platform-specific
-    /// - **iOS:** Can only be called on the main thread. Controls whether the status bar is hidden
-    ///   via [`setPrefersStatusBarHidden`].
-    /// - **Web:** Has no effect.
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
     ///
     /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
@@ -634,8 +698,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         self.window.set_always_on_top(always_on_top)
@@ -646,7 +709,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// This only has an effect on Windows and X11.
+    /// - **iOS / Android / Web / Wayland / macOS:** Unsupported.
     ///
     /// On Windows, this sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     /// recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
@@ -662,11 +725,42 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// **iOS:** Has no effect.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
-    pub fn set_ime_position(&self, position: LogicalPosition) {
-        self.window.set_ime_position(position)
+    pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
+        self.window.set_ime_position(position.into())
+    }
+
+    /// Brings the window to the front and sets input focus. Has no effect if the window is
+    /// already in focus, minimized, or not visible.
+    ///
+    /// This method steals input focus from other applications. Do not use this method unless
+    /// you are certain that's what the user wants. Focus stealing can cause an extremely disruptive
+    /// user experience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    #[inline]
+    pub fn focus_window(&self) {
+        self.window.focus_window()
+    }
+
+    /// Requests user attention to the window, this has no effect if the application
+    /// is already focused. How requesting for user attention manifests is platform dependent,
+    /// see `UserAttentionType` for details.
+    ///
+    /// Providing `None` will unset the request for user attention. Unsetting the request for
+    /// user attention might not be done automatically by the WM when the window receives input.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    /// - **macOS:** `None` has no effect.
+    /// - **X11:** Requests for user attention must be manually cleared.
+    #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        self.window.request_user_attention(request_type)
     }
 }
 
@@ -676,8 +770,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Has no effect.
-    /// - **Android:** Has no effect.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window.set_cursor_icon(cursor);
@@ -687,24 +780,21 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Always returns an `Err`.
-    /// - **Web:** Has no effect.
+    /// - **iOS / Android / Web / Wayland:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
-    pub fn set_cursor_position(&self, position: LogicalPosition) -> Result<(), ExternalError> {
-        self.window.set_cursor_position(position)
+    pub fn set_cursor_position<P: Into<Position>>(&self, position: P) -> Result<(), ExternalError> {
+        self.window.set_cursor_position(position.into())
     }
 
     /// Grabs the cursor, preventing it from leaving the window.
     ///
+    /// There's no guarantee that the cursor will be hidden. You should
+    /// hide it by yourself if you want so.
+    ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** This presently merely locks the cursor in a fixed location, which looks visually
-    ///   awkward.
-    /// - **Wayland:** This presently merely locks the cursor in a fixed location, which looks visually
-    ///   awkward.
-    /// - **Android:** Has no effect.
-    /// - **iOS:** Always returns an Err.
-    /// - **Web:** Has no effect.
+    /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_grab(grab)
@@ -721,29 +811,46 @@ impl Window {
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
-    /// - **iOS:** Has no effect.
-    /// - **Android:** Has no effect.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window.set_cursor_visible(visible)
+    }
+
+    /// Moves the window with the left mouse button until the button is released.
+    ///
+    /// There's no guarantee that this will work unless the left mouse button was pressed
+    /// immediately before this function is called.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11:** Un-grabs the cursor.
+    /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
+    /// - **macOS:** May prevent the button release event to be triggered.
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        self.window.drag_window()
     }
 }
 
 /// Monitor info functions.
 impl Window {
-    /// Returns the monitor on which the window currently resides
+    /// Returns the monitor on which the window currently resides.
+    ///
+    /// Returns `None` if current monitor can't be detected.
     ///
     /// ## Platform-specific
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn current_monitor(&self) -> MonitorHandle {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         self.window.current_monitor()
     }
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as `EventLoop::available_monitors`, and is provided for convenience.
+    /// This is the same as `EventLoopWindowTarget::available_monitors`, and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
@@ -758,20 +865,27 @@ impl Window {
 
     /// Returns the primary monitor of the system.
     ///
-    /// This is the same as `EventLoop::primary_monitor`, and is provided for convenience.
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
+    /// This is the same as `EventLoopWindowTarget::primary_monitor`, and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
     /// **iOS:** Can only be called on the main thread.
+    /// **Wayland:** Always returns `None`.
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle {
-            inner: self.window.primary_monitor(),
-        }
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.window.primary_monitor()
     }
 }
 
 unsafe impl raw_window_handle::HasRawWindowHandle for Window {
+    /// Returns a `raw_window_handle::RawWindowHandle` for the Window
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Only available after receiving the Resumed event and before Suspended. *If you*
+    /// *try to get the handle outside of that period, this function will panic*!
     fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         self.window.raw_window_handle()
     }
@@ -842,8 +956,38 @@ impl Default for CursorIcon {
     }
 }
 
+/// Fullscreen modes.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fullscreen {
     Exclusive(VideoMode),
-    Borderless(MonitorHandle),
+
+    /// Providing `None` to `Borderless` will fullscreen on the current monitor.
+    Borderless(Option<MonitorHandle>),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Theme {
+    Light,
+    Dark,
+}
+
+/// ## Platform-specific
+///
+/// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UserAttentionType {
+    /// ## Platform-specific
+    /// - **macOS:** Bounces the dock icon until the application is in focus.
+    /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
+    Critical,
+    /// ## Platform-specific
+    /// - **macOS:** Bounces the dock icon once.
+    /// - **Windows:** Flashes the taskbar button until the application is in focus.
+    Informational,
+}
+
+impl Default for UserAttentionType {
+    fn default() -> Self {
+        UserAttentionType::Informational
+    }
 }

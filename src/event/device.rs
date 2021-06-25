@@ -11,7 +11,7 @@
 
 use crate::{
     dpi::PhysicalPosition,
-    event::{AxisId, ButtonId, ElementState, KeyboardInput, MouseButton, ModifiersState},
+    event::{AxisId, ButtonId, ElementState, KeyboardInput, ModifiersState, MouseButton},
     event_loop::EventLoop,
     platform_impl,
 };
@@ -107,7 +107,7 @@ pub enum MouseEvent {
     ///
     /// The `PhysicalPosition` value is the new position of the cursor relative to the desktop. This
     /// generally doesn't get output by standard mouse devices, but can get output from tablet devices.
-    MovedAbsolute(PhysicalPosition),
+    MovedAbsolute(PhysicalPosition<f64>),
     /// Change in rotation of mouse wheel.
     Wheel(f64, f64),
 }

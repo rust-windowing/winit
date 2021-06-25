@@ -80,6 +80,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Window maximization**: The windows created by winit can be maximized upon creation.
 - **Window maximization toggle**: The windows created by winit can be maximized and unmaximized after
   creation.
+- **Window minimization**: The windows created by winit can be minimized after creation.
 - **Fullscreen**: The windows created by winit can be put into fullscreen mode.
 - **Fullscreen toggle**: The windows created by winit can be switched to and from fullscreen after
   creation.
@@ -108,14 +109,16 @@ If your PR makes notable changes to Winit's features, please update this section
   translating keypresses into UTF-8 characters, handling dead keys and IMEs.
 - **Drag & Drop**: Dragging content into winit, detecting when content enters, drops, or if the drop is cancelled.
 - **Raw Device Events**: Capturing input from input devices without any OS filtering.
-- **Gamepad/Joystick events**: Capturing input from gampads and joysticks.
-- **Device movement events:**: Capturing input from the device gyroscope and accelerometer.
+- **Gamepad/Joystick events**: Capturing input from gamepads and joysticks.
+- **Device movement events**: Capturing input from the device gyroscope and accelerometer.
 
 ## Platform
 ### Windows
 * Setting the taskbar icon
 * Setting the parent window
+* Setting a menu bar
 * `WS_EX_NOREDIRECTIONBITMAP` support
+* Theme the title bar according to Windows 10 Dark Mode setting or set a preferred theme
 
 ### macOS
 * Window activation policy
@@ -147,6 +150,9 @@ If your PR makes notable changes to Winit's features, please update this section
 * Getting the device idiom
 * Getting the preferred video mode
 
+### Web
+* Get if systems preferred color scheme is "dark"
+
 ## Usability
 * `serde`: Enables serialization/deserialization of certain types with Serde. (Maintainer: @Osspial)
 
@@ -173,10 +179,11 @@ Legend:
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
+|Window minimization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |**N/A**|
-|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |**N/A**|
+|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️    |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
 
 ### System information
@@ -192,14 +199,15 @@ Legend:
 |Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|❓        |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
-|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️        |
-|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |
-|Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |✔️        |
+|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
+|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
+|Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |
+|Drag window with cursor |✔️         |✔️       |✔️        |✔️            |**N/A**|**N/A**|**N/A**   |
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.

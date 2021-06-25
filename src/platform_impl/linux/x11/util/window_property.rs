@@ -26,6 +26,7 @@ impl GetPropertyError {
 const PROPERTY_BUFFER_SIZE: c_long = 1024; // 4k of RAM ought to be enough for anyone!
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum PropMode {
     Replace = ffi::PropModeReplace as isize,
     Prepend = ffi::PropModePrepend as isize,

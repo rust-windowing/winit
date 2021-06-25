@@ -1,10 +1,25 @@
+use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
+
 use cocoa::base::id;
 use objc::{
     declare::ClassDecl,
-    runtime::{Class, Object, Sel, BOOL, YES},
+    runtime::{Class, Object, Sel},
+};
+use std::{
+    cell::{RefCell, RefMut},
+    os::raw::c_void,
 };
 
-use crate::platform_impl::platform::app_state::AppState;
+static AUX_DELEGATE_STATE_NAME: &str = "auxState";
+
+pub struct AuxDelegateState {
+    /// We store this value in order to be able to defer setting the activation policy until
+    /// after the app has finished launching. If the activation policy is set earlier, the
+    /// menubar is initially unresponsive on macOS 10.15 for example.
+    pub activation_policy: ActivationPolicy,
+
+    pub create_default_menu: bool,
+}
 
 pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
@@ -15,90 +30,52 @@ lazy_static! {
         let superclass = class!(NSResponder);
         let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
 
+        decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
+        decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
+
         decl.add_method(
             sel!(applicationDidFinishLaunching:),
-            did_finish_launching as extern "C" fn(&Object, Sel, id) -> BOOL,
+            did_finish_launching as extern "C" fn(&Object, Sel, id),
         );
-        decl.add_method(
-            sel!(applicationDidBecomeActive:),
-            did_become_active as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(applicationWillResignActive:),
-            will_resign_active as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(applicationWillEnterForeground:),
-            will_enter_foreground as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(applicationDidEnterBackground:),
-            did_enter_background as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(applicationWillTerminate:),
-            will_terminate as extern "C" fn(&Object, Sel, id),
-        );
+        decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
 
         AppDelegateClass(decl.register())
     };
 }
 
-extern "C" fn did_finish_launching(_: &Object, _: Sel, _: id) -> BOOL {
-    trace!("Triggered `didFinishLaunching`");
-    AppState::launched();
-    trace!("Completed `didFinishLaunching`");
-    YES
+/// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
+pub unsafe fn get_aux_state_mut(this: &Object) -> RefMut<'_, AuxDelegateState> {
+    let ptr: *mut c_void = *this.get_ivar(AUX_DELEGATE_STATE_NAME);
+    // Watch out that this needs to be the correct type
+    (*(ptr as *mut RefCell<AuxDelegateState>)).borrow_mut()
 }
 
-extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `didBecomeActive`");
-    /*unsafe {
-        HANDLER.lock().unwrap().handle_nonuser_event(Event::Resumed)
-    }*/
-    trace!("Completed `didBecomeActive`");
+extern "C" fn new(class: &Class, _: Sel) -> id {
+    unsafe {
+        let this: id = msg_send![class, alloc];
+        let this: id = msg_send![this, init];
+        (*this).set_ivar(
+            AUX_DELEGATE_STATE_NAME,
+            Box::into_raw(Box::new(RefCell::new(AuxDelegateState {
+                activation_policy: ActivationPolicy::Regular,
+                create_default_menu: true,
+            }))) as *mut c_void,
+        );
+        this
+    }
 }
 
-extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `willResignActive`");
-    /*unsafe {
-        HANDLER.lock().unwrap().handle_nonuser_event(Event::Suspended)
-    }*/
-    trace!("Completed `willResignActive`");
+extern "C" fn dealloc(this: &Object, _: Sel) {
+    unsafe {
+        let state_ptr: *mut c_void = *(this.get_ivar(AUX_DELEGATE_STATE_NAME));
+        // As soon as the box is constructed it is immediately dropped, releasing the underlying
+        // memory
+        Box::from_raw(state_ptr as *mut RefCell<AuxDelegateState>);
+    }
 }
 
-extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `willEnterForeground`");
-    trace!("Completed `willEnterForeground`");
-}
-
-extern "C" fn did_enter_background(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `didEnterBackground`");
-    trace!("Completed `didEnterBackground`");
-}
-
-extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `willTerminate`");
-    /*unsafe {
-        let app: id = msg_send![class!(UIApplication), sharedApplication];
-        let windows: id = msg_send![app, windows];
-        let windows_enum: id = msg_send![windows, objectEnumerator];
-        let mut events = Vec::new();
-        loop {
-            let window: id = msg_send![windows_enum, nextObject];
-            if window == nil {
-                break
-            }
-            let is_winit_window: BOOL = msg_send![window, isKindOfClass:class!(WinitUIWindow)];
-            if is_winit_window == YES {
-                events.push(Event::WindowEvent {
-                    window_id: RootWindowId(window.into()),
-                    event: WindowEvent::Destroyed,
-                });
-            }
-        }
-        HANDLER.lock().unwrap().handle_nonuser_events(events);
-        HANDLER.lock().unwrap().terminated();
-    }*/
-    trace!("Completed `willTerminate`");
+extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
+    trace!("Triggered `applicationDidFinishLaunching`");
+    AppState::launched(this);
+    trace!("Completed `applicationDidFinishLaunching`");
 }

@@ -6,9 +6,28 @@ use cocoa::{
 };
 
 use crate::{
-    event::{ElementState, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
-    platform_impl::platform::DEVICE_ID,
+    dpi::LogicalSize,
+    event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
+    platform_impl::platform::{
+        util::{IdRef, Never},
+        DEVICE_ID,
+    },
 };
+
+#[derive(Debug)]
+pub enum EventWrapper {
+    StaticEvent(Event<'static, Never>),
+    EventProxy(EventProxy),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum EventProxy {
+    DpiChangedProxy {
+        ns_window: IdRef,
+        suggested_size: LogicalSize<f64>,
+        scale_factor: f64,
+    },
+}
 
 pub fn char_to_keycode(c: char) -> Option<VirtualKeyCode> {
     // We only translate keys that are affected by keyboard layout.
@@ -137,20 +156,20 @@ pub fn scancode_to_keycode(scancode: c_ushort) -> Option<VirtualKeyCode> {
         0x3e => VirtualKeyCode::RControl,
         //0x3f => Fn key,
         0x40 => VirtualKeyCode::F17,
-        0x41 => VirtualKeyCode::Decimal,
+        0x41 => VirtualKeyCode::NumpadDecimal,
         //0x42 -> unkown,
-        0x43 => VirtualKeyCode::Multiply,
+        0x43 => VirtualKeyCode::NumpadMultiply,
         //0x44 => unkown,
-        0x45 => VirtualKeyCode::Add,
+        0x45 => VirtualKeyCode::NumpadAdd,
         //0x46 => unkown,
         0x47 => VirtualKeyCode::Numlock,
         //0x48 => KeypadClear,
         0x49 => VirtualKeyCode::VolumeUp,
         0x4a => VirtualKeyCode::VolumeDown,
-        0x4b => VirtualKeyCode::Divide,
+        0x4b => VirtualKeyCode::NumpadDivide,
         0x4c => VirtualKeyCode::NumpadEnter,
         //0x4d => unkown,
-        0x4e => VirtualKeyCode::Subtract,
+        0x4e => VirtualKeyCode::NumpadSubtract,
         0x4f => VirtualKeyCode::F18,
         0x50 => VirtualKeyCode::F19,
         0x51 => VirtualKeyCode::NumpadEquals,
@@ -224,12 +243,24 @@ pub fn check_function_keys(string: &str) -> Option<VirtualKeyCode> {
 
 pub fn event_mods(event: id) -> ModifiersState {
     let flags = unsafe { NSEvent::modifierFlags(event) };
-    ModifiersState {
-        shift: flags.contains(NSEventModifierFlags::NSShiftKeyMask),
-        ctrl: flags.contains(NSEventModifierFlags::NSControlKeyMask),
-        alt: flags.contains(NSEventModifierFlags::NSAlternateKeyMask),
-        logo: flags.contains(NSEventModifierFlags::NSCommandKeyMask),
-    }
+    let mut m = ModifiersState::empty();
+    m.set(
+        ModifiersState::SHIFT,
+        flags.contains(NSEventModifierFlags::NSShiftKeyMask),
+    );
+    m.set(
+        ModifiersState::CTRL,
+        flags.contains(NSEventModifierFlags::NSControlKeyMask),
+    );
+    m.set(
+        ModifiersState::ALT,
+        flags.contains(NSEventModifierFlags::NSAlternateKeyMask),
+    );
+    m.set(
+        ModifiersState::LOGO,
+        flags.contains(NSEventModifierFlags::NSCommandKeyMask),
+    );
+    m
 }
 
 pub fn get_scancode(event: cocoa::base::id) -> c_ushort {
@@ -244,7 +275,7 @@ pub unsafe fn modifier_event(
     ns_event: id,
     keymask: NSEventModifierFlags,
     was_key_pressed: bool,
-) -> Option<WindowEvent> {
+) -> Option<WindowEvent<'static>> {
     if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
         || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask)
     {
@@ -256,6 +287,7 @@ pub unsafe fn modifier_event(
 
         let scancode = get_scancode(ns_event);
         let virtual_keycode = scancode_to_keycode(scancode);
+        #[allow(deprecated)]
         Some(WindowEvent::KeyboardInput {
             device_id: DEVICE_ID,
             input: KeyboardInput {
@@ -264,6 +296,7 @@ pub unsafe fn modifier_event(
                 virtual_keycode,
                 modifiers: event_mods(ns_event),
             },
+            is_synthetic: false,
         })
     } else {
         None

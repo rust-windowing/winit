@@ -7,21 +7,24 @@ use std::{
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 
 use crate::{
-    dpi::{self, LogicalPosition, LogicalSize},
+    dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
     platform_impl::platform::{
-        app_state, event_loop,
+        app_state,
+        event_loop::{self, EventProxy, EventWrapper},
         ffi::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
             UIRectEdge, UIScreenOverscanCompensation,
         },
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
+    window::{
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+    },
 };
 
 pub struct Inner {
@@ -75,28 +78,34 @@ impl Inner {
         }
     }
 
-    pub fn inner_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         unsafe {
             let safe_area = self.safe_area_screen_space();
-            Ok(LogicalPosition {
-                x: safe_area.origin.x as _,
-                y: safe_area.origin.y as _,
-            })
+            let position = LogicalPosition {
+                x: safe_area.origin.x as f64,
+                y: safe_area.origin.y as f64,
+            };
+            let scale_factor = self.scale_factor();
+            Ok(position.to_physical(scale_factor))
         }
     }
 
-    pub fn outer_position(&self) -> Result<LogicalPosition, NotSupportedError> {
+    pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         unsafe {
             let screen_frame = self.screen_frame();
-            Ok(LogicalPosition {
-                x: screen_frame.origin.x as _,
-                y: screen_frame.origin.y as _,
-            })
+            let position = LogicalPosition {
+                x: screen_frame.origin.x as f64,
+                y: screen_frame.origin.y as f64,
+            };
+            let scale_factor = self.scale_factor();
+            Ok(position.to_physical(scale_factor))
         }
     }
 
-    pub fn set_outer_position(&self, position: LogicalPosition) {
+    pub fn set_outer_position(&self, physical_position: Position) {
         unsafe {
+            let scale_factor = self.scale_factor();
+            let position = physical_position.to_logical::<f64>(scale_factor);
             let screen_frame = self.screen_frame();
             let new_screen_frame = CGRect {
                 origin: CGPoint {
@@ -110,35 +119,39 @@ impl Inner {
         }
     }
 
-    pub fn inner_size(&self) -> LogicalSize {
+    pub fn inner_size(&self) -> PhysicalSize<u32> {
         unsafe {
+            let scale_factor = self.scale_factor();
             let safe_area = self.safe_area_screen_space();
-            LogicalSize {
-                width: safe_area.size.width as _,
-                height: safe_area.size.height as _,
-            }
+            let size = LogicalSize {
+                width: safe_area.size.width as f64,
+                height: safe_area.size.height as f64,
+            };
+            size.to_physical(scale_factor)
         }
     }
 
-    pub fn outer_size(&self) -> LogicalSize {
+    pub fn outer_size(&self) -> PhysicalSize<u32> {
         unsafe {
+            let scale_factor = self.scale_factor();
             let screen_frame = self.screen_frame();
-            LogicalSize {
-                width: screen_frame.size.width as _,
-                height: screen_frame.size.height as _,
-            }
+            let size = LogicalSize {
+                width: screen_frame.size.width as f64,
+                height: screen_frame.size.height as f64,
+            };
+            size.to_physical(scale_factor)
         }
     }
 
-    pub fn set_inner_size(&self, _size: LogicalSize) {
-        unimplemented!("not clear what `Window::set_inner_size` means on iOS");
+    pub fn set_inner_size(&self, _size: Size) {
+        warn!("not clear what `Window::set_inner_size` means on iOS");
     }
 
-    pub fn set_min_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {
         warn!("`Window::set_min_inner_size` is ignored on iOS")
     }
 
-    pub fn set_max_inner_size(&self, _dimensions: Option<LogicalSize>) {
+    pub fn set_max_inner_size(&self, _dimensions: Option<Size>) {
         warn!("`Window::set_max_inner_size` is ignored on iOS")
     }
 
@@ -146,7 +159,7 @@ impl Inner {
         warn!("`Window::set_resizable` is ignored on iOS")
     }
 
-    pub fn hidpi_factor(&self) -> f64 {
+    pub fn scale_factor(&self) -> f64 {
         unsafe {
             let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
             hidpi as _
@@ -157,7 +170,7 @@ impl Inner {
         debug!("`Window::set_cursor_icon` ignored on iOS")
     }
 
-    pub fn set_cursor_position(&self, _position: LogicalPosition) -> Result<(), ExternalError> {
+    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -169,8 +182,21 @@ impl Inner {
         debug!("`Window::set_cursor_visible` is ignored on iOS")
     }
 
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    pub fn set_minimized(&self, _minimized: bool) {
+        warn!("`Window::set_minimized` is ignored on iOS")
+    }
+
     pub fn set_maximized(&self, _maximized: bool) {
         warn!("`Window::set_maximized` is ignored on iOS")
+    }
+
+    pub fn is_maximized(&self) -> bool {
+        warn!("`Window::is_maximized` is ignored on iOS");
+        false
     }
 
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
@@ -181,7 +207,9 @@ impl Inner {
                     let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
                     uiscreen
                 }
-                Some(Fullscreen::Borderless(monitor)) => monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(monitor)) => monitor
+                    .unwrap_or_else(|| self.current_monitor_inner())
+                    .ui_screen() as id,
                 None => {
                     warn!("`Window::set_fullscreen(None)` ignored on iOS");
                     return;
@@ -209,7 +237,7 @@ impl Inner {
 
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
-            let monitor = self.current_monitor();
+            let monitor = self.current_monitor_inner();
             let uiscreen = monitor.inner.ui_screen();
             let screen_space_bounds = self.screen_frame();
             let screen_bounds: CGRect = msg_send![uiscreen, bounds];
@@ -220,7 +248,7 @@ impl Inner {
                 && screen_space_bounds.size.width == screen_bounds.size.width
                 && screen_space_bounds.size.height == screen_bounds.size.height
             {
-                Some(Fullscreen::Borderless(monitor))
+                Some(Fullscreen::Borderless(Some(monitor)))
             } else {
                 None
             }
@@ -239,11 +267,20 @@ impl Inner {
         warn!("`Window::set_window_icon` is ignored on iOS")
     }
 
-    pub fn set_ime_position(&self, _position: LogicalPosition) {
+    pub fn set_ime_position(&self, _position: Position) {
         warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
-    pub fn current_monitor(&self) -> RootMonitorHandle {
+    pub fn focus_window(&self) {
+        warn!("`Window::set_focus` is ignored on iOS")
+    }
+
+    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
+        warn!("`Window::request_user_attention` is ignored on iOS")
+    }
+
+    // Allow directly accessing the current monitor internally without unwrapping.
+    fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
             let uiscreen: id = msg_send![self.window, screen];
             RootMonitorHandle {
@@ -252,12 +289,17 @@ impl Inner {
         }
     }
 
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(self.current_monitor_inner())
+    }
+
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         unsafe { monitor::uiscreens() }
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        unsafe { monitor::main_uiscreen() }
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = unsafe { monitor::main_uiscreen() };
+        Some(RootMonitorHandle { inner: monitor })
     }
 
     pub fn id(&self) -> WindowId {
@@ -332,20 +374,26 @@ impl Window {
                 Some(Fullscreen::Exclusive(ref video_mode)) => {
                     video_mode.video_mode.monitor.ui_screen() as id
                 }
-                Some(Fullscreen::Borderless(ref monitor)) => monitor.ui_screen() as id,
-                None => monitor::main_uiscreen().ui_screen(),
+                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.inner.ui_screen(),
+                Some(Fullscreen::Borderless(None)) | None => {
+                    monitor::main_uiscreen().ui_screen() as id
+                }
             };
 
             let screen_bounds: CGRect = msg_send![screen, bounds];
 
             let frame = match window_attributes.inner_size {
-                Some(dim) => CGRect {
-                    origin: screen_bounds.origin,
-                    size: CGSize {
-                        width: dim.width as _,
-                        height: dim.height as _,
-                    },
-                },
+                Some(dim) => {
+                    let scale_factor = msg_send![screen, scale];
+                    let size = dim.to_logical::<f64>(scale_factor);
+                    CGRect {
+                        origin: screen_bounds.origin,
+                        size: CGSize {
+                            width: size.width as _,
+                            height: size.height as _,
+                        },
+                    }
+                }
                 None => screen_bounds,
             };
 
@@ -379,10 +427,11 @@ impl Window {
             };
             app_state::set_key_window(window);
 
-            // Like the Windows and macOS backends, we send a `HiDpiFactorChanged` and `Resized`
+            // Like the Windows and macOS backends, we send a `ScaleFactorChanged` and `Resized`
             // event on window creation if the DPI factor != 1.0
-            let hidpi_factor: CGFloat = msg_send![view, contentScaleFactor];
-            if hidpi_factor != 1.0 {
+            let scale_factor: CGFloat = msg_send![view, contentScaleFactor];
+            let scale_factor: f64 = scale_factor.into();
+            if scale_factor != 1.0 {
                 let bounds: CGRect = msg_send![view, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
@@ -393,14 +442,17 @@ impl Window {
                     height: screen_frame.size.height as _,
                 };
                 app_state::handle_nonuser_events(
-                    std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::HiDpiFactorChanged(hidpi_factor as _),
-                    })
-                    .chain(std::iter::once(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::Resized(size),
-                    })),
+                    std::iter::once(EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
+                        window_id: window,
+                        scale_factor,
+                        suggested_size: size,
+                    }))
+                    .chain(std::iter::once(EventWrapper::StaticEvent(
+                        Event::WindowEvent {
+                            window_id: RootWindowId(window.into()),
+                            event: WindowEvent::Resized(size.to_physical(scale_factor)),
+                        },
+                    ))),
                 );
             }
 
@@ -421,14 +473,14 @@ impl Inner {
         self.view
     }
 
-    pub fn set_hidpi_factor(&self, hidpi_factor: f64) {
+    pub fn set_scale_factor(&self, scale_factor: f64) {
         unsafe {
             assert!(
-                dpi::validate_hidpi_factor(hidpi_factor),
-                "`WindowExtIOS::set_hidpi_factor` received an invalid hidpi factor"
+                dpi::validate_scale_factor(scale_factor),
+                "`WindowExtIOS::set_scale_factor` received an invalid hidpi factor"
             );
-            let hidpi_factor = hidpi_factor as CGFloat;
-            let () = msg_send![self.view, setContentScaleFactor: hidpi_factor];
+            let scale_factor = scale_factor as CGFloat;
+            let () = msg_send![self.view, setContentScaleFactor: scale_factor];
         }
     }
 
@@ -594,7 +646,7 @@ impl From<id> for WindowId {
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub root_view_class: &'static Class,
-    pub hidpi_factor: Option<f64>,
+    pub scale_factor: Option<f64>,
     pub valid_orientations: ValidOrientations,
     pub prefers_home_indicator_hidden: bool,
     pub prefers_status_bar_hidden: bool,
@@ -605,7 +657,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> PlatformSpecificWindowBuilderAttributes {
         PlatformSpecificWindowBuilderAttributes {
             root_view_class: class!(UIView),
-            hidpi_factor: None,
+            scale_factor: None,
             valid_orientations: Default::default(),
             prefers_home_indicator_hidden: false,
             prefers_status_bar_hidden: false,
