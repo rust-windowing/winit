@@ -143,9 +143,9 @@ impl Canvas {
             move |event: KeyboardEvent| {
                 event.prevent_default();
                 handler(
-                    utils::scan_code(&event),
-                    utils::virtual_key_code(&event),
-                    utils::keyboard_modifiers(&event),
+                    event::scan_code(&event),
+                    event::virtual_key_code(&event),
+                    event::keyboard_modifiers(&event),
                 );
             },
         ));
@@ -170,9 +170,9 @@ impl Canvas {
                     event.prevent_default();
                 }
                 handler(
-                    utils::scan_code(&event),
-                    utils::virtual_key_code(&event),
-                    utils::keyboard_modifiers(&event),
+                    event::scan_code(&event),
+                    event::virtual_key_code(&event),
+                    event::keyboard_modifiers(&event),
                 );
             },
         ));
@@ -199,7 +199,7 @@ impl Canvas {
 
     pub fn on_cursor_leave<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton),
+        F: 'static + FnMut(i32),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_cursor_leave(&self.common, handler),
@@ -209,7 +209,7 @@ impl Canvas {
 
     pub fn on_cursor_enter<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton),
+        F: 'static + FnMut(i32),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_cursor_enter(&self.common, handler),
@@ -219,7 +219,7 @@ impl Canvas {
 
     pub fn on_mouse_release<F>(&mut self, handler: F)
     where
-        F: 'static + FnMut(i32, (f64, f64)),
+        F: 'static + FnMut(i32, MouseButton, ModifiersState),
     {
         match &mut self.mouse_state {
             MouseState::HasPointerEvent(h) => h.on_mouse_release(&self.common, handler),
@@ -247,9 +247,9 @@ impl Canvas {
         }
     }
 
-    pub fn on_cursor_move<F>(&mut self, mut handler: F)
+    pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(LogicalPosition, ModifiersState),
+        F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
             event.prevent_default();

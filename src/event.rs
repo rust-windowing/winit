@@ -191,7 +191,7 @@ impl<'a, T> Event<'a, T> {
 }
 
 /// The reason the event loop is resuming.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum StartCause {
     /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is

@@ -1,4 +1,3 @@
-pub(crate) mod global;
 mod proxy;
 mod runner;
 mod state;
@@ -55,21 +54,5 @@ impl<T> EventLoop<T> {
 
     pub fn window_target(&self) -> &root::EventLoopWindowTarget<T> {
         &self.elw
-    }
-
-    pub fn mice(&self) -> impl '_ + Iterator<Item = crate::event::device::MouseId> {
-        std::iter::empty()
-    }
-
-    pub fn keyboards(&self) -> impl '_ + Iterator<Item = crate::event::device::KeyboardId> {
-        std::iter::empty()
-    }
-
-    pub fn hids(&self) -> impl '_ + Iterator<Item = crate::event::device::HidId> {
-        std::iter::empty()
-    }
-
-    pub fn gamepads(&self) -> impl '_ + Iterator<Item = crate::event::device::GamepadHandle> {
-        self.elw.p.collect_gamepads().into_iter()
     }
 }

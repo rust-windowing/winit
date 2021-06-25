@@ -4,8 +4,6 @@ mod event_handle;
 mod media_query_handle;
 mod scaling;
 mod timeout;
-mod utils;
-pub mod window;
 
 pub use self::canvas::Canvas;
 pub use self::scaling::ScaleChangeDetector;

@@ -1,7 +1,6 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
 use crate::event::{Event, StartCause};
 use crate::event_loop as root;
-use crate::platform_impl::platform::device::gamepad;
 use crate::window::WindowId;
 
 use instant::{Duration, Instant};

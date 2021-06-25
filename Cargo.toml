@@ -115,24 +115,9 @@ features = [
     'MediaQueryListEvent',
     'MouseEvent',
     'Node',
-    'Navigator',
     'PointerEvent',
     'Window',
-    'WheelEvent',
-    'Gamepad',
-    'GamepadAxisMoveEvent',
-    'GamepadAxisMoveEventInit',
-    'GamepadButton',
-    'GamepadButtonEvent',
-    'GamepadButtonEventInit',
-    'GamepadEvent',
-    'GamepadEventInit',
-    'GamepadHand',
-    'GamepadHapticActuator',
-    'GamepadHapticActuatorType',
-    'GamepadMappingType',
-    'GamepadPose',
-    'GamepadServiceTest'
+    'WheelEvent'
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
