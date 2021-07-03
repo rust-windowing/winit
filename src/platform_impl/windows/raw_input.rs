@@ -165,7 +165,7 @@ pub fn get_raw_input_pre_parse_info(handle: HANDLE) -> Option<Vec<u8>> {
         winuser::GetRawInputDeviceInfoW(
             handle,
             RIDI_PREPARSEDDATA,
-            buf.as_ptr() as _,
+            buf.as_mut_ptr() as _,
             &mut minimum_size,
         )
     };
