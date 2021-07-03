@@ -190,7 +190,7 @@ pub enum GamepadEvent {
         button_id: ButtonId,
         /// A hint regarding the location of the button.
         ///
-        /// The caveats on the `Axis.hint` field also apply here.
+        /// The caveats on the `Axis.axis` field also apply here.
         button: Option<GamepadButton>,
         state: ElementState,
     },
