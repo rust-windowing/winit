@@ -1996,7 +1996,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     if userdata_ptr.is_null() {
         // `userdata_ptr` will always be null for the first `WM_GETMINMAXINFO`, as well as `WM_NCCREATE` and
         // `WM_CREATE`.
-        return 0;
+        return winuser::DefWindowProcW(window, msg, wparam, lparam);
     }
     let userdata = Box::from_raw(userdata_ptr);
 
