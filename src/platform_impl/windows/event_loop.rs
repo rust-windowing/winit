@@ -43,6 +43,7 @@ use crate::{
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         monitor::{self, MonitorHandle},
         raw_input, util,
+        window::InitData,
         window_state::{CursorFlags, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
@@ -764,51 +765,51 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     lparam: LPARAM,
 ) -> LRESULT {
     let userdata = winuser::GetWindowLongPtrW(window, winuser::GWL_USERDATA);
-    // `userdata` will always be null for the first `WM_GETMINMAXINFO`, as well as `WM_NCCREATE`.
-    // Additionally, the data behind the pointer will be `None` until after `CreateWindowExW` has returned,
-    // i.e. after `WM_CREATE`.
-    let userdata = if msg == winuser::WM_NCCREATE && userdata == 0 {
-        let createstruct = &*(lparam as *const winuser::CREATESTRUCTW);
-        let userdata = createstruct.lpCreateParams as LONG_PTR;
-        assert_ne!(userdata, 0);
-        winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata);
-        userdata
-    } else {
-        if userdata == 0 {
-            return 0;
-        }
+    let userdata_ptr = match (userdata, msg) {
+        // We use `loop` here so that there can be a common error path, rather than for any looping
+        (0, winuser::WM_NCCREATE) => loop {
+            let createstruct = &mut *(lparam as *mut winuser::CREATESTRUCTW);
+            let initdata = createstruct.lpCreateParams as LONG_PTR;
+            let initdata = &mut *(initdata as *mut InitData<'_, T>);
 
-        userdata
+            let runner = initdata.event_loop.runner_shared.clone();
+            initdata.init_result = runner.catch_unwind(|| (initdata.post_init)(window));
+
+            if let Some(Ok(win)) = initdata.init_result.as_mut() {
+                let create_window_data = &initdata.create_window_data;
+                if let Some(userdata) = runner.catch_unwind(|| (create_window_data)(win)) {
+                    let userdata = Box::into_raw(Box::new(userdata));
+                    winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as LONG_PTR);
+                    break userdata;
+                }
+            }
+
+            return -1;
+        },
+        (0, winuser::WM_CREATE) => return -1,
+        (0, _) => return winuser::DefWindowProcW(window, msg, wparam, lparam),
+        _ => userdata as *mut WindowData<T>,
     };
 
-    let userdata_ptr = userdata as *mut Option<WindowData<T>>;
-    if let Some(userdata) = &*userdata_ptr {
-        let (result, userdata_removed, recurse_depth) = {
-            userdata.recurse_depth.set(userdata.recurse_depth.get() + 1);
+    let (result, userdata_removed, recurse_depth) = {
+        let userdata = &*(userdata_ptr);
 
-            let result = public_window_callback_inner(window, msg, wparam, lparam, &userdata);
+        userdata.recurse_depth.set(userdata.recurse_depth.get() + 1);
 
-            let userdata_removed = userdata.userdata_removed.get();
-            let recurse_depth = userdata.recurse_depth.get() - 1;
-            userdata.recurse_depth.set(recurse_depth);
+        let result = public_window_callback_inner(window, msg, wparam, lparam, &userdata);
 
-            (result, userdata_removed, recurse_depth)
-        };
+        let userdata_removed = userdata.userdata_removed.get();
+        let recurse_depth = userdata.recurse_depth.get() - 1;
+        userdata.recurse_depth.set(recurse_depth);
 
-        if userdata_removed && recurse_depth == 0 {
-            Box::from_raw(userdata_ptr);
-        }
+        (result, userdata_removed, recurse_depth)
+    };
 
-        result
-    } else {
-        match msg {
-            winuser::WM_NCCREATE => {
-                enable_non_client_dpi_scaling(window);
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
-            }
-            _ => winuser::DefWindowProcW(window, msg, wparam, lparam),
-        }
+    if userdata_removed && recurse_depth == 0 {
+        Box::from_raw(userdata_ptr);
     }
+
+    result
 }
 
 unsafe fn public_window_callback_inner<T: 'static>(
@@ -843,6 +844,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 .lock()
                 .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
+        }
+
+        winuser::WM_NCCREATE => {
+            enable_non_client_dpi_scaling(window);
+            winuser::DefWindowProcW(window, msg, wparam, lparam)
         }
 
         winuser::WM_NCLBUTTONDOWN => {

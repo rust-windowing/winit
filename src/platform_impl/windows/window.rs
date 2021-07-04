@@ -7,7 +7,7 @@ use std::{
     ffi::OsStr,
     io, mem,
     os::windows::ffi::OsStrExt,
-    ptr,
+    panic, ptr,
     sync::{mpsc::channel, Arc},
 };
 
@@ -73,7 +73,7 @@ impl Window {
         // done. you owe me -- ossi
         unsafe {
             let drag_and_drop = pl_attr.drag_and_drop;
-            init(w_attr, pl_attr, event_loop).map(|(win, userdata)| {
+            init(w_attr, pl_attr, event_loop, |win| {
                 let file_drop_handler = if drag_and_drop {
                     use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
 
@@ -113,16 +113,13 @@ impl Window {
 
                 event_loop.runner_shared.register_window(win.window.0);
 
-                let userdata = &mut *userdata;
-                *userdata = Some(event_loop::WindowData {
+                event_loop::WindowData {
                     window_state: win.window_state.clone(),
                     event_loop_runner: event_loop.runner_shared.clone(),
                     file_drop_handler,
                     userdata_removed: Cell::new(false),
                     recurse_depth: Cell::new(0),
-                });
-
-                win
+                }
             })
         }
     }
@@ -726,11 +723,23 @@ pub struct WindowWrapper(HWND);
 unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
 
-unsafe fn init<T: 'static>(
+pub(super) struct InitData<'a, T: 'static> {
+    pub event_loop: &'a EventLoopWindowTarget<T>,
+    pub create_window_data: &'a dyn Fn(&mut Window) -> WindowData<T>,
+    pub post_init: &'a dyn Fn(HWND) -> Result<Window, RootOsError>,
+    pub init_result: Option<Result<Window, RootOsError>>,
+}
+
+unsafe fn init<T, F>(
     attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
-) -> Result<(Window, *mut Option<WindowData<T>>), RootOsError> {
+    create_window_data: F,
+) -> Result<Window, RootOsError>
+where
+    T: 'static,
+    F: Fn(&mut Window) -> WindowData<T>,
+{
     let title = OsStr::new(&attributes.title)
         .encode_wide()
         .chain(Some(0).into_iter())
@@ -768,33 +777,63 @@ unsafe fn init<T: 'static>(
         }
     };
 
-    let userdata: *mut Option<WindowData<T>> = Box::into_raw(Box::new(None));
-
-    // creating the real window this time, by using the functions in `extra_functions`
-    let real_window = {
-        let (style, ex_style) = window_flags.to_window_styles();
-        let handle = winuser::CreateWindowExW(
-            ex_style,
-            class_name.as_ptr(),
-            title.as_ptr() as LPCWSTR,
-            style,
-            winuser::CW_USEDEFAULT,
-            winuser::CW_USEDEFAULT,
-            winuser::CW_USEDEFAULT,
-            winuser::CW_USEDEFAULT,
-            parent.unwrap_or(ptr::null_mut()),
-            pl_attribs.menu.unwrap_or(ptr::null_mut()),
-            libloaderapi::GetModuleHandleW(ptr::null()),
-            userdata.cast(),
-        );
-
-        if handle.is_null() {
-            return Err(os_error!(io::Error::last_os_error()));
-        }
-
-        WindowWrapper(handle)
+    let mut initdata = InitData {
+        event_loop,
+        create_window_data: &create_window_data,
+        post_init: &|window| {
+            post_init(
+                WindowWrapper(window),
+                attributes.clone(),
+                pl_attribs.clone(),
+                window_flags,
+                event_loop,
+            )
+        },
+        init_result: None,
     };
 
+    let (style, ex_style) = window_flags.to_window_styles();
+    let handle = winuser::CreateWindowExW(
+        ex_style,
+        class_name.as_ptr(),
+        title.as_ptr() as LPCWSTR,
+        style,
+        winuser::CW_USEDEFAULT,
+        winuser::CW_USEDEFAULT,
+        winuser::CW_USEDEFAULT,
+        winuser::CW_USEDEFAULT,
+        parent.unwrap_or(ptr::null_mut()),
+        pl_attribs.menu.unwrap_or(ptr::null_mut()),
+        libloaderapi::GetModuleHandleW(ptr::null()),
+        &mut initdata as *mut _ as *mut _,
+    );
+
+    // TODO: Simplify this. There's no need for the error path to be so convoluted.
+
+    // If any of the callbacks in `InitData` panicked, then should resume panicking here
+    if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
+        panic::resume_unwind(panic_error)
+    }
+    // The handle will be null if -1 is returned by the `WndProc` during the call to `CreateWindowExW`
+    match (!handle.is_null(), initdata.init_result) {
+        // Window creation failed due to the `post_init` callback returning an `Err(_)`
+        (false, Some(Err(err))) => Err(err),
+        (true, Some(Ok(window))) => Ok(window),
+        // (false, Some(Ok(_))) => Window creation failed, but `post_init` succeeded
+        // (false, None) => Window creation failed, but `post_init` panicked
+        // (true, Some(Err(_))) => Window creation succeeded, but `post_init` returned an error
+        // (true, None) => Window creation succeeded, but `post_init` panicked
+        (false, Some(Ok(_)) | None) | (true, Some(Err(_)) | None) => unreachable!(),
+    }
+}
+
+unsafe fn post_init<T: 'static>(
+    real_window: WindowWrapper,
+    attributes: WindowAttributes,
+    pl_attribs: PlatformSpecificWindowBuilderAttributes,
+    window_flags: WindowFlags,
+    event_loop: &EventLoopWindowTarget<T>,
+) -> Result<Window, RootOsError> {
     // Register for touch events if applicable
     {
         let digitizer = winuser::GetSystemMetrics(winuser::SM_DIGITIZER) as u32;
@@ -866,7 +905,7 @@ unsafe fn init<T: 'static>(
         win.set_outer_position(position);
     }
 
-    Ok((win, userdata))
+    Ok(win)
 }
 
 unsafe fn register_window_class<T: 'static>(
