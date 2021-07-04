@@ -553,40 +553,30 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
 
-            ffi::KeyPress | ffi::KeyRelease => {
+            // Note that in compose/pre-edit sequences, we'll always receive KeyRelease events
+            ffi::KeyPress => {
                 // TODO: Is it possible to exclusively use XInput2 events here?
-                use crate::event::ElementState::{Pressed, Released};
-
-                // Note that in compose/pre-edit sequences, this will always be Released.
-                let state = if xev.get_type() == ffi::KeyPress {
-                    Pressed
-                } else {
-                    Released
-                };
-
                 let xkev: &mut ffi::XKeyEvent = xev.as_mut();
 
                 let window = xkev.window;
                 let window_id = mkwid(window);
 
-                if state == Pressed {
-                    let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
-                        wt.xconn.lookup_utf8(ic, xkev)
-                    } else {
-                        return;
+                let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
+                    wt.xconn.lookup_utf8(ic, xkev)
+                } else {
+                    return;
+                };
+
+                // If we're composing right now, send the string we've got from X11 via
+                // Ime::Commit.
+                if self.is_composing && xkev.keycode == 0 && !written.is_empty() {
+                    let event = Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::Ime(Ime::Commit(written)),
                     };
 
-                    // If we're composing right now, send the string we've got from X11 via
-                    // Ime::Commit.
-                    if self.is_composing && xev.keycode == 0 && !written.is_empty() {
-                        let event = Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::Ime(Ime::Commit(written)),
-                        };
-
-                        self.is_composing = false;
-                        callback(event);
-                    }
+                    self.is_composing = false;
+                    callback(event);
                 }
             }
 
