@@ -555,16 +555,21 @@ impl<T: 'static> EventProcessor<T> {
                 let window = xkev.window;
                 let window_id = mkwid(window);
 
-                let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
-                    wt.xconn.lookup_utf8(ic, xkev)
-                } else {
-                    return;
-                };
-                let event = Event::WindowEvent {
-                    window_id,
-                    event: WindowEvent::ReceivedImeText(written),
-                };
-                callback(event);
+                let keycode = xkev.keycode;
+                // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
+                // a keycode of 0.
+                if keycode == 0 {
+                    let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
+                        wt.xconn.lookup_utf8(ic, xkev)
+                    } else {
+                        return;
+                    };
+                    let event = Event::WindowEvent {
+                        window_id,
+                        event: WindowEvent::ReceivedImeText(written),
+                    };
+                    callback(event);
+                }
             }
 
             ffi::GenericEvent => {
