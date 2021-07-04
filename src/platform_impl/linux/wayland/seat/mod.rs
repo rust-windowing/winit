@@ -17,7 +17,7 @@ use sctk::seat::{SeatData, SeatListener};
 
 use super::env::WinitEnv;
 use super::event_loop::WinitState;
-use crate::event::ModifiersState;
+use crate::keyboard::ModifiersState;
 
 mod keyboard;
 pub mod pointer;

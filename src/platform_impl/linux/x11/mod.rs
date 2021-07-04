@@ -8,7 +8,6 @@
 
 mod dnd;
 mod event_processor;
-mod events;
 pub mod ffi;
 mod ime;
 mod monitor;
@@ -53,6 +52,7 @@ use self::{
     ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
     util::modifiers::ModifierKeymap,
 };
+use super::common::xkb_state::KbState;
 use crate::{
     error::OsError as RootOsError,
     event::{Event, StartCause},
@@ -162,6 +162,27 @@ impl<T: 'static> EventLoop<T> {
             ext
         };
 
+        let xkbext = {
+            let mut ext = XExtension::default();
+
+            let res = unsafe {
+                (xconn.xlib.XkbQueryExtension)(
+                    xconn.display,
+                    &mut ext.opcode,
+                    &mut ext.first_event_id,
+                    &mut ext.first_error_id,
+                    &mut 1,
+                    &mut 0,
+                )
+            };
+
+            if res == ffi::False {
+                panic!("X server missing XKB extension");
+            }
+
+            ext
+        };
+
         unsafe {
             let mut xinput_major_ver = ffi::XI_2_Major;
             let mut xinput_minor_ver = ffi::XI_2_Minor;
@@ -195,6 +216,10 @@ impl<T: 'static> EventLoop<T> {
 
         let (redraw_sender, redraw_channel) = channel(queue, NotificationId::gen_next());
 
+        let kb_state =
+            KbState::from_x11_xkb(unsafe { (xconn.xlib_xcb.XGetXCBConnection)(xconn.display) })
+                .unwrap();
+
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
                 ime,
@@ -217,6 +242,8 @@ impl<T: 'static> EventLoop<T> {
             randr_event_offset,
             ime_receiver,
             xi2ext,
+            xkbext,
+            kb_state,
             mod_keymap,
             device_mod_state: Default::default(),
             num_touch: 0,
@@ -229,6 +256,15 @@ impl<T: 'static> EventLoop<T> {
         get_xtarget(&target)
             .xconn
             .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
+            .queue();
+
+        get_xtarget(&target)
+            .xconn
+            .select_xkb_events(
+                0x100, // Use the "core keyboard device"
+                ffi::XkbNewKeyboardNotifyMask | ffi::XkbMapNotifyMask | ffi::XkbStateNotifyMask,
+            )
+            .unwrap()
             .queue();
 
         event_processor.init_device(ffi::XIAllDevices);
@@ -621,7 +657,9 @@ impl Device {
                 | ffi::XI_RawButtonPressMask
                 | ffi::XI_RawButtonReleaseMask
                 | ffi::XI_RawKeyPressMask
-                | ffi::XI_RawKeyReleaseMask;
+                | ffi::XI_RawKeyReleaseMask
+                | ffi::XI_KeyPressMask
+                | ffi::XI_KeyReleaseMask;
             // The request buffer is flushed when we poll for events
             wt.xconn
                 .select_xinput_events(wt.root, info.deviceid, mask)
