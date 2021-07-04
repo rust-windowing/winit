@@ -325,8 +325,9 @@ impl KbState {
         );
         assert_ne!(keymap, ptr::null_mut());
         self.xkb_keymap = keymap;
-
-        self.post_init(keymap);
+        self.xkb_state =
+            (XKBXH.xkb_x11_state_new_from_device)(keymap, self.xcb_connection, core_keyboard_id);
+        self.mods_state.update_with(self.xkb_state);
     }
 
     #[cfg(feature = "wayland")]
@@ -566,6 +567,14 @@ impl<'a> KeyEventResults<'a> {
         } else {
             None
         };
+
+        // let key_text = state.keysym_to_utf8_raw(keysym);
+        // unsafe {
+        //     let layout_id = (XKBH.xkb_state_serialize_layout)(state.xkb_state, xkb_state_component::XKB_STATE_LAYOUT_EFFECTIVE);
+        //     let layout_name_cstr = (XKBH.xkb_keymap_layout_get_name)(state.xkb_keymap, layout_id);
+        //     let layout_name = std::ffi::CStr::from_ptr(layout_name_cstr as *mut _);
+        //     debug!("KeyEventResults::new {:?}, {:?}", key_text, layout_name);
+        // }
 
         KeyEventResults {
             state,

@@ -1169,7 +1169,23 @@ impl<T: 'static> EventProcessor<T> {
                         ffi::XkbStateNotify => {
                             let xev =
                                 unsafe { &*(xev as *const _ as *const ffi::XkbStateNotifyEvent) };
-                            if matches!(xev.event_type, 2 | 3) {
+                            debug!(
+                                "XkbStateNotify. group: {}, event_type: {}",
+                                xev.group, xev.event_type
+                            );
+                            if xev.event_type == 0 {
+                                // This probably indicates that the keyboard layout was switched.
+                                // Let's update the groups (i.e. the layout)
+                                self.kb_state.update_modifiers(
+                                    xev.base_mods,
+                                    xev.latched_mods,
+                                    xev.locked_mods,
+                                    xev.base_group as u32,
+                                    xev.latched_group as u32,
+                                    xev.locked_group as u32,
+                                );
+                            }
+                            if matches!(xev.event_type as i32, ffi::KeyPress | ffi::KeyRelease) {
                                 self.kb_state.update_modifiers(
                                     xev.base_mods,
                                     xev.latched_mods,
