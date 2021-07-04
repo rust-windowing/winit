@@ -51,15 +51,11 @@ fn main() {
                 WindowEvent::CloseRequested => {
                     close_requested = true;
                 }
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            virtual_keycode: Some(virtual_code),
-                            state: ElementState::Pressed,
-                            ..
-                        },
+                WindowEvent::KeyboardInput(KeyboardInput {
+                    virtual_keycode: Some(virtual_code),
+                    state: ElementState::Pressed,
                     ..
-                } => match virtual_code {
+                }) => match virtual_code {
                     VirtualKeyCode::Key1 => {
                         mode = Mode::Wait;
                         println!("\nmode: {:?}\n", mode);

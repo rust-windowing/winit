@@ -3,7 +3,9 @@
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event::{
+        device::KeyboardEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent,
+    },
     event_loop::{ControlFlow, EventLoop},
     window::{Fullscreen, WindowBuilder},
 };
@@ -34,15 +36,14 @@ fn main() {
         *control_flow = ControlFlow::Wait;
 
         match event {
-            Event::DeviceEvent {
-                event:
-                    DeviceEvent::Key(KeyboardInput {
-                        virtual_keycode: Some(key),
-                        state: ElementState::Pressed,
-                        ..
-                    }),
-                ..
-            } => match key {
+            Event::KeyboardEvent(
+                _,
+                KeyboardEvent::Input(KeyboardInput {
+                    virtual_keycode: Some(key),
+                    state: ElementState::Pressed,
+                    ..
+                }),
+            ) => match key {
                 VirtualKeyCode::M => {
                     if minimized {
                         minimized = !minimized;
@@ -58,7 +59,7 @@ fn main() {
                 _ => (),
             },
             Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
+                event: WindowEvent::KeyboardInput(input),
                 ..
             } => match input {
                 KeyboardInput {

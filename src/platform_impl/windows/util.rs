@@ -1,6 +1,5 @@
 use std::{
     io, mem,
-    ops::BitAnd,
     os::raw::c_void,
     ptr, slice,
     sync::atomic::{AtomicBool, Ordering},
@@ -22,12 +21,7 @@ use winapi::{
     },
 };
 
-pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where
-    T: Copy + PartialEq + BitAnd<T, Output = T>,
-{
-    bitset & flag == flag
-}
+pub use crate::util::*;
 
 pub fn wchar_to_string(wchar: &[wchar_t]) -> String {
     String::from_utf16_lossy(wchar).to_string()

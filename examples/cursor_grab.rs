@@ -1,6 +1,6 @@
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
+    event::{device::MouseEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -22,15 +22,11 @@ fn main() {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::KeyboardInput {
-                    input:
-                        KeyboardInput {
-                            state: ElementState::Released,
-                            virtual_keycode: Some(key),
-                            ..
-                        },
+                WindowEvent::KeyboardInput(KeyboardInput {
+                    state: ElementState::Released,
+                    virtual_keycode: Some(key),
                     ..
-                } => {
+                }) => {
                     use winit::event::VirtualKeyCode::*;
                     match key {
                         Escape => *control_flow = ControlFlow::Exit,
@@ -42,14 +38,16 @@ fn main() {
                 WindowEvent::ModifiersChanged(m) => modifiers = m,
                 _ => (),
             },
-            Event::DeviceEvent { event, .. } => match event {
-                DeviceEvent::MouseMotion { delta } => println!("mouse moved: {:?}", delta),
-                DeviceEvent::Button { button, state } => match state {
-                    ElementState::Pressed => println!("mouse button {} pressed", button),
-                    ElementState::Released => println!("mouse button {} released", button),
+
+            Event::MouseEvent(_, event) => match event {
+                MouseEvent::MovedRelative(x, y) => println!("mouse moved: {:?}", (x, y)),
+                MouseEvent::Button { button, state } => match state {
+                    ElementState::Pressed => println!("mouse button {:?} pressed", button),
+                    ElementState::Released => println!("mouse button {:?} released", button),
                 },
                 _ => (),
             },
+
             _ => (),
         }
     });

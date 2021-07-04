@@ -56,6 +56,7 @@ features = ["display_link"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
 parking_lot = "0.11"
+rusty-xinput = "1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.winapi]
 version = "0.3.6"
@@ -64,6 +65,7 @@ features = [
     "commctrl",
     "dwmapi",
     "errhandlingapi",
+    "hidpi",
     "imm",
     "hidusage",
     "libloaderapi",
@@ -80,6 +82,7 @@ features = [
     "wingdi",
     "winnt",
     "winuser",
+    "xinput",
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]

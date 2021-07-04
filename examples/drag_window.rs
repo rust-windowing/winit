@@ -42,15 +42,11 @@ fn main() {
                 entered_id = window_id;
                 name_windows(entered_id, switched, &window_1, &window_2)
             }
-            WindowEvent::KeyboardInput {
-                input:
-                    KeyboardInput {
-                        state: ElementState::Released,
-                        virtual_keycode: Some(VirtualKeyCode::X),
-                        ..
-                    },
+            WindowEvent::KeyboardInput(KeyboardInput {
+                state: ElementState::Released,
+                virtual_keycode: Some(VirtualKeyCode::X),
                 ..
-            } => {
+            }) => {
                 switched = !switched;
                 name_windows(entered_id, switched, &window_1, &window_2);
                 println!("Switched!")

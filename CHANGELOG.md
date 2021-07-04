@@ -1,5 +1,18 @@
 # Unreleased
 
+- Improve event API documentation.
+- Overhaul device event API:
+  - **Breaking**: `Event::DeviceEvent` split into `MouseEvent`, `KeyboardEvent`, and `GamepadEvent`.
+  - **Breaking**: Remove `DeviceEvent::Text` variant.
+  - **Breaking**: `DeviceId` split into `MouseId`, `KeyboardId`, and `GamepadHandle`.
+  - **Breaking**: Removed device IDs from `WindowEvent` variants.
+  - Add `enumerate` function on device ID types to list all attached devices of that type.
+  - Add `is_connected` function on device ID types check if the specified device is still available.
+  - **Breaking**: On Windows, rename `DeviceIdExtWindows` to `DeviceExtWindows`.
+    - Add `handle` function to retrieve the underlying `HANDLE`.
+- On Windows, fix duplicate device events getting sent if Winit managed multiple windows.
+- On Windows, raw mouse events now report Mouse4 and Mouse5 presses and releases.
+- Added gamepad support on Windows via raw input and XInput.
 - On macOS, drop the event callback before exiting.
 - On Android, implement `Window::request_redraw`
 - **Breaking:** On Web, remove the `stdweb` backend.
