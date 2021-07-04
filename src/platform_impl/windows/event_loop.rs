@@ -2223,12 +2223,10 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         let x = raw_mouse.lLastX as f64;
                         let y = raw_mouse.lLastY as f64;
 
-                        if x != 0.0 || y != 0.0 {
-                            subclass_input.send_event(Event::MouseEvent(
-                                mouse_handle,
-                                MouseEvent::MovedAbsolute(PhysicalPosition { x, y }),
-                            ));
-                        }
+                        subclass_input.send_event(Event::MouseEvent(
+                            mouse_handle,
+                            MouseEvent::MovedAbsolute(PhysicalPosition { x, y }),
+                        ));
                     } else if util::has_flag(raw_mouse.usFlags, winuser::MOUSE_MOVE_RELATIVE) {
                         let x = raw_mouse.lLastX as f64;
                         let y = raw_mouse.lLastY as f64;
