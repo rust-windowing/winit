@@ -766,26 +766,21 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
 ) -> LRESULT {
     let userdata = winuser::GetWindowLongPtrW(window, winuser::GWL_USERDATA);
     let userdata_ptr = match (userdata, msg) {
-        // We use `loop` here so that there can be a common error path, rather than for any looping
-        (0, winuser::WM_NCCREATE) => loop {
+        (0, winuser::WM_NCCREATE) => {
             let createstruct = &mut *(lparam as *mut winuser::CREATESTRUCTW);
             let initdata = createstruct.lpCreateParams as LONG_PTR;
             let initdata = &mut *(initdata as *mut InitData<'_, T>);
 
             let runner = initdata.event_loop.runner_shared.clone();
-            initdata.init_result = runner.catch_unwind(|| (initdata.post_init)(window));
-
-            if let Some(Ok(win)) = initdata.init_result.as_mut() {
-                let create_window_data = &initdata.create_window_data;
-                if let Some(userdata) = runner.catch_unwind(|| (create_window_data)(win)) {
-                    let userdata = Box::into_raw(Box::new(userdata));
-                    winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as LONG_PTR);
-                    break userdata;
-                }
+            if let Some((win, userdata)) = runner.catch_unwind(|| (initdata.post_init)(window)) {
+                initdata.window = Some(win);
+                let userdata = Box::into_raw(Box::new(userdata));
+                winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as LONG_PTR);
+                userdata
+            } else {
+                return -1;
             }
-
-            return -1;
-        },
+        }
         (0, winuser::WM_CREATE) => return -1,
         (0, _) => return winuser::DefWindowProcW(window, msg, wparam, lparam),
         _ => userdata as *mut WindowData<T>,
@@ -1997,8 +1992,8 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    let userdata_ptr = winuser::GetWindowLongPtrW(window, winuser::GWL_USERDATA)
-        as *mut ThreadMsgTargetData<T>;
+    let userdata_ptr =
+        winuser::GetWindowLongPtrW(window, winuser::GWL_USERDATA) as *mut ThreadMsgTargetData<T>;
     if userdata_ptr.is_null() {
         // `userdata_ptr` will always be null for the first `WM_GETMINMAXINFO`, as well as `WM_NCCREATE` and
         // `WM_CREATE`.

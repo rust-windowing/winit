@@ -724,10 +724,11 @@ unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
 
 pub(super) struct InitData<'a, T: 'static> {
+    // inputs
     pub event_loop: &'a EventLoopWindowTarget<T>,
-    pub create_window_data: &'a dyn Fn(&mut Window) -> WindowData<T>,
-    pub post_init: &'a dyn Fn(HWND) -> Result<Window, RootOsError>,
-    pub init_result: Option<Result<Window, RootOsError>>,
+    pub post_init: &'a dyn Fn(HWND) -> (Window, WindowData<T>),
+    // outputs
+    pub window: Option<Window>,
 }
 
 unsafe fn init<T, F>(
@@ -779,17 +780,18 @@ where
 
     let mut initdata = InitData {
         event_loop,
-        create_window_data: &create_window_data,
-        post_init: &|window| {
-            post_init(
-                WindowWrapper(window),
+        post_init: &|hwnd| {
+            let mut window = post_init(
+                WindowWrapper(hwnd),
                 attributes.clone(),
                 pl_attribs.clone(),
                 window_flags,
                 event_loop,
-            )
+            );
+            let window_data = create_window_data(&mut window);
+            (window, window_data)
         },
-        init_result: None,
+        window: None,
     };
 
     let (style, ex_style) = window_flags.to_window_styles();
@@ -808,23 +810,18 @@ where
         &mut initdata as *mut _ as *mut _,
     );
 
-    // TODO: Simplify this. There's no need for the error path to be so convoluted.
-
     // If any of the callbacks in `InitData` panicked, then should resume panicking here
     if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
         panic::resume_unwind(panic_error)
     }
-    // The handle will be null if -1 is returned by the `WndProc` during the call to `CreateWindowExW`
-    match (!handle.is_null(), initdata.init_result) {
-        // Window creation failed due to the `post_init` callback returning an `Err(_)`
-        (false, Some(Err(err))) => Err(err),
-        (true, Some(Ok(window))) => Ok(window),
-        // (false, Some(Ok(_))) => Window creation failed, but `post_init` succeeded
-        // (false, None) => Window creation failed, but `post_init` panicked
-        // (true, Some(Err(_))) => Window creation succeeded, but `post_init` returned an error
-        // (true, None) => Window creation succeeded, but `post_init` panicked
-        (false, Some(Ok(_)) | None) | (true, Some(Err(_)) | None) => unreachable!(),
+
+    if handle.is_null() {
+        return Err(os_error!(io::Error::last_os_error()));
     }
+
+    // If the handle is non-null, then window creation must have succeeded, which means
+    // that we *must* have populated the `InitData.window` field.
+    Ok(initdata.window.unwrap())
 }
 
 unsafe fn post_init<T: 'static>(
@@ -833,7 +830,7 @@ unsafe fn post_init<T: 'static>(
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     window_flags: WindowFlags,
     event_loop: &EventLoopWindowTarget<T>,
-) -> Result<Window, RootOsError> {
+) -> Window {
     // Register for touch events if applicable
     {
         let digitizer = winuser::GetSystemMetrics(winuser::SM_DIGITIZER) as u32;
@@ -905,7 +902,7 @@ unsafe fn post_init<T: 'static>(
         win.set_outer_position(position);
     }
 
-    Ok(win)
+    win
 }
 
 unsafe fn register_window_class<T: 'static>(
