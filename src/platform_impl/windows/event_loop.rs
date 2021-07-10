@@ -164,7 +164,7 @@ impl<T: 'static> EventLoop<T> {
         let runner_shared = Rc::new(EventLoopRunner::new(thread_msg_target, wait_thread_id));
 
         let thread_msg_sender =
-            insert_event_target_window_data::<T>(thread_msg_target, Rc::clone(&runner_shared));
+            insert_event_target_window_data::<T>(thread_msg_target, runner_shared.clone());
         raw_input::register_all_mice_and_keyboards_for_raw_input(thread_msg_target);
 
         EventLoop {
