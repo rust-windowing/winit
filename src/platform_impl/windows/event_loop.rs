@@ -97,12 +97,12 @@ impl<T> WindowData<T> {
     }
 }
 
-struct ThreadMsgTargetCallbackData<T: 'static> {
+struct ThreadMsgTargetData<T: 'static> {
     event_loop_runner: EventLoopRunnerShared<T>,
     user_event_receiver: Receiver<T>,
 }
 
-impl<T> ThreadMsgTargetCallbackData<T> {
+impl<T> ThreadMsgTargetData<T> {
     unsafe fn send_event(&self, event: Event<'_, T>) {
         self.event_loop_runner.send_event(event);
     }
@@ -630,7 +630,7 @@ fn insert_event_target_window_data<T>(
 ) -> Sender<T> {
     let (tx, rx) = mpsc::channel();
 
-    let userdata = ThreadMsgTargetCallbackData {
+    let userdata = ThreadMsgTargetData {
         event_loop_runner,
         user_event_receiver: rx,
     };
@@ -1998,7 +1998,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
     lparam: LPARAM,
 ) -> LRESULT {
     let userdata_ptr = winuser::GetWindowLongPtrW(window, winuser::GWL_USERDATA)
-        as *mut ThreadMsgTargetCallbackData<T>;
+        as *mut ThreadMsgTargetData<T>;
     if userdata_ptr.is_null() {
         // `userdata_ptr` will always be null for the first `WM_GETMINMAXINFO`, as well as `WM_NCCREATE` and
         // `WM_CREATE`.
