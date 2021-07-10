@@ -155,8 +155,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn new_dpi_unaware_any_thread() -> EventLoop<T> {
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
 
-        register_window_class::<T>();
-        let thread_msg_target = create_event_target_window();
+        let thread_msg_target = create_event_target_window::<T>();
 
         let send_thread_msg_target = thread_msg_target as usize;
         thread::spawn(move || wait_thread(thread_id, send_thread_msg_target as HWND));
@@ -575,7 +574,7 @@ lazy_static! {
     };
 }
 
-fn register_window_class<T: 'static>() {
+fn create_event_target_window<T: 'static>() -> HWND {
     unsafe {
         let class = winuser::WNDCLASSEXW {
             cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
@@ -594,9 +593,7 @@ fn register_window_class<T: 'static>() {
 
         winuser::RegisterClassExW(&class);
     }
-}
 
-fn create_event_target_window() -> HWND {
     unsafe {
         let window = winuser::CreateWindowExW(
             winuser::WS_EX_NOACTIVATE | winuser::WS_EX_TRANSPARENT | winuser::WS_EX_LAYERED,
