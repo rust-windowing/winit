@@ -636,9 +636,7 @@ fn insert_event_target_window_data<T>(
     };
     let input_ptr = Box::into_raw(Box::new(userdata));
 
-    unsafe {
-        winuser::SetWindowLongPtrW(thread_msg_target, winuser::GWL_USERDATA, input_ptr as isize)
-    };
+    unsafe { winuser::SetWindowLongPtrW(thread_msg_target, winuser::GWL_USERDATA, input_ptr as _) };
 
     tx
 }
@@ -775,7 +773,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
             if let Some((win, userdata)) = runner.catch_unwind(|| (initdata.post_init)(window)) {
                 initdata.window = Some(win);
                 let userdata = Box::into_raw(Box::new(userdata));
-                winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as LONG_PTR);
+                winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as _);
                 userdata
             } else {
                 return -1;
