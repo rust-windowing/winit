@@ -596,7 +596,10 @@ lazy_static! {
 fn create_event_target_window() -> HWND {
     unsafe {
         let window = winuser::CreateWindowExW(
-            winuser::WS_EX_NOACTIVATE | winuser::WS_EX_TRANSPARENT | winuser::WS_EX_LAYERED | winuser::WS_EX_TOOLWINDOW,
+            winuser::WS_EX_NOACTIVATE
+                | winuser::WS_EX_TRANSPARENT
+                | winuser::WS_EX_LAYERED
+                | winuser::WS_EX_TOOLWINDOW,
             THREAD_EVENT_TARGET_WINDOW_CLASS.as_ptr(),
             ptr::null_mut(),
             0,
