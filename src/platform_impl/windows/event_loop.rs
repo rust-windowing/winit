@@ -599,6 +599,15 @@ fn create_event_target_window() -> HWND {
             winuser::WS_EX_NOACTIVATE
                 | winuser::WS_EX_TRANSPARENT
                 | winuser::WS_EX_LAYERED
+                // WS_EX_TOOLWINDOW prevents this window from ever showing up in the taskbar, which
+                // we want to avoid. If you remove this style, this window won't show up in the
+                // taskbar *initially*, but will eventually magically appear in the taskbar.
+                //
+                // Now, I wasn't able to figure out what *causes* the window to eventually show up
+                // in the taskbar, since it does so without warning, after several hours, with no
+                // obvious code-visible state changes to this window. I'd guess that some win32
+                // state change gets triggered at some point, but I'd need to be able to debug the
+                // windows shell directly to figure that out and I can't do that.
                 | winuser::WS_EX_TOOLWINDOW,
             THREAD_EVENT_TARGET_WINDOW_CLASS.as_ptr(),
             ptr::null_mut(),
