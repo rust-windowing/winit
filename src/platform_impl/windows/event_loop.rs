@@ -16,10 +16,10 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-use winapi::shared::basetsd::LONG_PTR;
 
 use winapi::{
     shared::{
+        basetsd::LONG_PTR,
         minwindef::{BOOL, DWORD, HIWORD, INT, LOWORD, LPARAM, LRESULT, UINT, WORD, WPARAM},
         windef::{HWND, POINT, RECT},
         windowsx, winerror,
@@ -615,7 +615,7 @@ fn create_event_target_window<T: 'static>() -> HWND {
             // The window technically has to be visible to receive WM_PAINT messages (which are used
             // for delivering events during resizes), but it isn't displayed to the user because of
             // the LAYERED style.
-            (winuser::WS_VISIBLE | winuser::WS_POPUP) as _,
+            (winuser::WS_VISIBLE | winuser::WS_POPUP) as WindowLongPtr,
         );
         window
     }
@@ -633,7 +633,13 @@ fn insert_event_target_window_data<T>(
     };
     let input_ptr = Box::into_raw(Box::new(userdata));
 
-    unsafe { winuser::SetWindowLongPtrW(thread_msg_target, winuser::GWL_USERDATA, input_ptr as _) };
+    unsafe {
+        winuser::SetWindowLongPtrW(
+            thread_msg_target,
+            winuser::GWL_USERDATA,
+            input_ptr as WindowLongPtr,
+        )
+    };
 
     tx
 }
@@ -746,6 +752,11 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
     }
 }
 
+#[cfg(target_arch = "x86_64")]
+type WindowLongPtr = LONG_PTR;
+#[cfg(target_arch = "x86")]
+type WindowLongPtr = LONG;
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 //
@@ -770,7 +781,11 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
             if let Some((win, userdata)) = runner.catch_unwind(|| (initdata.post_init)(window)) {
                 initdata.window = Some(win);
                 let userdata = Box::into_raw(Box::new(userdata));
-                winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as _);
+                winuser::SetWindowLongPtrW(
+                    window,
+                    winuser::GWL_USERDATA,
+                    userdata as WindowLongPtr,
+                );
                 userdata
             } else {
                 return -1;
