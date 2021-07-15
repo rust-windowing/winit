@@ -791,6 +791,8 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
                 return -1;
             }
         }
+        // Getting here should quite frankly be impossible,
+        // but we'll make window creation fail here just in case.
         (0, winuser::WM_CREATE) => return -1,
         (0, _) => return winuser::DefWindowProcW(window, msg, wparam, lparam),
         _ => userdata as *mut WindowData<T>,

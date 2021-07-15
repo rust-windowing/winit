@@ -810,7 +810,7 @@ where
         &mut initdata as *mut _ as *mut _,
     );
 
-    // If any of the callbacks in `InitData` panicked, then should resume panicking here
+    // If the `post_init` callback in `InitData` panicked, then should resume panicking here
     if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
         panic::resume_unwind(panic_error)
     }
