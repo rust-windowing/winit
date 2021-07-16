@@ -104,8 +104,8 @@ impl XConnection {
             CursorIcon::WResize => load(b"left_side\0"),
             CursorIcon::EwResize => load(b"h_double_arrow\0"),
             CursorIcon::NsResize => load(b"v_double_arrow\0"),
-            CursorIcon::NwseResize => loadn(&[b"bd_double_arrow\0", b"size_bdiag\0"]),
-            CursorIcon::NeswResize => loadn(&[b"fd_double_arrow\0", b"size_fdiag\0"]),
+            CursorIcon::NwseResize => loadn(&[b"bd_double_arrow\0", b"size_fdiag\0"]),
+            CursorIcon::NeswResize => loadn(&[b"fd_double_arrow\0", b"size_bdiag\0"]),
             CursorIcon::ColResize => loadn(&[b"split_h\0", b"h_double_arrow\0"]),
             CursorIcon::RowResize => loadn(&[b"split_v\0", b"v_double_arrow\0"]),
 
