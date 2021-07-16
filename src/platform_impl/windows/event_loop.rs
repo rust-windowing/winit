@@ -1976,6 +1976,24 @@ unsafe fn public_window_callback_inner<T: 'static>(
             winuser::DefWindowProcW(window, msg, wparam, lparam)
         }
 
+        winuser::WM_NCCALCSIZE => {
+            let win_flags = userdata.window_state.lock().window_flags();
+
+            if !win_flags.contains(WindowFlags::DECORATIONS) {
+                // adjust the maximized borderless window to fill the work area rectangle of the display monitor and doesn't cover the taskbar
+                if util::is_maximized(window) {
+                    let monitor = monitor::current_monitor(window);
+                    if let Ok(monitor_info) = monitor::get_monitor_info(monitor.hmonitor()) {
+                        let params = &mut *(lparam as *mut winuser::NCCALCSIZE_PARAMS);
+                        params.rgrc[0] = monitor_info.rcWork;
+                    }
+                }
+                0 // return 0 here to make the window borderless aka without decorations
+            } else {
+                winuser::DefWindowProcW(window, msg, wparam, lparam)
+            }
+        }
+
         _ => {
             if msg == *DESTROY_MSG_ID {
                 winuser::DestroyWindow(window);
