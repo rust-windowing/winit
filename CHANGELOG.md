@@ -6,6 +6,7 @@
 - Added `Window::focus_window`to bring the window to the front and set input focus.
 - On Wayland and X11, implement `is_maximized` method on `Window`.
 - On macOS, fix issue where `ReceivedCharacter` was not being emitted during some key repeat events.
+- On Windows, fix aero-snap for borderless(undecorated) window.
 
 # 0.25.0 (2021-05-15)
 
@@ -31,8 +32,6 @@
 - Added `WindowBuilder::with_position` to allow setting the position of a `Window` on creation. Supported on Windows, macOS and X11.
 - Added `Window::drag_window`. Implemented on Windows, macOS, X11 and Wayland.
 - On X11, bump `mio` to 0.7.
-- On Windows, fix aero-snap for borderless(undecorated) window.
-- On Windows, allow resizing of borderless(undecorated) window.
 - On Windows, added `WindowBuilderExtWindows::with_owner_window` to allow creating popup windows.
 - On Windows, added `WindowExtWindows::set_enable` to allow creating modal popup windows.
 - On macOS, emit `RedrawRequested` events immediately while the window is being resized.
