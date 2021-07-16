@@ -779,6 +779,30 @@ impl UnownedWindow {
             .expect("Failed to change window minimization");
     }
 
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
+        let state = self
+            .xconn
+            .get_property(self.xwindow, state_atom, ffi::XA_ATOM);
+        let horz_atom = unsafe {
+            self.xconn
+                .get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0")
+        };
+        let vert_atom = unsafe {
+            self.xconn
+                .get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0")
+        };
+        match state {
+            Ok(atoms) => {
+                let horz_maximized = atoms.iter().any(|atom: &ffi::Atom| *atom == horz_atom);
+                let vert_maximized = atoms.iter().any(|atom: &ffi::Atom| *atom == vert_atom);
+                horz_maximized && vert_maximized
+            }
+            _ => false,
+        }
+    }
+
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn
@@ -1338,6 +1362,41 @@ impl UnownedWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
         self.set_ime_position_physical(x, y);
+    }
+
+    #[inline]
+    pub fn focus_window(&self) {
+        let state_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_STATE\0") };
+        let state_type_atom = unsafe { self.xconn.get_atom_unchecked(b"CARD32\0") };
+        let is_minimized = if let Ok(state) =
+            self.xconn
+                .get_property(self.xwindow, state_atom, state_type_atom)
+        {
+            state.contains(&(ffi::IconicState as c_ulong))
+        } else {
+            false
+        };
+        let is_visible = match self.shared_state.lock().visibility {
+            Visibility::Yes => true,
+            Visibility::YesWait | Visibility::No => false,
+        };
+
+        if is_visible && !is_minimized {
+            let atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_ACTIVE_WINDOW\0") };
+            let flusher = self.xconn.send_client_msg(
+                self.xwindow,
+                self.root,
+                atom,
+                Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
+                [1, ffi::CurrentTime as c_long, 0, 0, 0],
+            );
+            if let Err(e) = flusher.flush() {
+                log::error!(
+                    "`flush` returned an error when focusing the window. Error was: {}",
+                    e
+                );
+            }
+        }
     }
 
     #[inline]

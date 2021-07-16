@@ -282,6 +282,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn focus_window(&self) {
+        // Currently a no-op as it does not seem there is good support for this on web
+    }
+
+    #[inline]
     pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         // Currently an intentional no-op
     }

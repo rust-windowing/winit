@@ -1,6 +1,5 @@
 #![cfg(target_os = "macos")]
 
-mod activation_hack;
 mod app;
 mod app_delegate;
 mod app_state;
@@ -18,6 +17,7 @@ mod window_delegate;
 use std::{fmt, ops::Deref, sync::Arc};
 
 pub use self::{
+    app_delegate::{get_aux_state_mut, AuxDelegateState},
     event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
     monitor::{MonitorHandle, VideoMode},
     window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
@@ -25,6 +25,7 @@ pub use self::{
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
 };
+use objc::rc::autoreleasepool;
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
@@ -69,7 +70,7 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = UnownedWindow::new(attributes, pl_attribs)?;
+        let (window, _delegate) = autoreleasepool(|| UnownedWindow::new(attributes, pl_attribs))?;
         Ok(Window { window, _delegate })
     }
 }

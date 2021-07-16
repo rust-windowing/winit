@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-winit = "0.24.0"
+winit = "0.25.0"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -66,15 +66,13 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 * `x11` (enabled by default): On Unix platform, compiles with the X11 backend
 * `wayland` (enabled by default): On Unix platform, compiles with the Wayland backend
+* `mint`: Enables mint (math interoperability standard types) conversions.
 
 ### Platform-specific usage
 
 #### WebAssembly
 
-Winit supports compiling to the `wasm32-unknown-unknown` target with either a
-`stdweb` or a `web-sys` backend for use on web browsers. However, please note
-that **the `stdweb` backend is being deprecated and may be removed in a future
-release of Winit**. The `web-sys` backend is also more feature complete.
+Winit supports compiling to the `wasm32-unknown-unknown` target with `web-sys`.
 
 On the web platform, a Winit window is backed by a `<canvas>` element. You can
 either [provide Winit with a `<canvas>` element][web with_canvas], or [let Winit

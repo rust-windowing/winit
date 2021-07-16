@@ -14,10 +14,9 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSEventType::NSApplicationDefined},
     base::{id, nil, YES},
-    foundation::{NSAutoreleasePool, NSPoint},
+    foundation::NSPoint,
 };
-
-use scopeguard::defer;
+use objc::rc::autoreleasepool;
 
 use crate::{
     event::Event,
@@ -87,6 +86,8 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
+    pub(crate) delegate: IdRef,
+
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
 
@@ -97,7 +98,6 @@ pub struct EventLoop<T: 'static> {
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
     _callback: Option<Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
-    _delegate: IdRef,
 }
 
 impl<T> EventLoop<T> {
@@ -114,21 +114,21 @@ impl<T> EventLoop<T> {
             let app: id = msg_send![APP_CLASS.0, sharedApplication];
 
             let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
-            let pool = NSAutoreleasePool::new(nil);
-            let _: () = msg_send![app, setDelegate:*delegate];
-            let _: () = msg_send![pool, drain];
+            autoreleasepool(|| {
+                let _: () = msg_send![app, setDelegate:*delegate];
+            });
             delegate
         };
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
         EventLoop {
+            delegate,
             window_target: Rc::new(RootWindowTarget {
                 p: Default::default(),
                 _marker: PhantomData,
             }),
             panic_info,
             _callback: None,
-            _delegate: delegate,
         }
     }
 
@@ -161,9 +161,7 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        unsafe {
-            let pool = NSAutoreleasePool::new(nil);
-            defer!(pool.drain());
+        autoreleasepool(|| unsafe {
             let app = NSApp();
             assert_ne!(app, nil);
 
@@ -176,10 +174,12 @@ impl<T> EventLoop<T> {
             let () = msg_send![app, run];
 
             if let Some(panic) = self.panic_info.take() {
+                drop(self._callback.take());
                 resume_unwind(panic);
             }
             AppState::exit();
-        }
+        });
+        drop(self._callback.take());
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {

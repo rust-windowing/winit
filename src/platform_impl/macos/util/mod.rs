@@ -8,7 +8,7 @@ use std::ops::{BitAnd, Deref};
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSPoint, NSRect, NSString, NSUInteger},
+    foundation::{NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
@@ -61,9 +61,7 @@ impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
             unsafe {
-                let pool = NSAutoreleasePool::new(nil);
                 let () = msg_send![self.0, release];
-                pool.drain();
             };
         }
     }
@@ -106,6 +104,7 @@ pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
     IdRef::new(NSString::alloc(nil).init_str(s))
 }
 
+#[allow(dead_code)] // In case we want to use this function in the future
 pub unsafe fn app_name() -> Option<id> {
     let bundle: id = msg_send![class!(NSBundle), mainBundle];
     let dict: id = msg_send![bundle, infoDictionary];

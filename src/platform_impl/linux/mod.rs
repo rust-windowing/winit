@@ -380,8 +380,7 @@ impl Window {
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        // TODO: Not implemented
-        false
+        x11_or_wayland!(match self; Window(w) => w.is_maximized())
     }
 
     #[inline]
@@ -430,6 +429,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn focus_window(&self) {
+        match self {
+            #[cfg(feature = "x11")]
+            &Window::X(ref w) => w.focus_window(),
+            #[cfg(feature = "wayland")]
+            _ => (),
+        }
+    }
     pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         match self {
             #[cfg(feature = "x11")]

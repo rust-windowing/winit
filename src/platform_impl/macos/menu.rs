@@ -1,9 +1,7 @@
-use cocoa::appkit::{
-    NSApp, NSApplication, NSApplicationActivationPolicyRegular, NSEventModifierFlags, NSMenu,
-    NSMenuItem,
-};
+use super::util::IdRef;
+use cocoa::appkit::{NSApp, NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
 use cocoa::base::{nil, selector};
-use cocoa::foundation::{NSAutoreleasePool, NSProcessInfo, NSString};
+use cocoa::foundation::{NSProcessInfo, NSString};
 use objc::{
     rc::autoreleasepool,
     runtime::{Object, Sel},
@@ -16,11 +14,11 @@ struct KeyEquivalent<'a> {
 
 pub fn initialize() {
     autoreleasepool(|| unsafe {
-        let menubar = NSMenu::new(nil).autorelease();
-        let app_menu_item = NSMenuItem::new(nil).autorelease();
-        menubar.addItem_(app_menu_item);
+        let menubar = IdRef::new(NSMenu::new(nil));
+        let app_menu_item = IdRef::new(NSMenuItem::new(nil));
+        menubar.addItem_(*app_menu_item);
         let app = NSApp();
-        app.setMainMenu_(menubar);
+        app.setMainMenu_(*menubar);
 
         let app_menu = NSMenu::new(nil);
         let process_name = NSProcessInfo::processInfo(nil).processName();

@@ -55,7 +55,6 @@ pub(super) struct ViewState {
     pub cursor_state: Arc<Mutex<CursorState>>,
     ime_spot: Option<(f64, f64)>,
     raw_characters: Option<String>,
-    is_key_down: bool,
     pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
 }
@@ -74,7 +73,6 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         cursor_state,
         ime_spot: None,
         raw_characters: None,
-        is_key_down: false,
         modifiers: Default::default(),
         tracking_rect: None,
     };
@@ -255,6 +253,10 @@ lazy_static! {
             sel!(frameDidChange:),
             frame_did_change as extern "C" fn(&Object, Sel, id),
         );
+        decl.add_method(
+            sel!(acceptsFirstMouse:),
+            accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL,
+        );
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -285,7 +287,7 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
             let notification_center: &Object =
                 msg_send![class!(NSNotificationCenter), defaultCenter];
             let notification_name =
-                NSString::alloc(nil).init_str("NSViewFrameDidChangeNotification");
+                IdRef::new(NSString::alloc(nil).init_str("NSViewFrameDidChangeNotification"));
             let _: () = msg_send![
                 notification_center,
                 addObserver: this
@@ -512,7 +514,6 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
         let slice =
             slice::from_raw_parts(characters.UTF8String() as *const c_uchar, characters.len());
         let string = str::from_utf8_unchecked(slice);
-        state.is_key_down = true;
 
         // We don't need this now, but it's here if that changes.
         //let event: id = msg_send![NSApp(), currentEvent];
@@ -671,7 +672,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         let pass_along = {
             AppState::queue_event(EventWrapper::StaticEvent(window_event));
             // Emit `ReceivedCharacter` for key repeats
-            if is_repeat && state.is_key_down {
+            if is_repeat {
                 for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
                     AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id,
@@ -700,8 +701,6 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
-
-        state.is_key_down = false;
 
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
@@ -1076,5 +1075,9 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
 // Note that this *doesn't* help with any missing Cmd inputs.
 // https://github.com/chromium/chromium/blob/a86a8a6bcfa438fa3ac2eba6f02b3ad1f8e0756f/ui/views/cocoa/bridged_content_view.mm#L816
 extern "C" fn wants_key_down_for_event(_this: &Object, _sel: Sel, _event: id) -> BOOL {
+    YES
+}
+
+extern "C" fn accepts_first_mouse(_this: &Object, _sel: Sel, _event: id) -> BOOL {
     YES
 }

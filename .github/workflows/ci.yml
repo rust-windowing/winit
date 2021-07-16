@@ -45,8 +45,7 @@ jobs:
           - { target: aarch64-apple-ios,        os: macos-latest,    }
           # We're using Windows rather than Ubuntu to run the wasm tests because caching cargo-web
           # doesn't currently work on Linux.
-          - { target: wasm32-unknown-unknown,   os: windows-latest, features: stdweb,  cmd: web }
-          - { target: wasm32-unknown-unknown,   os: windows-latest, features: web-sys, cmd: web }
+          - { target: wasm32-unknown-unknown,   os: windows-latest, cmd: web }
 
     env:
       RUST_BACKTRACE: 1
