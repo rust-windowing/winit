@@ -87,7 +87,6 @@ bitflags! {
         const MINIMIZED = 1 << 12;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
-        const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
 }
@@ -199,7 +198,6 @@ impl WindowFlags {
             style |= WS_BORDER;
             style_ex |= WS_EX_WINDOWEDGE;
         }
-
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
         }
