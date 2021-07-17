@@ -47,6 +47,7 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
     fn new_any_thread() -> Self {
         EventLoop {
             event_loop: WindowsEventLoop::new_any_thread(),
+            hook: (),
             _marker: ::std::marker::PhantomData,
         }
     }
@@ -55,6 +56,7 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
     fn new_dpi_unaware() -> Self {
         EventLoop {
             event_loop: WindowsEventLoop::new_dpi_unaware(),
+            hook: (),
             _marker: ::std::marker::PhantomData,
         }
     }
@@ -63,6 +65,7 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
     fn new_dpi_unaware_any_thread() -> Self {
         EventLoop {
             event_loop: WindowsEventLoop::new_dpi_unaware_any_thread(),
+            hook: (),
             _marker: ::std::marker::PhantomData,
         }
     }
