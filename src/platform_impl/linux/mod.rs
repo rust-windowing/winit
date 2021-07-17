@@ -364,6 +364,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ignore_mouse_events(&self, _ignore: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         x11_or_wayland!(match self; Window(w) => w.scale_factor() as f64)
     }
