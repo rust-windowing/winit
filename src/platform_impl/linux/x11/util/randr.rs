@@ -18,8 +18,8 @@ pub fn calc_dpi_factor(
     (width_mm, height_mm): (u64, u64),
 ) -> f64 {
     // See http://xpra.org/trac/ticket/728 for more information.
-    if width_mm == 0 || height_mm == 0 {
-        warn!("XRandR reported that the display's 0mm in size, which is certifiably insane");
+    if (0..=1).contains(&width_mm) || (0..=1).contains(&height_mm) {
+        warn!("XRandR reported that the display's 0 or 1mm in size, which is certifiably insane");
         return 1.0;
     }
 
