@@ -282,6 +282,15 @@ pub enum WindowEvent<'a> {
         modifiers: ModifiersState,
     },
 
+    /// The stylus position, pressure, or tilt changed
+    StylusMoved {
+        device_id: DeviceId,
+        position: PhysicalPosition<f64>,
+        pressure: f64,
+        tilt_x: f64,
+        tilt_y: f64
+    },
+
     /// The cursor has entered the window.
     CursorEntered { device_id: DeviceId },
 
@@ -388,6 +397,19 @@ impl Clone for WindowEvent<'static> {
                 position: *position,
                 modifiers: *modifiers,
             },
+            StylusMoved {
+                device_id,
+                position,
+                pressure,
+                tilt_x,
+                tilt_y
+            } => StylusMoved {
+                device_id: *device_id,
+                position: *position,
+                pressure: *pressure,
+                tilt_x: *tilt_x,
+                tilt_y: *tilt_y
+            },
             CursorEntered { device_id } => CursorEntered {
                 device_id: *device_id,
             },
@@ -477,6 +499,19 @@ impl<'a> WindowEvent<'a> {
                 device_id,
                 position,
                 modifiers,
+            }),
+            StylusMoved {
+                device_id,
+                position,
+                pressure,
+                tilt_x,
+                tilt_y
+            } => Some(StylusMoved {
+                device_id,
+                position,
+                pressure,
+                tilt_x,
+                tilt_y
             }),
             CursorEntered { device_id } => Some(CursorEntered { device_id }),
             CursorLeft { device_id } => Some(CursorLeft { device_id }),
