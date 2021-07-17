@@ -2,6 +2,7 @@
 
 - On macOS, drop the event callback before exiting.
 - On Android, implement `Window::request_redraw`
+- On X11, prevent a panic on interrupted system calls.
 - **Breaking:** On Web, remove the `stdweb` backend.
 - Added `Window::focus_window`to bring the window to the front and set input focus.
 - On Wayland and X11, implement `is_maximized` method on `Window`.
