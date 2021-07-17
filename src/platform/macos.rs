@@ -6,7 +6,7 @@ use crate::{
     dpi::LogicalSize,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::get_aux_state_mut,
+    platform_impl::{get_aux_state_mut, util},
     window::{Window, WindowBuilder},
 };
 
@@ -39,6 +39,12 @@ pub trait WindowExtMacOS {
 
     /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
+
+    /// Get window z-level
+    fn get_level(&self) -> isize;
+
+    /// Set window z-level
+    fn set_level(&self, level: isize);
 }
 
 impl WindowExtMacOS for Window {
@@ -70,6 +76,16 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window.set_has_shadow(has_shadow)
+    }
+
+    #[inline]
+    fn get_level(&self) -> isize {
+        unsafe { util::get_level_async(*self.ns_window()) }
+    }
+
+    #[inline]
+    fn set_level(&self, level: isize) {
+        unsafe { util::set_level_async(*self.ns_window(), level) };
     }
 }
 
