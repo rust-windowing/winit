@@ -10,11 +10,13 @@ use ndk::{
     configuration::Configuration,
     event::{InputEvent, KeyAction, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
+    native_window::NativeWindow,
 };
 use ndk_glue::{Event, Rect};
+use raw_window_handle::RawWindowHandle;
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard},
     time::{Duration, Instant},
 };
 
@@ -61,6 +63,12 @@ fn poll(poll: Poll) -> Option<EventSource> {
 
 pub struct EventLoop<T: 'static> {
     window_target: event_loop::EventLoopWindowTarget<T>,
+    /// This read guard will be held between each pair of
+    /// [`event::Event::Resumed`] and [`event::Event::Suspended`] events to
+    /// ensure that [`ndk_glue`] does not release the [`NativeWindow`]
+    /// prematurely, invalidating raw handles obtained by the user through
+    /// [`Window::raw_window_handle()`].
+    native_window_lock: Option<RwLockReadGuard<'static, Option<NativeWindow>>>,
     user_queue: Arc<Mutex<VecDeque<T>>>,
     first_event: Option<EventSource>,
     start_cause: event::StartCause,
@@ -83,10 +91,12 @@ impl<T: 'static> EventLoop<T> {
         Self {
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
+                    raw_window_handle: Default::default(),
                     _marker: std::marker::PhantomData,
                 },
                 _marker: std::marker::PhantomData,
             },
+            native_window_lock: None,
             user_queue: Default::default(),
             first_event: None,
             start_cause: event::StartCause::Init,
@@ -124,22 +134,36 @@ impl<T: 'static> EventLoop<T> {
             match self.first_event.take() {
                 Some(EventSource::Callback) => match ndk_glue::poll_events().unwrap() {
                     Event::WindowCreated => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Resumed
-                        );
+                        let native_window_lock = ndk_glue::native_window();
+                        // The window could have gone away before we got the message
+                        if native_window_lock.is_some() {
+                            self.window_target
+                                .p
+                                .update_native_window(native_window_lock.as_ref());
+                            self.native_window_lock = Some(native_window_lock);
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Resumed
+                            );
+                        }
                     }
                     Event::WindowResized => resized = true,
                     Event::WindowRedrawNeeded => redraw = true,
                     Event::WindowDestroyed => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Suspended
-                        );
+                        let native_window_lock = self.native_window_lock.take();
+                        // This event is ignored if no window was actually grabbed onto
+                        // in `WindowCreated` above
+                        if native_window_lock.is_some() {
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Suspended
+                            );
+                        }
+                        self.window_target.p.update_native_window(None);
                     }
                     Event::Pause => self.running = false,
                     Event::Resume => self.running = true,
@@ -422,10 +446,19 @@ impl<T> Clone for EventLoopProxy<T> {
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
+    raw_window_handle: Arc<Mutex<Option<RawWindowHandle>>>,
     _marker: std::marker::PhantomData<T>,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
+    fn update_native_window(&self, native_window: Option<&NativeWindow>) {
+        *self.raw_window_handle.lock().unwrap() = native_window.map(|native_window| {
+            let mut handle = raw_window_handle::android::AndroidHandle::empty();
+            handle.a_native_window = unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ };
+            RawWindowHandle::Android(handle)
+        });
+    }
+
     pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
         Some(monitor::MonitorHandle {
             inner: MonitorHandle,
@@ -460,16 +493,20 @@ impl DeviceId {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
-pub struct Window;
+pub struct Window {
+    raw_window_handle: Arc<Mutex<Option<RawWindowHandle>>>,
+}
 
 impl Window {
     pub fn new<T: 'static>(
-        _el: &EventLoopWindowTarget<T>,
+        el: &EventLoopWindowTarget<T>,
         _window_attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, error::OsError> {
         // FIXME this ignores requested window attributes
-        Ok(Self)
+        Ok(Self {
+            raw_window_handle: Arc::clone(&el.raw_window_handle),
+        })
     }
 
     pub fn id(&self) -> WindowId {
@@ -588,14 +625,14 @@ impl Window {
     }
 
     pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
-        let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
-            unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
-        } else {
-            panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
-        };
-        let mut handle = raw_window_handle::android::AndroidHandle::empty();
-        handle.a_native_window = a_native_window;
-        raw_window_handle::RawWindowHandle::Android(handle)
+        self.raw_window_handle
+            .lock()
+            .unwrap()
+            .as_ref()
+            .expect(
+                "The window can be obtained only between `Event::Resumed` and `Event::Suspended`!",
+            )
+            .clone()
     }
 
     pub fn config(&self) -> Configuration {
