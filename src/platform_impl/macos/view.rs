@@ -159,7 +159,7 @@ lazy_static! {
         );
         decl.add_method(
             sel!(insertText:replacementRange:),
-            insert_text as extern "C" fn(&Object, Sel, id, NSRange),
+            insert_text as extern "C" fn(&mut Object, Sel, id, NSRange),
         );
         decl.add_method(
             sel!(characterIndexForPoint:),
@@ -174,7 +174,7 @@ lazy_static! {
             sel!(doCommandBySelector:),
             do_command_by_selector as extern "C" fn(&Object, Sel, Sel),
         );
-        decl.add_method(sel!(keyDown:), key_down as extern "C" fn(&Object, Sel, id));
+        decl.add_method(sel!(keyDown:), key_down as extern "C" fn(&mut Object, Sel, id));
         decl.add_method(sel!(keyUp:), key_up as extern "C" fn(&Object, Sel, id));
         decl.add_method(
             sel!(flagsChanged:),
@@ -257,8 +257,16 @@ lazy_static! {
             sel!(acceptsFirstMouse:),
             accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL,
         );
+        decl.add_method(
+            sel!(clearMarkedText),
+            clear_marked_text as extern "C" fn(&mut Object, Sel),
+        );
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
+        decl.add_ivar::<id>("previousMarkedText");
+        decl.add_ivar::<bool>("isIMEActivated");
+        decl.add_ivar::<i32>("currentCursorPosition");
+        decl.add_ivar::<i32>("previousCursorPosition");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
         decl.add_protocol(&protocol);
         ViewClass(decl.register())
@@ -269,7 +277,9 @@ extern "C" fn dealloc(this: &Object, _sel: Sel) {
     unsafe {
         let state: *mut c_void = *this.get_ivar("winitState");
         let marked_text: id = *this.get_ivar("markedText");
+        let previous_marked_text: id = *this.get_ivar("previousMarkedText");
         let _: () = msg_send![marked_text, release];
+        let _: () = msg_send![previous_marked_text, release];
         Box::from_raw(state as *mut ViewState);
     }
 }
@@ -282,6 +292,10 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
             let marked_text =
                 <id as NSMutableAttributedString>::init(NSMutableAttributedString::alloc(nil));
             (*this).set_ivar("markedText", marked_text);
+            (*this).set_ivar("previousMarkedText", marked_text);
+            (*this).set_ivar("isIMEActivated", false);
+            (*this).set_ivar("currentCursorPosition", 0);
+            (*this).set_ivar("previousCursorPosition", 0);
             let _: () = msg_send![this, setPostsFrameChangedNotifications: YES];
 
             let notification_center: &Object =
@@ -418,12 +432,14 @@ extern "C" fn set_marked_text(
     this: &mut Object,
     _sel: Sel,
     string: id,
-    _selected_range: NSRange,
+    selected_range: NSRange,
     _replacement_range: NSRange,
 ) {
     trace!("Triggered `setMarkedText`");
     unsafe {
+        this.set_ivar("isIMEActivated", true);
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
+
         let _: () = msg_send![(*marked_text_ref), release];
         let marked_text = NSMutableAttributedString::alloc(nil);
         let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
@@ -433,6 +449,35 @@ extern "C" fn set_marked_text(
             marked_text.initWithString(string);
         };
         *marked_text_ref = marked_text;
+
+        let composed_string = marked_text_ref.clone().string();
+        let slice = slice::from_raw_parts(
+            composed_string.UTF8String() as *const c_uchar,
+            composed_string.len(),
+        );
+        let composed_string = str::from_utf8_unchecked(slice);
+
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        let cursor_position = selected_range.location as i32;
+        (*this).set_ivar("currentCursorPosition", cursor_position);
+
+        // Delete previous marked text, so that we don't see duplicated texts.
+        let previous_cursor_position = *this.get_ivar::<i32>("previousCursorPosition");
+        delete_marked_text(state, previous_cursor_position);
+
+        println!("Current: {:?}  {:?}", composed_string, cursor_position);
+        println!("Previous: {:?}", previous_cursor_position);
+
+        for character in composed_string.chars() {
+            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: WindowId(get_window_id(state.ns_window)),
+                event: WindowEvent::ReceivedCharacter(character),
+            }));
+        }
+
+        (*this).set_ivar("previousCursorPosition", cursor_position);
     }
     trace!("Completed `setMarkedText`");
 }
@@ -440,13 +485,19 @@ extern "C" fn set_marked_text(
 extern "C" fn unmark_text(this: &Object, _sel: Sel) {
     trace!("Triggered `unmarkText`");
     unsafe {
-        let marked_text: id = *this.get_ivar("markedText");
-        let mutable_string = marked_text.mutableString();
-        let _: () = msg_send![mutable_string, setString:""];
+        let _: () = msg_send![this, clearMarkedText];
         let input_context: id = msg_send![this, inputContext];
         let _: () = msg_send![input_context, discardMarkedText];
     }
     trace!("Completed `unmarkText`");
+}
+
+extern "C" fn clear_marked_text(this: &mut Object, _sel: Sel) {
+    unsafe {
+        let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
+        let _: () = msg_send![(*marked_text_ref), release];
+        *marked_text_ref = NSMutableAttributedString::alloc(nil);
+    }
 }
 
 extern "C" fn valid_attributes_for_marked_text(_this: &Object, _sel: Sel) -> id {
@@ -496,9 +547,18 @@ extern "C" fn first_rect_for_character_range(
     }
 }
 
-extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: NSRange) {
+extern "C" fn insert_text(this: &mut Object, sel: Sel, string: id, _replacement_range: NSRange) {
     trace!("Triggered `insertText`");
     unsafe {
+        let is_ime_activated: bool = *this.get_ivar("isIMEActivated");
+        if is_ime_activated {
+            clear_marked_text(this, sel);
+            unmark_text(this, sel);
+            this.set_ivar("isIMEActivated", false);
+            this.set_ivar("currentCursorPosition", 0);
+            this.set_ivar("previousCursorPosition", 0);
+            return;
+        }
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
@@ -566,6 +626,15 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
         AppState::queue_events(events);
     }
     trace!("Completed `doCommandBySelector`");
+}
+
+fn delete_marked_text(state: &mut ViewState, count: i32) {
+    for _ in 0..count {
+        AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::ReceivedCharacter('\u{7f}')  // fire DELETE
+        }));
+    }
 }
 
 fn get_characters(event: id, ignore_modifiers: bool) -> String {
@@ -637,7 +706,7 @@ fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
     }
 }
 
-extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
+extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
     trace!("Triggered `keyDown`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
@@ -686,6 +755,9 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         };
 
         if pass_along {
+            // Clear them here so that we can know whether they have changed afterwards.
+            let _: () = msg_send![this, clearMarkedText];
+
             // Some keys (and only *some*, with no known reason) don't trigger `insertText`, while others do...
             // So, we don't give repeats the opportunity to trigger that, since otherwise our hack will cause some
             // keys to generate twice as many characters.
