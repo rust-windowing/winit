@@ -263,7 +263,6 @@ lazy_static! {
         );
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
-        decl.add_ivar::<id>("previousMarkedText");
         decl.add_ivar::<bool>("isIMEActivated");
         decl.add_ivar::<i32>("currentCursorPosition");
         decl.add_ivar::<i32>("previousCursorPosition");
@@ -277,9 +276,7 @@ extern "C" fn dealloc(this: &Object, _sel: Sel) {
     unsafe {
         let state: *mut c_void = *this.get_ivar("winitState");
         let marked_text: id = *this.get_ivar("markedText");
-        let previous_marked_text: id = *this.get_ivar("previousMarkedText");
         let _: () = msg_send![marked_text, release];
-        let _: () = msg_send![previous_marked_text, release];
         Box::from_raw(state as *mut ViewState);
     }
 }
@@ -292,7 +289,6 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
             let marked_text =
                 <id as NSMutableAttributedString>::init(NSMutableAttributedString::alloc(nil));
             (*this).set_ivar("markedText", marked_text);
-            (*this).set_ivar("previousMarkedText", marked_text);
             (*this).set_ivar("isIMEActivated", false);
             (*this).set_ivar("currentCursorPosition", 0);
             (*this).set_ivar("previousCursorPosition", 0);
