@@ -173,9 +173,12 @@ pub fn create_key_event(
         key_without_modifiers = get_modifierless_char(scancode);
 
         let modifiers = unsafe { NSEvent::modifierFlags(ns_event) };
-        let has_alt = modifiers.contains(NSEventModifierFlags::NSAlternateKeyMask);
         let has_ctrl = modifiers.contains(NSEventModifierFlags::NSControlKeyMask);
-        if has_alt || has_ctrl || text_with_all_modifiers.is_none() || !is_press {
+
+        // Not checking for alt here because we DO want to include its effect in the key.
+        // For example if -on the Germay layout- one presses alt+8, the logical key should be "{"
+        // Also not checking if this is a release event because then this issue would still affect the key release.
+        if has_ctrl || text_with_all_modifiers.is_none() {
             let modifierless_chars = match key_without_modifiers {
                 Key::Character(ch) => ch,
                 _ => "",
