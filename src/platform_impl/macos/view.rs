@@ -174,7 +174,10 @@ lazy_static! {
             sel!(doCommandBySelector:),
             do_command_by_selector as extern "C" fn(&Object, Sel, Sel),
         );
-        decl.add_method(sel!(keyDown:), key_down as extern "C" fn(&mut Object, Sel, id));
+        decl.add_method(
+            sel!(keyDown:),
+            key_down as extern "C" fn(&mut Object, Sel, id),
+        );
         decl.add_method(sel!(keyUp:), key_up as extern "C" fn(&Object, Sel, id));
         decl.add_method(
             sel!(flagsChanged:),
@@ -629,7 +632,7 @@ fn delete_marked_text(state: &mut ViewState, count: i32) {
     for _ in 0..count {
         AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
-            event: WindowEvent::ReceivedCharacter('\u{7f}')  // fire DELETE
+            event: WindowEvent::ReceivedCharacter('\u{7f}'), // fire DELETE
         }));
     }
 }
