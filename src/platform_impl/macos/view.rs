@@ -433,6 +433,7 @@ extern "C" fn set_marked_text(
 ) {
     trace!("Triggered `setMarkedText`");
     unsafe {
+        println!("marked_range : {:?}", marked_range(this, _sel).length);
         this.set_ivar("isIMEActivated", true);
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
 
@@ -665,6 +666,17 @@ fn is_corporate_character(c: char) -> bool {
     }
 }
 
+fn is_arrow_or_space_key(virtual_keycode: VirtualKeyCode) -> bool {
+    match virtual_keycode {
+        VirtualKeyCode::Up
+        | VirtualKeyCode::Right
+        | VirtualKeyCode::Down
+        | VirtualKeyCode::Left
+        | VirtualKeyCode::Space => true,
+        _ => false,
+    }
+}
+
 // Retrieves a layout-independent keycode given an event.
 fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
     #[inline]
@@ -751,6 +763,19 @@ extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
         };
 
         if pass_along {
+            // Use IME
+            let is_ime_activated: bool = *this.get_ivar("isIMEActivated");
+            if is_ime_activated && is_arrow_or_space_key(virtual_keycode.unwrap()) {
+                let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
+                let composed_string = marked_text_ref.clone().string();
+                let slice = slice::from_raw_parts(
+                    composed_string.UTF8String() as *const c_uchar,
+                    composed_string.len(),
+                );
+                let composed_string = str::from_utf8_unchecked(slice);
+                delete_marked_text(state, composed_string.len() as i32);
+            }
+
             // Clear them here so that we can know whether they have changed afterwards.
             let _: () = msg_send![this, clearMarkedText];
 
