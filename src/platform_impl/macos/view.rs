@@ -436,7 +436,6 @@ extern "C" fn set_marked_text(
 ) {
     trace!("Triggered `setMarkedText`");
     unsafe {
-        println!("marked_range : {:?}", marked_range(this, _sel).length);
         this.set_ivar("isIMEActivated", true);
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
 
@@ -466,9 +465,6 @@ extern "C" fn set_marked_text(
         // Delete previous marked text, so that we don't see duplicated texts.
         let previous_cursor_position = *this.get_ivar::<i32>("previousCursorPosition");
         delete_marked_text(state, previous_cursor_position);
-
-        println!("Current: {:?}  {:?}", composed_string, cursor_position);
-        println!("Previous: {:?}", previous_cursor_position);
 
         for character in composed_string.chars() {
             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
