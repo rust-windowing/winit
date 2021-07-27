@@ -267,6 +267,7 @@ lazy_static! {
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         decl.add_ivar::<bool>("isIMEActivated");
+        decl.add_ivar::<bool>("isPreediting");
         decl.add_ivar::<i32>("currentCursorPosition");
         decl.add_ivar::<i32>("previousCursorPosition");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
@@ -293,6 +294,7 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
                 <id as NSMutableAttributedString>::init(NSMutableAttributedString::alloc(nil));
             (*this).set_ivar("markedText", marked_text);
             (*this).set_ivar("isIMEActivated", false);
+            (*this).set_ivar("isPreediting", false);
             (*this).set_ivar("currentCursorPosition", 0);
             (*this).set_ivar("previousCursorPosition", 0);
             let _: () = msg_send![this, setPostsFrameChangedNotifications: YES];
@@ -463,8 +465,11 @@ extern "C" fn set_marked_text(
         (*this).set_ivar("currentCursorPosition", cursor_position);
 
         // Delete previous marked text, so that we don't see duplicated texts.
-        let previous_cursor_position = *this.get_ivar::<i32>("previousCursorPosition");
-        delete_marked_text(state, previous_cursor_position);
+        let is_preediting: bool = *this.get_ivar("isPreediting");
+        if !is_preediting {
+            let previous_cursor_position = *this.get_ivar::<i32>("previousCursorPosition");
+            delete_marked_text(state, previous_cursor_position);
+        }
 
         for character in composed_string.chars() {
             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -551,6 +556,7 @@ extern "C" fn insert_text(this: &mut Object, sel: Sel, string: id, _replacement_
             clear_marked_text(this, sel);
             unmark_text(this, sel);
             this.set_ivar("isIMEActivated", false);
+            this.set_ivar("isPreediting", false);
             this.set_ivar("currentCursorPosition", 0);
             this.set_ivar("previousCursorPosition", 0);
             return;
@@ -765,6 +771,7 @@ extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
             // Use IME
             let is_ime_activated: bool = *this.get_ivar("isIMEActivated");
             if is_ime_activated && is_arrow_or_space_key(virtual_keycode.unwrap()) {
+                (*this).set_ivar("isPreediting", true);
                 let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
                 let composed_string = marked_text_ref.clone().string();
                 let slice = slice::from_raw_parts(
@@ -772,7 +779,7 @@ extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
                     composed_string.len(),
                 );
                 let composed_string = str::from_utf8_unchecked(slice);
-                delete_marked_text(state, composed_string.len() as i32);
+                delete_marked_text(state, composed_string.chars().count() as i32);
             }
 
             // Clear them here so that we can know whether they have changed afterwards.
