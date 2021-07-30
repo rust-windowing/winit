@@ -70,7 +70,7 @@ impl WinitPointer {
             CursorIcon::Copy => &["copy"],
             CursorIcon::Crosshair => &["crosshair"],
             CursorIcon::Default => &["left_ptr"],
-            CursorIcon::Hand => &["hand"],
+            CursorIcon::Hand => &["hand2", "hand1"],
             CursorIcon::Help => &["question_arrow"],
             CursorIcon::Move => &["move"],
             CursorIcon::Grab => &["openhand", "grab"],
