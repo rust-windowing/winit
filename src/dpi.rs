@@ -58,7 +58,7 @@
 //! DPI settings. This gives you a chance to rescale your application's UI elements and adjust how
 //! the platform changes the window's size to reflect the new scale factor. If a window hasn't
 //! received a [`ScaleFactorChanged`](crate::event::WindowEvent::ScaleFactorChanged) event,
-//! then its scale factor is `1.0`.
+//! then its scale factor can be found by calling [window.scale_factor()].
 //!
 //! ## How is the scale factor calculated?
 //!
@@ -95,6 +95,7 @@
 //!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
+//! [window.scale_factor()]: crate::window::Window::scale_factor
 //! [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
 //! [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
 //! [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/

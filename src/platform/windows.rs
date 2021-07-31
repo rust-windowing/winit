@@ -3,7 +3,6 @@
 use std::os::raw::c_void;
 use std::path::Path;
 
-use libc;
 use winapi::shared::minwindef::WORD;
 use winapi::shared::windef::{HMENU, HWND};
 
@@ -72,11 +71,11 @@ impl<T> EventLoopExtWindows for EventLoop<T> {
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExtWindows {
     /// Returns the HINSTANCE of the window
-    fn hinstance(&self) -> *mut libc::c_void;
+    fn hinstance(&self) -> *mut c_void;
     /// Returns the native handle that is used by this window.
     ///
     /// The pointer will become invalid when the native window was destroyed.
-    fn hwnd(&self) -> *mut libc::c_void;
+    fn hwnd(&self) -> *mut c_void;
 
     /// Enables or disables mouse and keyboard input to the specified window.
     ///
@@ -102,12 +101,12 @@ pub trait WindowExtWindows {
 
 impl WindowExtWindows for Window {
     #[inline]
-    fn hinstance(&self) -> *mut libc::c_void {
+    fn hinstance(&self) -> *mut c_void {
         self.window.hinstance() as *mut _
     }
 
     #[inline]
-    fn hwnd(&self) -> *mut libc::c_void {
+    fn hwnd(&self) -> *mut c_void {
         self.window.hwnd() as *mut _
     }
 

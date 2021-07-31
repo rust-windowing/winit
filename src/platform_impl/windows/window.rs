@@ -7,7 +7,7 @@ use std::{
     ffi::OsStr,
     io, mem,
     os::windows::ffi::OsStrExt,
-    ptr,
+    panic, ptr,
     sync::{mpsc::channel, Arc},
 };
 
@@ -40,7 +40,7 @@ use crate::{
         dark_mode::try_theme,
         dpi::{dpi_to_scale_factor, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
+        event_loop::{self, EventLoopWindowTarget, WindowData, DESTROY_MSG_ID},
         icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
@@ -73,7 +73,7 @@ impl Window {
         // done. you owe me -- ossi
         unsafe {
             let drag_and_drop = pl_attr.drag_and_drop;
-            init(w_attr, pl_attr, event_loop).map(|win| {
+            init(w_attr, pl_attr, event_loop, |win| {
                 let file_drop_handler = if drag_and_drop {
                     use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
 
@@ -111,16 +111,15 @@ impl Window {
                     None
                 };
 
-                let subclass_input = event_loop::SubclassInput {
+                event_loop.runner_shared.register_window(win.window.0);
+
+                event_loop::WindowData {
                     window_state: win.window_state.clone(),
                     event_loop_runner: event_loop.runner_shared.clone(),
                     file_drop_handler,
-                    subclass_removed: Cell::new(false),
+                    userdata_removed: Cell::new(false),
                     recurse_depth: Cell::new(0),
-                };
-
-                event_loop::subclass_window(win.window.0, subclass_input);
-                win
+                }
             })
         }
     }
@@ -724,18 +723,31 @@ pub struct WindowWrapper(HWND);
 unsafe impl Sync for WindowWrapper {}
 unsafe impl Send for WindowWrapper {}
 
-unsafe fn init<T: 'static>(
+pub(super) struct InitData<'a, T: 'static> {
+    // inputs
+    pub event_loop: &'a EventLoopWindowTarget<T>,
+    pub post_init: &'a dyn Fn(HWND) -> (Window, WindowData<T>),
+    // outputs
+    pub window: Option<Window>,
+}
+
+unsafe fn init<T, F>(
     attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
-) -> Result<Window, RootOsError> {
+    create_window_data: F,
+) -> Result<Window, RootOsError>
+where
+    T: 'static,
+    F: Fn(&mut Window) -> WindowData<T>,
+{
     let title = OsStr::new(&attributes.title)
         .encode_wide()
         .chain(Some(0).into_iter())
         .collect::<Vec<_>>();
 
     // registering the window class
-    let class_name = register_window_class(&attributes.window_icon, &pl_attribs.taskbar_icon);
+    let class_name = register_window_class::<T>(&attributes.window_icon, &pl_attribs.taskbar_icon);
 
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::DECORATIONS, attributes.decorations);
@@ -766,31 +778,59 @@ unsafe fn init<T: 'static>(
         }
     };
 
-    // creating the real window this time, by using the functions in `extra_functions`
-    let real_window = {
-        let (style, ex_style) = window_flags.to_window_styles();
-        let handle = winuser::CreateWindowExW(
-            ex_style,
-            class_name.as_ptr(),
-            title.as_ptr() as LPCWSTR,
-            style,
-            winuser::CW_USEDEFAULT,
-            winuser::CW_USEDEFAULT,
-            winuser::CW_USEDEFAULT,
-            winuser::CW_USEDEFAULT,
-            parent.unwrap_or(ptr::null_mut()),
-            pl_attribs.menu.unwrap_or(ptr::null_mut()),
-            libloaderapi::GetModuleHandleW(ptr::null()),
-            ptr::null_mut(),
-        );
-
-        if handle.is_null() {
-            return Err(os_error!(io::Error::last_os_error()));
-        }
-
-        WindowWrapper(handle)
+    let mut initdata = InitData {
+        event_loop,
+        post_init: &|hwnd| {
+            let mut window = post_init(
+                WindowWrapper(hwnd),
+                attributes.clone(),
+                pl_attribs.clone(),
+                window_flags,
+                event_loop,
+            );
+            let window_data = create_window_data(&mut window);
+            (window, window_data)
+        },
+        window: None,
     };
 
+    let (style, ex_style) = window_flags.to_window_styles();
+    let handle = winuser::CreateWindowExW(
+        ex_style,
+        class_name.as_ptr(),
+        title.as_ptr() as LPCWSTR,
+        style,
+        winuser::CW_USEDEFAULT,
+        winuser::CW_USEDEFAULT,
+        winuser::CW_USEDEFAULT,
+        winuser::CW_USEDEFAULT,
+        parent.unwrap_or(ptr::null_mut()),
+        pl_attribs.menu.unwrap_or(ptr::null_mut()),
+        libloaderapi::GetModuleHandleW(ptr::null()),
+        &mut initdata as *mut _ as *mut _,
+    );
+
+    // If the `post_init` callback in `InitData` panicked, then should resume panicking here
+    if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
+        panic::resume_unwind(panic_error)
+    }
+
+    if handle.is_null() {
+        return Err(os_error!(io::Error::last_os_error()));
+    }
+
+    // If the handle is non-null, then window creation must have succeeded, which means
+    // that we *must* have populated the `InitData.window` field.
+    Ok(initdata.window.unwrap())
+}
+
+unsafe fn post_init<T: 'static>(
+    real_window: WindowWrapper,
+    attributes: WindowAttributes,
+    pl_attribs: PlatformSpecificWindowBuilderAttributes,
+    window_flags: WindowFlags,
+    event_loop: &EventLoopWindowTarget<T>,
+) -> Window {
     // Register for touch events if applicable
     {
         let digitizer = winuser::GetSystemMetrics(winuser::SM_DIGITIZER) as u32;
@@ -862,10 +902,10 @@ unsafe fn init<T: 'static>(
         win.set_outer_position(position);
     }
 
-    Ok(win)
+    win
 }
 
-unsafe fn register_window_class(
+unsafe fn register_window_class<T: 'static>(
     window_icon: &Option<Icon>,
     taskbar_icon: &Option<Icon>,
 ) -> Vec<u16> {
@@ -886,7 +926,7 @@ unsafe fn register_window_class(
     let class = winuser::WNDCLASSEXW {
         cbSize: mem::size_of::<winuser::WNDCLASSEXW>() as UINT,
         style: winuser::CS_HREDRAW | winuser::CS_VREDRAW | winuser::CS_OWNDC,
-        lpfnWndProc: Some(winuser::DefWindowProcW),
+        lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
         cbClsExtra: 0,
         cbWndExtra: 0,
         hInstance: libloaderapi::GetModuleHandleW(ptr::null()),
