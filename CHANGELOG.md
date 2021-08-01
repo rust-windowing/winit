@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Wayland and X11, fix diagonal window resize cursor orientation.
 - On macOS, drop the event callback before exiting.
 - On Android, implement `Window::request_redraw`
 - **Breaking:** On Web, remove the `stdweb` backend.
