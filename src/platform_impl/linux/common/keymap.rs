@@ -436,10 +436,10 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // XKB function and modifier keys
         // keysyms::XKB_KEY_ISO_Lock => Key::IsoLock,
         // keysyms::XKB_KEY_ISO_Level2_Latch => Key::IsoLevel2Latch,
-        // NOTE: I'm not quite certain if mapping the next 3 values to AltGraph is correct.
-        // keysyms::XKB_KEY_ISO_Level3_Shift => Key::AltGraph,
-        // keysyms::XKB_KEY_ISO_Level3_Latch => Key::AltGraph,
-        // keysyms::XKB_KEY_ISO_Level3_Lock => Key::AltGraph,
+        keysyms::XKB_KEY_ISO_Level3_Shift => Key::AltGraph,
+        // NOTE: I'm not quite certain if mapping the next 2 values to AltGraph is correct.
+        keysyms::XKB_KEY_ISO_Level3_Latch => Key::AltGraph,
+        keysyms::XKB_KEY_ISO_Level3_Lock => Key::AltGraph,
         // keysyms::XKB_KEY_ISO_Level5_Shift => Key::IsoLevel5Shift,
         // keysyms::XKB_KEY_ISO_Level5_Latch => Key::IsoLevel5Latch,
         // keysyms::XKB_KEY_ISO_Level5_Lock => Key::IsoLevel5Lock,
