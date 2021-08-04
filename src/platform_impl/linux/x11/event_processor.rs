@@ -159,24 +159,6 @@ impl<T: 'static> EventProcessor<T> {
 
         let event_type = xev.get_type();
         match event_type {
-            ffi::MappingNotify => {
-                let mapping: &ffi::XMappingEvent = xev.as_ref();
-
-                if mapping.request == ffi::MappingModifier
-                    || mapping.request == ffi::MappingKeyboard
-                {
-                    unsafe {
-                        (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
-                    }
-                    wt.xconn
-                        .check_errors()
-                        .expect("Failed to call XRefreshKeyboardMapping");
-
-                    self.mod_keymap.reset_from_x_connection(&wt.xconn);
-                    self.device_mod_state.update_keymap(&self.mod_keymap);
-                }
-            }
-
             ffi::ClientMessage => {
                 let client_msg: &ffi::XClientMessageEvent = xev.as_ref();
 
@@ -1092,6 +1074,39 @@ impl<T: 'static> EventProcessor<T> {
                     }
 
                     ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
+                        // This is horrible, but I couldn't manage to respect keyboard layout changes
+                        // in any other way. In fact, getting this to work at all proved so frustrating
+                        // that I (@maroider) lost motivation to work on the keyboard event rework for
+                        // some months. Thankfully, @ArturKovacs offered to help debug the problem
+                        // over discord, and the following is the result of that debugging session.
+                        //
+                        // Without the XKB extension, the X.Org server sends us the `MappingNotify`
+                        // event when there's been a change in the keyboard layout. This stops
+                        // being the case when we select ourselves some XKB events with `XkbSelectEvents`
+                        // and the "core keyboard device (0x100)" (we haven't tried with any other
+                        // devices). We managed to reproduce this on both our machines.
+                        //
+                        // With the XKB extension active, it would seem like we're supposed to use the
+                        // `XkbStateNotify` event to detect keyboard layout changes, but the `group`
+                        // never changes value (it is always `0`). This worked for @ArturKovacs, but
+                        // not for me. We also tried to use the `group` given to us in keypress events,
+                        // but it remained constant there, too.
+                        //
+                        // We also tried to see if there was some other event that got fired when the
+                        // keyboard layout changed, and we found a mysterious event with the value
+                        // `85` (`0x55`). We couldn't find any reference to it in the X11 headers or
+                        // in the X.Org server source.
+                        //
+                        // `KeymapNotify` did briefly look interesting based purely on the name, but
+                        // it is only useful for checking what keys are pressed when we receive the
+                        // event.
+                        //
+                        // So instead of any vaguely reasonable approach, we get this: reloading the
+                        // keymap on *every* keypress. That's peak efficiency right there!
+                        //
+                        // FIXME: Someone please save our souls! Or at least our wasted CPU cycles.
+                        unsafe { self.kb_state.load_x11_keymap() };
+
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
 
                         let state = match xev.evtype {
@@ -1174,22 +1189,6 @@ impl<T: 'static> EventProcessor<T> {
                         ffi::XkbStateNotify => {
                             let xev =
                                 unsafe { &*(xev as *const _ as *const ffi::XkbStateNotifyEvent) };
-                            debug!(
-                                "XkbStateNotify. group: {}, event_type: {}",
-                                xev.group, xev.event_type
-                            );
-                            if xev.event_type == 0 {
-                                // This probably indicates that the keyboard layout was switched.
-                                // Let's update the groups (i.e. the layout)
-                                self.kb_state.update_modifiers(
-                                    xev.base_mods,
-                                    xev.latched_mods,
-                                    xev.locked_mods,
-                                    xev.base_group as u32,
-                                    xev.latched_group as u32,
-                                    xev.locked_group as u32,
-                                );
-                            }
                             if matches!(xev.event_type as i32, ffi::KeyPress | ffi::KeyRelease) {
                                 self.kb_state.update_modifiers(
                                     xev.base_mods,
