@@ -147,7 +147,7 @@ lazy_static! {
             sel!(setMarkedText:selectedRange:replacementRange:),
             set_marked_text as extern "C" fn(&mut Object, Sel, id, NSRange, NSRange),
         );
-        decl.add_method(sel!(unmarkText), unmark_text as extern "C" fn(&Object, Sel));
+        decl.add_method(sel!(unmarkText), unmark_text as extern "C" fn(&mut Object, Sel));
         decl.add_method(
             sel!(validAttributesForMarkedText),
             valid_attributes_for_marked_text as extern "C" fn(&Object, Sel) -> id,
@@ -259,10 +259,6 @@ lazy_static! {
         decl.add_method(
             sel!(acceptsFirstMouse:),
             accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(clearMarkedText),
-            clear_marked_text as extern "C" fn(&mut Object, Sel),
         );
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
@@ -483,17 +479,17 @@ extern "C" fn set_marked_text(
     trace!("Completed `setMarkedText`");
 }
 
-extern "C" fn unmark_text(this: &Object, _sel: Sel) {
+extern "C" fn unmark_text(this: &mut Object, _sel: Sel) {
     trace!("Triggered `unmarkText`");
     unsafe {
-        let _: () = msg_send![this, clearMarkedText];
+        clear_marked_text(this);
         let input_context: id = msg_send![this, inputContext];
         let _: () = msg_send![input_context, discardMarkedText];
     }
     trace!("Completed `unmarkText`");
 }
 
-extern "C" fn clear_marked_text(this: &mut Object, _sel: Sel) {
+fn clear_marked_text(this: &mut Object) {
     unsafe {
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
         let _: () = msg_send![(*marked_text_ref), release];
@@ -553,7 +549,7 @@ extern "C" fn insert_text(this: &mut Object, sel: Sel, string: id, _replacement_
     unsafe {
         let is_ime_activated: bool = *this.get_ivar("isIMEActivated");
         if is_ime_activated {
-            clear_marked_text(this, sel);
+            clear_marked_text(this);
             unmark_text(this, sel);
             this.set_ivar("isIMEActivated", false);
             this.set_ivar("isPreediting", false);
@@ -783,7 +779,7 @@ extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
             }
 
             // Clear them here so that we can know whether they have changed afterwards.
-            let _: () = msg_send![this, clearMarkedText];
+            clear_marked_text(this);
 
             // Some keys (and only *some*, with no known reason) don't trigger `insertText`, while others do...
             // So, we don't give repeats the opportunity to trigger that, since otherwise our hack will cause some
