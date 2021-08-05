@@ -153,7 +153,10 @@ lazy_static! {
             sel!(setMarkedText:selectedRange:replacementRange:),
             set_marked_text as extern "C" fn(&mut Object, Sel, id, NSRange, NSRange),
         );
-        decl.add_method(sel!(unmarkText), unmark_text as extern "C" fn(&mut Object, Sel));
+        decl.add_method(
+            sel!(unmarkText),
+            unmark_text as extern "C" fn(&mut Object, Sel),
+        );
         decl.add_method(
             sel!(validAttributesForMarkedText),
             valid_attributes_for_marked_text as extern "C" fn(&Object, Sel) -> id,
