@@ -185,7 +185,7 @@ lazy_static! {
         );
         decl.add_method(
             sel!(keyDown:),
-            key_down as extern "C" fn(&mut Object, Sel, id),
+            key_down as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(sel!(keyUp:), key_up as extern "C" fn(&Object, Sel, id));
         decl.add_method(
@@ -699,7 +699,7 @@ fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
     }
 }
 
-extern "C" fn key_down(this: &mut Object, _sel: Sel, event: id) {
+extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
     trace!("Triggered `keyDown`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
