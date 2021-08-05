@@ -183,10 +183,7 @@ lazy_static! {
             sel!(doCommandBySelector:),
             do_command_by_selector as extern "C" fn(&Object, Sel, Sel),
         );
-        decl.add_method(
-            sel!(keyDown:),
-            key_down as extern "C" fn(&Object, Sel, id),
-        );
+        decl.add_method(sel!(keyDown:), key_down as extern "C" fn(&Object, Sel, id));
         decl.add_method(sel!(keyUp:), key_up as extern "C" fn(&Object, Sel, id));
         decl.add_method(
             sel!(flagsChanged:),
