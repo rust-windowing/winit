@@ -698,9 +698,9 @@ impl<'a> KeyEventResults<'a> {
     }
 
     pub fn text_with_all_modifiers(&mut self) -> Option<&'static str> {
-        // TODO: Should Ctrl override any attempts to compose text?
-        //       gnome-terminal agrees, but konsole disagrees.
-        //       Should it be configurable instead?
+        // The current behaviour makes it so composing a character overrides attempts to input a
+        // control character with the `Ctrl` key. We can potentially add a configuration option
+        // if someone specifically wants the oppsite behaviour.
         self.composed_text()
             .unwrap_or_else(|_| self.state.get_utf8_raw(self.keycode))
     }
