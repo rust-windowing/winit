@@ -64,8 +64,8 @@ pub struct ModifiersState {
 }
 
 impl ModifiersState {
-    fn new() -> ModifiersState {
-        ModifiersState::default()
+    fn new() -> Self {
+        Self::default()
     }
 
     fn update_with(&mut self, state: *mut ffi::xkb_state) {
@@ -253,7 +253,7 @@ impl KbState {
         Some(byte_slice_to_cached_string(&self.scratch_buffer))
     }
 
-    pub(crate) fn new() -> Result<KbState, Error> {
+    pub(crate) fn new() -> Result<Self, Error> {
         if ffi::XKBCOMMON_OPTION.as_ref().is_none() {
             return Err(Error::XKBNotFound);
         }
@@ -264,7 +264,7 @@ impl KbState {
             return Err(Error::XKBNotFound);
         }
 
-        let mut me = KbState {
+        let mut me = Self {
             #[cfg(feature = "x11")]
             xcb_connection: ptr::null_mut(),
             xkb_context: context,
@@ -286,7 +286,7 @@ impl KbState {
 
 impl KbState {
     #[cfg(feature = "x11")]
-    pub(crate) fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<KbState, Error> {
+    pub(crate) fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<Self, Error> {
         let mut me = Self::new()?;
         me.xcb_connection = connection;
 
@@ -304,40 +304,19 @@ impl KbState {
         };
         assert_eq!(result, 1, "Failed to initialize libxkbcommon");
 
-        unsafe { me.load_x11_keymap() };
+        unsafe { me.init_with_x11_keymap() };
 
         Ok(me)
     }
 
-    #[cfg(feature = "x11")]
-    pub(crate) unsafe fn load_x11_keymap(&mut self) {
-        if !self.xkb_keymap.is_null() {
-            self.de_init();
-        }
-
-        // TODO: Support keyboards other than the "virtual core keyboard device".
-        let core_keyboard_id = (XKBXH.xkb_x11_get_core_keyboard_device_id)(self.xcb_connection);
-        let keymap = (XKBXH.xkb_x11_keymap_new_from_device)(
-            self.xkb_context,
-            self.xcb_connection,
-            core_keyboard_id,
-            xkbcommon_dl::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
-        );
-        assert_ne!(keymap, ptr::null_mut());
-        self.xkb_keymap = keymap;
-        self.xkb_state =
-            (XKBXH.xkb_x11_state_new_from_device)(keymap, self.xcb_connection, core_keyboard_id);
-        self.mods_state.update_with(self.xkb_state);
-    }
-
     #[cfg(feature = "wayland")]
-    pub(crate) fn from_rmlvo(rmlvo: RMLVO) -> Result<KbState, Error> {
+    pub(crate) fn from_rmlvo(rmlvo: RMLVO) -> Result<Self, Error> {
         fn to_cstring(s: Option<String>) -> Result<Option<CString>, Error> {
             s.map_or(Ok(None), |s| CString::new(s).map(Option::Some))
                 .map_err(|_| Error::BadNames)
         }
 
-        let mut state = KbState::new()?;
+        let mut state = Self::new()?;
 
         let rules = to_cstring(rmlvo.rules)?;
         let model = to_cstring(rmlvo.model)?;
@@ -403,22 +382,46 @@ impl KbState {
         self.xkb_compose_state_2 = compose_state_2;
     }
 
-    pub(crate) unsafe fn post_init(&mut self, keymap: *mut ffi::xkb_keymap) {
-        let state = (XKBH.xkb_state_new)(keymap);
+    unsafe fn post_init(&mut self, state: *mut ffi::xkb_state, keymap: *mut ffi::xkb_keymap) {
         self.xkb_keymap = keymap;
         self.xkb_state = state;
         self.mods_state.update_with(state);
     }
 
-    pub(crate) unsafe fn de_init(&mut self) {
+    unsafe fn de_init(&mut self) {
         (XKBH.xkb_state_unref)(self.xkb_state);
         self.xkb_state = ptr::null_mut();
         (XKBH.xkb_keymap_unref)(self.xkb_keymap);
         self.xkb_keymap = ptr::null_mut();
     }
 
+    #[cfg(feature = "x11")]
+    pub(crate) unsafe fn init_with_x11_keymap(&mut self) {
+        if !self.xkb_keymap.is_null() {
+            self.de_init();
+        }
+
+        // TODO: Support keyboards other than the "virtual core keyboard device".
+        let core_keyboard_id = (XKBXH.xkb_x11_get_core_keyboard_device_id)(self.xcb_connection);
+        let keymap = (XKBXH.xkb_x11_keymap_new_from_device)(
+            self.xkb_context,
+            self.xcb_connection,
+            core_keyboard_id,
+            xkbcommon_dl::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
+        );
+        assert_ne!(keymap, ptr::null_mut());
+
+        let state =
+            (XKBXH.xkb_x11_state_new_from_device)(keymap, self.xcb_connection, core_keyboard_id);
+        self.post_init(state, keymap);
+    }
+
     #[cfg(feature = "wayland")]
     pub(crate) unsafe fn init_with_fd(&mut self, fd: File, size: usize) {
+        if !self.xkb_keymap.is_null() {
+            self.de_init();
+        }
+
         let map = MmapOptions::new().len(size).map(&fd).unwrap();
 
         let keymap = (XKBH.xkb_keymap_new_from_string)(
@@ -432,7 +435,8 @@ impl KbState {
             panic!("Received invalid keymap from compositor.");
         }
 
-        self.post_init(keymap);
+        let state = (XKBH.xkb_state_new)(keymap);
+        self.post_init(state, keymap);
     }
 
     #[cfg(feature = "wayland")]
@@ -440,6 +444,10 @@ impl KbState {
         &mut self,
         names: ffi::xkb_rule_names,
     ) -> Result<(), Error> {
+        if !self.xkb_keymap.is_null() {
+            self.de_init();
+        }
+
         let keymap = (XKBH.xkb_keymap_new_from_names)(
             self.xkb_context,
             &names,
@@ -450,7 +458,8 @@ impl KbState {
             return Err(Error::BadNames);
         }
 
-        self.post_init(keymap);
+        let state = (XKBH.xkb_state_new)(keymap);
+        self.post_init(state, keymap);
 
         Ok(())
     }

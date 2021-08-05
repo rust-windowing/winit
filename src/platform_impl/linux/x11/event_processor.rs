@@ -1105,7 +1105,7 @@ impl<T: 'static> EventProcessor<T> {
                         // keymap on *every* keypress. That's peak efficiency right there!
                         //
                         // FIXME: Someone please save our souls! Or at least our wasted CPU cycles.
-                        unsafe { self.kb_state.load_x11_keymap() };
+                        unsafe { self.kb_state.init_with_x11_keymap() };
 
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
 

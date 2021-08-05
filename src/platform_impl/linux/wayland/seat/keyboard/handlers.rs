@@ -470,12 +470,6 @@ impl KbdHandler {
             // state is locked, ignore keymap updates
             return;
         }
-        if state.ready() {
-            // new keymap, we first deinit to free resources
-            unsafe {
-                state.de_init();
-            }
-        }
         match format {
             wl_keyboard::KeymapFormat::XkbV1 => unsafe {
                 state.init_with_fd(fd, size as usize);
