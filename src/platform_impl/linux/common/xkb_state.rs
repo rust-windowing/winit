@@ -540,7 +540,6 @@ impl KbState {
         self.scratch_buffer.clear();
         self.scratch_buffer.reserve(8);
         loop {
-            unsafe { self.scratch_buffer.set_len(8) };
             let bytes_written = unsafe {
                 (XKBH.xkb_keysym_to_utf8)(
                     keysym,
