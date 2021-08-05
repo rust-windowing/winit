@@ -548,7 +548,7 @@ impl KbdHandler {
                 _ => unreachable!(),
             };
 
-            let mut ker = state.process_key_event(key, key_state);
+            let mut ker = state.process_key_event(key + 8, key_state);
 
             let physical_key = ker.keycode();
             let (logical_key, location) = ker.key();
@@ -683,7 +683,7 @@ impl calloop::EventSource for RepeatSource {
                 if let Some(ref mut data) = *current_repeat.borrow_mut() {
                     // there is something to repeat
                     let mut state = state.borrow_mut();
-                    let mut ker = state.process_key_repeat_event(data.keycode);
+                    let mut ker = state.process_key_repeat_event(data.keycode + 8);
 
                     let physical_key = ker.keycode();
                     let (logical_key, location) = ker.key();

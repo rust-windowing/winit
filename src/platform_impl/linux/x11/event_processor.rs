@@ -1042,7 +1042,6 @@ impl<T: 'static> EventProcessor<T> {
                             let device_id = mkdid(xkev.deviceid);
                             let keycode = xkev.detail as u32;
 
-                            let keycode = keycode - KEYCODE_OFFSET as u32;
                             let mut ker = self.kb_state.process_key_event(keycode, state);
                             let physical_key = ker.keycode();
                             let (logical_key, location) = ker.key();
@@ -1116,12 +1115,11 @@ impl<T: 'static> EventProcessor<T> {
                         };
 
                         let device_id = mkdid(xev.sourceid);
-                        let keycode = xev.detail;
-                        let scancode = keycode - KEYCODE_OFFSET as i32;
-                        if scancode < 0 {
+                        let keycode = xev.detail as u32;
+                        if keycode < KEYCODE_OFFSET as u32 {
                             return;
                         }
-                        let physical_key = keymap::rawkey_to_keycode(scancode as u32);
+                        let physical_key = keymap::raw_keycode_to_keycode(keycode);
                         let modifiers = self.device_mod_state.modifiers();
 
                         callback(Event::DeviceEvent {
@@ -1294,7 +1292,8 @@ impl<T: 'static> EventProcessor<T> {
             .into_iter()
             .filter(|k| *k >= KEYCODE_OFFSET)
         {
-            let keycode = (keycode - KEYCODE_OFFSET) as u32;
+            let keycode = keycode as u32;
+
             let mut ker = kb_state.process_key_event(keycode, state);
             let physical_key = ker.keycode();
             let (logical_key, location) = ker.key();
