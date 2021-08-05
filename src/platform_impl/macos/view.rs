@@ -659,17 +659,6 @@ fn is_corporate_character(c: char) -> bool {
     }
 }
 
-fn is_arrow_or_space_key(virtual_keycode: VirtualKeyCode) -> bool {
-    match virtual_keycode {
-        VirtualKeyCode::Up
-        | VirtualKeyCode::Right
-        | VirtualKeyCode::Down
-        | VirtualKeyCode::Left
-        | VirtualKeyCode::Space => true,
-        _ => false,
-    }
-}
-
 // Retrieves a layout-independent keycode given an event.
 fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
     #[inline]
