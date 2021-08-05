@@ -58,7 +58,6 @@ pub(super) struct ViewState {
     pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
     is_ime_activated: bool,
-    is_preediting: bool,
     marked_text: id,
 }
 
@@ -81,7 +80,6 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         modifiers: Default::default(),
         tracking_rect: None,
         is_ime_activated: false,
-        is_preediting: false,
         marked_text,
     };
     unsafe {
@@ -546,7 +544,6 @@ extern "C" fn insert_text(this: &mut Object, _sel: Sel, string: id, _replacement
         if is_ime_activated {
             clear_marked_text(this);
             state.is_ime_activated = false;
-            state.is_preediting = false;
             return;
         }
 
