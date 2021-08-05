@@ -4,7 +4,8 @@ use crate::keyboard::{Key, KeyCode, KeyLocation, NativeKeyCode};
 
 // TODO: Do another pass on all of this
 
-pub fn rawkey_to_keycode(rawkey: u32) -> KeyCode {
+pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
+    let rawkey = keycode - 8;
     // The keycode values are taken from linux/include/uapi/linux/input-event-codes.h, as
     // libxkbcommon's documentation indicates that the keycode values we're getting from it are
     // defined by the Linux kernel. If Winit programs end up being run on other Unix-likes which

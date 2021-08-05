@@ -148,16 +148,16 @@ impl KbState {
         if !self.ready() {
             return 0;
         }
-        unsafe { (XKBH.xkb_state_key_get_one_sym)(self.xkb_state, keycode + 8) }
+        unsafe { (XKBH.xkb_state_key_get_one_sym)(self.xkb_state, keycode) }
     }
 
     pub(crate) fn get_utf8_raw(&mut self, keycode: u32) -> Option<&'static str> {
         if !self.ready() {
             return None;
         }
-        let size = unsafe {
-            (XKBH.xkb_state_key_get_utf8)(self.xkb_state, keycode + 8, ptr::null_mut(), 0)
-        } + 1;
+        let size =
+            unsafe { (XKBH.xkb_state_key_get_utf8)(self.xkb_state, keycode, ptr::null_mut(), 0) }
+                + 1;
         if size <= 1 {
             return None;
         };
@@ -168,7 +168,7 @@ impl KbState {
             self.scratch_buffer.set_len(size);
             (XKBH.xkb_state_key_get_utf8)(
                 self.xkb_state,
-                keycode + 8,
+                keycode,
                 self.scratch_buffer.as_mut_ptr() as *mut _,
                 size,
             );
@@ -474,7 +474,7 @@ impl KbState {
 
 impl KbState {
     pub(crate) unsafe fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
-        (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode + 8) == 1
+        (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode) == 1
     }
 
     #[inline]
@@ -615,7 +615,7 @@ impl<'a> KeyEventResults<'a> {
     }
 
     pub fn keycode(&mut self) -> KeyCode {
-        super::keymap::rawkey_to_keycode(self.keycode)
+        super::keymap::raw_keycode_to_keycode(self.keycode)
     }
 
     pub fn key(&mut self) -> (Key<'static>, KeyLocation) {
@@ -656,7 +656,7 @@ impl<'a> KeyEventResults<'a> {
         let keysym_count = unsafe {
             (XKBH.xkb_keymap_key_get_syms_by_level)(
                 self.state.xkb_keymap,
-                self.keycode + 8,
+                self.keycode,
                 0,
                 0,
                 &mut keysyms,
