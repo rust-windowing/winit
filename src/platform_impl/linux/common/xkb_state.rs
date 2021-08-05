@@ -366,14 +366,21 @@ impl KbState {
             ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
         );
 
+        if compose_table.is_null() {
+            // init of compose state failed, continue without compose
+            (XKBCH.xkb_compose_table_unref)(compose_table);
+            return;
+        }
+
         let compose_state_2 = (XKBCH.xkb_compose_state_new)(
             compose_table,
             ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
         );
 
-        if compose_state.is_null() || compose_state_2.is_null() {
+        if compose_state_2.is_null() {
             // init of compose state failed, continue without compose
             (XKBCH.xkb_compose_table_unref)(compose_table);
+            (XKBCH.xkb_compose_state_unref)(compose_state);
             return;
         }
 
@@ -489,10 +496,24 @@ impl KbState {
 impl Drop for KbState {
     fn drop(&mut self) {
         unsafe {
-            (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state);
-            (XKBCH.xkb_compose_table_unref)(self.xkb_compose_table);
-            (XKBH.xkb_state_unref)(self.xkb_state);
-            (XKBH.xkb_keymap_unref)(self.xkb_keymap);
+            // TODO: Simplify this. We can currently only safely assume that the `xkb_context`
+            //       is always valid. If we can somehow guarantee the same for `xkb_state` and
+            //       `xkb_keymap`, then we could omit their null-checks.
+            if !self.xkb_compose_state.is_null() {
+                (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state);
+            }
+            if !self.xkb_compose_state_2.is_null() {
+                (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state_2);
+            }
+            if !self.xkb_compose_table.is_null() {
+                (XKBCH.xkb_compose_table_unref)(self.xkb_compose_table);
+            }
+            if !self.xkb_state.is_null() {
+                (XKBH.xkb_state_unref)(self.xkb_state);
+            }
+            if !self.xkb_keymap.is_null() {
+                (XKBH.xkb_keymap_unref)(self.xkb_keymap);
+            }
             (XKBH.xkb_context_unref)(self.xkb_context);
         }
     }
