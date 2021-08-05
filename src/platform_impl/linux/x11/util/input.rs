@@ -86,7 +86,7 @@ impl XConnection {
         if status == ffi::True {
             Some(Flusher::new(self))
         } else {
-            // This should only happen if the XKB extension isn't initialized.
+            error!("Could not select XKB events: The XKB extension is not initialized!");
             None
         }
     }
