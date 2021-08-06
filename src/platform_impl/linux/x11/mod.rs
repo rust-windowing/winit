@@ -192,10 +192,7 @@ impl<T: 'static> EventLoop<T> {
             .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
             .unwrap();
 
-        //let (user_sender, user_channel) = channel(queue.clone(), NotificationId::gen_next());
         let (user_sender, user_channel) = std::sync::mpsc::channel();
-
-        //let (redraw_sender, redraw_channel) = channel(queue, NotificationId::gen_next());
         let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
 
         let target = Rc::new(RootELW {
@@ -442,18 +439,10 @@ impl<T> EventLoopWindowTarget<T> {
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        match self
-            .user_sender
+        self.user_sender
             .send(event)
             .map_err(|e| EventLoopClosed(e.0))
-        {
-            Ok(_) => {
-                // Can't send the event as an error, so panic
-                self.waker.wake().unwrap();
-                Ok(())
-            }
-            Err(e) => Err(EventLoopClosed(e.0)),
-        }
+            .map(|_| self.waker.wake().unwrap())
     }
 }
 
