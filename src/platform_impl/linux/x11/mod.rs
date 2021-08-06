@@ -412,8 +412,8 @@ impl<T: 'static> EventLoop<T> {
                             super::WindowId::X(wid),
                         )) = event
                         {
-                            wt.redraw_sender.waker.wake().unwrap();
                             wt.redraw_sender.sender.send(wid).unwrap();
+                            wt.redraw_sender.waker.wake().unwrap();
                         } else {
                             callback(event, window_target, control_flow);
                         }
@@ -442,12 +442,18 @@ impl<T> EventLoopWindowTarget<T> {
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        if self.waker.wake().is_err() {
-            return Err(EventLoopClosed(event));
-        }
-        self.user_sender
+        match self
+            .user_sender
             .send(event)
             .map_err(|e| EventLoopClosed(e.0))
+        {
+            Ok(_) => {
+                // Can't send the event as an error, so panic
+                self.waker.wake().unwrap();
+                Ok(())
+            }
+            Err(e) => Err(EventLoopClosed(e.0)),
+        }
     }
 }
 

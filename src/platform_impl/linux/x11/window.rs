@@ -1427,11 +1427,11 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.redraw_sender.waker.wake().unwrap();
         self.redraw_sender
             .sender
             .send(WindowId(self.xwindow))
             .unwrap();
+        self.redraw_sender.waker.wake().unwrap();
     }
 
     #[inline]
