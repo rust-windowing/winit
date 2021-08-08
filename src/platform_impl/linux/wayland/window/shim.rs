@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 
-use sctk::window::{ConceptConfig, ConceptFrame, Decorations, Window};
+use sctk::window::{Decorations, FallbackFrame, Window};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
@@ -67,9 +67,6 @@ pub enum WindowRequest {
     /// Redraw was requested.
     Redraw,
 
-    /// A new theme for a concept frame was requested.
-    Theme(ConceptConfig),
-
     /// Window should be closed.
     Close,
 }
@@ -131,7 +128,7 @@ impl WindowUpdate {
 /// and react to events.
 pub struct WindowHandle {
     /// An actual window.
-    pub window: Window<ConceptFrame>,
+    pub window: Window<FallbackFrame>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -157,7 +154,7 @@ pub struct WindowHandle {
 
 impl WindowHandle {
     pub fn new(
-        window: Window<ConceptFrame>,
+        window: Window<FallbackFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
@@ -184,7 +181,7 @@ impl WindowHandle {
         for pointer in self.pointers.iter() {
             if self.confined.get() {
                 let surface = self.window.surface();
-                pointer.confine(&surface);
+                pointer.confine(surface);
             } else {
                 pointer.unconfine();
             }
@@ -198,7 +195,7 @@ impl WindowHandle {
         if position.is_none() {
             if self.confined.get() {
                 let surface = self.window.surface();
-                pointer.confine(&surface);
+                pointer.confine(surface);
             }
             self.pointers.push(pointer);
         }
@@ -222,12 +219,7 @@ impl WindowHandle {
     }
 
     pub fn text_input_entered(&mut self, text_input: TextInputHandler) {
-        if self
-            .text_inputs
-            .iter()
-            .find(|t| *t == &text_input)
-            .is_none()
-        {
+        if !self.text_inputs.iter().any(|t| *t == text_input) {
             self.text_inputs.push(text_input);
         }
     }
@@ -330,35 +322,35 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.set_decorate(decorations);
 
                     // We should refresh the frame to apply decorations change.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
                 WindowRequest::Resizeable(resizeable) => {
                     window_handle.window.set_resizable(resizeable);
 
                     // We should refresh the frame to update button state.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
                 WindowRequest::Title(title) => {
                     window_handle.window.set_title(title);
 
                     // We should refresh the frame to draw new title.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
                 WindowRequest::MinSize(size) => {
                     let size = size.map(|size| (size.width, size.height));
                     window_handle.window.set_min_size(size);
 
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
                 }
                 WindowRequest::MaxSize(size) => {
                     let size = size.map(|size| (size.width, size.height));
                     window_handle.window.set_max_size(size);
 
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
                 }
                 WindowRequest::FrameSize(size) => {
@@ -366,19 +358,12 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.resize(size.width, size.height);
 
                     // We should refresh the frame after resize.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
                 WindowRequest::Redraw => {
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
-                }
-                WindowRequest::Theme(concept_config) => {
-                    window_handle.window.set_frame_config(concept_config);
-
-                    // We should refresh the frame to apply new theme.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
-                    window_update.refresh_frame = true;
                 }
                 WindowRequest::Close => {
                     // The window was requested to be closed.

@@ -8,6 +8,9 @@
 - On Wayland and X11, implement `is_maximized` method on `Window`.
 - On macOS, fix issue where `ReceivedCharacter` was not being emitted during some key repeat events.
 - On Wayland, load cursor icons `hand2` and `hand1` for `CursorIcon::Hand`.
+- **Breaking:** On Wayland, Theme trait and its support types are dropped.
+- On Wayland, bump `smithay-client-toolkit` to 0.15.
+
 
 # 0.25.0 (2021-05-15)
 

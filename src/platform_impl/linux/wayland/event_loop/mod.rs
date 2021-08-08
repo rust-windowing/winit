@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
+use std::io::Result as IOResult;
 use std::process;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -34,6 +35,8 @@ pub use state::WinitState;
 
 use sink::EventSink;
 
+type WinitDispatcher = calloop::Dispatcher<'static, WaylandSource, WinitState>;
+
 pub struct EventLoopWindowTarget<T> {
     /// Wayland display.
     pub display: Display,
@@ -42,7 +45,7 @@ pub struct EventLoopWindowTarget<T> {
     pub env: Environment<WinitEnv>,
 
     /// Event loop handle.
-    pub event_loop_handle: calloop::LoopHandle<WinitState>,
+    pub event_loop_handle: calloop::LoopHandle<'static, WinitState>,
 
     /// Output manager.
     pub output_manager: OutputManager,
@@ -50,8 +53,8 @@ pub struct EventLoopWindowTarget<T> {
     /// State that we share across callbacks.
     pub state: RefCell<WinitState>,
 
-    /// Wayland source.
-    pub wayland_source: Rc<calloop::Source<WaylandSource>>,
+    /// Dispatcher of Wayland events.
+    pub wayland_dispatcher: WinitDispatcher,
 
     /// A proxy to wake up event loop.
     pub event_loop_awakener: calloop::ping::Ping,
@@ -70,7 +73,7 @@ pub struct EventLoopWindowTarget<T> {
 
 pub struct EventLoop<T: 'static> {
     /// Event loop.
-    event_loop: calloop::EventLoop<WinitState>,
+    event_loop: calloop::EventLoop<'static, WinitState>,
 
     /// Wayland display.
     display: Display,
@@ -81,8 +84,8 @@ pub struct EventLoop<T: 'static> {
     /// Sender of user events.
     user_events_sender: calloop::channel::Sender<T>,
 
-    /// Wayland source of events.
-    wayland_source: Rc<calloop::Source<WaylandSource>>,
+    /// Dispatcher of Wayland events.
+    pub wayland_dispatcher: WinitDispatcher,
 
     /// Window target.
     window_target: RootEventLoopWindowTarget<T>,
@@ -102,7 +105,7 @@ impl<T: 'static> EventLoop<T> {
         let env = Environment::new(&display_proxy, &mut event_queue, WinitEnv::new())?;
 
         // Create event loop.
-        let event_loop = calloop::EventLoop::<WinitState>::new()?;
+        let event_loop = calloop::EventLoop::<'static, WinitState>::try_new()?;
         // Build windowing features.
         let windowing_features = WindowingFeatures::new(&env);
 
@@ -116,8 +119,21 @@ impl<T: 'static> EventLoop<T> {
         let output_manager = OutputManager::new(&env);
 
         // A source of events that we plug into our event loop.
-        let wayland_source = WaylandSource::new(event_queue).quick_insert(event_loop.handle())?;
-        let wayland_source = Rc::new(wayland_source);
+        let wayland_source = WaylandSource::new(event_queue);
+        let wayland_dispatcher = calloop::Dispatcher::new(wayland_source, |_, queue, ddata| {
+            queue.dispatch_pending(ddata, |event, object, _| {
+                panic!(
+                    "[calloop] Encountered an orphan event: {}@{} : {}",
+                    event.interface,
+                    object.as_ref().id(),
+                    event.name
+                );
+            })
+        });
+
+        let _wayland_source_dispatcher = event_loop
+            .handle()
+            .register_dispatcher(wayland_dispatcher.clone())?;
 
         // A source of user events.
         let pending_user_events = Rc::new(RefCell::new(Vec::new()));
@@ -161,7 +177,7 @@ impl<T: 'static> EventLoop<T> {
             event_loop_handle,
             output_manager,
             event_loop_awakener,
-            wayland_source: wayland_source.clone(),
+            wayland_dispatcher: wayland_dispatcher.clone(),
             windowing_features,
             theme_manager,
             _marker: std::marker::PhantomData,
@@ -172,7 +188,7 @@ impl<T: 'static> EventLoop<T> {
             event_loop,
             display,
             pending_user_events,
-            wayland_source,
+            wayland_dispatcher,
             _seat_manager: seat_manager,
             user_events_sender,
             window_target: RootEventLoopWindowTarget {
@@ -243,7 +259,7 @@ impl<T: 'static> EventLoop<T> {
             for (window_id, window_update) in window_updates.iter_mut() {
                 if let Some(scale_factor) = window_update.scale_factor.map(|f| f as f64) {
                     let mut physical_size = self.with_state(|state| {
-                        let window_handle = state.window_map.get(&window_id).unwrap();
+                        let window_handle = state.window_map.get(window_id).unwrap();
                         let mut size = window_handle.size.lock().unwrap();
 
                         // Update the new logical size if it was changed.
@@ -276,7 +292,7 @@ impl<T: 'static> EventLoop<T> {
 
                 if let Some(size) = window_update.size.take() {
                     let physical_size = self.with_state(|state| {
-                        let window_handle = state.window_map.get_mut(&window_id).unwrap();
+                        let window_handle = state.window_map.get_mut(window_id).unwrap();
                         let mut window_size = window_handle.size.lock().unwrap();
 
                         // Always issue resize event on scale factor change.
@@ -287,7 +303,7 @@ impl<T: 'static> EventLoop<T> {
                             } else {
                                 *window_size = size;
                                 let scale_factor =
-                                    sctk::get_surface_scale_factor(&window_handle.window.surface());
+                                    sctk::get_surface_scale_factor(window_handle.window.surface());
                                 let physical_size = size.to_physical(scale_factor as f64);
                                 Some(physical_size)
                             };
@@ -363,7 +379,7 @@ impl<T: 'static> EventLoop<T> {
                 // Handle refresh of the frame.
                 if window_update.refresh_frame {
                     self.with_state(|state| {
-                        let window_handle = state.window_map.get_mut(&window_id).unwrap();
+                        let window_handle = state.window_map.get_mut(window_id).unwrap();
                         window_handle.window.refresh();
                         if !window_update.redraw_requested {
                             window_handle.window.surface().commit();
@@ -403,16 +419,17 @@ impl<T: 'static> EventLoop<T> {
             // woken up by messages arriving from the Wayland socket, to avoid delaying the
             // dispatch of these events until we're woken up again.
             let instant_wakeup = {
-                let handle = self.event_loop.handle();
-                let source = self.wayland_source.clone();
-                let dispatched = handle.with_source(&source, |wayland_source| {
-                    let queue = wayland_source.queue();
-                    self.with_state(|state| {
-                        queue.dispatch_pending(state, |_, _, _| unimplemented!())
-                    })
-                });
+                let mut wayland_source = self.wayland_dispatcher.as_source_mut();
+                let queue = wayland_source.queue();
+                let state = match &mut self.window_target.p {
+                    crate::platform_impl::EventLoopWindowTarget::Wayland(ref mut window_target) => {
+                        window_target.state.get_mut()
+                    }
+                    #[cfg(feature = "x11")]
+                    _ => unreachable!(),
+                };
 
-                if let Ok(dispatched) = dispatched {
+                if let Ok(dispatched) = queue.dispatch_pending(state, |_, _, _| unimplemented!()) {
                     dispatched > 0
                 } else {
                     break;
@@ -518,10 +535,7 @@ impl<T: 'static> EventLoop<T> {
         f(state)
     }
 
-    fn loop_dispatch<D: Into<Option<std::time::Duration>>>(
-        &mut self,
-        timeout: D,
-    ) -> std::io::Result<()> {
+    fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
         let mut state = match &mut self.window_target.p {
             crate::platform_impl::EventLoopWindowTarget::Wayland(ref mut window_target) => {
                 window_target.state.get_mut()
