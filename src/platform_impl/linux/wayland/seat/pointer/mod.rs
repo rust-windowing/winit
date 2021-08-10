@@ -109,9 +109,10 @@ impl WinitPointer {
         let serial = Some(self.latest_serial.get());
         for cursor in cursors {
             if self.pointer.set_cursor(cursor, serial).is_ok() {
-                break;
+                return;
             }
         }
+        error!("Failed to set cursor");
     }
 
     /// Confine the pointer to a surface.
