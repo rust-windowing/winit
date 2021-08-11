@@ -475,7 +475,7 @@ impl KbdHandler {
                 state.init_with_fd(fd, size as usize);
             },
             wl_keyboard::KeymapFormat::NoKeymap => {
-                // TODO: how to handle this (hopefully never occuring) case?
+                warn!("The Wayland server did not send a keymap!");
             }
             _ => unreachable!(),
         }
