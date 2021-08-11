@@ -882,6 +882,11 @@ unsafe fn post_init<T: 'static>(
         thread_executor: event_loop.create_thread_executor(),
     };
 
+    // Set visible before setting the size
+    // to ensure the the attribute is correctly
+    // applied.
+    win.set_visible(attributes.visible);
+
     let dimensions = attributes
         .inner_size
         .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
@@ -891,7 +896,6 @@ unsafe fn post_init<T: 'static>(
         // `Window::set_inner_size` changes MAXIMIZED to false.
         win.set_maximized(true);
     }
-    win.set_visible(attributes.visible);
 
     if let Some(_) = attributes.fullscreen {
         win.set_fullscreen(attributes.fullscreen);
