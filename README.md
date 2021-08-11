@@ -97,7 +97,7 @@ The `ndk_glue` version needs to match the version used by `winit`. Otherwise, th
 `ndk_glue` <-> `winit` version comparison tables:
 
 |                |   winit 0.24   |   winit 0.25   |
-|----------------|:--------------:|---------------:|
+|----------------|:--------------:|:--------------:|
 | ndk_glue 0.2.1 |       ✅        |                |
 | ndk_glue 0.3.0 |                |       ✅        |
 | ndk_glue 0.4.0 |                |                |
