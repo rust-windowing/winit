@@ -98,8 +98,8 @@ The `ndk_glue` version needs to match the version used by `winit`. Otherwise, th
 
 | winit |       ndk_glue       |
 | :---: | :------------------: |
-| 0.24  | `ndk_glue = "0.2.1"` |
-| 0.25  | `ndk_glue = "0.2.1"` |
+| 0.24  | `ndk_glue = "0.2.0"` |
+| 0.25  | `ndk_glue = "0.3.0"` |
 
 Running on an Android device needs a dynamic system library, add this to Cargo.toml:
 
