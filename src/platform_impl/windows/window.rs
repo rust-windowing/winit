@@ -882,9 +882,8 @@ unsafe fn post_init<T: 'static>(
         thread_executor: event_loop.create_thread_executor(),
     };
 
-    // Set visible before setting the size
-    // to ensure the the attribute is correctly
-    // applied.
+    // Set visible before setting the size to ensure the
+    // attribute is correctly applied.
     win.set_visible(attributes.visible);
 
     let dimensions = attributes
