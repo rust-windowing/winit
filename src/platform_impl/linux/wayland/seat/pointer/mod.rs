@@ -112,7 +112,7 @@ impl WinitPointer {
                 return;
             }
         }
-        error!("Failed to set cursor");
+        warn!("Failed to set cursor");
     }
 
     /// Confine the pointer to a surface.
