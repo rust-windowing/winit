@@ -11,6 +11,7 @@
 - On Wayland, load cursor icons `hand2` and `hand1` for `CursorIcon::Hand`.
 - **Breaking:** On Wayland, Theme trait and its support types are dropped.
 - On Wayland, bump `smithay-client-toolkit` to 0.15.
+- On Wayland, implement `request_user_attention` with `xdg_activation_v1`.
 
 
 # 0.25.0 (2021-05-15)

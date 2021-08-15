@@ -17,7 +17,7 @@ use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorIcon, Fullscreen, WindowAttributes};
+use crate::window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -197,7 +197,12 @@ impl Window {
         let window_requests = Arc::new(Mutex::new(Vec::with_capacity(64)));
 
         // Create a handle that performs all the requests on underlying sctk a window.
-        let window_handle = WindowHandle::new(window, size.clone(), window_requests.clone());
+        let window_handle = WindowHandle::new(
+            &event_loop_window_target.env,
+            window,
+            size.clone(),
+            window_requests.clone(),
+        );
 
         let mut winit_state = event_loop_window_target.state.borrow_mut();
 
@@ -455,6 +460,17 @@ impl Window {
         self.event_loop_awakener.ping();
 
         Ok(())
+    }
+
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        if !self.windowing_features.xdg_activation() {
+            warn!("'request_user_attention' isn't supported.");
+            return;
+        }
+
+        let attention_request = WindowRequest::Attention(request_type);
+        self.window_requests.lock().unwrap().push(attention_request);
+        self.event_loop_awakener.ping();
     }
 
     #[inline]

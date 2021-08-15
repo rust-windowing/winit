@@ -442,7 +442,7 @@ impl Window {
             #[cfg(feature = "x11")]
             Window::X(ref w) => w.request_user_attention(_request_type),
             #[cfg(feature = "wayland")]
-            _ => (),
+            Window::Wayland(ref w) => w.request_user_attention(_request_type),
         }
     }
 
