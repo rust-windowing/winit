@@ -407,7 +407,7 @@ impl Window {
     pub fn set_always_on_top(&self, _always_on_top: bool) {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.set_always_on_top(_always_on_top),
+            Window::X(ref w) => w.set_always_on_top(_always_on_top),
             #[cfg(feature = "wayland")]
             _ => (),
         }
@@ -417,7 +417,7 @@ impl Window {
     pub fn set_window_icon(&self, _window_icon: Option<Icon>) {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.set_window_icon(_window_icon),
+            Window::X(ref w) => w.set_window_icon(_window_icon),
             #[cfg(feature = "wayland")]
             _ => (),
         }
@@ -432,7 +432,7 @@ impl Window {
     pub fn focus_window(&self) {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.focus_window(),
+            Window::X(ref w) => w.focus_window(),
             #[cfg(feature = "wayland")]
             _ => (),
         }
@@ -440,7 +440,7 @@ impl Window {
     pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref w) => w.request_user_attention(_request_type),
+            Window::X(ref w) => w.request_user_attention(_request_type),
             #[cfg(feature = "wayland")]
             _ => (),
         }
@@ -455,14 +455,14 @@ impl Window {
     pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref window) => {
+            Window::X(ref window) => {
                 let current_monitor = MonitorHandle::X(window.current_monitor());
                 Some(RootMonitorHandle {
                     inner: current_monitor,
                 })
             }
             #[cfg(feature = "wayland")]
-            &Window::Wayland(ref window) => {
+            Window::Wayland(ref window) => {
                 let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
                 Some(RootMonitorHandle {
                     inner: current_monitor,
@@ -475,13 +475,13 @@ impl Window {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref window) => window
+            Window::X(ref window) => window
                 .available_monitors()
                 .into_iter()
                 .map(MonitorHandle::X)
                 .collect(),
             #[cfg(feature = "wayland")]
-            &Window::Wayland(ref window) => window
+            Window::Wayland(ref window) => window
                 .available_monitors()
                 .into_iter()
                 .map(MonitorHandle::Wayland)
@@ -493,23 +493,23 @@ impl Window {
     pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref window) => {
+            Window::X(ref window) => {
                 let primary_monitor = MonitorHandle::X(window.primary_monitor());
                 Some(RootMonitorHandle {
                     inner: primary_monitor,
                 })
             }
             #[cfg(feature = "wayland")]
-            &Window::Wayland(ref window) => window.primary_monitor(),
+            Window::Wayland(ref window) => window.primary_monitor(),
         }
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
+            Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
             #[cfg(feature = "wayland")]
-            &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
+            Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
 }

@@ -7,16 +7,12 @@ use sctk::reexports::client::Display;
 
 use sctk::reexports::calloop;
 
-use sctk::window::{
-    ARGBColor, ButtonColorSpec, ColorSpec, ConceptConfig, ConceptFrame, Decorations,
-};
-
 use raw_window_handle::unix::WaylandHandle;
+use sctk::window::{Decorations, FallbackFrame};
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::monitor::MonitorHandle as RootMonitorHandle;
-use crate::platform::unix::{ARGBColor as LocalARGBColor, Button, ButtonState, Element, Theme};
 use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
@@ -103,7 +99,7 @@ impl Window {
         let theme_manager = event_loop_window_target.theme_manager.clone();
         let mut window = event_loop_window_target
             .env
-            .create_window::<ConceptFrame, _>(
+            .create_window::<FallbackFrame, _>(
                 surface.clone(),
                 Some(theme_manager),
                 (width, height),
@@ -213,17 +209,14 @@ impl Window {
 
         let windowing_features = event_loop_window_target.windowing_features;
 
-        // Send all updates to the server.
-        let wayland_source = &event_loop_window_target.wayland_source;
-        let event_loop_handle = &event_loop_window_target.event_loop_handle;
-
         // To make our window usable for drawing right away we must `ack` a `configure`
         // from the server, the acking part here is done by SCTK window frame, so we just
         // need to sync with server so it'll be done automatically for us.
-        event_loop_handle.with_source(&wayland_source, |event_queue| {
-            let event_queue = event_queue.queue();
+        {
+            let mut wayland_source = event_loop_window_target.wayland_dispatcher.as_source_mut();
+            let event_queue = wayland_source.queue();
             let _ = event_queue.sync_roundtrip(&mut *winit_state, |_, _, _| unreachable!());
-        });
+        }
 
         // We all praise GNOME for these 3 lines of pure magic. If we don't do that,
         // GNOME will shrink our window a bit for the size of the decorations. I guess it
@@ -429,129 +422,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_theme<T: Theme>(&self, theme: T) {
-        // First buttons is minimize, then maximize, and then close.
-        let buttons: Vec<(ButtonColorSpec, ButtonColorSpec)> =
-            [Button::Minimize, Button::Maximize, Button::Close]
-                .iter()
-                .map(|button| {
-                    let button = *button;
-                    let idle_active_bg = theme
-                        .button_color(button, ButtonState::Idle, false, true)
-                        .into();
-                    let idle_inactive_bg = theme
-                        .button_color(button, ButtonState::Idle, false, false)
-                        .into();
-                    let idle_active_icon = theme
-                        .button_color(button, ButtonState::Idle, true, true)
-                        .into();
-                    let idle_inactive_icon = theme
-                        .button_color(button, ButtonState::Idle, true, false)
-                        .into();
-                    let idle_bg = ColorSpec {
-                        active: idle_active_bg,
-                        inactive: idle_inactive_bg,
-                    };
-                    let idle_icon = ColorSpec {
-                        active: idle_active_icon,
-                        inactive: idle_inactive_icon,
-                    };
-
-                    let hovered_active_bg = theme
-                        .button_color(button, ButtonState::Hovered, false, true)
-                        .into();
-                    let hovered_inactive_bg = theme
-                        .button_color(button, ButtonState::Hovered, false, false)
-                        .into();
-                    let hovered_active_icon = theme
-                        .button_color(button, ButtonState::Hovered, true, true)
-                        .into();
-                    let hovered_inactive_icon = theme
-                        .button_color(button, ButtonState::Hovered, true, false)
-                        .into();
-                    let hovered_bg = ColorSpec {
-                        active: hovered_active_bg,
-                        inactive: hovered_inactive_bg,
-                    };
-                    let hovered_icon = ColorSpec {
-                        active: hovered_active_icon,
-                        inactive: hovered_inactive_icon,
-                    };
-
-                    let disabled_active_bg = theme
-                        .button_color(button, ButtonState::Disabled, false, true)
-                        .into();
-                    let disabled_inactive_bg = theme
-                        .button_color(button, ButtonState::Disabled, false, false)
-                        .into();
-                    let disabled_active_icon = theme
-                        .button_color(button, ButtonState::Disabled, true, true)
-                        .into();
-                    let disabled_inactive_icon = theme
-                        .button_color(button, ButtonState::Disabled, true, false)
-                        .into();
-                    let disabled_bg = ColorSpec {
-                        active: disabled_active_bg,
-                        inactive: disabled_inactive_bg,
-                    };
-                    let disabled_icon = ColorSpec {
-                        active: disabled_active_icon,
-                        inactive: disabled_inactive_icon,
-                    };
-
-                    let button_bg = ButtonColorSpec {
-                        idle: idle_bg,
-                        hovered: hovered_bg,
-                        disabled: disabled_bg,
-                    };
-                    let button_icon = ButtonColorSpec {
-                        idle: idle_icon,
-                        hovered: hovered_icon,
-                        disabled: disabled_icon,
-                    };
-
-                    (button_icon, button_bg)
-                })
-                .collect();
-
-        let minimize_button = Some(buttons[0]);
-        let maximize_button = Some(buttons[1]);
-        let close_button = Some(buttons[2]);
-
-        // The first color is bar, then separator, and then text color.
-        let titlebar_colors: Vec<ColorSpec> = [Element::Bar, Element::Separator, Element::Text]
-            .iter()
-            .map(|element| {
-                let element = *element;
-                let active = theme.element_color(element, true).into();
-                let inactive = theme.element_color(element, false).into();
-
-                ColorSpec { active, inactive }
-            })
-            .collect();
-
-        let primary_color = titlebar_colors[0];
-        let secondary_color = titlebar_colors[1];
-        let title_color = titlebar_colors[2];
-
-        let title_font = theme.font();
-
-        let concept_config = ConceptConfig {
-            primary_color,
-            secondary_color,
-            title_color,
-            title_font,
-            minimize_button,
-            maximize_button,
-            close_button,
-        };
-
-        let theme_request = WindowRequest::Theme(concept_config);
-        self.window_requests.lock().unwrap().push(theme_request);
-        self.event_loop_awakener.ping();
-    }
-
-    #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let cursor_icon_request = WindowRequest::NewCursorIcon(cursor);
         self.window_requests
@@ -659,16 +529,6 @@ impl Window {
             surface,
             ..WaylandHandle::empty()
         }
-    }
-}
-
-impl From<LocalARGBColor> for ARGBColor {
-    fn from(color: LocalARGBColor) -> Self {
-        let a = color.a;
-        let r = color.r;
-        let g = color.g;
-        let b = color.b;
-        Self { a, r, g, b }
     }
 }
 

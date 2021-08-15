@@ -237,10 +237,6 @@ pub trait WindowExtUnix {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
-    /// Sets the color theme of the client side window decorations on wayland
-    #[cfg(feature = "wayland")]
-    fn set_wayland_theme<T: Theme>(&self, theme: T);
-
     /// Check if the window is ready for drawing
     ///
     /// It is a remnant of a previous implementation detail for the
@@ -320,16 +316,6 @@ impl WindowExtUnix for Window {
             LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
             #[cfg(feature = "x11")]
             _ => None,
-        }
-    }
-
-    #[inline]
-    #[cfg(feature = "wayland")]
-    fn set_wayland_theme<T: Theme>(&self, theme: T) {
-        match self.window {
-            LinuxWindow::Wayland(ref w) => w.set_theme(theme),
-            #[cfg(feature = "x11")]
-            _ => {}
         }
     }
 
@@ -453,79 +439,4 @@ impl MonitorHandleExtUnix for MonitorHandle {
     fn native_id(&self) -> u32 {
         self.inner.native_identifier()
     }
-}
-
-/// A theme for a Wayland's client side decorations.
-#[cfg(feature = "wayland")]
-pub trait Theme: Send + 'static {
-    /// Title bar color.
-    fn element_color(&self, element: Element, window_active: bool) -> ARGBColor;
-
-    /// Color for a given button part.
-    fn button_color(
-        &self,
-        button: Button,
-        state: ButtonState,
-        foreground: bool,
-        window_active: bool,
-    ) -> ARGBColor;
-
-    /// Font name and the size for the title bar.
-    ///
-    /// By default the font is `sans-serif` at the size of 17.
-    ///
-    /// Returning `None` means that title won't be drawn.
-    fn font(&self) -> Option<(String, f32)> {
-        // Not having any title isn't something desirable for the users, so setting it to
-        // something generic.
-        Some((String::from("sans-serif"), 17.))
-    }
-}
-
-/// A button on Wayland's client side decorations.
-#[cfg(feature = "wayland")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Button {
-    /// Button that maximizes the window.
-    Maximize,
-
-    /// Button that minimizes the window.
-    Minimize,
-
-    /// Button that closes the window.
-    Close,
-}
-
-/// A button state of the button on Wayland's client side decorations.
-#[cfg(feature = "wayland")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ButtonState {
-    /// Button is being hovered over by pointer.
-    Hovered,
-    /// Button is not being hovered over by pointer.
-    Idle,
-    /// Button is disabled.
-    Disabled,
-}
-
-#[cfg(feature = "wayland")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Element {
-    /// Bar itself.
-    Bar,
-
-    /// Separator between window and title bar.
-    Separator,
-
-    /// Title bar text.
-    Text,
-}
-
-#[cfg(feature = "wayland")]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ARGBColor {
-    pub a: u8,
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
 }
