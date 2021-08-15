@@ -19,6 +19,7 @@ use sctk::WaylandSource;
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
 use crate::platform_impl::platform::sticky_exit_callback;
+use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
 
 use super::env::{WindowingFeatures, WinitEnv};
 use super::output::OutputManager;
@@ -120,16 +121,17 @@ impl<T: 'static> EventLoop<T> {
 
         // A source of events that we plug into our event loop.
         let wayland_source = WaylandSource::new(event_queue);
-        let wayland_dispatcher = calloop::Dispatcher::new(wayland_source, |_, queue, ddata| {
-            queue.dispatch_pending(ddata, |event, object, _| {
-                panic!(
-                    "[calloop] Encountered an orphan event: {}@{} : {}",
-                    event.interface,
-                    object.as_ref().id(),
-                    event.name
-                );
-            })
-        });
+        let wayland_dispatcher =
+            calloop::Dispatcher::new(wayland_source, |_, queue, winit_state| {
+                queue.dispatch_pending(winit_state, |event, object, _| {
+                    panic!(
+                        "[calloop] Encountered an orphan event: {}@{} : {}",
+                        event.interface,
+                        object.as_ref().id(),
+                        event.name
+                    );
+                })
+            });
 
         let _wayland_source_dispatcher = event_loop
             .handle()
@@ -192,7 +194,7 @@ impl<T: 'static> EventLoop<T> {
             _seat_manager: seat_manager,
             user_events_sender,
             window_target: RootEventLoopWindowTarget {
-                p: crate::platform_impl::EventLoopWindowTarget::Wayland(event_loop_window_target),
+                p: PlatformEventLoopWindowTarget::Wayland(event_loop_window_target),
                 _marker: std::marker::PhantomData,
             },
         };
@@ -422,7 +424,7 @@ impl<T: 'static> EventLoop<T> {
                 let mut wayland_source = self.wayland_dispatcher.as_source_mut();
                 let queue = wayland_source.queue();
                 let state = match &mut self.window_target.p {
-                    crate::platform_impl::EventLoopWindowTarget::Wayland(ref mut window_target) => {
+                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
                         window_target.state.get_mut()
                     }
                     #[cfg(feature = "x11")]
@@ -525,9 +527,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
-            crate::platform_impl::EventLoopWindowTarget::Wayland(ref mut window_target) => {
-                window_target.state.get_mut()
-            }
+            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
             #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
@@ -537,9 +537,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
         let mut state = match &mut self.window_target.p {
-            crate::platform_impl::EventLoopWindowTarget::Wayland(ref mut window_target) => {
-                window_target.state.get_mut()
-            }
+            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
             #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
