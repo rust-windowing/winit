@@ -167,6 +167,9 @@ pub struct WindowHandle {
     xdg_activation: Option<Attached<XdgActivationV1>>,
 
     /// Actication token.
+    ///
+    /// The token can be used only once per request, thus it should be recreated upon
+    /// requests.
     xdg_activation_token: RefCell<Option<XdgActivationTokenV1>>,
 }
 
@@ -217,40 +220,44 @@ impl WindowHandle {
             Some(xdg_activation) => xdg_activation,
         };
 
-        match request_type {
-            None => {
-                if let Some(token) = self.xdg_activation_token.take() {
-                    token.destroy();
-                }
-            }
-            Some(_) => {
-                // The token is already present, nothing to set.
-                if self.xdg_activation_token.borrow().is_some() {
-                    return;
-                }
-
-                let xdg_activation_token = xdg_activation.get_activation_token();
-                let surface = self.window.surface();
-                let window_id = wayland::make_wid(surface);
-                let xdg_activation = xdg_activation.clone();
-                xdg_activation_token.quick_assign(move |xdg_token, event, mut dispatch_data| {
-                    let winit_state = dispatch_data.get::<WinitState>().unwrap();
-                    if let Some(window_handle) = winit_state.window_map.get_mut(&window_id) {
-                        let surface = window_handle.window.surface();
-                        if let xdg_activation_token_v1::Event::Done { token } = event {
-                            xdg_activation.activate(token, surface);
-                            *window_handle.xdg_activation_token.borrow_mut() = None;
-                            xdg_token.destroy();
-                        }
-                    }
-                });
-
-                xdg_activation_token.set_surface(surface);
-                xdg_activation_token.commit();
-                self.xdg_activation_token
-                    .replace(Some(xdg_activation_token.detach()));
-            }
+        // Unsetting is done by compositor.
+        if request_type.is_none() {
+            return;
         }
+
+        // The token is already present, nothing to set.
+        if self.xdg_activation_token.borrow().is_some() {
+            return;
+        }
+
+        let xdg_activation_token = xdg_activation.get_activation_token();
+        let surface = self.window.surface();
+        let window_id = wayland::make_wid(surface);
+        let xdg_activation = xdg_activation.clone();
+
+        xdg_activation_token.quick_assign(move |xdg_token, event, mut dispatch_data| {
+            let token = match event {
+                xdg_activation_token_v1::Event::Done { token } => token,
+                _ => return,
+            };
+
+            let winit_state = dispatch_data.get::<WinitState>().unwrap();
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
+                Some(window_handle) => window_handle,
+                None => return,
+            };
+
+            let surface = window_handle.window.surface();
+            xdg_activation.activate(token, surface);
+
+            // Drop used token, since reusing the token is protocol error.
+            *window_handle.xdg_activation_token.borrow_mut() = None;
+            xdg_token.destroy();
+        });
+
+        xdg_activation_token.set_surface(surface);
+        xdg_activation_token.commit();
+        *self.xdg_activation_token.borrow_mut() = Some(xdg_activation_token.detach());
     }
 
     /// Pointer appeared over the window.

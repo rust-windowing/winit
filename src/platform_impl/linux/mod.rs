@@ -437,12 +437,12 @@ impl Window {
             _ => (),
         }
     }
-    pub fn request_user_attention(&self, _request_type: Option<UserAttentionType>) {
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         match self {
             #[cfg(feature = "x11")]
-            Window::X(ref w) => w.request_user_attention(_request_type),
+            Window::X(ref w) => w.request_user_attention(request_type),
             #[cfg(feature = "wayland")]
-            Window::Wayland(ref w) => w.request_user_attention(_request_type),
+            Window::Wayland(ref w) => w.request_user_attention(request_type),
         }
     }
 
