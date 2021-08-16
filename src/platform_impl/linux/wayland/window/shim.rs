@@ -216,8 +216,8 @@ impl WindowHandle {
             Some(xdg_activation) => xdg_activation,
         };
 
-        //  Unsetting urgency is done by compositor and if the token is already is present we don't
-        //  need to create one more, so performing eaerly return.
+        //  Urgency is only removed by the compositor and there's no need to raise urgency when it
+        //  was already raised.
         if request_type.is_none() || self.attention_requested.get() {
             return;
         }
