@@ -1,10 +1,9 @@
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Attached;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_token_v1;
-use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_token_v1::XdgActivationTokenV1;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_v1::XdgActivationV1;
 
 use sctk::environment::Environment;
@@ -166,11 +165,8 @@ pub struct WindowHandle {
     /// XdgActivation object.
     xdg_activation: Option<Attached<XdgActivationV1>>,
 
-    /// Actication token.
-    ///
-    /// The token can be used only once per request, thus it should be recreated upon
-    /// requests.
-    xdg_activation_token: RefCell<Option<XdgActivationTokenV1>>,
+    /// Indicator whether user attention is requested.
+    attention_requested: Cell<bool>,
 }
 
 impl WindowHandle {
@@ -192,7 +188,7 @@ impl WindowHandle {
             pointers: Vec::new(),
             text_inputs: Vec::new(),
             xdg_activation,
-            xdg_activation_token: RefCell::new(None),
+            attention_requested: Cell::new(false),
         }
     }
 
@@ -220,13 +216,9 @@ impl WindowHandle {
             Some(xdg_activation) => xdg_activation,
         };
 
-        // Unsetting is done by compositor.
-        if request_type.is_none() {
-            return;
-        }
-
-        // The token is already present, nothing to set.
-        if self.xdg_activation_token.borrow().is_some() {
+        //  Unsetting urgency is done by compositor and if the token is already is present we don't
+        //  need to create one more, so performing eaerly return.
+        if request_type.is_none() || self.attention_requested.get() {
             return;
         }
 
@@ -250,14 +242,14 @@ impl WindowHandle {
             let surface = window_handle.window.surface();
             xdg_activation.activate(token, surface);
 
-            // Drop used token, since reusing the token is protocol error.
-            *window_handle.xdg_activation_token.borrow_mut() = None;
+            // Mark that attention request was done and drop the token.
+            window_handle.attention_requested.replace(false);
             xdg_token.destroy();
         });
 
         xdg_activation_token.set_surface(surface);
         xdg_activation_token.commit();
-        *self.xdg_activation_token.borrow_mut() = Some(xdg_activation_token.detach());
+        self.attention_requested.replace(true);
     }
 
     /// Pointer appeared over the window.
