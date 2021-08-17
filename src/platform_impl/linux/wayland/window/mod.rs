@@ -17,7 +17,7 @@ use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorIcon, Fullscreen, WindowAttributes};
+use crate::window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -197,7 +197,12 @@ impl Window {
         let window_requests = Arc::new(Mutex::new(Vec::with_capacity(64)));
 
         // Create a handle that performs all the requests on underlying sctk a window.
-        let window_handle = WindowHandle::new(window, size.clone(), window_requests.clone());
+        let window_handle = WindowHandle::new(
+            &event_loop_window_target.env,
+            window,
+            size.clone(),
+            window_requests.clone(),
+        );
 
         let mut winit_state = event_loop_window_target.state.borrow_mut();
 
@@ -251,9 +256,7 @@ impl Window {
 
     #[inline]
     pub fn set_title(&self, title: &str) {
-        let title_request = WindowRequest::Title(title.to_owned());
-        self.window_requests.lock().unwrap().push(title_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::Title(title.to_owned()));
     }
 
     #[inline]
@@ -285,9 +288,7 @@ impl Window {
 
     #[inline]
     pub fn request_redraw(&self) {
-        let redraw_request = WindowRequest::Redraw;
-        self.window_requests.lock().unwrap().push(redraw_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::Redraw);
     }
 
     #[inline]
@@ -305,12 +306,7 @@ impl Window {
         let size = size.to_logical::<u32>(scale_factor);
         *self.size.lock().unwrap() = size;
 
-        let frame_size_request = WindowRequest::FrameSize(size);
-        self.window_requests
-            .lock()
-            .unwrap()
-            .push(frame_size_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::FrameSize(size));
     }
 
     #[inline]
@@ -318,9 +314,7 @@ impl Window {
         let scale_factor = self.scale_factor() as f64;
         let size = dimensions.map(|size| size.to_logical::<u32>(scale_factor));
 
-        let min_size_request = WindowRequest::MinSize(size);
-        self.window_requests.lock().unwrap().push(min_size_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::MinSize(size));
     }
 
     #[inline]
@@ -328,19 +322,12 @@ impl Window {
         let scale_factor = self.scale_factor() as f64;
         let size = dimensions.map(|size| size.to_logical::<u32>(scale_factor));
 
-        let max_size_request = WindowRequest::MaxSize(size);
-        self.window_requests.lock().unwrap().push(max_size_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::MaxSize(size));
     }
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
-        let resizeable_request = WindowRequest::Resizeable(resizable);
-        self.window_requests
-            .lock()
-            .unwrap()
-            .push(resizeable_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::Resizeable(resizable));
     }
 
     #[inline]
@@ -352,9 +339,7 @@ impl Window {
 
     #[inline]
     pub fn set_decorations(&self, decorate: bool) {
-        let decorate_request = WindowRequest::Decorate(decorate);
-        self.window_requests.lock().unwrap().push(decorate_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::Decorate(decorate));
     }
 
     #[inline]
@@ -364,9 +349,7 @@ impl Window {
             return;
         }
 
-        let minimize_request = WindowRequest::Minimize;
-        self.window_requests.lock().unwrap().push(minimize_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::Minimize);
     }
 
     #[inline]
@@ -376,9 +359,7 @@ impl Window {
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        let maximize_request = WindowRequest::Maximize(maximized);
-        self.window_requests.lock().unwrap().push(maximize_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::Maximize(maximized));
     }
 
     #[inline]
@@ -414,31 +395,17 @@ impl Window {
             None => WindowRequest::UnsetFullscreen,
         };
 
-        self.window_requests
-            .lock()
-            .unwrap()
-            .push(fullscreen_request);
-        self.event_loop_awakener.ping();
+        self.send_request(fullscreen_request);
     }
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        let cursor_icon_request = WindowRequest::NewCursorIcon(cursor);
-        self.window_requests
-            .lock()
-            .unwrap()
-            .push(cursor_icon_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::NewCursorIcon(cursor));
     }
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        let cursor_visible_request = WindowRequest::ShowCursor(visible);
-        self.window_requests
-            .lock()
-            .unwrap()
-            .push(cursor_visible_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::ShowCursor(visible));
     }
 
     #[inline]
@@ -447,14 +414,18 @@ impl Window {
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 
-        let cursor_grab_request = WindowRequest::GrabCursor(grab);
-        self.window_requests
-            .lock()
-            .unwrap()
-            .push(cursor_grab_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::GrabCursor(grab));
 
         Ok(())
+    }
+
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        if !self.windowing_features.xdg_activation() {
+            warn!("`request_user_attention` isn't supported");
+            return;
+        }
+
+        self.send_request(WindowRequest::Attention(request_type));
     }
 
     #[inline]
@@ -471,12 +442,7 @@ impl Window {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        let drag_window_request = WindowRequest::DragWindow;
-        self.window_requests
-            .lock()
-            .unwrap()
-            .push(drag_window_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::DragWindow);
 
         Ok(())
     }
@@ -485,12 +451,7 @@ impl Window {
     pub fn set_ime_position(&self, position: Position) {
         let scale_factor = self.scale_factor() as f64;
         let position = position.to_logical(scale_factor);
-        let ime_position_request = WindowRequest::IMEPosition(position);
-        self.window_requests
-            .lock()
-            .unwrap()
-            .push(ime_position_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::IMEPosition(position));
     }
 
     #[inline]
@@ -530,12 +491,16 @@ impl Window {
             ..WaylandHandle::empty()
         }
     }
+
+    #[inline]
+    fn send_request(&self, request: WindowRequest) {
+        self.window_requests.lock().unwrap().push(request);
+        self.event_loop_awakener.ping();
+    }
 }
 
 impl Drop for Window {
     fn drop(&mut self) {
-        let close_request = WindowRequest::Close;
-        self.window_requests.lock().unwrap().push(close_request);
-        self.event_loop_awakener.ping();
+        self.send_request(WindowRequest::Close);
     }
 }
