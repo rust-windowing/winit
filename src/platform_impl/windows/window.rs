@@ -46,7 +46,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes, ResizeDirection},
+    window::{CursorIcon, Fullscreen, ResizeDirection, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -390,7 +390,7 @@ impl Window {
             ResizeDirection::TopLeft => winuser::HTTOPLEFT,
             ResizeDirection::TopRight => winuser::HTTOPRIGHT,
             ResizeDirection::BottomLeft => winuser::HTBOTTOMLEFT,
-            ResizeDirection::BottomRight => winuser::HTBOTTOMRIGHT
+            ResizeDirection::BottomRight => winuser::HTBOTTOMRIGHT,
         };
 
         unsafe {
@@ -405,10 +405,10 @@ impl Window {
             };
             winuser::ReleaseCapture();
             winuser::PostMessageW(
-                self.window.0, 
+                self.window.0,
                 winuser::WM_NCLBUTTONDOWN, // Non-Client Left Button Down
                 ht_dir as WPARAM,
-                &points as *const _ as LPARAM
+                &points as *const _ as LPARAM,
             );
         }
 

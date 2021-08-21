@@ -977,7 +977,7 @@ pub enum ResizeDirection {
     TopLeft,
     TopRight,
     BottomLeft,
-    BottomRight
+    BottomRight,
 }
 
 /// Fullscreen modes.

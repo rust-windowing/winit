@@ -5,11 +5,11 @@ use winit::{
         ElementState, Event, KeyboardInput, MouseButton, StartCause, VirtualKeyCode, WindowEvent,
     },
     event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder, ResizeDirection, CursorIcon},
+    window::{CursorIcon, ResizeDirection, WindowBuilder},
 };
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-enum CursorLocation{
+enum CursorLocation {
     Caption,
     Top,
     Bottom,
@@ -19,14 +19,14 @@ enum CursorLocation{
     TopLeft,
     BottomRight,
     BottomLeft,
-    Default
+    Default,
 }
 
-impl CursorLocation{
+impl CursorLocation {
     // Conversion to appropriate cursor Icon
     fn get_cursor_icon(&self) -> CursorIcon {
         match self {
-            CursorLocation::Top | CursorLocation::Bottom=> CursorIcon::NsResize,
+            CursorLocation::Top | CursorLocation::Bottom => CursorIcon::NsResize,
             CursorLocation::Right | CursorLocation::Left => CursorIcon::EwResize,
             CursorLocation::TopRight | CursorLocation::BottomLeft => CursorIcon::NeswResize,
             CursorLocation::TopLeft | CursorLocation::BottomRight => CursorIcon::NwseResize,
@@ -60,7 +60,7 @@ impl CursorLocation{
             (CursorLocation::Left, CursorLocation::Bottom) => CursorLocation::BottomLeft,
             (CursorLocation::Right, CursorLocation::Top) => CursorLocation::TopRight,
             (CursorLocation::Right, CursorLocation::Bottom) => CursorLocation::BottomRight,
-            _ => CursorLocation::Default
+            _ => CursorLocation::Default,
         }
     }
 }
@@ -69,7 +69,6 @@ const BORDER: f64 = 5.;
 const CAPTIONHEIGHT: f64 = 20.; // Titlebar
 const INIT_WIDTH: f64 = 400.;
 const INIT_HEIGHT: f64 = 200.;
-
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -87,12 +86,13 @@ fn main() {
 
     event_loop.run(move |event, _, control_flow| match event {
         Event::NewEvents(StartCause::Init) => {
-            eprintln!("Press 'B' to toggle borderless \nThe top of the screen functions as a titlebar")
+            eprintln!(
+                "Press 'B' to toggle borderless \nThe top of the screen functions as a titlebar"
+            )
         }
         Event::WindowEvent { event, .. } => match event {
             WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-            WindowEvent::CursorMoved { position, ..} => {
-
+            WindowEvent::CursorMoved { position, .. } => {
                 // Test for X
                 let x_location = if position.x < BORDER {
                     CursorLocation::Left
@@ -102,7 +102,7 @@ fn main() {
                     CursorLocation::Default
                 };
 
-                // Test for Y 
+                // Test for Y
                 let y_location = if position.y < BORDER {
                     CursorLocation::Top
                 } else if position.y < CAPTIONHEIGHT {
@@ -119,7 +119,7 @@ fn main() {
                     cursor_location = new_location;
                     window.set_cursor_icon(cursor_location.get_cursor_icon())
                 }
-            },
+            }
 
             WindowEvent::Resized(new_size) => {
                 x_border = new_size.width as f64 - BORDER;
