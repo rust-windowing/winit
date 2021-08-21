@@ -12,6 +12,7 @@
 - **Breaking:** On Wayland, Theme trait and its support types are dropped.
 - On Wayland, bump `smithay-client-toolkit` to 0.15.
 - On Wayland, implement `request_user_attention` with `xdg_activation_v1`.
+- On Windows, added `drag_resize_window` method
 
 
 # 0.25.0 (2021-05-15)

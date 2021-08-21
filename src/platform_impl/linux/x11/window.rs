@@ -1351,6 +1351,11 @@ impl UnownedWindow {
             .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))
     }
 
+    #[inline]
+    pub fn drag_resize_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
         let _ = self
             .ime_sender

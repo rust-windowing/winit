@@ -188,16 +188,22 @@ impl WindowFlags {
     }
 
     pub fn to_window_styles(self) -> (DWORD, DWORD) {
+        // WS_CAPTION: The Titlebar
+        // WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX; These add the titlebar buttons close /min /max etc
+        // WS_SIZEBOX: The window has a sizing border. Same as the WS_THICKFRAME style
+
         use winapi::um::winuser::*;
 
         let (mut style, mut style_ex) = (0, 0);
 
-        if self.contains(WindowFlags::RESIZABLE) {
-            style |= WS_SIZEBOX | WS_MAXIMIZEBOX;
-        }
         if self.contains(WindowFlags::DECORATIONS) {
-            style |= WS_CAPTION | WS_MINIMIZEBOX | WS_BORDER;
-            style_ex = WS_EX_WINDOWEDGE;
+            style |= WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX; // Note WS_BORDER IS INCLUDED IN WS_CAPTION
+            style_ex |= WS_EX_WINDOWEDGE;
+
+            // Nest inside Decorations to preserve borderless windows
+            if self.contains(WindowFlags::RESIZABLE) {
+                style |= WS_SIZEBOX | WS_MAXIMIZEBOX;
+            }
         }
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
@@ -224,7 +230,7 @@ impl WindowFlags {
             style |= WS_MAXIMIZE;
         }
 
-        style |= WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
+        style |= WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
         style_ex |= WS_EX_ACCEPTFILES;
 
         if self.intersects(

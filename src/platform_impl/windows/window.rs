@@ -46,7 +46,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes, ResizeDirection},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -374,6 +374,41 @@ impl Window {
                 winuser::WM_NCLBUTTONDOWN,
                 winuser::HTCAPTION as WPARAM,
                 &points as *const _ as LPARAM,
+            );
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        let ht_dir = match direction {
+            ResizeDirection::Top => winuser::HTTOP,
+            ResizeDirection::Bottom => winuser::HTBOTTOM,
+            ResizeDirection::Left => winuser::HTLEFT,
+            ResizeDirection::Right => winuser::HTRIGHT,
+            ResizeDirection::TopLeft => winuser::HTTOPLEFT,
+            ResizeDirection::TopRight => winuser::HTTOPRIGHT,
+            ResizeDirection::BottomLeft => winuser::HTBOTTOMLEFT,
+            ResizeDirection::BottomRight => winuser::HTBOTTOMRIGHT
+        };
+
+        unsafe {
+            let points = {
+                let mut pos = mem::zeroed();
+                winuser::GetCursorPos(&mut pos);
+                pos
+            };
+            let points = POINTS {
+                x: points.x as SHORT,
+                y: points.y as SHORT,
+            };
+            winuser::ReleaseCapture();
+            winuser::PostMessageW(
+                self.window.0, 
+                winuser::WM_NCLBUTTONDOWN, // Non-Client Left Button Down
+                ht_dir as WPARAM,
+                &points as *const _ as LPARAM
             );
         }
 

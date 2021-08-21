@@ -186,6 +186,10 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
+    pub fn drag_resize_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub fn set_minimized(&self, _minimized: bool) {
         warn!("`Window::set_minimized` is ignored on iOS")
     }
