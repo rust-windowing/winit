@@ -181,30 +181,29 @@ impl UnownedWindow {
         };
 
         // creating
-        let (depth, visual) = match pl_attribs.visual_infos {
-            Some(vi) => (vi.depth, vi.visual),
+        let (visual, depth) = match pl_attribs.visual_infos {
+            Some(vi) => (vi.visual, vi.depth),
             None if window_attrs.transparent == true => {
                 // Find a suitable visual
                 let mut vinfo = MaybeUninit::uninit();
-                if unsafe {
+                let vinfo_initialized = unsafe {
                     (xconn.xlib.XMatchVisualInfo)(
                         xconn.display,
                         screen_id,
                         32,
                         TrueColor,
                         vinfo.as_mut_ptr(),
-                    )
-                } != 0
-                {
+                    ) != 0
+                };
+                if vinfo_initialized {
                     let vinfo = unsafe { vinfo.assume_init() };
-                    (vinfo.depth, vinfo.visual)
+                    (vinfo.visual, vinfo.depth)
                 } else {
-                    // There is not a visual that matches the criteria of being `TrueColor` and 32 bits depth,
-                    // and panic or error is not appropiate so just ignore it and continue
-                    (ffi::CopyFromParent, ffi::CopyFromParent as *mut ffi::Visual)
+                    debug!("Could not set transparency, because XMatchVisualInfo returned zero for the required parameters");
+                    (ffi::CopyFromParent as *mut ffi::Visual, ffi::CopyFromParent)
                 }
             }
-            _ => (ffi::CopyFromParent, ffi::CopyFromParent as *mut ffi::Visual),
+            _ => (ffi::CopyFromParent as *mut ffi::Visual, ffi::CopyFromParent),
         };
 
         let mut set_win_attr = {
