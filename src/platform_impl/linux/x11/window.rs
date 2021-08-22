@@ -22,7 +22,7 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Icon, ResizeDirection, UserAttentionType, WindowAttributes},
 };
 
 use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
@@ -1352,7 +1352,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn drag_resize_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 

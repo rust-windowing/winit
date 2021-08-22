@@ -357,7 +357,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn drag_window(&self) -> Result<(), ExternalError> {
+    fn non_client_drag_message(&self, w_param: WPARAM) -> Result<(), ExternalError> {
         unsafe {
             let points = {
                 let mut pos = mem::zeroed();
@@ -372,12 +372,17 @@ impl Window {
             winuser::PostMessageW(
                 self.window.0,
                 winuser::WM_NCLBUTTONDOWN,
-                winuser::HTCAPTION as WPARAM,
+                w_param as WPARAM,
                 &points as *const _ as LPARAM,
             );
         }
 
         Ok(())
+    }
+
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        self.non_client_drag_message(winuser::HTCAPTION as WPARAM)
     }
 
     #[inline]
@@ -393,26 +398,7 @@ impl Window {
             ResizeDirection::BottomRight => winuser::HTBOTTOMRIGHT,
         };
 
-        unsafe {
-            let points = {
-                let mut pos = mem::zeroed();
-                winuser::GetCursorPos(&mut pos);
-                pos
-            };
-            let points = POINTS {
-                x: points.x as SHORT,
-                y: points.y as SHORT,
-            };
-            winuser::ReleaseCapture();
-            winuser::PostMessageW(
-                self.window.0,
-                winuser::WM_NCLBUTTONDOWN, // Non-Client Left Button Down
-                ht_dir as WPARAM,
-                &points as *const _ as LPARAM,
-            );
-        }
-
-        Ok(())
+        self.non_client_drag_message(ht_dir as WPARAM)
     }
 
     #[inline]

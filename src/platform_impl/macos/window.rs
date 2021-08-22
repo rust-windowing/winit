@@ -29,7 +29,7 @@ use crate::{
         OsError,
     },
     window::{
-        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId, ResizeDirection,
     },
 };
 use cocoa::{
@@ -614,7 +614,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn drag_resize_window(&self) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 

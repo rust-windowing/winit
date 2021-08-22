@@ -587,7 +587,7 @@ impl Window {
         ))
     }
 
-    pub fn drag_resize_window(&self) -> Result<(), error::ExternalError> {
+    pub fn drag_resize_window(&self, _direction: Window::ResizeDirection) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))

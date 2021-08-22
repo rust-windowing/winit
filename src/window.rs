@@ -836,6 +836,9 @@ impl Window {
 
     /// Resizes the window with the left mouse button until the button is relased
     ///
+    /// There's no guarantee that this will work unless the left mouse button was pressed
+    /// immediately before this function is called.
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland / X11:** Always returns an [`ExternalError::NotSupported`].
