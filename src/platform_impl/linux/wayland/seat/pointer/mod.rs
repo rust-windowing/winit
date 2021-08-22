@@ -13,7 +13,7 @@ use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_p
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
 
 use sctk::seat::pointer::{ThemeManager, ThemedPointer};
-use sctk::window::{ConceptFrame, Window};
+use sctk::window::{FallbackFrame, Window};
 
 use crate::event::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;
@@ -109,9 +109,10 @@ impl WinitPointer {
         let serial = Some(self.latest_serial.get());
         for cursor in cursors {
             if self.pointer.set_cursor(cursor, serial).is_ok() {
-                break;
+                return;
             }
         }
+        warn!("Failed to set cursor to {:?}", cursor_icon);
     }
 
     /// Confine the pointer to a surface.
@@ -128,8 +129,8 @@ impl WinitPointer {
         };
 
         *confined_pointer.borrow_mut() = Some(init_confined_pointer(
-            &pointer_constraints,
-            &surface,
+            pointer_constraints,
+            surface,
             &*self.pointer,
         ));
     }
@@ -149,7 +150,7 @@ impl WinitPointer {
         }
     }
 
-    pub fn drag_window(&self, window: &Window<ConceptFrame>) {
+    pub fn drag_window(&self, window: &Window<FallbackFrame>) {
         window.start_interactive_move(&self.seat, self.latest_serial.get());
     }
 }
@@ -196,12 +197,11 @@ impl Pointers {
         );
 
         // Setup relative_pointer if it's available.
-        let relative_pointer = match relative_pointer_manager.as_ref() {
-            Some(relative_pointer_manager) => {
-                Some(init_relative_pointer(&relative_pointer_manager, &*pointer))
-            }
-            None => None,
-        };
+        let relative_pointer = relative_pointer_manager
+            .as_ref()
+            .map(|relative_pointer_manager| {
+                init_relative_pointer(relative_pointer_manager, &*pointer)
+            });
 
         Self {
             pointer,
@@ -249,7 +249,7 @@ pub(super) fn init_confined_pointer(
     pointer: &WlPointer,
 ) -> ZwpConfinedPointerV1 {
     let confined_pointer =
-        pointer_constraints.confine_pointer(surface, pointer, None, Lifetime::Persistent.to_raw());
+        pointer_constraints.confine_pointer(surface, pointer, None, Lifetime::Persistent);
 
     confined_pointer.quick_assign(move |_, _, _| {});
 

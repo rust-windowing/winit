@@ -118,6 +118,8 @@ pub enum NSWindowLevel {
     NSScreenSaverWindowLevel = kCGScreenSaverWindowLevelKey as _,
 }
 
+pub const NSStringEnumerationByComposedCharacterSequences: NSUInteger = 2;
+
 pub type CGDisplayFadeInterval = f32;
 pub type CGDisplayReservationInterval = f32;
 pub type CGDisplayBlendFraction = f32;

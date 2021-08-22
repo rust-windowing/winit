@@ -2,17 +2,23 @@ use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
 use sctk::reexports::client::protocol::wl_output::WlOutput;
+use sctk::reexports::client::Attached;
+use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_token_v1;
+use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_v1::XdgActivationV1;
 
-use sctk::window::{ConceptConfig, ConceptFrame, Decorations, Window};
+use sctk::environment::Environment;
+use sctk::window::{Decorations, FallbackFrame, Window};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
 use crate::event::WindowEvent;
+use crate::platform_impl::wayland;
+use crate::platform_impl::wayland::env::WinitEnv;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
-use crate::window::CursorIcon;
+use crate::window::{CursorIcon, UserAttentionType};
 
 /// A request to SCTK window from Winit window.
 #[derive(Debug, Clone)]
@@ -64,11 +70,13 @@ pub enum WindowRequest {
     /// Set IME window position.
     IMEPosition(LogicalPosition<u32>),
 
+    /// Request Attention.
+    ///
+    /// `None` unsets the attention request.
+    Attention(Option<UserAttentionType>),
+
     /// Redraw was requested.
     Redraw,
-
-    /// A new theme for a concept frame was requested.
-    Theme(ConceptConfig),
 
     /// Window should be closed.
     Close,
@@ -131,7 +139,7 @@ impl WindowUpdate {
 /// and react to events.
 pub struct WindowHandle {
     /// An actual window.
-    pub window: Window<ConceptFrame>,
+    pub window: Window<FallbackFrame>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -153,14 +161,23 @@ pub struct WindowHandle {
 
     /// Text inputs on the current surface.
     text_inputs: Vec<TextInputHandler>,
+
+    /// XdgActivation object.
+    xdg_activation: Option<Attached<XdgActivationV1>>,
+
+    /// Indicator whether user attention is requested.
+    attention_requested: Cell<bool>,
 }
 
 impl WindowHandle {
     pub fn new(
-        window: Window<ConceptFrame>,
+        env: &Environment<WinitEnv>,
+        window: Window<FallbackFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
+        let xdg_activation = env.get_global::<XdgActivationV1>();
+
         Self {
             window,
             size,
@@ -170,6 +187,8 @@ impl WindowHandle {
             cursor_visible: Cell::new(true),
             pointers: Vec::new(),
             text_inputs: Vec::new(),
+            xdg_activation,
+            attention_requested: Cell::new(false),
         }
     }
 
@@ -184,11 +203,53 @@ impl WindowHandle {
         for pointer in self.pointers.iter() {
             if self.confined.get() {
                 let surface = self.window.surface();
-                pointer.confine(&surface);
+                pointer.confine(surface);
             } else {
                 pointer.unconfine();
             }
         }
+    }
+
+    pub fn set_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let xdg_activation = match self.xdg_activation.as_ref() {
+            None => return,
+            Some(xdg_activation) => xdg_activation,
+        };
+
+        //  Urgency is only removed by the compositor and there's no need to raise urgency when it
+        //  was already raised.
+        if request_type.is_none() || self.attention_requested.get() {
+            return;
+        }
+
+        let xdg_activation_token = xdg_activation.get_activation_token();
+        let surface = self.window.surface();
+        let window_id = wayland::make_wid(surface);
+        let xdg_activation = xdg_activation.clone();
+
+        xdg_activation_token.quick_assign(move |xdg_token, event, mut dispatch_data| {
+            let token = match event {
+                xdg_activation_token_v1::Event::Done { token } => token,
+                _ => return,
+            };
+
+            let winit_state = dispatch_data.get::<WinitState>().unwrap();
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
+                Some(window_handle) => window_handle,
+                None => return,
+            };
+
+            let surface = window_handle.window.surface();
+            xdg_activation.activate(token, surface);
+
+            // Mark that attention request was done and drop the token.
+            window_handle.attention_requested.replace(false);
+            xdg_token.destroy();
+        });
+
+        xdg_activation_token.set_surface(surface);
+        xdg_activation_token.commit();
+        self.attention_requested.replace(true);
     }
 
     /// Pointer appeared over the window.
@@ -198,7 +259,7 @@ impl WindowHandle {
         if position.is_none() {
             if self.confined.get() {
                 let surface = self.window.surface();
-                pointer.confine(&surface);
+                pointer.confine(surface);
             }
             self.pointers.push(pointer);
         }
@@ -222,12 +283,7 @@ impl WindowHandle {
     }
 
     pub fn text_input_entered(&mut self, text_input: TextInputHandler) {
-        if self
-            .text_inputs
-            .iter()
-            .find(|t| *t == &text_input)
-            .is_none()
-        {
+        if !self.text_inputs.iter().any(|t| *t == text_input) {
             self.text_inputs.push(text_input);
         }
     }
@@ -330,35 +386,35 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.set_decorate(decorations);
 
                     // We should refresh the frame to apply decorations change.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
                 WindowRequest::Resizeable(resizeable) => {
                     window_handle.window.set_resizable(resizeable);
 
                     // We should refresh the frame to update button state.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
                 WindowRequest::Title(title) => {
                     window_handle.window.set_title(title);
 
                     // We should refresh the frame to draw new title.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
                 WindowRequest::MinSize(size) => {
                     let size = size.map(|size| (size.width, size.height));
                     window_handle.window.set_min_size(size);
 
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
                 }
                 WindowRequest::MaxSize(size) => {
                     let size = size.map(|size| (size.width, size.height));
                     window_handle.window.set_max_size(size);
 
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
                 }
                 WindowRequest::FrameSize(size) => {
@@ -366,19 +422,15 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.resize(size.width, size.height);
 
                     // We should refresh the frame after resize.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
+                }
+                WindowRequest::Attention(request_type) => {
+                    window_handle.set_user_attention(request_type);
                 }
                 WindowRequest::Redraw => {
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
+                    let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
-                }
-                WindowRequest::Theme(concept_config) => {
-                    window_handle.window.set_frame_config(concept_config);
-
-                    // We should refresh the frame to apply new theme.
-                    let window_update = window_updates.get_mut(&window_id).unwrap();
-                    window_update.refresh_frame = true;
                 }
                 WindowRequest::Close => {
                     // The window was requested to be closed.

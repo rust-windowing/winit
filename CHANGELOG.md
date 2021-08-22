@@ -1,13 +1,19 @@
 # Unreleased
 
+- On X11, select an appropriate visual for transparency if is requested
 - On Wayland and X11, fix diagonal window resize cursor orientation.
 - On macOS, drop the event callback before exiting.
 - On Android, implement `Window::request_redraw`
 - **Breaking:** On Web, remove the `stdweb` backend.
 - Added `Window::focus_window`to bring the window to the front and set input focus.
 - On Wayland and X11, implement `is_maximized` method on `Window`.
+- On Windows, prevent ghost window from showing up in the taskbar after either several hours of use or restarting `explorer.exe`.
 - On macOS, fix issue where `ReceivedCharacter` was not being emitted during some key repeat events.
 - On Wayland, load cursor icons `hand2` and `hand1` for `CursorIcon::Hand`.
+- **Breaking:** On Wayland, Theme trait and its support types are dropped.
+- On Wayland, bump `smithay-client-toolkit` to 0.15.
+- On Wayland, implement `request_user_attention` with `xdg_activation_v1`.
+
 
 # 0.25.0 (2021-05-15)
 

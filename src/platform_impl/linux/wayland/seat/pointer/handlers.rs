@@ -129,7 +129,7 @@ pub(super) fn handle_pointer(
 
             let window_id = wayland::make_wid(surface);
 
-            let scale_factor = sctk::get_surface_scale_factor(&surface) as f64;
+            let scale_factor = sctk::get_surface_scale_factor(surface) as f64;
             let position = LogicalPosition::new(surface_x, surface_y).to_physical(scale_factor);
 
             event_sink.push_window_event(
@@ -186,7 +186,7 @@ pub(super) fn handle_pointer(
                 None => return,
             };
 
-            let window_id = wayland::make_wid(&surface);
+            let window_id = wayland::make_wid(surface);
 
             if pointer.as_ref().version() < 5 {
                 let (mut x, mut y) = (0.0, 0.0);
@@ -199,7 +199,7 @@ pub(super) fn handle_pointer(
                     _ => unreachable!(),
                 }
 
-                let scale_factor = sctk::get_surface_scale_factor(&surface) as f64;
+                let scale_factor = sctk::get_surface_scale_factor(surface) as f64;
                 let delta = LogicalPosition::new(x as f64, y as f64).to_physical(scale_factor);
 
                 event_sink.push_window_event(
@@ -262,7 +262,7 @@ pub(super) fn handle_pointer(
                 Some(surface) => surface,
                 None => return,
             };
-            let window_id = wayland::make_wid(&surface);
+            let window_id = wayland::make_wid(surface);
 
             let window_event = if let Some((x, y)) = axis_discrete_buffer {
                 WindowEvent::MouseWheel {
@@ -274,7 +274,7 @@ pub(super) fn handle_pointer(
                     modifiers: *pointer_data.modifiers_state.borrow(),
                 }
             } else if let Some((x, y)) = axis_buffer {
-                let scale_factor = sctk::get_surface_scale_factor(&surface) as f64;
+                let scale_factor = sctk::get_surface_scale_factor(surface) as f64;
                 let delta = LogicalPosition::new(x, y).to_physical(scale_factor);
 
                 WindowEvent::MouseWheel {

@@ -7,9 +7,9 @@ use sctk::reexports::client::protocol::wl_keyboard::WlKeyboard;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
 
-use sctk::reexports::calloop::{LoopHandle, Source};
+use sctk::reexports::calloop::{LoopHandle, RegistrationToken};
 
-use sctk::seat::keyboard::{self, RepeatSource};
+use sctk::seat::keyboard;
 
 use crate::event::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;
@@ -22,22 +22,22 @@ pub(crate) struct Keyboard {
     pub keyboard: WlKeyboard,
 
     /// The source for repeat keys.
-    pub repeat_source: Option<Source<RepeatSource>>,
+    pub repeat_token: Option<RegistrationToken>,
 
     /// LoopHandle to drop `RepeatSource`, when dropping the keyboard.
-    pub loop_handle: LoopHandle<WinitState>,
+    pub loop_handle: LoopHandle<'static, WinitState>,
 }
 
 impl Keyboard {
     pub fn new(
         seat: &Attached<WlSeat>,
-        loop_handle: LoopHandle<WinitState>,
+        loop_handle: LoopHandle<'static, WinitState>,
         modifiers_state: Rc<RefCell<ModifiersState>>,
     ) -> Option<Self> {
         let mut inner = KeyboardInner::new(modifiers_state);
         let keyboard_data = keyboard::map_keyboard_repeat(
             loop_handle.clone(),
-            &seat,
+            seat,
             None,
             keyboard::RepeatKind::System,
             move |event, _, mut dispatch_data| {
@@ -46,12 +46,12 @@ impl Keyboard {
             },
         );
 
-        let (keyboard, repeat_source) = keyboard_data.ok()?;
+        let (keyboard, repeat_token) = keyboard_data.ok()?;
 
         Some(Self {
             keyboard,
             loop_handle,
-            repeat_source: Some(repeat_source),
+            repeat_token: Some(repeat_token),
         })
     }
 }
@@ -62,8 +62,8 @@ impl Drop for Keyboard {
             self.keyboard.release();
         }
 
-        if let Some(repeat_source) = self.repeat_source.take() {
-            self.loop_handle.remove(repeat_source);
+        if let Some(repeat_token) = self.repeat_token.take() {
+            self.loop_handle.remove(repeat_token);
         }
     }
 }

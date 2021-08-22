@@ -755,9 +755,10 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    /// - **iOS / Android / Web :** Unsupported.
     /// - **macOS:** `None` has no effect.
     /// - **X11:** Requests for user attention must be manually cleared.
+    /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         self.window.request_user_attention(request_type)
