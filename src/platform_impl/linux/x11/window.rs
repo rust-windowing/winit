@@ -8,6 +8,7 @@ use std::{
     ptr, slice,
     sync::Arc,
 };
+use x11_dl::xlib::TrueColor;
 
 use libc;
 use mio_misc::channel::Sender;
@@ -180,6 +181,32 @@ impl UnownedWindow {
         };
 
         // creating
+        let (depth, visual) = match pl_attribs.visual_infos {
+            Some(vi) => (vi.depth, vi.visual),
+            None if window_attrs.transparent == true => {
+                // Find a suitable visual
+                let mut vinfo = MaybeUninit::uninit();
+                if unsafe {
+                    (xconn.xlib.XMatchVisualInfo)(
+                        xconn.display,
+                        screen_id,
+                        32,
+                        TrueColor,
+                        vinfo.as_mut_ptr(),
+                    )
+                } != 0
+                {
+                    let vinfo = unsafe { vinfo.assume_init() };
+                    (vinfo.depth, vinfo.visual)
+                } else {
+                    // There is not a visual that matches the criteria of being `TrueColor` and 32 bits depth,
+                    // and panic or error is not appropiate so just ignore it and continue
+                    (ffi::CopyFromParent, ffi::CopyFromParent as *mut ffi::Visual)
+                }
+            }
+            _ => (ffi::CopyFromParent, ffi::CopyFromParent as *mut ffi::Visual),
+        };
+
         let mut set_win_attr = {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
             swa.colormap = if let Some(vi) = pl_attribs.visual_infos {
@@ -187,6 +214,8 @@ impl UnownedWindow {
                     let visual = vi.visual;
                     (xconn.xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone)
                 }
+            } else if window_attrs.transparent {
+                unsafe { (xconn.xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone) }
             } else {
                 0
             };
@@ -210,6 +239,11 @@ impl UnownedWindow {
             window_attributes |= ffi::CWOverrideRedirect;
         }
 
+        xconn
+            .sync_with_server()
+            .map_err(|x_err| os_error!(OsError::XError(x_err)))
+            .unwrap();
+
         // finally creating the window
         let xwindow = unsafe {
             (xconn.xlib.XCreateWindow)(
@@ -220,27 +254,18 @@ impl UnownedWindow {
                 dimensions.0 as c_uint,
                 dimensions.1 as c_uint,
                 0,
-                match pl_attribs.visual_infos {
-                    Some(vi) => vi.depth,
-                    None => ffi::CopyFromParent,
-                },
+                depth,
                 ffi::InputOutput as c_uint,
-                // TODO: If window wants transparency and `visual_infos` is None,
-                // we need to find our own visual which has an `alphaMask` which
-                // is > 0, like we do in glutin.
-                //
-                // It is non obvious which masks, if any, we should pass to
-                // `XGetVisualInfo`. winit doesn't receive any info about what
-                // properties the user wants. Users should consider choosing the
-                // visual themselves as glutin does.
-                match pl_attribs.visual_infos {
-                    Some(vi) => vi.visual,
-                    None => ffi::CopyFromParent as *mut ffi::Visual,
-                },
+                visual,
                 window_attributes,
                 &mut set_win_attr,
             )
         };
+
+        xconn
+            .sync_with_server()
+            .map_err(|x_err| os_error!(OsError::XError(x_err)))
+            .unwrap();
 
         let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),
