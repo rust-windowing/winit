@@ -29,7 +29,8 @@ use crate::{
         OsError,
     },
     window::{
-        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId, ResizeDirection,
+        CursorIcon, Fullscreen, ResizeDirection, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
     },
 };
 use cocoa::{
