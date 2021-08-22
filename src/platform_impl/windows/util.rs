@@ -6,7 +6,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::{dpi::PhysicalSize, window::CursorIcon};
+use crate::{dpi::PhysicalSize, platform_impl::platform::dpi::hwnd_dpi, window::CursorIcon};
 use winapi::{
     ctypes::wchar_t,
     shared::{
@@ -202,6 +202,54 @@ pub fn is_maximized(window: HWND) -> bool {
         placement.length = mem::size_of::<winuser::WINDOWPLACEMENT>() as u32;
         winuser::GetWindowPlacement(window, &mut placement);
         placement.showCmd == winuser::SW_MAXIMIZE as u32
+    }
+}
+
+pub fn hwnd_decoration_thickness(hwnd: HWND, border_only: bool) -> RECT {
+    unsafe {
+        let style = winuser::GetWindowLongPtrW(hwnd, winuser::GWL_STYLE) as DWORD;
+        let style_ex = winuser::GetWindowLongPtrW(hwnd, winuser::GWL_EXSTYLE) as DWORD;
+
+        let adjust_style = if !border_only {
+            style
+        } else {
+            style & !winuser::WS_CAPTION
+        };
+        let mut decoration_thickness = RECT {
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+        };
+        if has_flag(style, winuser::WS_SIZEBOX) {
+            #[allow(non_snake_case)]
+            if let Some(AdjustWindowRectExForDpi) = *ADJUST_WINDOW_RECT_EX_FOR_DPI {
+                AdjustWindowRectExForDpi(
+                    &mut decoration_thickness,
+                    adjust_style,
+                    false as _,
+                    style_ex,
+                    hwnd_dpi(hwnd),
+                );
+            } else {
+                winuser::AdjustWindowRectEx(
+                    &mut decoration_thickness,
+                    adjust_style,
+                    false as _,
+                    style_ex,
+                );
+            }
+            decoration_thickness.left *= -1;
+            decoration_thickness.top *= -1;
+        } else if has_flag(style, winuser::WS_BORDER) {
+            decoration_thickness = RECT {
+                left: 1,
+                top: 1,
+                right: 1,
+                bottom: 1,
+            };
+        }
+        decoration_thickness
     }
 }
 

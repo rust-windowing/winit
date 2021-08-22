@@ -1980,13 +1980,22 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let win_flags = userdata.window_state.lock().window_flags();
 
             if !win_flags.contains(WindowFlags::DECORATIONS) {
+                let params = &mut *(lparam as *mut winuser::NCCALCSIZE_PARAMS);
+
                 // adjust the maximized borderless window to fill the work area rectangle of the display monitor and doesn't cover the taskbar
                 if util::is_maximized(window) {
                     let monitor = monitor::current_monitor(window);
                     if let Ok(monitor_info) = monitor::get_monitor_info(monitor.hmonitor()) {
-                        let params = &mut *(lparam as *mut winuser::NCCALCSIZE_PARAMS);
                         params.rgrc[0] = monitor_info.rcWork;
                     }
+                } else {
+                    let decoration_thickness = util::hwnd_decoration_thickness(window, true);
+                    let rect = &mut params.rgrc[0];
+                    // We add `1` to the thickness to account for 1px of cross-monitor spill-over.
+                    // We should probably calculate this some way rather than just emedding a constant offset.
+                    rect.left += decoration_thickness.left + 1;
+                    rect.right -= decoration_thickness.right + 1;
+                    rect.bottom -= decoration_thickness.bottom + 1;
                 }
                 0 // return 0 here to make the window borderless aka without decorations
             } else {
