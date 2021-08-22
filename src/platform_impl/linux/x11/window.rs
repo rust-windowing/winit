@@ -213,7 +213,7 @@ impl UnownedWindow {
                     let visual = vi.visual;
                     (xconn.xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone)
                 }
-            } else if window_attrs.transparent {
+            } else if visual as c_int != ffi::CopyFromParent {
                 unsafe { (xconn.xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone) }
             } else {
                 0
