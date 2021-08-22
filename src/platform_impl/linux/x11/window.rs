@@ -239,11 +239,6 @@ impl UnownedWindow {
             window_attributes |= ffi::CWOverrideRedirect;
         }
 
-        xconn
-            .sync_with_server()
-            .map_err(|x_err| os_error!(OsError::XError(x_err)))
-            .unwrap();
-
         // finally creating the window
         let xwindow = unsafe {
             (xconn.xlib.XCreateWindow)(
@@ -261,11 +256,6 @@ impl UnownedWindow {
                 &mut set_win_attr,
             )
         };
-
-        xconn
-            .sync_with_server()
-            .map_err(|x_err| os_error!(OsError::XError(x_err)))
-            .unwrap();
 
         let mut window = UnownedWindow {
             xconn: Arc::clone(xconn),
