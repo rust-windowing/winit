@@ -1,5 +1,6 @@
 # Unreleased
 
+- On X11, select an appropriate visual for transparency if is requested
 - On Wayland and X11, fix diagonal window resize cursor orientation.
 - On macOS, drop the event callback before exiting.
 - On Android, implement `Window::request_redraw`
