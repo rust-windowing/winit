@@ -58,9 +58,9 @@ use crate::{
 const X_TOKEN: Token = Token(0);
 const USER_REDRAW_TOKEN: Token = Token(1);
 
-pub(self) struct WakeSender<T> {
-    pub sender: Sender<T>,
-    pub waker: Arc<Waker>,
+struct WakeSender<T> {
+    sender: Sender<T>,
+    waker: Arc<Waker>,
 }
 
 pub struct EventLoopWindowTarget<T> {
