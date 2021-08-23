@@ -217,8 +217,8 @@ impl<T: 'static> EventLoop<T> {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main;
                 }
-                winuser::TranslateMessage(&mut msg);
-                winuser::DispatchMessageW(&mut msg);
+                winuser::TranslateMessage(&msg);
+                winuser::DispatchMessageW(&msg);
 
                 if let Err(payload) = runner.take_panic_error() {
                     runner.reset_runner();
@@ -345,15 +345,15 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
 
             if wait_until_opt.is_some() {
                 if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, winuser::PM_REMOVE) {
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
                 }
             } else {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main;
                 } else {
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
                 }
             }
 
@@ -714,8 +714,8 @@ unsafe fn flush_paint_messages<T: 'static>(
                 return;
             }
 
-            winuser::TranslateMessage(&mut msg);
-            winuser::DispatchMessageW(&mut msg);
+            winuser::TranslateMessage(&msg);
+            winuser::DispatchMessageW(&msg);
         });
         true
     } else {

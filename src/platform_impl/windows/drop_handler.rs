@@ -181,7 +181,7 @@ impl FileDropHandler {
             },
         };
 
-        let mut drop_format = FORMATETC {
+        let drop_format = FORMATETC {
             cfFormat: CF_HDROP as CLIPFORMAT,
             ptd: ptr::null(),
             dwAspect: DVASPECT_CONTENT,
@@ -190,7 +190,7 @@ impl FileDropHandler {
         };
 
         let mut medium = std::mem::zeroed();
-        let get_data_result = (*data_obj).GetData(&mut drop_format, &mut medium);
+        let get_data_result = (*data_obj).GetData(&drop_format, &mut medium);
         if SUCCEEDED(get_data_result) {
             let hglobal = (*medium.u).hGlobal();
             let hdrop = (*hglobal) as shellapi::HDROP;
