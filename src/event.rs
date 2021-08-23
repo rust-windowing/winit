@@ -131,7 +131,7 @@ impl<T: Clone> Clone for Event<'static, T> {
                 device_id: *device_id,
                 event: event.clone(),
             },
-            NewEvents(cause) => NewEvents(cause.clone()),
+            NewEvents(cause) => NewEvents(*cause),
             MainEventsCleared => MainEventsCleared,
             RedrawRequested(wid) => RedrawRequested(*wid),
             RedrawEventsCleared => RedrawEventsCleared,
@@ -358,8 +358,8 @@ impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
         return match self {
-            Resized(size) => Resized(size.clone()),
-            Moved(pos) => Moved(pos.clone()),
+            Resized(size) => Resized(*size),
+            Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
             Destroyed => Destroyed,
             DroppedFile(file) => DroppedFile(file.clone()),
@@ -377,7 +377,7 @@ impl Clone for WindowEvent<'static> {
                 is_synthetic: *is_synthetic,
             },
 
-            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
+            ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -437,7 +437,7 @@ impl Clone for WindowEvent<'static> {
                 value: *value,
             },
             Touch(touch) => Touch(*touch),
-            ThemeChanged(theme) => ThemeChanged(theme.clone()),
+            ThemeChanged(theme) => ThemeChanged(*theme),
             ScaleFactorChanged { .. } => {
                 unreachable!("Static event can't be about scale factor changing")
             }

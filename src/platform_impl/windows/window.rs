@@ -455,7 +455,7 @@ impl Window {
                     // string, so add it
                     display_name.push(0);
 
-                    let mut native_video_mode = video_mode.video_mode.native_video_mode.clone();
+                    let mut native_video_mode = video_mode.video_mode.native_video_mode;
 
                     let res = unsafe {
                         winuser::ChangeDisplaySettingsExW(
