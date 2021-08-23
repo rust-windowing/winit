@@ -538,9 +538,13 @@ impl<'a> WindowEvent<'a> {
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
-    /// value of this function is that it will always be equal to itself and to future values returned
-    /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.
+    /// Returns a dummy `DeviceId`, useful for unit testing.
+    ///
+    /// # Safety
+    ///
+    /// The only guarantee made about the return value of this function is that
+    /// it will always be equal to itself and to future values returned by this function.
+    /// No other guarantees are made. This may be equal to a real `DeviceId`.
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
     pub unsafe fn dummy() -> Self {
