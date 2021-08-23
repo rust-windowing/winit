@@ -896,7 +896,7 @@ unsafe fn post_init<T: 'static>(
         win.set_maximized(true);
     }
 
-    if let Some(_) = attributes.fullscreen {
+    if attributes.fullscreen.is_some() {
         win.set_fullscreen(attributes.fullscreen);
         force_window_active(win.window.0);
     }
@@ -986,7 +986,7 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
     TASKBAR_LIST.with(|task_bar_list_ptr| {
         let mut task_bar_list = task_bar_list_ptr.get();
 
-        if task_bar_list == ptr::null_mut() {
+        if task_bar_list.is_null() {
             use winapi::{shared::winerror::S_OK, Interface};
 
             let hr = combaseapi::CoCreateInstance(

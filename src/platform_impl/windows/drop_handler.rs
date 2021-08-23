@@ -213,15 +213,15 @@ impl FileDropHandler {
                 callback(OsString::from_wide(&path_buf[0..character_count]).into());
             }
 
-            return Some(hdrop);
+            Some(hdrop)
         } else if get_data_result == DV_E_FORMATETC {
             // If the dropped item is not a file this error will occur.
             // In this case it is OK to return without taking further action.
             debug!("Error occured while processing dropped/hovered item: item is not a file.");
-            return None;
+            None
         } else {
             debug!("Unexpected error occured while processing dropped/hovered item.");
-            return None;
+            None
         }
     }
 }
