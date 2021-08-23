@@ -94,11 +94,12 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {
     type SetWindowCompositionAttribute =
         unsafe extern "system" fn(HWND, *mut WINDOWCOMPOSITIONATTRIBDATA) -> BOOL;
 
-    #[allow(non_snake_case)]
+    #[allow(clippy::upper_case_acronyms)]
     type WINDOWCOMPOSITIONATTRIB = u32;
     const WCA_USEDARKMODECOLORS: WINDOWCOMPOSITIONATTRIB = 26;
 
     #[allow(non_snake_case)]
+    #[allow(clippy::upper_case_acronyms)]
     #[repr(C)]
     struct WINDOWCOMPOSITIONATTRIBDATA {
         Attrib: WINDOWCOMPOSITIONATTRIB,
