@@ -39,8 +39,8 @@ pub fn get_key_mods() -> ModifiersState {
 bitflags! {
     #[derive(Default)]
     pub struct ModifiersStateSide: u32 {
-        const LSHIFT = 0b010 << 0;
-        const RSHIFT = 0b001 << 0;
+        const LSHIFT = 0b010;
+        const RSHIFT = 0b001;
 
         const LCTRL = 0b010 << 3;
         const RCTRL = 0b001 << 3;
