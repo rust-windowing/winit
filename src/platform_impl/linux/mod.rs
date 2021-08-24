@@ -487,8 +487,9 @@ impl Window {
         x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
     }
 
+    #[inline]
     pub fn reset_dead_keys(&self) {
-        todo!()
+        common::xkb_state::reset_dead_keys()
     }
 
     #[inline]
