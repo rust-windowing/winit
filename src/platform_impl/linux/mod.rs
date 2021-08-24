@@ -42,7 +42,7 @@ pub mod wayland;
 pub mod x11;
 
 #[cfg(any(feature = "x11", feature = "wayland"))]
-mod common;
+pub mod common;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct KeyEventExtra {

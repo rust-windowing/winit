@@ -20,6 +20,7 @@ pub trait KeyCodeExtScancode {
     ///
     /// ## Platform-specific
     /// - **Windows:** A 16bit extended scancode
+    /// - **Wayland/X11**: A 32-bit X11-style keycode.
     // TODO: Describe what this value contains for each platform
     fn to_scancode(self) -> Option<u32>;
 
