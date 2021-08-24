@@ -78,7 +78,7 @@ impl WindowId {
     /// No other guarantees are made. This may be equal to a real `WindowId`.
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         WindowId(platform_impl::WindowId::dummy())
     }
 }

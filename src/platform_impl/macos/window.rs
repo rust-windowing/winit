@@ -51,7 +51,7 @@ use objc::{
 pub struct Id(pub usize);
 
 impl Id {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         Id(0)
     }
 }

@@ -344,7 +344,7 @@ impl Drop for Window {
 pub struct Id(pub(crate) u32);
 
 impl Id {
-    pub unsafe fn dummy() -> Id {
+    pub const unsafe fn dummy() -> Id {
         Id(0)
     }
 }

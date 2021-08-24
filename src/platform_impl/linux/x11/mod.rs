@@ -490,7 +490,7 @@ impl<'a> Deref for DeviceInfo<'a> {
 pub struct WindowId(ffi::Window);
 
 impl WindowId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         WindowId(0)
     }
 }
@@ -499,7 +499,7 @@ impl WindowId {
 pub struct DeviceId(c_int);
 
 impl DeviceId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         DeviceId(0)
     }
 }
