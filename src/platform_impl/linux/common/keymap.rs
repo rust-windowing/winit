@@ -2,8 +2,9 @@
 
 use crate::keyboard::{Key, KeyCode, KeyLocation, NativeKeyCode};
 
-// TODO: Do another pass on all of this
-
+/// Map the raw X11-style keycode to the `KeyCode` enum.
+///
+/// X11-style keycodes are offset by 8 from the keycodes the Linux kernel uses.
 pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
     let rawkey = keycode - 8;
     // The keycode values are taken from linux/include/uapi/linux/input-event-codes.h, as
@@ -14,10 +15,8 @@ pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
     // Some of the keycodes are likely superfluous for our purposes, and some are ones which are
     // difficult to test the correctness of, or discover the purpose of. Because of this, they've
     // either been commented out here, or not included at all.
-    //
-    // TODO: There are probably a couple more unproblematic keycodes to map here.
     match rawkey {
-        0 => KeyCode::Unidentified(NativeKeyCode::XKB(0)), // TODO: Is `NativeKeyCode::Unidentified` better?
+        0 => KeyCode::Unidentified(NativeKeyCode::XKB(0)),
         1 => KeyCode::Escape,
         2 => KeyCode::Digit1,
         3 => KeyCode::Digit2,
@@ -93,7 +92,7 @@ pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
         73 => KeyCode::Numpad9,
         74 => KeyCode::NumpadSubtract,
         75 => KeyCode::Numpad4,
-        76 => KeyCode::Numpad4,
+        76 => KeyCode::Numpad5,
         77 => KeyCode::Numpad6,
         78 => KeyCode::NumpadAdd,
         79 => KeyCode::Numpad1,
@@ -264,6 +263,151 @@ pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
     }
 }
 
+pub fn keycode_to_raw(keycode: KeyCode) -> Option<u32> {
+    match keycode {
+        KeyCode::Unidentified(NativeKeyCode::Unidentified) => Some(240),
+        KeyCode::Unidentified(NativeKeyCode::XKB(raw)) => Some(raw),
+        KeyCode::Escape => Some(1),
+        KeyCode::Digit1 => Some(2),
+        KeyCode::Digit2 => Some(3),
+        KeyCode::Digit3 => Some(4),
+        KeyCode::Digit4 => Some(5),
+        KeyCode::Digit5 => Some(6),
+        KeyCode::Digit6 => Some(7),
+        KeyCode::Digit7 => Some(8),
+        KeyCode::Digit8 => Some(9),
+        KeyCode::Digit9 => Some(10),
+        KeyCode::Digit0 => Some(11),
+        KeyCode::Minus => Some(12),
+        KeyCode::Equal => Some(13),
+        KeyCode::Backspace => Some(14),
+        KeyCode::Tab => Some(15),
+        KeyCode::KeyQ => Some(16),
+        KeyCode::KeyW => Some(17),
+        KeyCode::KeyE => Some(18),
+        KeyCode::KeyR => Some(19),
+        KeyCode::KeyT => Some(20),
+        KeyCode::KeyY => Some(21),
+        KeyCode::KeyU => Some(22),
+        KeyCode::KeyI => Some(23),
+        KeyCode::KeyO => Some(24),
+        KeyCode::KeyP => Some(25),
+        KeyCode::BracketLeft => Some(26),
+        KeyCode::BracketRight => Some(27),
+        KeyCode::Enter => Some(28),
+        KeyCode::ControlLeft => Some(29),
+        KeyCode::KeyA => Some(30),
+        KeyCode::KeyS => Some(31),
+        KeyCode::KeyD => Some(32),
+        KeyCode::KeyF => Some(33),
+        KeyCode::KeyG => Some(34),
+        KeyCode::KeyH => Some(35),
+        KeyCode::KeyJ => Some(36),
+        KeyCode::KeyK => Some(37),
+        KeyCode::KeyL => Some(38),
+        KeyCode::Semicolon => Some(39),
+        KeyCode::Quote => Some(40),
+        KeyCode::Backquote => Some(41),
+        KeyCode::ShiftLeft => Some(42),
+        KeyCode::Backslash => Some(43),
+        KeyCode::KeyZ => Some(44),
+        KeyCode::KeyX => Some(45),
+        KeyCode::KeyC => Some(46),
+        KeyCode::KeyV => Some(47),
+        KeyCode::KeyB => Some(48),
+        KeyCode::KeyN => Some(49),
+        KeyCode::KeyM => Some(50),
+        KeyCode::Comma => Some(51),
+        KeyCode::Period => Some(52),
+        KeyCode::Slash => Some(53),
+        KeyCode::ShiftRight => Some(54),
+        KeyCode::NumpadMultiply => Some(55),
+        KeyCode::AltLeft => Some(56),
+        KeyCode::Space => Some(57),
+        KeyCode::CapsLock => Some(58),
+        KeyCode::F1 => Some(59),
+        KeyCode::F2 => Some(60),
+        KeyCode::F3 => Some(61),
+        KeyCode::F4 => Some(62),
+        KeyCode::F5 => Some(63),
+        KeyCode::F6 => Some(64),
+        KeyCode::F7 => Some(65),
+        KeyCode::F8 => Some(66),
+        KeyCode::F9 => Some(67),
+        KeyCode::F10 => Some(68),
+        KeyCode::NumLock => Some(69),
+        KeyCode::ScrollLock => Some(70),
+        KeyCode::Numpad7 => Some(71),
+        KeyCode::Numpad8 => Some(72),
+        KeyCode::Numpad9 => Some(73),
+        KeyCode::NumpadSubtract => Some(74),
+        KeyCode::Numpad4 => Some(75),
+        KeyCode::Numpad5 => Some(76),
+        KeyCode::Numpad6 => Some(77),
+        KeyCode::NumpadAdd => Some(78),
+        KeyCode::Numpad1 => Some(79),
+        KeyCode::Numpad2 => Some(80),
+        KeyCode::Numpad3 => Some(81),
+        KeyCode::Numpad0 => Some(82),
+        KeyCode::NumpadDecimal => Some(83),
+        KeyCode::Lang5 => Some(85),
+        KeyCode::IntlBackslash => Some(86),
+        KeyCode::F11 => Some(87),
+        KeyCode::F12 => Some(88),
+        KeyCode::IntlRo => Some(89),
+        KeyCode::Lang3 => Some(90),
+        KeyCode::Lang4 => Some(91),
+        KeyCode::Convert => Some(92),
+        KeyCode::KanaMode => Some(93),
+        KeyCode::NonConvert => Some(94),
+        KeyCode::NumpadEnter => Some(96),
+        KeyCode::ControlRight => Some(97),
+        KeyCode::NumpadDivide => Some(98),
+        KeyCode::PrintScreen => Some(99),
+        KeyCode::AltRight => Some(100),
+        KeyCode::Home => Some(102),
+        KeyCode::ArrowUp => Some(103),
+        KeyCode::PageUp => Some(104),
+        KeyCode::ArrowLeft => Some(105),
+        KeyCode::ArrowRight => Some(106),
+        KeyCode::End => Some(107),
+        KeyCode::ArrowDown => Some(108),
+        KeyCode::PageDown => Some(109),
+        KeyCode::Insert => Some(110),
+        KeyCode::Delete => Some(111),
+        KeyCode::AudioVolumeMute => Some(113),
+        KeyCode::AudioVolumeDown => Some(114),
+        KeyCode::AudioVolumeUp => Some(115),
+        KeyCode::NumpadEqual => Some(117),
+        KeyCode::Pause => Some(119),
+        KeyCode::NumpadComma => Some(121),
+        KeyCode::Lang1 => Some(122),
+        KeyCode::Lang2 => Some(123),
+        KeyCode::IntlYen => Some(124),
+        KeyCode::SuperLeft => Some(125),
+        KeyCode::SuperRight => Some(126),
+        KeyCode::ContextMenu => Some(127),
+        KeyCode::MediaTrackNext => Some(163),
+        KeyCode::MediaPlayPause => Some(164),
+        KeyCode::MediaTrackPrevious => Some(165),
+        KeyCode::MediaStop => Some(166),
+        KeyCode::F13 => Some(183),
+        KeyCode::F14 => Some(184),
+        KeyCode::F15 => Some(185),
+        KeyCode::F16 => Some(186),
+        KeyCode::F17 => Some(187),
+        KeyCode::F18 => Some(188),
+        KeyCode::F19 => Some(189),
+        KeyCode::F20 => Some(190),
+        KeyCode::F21 => Some(191),
+        KeyCode::F22 => Some(192),
+        KeyCode::F23 => Some(193),
+        KeyCode::F24 => Some(194),
+        _ => None,
+    }
+    .map(|raw| raw + 8)
+}
+
 pub fn keysym_to_key(keysym: u32) -> Key<'static> {
     use xkbcommon_dl::keysyms;
     match keysym {
@@ -273,7 +417,7 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // keysyms::XKB_KEY_Linefeed => Key::Linefeed,
         keysyms::XKB_KEY_Clear => Key::Clear,
         keysyms::XKB_KEY_Return => Key::Enter,
-        // keysyms::XKB_KEY_Pause => Key::Pause,
+        keysyms::XKB_KEY_Pause => Key::Pause,
         keysyms::XKB_KEY_Scroll_Lock => Key::ScrollLock,
         keysyms::XKB_KEY_Sys_Req => Key::PrintScreen,
         keysyms::XKB_KEY_Escape => Key::Escape,
@@ -357,6 +501,8 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // keysyms::XKB_KEY_KP_Next => Key::PageDown,
         keysyms::XKB_KEY_KP_Page_Down => Key::PageDown,
         keysyms::XKB_KEY_KP_End => Key::End,
+        // TODO: What is this supposed to map to?
+        //       This is the key labeled "5" on the numpad when NumLock is off.
         // keysyms::XKB_KEY_KP_Begin => Key::Begin,
         keysyms::XKB_KEY_KP_Insert => Key::Insert,
         keysyms::XKB_KEY_KP_Delete => Key::Delete,
@@ -423,8 +569,7 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         keysyms::XKB_KEY_Control_R => Key::Control,
         keysyms::XKB_KEY_Caps_Lock => Key::CapsLock,
         // keysyms::XKB_KEY_Shift_Lock => Key::ShiftLock,
-        //
-        // TODO: Address how renaming `Meta` to `Super` affects this set of keys.
+
         // keysyms::XKB_KEY_Meta_L => Key::Meta,
         // keysyms::XKB_KEY_Meta_R => Key::Meta,
         keysyms::XKB_KEY_Alt_L => Key::Alt,
@@ -438,7 +583,6 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // keysyms::XKB_KEY_ISO_Lock => Key::IsoLock,
         // keysyms::XKB_KEY_ISO_Level2_Latch => Key::IsoLevel2Latch,
         keysyms::XKB_KEY_ISO_Level3_Shift => Key::AltGraph,
-        // NOTE: I'm not quite certain if mapping the next 2 values to AltGraph is correct.
         keysyms::XKB_KEY_ISO_Level3_Latch => Key::AltGraph,
         keysyms::XKB_KEY_ISO_Level3_Lock => Key::AltGraph,
         // keysyms::XKB_KEY_ISO_Level5_Shift => Key::IsoLevel5Shift,
@@ -562,9 +706,9 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         keysyms::XKB_KEY_XF86Calendar => Key::LaunchCalendar,
         keysyms::XKB_KEY_XF86PowerDown => Key::Power,
         // keysyms::XKB_KEY_XF86ContrastAdjust => Key::AdjustContrast,
-        // keysyms::XKB_KEY_XF86RockerUp => Key::RockerUp, // TODO: Use Key::ArrowUp?
-        // keysyms::XKB_KEY_XF86RockerDown => Key::RockerDown, // TODO: Use Key::ArrowDown?
-        // keysyms::XKB_KEY_XF86RockerEnter => Key::RockerEnter, // TODO: Use Key::Enter?
+        // keysyms::XKB_KEY_XF86RockerUp => Key::RockerUp,
+        // keysyms::XKB_KEY_XF86RockerDown => Key::RockerDown,
+        // keysyms::XKB_KEY_XF86RockerEnter => Key::RockerEnter,
 
         // XFree86 - More "Internet"
         keysyms::XKB_KEY_XF86Back => Key::BrowserBack,
@@ -596,7 +740,7 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // XKB_KEY_XF86Launch0..XKB_KEY_XF86LaunchF
 
         // XKB_KEY_XF86ApplicationLeft..XKB_KEY_XF86CD
-        keysyms::XKB_KEY_XF86Calculater => Key::LaunchApplication2, // This must be a typo, right?
+        keysyms::XKB_KEY_XF86Calculater => Key::LaunchApplication2, // Nice typo, libxkbcommon :)
         // XKB_KEY_XF86Clear
         keysyms::XKB_KEY_XF86Close => Key::Close,
         keysyms::XKB_KEY_XF86Copy => Key::Copy,
