@@ -5,6 +5,8 @@ use std::fs::File;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStringExt;
 use std::ptr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 
 #[cfg(feature = "wayland")]
 use memmap2::MmapOptions;
@@ -24,6 +26,20 @@ use crate::{
     event::ElementState,
     keyboard::{Key, KeyCode, KeyLocation},
 };
+
+// TODO: Wire this up without using a static `Mutex<Option<&'static str>>`.
+#[cfg(feature = "x11")]
+lazy_static! {
+    pub(crate) static ref X11_EVPROC_NEXT_COMPOSE: Mutex<Option<&'static str>> = Mutex::new(None);
+}
+
+// TODO: Wire this up without using a static `AtomicBool`.
+static RESET_DEAD_KEYS: AtomicBool = AtomicBool::new(false);
+
+#[inline]
+pub(crate) fn reset_dead_keys() {
+    RESET_DEAD_KEYS.store(true, Ordering::SeqCst);
+}
 
 pub(crate) struct KbState {
     #[cfg(feature = "x11")]
@@ -193,6 +209,9 @@ impl KbState {
     ) -> Option<ffi::xkb_compose_feed_result> {
         if !self.ready() || self.xkb_compose_state.is_null() {
             return None;
+        }
+        if RESET_DEAD_KEYS.swap(false, Ordering::SeqCst) {
+            unsafe { self.init_compose() };
         }
         Some(unsafe { (XKBCH.xkb_compose_state_feed)(xkb_compose_state, keysym) })
     }
@@ -639,13 +658,22 @@ impl<'a> KeyEventResults<'a> {
                         _ => (key, location),
                     }
                 }
-                _ => (
-                    self.composed_text()
-                        .unwrap_or_else(|_| self.state.keysym_to_utf8_raw(self.keysym))
-                        .map(Key::Character)
-                        .unwrap_or(key),
-                    location,
-                ),
+                _ => {
+                    let composed_text = self.composed_text();
+
+                    #[cfg(feature = "x11")]
+                    if let Ok(Some(composed_text)) = composed_text {
+                        *X11_EVPROC_NEXT_COMPOSE.lock().unwrap() = Some(composed_text);
+                    }
+
+                    (
+                        composed_text
+                            .unwrap_or_else(|_| self.state.keysym_to_utf8_raw(self.keysym))
+                            .map(Key::Character)
+                            .unwrap_or(key),
+                        location,
+                    )
+                }
             })
     }
 

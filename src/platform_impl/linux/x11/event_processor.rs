@@ -546,6 +546,15 @@ impl<T: 'static> EventProcessor<T> {
                     } else {
                         return;
                     };
+                    if super::super::common::xkb_state::X11_EVPROC_NEXT_COMPOSE
+                        .lock()
+                        .unwrap()
+                        .take()
+                        .map(|composed| composed == written)
+                        .unwrap_or(false)
+                    {
+                        return;
+                    }
                     let event = Event::WindowEvent {
                         window_id,
                         event: WindowEvent::ReceivedImeText(written),
