@@ -181,8 +181,8 @@ impl UnownedWindow {
         };
 
         // creating
-        let (visual, depth) = match pl_attribs.visual_infos {
-            Some(vi) => (vi.visual, vi.depth),
+        let (visual, depth, require_colormap) = match pl_attribs.visual_infos {
+            Some(vi) => (vi.visual, vi.depth, false),
             None if window_attrs.transparent == true => {
                 // Find a suitable visual
                 let mut vinfo = MaybeUninit::uninit();
@@ -197,13 +197,21 @@ impl UnownedWindow {
                 };
                 if vinfo_initialized {
                     let vinfo = unsafe { vinfo.assume_init() };
-                    (vinfo.visual, vinfo.depth)
+                    (vinfo.visual, vinfo.depth, true)
                 } else {
                     debug!("Could not set transparency, because XMatchVisualInfo returned zero for the required parameters");
-                    (ffi::CopyFromParent as *mut ffi::Visual, ffi::CopyFromParent)
+                    (
+                        ffi::CopyFromParent as *mut ffi::Visual,
+                        ffi::CopyFromParent,
+                        false,
+                    )
                 }
             }
-            _ => (ffi::CopyFromParent as *mut ffi::Visual, ffi::CopyFromParent),
+            _ => (
+                ffi::CopyFromParent as *mut ffi::Visual,
+                ffi::CopyFromParent,
+                false,
+            ),
         };
 
         let mut set_win_attr = {
@@ -213,7 +221,7 @@ impl UnownedWindow {
                     let visual = vi.visual;
                     (xconn.xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone)
                 }
-            } else if window_attrs.transparent {
+            } else if require_colormap {
                 unsafe { (xconn.xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone) }
             } else {
                 0
