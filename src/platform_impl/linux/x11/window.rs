@@ -11,7 +11,6 @@ use std::{
 use x11_dl::xlib::TrueColor;
 
 use libc;
-use mio_misc::channel::Sender;
 use parking_lot::Mutex;
 
 use crate::{
@@ -26,7 +25,9 @@ use crate::{
     window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
 };
 
-use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
+use super::{
+    ffi, util, EventLoopWindowTarget, ImeSender, WakeSender, WindowId, XConnection, XError,
+};
 
 #[derive(Debug)]
 pub struct SharedState {
@@ -104,7 +105,7 @@ pub struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    redraw_sender: Sender<WindowId>,
+    redraw_sender: WakeSender<WindowId>,
 }
 
 impl UnownedWindow {
@@ -274,7 +275,10 @@ impl UnownedWindow {
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
-            redraw_sender: event_loop.redraw_sender.clone(),
+            redraw_sender: WakeSender {
+                waker: event_loop.redraw_sender.waker.clone(),
+                sender: event_loop.redraw_sender.sender.clone(),
+            },
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -1102,7 +1106,7 @@ impl UnownedWindow {
 
     fn update_normal_hints<F>(&self, callback: F) -> Result<(), XError>
     where
-        F: FnOnce(&mut util::NormalHints<'_>) -> (),
+        F: FnOnce(&mut util::NormalHints<'_>),
     {
         let mut normal_hints = self.xconn.get_normal_hints(self.xwindow)?;
         callback(&mut normal_hints);
@@ -1183,7 +1187,7 @@ impl UnownedWindow {
             )
         } else {
             let window_size = Some(Size::from(self.inner_size()));
-            (window_size.clone(), window_size)
+            (window_size, window_size)
         };
 
         self.set_maximizable_inner(resizable).queue();
@@ -1445,7 +1449,11 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.redraw_sender.send(WindowId(self.xwindow)).unwrap();
+        self.redraw_sender
+            .sender
+            .send(WindowId(self.xwindow))
+            .unwrap();
+        self.redraw_sender.waker.wake().unwrap();
     }
 
     #[inline]

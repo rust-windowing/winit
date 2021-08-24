@@ -32,7 +32,7 @@ use std::{
     ptr,
     rc::Rc,
     slice,
-    sync::mpsc::Receiver,
+    sync::mpsc::{Receiver, Sender},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
@@ -40,12 +40,6 @@ use std::{
 use libc::{self, setlocale, LC_CTYPE};
 
 use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
-
-use mio_misc::{
-    channel::{channel, SendError, Sender},
-    queue::NotificationQueue,
-    NotificationId,
-};
 
 use self::{
     dnd::{Dnd, DndState},
@@ -64,6 +58,11 @@ use crate::{
 const X_TOKEN: Token = Token(0);
 const USER_REDRAW_TOKEN: Token = Token(1);
 
+struct WakeSender<T> {
+    sender: Sender<T>,
+    waker: Arc<Waker>,
+}
+
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
@@ -72,27 +71,30 @@ pub struct EventLoopWindowTarget<T> {
     root: ffi::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    redraw_sender: Sender<WindowId>,
+    redraw_sender: WakeSender<WindowId>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
 pub struct EventLoop<T: 'static> {
     poll: Poll,
+    waker: Arc<Waker>,
     event_processor: EventProcessor<T>,
     redraw_channel: Receiver<WindowId>,
-    user_channel: Receiver<T>,
+    user_channel: Receiver<T>, //waker.wake needs to be called whenever something gets sent
     user_sender: Sender<T>,
     target: Rc<RootELW<T>>,
 }
 
 pub struct EventLoopProxy<T: 'static> {
     user_sender: Sender<T>,
+    waker: Arc<Waker>,
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         EventLoopProxy {
             user_sender: self.user_sender.clone(),
+            waker: self.waker.clone(),
         }
     }
 }
@@ -185,15 +187,13 @@ impl<T: 'static> EventLoop<T> {
 
         let poll = Poll::new().unwrap();
         let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
-        let queue = Arc::new(NotificationQueue::new(waker));
 
         poll.registry()
             .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
             .unwrap();
 
-        let (user_sender, user_channel) = channel(queue.clone(), NotificationId::gen_next());
-
-        let (redraw_sender, redraw_channel) = channel(queue, NotificationId::gen_next());
+        let (user_sender, user_channel) = std::sync::mpsc::channel();
+        let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
@@ -205,7 +205,10 @@ impl<T: 'static> EventLoop<T> {
                 xconn,
                 wm_delete_window,
                 net_wm_ping,
-                redraw_sender,
+                redraw_sender: WakeSender {
+                    sender: redraw_sender, // not used again so no clone
+                    waker: waker.clone(),
+                },
             }),
             _marker: ::std::marker::PhantomData,
         });
@@ -233,21 +236,21 @@ impl<T: 'static> EventLoop<T> {
 
         event_processor.init_device(ffi::XIAllDevices);
 
-        let result = EventLoop {
+        EventLoop {
             poll,
+            waker,
+            event_processor,
             redraw_channel,
             user_channel,
             user_sender,
-            event_processor,
             target,
-        };
-
-        result
+        }
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             user_sender: self.user_sender.clone(),
+            waker: self.waker.clone(),
         }
     }
 
@@ -392,7 +395,6 @@ impl<T: 'static> EventLoop<T> {
     {
         let target = &self.target;
         let mut xev = MaybeUninit::uninit();
-
         let wt = get_xtarget(&self.target);
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
@@ -407,7 +409,8 @@ impl<T: 'static> EventLoop<T> {
                             super::WindowId::X(wid),
                         )) = event
                         {
-                            wt.redraw_sender.send(wid).unwrap();
+                            wt.redraw_sender.sender.send(wid).unwrap();
+                            wt.redraw_sender.waker.wake().unwrap();
                         } else {
                             callback(event, window_target, control_flow);
                         }
@@ -436,13 +439,10 @@ impl<T> EventLoopWindowTarget<T> {
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.user_sender.send(event).map_err(|e| {
-            EventLoopClosed(if let SendError::Disconnected(x) = e {
-                x
-            } else {
-                unreachable!()
-            })
-        })
+        self.user_sender
+            .send(event)
+            .map_err(|e| EventLoopClosed(e.0))
+            .map(|_| self.waker.wake().unwrap())
     }
 }
 
@@ -520,7 +520,7 @@ impl Window {
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
+        let window = Arc::new(UnownedWindow::new(event_loop, attribs, pl_attribs)?);
         event_loop
             .windows
             .borrow_mut()
