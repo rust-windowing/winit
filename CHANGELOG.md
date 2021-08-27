@@ -1,5 +1,6 @@
 # Unreleased
 
+- On X11, select an appropriate visual for transparency if is requested
 - On Wayland and X11, fix diagonal window resize cursor orientation.
 - On macOS, drop the event callback before exiting.
 - On Android, implement `Window::request_redraw`
@@ -12,8 +13,8 @@
 - **Breaking:** On Wayland, Theme trait and its support types are dropped.
 - On Wayland, bump `smithay-client-toolkit` to 0.15.
 - On Wayland, implement `request_user_attention` with `xdg_activation_v1`.
+- On X11, emit missing `WindowEvent::ScaleFactorChanged` when the only monitor gets reconnected.
 - On Windows, added `drag_resize_window` method
-
 
 # 0.25.0 (2021-05-15)
 
