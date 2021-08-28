@@ -1402,6 +1402,7 @@ impl<'a> Key<'a> {
             Key::Tab => Some("\t"),
             Key::Space => Some(" "),
             Key::Escape => Some("\x1b"),
+            Key::Delete => Some("\x7f"),
             _ => None,
         }
     }

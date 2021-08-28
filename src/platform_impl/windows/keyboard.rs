@@ -579,6 +579,13 @@ impl PartialKeyEventInfo {
         let key_is_char = matches!(preliminary_logical_key, Key::Character(_));
         let is_pressed = state == ElementState::Pressed;
 
+        let text = if let Some(t) = preliminary_logical_key.to_text() {
+            // We have to do this because some keys (for example "Delete")
+            // don't get reported as a character in WM_CHAR
+            PartialText::Text(Some(t))
+        } else {
+            PartialText::System(Vec::new())
+        };
         let logical_key = if let Some(key) = code_as_key {
             PartialLogicalKey::This(key)
         } else if is_pressed && key_is_char && !mods.contains(WindowsModifiers::CONTROL) {
@@ -622,7 +629,7 @@ impl PartialKeyEventInfo {
             code,
             location,
             utf16parts: Vec::with_capacity(8),
-            text: PartialText::System(Vec::new()),
+            text,
         }
     }
 
