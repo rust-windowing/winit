@@ -181,10 +181,6 @@ fn should_apps_use_dark_mode() -> bool {
         .unwrap_or(false)
 }
 
-// FIXME: This definition was missing from winapi. Can remove from
-// here and use winapi once the following PR is released:
-// https://github.com/retep998/winapi-rs/pull/815
-
 const HCF_HIGHCONTRASTON: DWORD = 1;
 
 fn is_high_contrast() -> bool {
