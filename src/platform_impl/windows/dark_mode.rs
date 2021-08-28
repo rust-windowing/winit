@@ -11,7 +11,7 @@ use winapi::{
         windef::HWND,
         winerror::S_OK,
     },
-    um::{libloaderapi, uxtheme, winuser},
+    um::{libloaderapi, uxtheme, winuser,HIGHCONTRASTA},
 };
 
 use crate::window::Theme;
@@ -184,13 +184,6 @@ fn should_apps_use_dark_mode() -> bool {
 // FIXME: This definition was missing from winapi. Can remove from
 // here and use winapi once the following PR is released:
 // https://github.com/retep998/winapi-rs/pull/815
-#[repr(C)]
-#[allow(non_snake_case)]
-struct HIGHCONTRASTA {
-    cbSize: UINT,
-    dwFlags: DWORD,
-    lpszDefaultScheme: LPSTR,
-}
 
 const HCF_HIGHCONTRASTON: DWORD = 1;
 
