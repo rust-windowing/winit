@@ -11,7 +11,7 @@ use winapi::{
         windef::HWND,
         winerror::S_OK,
     },
-    um::{libloaderapi, uxtheme, winuser,HIGHCONTRASTA},
+    um::{libloaderapi, uxtheme, winuser, HIGHCONTRASTA},
 };
 
 use crate::window::Theme;
