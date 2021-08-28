@@ -664,8 +664,8 @@ pub struct KeyEvent {
     /// that has such a representation. For example when
     /// `logical_key` is `Key::Enter`, this field is `Some("\r")`.
     ///
-    /// This is `None` if the current keypress cannot
-    /// be interpreted as text.
+    /// This is `None` for all key release events as well as for those
+    /// keypress events where the key cannot be interpreted as text.
     ///
     /// See also: `text_with_all_modifiers()`
     pub text: Option<&'static str>,
