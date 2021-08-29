@@ -29,7 +29,7 @@ use crate::{
             scancode_to_keycode, EventWrapper,
         },
         ffi::*,
-        util::{self, IdRef},
+        util::{self, ns_string_char_count, IdRef},
         window::get_window_id,
         DEVICE_ID,
     },
@@ -57,6 +57,8 @@ pub(super) struct ViewState {
     raw_characters: Option<String>,
     pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
+    is_ime_activated: bool,
+    marked_text: id,
 }
 
 impl ViewState {
@@ -68,6 +70,8 @@ impl ViewState {
 pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
     let cursor_state = Default::default();
     let cursor_access = Arc::downgrade(&cursor_state);
+    let marked_text =
+        unsafe { <id as NSMutableAttributedString>::init(NSMutableAttributedString::alloc(nil)) };
     let state = ViewState {
         ns_window,
         cursor_state,
@@ -75,6 +79,8 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         raw_characters: None,
         modifiers: Default::default(),
         tracking_rect: None,
+        is_ime_activated: false,
+        marked_text,
     };
     unsafe {
         // This is free'd in `dealloc`
@@ -147,7 +153,10 @@ lazy_static! {
             sel!(setMarkedText:selectedRange:replacementRange:),
             set_marked_text as extern "C" fn(&mut Object, Sel, id, NSRange, NSRange),
         );
-        decl.add_method(sel!(unmarkText), unmark_text as extern "C" fn(&Object, Sel));
+        decl.add_method(
+            sel!(unmarkText),
+            unmark_text as extern "C" fn(&mut Object, Sel),
+        );
         decl.add_method(
             sel!(validAttributesForMarkedText),
             valid_attributes_for_marked_text as extern "C" fn(&Object, Sel) -> id,
@@ -159,7 +168,7 @@ lazy_static! {
         );
         decl.add_method(
             sel!(insertText:replacementRange:),
-            insert_text as extern "C" fn(&Object, Sel, id, NSRange),
+            insert_text as extern "C" fn(&mut Object, Sel, id, NSRange),
         );
         decl.add_method(
             sel!(characterIndexForPoint:),
@@ -258,7 +267,6 @@ lazy_static! {
             accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL,
         );
         decl.add_ivar::<*mut c_void>("winitState");
-        decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
         decl.add_protocol(&protocol);
         ViewClass(decl.register())
@@ -268,9 +276,9 @@ lazy_static! {
 extern "C" fn dealloc(this: &Object, _sel: Sel) {
     unsafe {
         let state: *mut c_void = *this.get_ivar("winitState");
-        let marked_text: id = *this.get_ivar("markedText");
-        let _: () = msg_send![marked_text, release];
-        Box::from_raw(state as *mut ViewState);
+        let state = state as *mut ViewState;
+        let _: () = msg_send![(*state).marked_text, release];
+        Box::from_raw(state);
     }
 }
 
@@ -279,9 +287,6 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
         let this: id = msg_send![this, init];
         if this != nil {
             (*this).set_ivar("winitState", state);
-            let marked_text =
-                <id as NSMutableAttributedString>::init(NSMutableAttributedString::alloc(nil));
-            (*this).set_ivar("markedText", marked_text);
             let _: () = msg_send![this, setPostsFrameChangedNotifications: YES];
 
             let notification_center: &Object =
@@ -388,17 +393,20 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
 extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
     unsafe {
         trace!("Triggered `hasMarkedText`");
-        let marked_text: id = *this.get_ivar("markedText");
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+        let retval = (state.marked_text.length() > 0) as BOOL;
         trace!("Completed `hasMarkedText`");
-        (marked_text.length() > 0) as BOOL
+        retval
     }
 }
 
 extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
     unsafe {
         trace!("Triggered `markedRange`");
-        let marked_text: id = *this.get_ivar("markedText");
-        let length = marked_text.length();
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+        let length = state.marked_text.length();
         trace!("Completed `markedRange`");
         if length > 0 {
             NSRange::new(0, length - 1)
@@ -423,30 +431,60 @@ extern "C" fn set_marked_text(
 ) {
     trace!("Triggered `setMarkedText`");
     unsafe {
-        let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
-        let _: () = msg_send![(*marked_text_ref), release];
-        let marked_text = NSMutableAttributedString::alloc(nil);
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        // Delete previous marked text
+        let char_count = ns_string_char_count(state.marked_text.string());
+        delete_marked_text(state, char_count);
+
+        state.is_ime_activated = true;
+
+        let _: () = msg_send![state.marked_text, release];
+        state.marked_text = NSMutableAttributedString::alloc(nil);
         let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
         if has_attr {
-            marked_text.initWithAttributedString(string);
+            state.marked_text.initWithAttributedString(string);
         } else {
-            marked_text.initWithString(string);
+            state.marked_text.initWithString(string);
         };
-        *marked_text_ref = marked_text;
+
+        let text_ns_str = state.marked_text.string();
+        let slice = slice::from_raw_parts(
+            text_ns_str.UTF8String() as *const c_uchar,
+            text_ns_str.len(),
+        );
+        let text_str = str::from_utf8_unchecked(slice);
+
+        for character in text_str.chars() {
+            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: WindowId(get_window_id(state.ns_window)),
+                event: WindowEvent::ReceivedCharacter(character),
+            }));
+        }
     }
     trace!("Completed `setMarkedText`");
 }
 
-extern "C" fn unmark_text(this: &Object, _sel: Sel) {
+extern "C" fn unmark_text(this: &mut Object, _sel: Sel) {
     trace!("Triggered `unmarkText`");
     unsafe {
-        let marked_text: id = *this.get_ivar("markedText");
-        let mutable_string = marked_text.mutableString();
-        let _: () = msg_send![mutable_string, setString:""];
-        let input_context: id = msg_send![this, inputContext];
-        let _: () = msg_send![input_context, discardMarkedText];
+        clear_marked_text(this);
     }
     trace!("Completed `unmarkText`");
+}
+
+/// Unsafe because assumes that `this` is an instance of the `WinitView` class that we declare
+/// programmatically
+unsafe fn clear_marked_text(this: &mut Object) {
+    let state_ptr: *mut c_void = *this.get_ivar("winitState");
+    let state = &mut *(state_ptr as *mut ViewState);
+
+    let _: () = msg_send![state.marked_text, release];
+    state.marked_text = NSMutableAttributedString::alloc(nil);
+
+    let input_context: id = msg_send![this, inputContext];
+    let _: () = msg_send![input_context, discardMarkedText];
 }
 
 extern "C" fn valid_attributes_for_marked_text(_this: &Object, _sel: Sel) -> id {
@@ -496,11 +534,18 @@ extern "C" fn first_rect_for_character_range(
     }
 }
 
-extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: NSRange) {
+extern "C" fn insert_text(this: &mut Object, _sel: Sel, string: id, _replacement_range: NSRange) {
     trace!("Triggered `insertText`");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
+
+        let is_ime_activated: bool = state.is_ime_activated;
+        if is_ime_activated {
+            clear_marked_text(this);
+            state.is_ime_activated = false;
+            return;
+        }
 
         let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
         let characters = if has_attr {
@@ -566,6 +611,15 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
         AppState::queue_events(events);
     }
     trace!("Completed `doCommandBySelector`");
+}
+
+fn delete_marked_text(state: &mut ViewState, count: usize) {
+    for _ in 0..count {
+        AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::ReceivedCharacter('\u{7f}'), // fire DELETE
+        }));
+    }
 }
 
 fn get_characters(event: id, ignore_modifiers: bool) -> String {

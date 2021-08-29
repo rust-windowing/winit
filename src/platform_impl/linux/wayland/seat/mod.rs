@@ -37,7 +37,7 @@ pub struct SeatManager {
 impl SeatManager {
     pub fn new(
         env: &Environment<WinitEnv>,
-        loop_handle: LoopHandle<WinitState>,
+        loop_handle: LoopHandle<'static, WinitState>,
         theme_manager: ThemeManager,
     ) -> Self {
         let relative_pointer_manager = env.get_global::<ZwpRelativePointerManagerV1>();
@@ -63,7 +63,7 @@ impl SeatManager {
         }
 
         let seat_listener = env.listen_for_seats(move |seat, seat_data, _| {
-            inner.process_seat_update(&seat, &seat_data);
+            inner.process_seat_update(&seat, seat_data);
         });
 
         Self {
@@ -78,7 +78,7 @@ struct SeatManagerInner {
     seats: Vec<SeatInfo>,
 
     /// Loop handle.
-    loop_handle: LoopHandle<WinitState>,
+    loop_handle: LoopHandle<'static, WinitState>,
 
     /// Relative pointer manager.
     relative_pointer_manager: Option<Attached<ZwpRelativePointerManagerV1>>,
@@ -99,7 +99,7 @@ impl SeatManagerInner {
         relative_pointer_manager: Option<Attached<ZwpRelativePointerManagerV1>>,
         pointer_constraints: Option<Attached<ZwpPointerConstraintsV1>>,
         text_input_manager: Option<Attached<ZwpTextInputManagerV3>>,
-        loop_handle: LoopHandle<WinitState>,
+        loop_handle: LoopHandle<'static, WinitState>,
     ) -> Self {
         Self {
             seats: Vec::new(),
@@ -127,7 +127,7 @@ impl SeatManagerInner {
         if seat_data.has_pointer && !seat_data.defunct {
             if seat_info.pointer.is_none() {
                 seat_info.pointer = Some(Pointers::new(
-                    &seat,
+                    seat,
                     &self.theme_manager,
                     &self.relative_pointer_manager,
                     &self.pointer_constraints,
@@ -142,7 +142,7 @@ impl SeatManagerInner {
         if seat_data.has_keyboard && !seat_data.defunct {
             if seat_info.keyboard.is_none() {
                 seat_info.keyboard = Keyboard::new(
-                    &seat,
+                    seat,
                     self.loop_handle.clone(),
                     seat_info.modifiers_state.clone(),
                 );
@@ -154,7 +154,7 @@ impl SeatManagerInner {
         // Handle touch.
         if seat_data.has_touch && !seat_data.defunct {
             if seat_info.touch.is_none() {
-                seat_info.touch = Some(Touch::new(&seat));
+                seat_info.touch = Some(Touch::new(seat));
             }
         } else {
             seat_info.touch = None;
@@ -165,7 +165,7 @@ impl SeatManagerInner {
             if seat_data.defunct {
                 seat_info.text_input = None;
             } else if seat_info.text_input.is_none() {
-                seat_info.text_input = Some(TextInput::new(&seat, &text_input_manager));
+                seat_info.text_input = Some(TextInput::new(seat, text_input_manager));
             }
         }
     }

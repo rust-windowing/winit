@@ -8,9 +8,9 @@ use std::{
     ptr, slice,
     sync::Arc,
 };
+use x11_dl::xlib::TrueColor;
 
 use libc;
-use mio_misc::channel::Sender;
 use parking_lot::Mutex;
 
 use crate::{
@@ -25,7 +25,9 @@ use crate::{
     window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
 };
 
-use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
+use super::{
+    ffi, util, EventLoopWindowTarget, ImeSender, WakeSender, WindowId, XConnection, XError,
+};
 
 #[derive(Debug)]
 pub struct SharedState {
@@ -103,7 +105,7 @@ pub struct UnownedWindow {
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
-    redraw_sender: Sender<WindowId>,
+    redraw_sender: WakeSender<WindowId>,
 }
 
 impl UnownedWindow {
@@ -180,6 +182,39 @@ impl UnownedWindow {
         };
 
         // creating
+        let (visual, depth, require_colormap) = match pl_attribs.visual_infos {
+            Some(vi) => (vi.visual, vi.depth, false),
+            None if window_attrs.transparent == true => {
+                // Find a suitable visual
+                let mut vinfo = MaybeUninit::uninit();
+                let vinfo_initialized = unsafe {
+                    (xconn.xlib.XMatchVisualInfo)(
+                        xconn.display,
+                        screen_id,
+                        32,
+                        TrueColor,
+                        vinfo.as_mut_ptr(),
+                    ) != 0
+                };
+                if vinfo_initialized {
+                    let vinfo = unsafe { vinfo.assume_init() };
+                    (vinfo.visual, vinfo.depth, true)
+                } else {
+                    debug!("Could not set transparency, because XMatchVisualInfo returned zero for the required parameters");
+                    (
+                        ffi::CopyFromParent as *mut ffi::Visual,
+                        ffi::CopyFromParent,
+                        false,
+                    )
+                }
+            }
+            _ => (
+                ffi::CopyFromParent as *mut ffi::Visual,
+                ffi::CopyFromParent,
+                false,
+            ),
+        };
+
         let mut set_win_attr = {
             let mut swa: ffi::XSetWindowAttributes = unsafe { mem::zeroed() };
             swa.colormap = if let Some(vi) = pl_attribs.visual_infos {
@@ -187,6 +222,8 @@ impl UnownedWindow {
                     let visual = vi.visual;
                     (xconn.xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone)
                 }
+            } else if require_colormap {
+                unsafe { (xconn.xlib.XCreateColormap)(xconn.display, root, visual, ffi::AllocNone) }
             } else {
                 0
             };
@@ -220,23 +257,9 @@ impl UnownedWindow {
                 dimensions.0 as c_uint,
                 dimensions.1 as c_uint,
                 0,
-                match pl_attribs.visual_infos {
-                    Some(vi) => vi.depth,
-                    None => ffi::CopyFromParent,
-                },
+                depth,
                 ffi::InputOutput as c_uint,
-                // TODO: If window wants transparency and `visual_infos` is None,
-                // we need to find our own visual which has an `alphaMask` which
-                // is > 0, like we do in glutin.
-                //
-                // It is non obvious which masks, if any, we should pass to
-                // `XGetVisualInfo`. winit doesn't receive any info about what
-                // properties the user wants. Users should consider choosing the
-                // visual themselves as glutin does.
-                match pl_attribs.visual_infos {
-                    Some(vi) => vi.visual,
-                    None => ffi::CopyFromParent as *mut ffi::Visual,
-                },
+                visual,
                 window_attributes,
                 &mut set_win_attr,
             )
@@ -252,7 +275,10 @@ impl UnownedWindow {
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
-            redraw_sender: event_loop.redraw_sender.clone(),
+            redraw_sender: WakeSender {
+                waker: event_loop.redraw_sender.waker.clone(),
+                sender: event_loop.redraw_sender.sender.clone(),
+            },
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -1080,7 +1106,7 @@ impl UnownedWindow {
 
     fn update_normal_hints<F>(&self, callback: F) -> Result<(), XError>
     where
-        F: FnOnce(&mut util::NormalHints<'_>) -> (),
+        F: FnOnce(&mut util::NormalHints<'_>),
     {
         let mut normal_hints = self.xconn.get_normal_hints(self.xwindow)?;
         callback(&mut normal_hints);
@@ -1161,7 +1187,7 @@ impl UnownedWindow {
             )
         } else {
             let window_size = Some(Size::from(self.inner_size()));
-            (window_size.clone(), window_size)
+            (window_size, window_size)
         };
 
         self.set_maximizable_inner(resizable).queue();
@@ -1423,7 +1449,11 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.redraw_sender.send(WindowId(self.xwindow)).unwrap();
+        self.redraw_sender
+            .sender
+            .send(WindowId(self.xwindow))
+            .unwrap();
+        self.redraw_sender.waker.wake().unwrap();
     }
 
     #[inline]
