@@ -4,7 +4,8 @@ use crate::event;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{
-    CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorIcon, Fullscreen, ResizeDirection, UserAttentionType, WindowAttributes,
+    WindowId as RootWI,
 };
 
 use raw_window_handle::web::WebHandle;
@@ -228,10 +229,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn drag_resize_window(
-        &self,
-        _direction: Window::ResizeDirection,
-    ) -> Result<(), ExternalError> {
+    pub fn drag_resize_window(&self, _direction: ResizeDirection) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
