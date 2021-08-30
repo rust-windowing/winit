@@ -211,9 +211,9 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalPosition<P> {
-    fn into(self: Self) -> (X, X) {
-        (self.x.cast(), self.y.cast())
+impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for (X, X) {
+    fn from(p: LogicalPosition<P>) -> (X, X) {
+        (p.x.cast(), p.y.cast())
     }
 }
 
@@ -223,26 +223,23 @@ impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalPosition<P> {
-    fn into(self: Self) -> [X; 2] {
-        [self.x.cast(), self.y.cast()]
+impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for [X; 2] {
+    fn from(p: LogicalPosition<P>) -> [X; 2] {
+        [p.x.cast(), p.y.cast()]
     }
 }
 
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<mint::Point2<P>> for LogicalPosition<P> {
-    fn from(mint: mint::Point2<P>) -> Self {
-        Self::new(mint.x, mint.y)
+    fn from(p: mint::Point2<P>) -> Self {
+        Self::new(p.x, p.y)
     }
 }
 
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<LogicalPosition<P>> for mint::Point2<P> {
-    fn from(winit: LogicalPosition<P>) -> Self {
-        mint::Point2 {
-            x: winit.x,
-            y: winit.y,
-        }
+    fn from(p: LogicalPosition<P>) -> Self {
+        mint::Point2 { x: p.x, y: p.y }
     }
 }
 
@@ -293,9 +290,9 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalPosition<P> {
-    fn into(self: Self) -> (X, X) {
-        (self.x.cast(), self.y.cast())
+impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for (X, X) {
+    fn from(p: PhysicalPosition<P>) -> (X, X) {
+        (p.x.cast(), p.y.cast())
     }
 }
 
@@ -305,26 +302,23 @@ impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalPosition<P> {
-    fn into(self: Self) -> [X; 2] {
-        [self.x.cast(), self.y.cast()]
+impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for [X; 2] {
+    fn from(p: PhysicalPosition<P>) -> [X; 2] {
+        [p.x.cast(), p.y.cast()]
     }
 }
 
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<mint::Point2<P>> for PhysicalPosition<P> {
-    fn from(mint: mint::Point2<P>) -> Self {
-        Self::new(mint.x, mint.y)
+    fn from(p: mint::Point2<P>) -> Self {
+        Self::new(p.x, p.y)
     }
 }
 
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<PhysicalPosition<P>> for mint::Point2<P> {
-    fn from(winit: PhysicalPosition<P>) -> Self {
-        mint::Point2 {
-            x: winit.x,
-            y: winit.y,
-        }
+    fn from(p: PhysicalPosition<P>) -> Self {
+        mint::Point2 { x: p.x, y: p.y }
     }
 }
 
@@ -375,9 +369,9 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalSize<P> {
-    fn into(self: LogicalSize<P>) -> (X, X) {
-        (self.width.cast(), self.height.cast())
+impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for (X, X) {
+    fn from(s: LogicalSize<P>) -> (X, X) {
+        (s.width.cast(), s.height.cast())
     }
 }
 
@@ -387,25 +381,25 @@ impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalSize<P> {
-    fn into(self: Self) -> [X; 2] {
-        [self.width.cast(), self.height.cast()]
+impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for [X; 2] {
+    fn from(s: LogicalSize<P>) -> [X; 2] {
+        [s.width.cast(), s.height.cast()]
     }
 }
 
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<mint::Vector2<P>> for LogicalSize<P> {
-    fn from(mint: mint::Vector2<P>) -> Self {
-        Self::new(mint.x, mint.y)
+    fn from(v: mint::Vector2<P>) -> Self {
+        Self::new(v.x, v.y)
     }
 }
 
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
-    fn from(winit: LogicalSize<P>) -> Self {
+    fn from(s: LogicalSize<P>) -> Self {
         mint::Vector2 {
-            x: winit.width,
-            y: winit.height,
+            x: s.width,
+            y: s.height,
         }
     }
 }
@@ -454,9 +448,9 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalSize<P> {
-    fn into(self: Self) -> (X, X) {
-        (self.width.cast(), self.height.cast())
+impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for (X, X) {
+    fn from(s: PhysicalSize<P>) -> (X, X) {
+        (s.width.cast(), s.height.cast())
     }
 }
 
@@ -466,25 +460,25 @@ impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalSize<P> {
-    fn into(self: Self) -> [X; 2] {
-        [self.width.cast(), self.height.cast()]
+impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for [X; 2] {
+    fn from(s: PhysicalSize<P>) -> [X; 2] {
+        [s.width.cast(), s.height.cast()]
     }
 }
 
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<mint::Vector2<P>> for PhysicalSize<P> {
-    fn from(mint: mint::Vector2<P>) -> Self {
-        Self::new(mint.x, mint.y)
+    fn from(v: mint::Vector2<P>) -> Self {
+        Self::new(v.x, v.y)
     }
 }
 
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<PhysicalSize<P>> for mint::Vector2<P> {
-    fn from(winit: PhysicalSize<P>) -> Self {
+    fn from(s: PhysicalSize<P>) -> Self {
         mint::Vector2 {
-            x: winit.width,
-            y: winit.height,
+            x: s.width,
+            y: s.height,
         }
     }
 }

@@ -6,38 +6,24 @@ use std::os::windows::ffi::OsStrExt;
 use winapi::{
     shared::{
         basetsd::SIZE_T,
-        minwindef::{BOOL, DWORD, FALSE, UINT, ULONG, WORD},
-        ntdef::{LPSTR, NTSTATUS, NT_SUCCESS, PVOID, WCHAR},
+        minwindef::{BOOL, DWORD, FALSE, WORD},
+        ntdef::{NTSTATUS, NT_SUCCESS, PVOID},
         windef::HWND,
         winerror::S_OK,
     },
-    um::{libloaderapi, uxtheme, winuser},
+    um::{libloaderapi, uxtheme, winnt, winuser},
 };
 
 use crate::window::Theme;
 
 lazy_static! {
     static ref WIN10_BUILD_VERSION: Option<DWORD> = {
-        // FIXME: RtlGetVersion is a documented windows API,
-        // should be part of winapi!
-
-        #[allow(non_snake_case)]
-        #[repr(C)]
-        struct OSVERSIONINFOW {
-            dwOSVersionInfoSize: ULONG,
-            dwMajorVersion: ULONG,
-            dwMinorVersion: ULONG,
-            dwBuildNumber: ULONG,
-            dwPlatformId: ULONG,
-            szCSDVersion: [WCHAR; 128],
-        }
-
-        type RtlGetVersion = unsafe extern "system" fn (*mut OSVERSIONINFOW) -> NTSTATUS;
+        type RtlGetVersion = unsafe extern "system" fn (*mut winnt::OSVERSIONINFOW) -> NTSTATUS;
         let handle = get_function!("ntdll.dll", RtlGetVersion);
 
         if let Some(rtl_get_version) = handle {
             unsafe {
-                let mut vi = OSVERSIONINFOW {
+                let mut vi = winnt::OSVERSIONINFOW {
                     dwOSVersionInfoSize: 0,
                     dwMajorVersion: 0,
                     dwMinorVersion: 0,
@@ -108,11 +94,12 @@ fn set_dark_mode_for_window(hwnd: HWND, is_dark_mode: bool) -> bool {
     type SetWindowCompositionAttribute =
         unsafe extern "system" fn(HWND, *mut WINDOWCOMPOSITIONATTRIBDATA) -> BOOL;
 
-    #[allow(non_snake_case)]
+    #[allow(clippy::upper_case_acronyms)]
     type WINDOWCOMPOSITIONATTRIB = u32;
     const WCA_USEDARKMODECOLORS: WINDOWCOMPOSITIONATTRIB = 26;
 
     #[allow(non_snake_case)]
+    #[allow(clippy::upper_case_acronyms)]
     #[repr(C)]
     struct WINDOWCOMPOSITIONATTRIBDATA {
         Attrib: WINDOWCOMPOSITIONATTRIB,
@@ -181,21 +168,8 @@ fn should_apps_use_dark_mode() -> bool {
         .unwrap_or(false)
 }
 
-// FIXME: This definition was missing from winapi. Can remove from
-// here and use winapi once the following PR is released:
-// https://github.com/retep998/winapi-rs/pull/815
-#[repr(C)]
-#[allow(non_snake_case)]
-struct HIGHCONTRASTA {
-    cbSize: UINT,
-    dwFlags: DWORD,
-    lpszDefaultScheme: LPSTR,
-}
-
-const HCF_HIGHCONTRASTON: DWORD = 1;
-
 fn is_high_contrast() -> bool {
-    let mut hc = HIGHCONTRASTA {
+    let mut hc = winuser::HIGHCONTRASTA {
         cbSize: 0,
         dwFlags: 0,
         lpszDefaultScheme: std::ptr::null_mut(),
@@ -210,7 +184,7 @@ fn is_high_contrast() -> bool {
         )
     };
 
-    ok != FALSE && (HCF_HIGHCONTRASTON & hc.dwFlags) == 1
+    ok != FALSE && (winuser::HCF_HIGHCONTRASTON & hc.dwFlags) == 1
 }
 
 fn widestring(src: &'static str) -> Vec<u16> {

@@ -33,7 +33,7 @@ pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub struct DeviceId;
 
 impl DeviceId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         DeviceId
     }
 }

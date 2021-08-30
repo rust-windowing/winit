@@ -39,8 +39,8 @@ pub fn get_key_mods() -> ModifiersState {
 bitflags! {
     #[derive(Default)]
     pub struct ModifiersStateSide: u32 {
-        const LSHIFT = 0b010 << 0;
-        const RSHIFT = 0b001 << 0;
+        const LSHIFT = 0b010;
+        const RSHIFT = 0b001;
 
         const LCTRL = 0b010 << 3;
         const RCTRL = 0b001 << 3;
@@ -343,7 +343,7 @@ pub fn handle_extended_keys(
     extended: bool,
 ) -> Option<(c_int, UINT)> {
     // Welcome to hell https://blog.molecular-matters.com/2011/09/05/properly-handling-keyboard-input/
-    scancode = if extended { 0xE000 } else { 0x0000 } | scancode;
+    scancode |= if extended { 0xE000 } else { 0x0000 };
     let vkey = match vkey {
         winuser::VK_SHIFT => unsafe {
             winuser::MapVirtualKeyA(scancode, winuser::MAPVK_VSC_TO_VK_EX) as _
@@ -369,7 +369,7 @@ pub fn handle_extended_keys(
                 // Don't emit anything for the LeftControl event in the pair...
                 0xE01D if vkey == winuser::VK_PAUSE => return None,
                 // ...and emit the Pause event for the second event in the pair.
-                0x45 if vkey == winuser::VK_PAUSE || vkey == 0xFF as _ => {
+                0x45 if vkey == winuser::VK_PAUSE || vkey == 0xFF => {
                     scancode = 0xE059;
                     winuser::VK_PAUSE
                 }

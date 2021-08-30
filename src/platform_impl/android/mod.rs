@@ -443,7 +443,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 pub struct WindowId;
 
 impl WindowId {
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         WindowId
     }
 }
@@ -452,7 +452,7 @@ impl WindowId {
 pub struct DeviceId;
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId
     }
 }

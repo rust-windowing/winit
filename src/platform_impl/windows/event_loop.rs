@@ -86,7 +86,7 @@ lazy_static! {
 pub(crate) struct WindowData<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
-    pub file_drop_handler: Option<FileDropHandler>,
+    pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
     pub recurse_depth: Cell<u32>,
 }
@@ -217,8 +217,8 @@ impl<T: 'static> EventLoop<T> {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main;
                 }
-                winuser::TranslateMessage(&mut msg);
-                winuser::DispatchMessageW(&mut msg);
+                winuser::TranslateMessage(&msg);
+                winuser::DispatchMessageW(&msg);
 
                 if let Err(payload) = runner.take_panic_error() {
                     runner.reset_runner();
@@ -345,15 +345,15 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
 
             if wait_until_opt.is_some() {
                 if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, winuser::PM_REMOVE) {
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
                 }
             } else {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main;
                 } else {
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
                 }
             }
 
@@ -714,8 +714,8 @@ unsafe fn flush_paint_messages<T: 'static>(
                 return;
             }
 
-            winuser::TranslateMessage(&mut msg);
-            winuser::DispatchMessageW(&mut msg);
+            winuser::TranslateMessage(&msg);
+            winuser::DispatchMessageW(&msg);
         });
         true
     } else {
@@ -938,7 +938,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
                 match fullscreen {
                     Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        if new_monitor != ptr::null_mut()
+                        if !new_monitor.is_null()
                             && fullscreen_monitor
                                 .as_ref()
                                 .map(|monitor| new_monitor != monitor.inner.hmonitor())
@@ -1020,8 +1020,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
         winuser::WM_CHAR | winuser::WM_SYSCHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
             use std::char;
-            let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
-            let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
+            let is_high_surrogate = (0xD800..=0xDBFF).contains(&wparam);
+            let is_low_surrogate = (0xDC00..=0xDFFF).contains(&wparam);
 
             if is_high_surrogate {
                 userdata.window_state.lock().high_surrogate = Some(wparam as u16);

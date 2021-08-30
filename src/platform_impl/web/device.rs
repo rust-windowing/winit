@@ -2,7 +2,7 @@
 pub struct Id(pub i32);
 
 impl Id {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         Id(0)
     }
 }
