@@ -208,6 +208,12 @@ pub enum Event<T: 'static> {
     /// [`Suspended`]: Self::Suspended
     Resumed,
 
+    /// Emitted when the application will enter the foreground.
+    Foreground,
+
+    /// Emitted when the application has entered the background.
+    Background,
+
     /// Emitted when the event loop is about to block and wait for new events.
     ///
     /// Most applications shouldn't need to hook into this event since there is no real relationship
@@ -240,6 +246,8 @@ impl<T> Event<T> {
             LoopExiting => Ok(LoopExiting),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
+            Foreground => Ok(Foreground),
+            Background => Ok(Background),
         }
     }
 }
