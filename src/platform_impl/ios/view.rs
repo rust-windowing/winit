@@ -560,8 +560,13 @@ pub fn create_delegate_class() {
         unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
     }
 
-    extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {}
-    extern "C" fn did_enter_background(_: &Object, _: Sel, _: id) {}
+    extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {
+        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Foreground)) }
+    }
+
+    extern "C" fn did_enter_background(_: &Object, _: Sel, _: id) {
+        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Background)) }
+    }
 
     extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
         unsafe {
