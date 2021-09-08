@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Android, fixed `WindowExtAndroid::config` initially returning an empty `Configuration`.
+- On Android, fixed `Window::scale_factor` and `MonitorHandle::scale_factor` initially always returning 1.0.
 - On X11, select an appropriate visual for transparency if is requested
 - On Wayland and X11, fix diagonal window resize cursor orientation.
 - On macOS, drop the event callback before exiting.
