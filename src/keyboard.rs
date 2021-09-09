@@ -175,11 +175,12 @@ pub enum NativeKeyCode {
     Unidentified,
     Windows(u16),
     MacOS(u32),
-    XKB(u32),
+    XkbCode(u32),
+    XkbSym(u32),
 }
 impl std::fmt::Debug for NativeKeyCode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use NativeKeyCode::{MacOS, Unidentified, Windows, XKB};
+        use NativeKeyCode::{MacOS, Unidentified, Windows, XkbCode, XkbSym};
         let mut debug_tuple;
         match self {
             Unidentified => {
@@ -193,8 +194,12 @@ impl std::fmt::Debug for NativeKeyCode {
                 debug_tuple = f.debug_tuple(name_of!(MacOS));
                 debug_tuple.field(v);
             }
-            XKB(v) => {
-                debug_tuple = f.debug_tuple(name_of!(XKB));
+            XkbCode(v) => {
+                debug_tuple = f.debug_tuple(name_of!(XkbCode));
+                debug_tuple.field(&format_args!("0x{:04X}", v));
+            }
+            XkbSym(v) => {
+                debug_tuple = f.debug_tuple(name_of!(XkbSym));
                 debug_tuple.field(&format_args!("0x{:04X}", v));
             }
         }

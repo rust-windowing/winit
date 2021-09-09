@@ -16,7 +16,7 @@ pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
     // difficult to test the correctness of, or discover the purpose of. Because of this, they've
     // either been commented out here, or not included at all.
     match rawkey {
-        0 => KeyCode::Unidentified(NativeKeyCode::XKB(0)),
+        0 => KeyCode::Unidentified(NativeKeyCode::XkbCode(0)),
         1 => KeyCode::Escape,
         2 => KeyCode::Digit1,
         3 => KeyCode::Digit2,
@@ -259,14 +259,14 @@ pub fn raw_keycode_to_keycode(keycode: u32) -> KeyCode {
         // 246 => KeyCode::WWAN,
         // 247 => KeyCode::RFKILL,
         // 248 => KeyCode::KEY_MICMUTE,
-        _ => KeyCode::Unidentified(NativeKeyCode::XKB(rawkey)),
+        _ => KeyCode::Unidentified(NativeKeyCode::XkbCode(rawkey)),
     }
 }
 
 pub fn keycode_to_raw(keycode: KeyCode) -> Option<u32> {
     match keycode {
         KeyCode::Unidentified(NativeKeyCode::Unidentified) => Some(240),
-        KeyCode::Unidentified(NativeKeyCode::XKB(raw)) => Some(raw),
+        KeyCode::Unidentified(NativeKeyCode::XkbCode(raw)) => Some(raw),
         KeyCode::Escape => Some(1),
         KeyCode::Digit1 => Some(2),
         KeyCode::Digit2 => Some(3),
@@ -827,7 +827,7 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // XKB_KEY_SunPowerSwitchShift
         //
         0 => Key::Unidentified(NativeKeyCode::Unidentified),
-        _ => Key::Unidentified(NativeKeyCode::XKB(keysym)),
+        _ => Key::Unidentified(NativeKeyCode::XkbSym(keysym)),
     }
 }
 
