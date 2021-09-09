@@ -1129,6 +1129,13 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
                         let physical_key = keymap::raw_keycode_to_keycode(keycode);
+                        // TODO: Figure out how redundant this is.
+                        //     This is the set of modifiers end users end up seeing. However, the set of
+                        //     modifiers used internally by the `KbState` are sourced directly from the XKB
+                        //     extension. Since we currently panic when the extension doesn't load, we should
+                        //     be able to use the modifiers supplied to us by the XKB extension. This
+                        //     requires us to have consensus on what to do if we can't load and initialize
+                        //     libxkbcommon.
                         let modifiers = self.device_mod_state.modifiers();
 
                         callback(Event::DeviceEvent {
@@ -1139,8 +1146,6 @@ impl<T: 'static> EventProcessor<T> {
                             }),
                         });
 
-                        // `ModifiersChanged` is dispatched here because we assume that every `XI_KeyPress`
-                        // is preceeded by a `XI_RawKeyPress`.
                         if let Some(modifier) =
                             self.mod_keymap.get_modifier(keycode as ffi::KeyCode)
                         {
