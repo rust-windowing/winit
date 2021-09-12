@@ -499,8 +499,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn occluded(&self) -> bool {
-        false
+    pub fn visible(&self) -> bool {
+        true
     }
 }
 

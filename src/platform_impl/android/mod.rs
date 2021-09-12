@@ -606,8 +606,8 @@ impl Window {
         ndk_glue::content_rect()
     }
 
-    pub fn occluded(&self) -> bool {
-        false
+    pub fn visible(&self) -> bool {
+        true
     }
 }
 

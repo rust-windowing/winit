@@ -768,16 +768,15 @@ impl Window {
         self.window.request_user_attention(request_type)
     }
 
-    /// Returns the occlusion state of the current window. The occlusion
-    /// state is either `true` when the window is either hidden or fully covered
-    /// or `false` when some part of the window is visible.
+    /// Returns the visible state of the window. This is `true` if some part of the window
+    /// is visible on screen and false otherwise.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Windows / X11 / Wayland:** Always returns false
+    /// - **iOS / Android / Web / Windows / X11 / Wayland:** Unsupported and always returns false
     #[inline]
-    pub fn occluded(&self) -> bool {
-        self.window.occluded()
+    pub fn visible(&self) -> bool {
+        self.window.visible()
     }
 }
 
