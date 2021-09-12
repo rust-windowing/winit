@@ -512,6 +512,11 @@ impl Window {
             Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
+
+    #[inline]
+    pub fn visible(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.visible())
+    }
 }
 
 #[cfg(feature = "x11")]
