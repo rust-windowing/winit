@@ -497,6 +497,11 @@ impl Window {
         self.window_requests.lock().unwrap().push(request);
         self.event_loop_awakener.ping();
     }
+
+    #[inline]
+    pub fn occluded(&self) -> bool {
+        false
+    }
 }
 
 impl Drop for Window {

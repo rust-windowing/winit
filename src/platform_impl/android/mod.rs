@@ -605,6 +605,10 @@ impl Window {
     pub fn content_rect(&self) -> Rect {
         ndk_glue::content_rect()
     }
+
+    pub fn occluded(&self) -> bool {
+        false
+    }
 }
 
 #[derive(Default, Clone, Debug)]

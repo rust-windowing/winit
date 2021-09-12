@@ -330,6 +330,11 @@ impl Window {
 
         raw_window_handle::RawWindowHandle::Web(handle)
     }
+
+    #[inline]
+    pub fn occluded(&self) -> bool {
+        false
+    }
 }
 
 impl Drop for Window {

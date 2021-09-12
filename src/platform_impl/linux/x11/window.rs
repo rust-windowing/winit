@@ -1464,4 +1464,9 @@ impl UnownedWindow {
             ..XlibHandle::empty()
         }
     }
+
+    #[inline]
+    pub fn occluded(&self) -> bool {
+        false
+    }
 }

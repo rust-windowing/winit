@@ -767,6 +767,18 @@ impl Window {
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         self.window.request_user_attention(request_type)
     }
+
+    /// Returns the occlusion state of the current window. The occlusion
+    /// state is either `true` when the window is either hidden or fully covered
+    /// or `false` when some part of the window is visible.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Windows / X11 / Wayland:** Always returns false
+    #[inline]
+    pub fn occluded(&self) -> bool {
+        self.window.occluded()
+    }
 }
 
 /// Cursor functions.

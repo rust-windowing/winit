@@ -698,6 +698,11 @@ impl Window {
             unsafe { force_window_active(window.0) };
         }
     }
+
+    #[inline]
+    pub fn occluded(&self) -> bool {
+        false
+    }
 }
 
 impl Drop for Window {

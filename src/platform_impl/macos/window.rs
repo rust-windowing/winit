@@ -1029,6 +1029,11 @@ impl UnownedWindow {
         };
         RawWindowHandle::MacOS(handle)
     }
+
+    #[inline]
+    pub fn occluded(&self) -> bool {
+        false
+    }
 }
 
 impl WindowExtMacOS for UnownedWindow {
