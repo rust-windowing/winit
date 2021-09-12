@@ -14,7 +14,7 @@
 - On Wayland, bump `smithay-client-toolkit` to 0.15.
 - On Wayland, implement `request_user_attention` with `xdg_activation_v1`.
 - On X11, emit missing `WindowEvent::ScaleFactorChanged` when the only monitor gets reconnected.
-- Expose `NSWindowOcclusionState` on macOS through `Window::visible`.
+- On macOS , expose `NSWindowOcclusionState` through `Window::visible`. This method returns `false` on all other platforms.
 
 # 0.25.0 (2021-05-15)
 
