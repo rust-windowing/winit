@@ -775,7 +775,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Windows / X11 / Wayland:** Unsupported and always returns false
+    /// - **iOS / Android / Web / Windows / X11 / Wayland:** Unsupported and always returns `true`.
     #[inline]
     pub fn visible(&self) -> bool {
         self.window.visible()
