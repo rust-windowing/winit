@@ -769,7 +769,9 @@ impl Window {
     }
 
     /// Returns the visible state of the window. This is `true` if some part of the window
-    /// is visible on screen and false otherwise.
+    /// is visible on screen and false otherwise. This is useful for pausing rendering
+    /// when the window isn't visible since some platforms may behave strangely if you
+    /// try to draw to an occluded window.
     ///
     /// ## Platform-specific
     ///
