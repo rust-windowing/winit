@@ -76,10 +76,6 @@ jobs:
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android')
       run: cargo install cargo-apk
-    - name: Install cargo-web
-      continue-on-error: true
-      if: contains(matrix.platform.target, 'wasm32')
-      run: cargo install cargo-web
 
     - name: Check documentation
       shell: bash
