@@ -99,7 +99,7 @@ fn main() {
                         if wait_cancelled {
                             *control_flow
                         } else {
-                            ControlFlow::WaitUntil(time::Instant::now() + WAIT_TIME)
+                            ControlFlow::WaitUntil(instant::Instant::now() + WAIT_TIME)
                         }
                     }
                     Mode::Poll => {
