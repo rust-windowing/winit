@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Web, implement cursor grabbing through the pointer lock API.
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
 
 # 0.26.0 (2021-12-01)
