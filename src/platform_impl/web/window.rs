@@ -208,7 +208,10 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        Ok(self.canvas.borrow().set_cursor_grab(grab))
+        self.canvas
+            .borrow()
+            .set_cursor_grab(grab)
+            .map_err(|e| ExternalError::Os(e))
     }
 
     #[inline]

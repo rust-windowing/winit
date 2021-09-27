@@ -89,14 +89,18 @@ impl Canvas {
         })
     }
 
-    pub fn set_cursor_grab(&self, grab: bool) {
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), RootOE> {
         if grab {
-            self.raw().request_pointer_lock()
+            self.raw().request_pointer_lock();
         } else {
-            let window = web_sys::window().unwrap();
-            let document = window.document().unwrap();
+            let window = web_sys::window()
+                .ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+            let document = window
+                .document()
+                .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
             document.exit_pointer_lock();
         }
+        Ok(())
     }
 
     pub fn set_attribute(&self, attribute: &str, value: &str) {
