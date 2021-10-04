@@ -785,12 +785,13 @@ impl UnownedWindow {
 
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
-            unsafe {
-                let app = NSApp();
-                trace!("Locked shared state in `set_fullscreen`");
-
-                let mut shared_state_lock = self.shared_state.lock().unwrap();
-                shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
+            if matches!(old_fullscreen, Some(Fullscreen::Borderless(_))) {
+                unsafe {
+                    let app = NSApp();
+                    trace!("Locked shared state in `set_fullscreen`");
+                    let mut shared_state_lock = self.shared_state.lock().unwrap();
+                    shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
+                }
             }
 
             unsafe {
@@ -899,11 +900,13 @@ impl UnownedWindow {
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
                 &Some(Fullscreen::Borderless(_)),
             ) => unsafe {
-                let presentation_options = shared_state_lock.save_presentation_opts;
-                if presentation_options.is_some() {
-                    let app = NSApp();
-                    app.setPresentationOptions_(presentation_options.unwrap());
-                }
+                let presentation_options =
+                    shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
+                        NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
+                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
+                    });
+                NSApp().setPresentationOptions_(presentation_options);
 
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
             },
