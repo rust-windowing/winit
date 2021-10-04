@@ -360,7 +360,11 @@ impl<T: 'static> EventLoop<T> {
             // If the XConnection already contains buffered events, we don't
             // need to wait for data on the socket.
             if !self.event_processor.poll() {
-                self.poll.poll(&mut events, timeout).unwrap();
+                if let Err(e) = self.poll.poll(&mut events, timeout) {
+                    if e.raw_os_error() != Some(libc::EINTR) {
+                        panic!("epoll returned an error: {:?}", e);
+                    }
+                }
                 events.clear();
             }
 
