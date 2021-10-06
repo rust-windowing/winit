@@ -202,27 +202,6 @@ impl<T: 'static> EventLoop<T> {
             ext
         };
 
-        let xkbext = {
-            let mut ext = XExtension::default();
-
-            let res = unsafe {
-                (xconn.xlib.XkbQueryExtension)(
-                    xconn.display,
-                    &mut ext.opcode,
-                    &mut ext.first_event_id,
-                    &mut ext.first_error_id,
-                    &mut 1,
-                    &mut 0,
-                )
-            };
-
-            if res == ffi::False {
-                panic!("X server missing XKB extension");
-            }
-
-            ext
-        };
-
         unsafe {
             let mut xinput_major_ver = ffi::XI_2_Major;
             let mut xinput_minor_ver = ffi::XI_2_Minor;
@@ -290,7 +269,6 @@ impl<T: 'static> EventLoop<T> {
             ime_receiver,
             ime_event_receiver,
             xi2ext,
-            xkbext,
             kb_state,
             mod_keymap,
             device_mod_state: Default::default(),
@@ -305,15 +283,6 @@ impl<T: 'static> EventLoop<T> {
         get_xtarget(&target)
             .xconn
             .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
-            .queue();
-
-        get_xtarget(&target)
-            .xconn
-            .select_xkb_events(
-                0x100, // Use the "core keyboard device"
-                ffi::XkbNewKeyboardNotifyMask | ffi::XkbMapNotifyMask | ffi::XkbStateNotifyMask,
-            )
-            .unwrap()
             .queue();
 
         event_processor.init_device(ffi::XIAllDevices);
