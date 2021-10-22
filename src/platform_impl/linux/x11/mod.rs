@@ -9,7 +9,6 @@
 mod dnd;
 mod event_processor;
 pub mod ffi;
-mod ime;
 mod monitor;
 pub mod util;
 mod window;
@@ -33,11 +32,11 @@ use std::{
     rc::Rc,
     slice,
     sync::mpsc::Receiver,
-    sync::{mpsc, Arc, Weak},
+    sync::{Arc, Weak},
     time::{Duration, Instant},
 };
 
-use libc::{self, setlocale, LC_CTYPE};
+use libc::{self};
 
 use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 
@@ -50,7 +49,6 @@ use mio_misc::{
 use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
-    ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
 };
 use crate::{
     error::OsError as RootOsError,
@@ -72,9 +70,7 @@ pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
     net_wm_ping: ffi::Atom,
-    ime_sender: ImeSender,
     root: ffi::Window,
-    ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: Sender<WindowId>,
     reset_dead_keys: Arc<AtomicUsize>,
@@ -112,38 +108,6 @@ impl<T: 'static> EventLoop<T> {
 
         let dnd = Dnd::new(Arc::clone(&xconn))
             .expect("Failed to call XInternAtoms when initializing drag and drop");
-
-        let (ime_sender, ime_receiver) = mpsc::channel();
-        // Input methods will open successfully without setting the locale, but it won't be
-        // possible to actually commit pre-edit sequences.
-        unsafe {
-            // Remember default locale to restore it if target locale is unsupported
-            // by Xlib
-            let default_locale = setlocale(LC_CTYPE, ptr::null());
-            setlocale(LC_CTYPE, b"\0".as_ptr() as *const _);
-
-            // Check if set locale is supported by Xlib.
-            // If not, calls to some Xlib functions like `XSetLocaleModifiers`
-            // will fail.
-            let locale_supported = (xconn.xlib.XSupportsLocale)() == 1;
-            if !locale_supported {
-                let unsupported_locale = setlocale(LC_CTYPE, ptr::null());
-                warn!(
-                    "Unsupported locale \"{}\". Restoring default locale \"{}\".",
-                    CStr::from_ptr(unsupported_locale).to_string_lossy(),
-                    CStr::from_ptr(default_locale).to_string_lossy()
-                );
-                // Restore default locale
-                setlocale(LC_CTYPE, default_locale);
-            }
-        }
-        let ime = RefCell::new({
-            let result = Ime::new(Arc::clone(&xconn));
-            if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!("Failed to open input method: {:#?}", state);
-            }
-            result.expect("Failed to set input method destruction callback")
-        });
 
         let randr_event_offset = xconn
             .select_xrandr_input(root)
@@ -219,11 +183,9 @@ impl<T: 'static> EventLoop<T> {
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
-                ime,
                 root,
                 windows: Default::default(),
                 _marker: ::std::marker::PhantomData,
-                ime_sender,
                 xconn,
                 wm_delete_window,
                 net_wm_ping,
@@ -238,7 +200,6 @@ impl<T: 'static> EventLoop<T> {
             dnd,
             devices: Default::default(),
             randr_event_offset,
-            ime_receiver,
             xi2ext,
             xkb_base_event: xkb_base_event as c_int,
             num_touch: 0,

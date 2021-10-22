@@ -8,7 +8,7 @@ use SeatFocus::{KbFocus, PtrFocus};
 
 use super::{
     ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd, DndState,
-    GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId, XExtension,
+    GenericEventCookie, ScrollOrientation, UnownedWindow, WindowId, XExtension,
 };
 
 use crate::{
@@ -47,7 +47,6 @@ enum SeatFocus {
 
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
-    pub(super) ime_receiver: ImeReceiver,
     pub(super) randr_event_offset: c_int,
     pub(super) devices: HashMap<DeviceId, Device>,
     pub(super) xi2ext: XExtension,
@@ -525,13 +524,6 @@ impl<T: 'static> EventProcessor<T> {
                 // cleanup again here.
                 wt.windows.borrow_mut().remove(&WindowId(window));
 
-                // Since all XIM stuff needs to happen from the same thread, we destroy the input
-                // context here instead of when dropping the window.
-                wt.ime
-                    .borrow_mut()
-                    .remove_context(window)
-                    .expect("Failed to destroy input context");
-
                 callback(Event::WindowEvent {
                     window_id,
                     event: WindowEvent::Destroyed,
@@ -803,11 +795,6 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
-                        wt.ime
-                            .borrow_mut()
-                            .focus(xev.event)
-                            .expect("Failed to focus input context");
-
                         let seat = match find_seat(&mut self.seats, xev.deviceid) {
                             Some(seat) => seat,
                             _ => return,
@@ -818,11 +805,6 @@ impl<T: 'static> EventProcessor<T> {
 
                     ffi::XI_FocusOut => {
                         let xev: &ffi::XIFocusOutEvent = unsafe { &*(xev.data as *const _) };
-
-                        wt.ime
-                            .borrow_mut()
-                            .unfocus(xev.event)
-                            .expect("Failed to unfocus input context");
 
                         let seat = match find_seat(&mut self.seats, xev.deviceid) {
                             Some(seat) => seat,
@@ -1146,13 +1128,6 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
             _ => {}
-        }
-
-        match self.ime_receiver.try_recv() {
-            Ok((window_id, x, y)) => {
-                wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
-            }
-            Err(_) => (),
         }
     }
 

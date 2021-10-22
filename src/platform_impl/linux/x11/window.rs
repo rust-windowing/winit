@@ -20,14 +20,13 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
-        x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
-        MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
-        VideoMode as PlatformVideoMode,
+        x11::MonitorHandle as X11MonitorHandle, MonitorHandle as PlatformMonitorHandle, OsError,
+        PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
 };
 
-use super::{ffi, util, EventLoopWindowTarget, ImeSender, WindowId, XConnection, XError};
+use super::{ffi, util, EventLoopWindowTarget, WindowId, XConnection, XError};
 
 #[derive(Debug)]
 pub struct SharedState {
@@ -103,7 +102,6 @@ pub struct UnownedWindow {
     cursor: Mutex<CursorIcon>,
     cursor_grabbed: Mutex<bool>,
     cursor_visible: Mutex<bool>,
-    ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
     redraw_sender: Sender<WindowId>,
     reset_dead_keys: Arc<AtomicUsize>,
@@ -252,7 +250,6 @@ impl UnownedWindow {
             cursor: Default::default(),
             cursor_grabbed: Mutex::new(false),
             cursor_visible: Mutex::new(true),
-            ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
             redraw_sender: event_loop.redraw_sender.clone(),
             reset_dead_keys: event_loop.reset_dead_keys.clone(),
@@ -425,19 +422,6 @@ impl UnownedWindow {
             xconn
                 .select_xinput_events(window.xwindow, ffi::XIAllMasterDevices, mask)
                 .queue();
-
-            {
-                let result = event_loop.ime.borrow_mut().create_context(window.xwindow);
-                if let Err(err) = result {
-                    let e = match err {
-                        ImeContextCreationError::XError(err) => OsError::XError(err),
-                        ImeContextCreationError::Null => {
-                            OsError::XMisc("IME Context creation failed")
-                        }
-                    };
-                    return Err(os_error!(e));
-                }
-            }
 
             // These properties must be set after mapping
             if window_attrs.maximized {
@@ -1330,18 +1314,8 @@ impl UnownedWindow {
             .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))
     }
 
-    pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
-        let _ = self
-            .ime_sender
-            .lock()
-            .send((self.xwindow, x as i16, y as i16));
-    }
-
     #[inline]
-    pub fn set_ime_position(&self, spot: Position) {
-        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
-        self.set_ime_position_physical(x, y);
-    }
+    pub fn set_ime_position(&self, _spot: Position) {}
 
     #[inline]
     pub fn reset_dead_keys(&self) {
