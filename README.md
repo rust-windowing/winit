@@ -3,6 +3,8 @@
 [![Crates.io](https://img.shields.io/crates/v/winit.svg)](https://crates.io/crates/winit)
 [![Docs.rs](https://docs.rs/winit/badge.svg)](https://docs.rs/winit)
 [![CI Status](https://github.com/rust-windowing/winit/workflows/CI/badge.svg)](https://github.com/rust-windowing/winit/actions)
+[![Cargo Audit](https://github.com/rust-windowing/winit/workflows/Audit/badge.svg)](https://github.com/rust-windowing/winit/actions)
+[![Dependency Status](https://deps.rs/repo/github/rust-windowing/winit/status.svg)](https://deps.rs/repo/github/rust-windowing/winit)
 
 ```toml
 [dependencies]
