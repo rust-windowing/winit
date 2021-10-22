@@ -219,7 +219,7 @@ pub enum Event<'a> {
     /// The key modifiers have changed state
     Modifiers {
         /// current state of the modifiers
-        modifiers: xkb_state::ModifiersState,
+        modifiers: ModifiersState,
     },
     /// A key event occurred
     Key {
@@ -319,6 +319,7 @@ where
                 current_repeat,
                 details: repeat,
             }),
+            group: 0,
         };
         (handler, source)
     };
@@ -368,6 +369,7 @@ struct RepeatDetails {
 
 struct KbdHandler {
     state: Rc<RefCell<KbState>>,
+    group: u32,
     callback: Rc<RefCell<KbdCallback>>,
     repeat: Option<KbdRepeat>,
 }
@@ -379,7 +381,7 @@ struct KbdRepeat {
 }
 
 impl KbdRepeat {
-    fn start_repeat(&self, key: u32, keyboard: wl_keyboard::WlKeyboard, time: u32) {
+    fn start_repeat(&self, key: u32, group: u32, keyboard: wl_keyboard::WlKeyboard, time: u32) {
         // Start a new repetition, overwriting the previous ones
         self.timer_handle.cancel_all_timeouts();
 
@@ -391,6 +393,7 @@ impl KbdRepeat {
 
         *self.current_repeat.borrow_mut() = Some(RepeatData {
             keyboard,
+            group,
             keycode: key,
             gap,
             time: (time + self.details.delay) as u64 * 1000,
@@ -548,24 +551,17 @@ impl KbdHandler {
                 _ => unreachable!(),
             };
 
-            let mut ker = state.process_key_event(key + 8, key_state);
-
-            let physical_key = ker.keycode();
-            let (logical_key, location) = ker.key();
-            let text = ker.text();
-            let (key_without_modifiers, _) = ker.key_without_modifiers();
-            let text_with_all_modifiers = ker.text_with_all_modifiers();
-
+            let ker = state.process_key_event(key + 8, self.group, key_state);
             let repeats = unsafe { state.key_repeats(key) };
 
             (
-                physical_key,
-                logical_key,
-                text,
-                location,
+                ker.keycode,
+                ker.key,
+                ker.text,
+                ker.location,
                 key_state,
-                key_without_modifiers,
-                text_with_all_modifiers,
+                ker.key_without_modifiers,
+                ker.text_with_all_modifiers,
                 repeats,
             )
         };
@@ -574,7 +570,7 @@ impl KbdHandler {
             if let Some(ref mut repeat_handle) = self.repeat {
                 if repeats {
                     if state == ElementState::Pressed {
-                        repeat_handle.start_repeat(key, object.clone(), time);
+                        repeat_handle.start_repeat(key, self.group, object.clone(), time);
                     } else {
                         repeat_handle.stop_repeat(key);
                     }
@@ -609,8 +605,9 @@ impl KbdHandler {
         dispatch_data: client::DispatchData<'_>,
     ) {
         {
+            self.group = group;
             let mut state = self.state.borrow_mut();
-            state.update_modifiers(mods_depressed, mods_latched, mods_locked, 0, 0, group);
+            state.update_state(mods_depressed, mods_latched, mods_locked, 0, 0, group);
             (&mut *self.callback.borrow_mut())(
                 Event::Modifiers {
                     modifiers: state.mods_state(),
@@ -639,6 +636,7 @@ impl KbdHandler {
 
 struct RepeatData {
     keyboard: wl_keyboard::WlKeyboard,
+    group: u32,
     keycode: u32,
     /// Gap between key presses in microseconds.
     gap: u64,
@@ -683,25 +681,23 @@ impl calloop::EventSource for RepeatSource {
                 if let Some(ref mut data) = *current_repeat.borrow_mut() {
                     // there is something to repeat
                     let mut state = state.borrow_mut();
-                    let mut ker = state.process_key_repeat_event(data.keycode + 8);
-
-                    let physical_key = ker.keycode();
-                    let (logical_key, location) = ker.key();
-                    let text = ker.text();
-                    let (key_without_modifiers, _) = ker.key_without_modifiers();
-                    let text_with_all_modifiers = ker.text_with_all_modifiers();
+                    let ker = state.process_key_event(
+                        data.keycode + 8,
+                        data.group,
+                        ElementState::Pressed,
+                    );
 
                     let new_time = data.gap + data.time;
                     // Notify the callback.
                     callback(
                         Event::Repeat {
                             time: (new_time / 1000) as u32,
-                            physical_key,
-                            logical_key,
-                            text,
-                            location,
-                            key_without_modifiers,
-                            text_with_all_modifiers,
+                            physical_key: ker.keycode,
+                            logical_key: ker.key,
+                            text: ker.text,
+                            location: ker.location,
+                            key_without_modifiers: ker.key_without_modifiers,
+                            text_with_all_modifiers: ker.text_with_all_modifiers,
                         },
                         &mut data.keyboard,
                     );

@@ -1,12 +1,8 @@
-use std::convert::TryInto;
-use std::env;
 use std::ffi::CString;
-use std::fs::File;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStringExt;
-use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::{char, env, ptr, slice, str};
 
 #[cfg(feature = "wayland")]
 use memmap2::MmapOptions;
@@ -16,22 +12,17 @@ pub use sctk::seat::keyboard::RMLVO;
 #[cfg(feature = "x11")]
 use x11_dl::xlib_xcb::xcb_connection_t;
 #[cfg(feature = "x11")]
-use xkbcommon_dl::x11::XKBCOMMON_X11_HANDLE as XKBXH;
+use xkbcommon_dl::XKBCOMMON_X11_HANDLE as XKBXH;
 
 use xkbcommon_dl::{
-    self as ffi, xkb_state_component, XKBCOMMON_COMPOSE_HANDLE as XKBCH, XKBCOMMON_HANDLE as XKBH,
+    self as ffi, xkb_compose_status, xkb_state_component, XKBCOMMON_COMPOSE_HANDLE as XKBCH,
+    XKBCOMMON_HANDLE as XKBH,
 };
 
 use crate::{
     event::ElementState,
-    keyboard::{Key, KeyCode, KeyLocation},
+    keyboard::{Key, KeyCode, KeyLocation, ModifiersState},
 };
-
-// TODO: Wire this up without using a static `Mutex<Option<&'static str>>`.
-#[cfg(feature = "x11")]
-lazy_static! {
-    pub(crate) static ref X11_EVPROC_NEXT_COMPOSE: Mutex<Option<&'static str>> = Mutex::new(None);
-}
 
 // TODO: Wire this up without using a static `AtomicBool`.
 static RESET_DEAD_KEYS: AtomicBool = AtomicBool::new(false);
@@ -49,89 +40,83 @@ pub(crate) struct KbState {
     xkb_state: *mut ffi::xkb_state,
     xkb_compose_table: *mut ffi::xkb_compose_table,
     xkb_compose_state: *mut ffi::xkb_compose_state,
-    xkb_compose_state_2: *mut ffi::xkb_compose_state,
+    mod_indices: ModIndices,
     mods_state: ModifiersState,
+    #[cfg(feature = "wayland")]
     locked: bool,
     scratch_buffer: Vec<u8>,
 }
 
-/// Represents the current state of the keyboard modifiers
-///
-/// Each field of this struct represents a modifier and is `true` if this modifier is active.
-///
-/// For some modifiers, this means that the key is currently pressed, others are toggled
-/// (like caps lock).
-#[derive(Copy, Clone, Debug, Default)]
-pub struct ModifiersState {
-    /// The "control" key
-    pub ctrl: bool,
-    /// The "alt" key
-    pub alt: bool,
-    /// The "shift" key
-    pub shift: bool,
-    /// The "Caps lock" key
-    pub caps_lock: bool,
-    /// The "logo" key
-    ///
-    /// Also known as the "windows" key on most keyboards
-    pub logo: bool,
-    /// The "Num lock" key
-    pub num_lock: bool,
+#[derive(Default)]
+struct ModIndices {
+    ctrl: u32,
+    alt: u32,
+    shift: u32,
+    logo: u32,
 }
 
-impl ModifiersState {
-    fn new() -> Self {
-        Self::default()
+impl ModIndices {
+    unsafe fn from_keymap(xkb_keymap: *mut ffi::xkb_keymap) -> Self {
+        let ctrl = (XKBH.xkb_keymap_mod_get_index)(
+            xkb_keymap,
+            ffi::XKB_MOD_NAME_CTRL.as_ptr() as *const c_char,
+        );
+        let alt = (XKBH.xkb_keymap_mod_get_index)(
+            xkb_keymap,
+            ffi::XKB_MOD_NAME_ALT.as_ptr() as *const c_char,
+        );
+        let shift = (XKBH.xkb_keymap_mod_get_index)(
+            xkb_keymap,
+            ffi::XKB_MOD_NAME_SHIFT.as_ptr() as *const c_char,
+        );
+        let logo = (XKBH.xkb_keymap_mod_get_index)(
+            xkb_keymap,
+            ffi::XKB_MOD_NAME_LOGO.as_ptr() as *const c_char,
+        );
+        Self {
+            ctrl,
+            alt,
+            shift,
+            logo,
+        }
     }
+}
 
-    fn update_with(&mut self, state: *mut ffi::xkb_state) {
-        self.ctrl = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_CTRL.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.alt = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_ALT.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.shift = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_SHIFT.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.caps_lock = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_CAPS.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.logo = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_LOGO.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-        self.num_lock = unsafe {
-            (XKBH.xkb_state_mod_name_is_active)(
-                state,
-                ffi::XKB_MOD_NAME_NUM.as_ptr() as *const c_char,
-                xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
-            ) > 0
-        };
-    }
+unsafe fn xkb_state_to_modifiers(
+    state: *mut ffi::xkb_state,
+    indices: &ModIndices,
+) -> ModifiersState {
+    let ctrl = (XKBH.xkb_state_mod_index_is_active)(
+        state,
+        indices.ctrl,
+        xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+    ) > 0;
+    let alt = (XKBH.xkb_state_mod_index_is_active)(
+        state,
+        indices.alt,
+        xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+    ) > 0;
+    let shift = (XKBH.xkb_state_mod_index_is_active)(
+        state,
+        indices.shift,
+        xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+    ) > 0;
+    let logo = (XKBH.xkb_state_mod_index_is_active)(
+        state,
+        indices.logo,
+        xkb_state_component::XKB_STATE_MODS_EFFECTIVE,
+    ) > 0;
+
+    let mut mods = ModifiersState::empty();
+    mods.set(ModifiersState::SHIFT, shift);
+    mods.set(ModifiersState::CONTROL, ctrl);
+    mods.set(ModifiersState::ALT, alt);
+    mods.set(ModifiersState::SUPER, logo);
+    mods
 }
 
 impl KbState {
-    pub(crate) fn update_modifiers(
+    pub(crate) fn update_state(
         &mut self,
         mods_depressed: u32,
         mods_latched: u32,
@@ -156,7 +141,7 @@ impl KbState {
         };
         if mask.contains(xkb_state_component::XKB_STATE_MODS_EFFECTIVE) {
             // effective value of mods have changed, we need to update our state
-            self.mods_state.update_with(self.xkb_state);
+            self.mods_state = unsafe { xkb_state_to_modifiers(self.xkb_state, &self.mod_indices) };
         }
     }
 
@@ -171,105 +156,51 @@ impl KbState {
         if !self.ready() {
             return None;
         }
-        let size =
-            unsafe { (XKBH.xkb_state_key_get_utf8)(self.xkb_state, keycode, ptr::null_mut(), 0) }
-                + 1;
-        if size <= 1 {
-            return None;
-        };
-        self.scratch_buffer.clear();
-        let size = size.try_into().unwrap();
-        self.scratch_buffer.reserve(size);
-        unsafe {
-            self.scratch_buffer.set_len(size);
-            (XKBH.xkb_state_key_get_utf8)(
-                self.xkb_state,
-                keycode,
-                self.scratch_buffer.as_mut_ptr() as *mut _,
-                size,
-            );
-        };
-        // remove the final `\0`
-        self.scratch_buffer.pop();
-        Some(byte_slice_to_cached_string(&self.scratch_buffer))
+        let utf32 = unsafe { (XKBH.xkb_state_key_get_utf32)(self.xkb_state, keycode) };
+        char_to_str(utf32)
     }
 
-    fn compose_feed_normal(&mut self, keysym: u32) -> Option<ffi::xkb_compose_feed_result> {
-        self.compose_feed(self.xkb_compose_state, keysym)
-    }
-
-    fn compose_feed_2(&mut self, keysym: u32) -> Option<ffi::xkb_compose_feed_result> {
-        self.compose_feed(self.xkb_compose_state_2, keysym)
-    }
-
-    fn compose_feed(
-        &mut self,
-        xkb_compose_state: *mut ffi::xkb_compose_state,
-        keysym: u32,
-    ) -> Option<ffi::xkb_compose_feed_result> {
+    fn compose_feed(&mut self, keysym: u32) -> Option<ffi::xkb_compose_feed_result> {
         if !self.ready() || self.xkb_compose_state.is_null() {
             return None;
         }
         if RESET_DEAD_KEYS.swap(false, Ordering::SeqCst) {
             unsafe { self.init_compose() };
         }
-        Some(unsafe { (XKBCH.xkb_compose_state_feed)(xkb_compose_state, keysym) })
+        Some(unsafe { (XKBCH.xkb_compose_state_feed)(self.xkb_compose_state, keysym) })
     }
 
-    fn compose_status_normal(&mut self) -> Option<ffi::xkb_compose_status> {
-        self.compose_status(self.xkb_compose_state)
-    }
-
-    #[allow(dead_code)]
-    fn compose_status_2(&mut self) -> Option<ffi::xkb_compose_status> {
-        self.compose_status(self.xkb_compose_state_2)
-    }
-
-    fn compose_status(
-        &mut self,
-        xkb_compose_state: *mut ffi::xkb_compose_state,
-    ) -> Option<ffi::xkb_compose_status> {
-        if !self.ready() || xkb_compose_state.is_null() {
+    fn compose_status(&mut self) -> Option<ffi::xkb_compose_status> {
+        if !self.ready() || self.xkb_compose_state.is_null() {
             return None;
         }
-        Some(unsafe { (XKBCH.xkb_compose_state_get_status)(xkb_compose_state) })
+        Some(unsafe { (XKBCH.xkb_compose_state_get_status)(self.xkb_compose_state) })
     }
 
-    fn compose_get_utf8_normal(&mut self) -> Option<&'static str> {
-        self.compose_get_utf8(self.xkb_compose_state)
-    }
-
-    fn compose_get_utf8_2(&mut self) -> Option<&'static str> {
-        self.compose_get_utf8(self.xkb_compose_state_2)
-    }
-
-    fn compose_get_utf8(
-        &mut self,
-        xkb_compose_state: *mut ffi::xkb_compose_state,
-    ) -> Option<&'static str> {
-        if !self.ready() || xkb_compose_state.is_null() {
+    fn compose_get_utf8(&mut self) -> Option<&'static str> {
+        if !self.ready() || self.xkb_compose_state.is_null() {
             return None;
         }
-        let size =
-            unsafe { (XKBCH.xkb_compose_state_get_utf8)(xkb_compose_state, ptr::null_mut(), 0) }
-                + 1;
-        if size <= 1 {
-            return None;
-        };
-        self.scratch_buffer.clear();
-        let size = size.try_into().unwrap();
-        self.scratch_buffer.reserve(size);
-        unsafe {
-            self.scratch_buffer.set_len(size);
-            (XKBCH.xkb_compose_state_get_utf8)(
-                xkb_compose_state,
-                self.scratch_buffer.as_mut_ptr() as *mut _,
-                size as usize,
-            );
-        };
-        // remove the final `\0`
-        self.scratch_buffer.pop();
-        Some(byte_slice_to_cached_string(&self.scratch_buffer))
+        self.scratch_buffer.truncate(0);
+        loop {
+            unsafe {
+                let size = (XKBCH.xkb_compose_state_get_utf8)(
+                    self.xkb_compose_state,
+                    self.scratch_buffer.as_mut_ptr() as *mut _,
+                    self.scratch_buffer.capacity(),
+                );
+                if size < 0 {
+                    return None;
+                }
+                let size = size as usize;
+                if size >= self.scratch_buffer.capacity() {
+                    self.scratch_buffer.reserve(size + 1);
+                    continue;
+                }
+                self.scratch_buffer.set_len(size);
+                return Some(byte_slice_to_cached_string(&self.scratch_buffer));
+            }
+        }
     }
 
     pub(crate) fn new() -> Result<Self, Error> {
@@ -283,6 +214,21 @@ impl KbState {
             return Err(Error::XKBNotFound);
         }
 
+        // let level = if log::log_enabled!(log::Level::Debug) {
+        //     ffi::xkb_log_level::XKB_LOG_LEVEL_DEBUG
+        // } else if log::log_enabled!(log::Level::Info) {
+        //     ffi::xkb_log_level::XKB_LOG_LEVEL_INFO
+        // } else if log::log_enabled!(log::Level::Warn) {
+        //     ffi::xkb_log_level::XKB_LOG_LEVEL_WARNING
+        // } else if log::log_enabled!(log::Level::Error) {
+        //     ffi::xkb_log_level::XKB_LOG_LEVEL_ERROR
+        // } else {
+        //     ffi::xkb_log_level::XKB_LOG_LEVEL_CRITICAL
+        // };
+        // unsafe {
+        //     (XKBH.xkb_context_set_log_level)(context, level);
+        // }
+
         let mut me = Self {
             #[cfg(feature = "x11")]
             xcb_connection: ptr::null_mut(),
@@ -291,10 +237,11 @@ impl KbState {
             xkb_state: ptr::null_mut(),
             xkb_compose_table: ptr::null_mut(),
             xkb_compose_state: ptr::null_mut(),
-            xkb_compose_state_2: ptr::null_mut(),
-            mods_state: ModifiersState::new(),
+            mod_indices: Default::default(),
+            mods_state: ModifiersState::empty(),
+            #[cfg(feature = "wayland")]
             locked: false,
-            scratch_buffer: Vec::new(),
+            scratch_buffer: Vec::with_capacity(5),
         };
 
         unsafe { me.init_compose() };
@@ -305,25 +252,14 @@ impl KbState {
 
 impl KbState {
     #[cfg(feature = "x11")]
-    pub(crate) fn from_x11_xkb(connection: *mut xcb_connection_t) -> Result<Self, Error> {
+    pub(crate) fn from_x11_xkb(
+        connection: *mut xcb_connection_t,
+        device_id: std::os::raw::c_int,
+    ) -> Result<Self, Error> {
         let mut me = Self::new()?;
         me.xcb_connection = connection;
 
-        let result = unsafe {
-            (XKBXH.xkb_x11_setup_xkb_extension)(
-                connection,
-                1,
-                2,
-                xkbcommon_dl::x11::xkb_x11_setup_xkb_extension_flags::XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-                ptr::null_mut(),
-            )
-        };
-        assert_eq!(result, 1, "Failed to initialize libxkbcommon");
-
-        unsafe { me.init_with_x11_keymap() };
+        unsafe { me.init_with_x11_keymap(device_id) };
 
         Ok(me)
     }
@@ -385,33 +321,21 @@ impl KbState {
             ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
         );
 
-        if compose_table.is_null() {
+        if compose_state.is_null() {
             // init of compose state failed, continue without compose
             (XKBCH.xkb_compose_table_unref)(compose_table);
-            return;
-        }
-
-        let compose_state_2 = (XKBCH.xkb_compose_state_new)(
-            compose_table,
-            ffi::xkb_compose_state_flags::XKB_COMPOSE_STATE_NO_FLAGS,
-        );
-
-        if compose_state_2.is_null() {
-            // init of compose state failed, continue without compose
-            (XKBCH.xkb_compose_table_unref)(compose_table);
-            (XKBCH.xkb_compose_state_unref)(compose_state);
             return;
         }
 
         self.xkb_compose_table = compose_table;
         self.xkb_compose_state = compose_state;
-        self.xkb_compose_state_2 = compose_state_2;
     }
 
     unsafe fn post_init(&mut self, state: *mut ffi::xkb_state, keymap: *mut ffi::xkb_keymap) {
         self.xkb_keymap = keymap;
+        self.mod_indices = ModIndices::from_keymap(keymap);
         self.xkb_state = state;
-        self.mods_state.update_with(state);
+        self.mods_state = xkb_state_to_modifiers(state, &self.mod_indices);
     }
 
     unsafe fn de_init(&mut self) {
@@ -422,28 +346,25 @@ impl KbState {
     }
 
     #[cfg(feature = "x11")]
-    pub(crate) unsafe fn init_with_x11_keymap(&mut self) {
+    pub(crate) unsafe fn init_with_x11_keymap(&mut self, device_id: std::os::raw::c_int) {
         if !self.xkb_keymap.is_null() {
             self.de_init();
         }
 
-        // TODO: Support keyboards other than the "virtual core keyboard device".
-        let core_keyboard_id = (XKBXH.xkb_x11_get_core_keyboard_device_id)(self.xcb_connection);
         let keymap = (XKBXH.xkb_x11_keymap_new_from_device)(
             self.xkb_context,
             self.xcb_connection,
-            core_keyboard_id,
+            device_id,
             xkbcommon_dl::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
         );
         assert_ne!(keymap, ptr::null_mut());
 
-        let state =
-            (XKBXH.xkb_x11_state_new_from_device)(keymap, self.xcb_connection, core_keyboard_id);
+        let state = (XKBXH.xkb_x11_state_new_from_device)(keymap, self.xcb_connection, device_id);
         self.post_init(state, keymap);
     }
 
     #[cfg(feature = "wayland")]
-    pub(crate) unsafe fn init_with_fd(&mut self, fd: File, size: usize) {
+    pub(crate) unsafe fn init_with_fd(&mut self, fd: std::fs::File, size: usize) {
         if !self.xkb_keymap.is_null() {
             self.de_init();
         }
@@ -492,6 +413,7 @@ impl KbState {
 }
 
 impl KbState {
+    #[cfg(feature = "wayland")]
     pub(crate) unsafe fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
         (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode) == 1
     }
@@ -502,6 +424,7 @@ impl KbState {
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
     pub(crate) fn locked(&self) -> bool {
         self.locked
     }
@@ -520,9 +443,6 @@ impl Drop for KbState {
             //       `xkb_keymap`, then we could omit their null-checks.
             if !self.xkb_compose_state.is_null() {
                 (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state);
-            }
-            if !self.xkb_compose_state_2.is_null() {
-                (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state_2);
             }
             if !self.xkb_compose_table.is_null() {
                 (XKBCH.xkb_compose_table_unref)(self.xkb_compose_table);
@@ -543,211 +463,177 @@ pub enum Error {
     /// libxkbcommon is not available
     XKBNotFound,
     /// Provided RMLVO specified a keymap that would not be loaded
+    #[cfg(feature = "wayland")]
     BadNames,
 }
 
 impl KbState {
-    pub fn process_key_event(&mut self, keycode: u32, state: ElementState) -> KeyEventResults<'_> {
-        KeyEventResults::new(self, keycode, state == ElementState::Pressed)
-    }
+    pub fn process_key_event(
+        &mut self,
+        keycode: u32,
+        group: u32,
+        state: ElementState,
+    ) -> KeyEventResults {
+        let keysym = self.get_one_sym_raw(keycode);
 
-    pub fn process_key_repeat_event(&mut self, keycode: u32) -> KeyEventResults<'_> {
-        KeyEventResults::new(self, keycode, false)
-    }
+        let (text, text_with_all_modifiers);
 
-    fn keysym_to_utf8_raw(&mut self, keysym: u32) -> Option<&'static str> {
-        self.scratch_buffer.clear();
-        self.scratch_buffer.reserve(8);
-        loop {
-            let bytes_written = unsafe {
-                (XKBH.xkb_keysym_to_utf8)(
-                    keysym,
-                    self.scratch_buffer.as_mut_ptr().cast(),
-                    self.scratch_buffer.capacity(),
-                )
-            };
-            if bytes_written == 0 {
-                return None;
-            } else if bytes_written == -1 {
-                self.scratch_buffer.reserve(8);
-            } else {
-                unsafe {
-                    self.scratch_buffer
-                        .set_len(bytes_written.try_into().unwrap())
-                };
-                break;
-            }
-        }
-
-        // remove the final `\0`
-        self.scratch_buffer.pop();
-        Some(byte_slice_to_cached_string(&self.scratch_buffer))
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-enum XkbCompose {
-    Accepted(ffi::xkb_compose_status),
-    Ignored,
-    Uninitialized,
-}
-
-pub(crate) struct KeyEventResults<'a> {
-    state: &'a mut KbState,
-    keycode: u32,
-    keysym: u32,
-    compose: Option<XkbCompose>,
-}
-
-impl<'a> KeyEventResults<'a> {
-    fn new(state: &'a mut KbState, keycode: u32, compose: bool) -> Self {
-        let keysym = state.get_one_sym_raw(keycode);
-
-        let compose = if compose {
-            Some(match state.compose_feed_normal(keysym) {
+        if state == ElementState::Pressed {
+            // This is a press or repeat event. Feed the keysym to the compose engine.
+            match self.compose_feed(keysym) {
                 Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED) => {
-                    // Unwrapping is safe here, as `compose_feed` returns `None` when composition is uninitialized.
-                    XkbCompose::Accepted(state.compose_status_normal().unwrap())
-                }
-                Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_IGNORED) => XkbCompose::Ignored,
-                None => XkbCompose::Uninitialized,
-            })
-        } else {
-            None
-        };
-
-        // let key_text = state.keysym_to_utf8_raw(keysym);
-        // unsafe {
-        //     let layout_id = (XKBH.xkb_state_serialize_layout)(state.xkb_state, xkb_state_component::XKB_STATE_LAYOUT_EFFECTIVE);
-        //     let layout_name_cstr = (XKBH.xkb_keymap_layout_get_name)(state.xkb_keymap, layout_id);
-        //     let layout_name = std::ffi::CStr::from_ptr(layout_name_cstr as *mut _);
-        //     debug!("KeyEventResults::new {:?}, {:?}", key_text, layout_name);
-        // }
-
-        KeyEventResults {
-            state,
-            keycode,
-            keysym,
-            compose,
-        }
-    }
-
-    pub fn keycode(&mut self) -> KeyCode {
-        super::keymap::raw_keycode_to_keycode(self.keycode)
-    }
-
-    pub fn key(&mut self) -> (Key<'static>, KeyLocation) {
-        self.keysym_to_key(self.keysym)
-            .unwrap_or_else(|(key, location)| match self.compose {
-                Some(XkbCompose::Accepted(ffi::xkb_compose_status::XKB_COMPOSE_COMPOSING)) => {
-                    // When pressing a dead key twice, the non-combining variant of that character will be
-                    // produced. Since this function only concerns itself with a single keypress, we simulate
-                    // this double press here by feeding the keysym to the compose state twice.
-                    self.state.compose_feed_2(self.keysym);
-                    match self.state.compose_feed_2(self.keysym) {
-                        Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_ACCEPTED) => (
-                            // Extracting only a single `char` here *should* be fine, assuming that no dead
-                            // key's non-combining variant ever occupies more than one `char`.
-                            Key::Dead(
-                                self.state
-                                    .compose_get_utf8_2()
-                                    .map(|s| s.chars().nth(0).unwrap()),
-                            ),
-                            location,
-                        ),
-                        _ => (key, location),
+                    // The keysym potentially affected the compose state. Check it.
+                    match self.compose_status().unwrap() {
+                        xkb_compose_status::XKB_COMPOSE_NOTHING => {
+                            // There is no ongoing composing. Use the keysym on its own.
+                            text = keysym_to_utf8_raw(keysym);
+                            text_with_all_modifiers = self.get_utf8_raw(keycode);
+                        }
+                        xkb_compose_status::XKB_COMPOSE_COMPOSING => {
+                            // Composing is ongoing and not yet completed. No text is produced.
+                            text = None;
+                            text_with_all_modifiers = None;
+                        }
+                        xkb_compose_status::XKB_COMPOSE_COMPOSED => {
+                            // This keysym completed the sequence. The text is the result.
+                            text = self.compose_get_utf8();
+                            // The current behaviour makes it so composing a character overrides attempts to input a
+                            // control character with the `Ctrl` key. We can potentially add a configuration option
+                            // if someone specifically wants the opposite behaviour.
+                            text_with_all_modifiers = text;
+                        }
+                        xkb_compose_status::XKB_COMPOSE_CANCELLED => {
+                            // Before this keysym, composing was ongoing. This keysym was not a possible
+                            // continuation of the sequence and thus aborted composing. The standard
+                            // behavior on linux in this case is to ignore both the sequence and this keysym.
+                            text = None;
+                            text_with_all_modifiers = None;
+                        }
                     }
+                }
+                Some(ffi::xkb_compose_feed_result::XKB_COMPOSE_FEED_IGNORED) => {
+                    // This keysym is a modifier and thus has no effect on the engine. Nor does it produce
+                    // text.
+                    text = None;
+                    text_with_all_modifiers = None;
                 }
                 _ => {
-                    let composed_text = self.composed_text();
-
-                    #[cfg(feature = "x11")]
-                    if let Ok(Some(composed_text)) = composed_text {
-                        *X11_EVPROC_NEXT_COMPOSE.lock().unwrap() = Some(composed_text);
-                    }
-
-                    (
-                        composed_text
-                            .unwrap_or_else(|_| self.state.keysym_to_utf8_raw(self.keysym))
-                            .map(Key::Character)
-                            .unwrap_or(key),
-                        location,
-                    )
+                    // The compose engine is disabled. Use the keysym on its own.
+                    text = keysym_to_utf8_raw(keysym);
+                    text_with_all_modifiers = self.get_utf8_raw(keycode);
                 }
-            })
-    }
-
-    pub fn key_without_modifiers(&mut self) -> (Key<'static>, KeyLocation) {
-        // This will become a pointer to an array which libxkbcommon owns, so we don't need to deallocate it.
-        let mut keysyms = ptr::null();
-        let keysym_count = unsafe {
-            (XKBH.xkb_keymap_key_get_syms_by_level)(
-                self.state.xkb_keymap,
-                self.keycode,
-                0,
-                0,
-                &mut keysyms,
-            )
-        };
-        let keysym = if keysym_count == 1 {
-            unsafe { *keysyms }
-        } else {
-            0
-        };
-        self.keysym_to_key(keysym)
-            .unwrap_or_else(|(key, location)| {
-                (
-                    self.state
-                        .keysym_to_utf8_raw(keysym)
-                        .map(Key::Character)
-                        .unwrap_or(key),
-                    location,
-                )
-            })
-    }
-
-    fn keysym_to_key(
-        &mut self,
-        keysym: u32,
-    ) -> Result<(Key<'static>, KeyLocation), (Key<'static>, KeyLocation)> {
-        let location = super::keymap::keysym_location(keysym);
-        let key = super::keymap::keysym_to_key(keysym);
-        if matches!(key, Key::Unidentified(_)) {
-            Err((key, location))
-        } else {
-            Ok((key, location))
-        }
-    }
-
-    pub fn text(&mut self) -> Option<&'static str> {
-        self.composed_text()
-            .unwrap_or_else(|_| self.state.keysym_to_utf8_raw(self.keysym))
-    }
-
-    pub fn text_with_all_modifiers(&mut self) -> Option<&'static str> {
-        // The current behaviour makes it so composing a character overrides attempts to input a
-        // control character with the `Ctrl` key. We can potentially add a configuration option
-        // if someone specifically wants the oppsite behaviour.
-        self.composed_text()
-            .unwrap_or_else(|_| self.state.get_utf8_raw(self.keycode))
-    }
-
-    fn composed_text(&mut self) -> Result<Option<&'static str>, ()> {
-        if let Some(compose) = &self.compose {
-            match compose {
-                XkbCompose::Accepted(status) => match status {
-                    ffi::xkb_compose_status::XKB_COMPOSE_COMPOSED => {
-                        Ok(self.state.compose_get_utf8_normal())
-                    }
-                    ffi::xkb_compose_status::XKB_COMPOSE_NOTHING => Err(()),
-                    _ => Ok(None),
-                },
-                XkbCompose::Ignored | XkbCompose::Uninitialized => Err(()),
             }
         } else {
-            Err(())
+            // This is a key release. No text is produced.
+            text = None;
+            text_with_all_modifiers = None;
+        }
+
+        let key_without_modifiers = {
+            // This will become a pointer to an array which libxkbcommon owns, so we don't need to deallocate it.
+            let mut keysyms = ptr::null();
+            let keysym_count = unsafe {
+                (XKBH.xkb_keymap_key_get_syms_by_level)(
+                    self.xkb_keymap,
+                    keycode,
+                    group,
+                    0,
+                    &mut keysyms,
+                )
+            };
+            let keysym = if keysym_count == 1 {
+                unsafe { *keysyms }
+            } else {
+                0
+            };
+            keysym_to_key(keysym)
+        };
+
+        let res = KeyEventResults {
+            keycode: super::keymap::raw_keycode_to_keycode(keycode),
+            location: super::keymap::keysym_location(keysym),
+            key: keysym_to_key(keysym),
+            key_without_modifiers,
+            text,
+            text_with_all_modifiers,
+        };
+
+        // log::trace!("{:?}", res);
+
+        res
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct KeyEventResults {
+    pub keycode: KeyCode,
+    pub location: KeyLocation,
+    pub key: Key<'static>,
+    pub key_without_modifiers: Key<'static>,
+    pub text: Option<&'static str>,
+    pub text_with_all_modifiers: Option<&'static str>,
+}
+
+fn keysym_to_key(keysym: u32) -> Key<'static> {
+    let key = super::keymap::keysym_to_key(keysym);
+    if let Key::Unidentified(_) = key {
+        keysym_to_utf8_raw(keysym)
+            .map(Key::Character)
+            .unwrap_or(key)
+    } else {
+        key
+    }
+}
+
+fn keysym_to_utf8_raw(keysym: u32) -> Option<&'static str> {
+    let utf32 = unsafe { (XKBH.xkb_keysym_to_utf32)(keysym) };
+    char_to_str(utf32)
+}
+
+fn char_to_str(utf32: u32) -> Option<&'static str> {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+
+    if utf32 == 0 {
+        return None;
+    }
+
+    if utf32 < 128 {
+        static ASCII: [u8; 128] = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45,
+            46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
+            68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
+            90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108,
+            109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125,
+            126, 127,
+        ];
+        unsafe {
+            debug_assert_eq!(ASCII[utf32 as usize], utf32 as u8);
+            return Some(str::from_utf8_unchecked(slice::from_raw_parts(
+                &ASCII[utf32 as usize],
+                1,
+            )));
         }
     }
+
+    thread_local! {
+        static STRING_CACHE: RefCell<HashMap<u32, &'static str>> = RefCell::new(HashMap::new());
+    }
+
+    return STRING_CACHE.with(|cache| {
+        let mut cache = cache.borrow_mut();
+        if let Some(string) = cache.get(&utf32) {
+            Some(*string)
+        } else {
+            let mut buf = [0; 4];
+            let char = char::from_u32(utf32).unwrap();
+            let string: &'static str =
+                Box::leak(char.encode_utf8(&mut buf).to_string().into_boxed_str());
+            cache.insert(utf32, string);
+            Some(string)
+        }
+    });
 }
 
 fn byte_slice_to_cached_string(bytes: &[u8]) -> &'static str {
@@ -758,7 +644,7 @@ fn byte_slice_to_cached_string(bytes: &[u8]) -> &'static str {
         static STRING_CACHE: RefCell<HashSet<&'static str>> = RefCell::new(HashSet::new());
     }
 
-    let string = std::str::from_utf8(bytes).unwrap();
+    let string = str::from_utf8(bytes).unwrap();
 
     STRING_CACHE.with(|cache| {
         let mut cache = cache.borrow_mut();

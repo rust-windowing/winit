@@ -99,17 +99,6 @@ impl Ime {
         Ok(!self.is_destroyed())
     }
 
-    pub fn get_context(&self, window: ffi::Window) -> Option<ffi::XIC> {
-        if self.is_destroyed() {
-            return None;
-        }
-        if let Some(&Some(ref context)) = self.inner.contexts.get(&window) {
-            Some(context.ic)
-        } else {
-            None
-        }
-    }
-
     pub fn remove_context(&mut self, window: ffi::Window) -> Result<bool, XError> {
         if let Some(Some(context)) = self.inner.contexts.remove(&window) {
             unsafe {

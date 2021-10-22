@@ -50,15 +50,18 @@ use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
     ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
-    util::modifiers::ModifierKeymap,
 };
-use super::common::xkb_state::KbState;
 use crate::{
     error::OsError as RootOsError,
     event::{Event, StartCause},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
     window::WindowAttributes,
+};
+
+use xkbcommon_dl::{
+    xkb_x11_setup_xkb_extension_flags::XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
+    XKBCOMMON_X11_HANDLE as XKBXH,
 };
 
 const X_TOKEN: Token = Token(0);
@@ -162,6 +165,26 @@ impl<T: 'static> EventLoop<T> {
             ext
         };
 
+        let xkb_base_event = {
+            let mut base_event = 0;
+
+            let result = unsafe {
+                (XKBXH.xkb_x11_setup_xkb_extension)(
+                    (xconn.xlib_xcb.XGetXCBConnection)(xconn.display),
+                    1, // major
+                    0, // minor
+                    XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
+                    ptr::null_mut(), // major out
+                    ptr::null_mut(), // minor out
+                    &mut base_event,
+                    ptr::null_mut(), // base error
+                )
+            };
+            assert_eq!(result, 1, "Failed to initialize libxkbcommon");
+
+            base_event
+        };
+
         unsafe {
             let mut xinput_major_ver = ffi::XI_2_Major;
             let mut xinput_minor_ver = ffi::XI_2_Minor;
@@ -180,9 +203,6 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
-        let mut mod_keymap = ModifierKeymap::new();
-        mod_keymap.reset_from_x_connection(&xconn);
-
         let poll = Poll::new().unwrap();
         let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
         let queue = Arc::new(NotificationQueue::new(waker));
@@ -194,10 +214,6 @@ impl<T: 'static> EventLoop<T> {
         let (user_sender, user_channel) = channel(queue.clone(), NotificationId::gen_next());
 
         let (redraw_sender, redraw_channel) = channel(queue, NotificationId::gen_next());
-
-        let kb_state =
-            KbState::from_x11_xkb(unsafe { (xconn.xlib_xcb.XGetXCBConnection)(xconn.display) })
-                .unwrap();
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
@@ -214,19 +230,17 @@ impl<T: 'static> EventLoop<T> {
             _marker: ::std::marker::PhantomData,
         });
 
-        let event_processor = EventProcessor {
+        let mut event_processor = EventProcessor {
             target: target.clone(),
             dnd,
             devices: Default::default(),
             randr_event_offset,
             ime_receiver,
             xi2ext,
-            kb_state,
-            mod_keymap,
-            device_mod_state: Default::default(),
+            xkb_base_event: xkb_base_event as c_int,
             num_touch: 0,
             first_touch: None,
-            active_window: None,
+            seats: Default::default(),
         };
 
         // Register for device hotplug events
@@ -236,7 +250,12 @@ impl<T: 'static> EventLoop<T> {
             .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
             .queue();
 
-        event_processor.init_device(ffi::XIAllDevices);
+        EventProcessor::init_device(
+            &target,
+            &mut event_processor.devices,
+            &mut event_processor.seats,
+            ffi::XIAllDevices,
+        );
 
         let result = EventLoop {
             poll,
@@ -614,11 +633,19 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new<T: 'static>(el: &EventProcessor<T>, info: &ffi::XIDeviceInfo) -> Self {
+    fn new<T: 'static>(wt: &EventLoopWindowTarget<T>, info: &ffi::XIDeviceInfo) -> Self {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
 
-        let wt = get_xtarget(&el.target);
+        if info._use == ffi::XIMasterKeyboard {
+            wt.xconn
+                .select_xkb_events(
+                    info.deviceid as c_uint,
+                    ffi::XkbNewKeyboardNotifyMask | ffi::XkbMapNotifyMask,
+                )
+                .unwrap()
+                .queue();
+        }
 
         if Device::physical_device(info) {
             // Register for global raw events
