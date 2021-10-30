@@ -13,7 +13,7 @@
 - On macOS, fix issue where `ReceivedCharacter` was not being emitted during some key repeat events.
 - On Wayland, load cursor icons `hand2` and `hand1` for `CursorIcon::Hand`.
 - **Breaking:** On Wayland, Theme trait and its support types are dropped.
-- On Wayland, bump `smithay-client-toolkit` to 0.15.
+- On Wayland, bump `smithay-client-toolkit` to 0.15.1.
 - On Wayland, implement `request_user_attention` with `xdg_activation_v1`.
 - On X11, emit missing `WindowEvent::ScaleFactorChanged` when the only monitor gets reconnected.
 
