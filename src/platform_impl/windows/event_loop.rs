@@ -383,7 +383,7 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
                 let now = Instant::now();
                 if now < wait_until {
                     // Windows' scheduler has a default accuracy of several ms. This isn't good enough for
-                    // `WaitUntil`, so we request the Windows' scheduler to use a higher accuracy if possible.
+                    // `WaitUntil`, so we request the Windows scheduler to use a higher accuracy if possible.
                     // If we couldn't query the timer capabilities, then we use the default resolution.
                     if let Some(period) = *WAIT_PERIOD_MIN {
                         timeapi::timeBeginPeriod(period);
