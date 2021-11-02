@@ -100,6 +100,7 @@ The `ndk_glue` version needs to match the version used by `winit`. Otherwise, th
 | :---: | :------------------: |
 | 0.24  | `ndk_glue = "0.2.0"` |
 | 0.25  | `ndk_glue = "0.3.0"` |
+| 0.26  | `ndk_glue = "0.4.0"` |
 
 Running on an Android device needs a dynamic system library, add this to Cargo.toml:
 
@@ -125,6 +126,6 @@ To ensure compatibility with older MacOS systems, winit links to
 CGDisplayCreateUUIDFromDisplayID through the CoreGraphics framework.
 However, under certain setups this function is only available to be linked
 through the newer ColorSync framework. So, winit provides the
-`WINIT_LINK_COLORSYNC` environment variable which can be set to `1` or `true` 
+`WINIT_LINK_COLORSYNC` environment variable which can be set to `1` or `true`
 while compiling to enable linking via ColorSync.
 
