@@ -25,7 +25,7 @@ use winapi::{
         windowsx, winerror,
     },
     um::{
-        libloaderapi, ole2, processthreadsapi, winbase,
+        libloaderapi, mmsystem, ole2, processthreadsapi, timeapi, winbase,
         winnt::{HANDLE, LONG, LPCSTR, SHORT},
         winuser,
     },
@@ -324,6 +324,22 @@ fn get_wait_thread_id() -> DWORD {
     }
 }
 
+lazy_static! {
+    static ref WAIT_PERIOD_MIN: Option<UINT> = unsafe {
+        let mut caps = mmsystem::TIMECAPS {
+            wPeriodMin: 0,
+            wPeriodMax: 0,
+        };
+        if timeapi::timeGetDevCaps(&mut caps, mem::size_of::<mmsystem::TIMECAPS>() as _)
+            == mmsystem::TIMERR_NOERROR
+        {
+            Some(caps.wPeriodMin)
+        } else {
+            None
+        }
+    };
+}
+
 fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
     unsafe {
         let mut msg: winuser::MSG;
@@ -366,16 +382,26 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
             if let Some(wait_until) = wait_until_opt {
                 let now = Instant::now();
                 if now < wait_until {
-                    // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract
-                    // 1 millisecond from the requested time and spinlock for the remainder to
-                    // compensate for that.
+                    // Windows' scheduler has a default accuracy of several ms. This isn't good enough for
+                    // `WaitUntil`, so we request the Windows scheduler to use a higher accuracy if possible.
+                    // If we couldn't query the timer capabilities, then we use the default resolution.
+                    if let Some(period) = *WAIT_PERIOD_MIN {
+                        timeapi::timeBeginPeriod(period);
+                    }
+                    // `MsgWaitForMultipleObjects` is bound by the granularity of the scheduler period.
+                    // Because of this, we try to reduce the requested time just enough to undershoot `wait_until`
+                    // by the smallest amount possible, and then we busy loop for the remaining time inside the
+                    // NewEvents message handler.
                     let resume_reason = winuser::MsgWaitForMultipleObjectsEx(
                         0,
                         ptr::null(),
-                        dur2timeout(wait_until - now).saturating_sub(1),
+                        dur2timeout(wait_until - now).saturating_sub(WAIT_PERIOD_MIN.unwrap_or(1)),
                         winuser::QS_ALLEVENTS,
                         winuser::MWMO_INPUTAVAILABLE,
                     );
+                    if let Some(period) = *WAIT_PERIOD_MIN {
+                        timeapi::timeEndPeriod(period);
+                    }
                     if resume_reason == winerror::WAIT_TIMEOUT {
                         winuser::PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
                         wait_until_opt = None;
