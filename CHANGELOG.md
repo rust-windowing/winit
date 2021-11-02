@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Android, fixed `WindowExtAndroid::config` initially returning an empty `Configuration`.
+- On Android, fixed `Window::scale_factor` and `MonitorHandle::scale_factor` initially always returning 1.0.
 - On X11, select an appropriate visual for transparency if is requested
 - On Wayland and X11, fix diagonal window resize cursor orientation.
 - On macOS, drop the event callback before exiting.
@@ -11,9 +13,12 @@
 - On macOS, fix issue where `ReceivedCharacter` was not being emitted during some key repeat events.
 - On Wayland, load cursor icons `hand2` and `hand1` for `CursorIcon::Hand`.
 - **Breaking:** On Wayland, Theme trait and its support types are dropped.
-- On Wayland, bump `smithay-client-toolkit` to 0.15.
+- On Wayland, bump `smithay-client-toolkit` to 0.15.1.
 - On Wayland, implement `request_user_attention` with `xdg_activation_v1`.
 - On X11, emit missing `WindowEvent::ScaleFactorChanged` when the only monitor gets reconnected.
+- On X11, if RANDR based scale factor is higher than 20 reset it to 1
+- On Wayland, add an enabled-by-default feature called `wayland-dlopen` so users can opt out of using `dlopen` to load system libraries.
+- **Breaking:** On Android, bump `ndk` and `ndk-glue` to 0.4.
 - On Windows, increase wait timer resolution for more accurate timing when using `WaitUntil`.
 
 # 0.25.0 (2021-05-15)
