@@ -909,6 +909,13 @@ impl UnownedWindow {
                 NSApp().setPresentationOptions_(presentation_options);
 
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
+
+                // Restore the normal window level following the Borderless fullscreen
+                // `CGShieldingWindowLevel() + 1` hack.
+                let () = msg_send![
+                    *self.ns_window,
+                    setLevel: ffi::NSWindowLevel::NSNormalWindowLevel
+                ];
             },
             _ => INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst),
         };
