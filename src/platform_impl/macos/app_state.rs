@@ -307,6 +307,8 @@ impl AppState {
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
+
+        // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
         if panic_info.is_panicking() || !HANDLER.is_ready() || HANDLER.get_in_callback() {
             return;
         }
@@ -371,6 +373,8 @@ impl AppState {
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
+
+        // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
         if panic_info.is_panicking() || !HANDLER.is_ready() || HANDLER.get_in_callback() {
             return;
         }
