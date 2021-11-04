@@ -20,6 +20,7 @@
 - On Wayland, add an enabled-by-default feature called `wayland-dlopen` so users can opt out of using `dlopen` to load system libraries.
 - **Breaking:** On Android, bump `ndk` and `ndk-glue` to 0.4.
 - On Windows, increase wait timer resolution for more accurate timing when using `WaitUntil`.
+- On macOS, fix native file dialogs hanging the event loop.
 
 # 0.25.0 (2021-05-15)
 

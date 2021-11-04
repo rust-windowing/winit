@@ -307,7 +307,9 @@ impl AppState {
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
-        if panic_info.is_panicking() || !HANDLER.is_ready() {
+
+        // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
+        if panic_info.is_panicking() || !HANDLER.is_ready() || HANDLER.get_in_callback() {
             return;
         }
         let start = HANDLER.get_start_time().unwrap();
@@ -371,24 +373,25 @@ impl AppState {
         let panic_info = panic_info
             .upgrade()
             .expect("The panic info must exist here. This failure indicates a developer error.");
-        if panic_info.is_panicking() || !HANDLER.is_ready() {
+
+        // Return when in callback due to https://github.com/rust-windowing/winit/issues/1779
+        if panic_info.is_panicking() || !HANDLER.is_ready() || HANDLER.get_in_callback() {
             return;
         }
-        if !HANDLER.get_in_callback() {
-            HANDLER.set_in_callback(true);
-            HANDLER.handle_user_events();
-            for event in HANDLER.take_events() {
-                HANDLER.handle_nonuser_event(event);
-            }
-            HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
-            for window_id in HANDLER.should_redraw() {
-                HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(
-                    window_id,
-                )));
-            }
-            HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
-            HANDLER.set_in_callback(false);
+
+        HANDLER.set_in_callback(true);
+        HANDLER.handle_user_events();
+        for event in HANDLER.take_events() {
+            HANDLER.handle_nonuser_event(event);
         }
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
+        for window_id in HANDLER.should_redraw() {
+            HANDLER
+                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
+        }
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
+        HANDLER.set_in_callback(false);
+
         if HANDLER.should_exit() {
             unsafe {
                 let app: id = NSApp();
