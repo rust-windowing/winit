@@ -1,22 +1,28 @@
-use winapi::{
-    shared::{
-        minwindef::{BOOL, DWORD, LPARAM, TRUE, WORD},
-        windef::{HDC, HMONITOR, HWND, LPRECT, POINT},
-    },
-    um::{wingdi, winuser},
-};
-
 use std::{
     collections::{BTreeSet, VecDeque},
-    io, mem, ptr,
+    ffi::OsString,
+    hash::Hash,
+    io, mem,
+    os::windows::prelude::OsStringExt,
+    ptr,
 };
 
-use super::util;
+use windows_sys::Win32::{
+    Foundation::{BOOL, HWND, LPARAM, POINT, RECT},
+    Graphics::Gdi::{
+        EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, MonitorFromPoint,
+        MonitorFromWindow, DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT,
+        DM_PELSWIDTH, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
+        MONITOR_DEFAULTTOPRIMARY,
+    },
+};
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, get_monitor_dpi},
+        util::has_flag,
         window::Window,
     },
 };
@@ -27,7 +33,7 @@ pub struct VideoMode {
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
     pub(crate) monitor: MonitorHandle,
-    pub(crate) native_video_mode: wingdi::DEVMODEW,
+    pub(crate) native_video_mode: DEVMODEW,
 }
 
 impl PartialEq for VideoMode {
@@ -94,20 +100,20 @@ unsafe impl Send for MonitorHandle {}
 unsafe extern "system" fn monitor_enum_proc(
     hmonitor: HMONITOR,
     _hdc: HDC,
-    _place: LPRECT,
+    _place: *mut RECT,
     data: LPARAM,
 ) -> BOOL {
     let monitors = data as *mut VecDeque<MonitorHandle>;
     (*monitors).push_back(MonitorHandle::new(hmonitor));
-    TRUE // continue enumeration
+    true.into() // continue enumeration
 }
 
 pub fn available_monitors() -> VecDeque<MonitorHandle> {
     let mut monitors: VecDeque<MonitorHandle> = VecDeque::new();
     unsafe {
-        winuser::EnumDisplayMonitors(
-            ptr::null_mut(),
-            ptr::null_mut(),
+        EnumDisplayMonitors(
+            0,
+            ptr::null(),
             Some(monitor_enum_proc),
             &mut monitors as *mut _ as LPARAM,
         );
@@ -117,12 +123,12 @@ pub fn available_monitors() -> VecDeque<MonitorHandle> {
 
 pub fn primary_monitor() -> MonitorHandle {
     const ORIGIN: POINT = POINT { x: 0, y: 0 };
-    let hmonitor = unsafe { winuser::MonitorFromPoint(ORIGIN, winuser::MONITOR_DEFAULTTOPRIMARY) };
+    let hmonitor = unsafe { MonitorFromPoint(ORIGIN, MONITOR_DEFAULTTOPRIMARY) };
     MonitorHandle::new(hmonitor)
 }
 
 pub fn current_monitor(hwnd: HWND) -> MonitorHandle {
-    let hmonitor = unsafe { winuser::MonitorFromWindow(hwnd, winuser::MONITOR_DEFAULTTONEAREST) };
+    let hmonitor = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
     MonitorHandle::new(hmonitor)
 }
 
@@ -137,16 +143,16 @@ impl Window {
     }
 }
 
-pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<winuser::MONITORINFOEXW, io::Error> {
-    let mut monitor_info: winuser::MONITORINFOEXW = unsafe { mem::zeroed() };
-    monitor_info.cbSize = mem::size_of::<winuser::MONITORINFOEXW>() as DWORD;
+pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io::Error> {
+    let mut monitor_info: MONITORINFOEXW = unsafe { mem::zeroed() };
+    monitor_info.monitorInfo.cbSize = mem::size_of::<MONITORINFOEXW>() as u32;
     let status = unsafe {
-        winuser::GetMonitorInfoW(
+        GetMonitorInfoW(
             hmonitor,
-            &mut monitor_info as *mut winuser::MONITORINFOEXW as *mut winuser::MONITORINFO,
+            &mut monitor_info as *mut MONITORINFOEXW as *mut MONITORINFO,
         )
     };
-    if status == 0 {
+    if status == false.into() {
         Err(io::Error::last_os_error())
     } else {
         Ok(monitor_info)
@@ -161,7 +167,11 @@ impl MonitorHandle {
     #[inline]
     pub fn name(&self) -> Option<String> {
         let monitor_info = get_monitor_info(self.0).unwrap();
-        Some(util::wchar_ptr_to_string(monitor_info.szDevice.as_ptr()))
+        Some(
+            OsString::from_wide(&monitor_info.szDevice)
+                .to_string_lossy()
+                .to_string(),
+        )
     }
 
     #[inline]
@@ -176,19 +186,19 @@ impl MonitorHandle {
 
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
-        let monitor_info = get_monitor_info(self.0).unwrap();
+        let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
         PhysicalSize {
-            width: (monitor_info.rcMonitor.right - monitor_info.rcMonitor.left) as u32,
-            height: (monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top) as u32,
+            width: (rc_monitor.right - rc_monitor.left) as u32,
+            height: (rc_monitor.bottom - rc_monitor.top) as u32,
         }
     }
 
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
-        let monitor_info = get_monitor_info(self.0).unwrap();
+        let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
         PhysicalPosition {
-            x: monitor_info.rcMonitor.left,
-            y: monitor_info.rcMonitor.top,
+            x: rc_monitor.left,
+            y: rc_monitor.top,
         }
     }
 
@@ -209,18 +219,16 @@ impl MonitorHandle {
             unsafe {
                 let monitor_info = get_monitor_info(self.0).unwrap();
                 let device_name = monitor_info.szDevice.as_ptr();
-                let mut mode: wingdi::DEVMODEW = mem::zeroed();
-                mode.dmSize = mem::size_of_val(&mode) as WORD;
-                if winuser::EnumDisplaySettingsExW(device_name, i, &mut mode, 0) == 0 {
+                let mut mode: DEVMODEW = mem::zeroed();
+                mode.dmSize = mem::size_of_val(&mode) as u16;
+                if EnumDisplaySettingsExW(device_name, i, &mut mode, 0) == false.into() {
                     break;
                 }
                 i += 1;
 
-                const REQUIRED_FIELDS: DWORD = wingdi::DM_BITSPERPEL
-                    | wingdi::DM_PELSWIDTH
-                    | wingdi::DM_PELSHEIGHT
-                    | wingdi::DM_DISPLAYFREQUENCY;
-                assert!(mode.dmFields & REQUIRED_FIELDS == REQUIRED_FIELDS);
+                const REQUIRED_FIELDS: u32 =
+                    (DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY) as u32;
+                assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
 
                 modes.insert(RootVideoMode {
                     video_mode: VideoMode {

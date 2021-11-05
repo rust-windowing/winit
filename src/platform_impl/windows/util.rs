@@ -1,26 +1,41 @@
 use std::{
-    io, mem,
+    ffi::{c_void, OsStr},
+    io,
+    iter::once,
+    mem,
     ops::BitAnd,
-    os::raw::c_void,
-    ptr, slice,
+    os::windows::prelude::OsStrExt,
+    ptr,
     sync::atomic::{AtomicBool, Ordering},
 };
 
-use crate::{dpi::PhysicalSize, window::CursorIcon};
-use winapi::{
-    ctypes::wchar_t,
-    shared::{
-        minwindef::{BOOL, DWORD, UINT},
-        windef::{DPI_AWARENESS_CONTEXT, HMONITOR, HWND, LPRECT, RECT},
-    },
-    um::{
-        libloaderapi::{GetProcAddress, LoadLibraryA},
-        shellscalingapi::{MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
-        winbase::lstrlenW,
-        winnt::{HRESULT, LONG, LPCSTR},
-        winuser,
+use windows_sys::{
+    core::{HRESULT, PCWSTR},
+    Win32::{
+        Foundation::{BOOL, HWND, RECT},
+        Graphics::Gdi::{ClientToScreen, InvalidateRgn, HMONITOR},
+        System::LibraryLoader::{GetProcAddress, LoadLibraryA},
+        UI::{
+            HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
+            Input::KeyboardAndMouse::GetActiveWindow,
+            WindowsAndMessaging::{
+                AdjustWindowRectEx, ClipCursor, GetClientRect, GetClipCursor, GetMenu,
+                GetSystemMetrics, GetWindowLongW, GetWindowRect, SetWindowPos, ShowCursor,
+                GWL_EXSTYLE, GWL_STYLE, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
+                IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE,
+                IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+                SM_YVIRTUALSCREEN, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
+                SWP_NOREPOSITION, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE,
+            },
+        },
     },
 };
+
+use crate::{dpi::PhysicalSize, window::CursorIcon};
+
+pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
+    string.as_ref().encode_wide().chain(once(0)).collect()
+}
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
 where
@@ -29,19 +44,9 @@ where
     bitset & flag == flag
 }
 
-pub fn wchar_to_string(wchar: &[wchar_t]) -> String {
-    String::from_utf16_lossy(wchar)
-}
-
-pub fn wchar_ptr_to_string(wchar: *const wchar_t) -> String {
-    let len = unsafe { lstrlenW(wchar) } as usize;
-    let wchar_slice = unsafe { slice::from_raw_parts(wchar, len) };
-    wchar_to_string(wchar_slice)
-}
-
 pub unsafe fn status_map<T, F: FnMut(&mut T) -> BOOL>(mut fun: F) -> Option<T> {
     let mut data: T = mem::zeroed();
-    if fun(&mut data) != 0 {
+    if fun(&mut data) != false.into() {
         Some(data)
     } else {
         None
@@ -49,7 +54,7 @@ pub unsafe fn status_map<T, F: FnMut(&mut T) -> BOOL>(mut fun: F) -> Option<T> {
 }
 
 fn win_to_err<F: FnOnce() -> BOOL>(f: F) -> Result<(), io::Error> {
-    if f() != 0 {
+    if f() != false.into() {
         Ok(())
     } else {
         Err(io::Error::last_os_error())
@@ -57,7 +62,7 @@ fn win_to_err<F: FnOnce() -> BOOL>(f: F) -> Result<(), io::Error> {
 }
 
 pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
-    unsafe { status_map(|rect| winuser::GetWindowRect(hwnd, rect)) }
+    unsafe { status_map(|rect| GetWindowRect(hwnd, rect)) }
 }
 
 pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
@@ -65,8 +70,8 @@ pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
         let mut rect = mem::zeroed();
         let mut top_left = mem::zeroed();
 
-        win_to_err(|| winuser::ClientToScreen(hwnd, &mut top_left))?;
-        win_to_err(|| winuser::GetClientRect(hwnd, &mut rect))?;
+        win_to_err(|| ClientToScreen(hwnd, &mut top_left))?;
+        win_to_err(|| GetClientRect(hwnd, &mut rect))?;
         rect.left += top_left.x;
         rect.top += top_left.y;
         rect.right += top_left.x;
@@ -80,9 +85,9 @@ pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
     let (width, height): (u32, u32) = size.into();
     let rect = RECT {
         left: 0,
-        right: width as LONG,
+        right: width as i32,
         top: 0,
-        bottom: height as LONG,
+        bottom: height as i32,
     };
     let rect = adjust_window_rect(hwnd, rect).unwrap_or(rect);
     PhysicalSize::new((rect.right - rect.left) as _, (rect.bottom - rect.top) as _)
@@ -95,57 +100,53 @@ pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
             RECT {
                 top: 0,
                 left: 0,
-                bottom: y as LONG,
-                right: x as LONG,
+                bottom: y as i32,
+                right: x as i32,
             },
         )
         .expect("adjust_window_rect failed");
 
         let outer_x = (rect.right - rect.left).abs() as _;
         let outer_y = (rect.top - rect.bottom).abs() as _;
-        winuser::SetWindowPos(
+        SetWindowPos(
             window,
-            ptr::null_mut(),
+            0,
             0,
             0,
             outer_x,
             outer_y,
-            winuser::SWP_ASYNCWINDOWPOS
-                | winuser::SWP_NOZORDER
-                | winuser::SWP_NOREPOSITION
-                | winuser::SWP_NOMOVE
-                | winuser::SWP_NOACTIVATE,
+            SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOREPOSITION | SWP_NOMOVE | SWP_NOACTIVATE,
         );
-        winuser::InvalidateRgn(window, ptr::null_mut(), 0);
+        InvalidateRgn(window, 0, false.into());
     }
 }
 
 pub fn adjust_window_rect(hwnd: HWND, rect: RECT) -> Option<RECT> {
     unsafe {
-        let style = winuser::GetWindowLongW(hwnd, winuser::GWL_STYLE);
-        let style_ex = winuser::GetWindowLongW(hwnd, winuser::GWL_EXSTYLE);
-        adjust_window_rect_with_styles(hwnd, style as _, style_ex as _, rect)
+        let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+        let style_ex = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+        adjust_window_rect_with_styles(hwnd, style, style_ex, rect)
     }
 }
 
 pub fn adjust_window_rect_with_styles(
     hwnd: HWND,
-    style: DWORD,
-    style_ex: DWORD,
+    style: WINDOW_STYLE,
+    style_ex: WINDOW_EX_STYLE,
     rect: RECT,
 ) -> Option<RECT> {
     unsafe {
         status_map(|r| {
             *r = rect;
 
-            let b_menu = !winuser::GetMenu(hwnd).is_null() as BOOL;
+            let b_menu = GetMenu(hwnd) != 0;
             if let (Some(get_dpi_for_window), Some(adjust_window_rect_ex_for_dpi)) =
                 (*GET_DPI_FOR_WINDOW, *ADJUST_WINDOW_RECT_EX_FOR_DPI)
             {
                 let dpi = get_dpi_for_window(hwnd);
-                adjust_window_rect_ex_for_dpi(r, style as _, b_menu, style_ex as _, dpi)
+                adjust_window_rect_ex_for_dpi(r, style, b_menu.into(), style_ex, dpi)
             } else {
-                winuser::AdjustWindowRectEx(r, style as _, b_menu, style_ex as _)
+                AdjustWindowRectEx(r, style, b_menu.into(), style_ex)
             }
         })
     }
@@ -155,14 +156,14 @@ pub fn set_cursor_hidden(hidden: bool) {
     static HIDDEN: AtomicBool = AtomicBool::new(false);
     let changed = HIDDEN.swap(hidden, Ordering::SeqCst) ^ hidden;
     if changed {
-        unsafe { winuser::ShowCursor(!hidden as BOOL) };
+        unsafe { ShowCursor(BOOL::from(!hidden)) };
     }
 }
 
 pub fn get_cursor_clip() -> Result<RECT, io::Error> {
     unsafe {
         let mut rect: RECT = mem::zeroed();
-        win_to_err(|| winuser::GetClipCursor(&mut rect)).map(|_| rect)
+        win_to_err(|| GetClipCursor(&mut rect)).map(|_| rect)
     }
 }
 
@@ -175,56 +176,52 @@ pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
             .as_ref()
             .map(|r| r as *const RECT)
             .unwrap_or(ptr::null());
-        win_to_err(|| winuser::ClipCursor(rect_ptr))
+        win_to_err(|| ClipCursor(rect_ptr))
     }
 }
 
 pub fn get_desktop_rect() -> RECT {
     unsafe {
-        let left = winuser::GetSystemMetrics(winuser::SM_XVIRTUALSCREEN);
-        let top = winuser::GetSystemMetrics(winuser::SM_YVIRTUALSCREEN);
+        let left = GetSystemMetrics(SM_XVIRTUALSCREEN);
+        let top = GetSystemMetrics(SM_YVIRTUALSCREEN);
         RECT {
             left,
             top,
-            right: left + winuser::GetSystemMetrics(winuser::SM_CXVIRTUALSCREEN),
-            bottom: top + winuser::GetSystemMetrics(winuser::SM_CYVIRTUALSCREEN),
+            right: left + GetSystemMetrics(SM_CXVIRTUALSCREEN),
+            bottom: top + GetSystemMetrics(SM_CYVIRTUALSCREEN),
         }
     }
 }
 
 pub fn is_focused(window: HWND) -> bool {
-    window == unsafe { winuser::GetActiveWindow() }
+    window == unsafe { GetActiveWindow() }
 }
 
 impl CursorIcon {
-    pub(crate) fn to_windows_cursor(self) -> *const wchar_t {
+    pub(crate) fn to_windows_cursor(self) -> PCWSTR {
         match self {
-            CursorIcon::Arrow | CursorIcon::Default => winuser::IDC_ARROW,
-            CursorIcon::Hand => winuser::IDC_HAND,
-            CursorIcon::Crosshair => winuser::IDC_CROSS,
-            CursorIcon::Text | CursorIcon::VerticalText => winuser::IDC_IBEAM,
-            CursorIcon::NotAllowed | CursorIcon::NoDrop => winuser::IDC_NO,
+            CursorIcon::Arrow | CursorIcon::Default => IDC_ARROW,
+            CursorIcon::Hand => IDC_HAND,
+            CursorIcon::Crosshair => IDC_CROSS,
+            CursorIcon::Text | CursorIcon::VerticalText => IDC_IBEAM,
+            CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
             CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
-                winuser::IDC_SIZEALL
+                IDC_SIZEALL
             }
             CursorIcon::EResize
             | CursorIcon::WResize
             | CursorIcon::EwResize
-            | CursorIcon::ColResize => winuser::IDC_SIZEWE,
+            | CursorIcon::ColResize => IDC_SIZEWE,
             CursorIcon::NResize
             | CursorIcon::SResize
             | CursorIcon::NsResize
-            | CursorIcon::RowResize => winuser::IDC_SIZENS,
-            CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => {
-                winuser::IDC_SIZENESW
-            }
-            CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => {
-                winuser::IDC_SIZENWSE
-            }
-            CursorIcon::Wait => winuser::IDC_WAIT,
-            CursorIcon::Progress => winuser::IDC_APPSTARTING,
-            CursorIcon::Help => winuser::IDC_HELP,
-            _ => winuser::IDC_ARROW, // use arrow for the missing cases.
+            | CursorIcon::RowResize => IDC_SIZENS,
+            CursorIcon::NeResize | CursorIcon::SwResize | CursorIcon::NeswResize => IDC_SIZENESW,
+            CursorIcon::NwResize | CursorIcon::SeResize | CursorIcon::NwseResize => IDC_SIZENWSE,
+            CursorIcon::Wait => IDC_WAIT,
+            CursorIcon::Progress => IDC_APPSTARTING,
+            CursorIcon::Help => IDC_HELP,
+            _ => IDC_ARROW, // use arrow for the missing cases.
         }
     }
 }
@@ -236,17 +233,12 @@ pub(super) fn get_function_impl(library: &str, function: &str) -> Option<*const 
     assert_eq!(function.chars().last(), Some('\0'));
 
     // Library names we will use are ASCII so we can use the A version to avoid string conversion.
-    let module = unsafe { LoadLibraryA(library.as_ptr() as LPCSTR) };
-    if module.is_null() {
+    let module = unsafe { LoadLibraryA(library.as_ptr()) };
+    if module == 0 {
         return None;
     }
 
-    let function_ptr = unsafe { GetProcAddress(module, function.as_ptr() as LPCSTR) };
-    if function_ptr.is_null() {
-        return None;
-    }
-
-    Some(function_ptr as _)
+    unsafe { GetProcAddress(module, function.as_ptr()) }.map(|function_ptr| function_ptr as _)
 }
 
 macro_rules! get_function {
@@ -264,20 +256,20 @@ pub type SetProcessDpiAwareness =
     unsafe extern "system" fn(value: PROCESS_DPI_AWARENESS) -> HRESULT;
 pub type SetProcessDpiAwarenessContext =
     unsafe extern "system" fn(value: DPI_AWARENESS_CONTEXT) -> BOOL;
-pub type GetDpiForWindow = unsafe extern "system" fn(hwnd: HWND) -> UINT;
+pub type GetDpiForWindow = unsafe extern "system" fn(hwnd: HWND) -> u32;
 pub type GetDpiForMonitor = unsafe extern "system" fn(
     hmonitor: HMONITOR,
     dpi_type: MONITOR_DPI_TYPE,
-    dpi_x: *mut UINT,
-    dpi_y: *mut UINT,
+    dpi_x: *mut u32,
+    dpi_y: *mut u32,
 ) -> HRESULT;
 pub type EnableNonClientDpiScaling = unsafe extern "system" fn(hwnd: HWND) -> BOOL;
 pub type AdjustWindowRectExForDpi = unsafe extern "system" fn(
-    rect: LPRECT,
-    dwStyle: DWORD,
+    rect: *mut RECT,
+    dwStyle: u32,
     bMenu: BOOL,
-    dwExStyle: DWORD,
-    dpi: UINT,
+    dwExStyle: u32,
+    dpi: u32,
 ) -> BOOL;
 
 lazy_static! {
