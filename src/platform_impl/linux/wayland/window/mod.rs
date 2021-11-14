@@ -139,6 +139,12 @@ impl Window {
         } else {
             window.set_decorate(Decorations::None);
         }
+        // Without this commit here at least on kwin 5.23.3 the initial configure
+        // will have a size (1,1), the second configure including the decoration
+        // mode will have the min_size as its size. With this commit the initial
+        // configure will have no size, the application will draw it's content
+        // with the initial size and everything works as expected afterwards.
+        window.surface().commit();
 
         // Min dimensions.
         let min_size = attributes
