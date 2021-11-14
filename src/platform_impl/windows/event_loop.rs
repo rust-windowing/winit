@@ -38,7 +38,7 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
-        dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
+        dpi::{become_dpi_aware, dpi_to_scale_factor},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         monitor::{self, MonitorHandle},
@@ -789,9 +789,9 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
 }
 
 #[cfg(target_arch = "x86_64")]
-type WindowLongPtr = LONG_PTR;
+pub(crate) type WindowLongPtr = LONG_PTR;
 #[cfg(target_arch = "x86")]
-type WindowLongPtr = LONG;
+pub(crate) type WindowLongPtr = LONG;
 
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
@@ -813,23 +813,19 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
             let initdata = createstruct.lpCreateParams as LONG_PTR;
             let initdata = &mut *(initdata as *mut InitData<'_, T>);
 
-            let runner = initdata.event_loop.runner_shared.clone();
-            if let Some((win, userdata)) = runner.catch_unwind(|| (initdata.post_init)(window)) {
-                initdata.window = Some(win);
-                let userdata = Box::into_raw(Box::new(userdata));
-                winuser::SetWindowLongPtrW(
-                    window,
-                    winuser::GWL_USERDATA,
-                    userdata as WindowLongPtr,
-                );
-                userdata
-            } else {
-                return -1;
-            }
+            return initdata.on_nccreate(window, msg, wparam, lparam);
         }
+        // `userdata` is set in `WM_NCCREATE` appearing before `WM_CREATE`.
         // Getting here should quite frankly be impossible,
         // but we'll make window creation fail here just in case.
         (0, winuser::WM_CREATE) => return -1,
+        (_, winuser::WM_CREATE) => {
+            let createstruct = &mut *(lparam as *mut winuser::CREATESTRUCTW);
+            let initdata = createstruct.lpCreateParams as LONG_PTR;
+            let initdata = &mut *(initdata as *mut InitData<'_, T>);
+
+            return initdata.on_create(window, msg, wparam, lparam);
+        }
         (0, _) => return winuser::DefWindowProcW(window, msg, wparam, lparam),
         _ => userdata as *mut WindowData<T>,
     };
@@ -887,11 +883,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 .lock()
                 .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
-        }
-
-        winuser::WM_NCCREATE => {
-            enable_non_client_dpi_scaling(window);
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
         }
 
         winuser::WM_NCLBUTTONDOWN => {
