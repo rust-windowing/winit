@@ -21,6 +21,7 @@
 - **Breaking:** On Android, bump `ndk` and `ndk-glue` to 0.4.
 - On Windows, increase wait timer resolution for more accurate timing when using `WaitUntil`.
 - On macOS, fix native file dialogs hanging the event loop.
+- On Wayland, implement a workaround for wrong configure size when using `xdg_decoration` in `kwin_wayland`
 
 # 0.25.0 (2021-05-15)
 
