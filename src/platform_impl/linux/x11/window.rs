@@ -757,27 +757,35 @@ impl UnownedWindow {
         self.xconn.primary_monitor()
     }
 
-    fn set_minimized_inner(&self, minimized: bool) -> XcbPendingCommand {
-        let (atom, data) = if minimized {
-            ("WM_CHANGE_STATE", 3) // 3 = IconicState
+    fn set_minimized_inner(&self, minimized: bool) -> XcbPendingCommands {
+        let mut pending = XcbPendingCommands::new();
+        if minimized {
+            pending.push(
+                self.xconn
+                    .send_client_msg(
+                        self.xwindow,
+                        self.screen.root,
+                        self.xconn.get_atom("WM_CHANGE_STATE"),
+                        Some(
+                            ffi::XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT
+                                | ffi::XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
+                        ),
+                        [3, 0, 0, 0, 0],
+                    )
+                    .into(),
+            );
         } else {
-            ("_NET_ACTIVE_WINDOW", 1) // 1 = Active
-        };
-        self.xconn.send_client_msg(
-            self.xwindow,
-            self.screen.root,
-            self.xconn.get_atom(atom),
-            Some(
-                ffi::XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | ffi::XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
-            ),
-            [data, 0, 0, 0, 0],
-        )
+            if self.shared_state.lock().visibility != Visibility::No {
+                pending.extend(self.map_raised());
+            }
+        }
+        pending
     }
 
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         let pending = self.set_minimized_inner(minimized);
-        if let Err(e) = self.xconn.check_pending1(pending) {
+        if let Err(e) = self.xconn.check_pending(pending) {
             log::error!("Could not change minimized state: {}", e);
         }
     }
