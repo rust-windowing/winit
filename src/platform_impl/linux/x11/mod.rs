@@ -443,7 +443,7 @@ impl WindowId {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(ffi::xcb_input_device_id_t);
+pub struct DeviceId(pub(crate) ffi::xcb_input_device_id_t);
 
 impl DeviceId {
     #[cfg(not(feature = "wayland"))]

@@ -20,6 +20,7 @@ use crate::{
 
 #[cfg(feature = "x11")]
 use crate::dpi::Size;
+use crate::event::DeviceId;
 use crate::platform_impl::{
     EventLoop as LinuxEventLoop, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
     Window as LinuxWindow,
@@ -451,6 +452,27 @@ impl WindowBuilderExtUnix for WindowBuilder {
     fn with_app_id(mut self, app_id: String) -> Self {
         self.platform_specific.app_id = Some(app_id);
         self
+    }
+}
+
+/// Additional methods on `DeviceId` that are specific to Unix.
+pub trait DeviceIdExtUnix {
+    /// Returns the native xinput identifier of the device.
+    ///
+    /// Returns `None` if the `DeviceId` does not belong to an X server.
+    #[cfg(feature = "x11")]
+    fn xinput_id(&self) -> Option<u32>;
+}
+
+impl DeviceIdExtUnix for DeviceId {
+    #[inline]
+    #[cfg(feature = "x11")]
+    fn xinput_id(&self) -> Option<u32> {
+        #[allow(irrefutable_let_patterns)]
+        if let crate::platform_impl::DeviceId::X(id) = self.0 {
+            return Some(id.0 as _);
+        }
+        None
     }
 }
 
