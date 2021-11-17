@@ -82,7 +82,14 @@ extern "C" fn preedit_draw_callback(
         if xim_text.encoding_is_wchar > 0 {
             return;
         }
-        let new_text = unsafe { CStr::from_ptr(xim_text.string.multi_byte) };
+
+        let new_text = unsafe { xim_text.string.multi_byte };
+
+        if new_text.is_null() {
+            return;
+        }
+
+        let new_text = unsafe { CStr::from_ptr(new_text) };
 
         String::from(new_text.to_str().expect("Invalid UTF-8 String from IME"))
             .chars()
