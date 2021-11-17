@@ -14,7 +14,7 @@ use std::{
 use winapi::{
     ctypes::c_int,
     shared::{
-        minwindef::{HINSTANCE, LPARAM, LRESULT, UINT, WPARAM},
+        minwindef::{HINSTANCE, LPARAM, UINT, WPARAM},
         windef::{HWND, POINT, POINTS, RECT},
     },
     um::{
@@ -40,7 +40,7 @@ use crate::{
         dark_mode::try_theme,
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
+        event_loop::{self, EventLoopWindowTarget, WindowLongPtr, DESTROY_MSG_ID},
         icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
@@ -739,7 +739,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         }
     }
 
-    unsafe fn create_window_data(&self, win: &mut Window) -> event_loop::WindowData<T> {
+    unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData<T> {
         let file_drop_handler = if self.pl_attribs.drag_and_drop {
             use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
 
@@ -787,13 +787,9 @@ impl<'a, T: 'static> InitData<'a, T> {
         }
     }
 
-    pub unsafe fn on_nccreate(
-        &mut self,
-        window: HWND,
-        msg: UINT,
-        wparam: WPARAM,
-        lparam: LPARAM,
-    ) -> LRESULT {
+    // Returns a pointer to window user data on success.
+    // The user data will be registered for the window and can be accessed within the window event callback.
+    pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<WindowLongPtr> {
         let runner = self.event_loop.runner_shared.clone();
         let result = runner.catch_unwind(|| unsafe {
             let mut window = self.create_window(window);
@@ -801,23 +797,14 @@ impl<'a, T: 'static> InitData<'a, T> {
             (window, window_data)
         });
 
-        if let Some((win, userdata)) = result {
+        result.map(|(win, userdata)| {
             self.window = Some(win);
             let userdata = Box::into_raw(Box::new(userdata));
-            winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as _);
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
-        } else {
-            -1
-        }
+            userdata as _
+        })
     }
 
-    pub unsafe fn on_create(
-        &mut self,
-        window: HWND,
-        msg: UINT,
-        wparam: WPARAM,
-        lparam: LPARAM,
-    ) -> LRESULT {
+    pub unsafe fn on_create(&mut self) {
         let win = self.window.as_mut().expect("failed window creation");
         let attributes = self.attributes.clone();
 
@@ -843,8 +830,6 @@ impl<'a, T: 'static> InitData<'a, T> {
         if let Some(position) = attributes.position {
             win.set_outer_position(position);
         }
-
-        winuser::DefWindowProcW(window, msg, wparam, lparam)
     }
 }
 unsafe fn init<T>(

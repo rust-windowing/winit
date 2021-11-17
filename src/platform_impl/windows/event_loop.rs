@@ -813,7 +813,15 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
             let initdata = createstruct.lpCreateParams as LONG_PTR;
             let initdata = &mut *(initdata as *mut InitData<'_, T>);
 
-            return initdata.on_nccreate(window, msg, wparam, lparam);
+            let result = match initdata.on_nccreate(window) {
+                Some(userdata) => {
+                    winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as _);
+                    winuser::DefWindowProcW(window, msg, wparam, lparam)
+                }
+                None => -1, // failed to create the window
+            };
+
+            return result;
         }
         // `userdata` is set in `WM_NCCREATE` appearing before `WM_CREATE`.
         // Getting here should quite frankly be impossible,
@@ -824,7 +832,8 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
             let initdata = createstruct.lpCreateParams as LONG_PTR;
             let initdata = &mut *(initdata as *mut InitData<'_, T>);
 
-            return initdata.on_create(window, msg, wparam, lparam);
+            initdata.on_create();
+            return winuser::DefWindowProcW(window, msg, wparam, lparam);
         }
         (0, _) => return winuser::DefWindowProcW(window, msg, wparam, lparam),
         _ => userdata as *mut WindowData<T>,
