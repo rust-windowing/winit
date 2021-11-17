@@ -823,7 +823,6 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
 
             return result;
         }
-        // `userdata` is set in `WM_NCCREATE` appearing before `WM_CREATE`.
         // Getting here should quite frankly be impossible,
         // but we'll make window creation fail here just in case.
         (0, winuser::WM_CREATE) => return -1,
