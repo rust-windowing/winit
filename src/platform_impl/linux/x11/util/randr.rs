@@ -1,9 +1,7 @@
-use std::{env, slice, str::FromStr};
+use std::{env, slice, str, str::FromStr};
 
-use super::{
-    ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
-    *,
-};
+use super::*;
+use crate::platform_impl::x11::xdisplay::Screen;
 use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
@@ -32,44 +30,53 @@ pub fn calc_dpi_factor(
 
 impl XConnection {
     // Retrieve DPI from Xft.dpi property
-    pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
-        (self.xlib.XrmInitialize)();
-        let resource_manager_str = (self.xlib.XResourceManagerString)(self.display);
-        if resource_manager_str == ptr::null_mut() {
-            return None;
-        }
-        if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
-            let name: &str = "Xft.dpi:\t";
-            for pair in res.split("\n") {
-                if pair.starts_with(&name) {
-                    let res = &pair[name.len()..];
-                    return f64::from_str(&res).ok();
-                }
+    pub unsafe fn get_xft_dpi(&self, screen: &Screen) -> Option<f64> {
+        let resource_manager_str = self
+            .get_property::<u8>(
+                screen.root,
+                ffi::XCB_ATOM_RESOURCE_MANAGER,
+                ffi::XCB_ATOM_STRING,
+            )
+            .ok()?;
+        for pair in resource_manager_str.split(|b| *b == b'\n') {
+            if let Some(res) = pair.strip_prefix(b"Xft.dpi:\t") {
+                return f64::from_str(str::from_utf8(res).ok()?).ok();
             }
         }
         None
     }
     pub unsafe fn get_output_info(
         &self,
-        resources: *mut XRRScreenResources,
-        crtc: *mut XRRCrtcInfo,
-    ) -> Option<(String, f64, Vec<VideoMode>)> {
-        let output_info =
-            (self.xrandr.XRRGetOutputInfo)(self.display, resources, *(*crtc).outputs.offset(0));
-        if output_info.is_null() {
-            // When calling `XRRGetOutputInfo` on a virtual monitor (versus a physical display)
-            // it's possible for it to return null.
-            // https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=816596
-            let _ = self.check_errors(); // discard `BadRROutput` error
-            return None;
-        }
+        screen: &Screen,
+        resources: &ffi::xcb_randr_get_screen_resources_reply_t,
+        crtc: &ffi::xcb_randr_get_crtc_info_reply_t,
+    ) -> Result<Option<(String, f64, Vec<VideoMode>)>, XcbError> {
+        let mut err = ptr::null_mut();
 
-        let screen = (self.xlib.XDefaultScreen)(self.display);
-        let bit_depth = (self.xlib.XDefaultDepth)(self.display, screen);
+        let first_output = {
+            if crtc.num_outputs == 0 {
+                return Ok(None);
+            }
+            *self.randr.xcb_randr_get_crtc_info_outputs(crtc)
+        };
+        let output_info = {
+            let reply = self.randr.xcb_randr_get_output_info_reply(
+                self.c,
+                self.randr
+                    .xcb_randr_get_output_info(self.c, first_output, 0),
+                &mut err,
+            );
+            self.check(reply, err)?
+        };
+        let output_modes = slice::from_raw_parts(
+            self.randr.xcb_randr_get_output_info_modes(&*output_info),
+            output_info.num_modes as _,
+        );
 
-        let output_modes =
-            slice::from_raw_parts((*output_info).modes, (*output_info).nmode as usize);
-        let resource_modes = slice::from_raw_parts((*resources).modes, (*resources).nmode as usize);
+        let resource_modes = slice::from_raw_parts(
+            self.randr.xcb_randr_get_screen_resources_modes(resources),
+            resources.num_modes as _,
+        );
 
         let modes = resource_modes
             .iter()
@@ -77,8 +84,8 @@ impl XConnection {
             // modes in the array in XRRScreenResources
             .filter(|x| output_modes.iter().any(|id| x.id == *id))
             .map(|x| {
-                let refresh_rate = if x.dotClock > 0 && x.hTotal > 0 && x.vTotal > 0 {
-                    x.dotClock as u64 * 1000 / (x.hTotal as u64 * x.vTotal as u64)
+                let refresh_rate = if x.dot_clock > 0 && x.htotal > 0 && x.vtotal > 0 {
+                    x.dot_clock as u64 * 1000 / (x.htotal as u64 * x.vtotal as u64)
                 } else {
                     0
                 };
@@ -86,7 +93,7 @@ impl XConnection {
                 VideoMode {
                     size: (x.width, x.height),
                     refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
-                    bit_depth: bit_depth as u16,
+                    bit_depth: screen.root_depth as u16,
                     native_mode: x.id,
                     // This is populated in `MonitorHandle::video_modes` as the
                     // video mode is returned to the user
@@ -96,8 +103,8 @@ impl XConnection {
             .collect();
 
         let name_slice = slice::from_raw_parts(
-            (*output_info).name as *mut u8,
-            (*output_info).nameLen as usize,
+            self.randr.xcb_randr_get_output_info_name(&*output_info),
+            output_info.name_len as usize,
         );
         let name = String::from_utf8_lossy(name_slice).into();
         // Override DPI if `WINIT_X11_SCALE_FACTOR` variable is set
@@ -127,11 +134,8 @@ impl XConnection {
 
         let scale_factor = match dpi_env {
             EnvVarDPI::Randr => calc_dpi_factor(
-                ((*crtc).width as u32, (*crtc).height as u32),
-                (
-                    (*output_info).mm_width as u64,
-                    (*output_info).mm_height as u64,
-                ),
+                (crtc.width as u32, crtc.height as u32),
+                (output_info.mm_width as u64, output_info.mm_height as u64),
             ),
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_scale_factor(dpi_override) {
@@ -143,78 +147,69 @@ impl XConnection {
                 dpi_override
             }
             EnvVarDPI::NotSet => {
-                if let Some(dpi) = self.get_xft_dpi() {
+                if let Some(dpi) = self.get_xft_dpi(screen) {
                     dpi / 96.
                 } else {
                     calc_dpi_factor(
-                        ((*crtc).width as u32, (*crtc).height as u32),
-                        (
-                            (*output_info).mm_width as u64,
-                            (*output_info).mm_height as u64,
-                        ),
+                        (crtc.width as u32, crtc.height as u32),
+                        (output_info.mm_width as u64, output_info.mm_height as u64),
                     )
                 }
             }
         };
 
-        (self.xrandr.XRRFreeOutputInfo)(output_info);
-        Some((name, scale_factor, modes))
+        Ok(Some((name, scale_factor, modes)))
     }
-    pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
+    pub fn set_crtc_config(
+        &self,
+        crtc_id: ffi::xcb_randr_crtc_t,
+        mode_id: ffi::xcb_randr_mode_t,
+    ) -> Result<(), XcbError> {
+        let info = self.get_crtc_info(crtc_id)?;
         unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
-
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
-            let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
-            } else {
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
-            };
-
-            let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
-            let status = (self.xrandr.XRRSetCrtcConfig)(
-                self.display,
-                resources,
+            let cookie = self.randr.xcb_randr_set_crtc_config(
+                self.c,
                 crtc_id,
-                CurrentTime,
-                (*crtc).x,
-                (*crtc).y,
+                ffi::XCB_TIME_CURRENT_TIME,
+                // See the comment in get_crtc_info.
+                0,
+                info.x,
+                info.y,
                 mode_id,
-                (*crtc).rotation,
-                (*crtc).outputs.offset(0),
-                1,
+                info.rotation,
+                info.num_outputs as _,
+                self.randr.xcb_randr_get_crtc_info_outputs(&*info),
             );
-
-            (self.xrandr.XRRFreeCrtcInfo)(crtc);
-            (self.xrandr.XRRFreeScreenResources)(resources);
-
-            if status == Success as i32 {
-                Ok(())
-            } else {
-                Err(())
-            }
+            let mut err = ptr::null_mut();
+            let reply = self
+                .randr
+                .xcb_randr_set_crtc_config_reply(self.c, cookie, &mut err);
+            self.check(reply, err).map(|_| ())
         }
     }
-    pub fn get_crtc_mode(&self, crtc_id: RRCrtc) -> RRMode {
+
+    pub fn get_crtc_mode(
+        &self,
+        crtc_id: ffi::xcb_randr_crtc_t,
+    ) -> Result<ffi::xcb_randr_mode_t, XcbError> {
+        self.get_crtc_info(crtc_id).map(|i| i.mode)
+    }
+
+    pub fn get_crtc_info(
+        &self,
+        crtc_id: ffi::xcb_randr_crtc_t,
+    ) -> Result<XcbBox<ffi::xcb_randr_get_crtc_info_reply_t>, XcbError> {
         unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
-
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
-            let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
-            } else {
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
-            };
-
-            let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
-            let mode = (*crtc).mode;
-            (self.xrandr.XRRFreeCrtcInfo)(crtc);
-            (self.xrandr.XRRFreeScreenResources)(resources);
-            mode
+            let mut err = ptr::null_mut();
+            let reply = self.randr.xcb_randr_get_crtc_info_reply(
+                self.c,
+                // NOTE: The randr spec says that the last argument must be equal to the current
+                // timestamp on the server but this has never been enforced by the x server.
+                // Therefore we can save us a call to retrieve that value.
+                self.randr.xcb_randr_get_crtc_info(self.c, crtc_id, 0),
+                &mut err,
+            );
+            self.check(reply, err)
         }
     }
 }

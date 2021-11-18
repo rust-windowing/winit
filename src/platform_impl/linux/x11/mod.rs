@@ -8,11 +8,11 @@
 
 mod dnd;
 mod event_processor;
-pub mod ffi;
 mod monitor;
 pub mod util;
 mod window;
 mod xdisplay;
+pub mod xlib;
 
 pub use self::{
     monitor::{MonitorHandle, VideoMode},
@@ -24,19 +24,14 @@ use std::sync::atomic::AtomicUsize;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
-    ffi::CStr,
-    mem::{self, MaybeUninit},
     ops::Deref,
     os::raw::*,
     ptr,
     rc::Rc,
-    slice,
     sync::mpsc::Receiver,
     sync::{Arc, Weak},
     time::{Duration, Instant},
 };
-
-use libc::{self};
 
 use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 
@@ -58,19 +53,17 @@ use crate::{
     window::WindowAttributes,
 };
 
-use xkbcommon_dl::{
-    xkb_x11_setup_xkb_extension_flags::XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
-    XKBCOMMON_X11_HANDLE as XKBXH,
-};
+use crate::platform_impl::x11::util::EventQueue;
+use xcb_dl::{ffi, XcbXinput};
+use xcb_dl_util::xcb_box::XcbBox;
 
 const X_TOKEN: Token = Token(0);
 const USER_REDRAW_TOKEN: Token = Token(1);
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
-    wm_delete_window: ffi::Atom,
-    net_wm_ping: ffi::Atom,
-    root: ffi::Window,
+    wm_delete_window: ffi::xcb_atom_t,
+    net_wm_ping: ffi::xcb_atom_t,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: Sender<WindowId>,
     reset_dead_keys: Arc<AtomicUsize>,
@@ -79,6 +72,7 @@ pub struct EventLoopWindowTarget<T> {
 
 pub struct EventLoop<T: 'static> {
     poll: Poll,
+    event_queue: EventQueue,
     event_processor: EventProcessor<T>,
     redraw_channel: Receiver<WindowId>,
     user_channel: Receiver<T>,
@@ -100,90 +94,30 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoop<T> {
     pub fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
-        let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
+        let wm_delete_window = xconn.get_atom("WM_DELETE_WINDOW");
 
-        let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
+        let net_wm_ping = xconn.get_atom("_NET_WM_PING");
 
-        let net_wm_ping = unsafe { xconn.get_atom_unchecked(b"_NET_WM_PING\0") };
+        let dnd = Dnd::new(Arc::clone(&xconn));
 
-        let dnd = Dnd::new(Arc::clone(&xconn))
-            .expect("Failed to call XInternAtoms when initializing drag and drop");
-
-        let randr_event_offset = xconn
-            .select_xrandr_input(root)
-            .expect("Failed to query XRandR extension");
-
-        let xi2ext = unsafe {
-            let mut ext = XExtension::default();
-
-            let res = (xconn.xlib.XQueryExtension)(
-                xconn.display,
-                b"XInputExtension\0".as_ptr() as *const c_char,
-                &mut ext.opcode,
-                &mut ext.first_event_id,
-                &mut ext.first_error_id,
-            );
-
-            if res == ffi::False {
-                panic!("X server missing XInput extension");
-            }
-
-            ext
-        };
-
-        let xkb_base_event = {
-            let mut base_event = 0;
-
-            let result = unsafe {
-                (XKBXH.xkb_x11_setup_xkb_extension)(
-                    (xconn.xlib_xcb.XGetXCBConnection)(xconn.display),
-                    1, // major
-                    0, // minor
-                    XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
-                    ptr::null_mut(), // major out
-                    ptr::null_mut(), // minor out
-                    &mut base_event,
-                    ptr::null_mut(), // base error
-                )
-            };
-            assert_eq!(result, 1, "Failed to initialize libxkbcommon");
-
-            base_event
-        };
-
-        unsafe {
-            let mut xinput_major_ver = ffi::XI_2_Major;
-            let mut xinput_minor_ver = ffi::XI_2_Minor;
-            if (xconn.xinput2.XIQueryVersion)(
-                xconn.display,
-                &mut xinput_major_ver,
-                &mut xinput_minor_ver,
-            ) != ffi::Success as libc::c_int
-            {
-                panic!(
-                    "X server has XInput extension {}.{} but does not support XInput2",
-                    xinput_major_ver, xinput_minor_ver,
-                );
-            }
-        }
-
-        xconn.update_cached_wm_info(root);
+        xconn.update_cached_wm_info();
 
         let poll = Poll::new().unwrap();
         let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
         let queue = Arc::new(NotificationQueue::new(waker));
 
         poll.registry()
-            .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
+            .register(&mut SourceFd(&xconn.fd), X_TOKEN, Interest::READABLE)
             .unwrap();
 
         let (user_sender, user_channel) = channel(queue.clone(), NotificationId::gen_next());
 
         let (redraw_sender, redraw_channel) = channel(queue, NotificationId::gen_next());
 
+        let event_queue = EventQueue::new(&xconn);
+
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
-                root,
                 windows: Default::default(),
                 _marker: ::std::marker::PhantomData,
                 xconn,
@@ -199,30 +133,34 @@ impl<T: 'static> EventLoop<T> {
             target: target.clone(),
             dnd,
             devices: Default::default(),
-            randr_event_offset,
-            xi2ext,
-            xkb_base_event: xkb_base_event as c_int,
             num_touch: 0,
             first_touch: None,
             seats: Default::default(),
         };
 
         // Register for device hotplug events
-        // (The request buffer is flushed during `init_device`)
-        get_xtarget(&target)
-            .xconn
-            .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
-            .queue();
+        let wt = get_xtarget(&target);
+        for screen in &wt.xconn.screens {
+            let pending = wt.xconn.select_xinput_events(
+                screen.root,
+                ffi::XCB_INPUT_DEVICE_ALL as _,
+                ffi::XCB_INPUT_XI_EVENT_MASK_HIERARCHY,
+            );
+            if let Err(e) = wt.xconn.check_pending1(pending) {
+                log::error!("Cannot listen for device hotplug events: {}", e);
+            }
+        }
 
         EventProcessor::init_device(
             &target,
             &mut event_processor.devices,
             &mut event_processor.seats,
-            ffi::XIAllDevices,
+            ffi::XCB_INPUT_DEVICE_ALL as _,
         );
 
         let result = EventLoop {
             poll,
+            event_queue,
             redraw_channel,
             user_channel,
             user_sender,
@@ -261,6 +199,9 @@ impl<T: 'static> EventLoop<T> {
 
             // Process all pending events
             self.drain_events(&mut callback, &mut control_flow);
+
+            // Send unchecked requests
+            self.flush_requests();
 
             // Empty the user event buffer
             {
@@ -342,9 +283,9 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
 
-            // If the XConnection already contains buffered events, we don't
-            // need to wait for data on the socket.
-            if !self.event_processor.poll() {
+            // If the event queue already contains buffered events, we must not
+            // wait for data on the socket.
+            if !self.event_queue.has_pending_events() {
                 self.poll.poll(&mut events, timeout).unwrap();
                 events.clear();
             }
@@ -379,13 +320,11 @@ impl<T: 'static> EventLoop<T> {
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let target = &self.target;
-        let mut xev = MaybeUninit::uninit();
 
         let wt = get_xtarget(&self.target);
 
-        while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
-            let mut xev = unsafe { xev.assume_init() };
-            self.event_processor.process_event(&mut xev, |event| {
+        while let Some(mut event) = self.event_queue.poll_for_event() {
+            self.event_processor.process_event(&mut *event, |event| {
                 sticky_exit_callback(
                     event,
                     target,
@@ -402,6 +341,13 @@ impl<T: 'static> EventLoop<T> {
                     },
                 );
             });
+        }
+    }
+
+    fn flush_requests(&self) {
+        let wt = get_xtarget(&self.target);
+        if let Err(e) = wt.xconn.flush() {
+            panic!("The connection to the X server failed: {}", e);
         }
     }
 }
@@ -436,57 +382,71 @@ impl<T: 'static> EventLoopProxy<T> {
 
 struct DeviceInfo<'a> {
     xconn: &'a XConnection,
-    info: *const ffi::XIDeviceInfo,
-    count: usize,
+    _reply: XcbBox<ffi::xcb_input_xi_query_device_reply_t>,
+    iter: ffi::xcb_input_xi_device_info_iterator_t,
 }
 
 impl<'a> DeviceInfo<'a> {
-    fn get(xconn: &'a XConnection, device: c_int) -> Option<Self> {
+    fn get(xconn: &'a XConnection, device: ffi::xcb_input_device_id_t) -> Option<Self> {
         unsafe {
-            let mut count = 0;
-            let info = (xconn.xinput2.XIQueryDevice)(xconn.display, device, &mut count);
-            xconn.check_errors().ok()?;
-
-            if info.is_null() || count == 0 {
-                None
-            } else {
-                Some(DeviceInfo {
-                    xconn,
-                    info,
-                    count: count as usize,
-                })
-            }
+            let mut err = ptr::null_mut();
+            let reply = xconn.xinput.xcb_input_xi_query_device_reply(
+                xconn.c,
+                xconn.xinput.xcb_input_xi_query_device(xconn.c, device),
+                &mut err,
+            );
+            let reply = match xconn.check(reply, err) {
+                Ok(i) => i,
+                Err(e) => {
+                    log::error!("Could not query device data: {}", e);
+                    return None;
+                }
+            };
+            let iter = xconn
+                .xinput
+                .xcb_input_xi_query_device_infos_iterator(&*reply);
+            Some(DeviceInfo {
+                xconn,
+                _reply: reply,
+                iter,
+            })
         }
     }
 }
 
-impl<'a> Drop for DeviceInfo<'a> {
-    fn drop(&mut self) {
-        assert!(!self.info.is_null());
-        unsafe { (self.xconn.xinput2.XIFreeDeviceInfo)(self.info as *mut _) };
-    }
-}
+impl<'a> Iterator for DeviceInfo<'a> {
+    type Item = *mut ffi::xcb_input_xi_device_info_t;
 
-impl<'a> Deref for DeviceInfo<'a> {
-    type Target = [ffi::XIDeviceInfo];
-    fn deref(&self) -> &Self::Target {
-        unsafe { slice::from_raw_parts(self.info, self.count) }
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.iter.rem > 0 {
+            let data = self.iter.data;
+            unsafe {
+                self.xconn
+                    .xinput
+                    .xcb_input_xi_device_info_next(&mut self.iter);
+            }
+            Some(data)
+        } else {
+            None
+        }
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(ffi::Window);
+pub struct WindowId(ffi::xcb_window_t);
 
 impl WindowId {
+    #[cfg(not(feature = "wayland"))]
     pub unsafe fn dummy() -> Self {
         WindowId(0)
     }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DeviceId(c_int);
+pub struct DeviceId(ffi::xcb_input_device_id_t);
 
 impl DeviceId {
+    #[cfg(not(feature = "wayland"))]
     pub unsafe fn dummy() -> Self {
         DeviceId(0)
     }
@@ -522,40 +482,10 @@ impl Drop for Window {
         let window = self.deref();
         let xconn = &window.xconn;
         unsafe {
-            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0);
-            // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
-            let _ = xconn.check_errors();
-        }
-    }
-}
-
-/// XEvents of type GenericEvent store their actual data in an XGenericEventCookie data structure. This is a wrapper to
-/// extract the cookie from a GenericEvent XEvent and release the cookie data once it has been processed
-struct GenericEventCookie<'a> {
-    xconn: &'a XConnection,
-    cookie: ffi::XGenericEventCookie,
-}
-
-impl<'a> GenericEventCookie<'a> {
-    fn from_event<'b>(
-        xconn: &'b XConnection,
-        event: ffi::XEvent,
-    ) -> Option<GenericEventCookie<'b>> {
-        unsafe {
-            let mut cookie: ffi::XGenericEventCookie = From::from(event);
-            if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
-                Some(GenericEventCookie { xconn, cookie })
-            } else {
-                None
+            let cookie = xconn.xcb.xcb_destroy_window_checked(xconn.c, window.id().0);
+            if let Err(e) = xconn.check_cookie(cookie) {
+                log::error!("Could not destroy window: {}", e);
             }
-        }
-    }
-}
-
-impl<'a> Drop for GenericEventCookie<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            (self.xconn.xlib.XFreeEventData)(self.xconn.display, &mut self.cookie);
         }
     }
 }
@@ -567,20 +497,20 @@ struct XExtension {
     first_error_id: c_int,
 }
 
-fn mkwid(w: ffi::Window) -> crate::window::WindowId {
+fn mkwid(w: ffi::xcb_window_t) -> crate::window::WindowId {
     crate::window::WindowId(crate::platform_impl::WindowId::X(WindowId(w)))
 }
-fn mkdid(w: c_int) -> crate::event::DeviceId {
+fn mkdid(w: ffi::xcb_input_device_id_t) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
 }
 
 #[derive(Debug)]
 struct Device {
     name: String,
-    scroll_axes: Vec<(i32, ScrollAxis)>,
+    scroll_axes: Vec<(u16, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
-    attachment: c_int,
+    attachment: ffi::xcb_input_device_id_t,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -597,47 +527,73 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new<T: 'static>(wt: &EventLoopWindowTarget<T>, info: &ffi::XIDeviceInfo) -> Self {
-        let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
+    fn new<T: 'static>(
+        wt: &EventLoopWindowTarget<T>,
+        info: &ffi::xcb_input_xi_device_info_t,
+    ) -> Self {
+        let name = unsafe {
+            let name = std::slice::from_raw_parts(
+                wt.xconn.xinput.xcb_input_xi_device_info_name(info) as _,
+                info.name_len as _,
+            );
+            String::from_utf8_lossy(name)
+        };
         let mut scroll_axes = Vec::new();
 
-        if info._use == ffi::XIMasterKeyboard {
-            wt.xconn
-                .select_xkb_events(
-                    info.deviceid as c_uint,
-                    ffi::XkbNewKeyboardNotifyMask | ffi::XkbMapNotifyMask,
-                )
-                .unwrap()
-                .queue();
+        if info.type_ == ffi::XCB_INPUT_DEVICE_TYPE_MASTER_KEYBOARD as u16 {
+            let pending = wt.xconn.select_xkb_events(
+                info.deviceid,
+                ffi::XCB_XKB_EVENT_TYPE_NEW_KEYBOARD_NOTIFY | ffi::XCB_XKB_EVENT_TYPE_MAP_NOTIFY,
+            );
+            if let Err(e) = wt.xconn.check_pending1(pending) {
+                log::error!(
+                    "Cannot listen for keyboard layout changes of keyboard {}: {}",
+                    info.deviceid,
+                    e
+                );
+            }
         }
 
         if Device::physical_device(info) {
             // Register for global raw events
-            let mask = ffi::XI_RawMotionMask
-                | ffi::XI_RawButtonPressMask
-                | ffi::XI_RawButtonReleaseMask
-                | ffi::XI_RawKeyPressMask
-                | ffi::XI_RawKeyReleaseMask;
-            // The request buffer is flushed when we poll for events
-            wt.xconn
-                .select_xinput_events(wt.root, info.deviceid, mask)
-                .queue();
+            let mask = ffi::XCB_INPUT_XI_EVENT_MASK_RAW_MOTION
+                | ffi::XCB_INPUT_XI_EVENT_MASK_RAW_BUTTON_PRESS
+                | ffi::XCB_INPUT_XI_EVENT_MASK_RAW_BUTTON_RELEASE
+                | ffi::XCB_INPUT_XI_EVENT_MASK_RAW_KEY_PRESS
+                | ffi::XCB_INPUT_XI_EVENT_MASK_RAW_KEY_RELEASE;
+            for screen in &wt.xconn.screens {
+                let pending = wt
+                    .xconn
+                    .select_xinput_events(screen.root, info.deviceid, mask);
+                if let Err(e) = wt.xconn.check_pending1(pending) {
+                    log::error!(
+                        "Cannot listen for raw input events of device {}: {}",
+                        info.deviceid,
+                        e
+                    );
+                }
+            }
 
             // Identify scroll axes
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                match class._type {
-                    ffi::XIScrollClass => {
+            let classes = unsafe { Classes::new(&wt.xconn.xinput, info) };
+            for class in classes {
+                match class.type_ as ffi::xcb_input_device_class_type_t {
+                    ffi::XCB_INPUT_DEVICE_CLASS_TYPE_SCROLL => {
                         let info = unsafe {
-                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
+                            &*(class as *const _ as *const ffi::xcb_input_scroll_class_t)
                         };
                         scroll_axes.push((
                             info.number,
                             ScrollAxis {
-                                increment: info.increment,
-                                orientation: match info.scroll_type {
-                                    ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                                    ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                increment: util::fp3232_to_f64(info.increment),
+                                orientation: match info.scroll_type as ffi::xcb_input_scroll_type_t
+                                {
+                                    ffi::XCB_INPUT_SCROLL_TYPE_HORIZONTAL => {
+                                        ScrollOrientation::Horizontal
+                                    }
+                                    ffi::XCB_INPUT_SCROLL_TYPE_VERTICAL => {
+                                        ScrollOrientation::Vertical
+                                    }
                                     _ => unreachable!(),
                                 },
                                 position: 0.0,
@@ -654,25 +610,29 @@ impl Device {
             scroll_axes,
             attachment: info.attachment,
         };
-        device.reset_scroll_position(info);
+        device.reset_scroll_position(wt, info);
         device
     }
 
-    fn reset_scroll_position(&mut self, info: &ffi::XIDeviceInfo) {
+    fn reset_scroll_position<T: 'static>(
+        &mut self,
+        wt: &EventLoopWindowTarget<T>,
+        info: &ffi::xcb_input_xi_device_info_t,
+    ) {
         if Device::physical_device(info) {
-            for class_ptr in Device::classes(info) {
-                let class = unsafe { &**class_ptr };
-                match class._type {
-                    ffi::XIValuatorClass => {
+            let classes = unsafe { Classes::new(&wt.xconn.xinput, info) };
+            for class in classes {
+                match class.type_ as ffi::xcb_input_device_class_type_t {
+                    ffi::XCB_INPUT_DEVICE_CLASS_TYPE_VALUATOR => {
                         let info = unsafe {
-                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
+                            &*(class as *const _ as *const ffi::xcb_input_valuator_class_t)
                         };
                         if let Some(&mut (_, ref mut axis)) = self
                             .scroll_axes
                             .iter_mut()
                             .find(|&&mut (axis, _)| axis == info.number)
                         {
-                            axis.position = info.value;
+                            axis.position = util::fp3232_to_f64(info.value);
                         }
                     }
                     _ => {}
@@ -682,19 +642,40 @@ impl Device {
     }
 
     #[inline]
-    fn physical_device(info: &ffi::XIDeviceInfo) -> bool {
-        info._use == ffi::XISlaveKeyboard
-            || info._use == ffi::XISlavePointer
-            || info._use == ffi::XIFloatingSlave
+    fn physical_device(info: &ffi::xcb_input_xi_device_info_t) -> bool {
+        let ty = info.type_ as ffi::xcb_input_device_type_t;
+        ty == ffi::XCB_INPUT_DEVICE_TYPE_SLAVE_KEYBOARD
+            || ty == ffi::XCB_INPUT_DEVICE_TYPE_SLAVE_POINTER
+            || ty == ffi::XCB_INPUT_DEVICE_TYPE_FLOATING_SLAVE
     }
+}
 
-    #[inline]
-    fn classes(info: &ffi::XIDeviceInfo) -> &[*const ffi::XIAnyClassInfo] {
-        unsafe {
-            slice::from_raw_parts(
-                info.classes as *const *const ffi::XIAnyClassInfo,
-                info.num_classes as usize,
-            )
+struct Classes<'a> {
+    xinput: &'a XcbXinput,
+    iter: ffi::xcb_input_device_class_iterator_t,
+}
+
+impl<'a> Classes<'a> {
+    unsafe fn new(xinput: &'a XcbXinput, info: &'a ffi::xcb_input_xi_device_info_t) -> Self {
+        Self {
+            xinput,
+            iter: xinput.xcb_input_xi_device_info_classes_iterator(info),
+        }
+    }
+}
+
+impl<'a> Iterator for Classes<'a> {
+    type Item = &'a ffi::xcb_input_device_class_t;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.iter.rem > 0 {
+            unsafe {
+                let res = &*self.iter.data;
+                self.xinput.xcb_input_device_class_next(&mut self.iter);
+                Some(res)
+            }
+        } else {
+            None
         }
     }
 }

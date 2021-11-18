@@ -4,7 +4,7 @@ use crate::icon::{Icon, Pixel, PIXEL_SIZE};
 impl Pixel {
     pub fn to_packed_argb(&self) -> Cardinal {
         let mut cardinal = 0;
-        assert!(CARDINAL_SIZE >= PIXEL_SIZE);
+        assert_eq!(CARDINAL_SIZE, PIXEL_SIZE);
         let as_bytes = &mut cardinal as *mut _ as *mut u8;
         unsafe {
             *as_bytes.offset(0) = self.b;

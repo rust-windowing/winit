@@ -1,40 +1,23 @@
-use parking_lot::Mutex;
-
 use super::*;
-
-// This info is global to the window manager.
-lazy_static! {
-    static ref SUPPORTED_HINTS: Mutex<Vec<ffi::Atom>> = Mutex::new(Vec::with_capacity(0));
-    static ref WM_NAME: Mutex<Option<String>> = Mutex::new(None);
-}
-
-pub fn hint_is_supported(hint: ffi::Atom) -> bool {
-    (*SUPPORTED_HINTS.lock()).contains(&hint)
-}
-
-pub fn wm_name_is_one_of(names: &[&str]) -> bool {
-    if let Some(ref name) = *WM_NAME.lock() {
-        names.contains(&name.as_str())
-    } else {
-        false
-    }
-}
+use xcb_dl_util::property::XcbGetPropertyError;
 
 impl XConnection {
-    pub fn update_cached_wm_info(&self, root: ffi::Window) {
-        *SUPPORTED_HINTS.lock() = self.get_supported_hints(root);
-        *WM_NAME.lock() = self.get_wm_name(root);
+    pub fn update_cached_wm_info(&self) {
+        for screen in &self.screens {
+            *screen.supported_hints.lock() = self.get_supported_hints(screen.root);
+            *screen.wm_name.lock() = self.get_wm_name(screen.root);
+        }
     }
 
-    fn get_supported_hints(&self, root: ffi::Window) -> Vec<ffi::Atom> {
-        let supported_atom = unsafe { self.get_atom_unchecked(b"_NET_SUPPORTED\0") };
-        self.get_property(root, supported_atom, ffi::XA_ATOM)
+    fn get_supported_hints(&self, root: ffi::xcb_window_t) -> Vec<ffi::xcb_atom_t> {
+        let supported_atom = self.get_atom("_NET_SUPPORTED");
+        self.get_property(root, supported_atom, ffi::XCB_ATOM_ATOM)
             .unwrap_or_else(|_| Vec::with_capacity(0))
     }
 
-    fn get_wm_name(&self, root: ffi::Window) -> Option<String> {
-        let check_atom = unsafe { self.get_atom_unchecked(b"_NET_SUPPORTING_WM_CHECK\0") };
-        let wm_name_atom = unsafe { self.get_atom_unchecked(b"_NET_WM_NAME\0") };
+    fn get_wm_name(&self, root: ffi::xcb_window_t) -> Option<String> {
+        let check_atom = self.get_atom("_NET_SUPPORTING_WM_CHECK");
+        let wm_name_atom = self.get_atom("_NET_WM_NAME");
 
         // Mutter/Muffin/Budgie doesn't have _NET_SUPPORTING_WM_CHECK in its _NET_SUPPORTED, despite
         // it working and being supported. This has been reported upstream, but due to the
@@ -58,7 +41,7 @@ impl XConnection {
         // Querying this property on the root window will give us the ID of a child window created by
         // the WM.
         let root_window_wm_check = {
-            let result = self.get_property(root, check_atom, ffi::XA_WINDOW);
+            let result = self.get_property(root, check_atom, ffi::XCB_ATOM_WINDOW);
 
             let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
 
@@ -72,7 +55,7 @@ impl XConnection {
         // Querying the same property on the child window we were given, we should get this child
         // window's ID again.
         let child_window_wm_check = {
-            let result = self.get_property(root_window_wm_check, check_atom, ffi::XA_WINDOW);
+            let result = self.get_property(root_window_wm_check, check_atom, ffi::XCB_ATOM_WINDOW);
 
             let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
 
@@ -90,7 +73,7 @@ impl XConnection {
 
         // All of that work gives us a window ID that we can get the WM name from.
         let wm_name = {
-            let utf8_string_atom = unsafe { self.get_atom_unchecked(b"UTF8_STRING\0") };
+            let utf8_string_atom = self.get_atom("UTF8_STRING");
 
             let result = self.get_property(root_window_wm_check, wm_name_atom, utf8_string_atom);
 
@@ -100,14 +83,16 @@ impl XConnection {
             // against it, though).
             // The unofficial 1.4 fork of IceWM still includes the extra details, but properly
             // returns a UTF8 string that isn't null-terminated.
-            let no_utf8 = if let Err(ref err) = result {
-                err.is_actual_property_type(ffi::XA_STRING)
-            } else {
-                false
+            let no_utf8 = match result {
+                Err(XcbGetPropertyError::InvalidPropertyType {
+                    actual: ffi::XCB_ATOM_STRING,
+                    ..
+                }) => true,
+                _ => false,
             };
 
             if no_utf8 {
-                self.get_property(root_window_wm_check, wm_name_atom, ffi::XA_STRING)
+                self.get_property(root_window_wm_check, wm_name_atom, ffi::XCB_ATOM_STRING)
             } else {
                 result
             }

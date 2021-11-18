@@ -1,7 +1,10 @@
-use std::slice;
 use std::sync::Arc;
 
 use super::*;
+use std::convert::TryInto;
+use thiserror::Error;
+use xcb_dl_util::hint::{XcbHints, XcbHintsError, XcbSizeHints, XcbSizeHintsError};
+use xcb_dl_util::property::XcbGetPropertyError;
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -71,25 +74,25 @@ impl Default for WindowType {
 }
 
 impl WindowType {
-    pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::Atom {
+    pub(crate) fn as_atom(&self, xconn: &Arc<XConnection>) -> ffi::xcb_atom_t {
         use self::WindowType::*;
-        let atom_name: &[u8] = match *self {
-            Desktop => b"_NET_WM_WINDOW_TYPE_DESKTOP\0",
-            Dock => b"_NET_WM_WINDOW_TYPE_DOCK\0",
-            Toolbar => b"_NET_WM_WINDOW_TYPE_TOOLBAR\0",
-            Menu => b"_NET_WM_WINDOW_TYPE_MENU\0",
-            Utility => b"_NET_WM_WINDOW_TYPE_UTILITY\0",
-            Splash => b"_NET_WM_WINDOW_TYPE_SPLASH\0",
-            Dialog => b"_NET_WM_WINDOW_TYPE_DIALOG\0",
-            DropdownMenu => b"_NET_WM_WINDOW_TYPE_DROPDOWN_MENU\0",
-            PopupMenu => b"_NET_WM_WINDOW_TYPE_POPUP_MENU\0",
-            Tooltip => b"_NET_WM_WINDOW_TYPE_TOOLTIP\0",
-            Notification => b"_NET_WM_WINDOW_TYPE_NOTIFICATION\0",
-            Combo => b"_NET_WM_WINDOW_TYPE_COMBO\0",
-            Dnd => b"_NET_WM_WINDOW_TYPE_DND\0",
-            Normal => b"_NET_WM_WINDOW_TYPE_NORMAL\0",
+        let atom_name: &str = match *self {
+            Desktop => "_NET_WM_WINDOW_TYPE_DESKTOP",
+            Dock => "_NET_WM_WINDOW_TYPE_DOCK",
+            Toolbar => "_NET_WM_WINDOW_TYPE_TOOLBAR",
+            Menu => "_NET_WM_WINDOW_TYPE_MENU",
+            Utility => "_NET_WM_WINDOW_TYPE_UTILITY",
+            Splash => "_NET_WM_WINDOW_TYPE_SPLASH",
+            Dialog => "_NET_WM_WINDOW_TYPE_DIALOG",
+            DropdownMenu => "_NET_WM_WINDOW_TYPE_DROPDOWN_MENU",
+            PopupMenu => "_NET_WM_WINDOW_TYPE_POPUP_MENU",
+            Tooltip => "_NET_WM_WINDOW_TYPE_TOOLTIP",
+            Notification => "_NET_WM_WINDOW_TYPE_NOTIFICATION",
+            Combo => "_NET_WM_WINDOW_TYPE_COMBO",
+            Dnd => "_NET_WM_WINDOW_TYPE_DND",
+            Normal => "_NET_WM_WINDOW_TYPE_NORMAL",
         };
-        unsafe { xconn.get_atom_unchecked(atom_name) }
+        xconn.get_atom(atom_name)
     }
 }
 
@@ -97,30 +100,27 @@ pub struct MotifHints {
     hints: MwmHints,
 }
 
-#[repr(C)]
 struct MwmHints {
-    flags: c_ulong,
-    functions: c_ulong,
-    decorations: c_ulong,
-    input_mode: c_long,
-    status: c_ulong,
+    flags: u32,
+    functions: u32,
+    decorations: u32,
+    input_mode: u32,
+    status: u32,
 }
 
 #[allow(dead_code)]
 mod mwm {
-    use libc::c_ulong;
-
     // Motif WM hints are obsolete, but still widely supported.
     // https://stackoverflow.com/a/1909708
-    pub const MWM_HINTS_FUNCTIONS: c_ulong = 1 << 0;
-    pub const MWM_HINTS_DECORATIONS: c_ulong = 1 << 1;
+    pub const MWM_HINTS_FUNCTIONS: u32 = 1 << 0;
+    pub const MWM_HINTS_DECORATIONS: u32 = 1 << 1;
 
-    pub const MWM_FUNC_ALL: c_ulong = 1 << 0;
-    pub const MWM_FUNC_RESIZE: c_ulong = 1 << 1;
-    pub const MWM_FUNC_MOVE: c_ulong = 1 << 2;
-    pub const MWM_FUNC_MINIMIZE: c_ulong = 1 << 3;
-    pub const MWM_FUNC_MAXIMIZE: c_ulong = 1 << 4;
-    pub const MWM_FUNC_CLOSE: c_ulong = 1 << 5;
+    pub const MWM_FUNC_ALL: u32 = 1 << 0;
+    pub const MWM_FUNC_RESIZE: u32 = 1 << 1;
+    pub const MWM_FUNC_MOVE: u32 = 1 << 2;
+    pub const MWM_FUNC_MINIMIZE: u32 = 1 << 3;
+    pub const MWM_FUNC_MAXIMIZE: u32 = 1 << 4;
+    pub const MWM_FUNC_CLOSE: u32 = 1 << 5;
 }
 
 impl MotifHints {
@@ -138,7 +138,7 @@ impl MotifHints {
 
     pub fn set_decorations(&mut self, decorations: bool) {
         self.hints.flags |= mwm::MWM_HINTS_DECORATIONS;
-        self.hints.decorations = decorations as c_ulong;
+        self.hints.decorations = decorations as u32;
     }
 
     pub fn set_maximizable(&mut self, maximizable: bool) {
@@ -149,7 +149,7 @@ impl MotifHints {
         }
     }
 
-    fn add_func(&mut self, func: c_ulong) {
+    fn add_func(&mut self, func: u32) {
         if self.hints.flags & mwm::MWM_HINTS_FUNCTIONS != 0 {
             if self.hints.functions & mwm::MWM_FUNC_ALL != 0 {
                 self.hints.functions &= !func;
@@ -159,7 +159,7 @@ impl MotifHints {
         }
     }
 
-    fn remove_func(&mut self, func: c_ulong) {
+    fn remove_func(&mut self, func: u32) {
         if self.hints.flags & mwm::MWM_HINTS_FUNCTIONS == 0 {
             self.hints.flags |= mwm::MWM_HINTS_FUNCTIONS;
             self.hints.functions = mwm::MWM_FUNC_ALL;
@@ -174,168 +174,103 @@ impl MotifHints {
 }
 
 impl MwmHints {
-    fn as_slice(&self) -> &[c_ulong] {
-        unsafe { slice::from_raw_parts(self as *const _ as *const c_ulong, 5) }
+    fn as_array(&self) -> [u32; 5] {
+        [
+            self.flags,
+            self.functions,
+            self.decorations,
+            self.input_mode,
+            self.status,
+        ]
     }
 }
 
-pub struct NormalHints<'a> {
-    size_hints: XSmartPointer<'a, ffi::XSizeHints>,
-}
-
-impl<'a> NormalHints<'a> {
-    pub fn new(xconn: &'a XConnection) -> Self {
-        NormalHints {
-            size_hints: xconn.alloc_size_hints(),
-        }
-    }
-
-    pub fn get_position(&self) -> Option<(i32, i32)> {
-        if has_flag(self.size_hints.flags, ffi::PPosition) {
-            Some((self.size_hints.x as i32, self.size_hints.y as i32))
-        } else {
-            None
-        }
-    }
-
-    pub fn set_position(&mut self, position: Option<(i32, i32)>) {
-        if let Some((x, y)) = position {
-            self.size_hints.flags |= ffi::PPosition;
-            self.size_hints.x = x as c_int;
-            self.size_hints.y = y as c_int;
-        } else {
-            self.size_hints.flags &= !ffi::PPosition;
-        }
-    }
-
-    // WARNING: This hint is obsolete
-    pub fn set_size(&mut self, size: Option<(u32, u32)>) {
-        if let Some((width, height)) = size {
-            self.size_hints.flags |= ffi::PSize;
-            self.size_hints.width = width as c_int;
-            self.size_hints.height = height as c_int;
-        } else {
-            self.size_hints.flags &= !ffi::PSize;
-        }
-    }
-
-    pub fn set_max_size(&mut self, max_size: Option<(u32, u32)>) {
-        if let Some((max_width, max_height)) = max_size {
-            self.size_hints.flags |= ffi::PMaxSize;
-            self.size_hints.max_width = max_width as c_int;
-            self.size_hints.max_height = max_height as c_int;
-        } else {
-            self.size_hints.flags &= !ffi::PMaxSize;
-        }
-    }
-
-    pub fn set_min_size(&mut self, min_size: Option<(u32, u32)>) {
-        if let Some((min_width, min_height)) = min_size {
-            self.size_hints.flags |= ffi::PMinSize;
-            self.size_hints.min_width = min_width as c_int;
-            self.size_hints.min_height = min_height as c_int;
-        } else {
-            self.size_hints.flags &= !ffi::PMinSize;
-        }
-    }
-
-    pub fn set_resize_increments(&mut self, resize_increments: Option<(u32, u32)>) {
-        if let Some((width_inc, height_inc)) = resize_increments {
-            self.size_hints.flags |= ffi::PResizeInc;
-            self.size_hints.width_inc = width_inc as c_int;
-            self.size_hints.height_inc = height_inc as c_int;
-        } else {
-            self.size_hints.flags &= !ffi::PResizeInc;
-        }
-    }
-
-    pub fn set_base_size(&mut self, base_size: Option<(u32, u32)>) {
-        if let Some((base_width, base_height)) = base_size {
-            self.size_hints.flags |= ffi::PBaseSize;
-            self.size_hints.base_width = base_width as c_int;
-            self.size_hints.base_height = base_height as c_int;
-        } else {
-            self.size_hints.flags &= !ffi::PBaseSize;
-        }
-    }
+#[derive(Debug, Error)]
+pub enum HintsError {
+    #[error("Could not convert the property contents to XcbHints: {0}")]
+    Contents(#[from] XcbHintsError),
+    #[error("Could not convert the property contents to XcbSizeHints: {0}")]
+    SizeContents(#[from] XcbSizeHintsError),
+    #[error("Could not retrieve the property: {0}")]
+    Property(#[from] XcbGetPropertyError),
+    #[error("An xcb error occurred: {0}")]
+    Xcb(#[from] XcbError),
 }
 
 impl XConnection {
-    pub fn get_wm_hints(
-        &self,
-        window: ffi::Window,
-    ) -> Result<XSmartPointer<'_, ffi::XWMHints>, XError> {
-        let wm_hints = unsafe { (self.xlib.XGetWMHints)(self.display, window) };
-        self.check_errors()?;
-        let wm_hints = if wm_hints.is_null() {
-            self.alloc_wm_hints()
-        } else {
-            XSmartPointer::new(self, wm_hints).unwrap()
+    pub fn get_wm_hints(&self, window: ffi::xcb_window_t) -> Result<XcbHints, HintsError> {
+        let prop = self.get_property::<u32>(window, ffi::XCB_ATOM_WM_HINTS, ffi::XCB_ATOM_WM_HINTS);
+        let bytes = match prop {
+            Ok(b) => b,
+            Err(XcbGetPropertyError::Unset) => return Ok(XcbHints::default()),
+            Err(e) => return Err(e.into()),
         };
-        Ok(wm_hints)
+        Ok((&*bytes).try_into()?)
     }
 
-    pub fn set_wm_hints(
-        &self,
-        window: ffi::Window,
-        wm_hints: XSmartPointer<'_, ffi::XWMHints>,
-    ) -> Flusher<'_> {
-        unsafe {
-            (self.xlib.XSetWMHints)(self.display, window, wm_hints.ptr);
-        }
-        Flusher::new(self)
+    pub fn set_wm_hints(&self, window: ffi::xcb_window_t, wm_hints: XcbHints) -> XcbPendingCommand {
+        self.change_property(
+            window,
+            ffi::XCB_ATOM_WM_HINTS,
+            ffi::XCB_ATOM_WM_HINTS,
+            PropMode::Replace,
+            wm_hints.as_bytes(),
+        )
     }
 
-    pub fn get_normal_hints(&self, window: ffi::Window) -> Result<NormalHints<'_>, XError> {
-        let size_hints = self.alloc_size_hints();
-        let mut supplied_by_user = MaybeUninit::uninit();
-        unsafe {
-            (self.xlib.XGetWMNormalHints)(
-                self.display,
-                window,
-                size_hints.ptr,
-                supplied_by_user.as_mut_ptr(),
-            );
-        }
-        self.check_errors().map(|_| NormalHints { size_hints })
+    pub fn get_normal_hints(&self, window: ffi::xcb_window_t) -> Result<XcbSizeHints, HintsError> {
+        let bytes = self.get_property::<u32>(
+            window,
+            ffi::XCB_ATOM_WM_NORMAL_HINTS,
+            ffi::XCB_ATOM_WM_SIZE_HINTS,
+        )?;
+        Ok((&*bytes).try_into()?)
     }
 
     pub fn set_normal_hints(
         &self,
-        window: ffi::Window,
-        normal_hints: NormalHints<'_>,
-    ) -> Flusher<'_> {
-        unsafe {
-            (self.xlib.XSetWMNormalHints)(self.display, window, normal_hints.size_hints.ptr);
-        }
-        Flusher::new(self)
+        window: ffi::xcb_window_t,
+        normal_hints: XcbSizeHints,
+    ) -> XcbPendingCommand {
+        self.change_property(
+            window,
+            ffi::XCB_ATOM_WM_NORMAL_HINTS,
+            ffi::XCB_ATOM_WM_SIZE_HINTS,
+            PropMode::Replace,
+            normal_hints.as_bytes(),
+        )
     }
 
-    pub fn get_motif_hints(&self, window: ffi::Window) -> MotifHints {
-        let motif_hints = unsafe { self.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
+    pub fn get_motif_hints(&self, window: ffi::xcb_window_t) -> MotifHints {
+        let motif_hints = self.get_atom("_MOTIF_WM_HINTS");
 
         let mut hints = MotifHints::new();
 
-        if let Ok(props) = self.get_property::<c_ulong>(window, motif_hints, motif_hints) {
+        if let Ok(props) = self.get_property::<u32>(window, motif_hints, motif_hints) {
             hints.hints.flags = props.get(0).cloned().unwrap_or(0);
             hints.hints.functions = props.get(1).cloned().unwrap_or(0);
             hints.hints.decorations = props.get(2).cloned().unwrap_or(0);
-            hints.hints.input_mode = props.get(3).cloned().unwrap_or(0) as c_long;
+            hints.hints.input_mode = props.get(3).cloned().unwrap_or(0);
             hints.hints.status = props.get(4).cloned().unwrap_or(0);
         }
 
         hints
     }
 
-    pub fn set_motif_hints(&self, window: ffi::Window, hints: &MotifHints) -> Flusher<'_> {
-        let motif_hints = unsafe { self.get_atom_unchecked(b"_MOTIF_WM_HINTS\0") };
+    pub fn set_motif_hints(
+        &self,
+        window: ffi::xcb_window_t,
+        hints: &MotifHints,
+    ) -> XcbPendingCommand {
+        let motif_hints = self.get_atom("_MOTIF_WM_HINTS");
 
         self.change_property(
             window,
             motif_hints,
             motif_hints,
             PropMode::Replace,
-            hints.hints.as_slice(),
+            &hints.hints.as_array(),
         )
+        .into()
     }
 }

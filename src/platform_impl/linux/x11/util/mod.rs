@@ -4,29 +4,29 @@
 mod atom;
 mod client_msg;
 mod cursor;
-mod format;
 mod geometry;
 mod hint;
 mod icon;
 mod input;
-mod memory;
+mod queue;
 mod randr;
 mod window_property;
 mod wm;
 
 pub use self::{
-    atom::*, client_msg::*, format::*, geometry::*, hint::*, icon::*, input::*, memory::*,
-    randr::*, window_property::*, wm::*,
+    atom::*, client_msg::*, geometry::*, hint::*, icon::*, input::*, queue::*, randr::*,
+    window_property::*, wm::*,
 };
 
 use std::{
-    mem::{self, MaybeUninit},
-    ops::BitAnd,
-    os::raw::*,
+    mem::{self},
     ptr,
 };
 
-use super::{ffi, XConnection, XError};
+use super::{ffi, XConnection};
+use xcb_dl_util::error::XcbError;
+use xcb_dl_util::void::{XcbPendingCommand, XcbPendingCommands};
+use xcb_dl_util::xcb_box::XcbBox;
 
 pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     let wrapped = Some(value);
@@ -38,58 +38,50 @@ pub fn maybe_change<T: PartialEq>(field: &mut Option<T>, value: T) -> bool {
     }
 }
 
-pub fn has_flag<T>(bitset: T, flag: T) -> bool
-where
-    T: Copy + PartialEq + BitAnd<T, Output = T>,
-{
-    bitset & flag == flag
+pub fn fp1616_to_f64(x: ffi::xcb_input_fp1616_t) -> f64 {
+    (x as f64 * 1.0) / ((1 << 16) as f64)
 }
 
-#[must_use = "This request was made asynchronously, and is still in the output buffer. You must explicitly choose to either `.flush()` (empty the output buffer, sending the request now) or `.queue()` (wait to send the request, allowing you to continue to add more requests without additional round-trips). For more information, see the documentation for `util::flush_requests`."]
-pub struct Flusher<'a> {
-    xconn: &'a XConnection,
-}
-
-impl<'a> Flusher<'a> {
-    pub fn new(xconn: &'a XConnection) -> Self {
-        Flusher { xconn }
-    }
-
-    // "I want this request sent now!"
-    pub fn flush(self) -> Result<(), XError> {
-        self.xconn.flush_requests()
-    }
-
-    // "I want the response now too!"
-    pub fn sync(self) -> Result<(), XError> {
-        self.xconn.sync_with_server()
-    }
-
-    // "I'm aware that this request hasn't been sent, and I'm okay with waiting."
-    pub fn queue(self) {}
+pub fn fp3232_to_f64(x: ffi::xcb_input_fp3232_t) -> f64 {
+    x.integral as f64 + (x.frac as f64) / ((1u64 << 32) as f64)
 }
 
 impl XConnection {
-    // This is impoartant, so pay attention!
-    // Xlib has an output buffer, and tries to hide the async nature of X from you.
-    // This buffer contains the requests you make, and is flushed under various circumstances:
-    // 1. `XPending`, `XNextEvent`, and `XWindowEvent` flush "as needed"
-    // 2. `XFlush` explicitly flushes
-    // 3. `XSync` flushes and blocks until all requests are responded to
-    // 4. Calls that have a return dependent on a response (i.e. `XGetWindowProperty`) sync internally.
-    //    When in doubt, check the X11 source; if a function calls `_XReply`, it flushes and waits.
-    // All util functions that abstract an async function will return a `Flusher`.
-    pub fn flush_requests(&self) -> Result<(), XError> {
-        unsafe { (self.xlib.XFlush)(self.display) };
-        //println!("XFlush");
-        // This isn't necessarily a useful time to check for errors (since our request hasn't
-        // necessarily been processed yet)
-        self.check_errors()
+    pub fn check_cookie(&self, cookie: ffi::xcb_void_cookie_t) -> Result<(), XcbError> {
+        unsafe { self.errors.check_cookie(&self.xcb, cookie) }
     }
 
-    pub fn sync_with_server(&self) -> Result<(), XError> {
-        unsafe { (self.xlib.XSync)(self.display, ffi::False) };
-        //println!("XSync");
-        self.check_errors()
+    pub unsafe fn check<T>(
+        &self,
+        val: *mut T,
+        err: *mut ffi::xcb_generic_error_t,
+    ) -> Result<XcbBox<T>, XcbError> {
+        self.errors.check(&self.xcb, val, err)
+    }
+
+    pub fn check_pending1(&self, pending: XcbPendingCommand) -> Result<(), XcbError> {
+        unsafe { pending.check(&self.xcb, &self.errors) }
+    }
+
+    pub fn check_pending(&self, pending: XcbPendingCommands) -> Result<(), XcbError> {
+        unsafe { pending.check(&self.xcb, &self.errors) }
+    }
+
+    pub fn discard(&self, pending: XcbPendingCommand) {
+        unsafe { pending.discard(&self.xcb, self.c) }
+    }
+
+    pub fn flush(&self) -> Result<(), XcbError> {
+        unsafe {
+            if self.xcb.xcb_flush(self.c) == 0 {
+                self.errors.check_connection(&self.xcb)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    pub fn generate_id(&self) -> u32 {
+        unsafe { self.xcb.xcb_generate_id(self.c) }
     }
 }

@@ -7,8 +7,6 @@
 ))]
 
 use std::os::raw;
-#[cfg(feature = "x11")]
-use std::{ptr, sync::Arc};
 
 use crate::{
     event::KeyEvent,
@@ -22,17 +20,11 @@ use crate::{
 
 #[cfg(feature = "x11")]
 use crate::dpi::Size;
-#[cfg(feature = "x11")]
-use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
 use crate::platform_impl::{
     EventLoop as LinuxEventLoop, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
     Window as LinuxWindow,
 };
 
-// TODO: stupid hack so that glutin can do its work
-#[doc(hidden)]
-#[cfg(feature = "x11")]
-pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
@@ -46,9 +38,22 @@ pub trait EventLoopWindowTargetExtUnix {
     #[cfg(feature = "x11")]
     fn is_x11(&self) -> bool;
 
-    #[doc(hidden)]
+    /// This function returns the underlying xlib `Display`.
+    ///
+    /// Returns `None` if the event loop doesn't use X11 or if xlib support was disabled by
+    /// setting the `WINIT_DISABLE_XLIB` environment variable.
+    ///
+    /// The pointer will become invalid when the `EventLoop` is destroyed.
+    #[cfg(feature = "xlib")]
+    fn xlib_display(&self) -> Option<*mut raw::c_void>;
+
+    /// This function returns the underlying `xcb_connection_t`.
+    ///
+    /// Returns `None` if the event loop doesn't use X11 (if it uses wayland for example).
+    ///
+    /// The pointer will become invalid when the `EventLoop` is destroyed.
     #[cfg(feature = "x11")]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
+    fn xcb_connection(&self) -> Option<*mut raw::c_void>;
 
     /// Returns a pointer to the `wl_display` object of wayland that is used by this
     /// `EventLoopWindowTarget`.
@@ -74,14 +79,24 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[doc(hidden)]
-    #[cfg(feature = "x11")]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match self.p {
-            LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
-            #[cfg(feature = "wayland")]
-            _ => None,
+    #[cfg(feature = "xlib")]
+    fn xlib_display(&self) -> Option<*mut raw::c_void> {
+        if let LinuxEventLoopWindowTarget::X(e) = &self.p {
+            if let Some(xlib) = &e.x_connection().xlib {
+                return Some(xlib.dpy as _);
+            }
         }
+        None
+    }
+
+    #[inline]
+    #[cfg(feature = "x11")]
+    fn xcb_connection(&self) -> Option<*mut raw::c_void> {
+        #[allow(irrefutable_let_patterns)]
+        if let LinuxEventLoopWindowTarget::X(e) = &self.p {
+            return Some(e.x_connection().c as _);
+        }
+        None
     }
 
     #[inline]
@@ -196,32 +211,32 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
 
 /// Additional methods on `Window` that are specific to Unix.
 pub trait WindowExtUnix {
-    /// Returns the ID of the `Window` xlib object that is used by this window.
+    /// Returns the ID of the X11 window.
     ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
+    /// Returns `None` if the window doesn't use X11 (if it uses wayland for example).
     #[cfg(feature = "x11")]
-    fn xlib_window(&self) -> Option<raw::c_ulong>;
+    fn x11_window(&self) -> Option<u32>;
 
-    /// Returns a pointer to the `Display` object of xlib that is used by this window.
+    /// Returns the ID of the X11 screen.
     ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
-    ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// Returns `None` if the window doesn't use X11 (if it uses wayland for example).
     #[cfg(feature = "x11")]
+    fn x11_screen_id(&self) -> Option<u32>;
+
+    /// This function returns the underlying xlib `Display`.
+    ///
+    /// Returns `None` if the event loop doesn't use X11 or if xlib support was disabled by
+    /// setting the `WINIT_DISABLE_XLIB` environment variable.
+    ///
+    /// The pointer will become invalid when the `EventLoop` is destroyed.
+    #[cfg(feature = "xlib")]
     fn xlib_display(&self) -> Option<*mut raw::c_void>;
 
-    #[cfg(feature = "x11")]
-    fn xlib_screen_id(&self) -> Option<raw::c_int>;
-
-    #[doc(hidden)]
-    #[cfg(feature = "x11")]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
-
-    /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
+    /// This function returns the underlying `xcb_connection_t`.
     ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
+    /// Returns `None` if the event loop doesn't use X11 (if it uses wayland for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the `Window` is destroyed.
     #[cfg(feature = "x11")]
     fn xcb_connection(&self) -> Option<*mut raw::c_void>;
 
@@ -258,50 +273,40 @@ pub trait WindowExtUnix {
 impl WindowExtUnix for Window {
     #[inline]
     #[cfg(feature = "x11")]
-    fn xlib_window(&self) -> Option<raw::c_ulong> {
+    fn x11_window(&self) -> Option<u32> {
+        #[allow(irrefutable_let_patterns)]
+        if let LinuxWindow::X(w) = &self.window {
+            return Some(w.xwindow);
+        }
+        None
+    }
+
+    #[inline]
+    #[cfg(feature = "x11")]
+    fn x11_screen_id(&self) -> Option<u32> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_window()),
+            LinuxWindow::X(ref w) => Some(w.screen.screen_id as _),
             #[cfg(feature = "wayland")]
             _ => None,
         }
     }
 
     #[inline]
-    #[cfg(feature = "x11")]
+    #[cfg(feature = "xlib")]
     fn xlib_display(&self) -> Option<*mut raw::c_void> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_display()),
-            #[cfg(feature = "wayland")]
-            _ => None,
+        if let LinuxWindow::X(e) = &self.window {
+            if let Some(xlib) = &e.xconn.xlib {
+                return Some(xlib.dpy as _);
+            }
         }
-    }
-
-    #[inline]
-    #[cfg(feature = "x11")]
-    fn xlib_screen_id(&self) -> Option<raw::c_int> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            #[cfg(feature = "wayland")]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    #[doc(hidden)]
-    #[cfg(feature = "x11")]
-    fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match self.window {
-            LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
-            #[cfg(feature = "wayland")]
-            _ => None,
-        }
+        None
     }
 
     #[inline]
     #[cfg(feature = "x11")]
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::X(ref w) => Some(w.xcb_connection()),
+            LinuxWindow::X(ref w) => Some(w.xconn.c as _),
             #[cfg(feature = "wayland")]
             _ => None,
         }
@@ -346,9 +351,9 @@ impl WindowExtUnix for Window {
 /// Additional methods on `WindowBuilder` that are specific to Unix.
 pub trait WindowBuilderExtUnix {
     #[cfg(feature = "x11")]
-    fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
+    fn with_x11_visual(self, visual_infos: XVisualInfos) -> Self;
     #[cfg(feature = "x11")]
-    fn with_x11_screen(self, screen_id: i32) -> Self;
+    fn with_x11_screen(self, screen_id: u32) -> Self;
 
     /// Build window with `WM_CLASS` hint; defaults to the name of the binary. Only relevant on X11.
     #[cfg(feature = "x11")]
@@ -378,20 +383,23 @@ pub trait WindowBuilderExtUnix {
     fn with_app_id(self, app_id: String) -> Self;
 }
 
+#[derive(Copy, Clone, Debug, Default)]
+pub struct XVisualInfos {
+    pub visual_id: Option<u32>,
+    pub depth: Option<u8>,
+}
+
 impl WindowBuilderExtUnix for WindowBuilder {
     #[inline]
     #[cfg(feature = "x11")]
-    fn with_x11_visual<T>(mut self, visual_infos: *const T) -> Self {
-        {
-            self.platform_specific.visual_infos =
-                Some(unsafe { ptr::read(visual_infos as *const XVisualInfo) });
-        }
+    fn with_x11_visual(mut self, visual_infos: XVisualInfos) -> Self {
+        self.platform_specific.visual_infos = visual_infos;
         self
     }
 
     #[inline]
     #[cfg(feature = "x11")]
-    fn with_x11_screen(mut self, screen_id: i32) -> Self {
+    fn with_x11_screen(mut self, screen_id: u32) -> Self {
         self.platform_specific.screen_id = Some(screen_id);
         self
     }

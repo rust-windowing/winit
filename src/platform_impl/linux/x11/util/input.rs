@@ -1,125 +1,108 @@
 use super::*;
+use xcb_dl_util::error::XcbError;
+use xcb_dl_util::xcb_box::XcbBox;
 
-pub const VIRTUAL_CORE_POINTER: c_int = 2;
-
-// NOTE: Some of these fields are not used, but may be of use in the future.
-pub struct PointerState<'a> {
-    xconn: &'a XConnection,
-    pub root: ffi::Window,
-    pub child: ffi::Window,
-    pub root_x: c_double,
-    pub root_y: c_double,
-    pub win_x: c_double,
-    pub win_y: c_double,
-    buttons: ffi::XIButtonState,
-    pub relative_to_window: bool,
-}
-
-impl<'a> Drop for PointerState<'a> {
-    fn drop(&mut self) {
-        if !self.buttons.mask.is_null() {
-            unsafe {
-                // This is why you need to read the docs carefully...
-                (self.xconn.xlib.XFree)(self.buttons.mask as _);
-            }
-        }
-    }
-}
+pub const VIRTUAL_CORE_POINTER: ffi::xcb_input_device_id_t = 2;
 
 impl XConnection {
     pub fn select_xinput_events(
         &self,
-        window: c_ulong,
-        device_id: c_int,
-        mask: i32,
-    ) -> Flusher<'_> {
-        let mut event_mask = ffi::XIEventMask {
-            deviceid: device_id,
-            mask: &mask as *const _ as *mut c_uchar,
-            mask_len: mem::size_of_val(&mask) as c_int,
-        };
+        window: ffi::xcb_window_t,
+        device_id: ffi::xcb_input_device_id_t,
+        mask: u32,
+    ) -> XcbPendingCommand {
         unsafe {
-            (self.xinput2.XISelectEvents)(
-                self.display,
+            xcb_dl_util::input::select_events_checked(
+                &self.xinput,
+                self.c,
                 window,
-                &mut event_mask as *mut ffi::XIEventMask,
-                1, // number of masks to read from pointer above
-            );
+                device_id,
+                [mask],
+            )
+            .into()
         }
-        Flusher::new(self)
     }
 
-    pub fn select_xkb_events(&self, device_id: c_uint, mask: c_ulong) -> Option<Flusher<'_>> {
-        let status = unsafe { (self.xlib.XkbSelectEvents)(self.display, device_id, mask, mask) };
-        if status == ffi::True {
-            Some(Flusher::new(self))
-        } else {
-            error!("Could not select XKB events: The XKB extension is not initialized!");
-            None
+    pub fn select_xkb_events(
+        &self,
+        device_id: ffi::xcb_input_device_id_t,
+        events: ffi::xcb_xkb_event_type_t,
+    ) -> XcbPendingCommand {
+        unsafe {
+            self.xkb
+                .xcb_xkb_select_events_checked(
+                    self.c,
+                    device_id,
+                    events as _,
+                    0,
+                    events as _,
+                    !0,
+                    !0,
+                    ptr::null(),
+                )
+                .into()
         }
     }
 
     pub fn select_xkb_event_details(
         &self,
-        device_id: c_uint,
-        event: c_uint,
-        mask: c_ulong,
-    ) -> Option<Flusher<'_>> {
-        let status = unsafe {
-            (self.xlib.XkbSelectEventDetails)(self.display, device_id, event, mask, mask)
-        };
-        if status == ffi::True {
-            Some(Flusher::new(self))
-        } else {
-            error!("Could not select XKB events: The XKB extension is not initialized!");
-            None
+        device_id: ffi::xcb_input_device_id_t,
+        events: ffi::xcb_xkb_event_type_t,
+        details: &ffi::xcb_xkb_select_events_details_t,
+    ) -> XcbPendingCommand {
+        unsafe {
+            self.xkb
+                .xcb_xkb_select_events_aux_checked(
+                    self.c,
+                    device_id,
+                    events as _,
+                    0,
+                    0,
+                    !0,
+                    !0,
+                    details,
+                )
+                .into()
         }
     }
 
     pub fn query_pointer(
         &self,
-        window: ffi::Window,
-        device_id: c_int,
-    ) -> Result<PointerState<'_>, XError> {
+        window: ffi::xcb_window_t,
+        device_id: ffi::xcb_input_device_id_t,
+    ) -> Result<XcbBox<ffi::xcb_input_xi_query_pointer_reply_t>, XcbError> {
         unsafe {
-            let mut root = 0;
-            let mut child = 0;
-            let mut root_x = 0.0;
-            let mut root_y = 0.0;
-            let mut win_x = 0.0;
-            let mut win_y = 0.0;
-            let mut buttons = Default::default();
-            let mut modifiers = Default::default();
-            let mut group = Default::default();
+            let mut err = ptr::null_mut();
+            let reply = self.xinput.xcb_input_xi_query_pointer_reply(
+                self.c,
+                self.xinput
+                    .xcb_input_xi_query_pointer(self.c, window, device_id),
+                &mut err,
+            );
+            self.check(reply, err)
+        }
+    }
 
-            let relative_to_window = (self.xinput2.XIQueryPointer)(
-                self.display,
+    pub fn make_auto_repeat_detectable(
+        &self,
+        device_id: ffi::xcb_input_device_id_t,
+    ) -> Result<bool, XcbError> {
+        unsafe {
+            let cookie = self.xkb.xcb_xkb_per_client_flags(
+                self.c,
                 device_id,
-                window,
-                &mut root,
-                &mut child,
-                &mut root_x,
-                &mut root_y,
-                &mut win_x,
-                &mut win_y,
-                &mut buttons,
-                &mut modifiers,
-                &mut group,
-            ) == ffi::True;
-
-            self.check_errors()?;
-
-            Ok(PointerState {
-                xconn: self,
-                root,
-                child,
-                root_x,
-                root_y,
-                win_x,
-                win_y,
-                buttons,
-                relative_to_window,
-            })
+                ffi::XCB_XKB_PER_CLIENT_FLAG_DETECTABLE_AUTO_REPEAT,
+                ffi::XCB_XKB_PER_CLIENT_FLAG_DETECTABLE_AUTO_REPEAT,
+                0,
+                0,
+                0,
+            );
+            let mut err = ptr::null_mut();
+            let reply = self
+                .xkb
+                .xcb_xkb_per_client_flags_reply(self.c, cookie, &mut err);
+            let reply = self.check(reply, err)?;
+            Ok(reply.supported & ffi::XCB_XKB_PER_CLIENT_FLAG_DETECTABLE_AUTO_REPEAT != 0)
         }
     }
 }

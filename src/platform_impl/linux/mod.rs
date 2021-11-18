@@ -11,18 +11,16 @@ compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 #[cfg(feature = "wayland")]
 use std::error::Error;
+#[cfg(feature = "x11")]
+use std::sync::Arc;
 use std::{collections::VecDeque, env, fmt};
-#[cfg(feature = "x11")]
-use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
-#[cfg(feature = "x11")]
-use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
 
 #[cfg(feature = "x11")]
 pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
-use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+use self::x11::{util::WindowType as XWindowType, XConnection, XError};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -62,9 +60,9 @@ const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
-    pub visual_infos: Option<XVisualInfo>,
+    pub visual_infos: crate::platform::unix::XVisualInfos,
     #[cfg(feature = "x11")]
-    pub screen_id: Option<i32>,
+    pub screen_id: Option<u32>,
     #[cfg(feature = "x11")]
     pub resize_increments: Option<Size>,
     #[cfg(feature = "x11")]
@@ -85,7 +83,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
             #[cfg(feature = "x11")]
-            visual_infos: None,
+            visual_infos: Default::default(),
             #[cfg(feature = "x11")]
             screen_id: None,
             #[cfg(feature = "x11")]
@@ -104,12 +102,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             app_id: None,
         }
     }
-}
-
-#[cfg(feature = "x11")]
-lazy_static! {
-    pub static ref X11_BACKEND: Mutex<Result<Arc<XConnection>, XNotSupported>> =
-        Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new));
 }
 
 #[derive(Debug, Clone)]
@@ -515,44 +507,18 @@ impl Window {
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         match self {
             #[cfg(feature = "x11")]
-            &Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
+            &Window::X(ref window) => match &window.xconn.xlib {
+                Some(xlib) => RawWindowHandle::Xlib(raw_window_handle::unix::XlibHandle {
+                    window: window.xwindow as _,
+                    display: xlib.dpy as _,
+                    ..raw_window_handle::unix::XlibHandle::empty()
+                }),
+                _ => RawWindowHandle::Xcb(window.raw_window_handle()),
+            },
             #[cfg(feature = "wayland")]
             &Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
         }
     }
-}
-
-#[cfg(feature = "x11")]
-unsafe extern "C" fn x_error_callback(
-    display: *mut x11::ffi::Display,
-    event: *mut x11::ffi::XErrorEvent,
-) -> c_int {
-    let xconn_lock = X11_BACKEND.lock();
-    if let Ok(ref xconn) = *xconn_lock {
-        // `assume_init` is safe here because the array consists of `MaybeUninit` values,
-        // which do not require initialization.
-        let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
-        (xconn.xlib.XGetErrorText)(
-            display,
-            (*event).error_code as c_int,
-            buf.as_mut_ptr() as *mut c_char,
-            buf.len() as c_int,
-        );
-        let description = CStr::from_ptr(buf.as_ptr() as *const c_char).to_string_lossy();
-
-        let error = XError {
-            description: description.into_owned(),
-            error_code: (*event).error_code,
-            request_code: (*event).request_code,
-            minor_code: (*event).minor_code,
-        };
-
-        error!("X11 error: {:#?}", error);
-
-        *xconn.latest_error.lock() = Some(error);
-    }
-    // Fun fact: this return value is completely ignored.
-    0
 }
 
 pub enum EventLoop<T: 'static> {
@@ -651,12 +617,9 @@ impl<T: 'static> EventLoop<T> {
 
     #[cfg(feature = "x11")]
     pub fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
-        let xconn = match X11_BACKEND.lock().as_ref() {
-            Ok(xconn) => xconn.clone(),
-            Err(err) => return Err(err.clone()),
-        };
-
-        Ok(EventLoop::X(x11::EventLoop::new(xconn)))
+        Ok(EventLoop::X(x11::EventLoop::new(Arc::new(
+            XConnection::new()?,
+        ))))
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {

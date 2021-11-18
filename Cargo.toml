@@ -20,7 +20,8 @@ targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux
 default = ["x11", "wayland"]
 web-sys = ["web_sys", "wasm-bindgen", "instant/wasm-bindgen"]
 stdweb = ["std_web", "instant/stdweb"]
-x11 = ["x11-dl", "mio", "mio-misc", "percent-encoding", "parking_lot"]
+x11 = ["mio", "mio-misc", "percent-encoding", "parking_lot", "xcb-dl", "xcb-dl-util", "thiserror"]
+xlib = ["x11", "x11-dl"]
 wayland = ["wayland-client", "sctk", "memmap2"]
 
 [dependencies]
@@ -93,7 +94,10 @@ wayland-client = { version = "0.28", features = [ "dlopen"] , optional = true }
 sctk = { package = "smithay-client-toolkit", version = "0.12.3", optional = true }
 mio = { version = "0.7", features = ["os-ext"], optional = true }
 mio-misc = { version = "1.0", optional = true }
+xcb-dl = { version = "0.2.0", optional = true }
 x11-dl = { version = "2.19.1", optional = true }
+xcb-dl-util = { version = "0.2.0", features = ["xcb_xfixes", "xcb_xinput", "xcb_xkb", "xcb_render", "xcb_randr"], optional = true  }
+thiserror = { version = "1.0.30", optional = true }
 percent-encoding = { version = "2.0", optional = true }
 parking_lot = { version = "0.11.0", optional = true }
 memmap2 = { version = "0.2.1", optional = true }

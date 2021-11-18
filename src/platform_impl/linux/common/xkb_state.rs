@@ -9,7 +9,7 @@ use memmap2::MmapOptions;
 pub use sctk::seat::keyboard::RMLVO;
 
 #[cfg(feature = "x11")]
-use x11_dl::xlib_xcb::xcb_connection_t;
+use xcb_dl::ffi::xcb_connection_t;
 #[cfg(feature = "x11")]
 use xkbcommon_dl::XKBCOMMON_X11_HANDLE as XKBXH;
 
@@ -248,7 +248,7 @@ impl KbState {
     #[cfg(feature = "x11")]
     pub(crate) fn from_x11_xkb(
         connection: *mut xcb_connection_t,
-        device_id: std::os::raw::c_int,
+        device_id: xcb_dl::ffi::xcb_input_device_id_t,
     ) -> Result<Self, Error> {
         let mut me = Self::new()?;
         me.xcb_connection = connection;
@@ -340,20 +340,24 @@ impl KbState {
     }
 
     #[cfg(feature = "x11")]
-    pub(crate) unsafe fn init_with_x11_keymap(&mut self, device_id: std::os::raw::c_int) {
+    pub(crate) unsafe fn init_with_x11_keymap(
+        &mut self,
+        device_id: xcb_dl::ffi::xcb_input_device_id_t,
+    ) {
         if !self.xkb_keymap.is_null() {
             self.de_init();
         }
 
         let keymap = (XKBXH.xkb_x11_keymap_new_from_device)(
             self.xkb_context,
-            self.xcb_connection,
-            device_id,
+            self.xcb_connection as _,
+            device_id as _,
             xkbcommon_dl::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
         );
         assert_ne!(keymap, ptr::null_mut());
 
-        let state = (XKBXH.xkb_x11_state_new_from_device)(keymap, self.xcb_connection, device_id);
+        let state =
+            (XKBXH.xkb_x11_state_new_from_device)(keymap, self.xcb_connection as _, device_id as _);
         self.post_init(state, keymap);
     }
 

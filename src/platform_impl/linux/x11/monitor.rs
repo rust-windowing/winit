@@ -1,38 +1,24 @@
-use std::os::raw::*;
-
-use parking_lot::Mutex;
-
-use super::{
-    ffi::{
-        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
-        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
-    },
-    util, XConnection, XError,
-};
+use super::{ffi, util, XConnection};
+use crate::platform_impl::x11::xdisplay::Screen;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
+use std::ptr;
+use std::sync::Arc;
+use xcb_dl_util::error::XcbError;
+use xcb_dl_util::xcb_box::XcbBox;
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
-lazy_static! {
-    static ref MONITORS: Mutex<Option<Vec<MonitorHandle>>> = Mutex::default();
-}
-
-pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
-    // We update this lazily.
-    (*MONITORS.lock()).take()
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct VideoMode {
-    pub(crate) size: (u32, u32),
+    pub(crate) size: (u16, u16),
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
-    pub(crate) native_mode: RRMode,
+    pub(crate) native_mode: u32,
     pub(crate) monitor: Option<MonitorHandle>,
 }
 
@@ -63,9 +49,11 @@ impl VideoMode {
 #[derive(Debug, Clone)]
 pub struct MonitorHandle {
     /// The actual id
-    pub(crate) id: RRCrtc,
+    pub(crate) id: ffi::xcb_randr_crtc_t,
     /// The name of the monitor
     pub(crate) name: String,
+    /// The screen this monitor is attached to
+    pub(crate) screen: Option<Arc<Screen>>,
     /// The size of the monitor
     dimensions: (u32, u32),
     /// The position of the monitor in the X screen
@@ -109,31 +97,38 @@ impl std::hash::Hash for MonitorHandle {
 impl MonitorHandle {
     fn new(
         xconn: &XConnection,
-        resources: *mut XRRScreenResources,
-        id: RRCrtc,
-        crtc: *mut XRRCrtcInfo,
+        screen: &Arc<Screen>,
+        resources: &ffi::xcb_randr_get_screen_resources_reply_t,
+        id: ffi::xcb_randr_crtc_t,
+        crtc: &ffi::xcb_randr_get_crtc_info_reply_t,
         primary: bool,
-    ) -> Option<Self> {
-        let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
-        let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
-        let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
+    ) -> Result<Option<Self>, XcbError> {
+        let output_info = unsafe { xconn.get_output_info(screen, resources, crtc)? };
+        let (name, scale_factor, video_modes) = match output_info {
+            Some(o) => o,
+            _ => return Ok(None),
+        };
+        let dimensions = (crtc.width as u32, crtc.height as u32);
+        let position = (crtc.x as i32, crtc.y as i32);
         let rect = util::AaRect::new(position, dimensions);
-        Some(MonitorHandle {
+        Ok(Some(MonitorHandle {
             id,
             name,
+            screen: Some(screen.clone()),
             scale_factor,
             dimensions,
             position,
             primary,
             rect,
             video_modes,
-        })
+        }))
     }
 
     pub fn dummy() -> Self {
         MonitorHandle {
             id: 0,
             name: "<dummy monitor>".into(),
+            screen: None,
             scale_factor: 1.0,
             dimensions: (1, 1),
             position: (0, 0),
@@ -184,7 +179,13 @@ impl MonitorHandle {
 
 impl XConnection {
     pub fn get_monitor_for_window(&self, window_rect: Option<util::AaRect>) -> MonitorHandle {
-        let monitors = self.available_monitors();
+        let monitors = match self.available_monitors_inner() {
+            Ok(m) => m,
+            Err(e) => {
+                log::error!("Could not retrieve monitors: {}", e);
+                return MonitorHandle::dummy();
+            }
+        };
 
         if monitors.is_empty() {
             // Return a dummy monitor to avoid panicking
@@ -211,41 +212,51 @@ impl XConnection {
         matched_monitor.to_owned()
     }
 
-    fn query_monitor_list(&self) -> Vec<MonitorHandle> {
+    unsafe fn screen_resources(
+        &self,
+        screen: &Screen,
+    ) -> Result<XcbBox<ffi::xcb_randr_get_screen_resources_reply_t>, XcbError> {
+        let cookie = if self.randr_version >= (1, 3) {
+            self.randr
+                .xcb_randr_get_screen_resources_current(self.c, screen.root)
+                .sequence
+        } else {
+            self.randr
+                .xcb_randr_get_screen_resources(self.c, screen.root)
+                .sequence
+        };
+        let mut err = ptr::null_mut();
+        let reply = self.xcb.xcb_wait_for_reply(self.c, cookie, &mut err) as *mut _;
+        self.check(reply, err)
+    }
+
+    fn query_monitor_list(&self, screen: &Arc<Screen>) -> Result<Vec<MonitorHandle>, XcbError> {
         unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor);
+            let resources = self.screen_resources(screen)?;
+            let crtcs = std::slice::from_raw_parts(
+                self.randr.xcb_randr_get_screen_resources_crtcs(&*resources),
+                resources.num_crtcs as _,
+            );
 
-            let root = (self.xlib.XDefaultRootWindow)(self.display);
-            let resources = if (major == 1 && minor >= 3) || major > 1 {
-                (self.xrandr.XRRGetScreenResourcesCurrent)(self.display, root)
-            } else {
-                // WARNING: this function is supposedly very slow, on the order of hundreds of ms.
-                // Upon failure, `resources` will be null.
-                (self.xrandr.XRRGetScreenResources)(self.display, root)
-            };
-
-            if resources.is_null() {
-                panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
-            }
-
-            let mut available;
             let mut has_primary = false;
 
-            let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
-            available = Vec::with_capacity((*resources).ncrtc as usize);
-            for crtc_index in 0..(*resources).ncrtc {
-                let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
-                let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
-                let is_active = (*crtc).width > 0 && (*crtc).height > 0 && (*crtc).noutput > 0;
+            let mut err = ptr::null_mut();
+            let primary = self.randr.xcb_randr_get_output_primary_reply(
+                self.c,
+                self.randr.xcb_randr_get_output_primary(self.c, screen.root),
+                &mut err,
+            );
+            let primary = self.check(primary, err)?.output;
+            let mut available = Vec::with_capacity(crtcs.len());
+            for &crtc_id in crtcs {
+                let crtc = self.get_crtc_info(crtc_id)?;
+                let is_active = crtc.width > 0 && crtc.height > 0 && crtc.num_outputs > 0;
                 if is_active {
-                    let is_primary = *(*crtc).outputs.offset(0) == primary;
+                    let is_primary = *self.randr.xcb_randr_get_crtc_info_outputs(&*crtc) == primary;
                     has_primary |= is_primary;
-                    MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
+                    MonitorHandle::new(self, screen, &resources, crtc_id, &crtc, is_primary)?
                         .map(|monitor_id| available.push(monitor_id));
                 }
-                (self.xrandr.XRRFreeCrtcInfo)(crtc);
             }
 
             // If no monitors were detected as being primary, we just pick one ourselves!
@@ -256,59 +267,48 @@ impl XConnection {
                 }
             }
 
-            (self.xrandr.XRRFreeScreenResources)(resources);
-            available
+            Ok(available)
         }
     }
 
     pub fn available_monitors(&self) -> Vec<MonitorHandle> {
-        let mut monitors_lock = MONITORS.lock();
-        (*monitors_lock)
-            .as_ref()
-            .cloned()
-            .or_else(|| {
-                let monitors = Some(self.query_monitor_list());
-                if !DISABLE_MONITOR_LIST_CACHING {
-                    (*monitors_lock) = monitors.clone();
-                }
-                monitors
-            })
-            .unwrap()
+        match self.available_monitors_inner() {
+            Ok(m) => m,
+            Err(e) => {
+                log::error!("Could not retrive monitors: {}", e);
+                vec![]
+            }
+        }
+    }
+
+    pub fn available_monitors_inner(&self) -> Result<Vec<MonitorHandle>, XcbError> {
+        let mut monitors_lock = self.monitors.lock();
+        if let Some(monitors) = &*monitors_lock {
+            return Ok(monitors.clone());
+        }
+        let mut monitors = vec![];
+        for screen in &self.screens {
+            monitors.extend(self.query_monitor_list(screen)?);
+        }
+        if !DISABLE_MONITOR_LIST_CACHING {
+            (*monitors_lock) = Some(monitors.clone());
+        }
+        Ok(monitors)
     }
 
     #[inline]
     pub fn primary_monitor(&self) -> MonitorHandle {
-        self.available_monitors()
-            .into_iter()
-            .find(|monitor| monitor.primary)
-            .unwrap_or_else(MonitorHandle::dummy)
+        match self.available_monitors_inner() {
+            Ok(m) => m
+                .into_iter()
+                .find(|monitor| monitor.primary)
+                .unwrap_or_else(MonitorHandle::dummy),
+            _ => MonitorHandle::dummy(),
+        }
     }
 
-    pub fn select_xrandr_input(&self, root: Window) -> Result<c_int, XError> {
-        let has_xrandr = unsafe {
-            let mut major = 0;
-            let mut minor = 0;
-            (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor)
-        };
-        assert!(
-            has_xrandr == True,
-            "[winit] XRandR extension not available."
-        );
-
-        let mut event_offset = 0;
-        let mut error_offset = 0;
-        let status = unsafe {
-            (self.xrandr.XRRQueryExtension)(self.display, &mut event_offset, &mut error_offset)
-        };
-
-        if status != True {
-            self.check_errors()?;
-            unreachable!("[winit] `XRRQueryExtension` failed but no error was received.");
-        }
-
-        let mask = RRCrtcChangeNotifyMask | RROutputPropertyNotifyMask | RRScreenChangeNotifyMask;
-        unsafe { (self.xrandr.XRRSelectInput)(self.display, root, mask) };
-
-        Ok(event_offset)
+    pub fn invalidate_cached_monitor_list(&self) -> Option<Vec<MonitorHandle>> {
+        // We update this lazily.
+        (*self.monitors.lock()).take()
     }
 }
