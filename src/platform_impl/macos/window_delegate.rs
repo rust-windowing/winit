@@ -482,10 +482,10 @@ extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
 }
 
 extern "C" fn window_will_use_fullscreen_presentation_options(
-    _this: &Object,
+    this: &Object,
     _: Sel,
     _: id,
-    _proposed_options: NSUInteger,
+    proposed_options: NSUInteger,
 ) -> NSUInteger {
     // Generally, games will want to disable the menu bar and the dock. Ideally,
     // this would be configurable by the user. Unfortunately because of our
@@ -495,10 +495,22 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
     // still want to make this configurable for borderless fullscreen. Right now
     // we don't, for consistency. If we do, it should be documented that the
     // user-provided options are ignored in exclusive fullscreen.
-    (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
-        .bits()
+    let mut options: NSUInteger = proposed_options;
+    with_state(this, |state| {
+        state.with_window(|window| {
+            trace!("Locked shared state in `window_will_use_fullscreen_presentation_options`");
+            let shared_state = window.shared_state.lock().unwrap();
+            if let Some(Fullscreen::Exclusive(_)) = shared_state.fullscreen {
+                options = (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                    | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                    | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
+                    .bits();
+            }
+            trace!("Unlocked shared state in `window_will_use_fullscreen_presentation_options`");
+        })
+    });
+
+    options
 }
 
 /// Invoked when entered fullscreen
