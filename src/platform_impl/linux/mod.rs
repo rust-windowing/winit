@@ -539,7 +539,7 @@ unsafe extern "C" fn x_error_callback(
             minor_code: (*event).minor_code,
         };
 
-        error!("X11 error: {:#?}", error);
+        error!("X11 error: {}", error);
 
         *xconn.latest_error.lock() = Some(error);
     }
