@@ -41,6 +41,14 @@ wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
 wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
+css-size = [
+    "js-sys",
+    "web_sys/ResizeObserver",
+    "web_sys/ResizeObserverBoxOptions",
+    "web_sys/ResizeObserverEntry",
+    "web_sys/ResizeObserverOptions",
+    "web_sys/ResizeObserverSize",
+]
 
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
@@ -113,7 +121,7 @@ libc = "0.2.64"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"
-version = "0.3.22"
+version = "0.3.56"
 features = [
     'console',
     "AddEventListenerOptions",
@@ -139,6 +147,10 @@ features = [
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
 version = "0.2.45"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.js-sys]
+version = "0.3.56"
+optional = true
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 console_log = "0.2"

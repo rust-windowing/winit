@@ -38,6 +38,7 @@ impl Window {
         let prevent_default = platform_attr.prevent_default;
 
         let canvas = backend::Canvas::create(platform_attr)?;
+        let raw = canvas.raw().clone();
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
@@ -53,7 +54,10 @@ impl Window {
         });
 
         let runner = target.runner.clone();
-        let destroy_fn = Box::new(move || runner.notify_destroy_window(RootWI(id)));
+        let destroy_fn = {
+            let raw = raw.clone();
+            Box::new(move || runner.notify_destroy_window(RootWI(id), raw))
+        };
 
         let window = Window {
             canvas,
@@ -64,13 +68,23 @@ impl Window {
             destroy_fn: Some(destroy_fn),
         };
 
-        backend::set_canvas_size(
-            window.canvas.borrow().raw(),
-            attr.inner_size.unwrap_or(Size::Logical(LogicalSize {
-                width: 1024.0,
-                height: 768.0,
-            })),
-        );
+        if let Some(size) = attr.inner_size {
+            backend::set_inner_size(&raw, size);
+        } else if cfg!(not(feature = "css-size")) {
+            backend::set_inner_size(&raw, LogicalSize::new(1024, 768).into())
+        }
+
+        // The `ResizeObserver`s don't fire synchronously, so we need to set the canvas' size to an estimate based on the CSS size.
+        // If we don't, any initialization code relying on the canvas' dimensions will be messed up.
+        #[cfg(feature = "css-size")]
+        if let Some(size) = backend::inner_size(&raw) {
+            let size = size.to_physical(backend::scale_factor());
+            raw.set_width(size.width);
+            raw.set_height(size.height);
+        }
+        // Make sure not to set the width and height here,
+        // to signal that we need to calculate it in the first call to `inner_size`.
+
         window.set_title(&attr.title);
         window.set_maximized(attr.maximized);
         window.set_visible(attr.visible);
@@ -124,6 +138,20 @@ impl Window {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
+        let canvas = Ref::map(self.canvas(), backend::Canvas::raw);
+        if !canvas.has_attribute("width") || !canvas.has_attribute("height") {
+            // We haven't set the framebuffer size yet. Set its initial size.
+            if let Some(size) = backend::inner_size(&canvas) {
+                let size = size.to_physical(self.scale_factor());
+                canvas.set_width(size.width);
+                canvas.set_height(size.height);
+            } else {
+                // The value returned by `inner_size` shouldn't change without a corresponding `Resized` event,
+                // so if the canvas still hasn't been added to the DOM by this point, 0x0 it is.
+                canvas.set_width(0);
+                canvas.set_height(0);
+            }
+        }
         self.canvas.borrow().size()
     }
 
@@ -136,9 +164,9 @@ impl Window {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let old_size = self.inner_size();
-        backend::set_canvas_size(self.canvas.borrow().raw(), size);
+        backend::set_inner_size(self.canvas.borrow().raw(), size);
         let new_size = self.inner_size();
-        if old_size != new_size {
+        if cfg!(not(feature = "css-size")) && old_size != new_size {
             (self.resize_notify_fn)(new_size);
         }
     }

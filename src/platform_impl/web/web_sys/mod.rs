@@ -12,7 +12,7 @@ pub use self::timeout::{AnimationFrameRequest, Timeout};
 use crate::dpi::{LogicalSize, Size};
 use crate::platform::web::WindowExtWebSys;
 use crate::window::Window;
-use wasm_bindgen::closure::Closure;
+use wasm_bindgen::prelude::*;
 use web_sys::{window, BeforeUnloadEvent, Element, HtmlCanvasElement};
 
 pub fn throw(msg: &str) {
@@ -60,38 +60,86 @@ impl WindowExtWebSys for Window {
     }
 }
 
-pub fn window_size() -> LogicalSize<f64> {
-    let window = web_sys::window().expect("Failed to obtain window");
-    let width = window
-        .inner_width()
-        .expect("Failed to get width")
-        .as_f64()
-        .expect("Failed to get width as f64");
-    let height = window
-        .inner_height()
-        .expect("Failed to get height")
-        .as_f64()
-        .expect("Failed to get height as f64");
-
-    LogicalSize { width, height }
-}
-
 pub fn scale_factor() -> f64 {
     let window = web_sys::window().expect("Failed to obtain window");
     window.device_pixel_ratio()
 }
 
-pub fn set_canvas_size(raw: &HtmlCanvasElement, size: Size) {
+/// Gets the size of the content box of `element` based on CSS.
+///
+/// Returns `None` if the element isn't in the DOM.
+pub fn inner_size(element: &HtmlCanvasElement) -> Option<LogicalSize<f64>> {
+    let window = web_sys::window().unwrap();
+    let document = window.document().unwrap();
+    if !document.contains(Some(element)) {
+        return None;
+    }
+
+    // Use `getBoundingClientRect` instead of the width and height properties because it doesn't round to the nearest integer.
+    let rect = element.get_bounding_client_rect();
+    let style = window
+        .get_computed_style(element)
+        .unwrap()
+        .expect("`getComputedStyle` returned `None`");
+
+    let prop = |name| -> f64 {
+        let value = style.get_property_value(name).unwrap();
+        // Cut off the last two characters to remove the `px` from the end.
+        value[..value.len() - 2].parse().unwrap()
+    };
+
+    Some(LogicalSize {
+        width: rect.width()
+            - prop("border-left-width")
+            - prop("border-right-width")
+            - prop("padding-left")
+            - prop("padding-right"),
+        height: rect.height()
+            - prop("border-top-width")
+            - prop("border-bottom-width")
+            - prop("padding-top")
+            - prop("padding-bottom"),
+    })
+}
+
+pub fn set_inner_size(element: &HtmlCanvasElement, size: Size) {
     let scale_factor = scale_factor();
 
-    let physical_size = size.to_physical::<u32>(scale_factor);
-    let logical_size = size.to_logical::<f64>(scale_factor);
+    let mut logical_size = size.to_logical::<f64>(scale_factor);
 
-    raw.set_width(physical_size.width);
-    raw.set_height(physical_size.height);
+    if cfg!(not(feature = "css-size")) {
+        let physical_size = size.to_physical(scale_factor);
+        element.set_width(physical_size.width);
+        element.set_height(physical_size.height);
+    }
 
-    set_canvas_style_property(raw, "width", &format!("{}px", logical_size.width));
-    set_canvas_style_property(raw, "height", &format!("{}px", logical_size.height));
+    let window = web_sys::window().unwrap();
+    let style = window
+        .get_computed_style(element)
+        // This can't fail according to the spec; I don't know why web-sys marks it as throwing and having an optional result.
+        .expect("`getComputedStyle` failed")
+        .expect("`getComputedStyle` returned `None`");
+
+    // This also can't fail according to the spec.
+    if style.get_property_value("box-sizing").unwrap() == "border-box" {
+        let prop = |name| -> f64 {
+            let value = style.get_property_value(name).unwrap();
+            // Cut off the last two characters to remove the `px` from the end.
+            value[..value.len() - 2].parse().unwrap()
+        };
+
+        logical_size.width += prop("border-left-width")
+            + prop("border-right-width")
+            + prop("padding-left")
+            + prop("padding-right");
+        logical_size.height += prop("border-top-width")
+            + prop("border-bottom-width")
+            + prop("padding-top")
+            + prop("padding-bottom");
+    }
+
+    set_canvas_style_property(element, "width", &format!("{}px", logical_size.width));
+    set_canvas_style_property(element, "height", &format!("{}px", logical_size.height));
 }
 
 pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value: &str) {
@@ -112,6 +160,34 @@ pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
         }
         None => false,
     }
+}
+
+// A slight hack to get at the prototype of `ResizeObserverEntry`, so that we can check for `device-pixel-content-box` support.
+#[cfg(feature = "css-size")]
+mod prototype {
+    use js_sys::Object;
+    use wasm_bindgen::prelude::*;
+
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen]
+        pub type ResizeObserverEntry;
+
+        #[wasm_bindgen(static_method_of = ResizeObserverEntry, getter)]
+        pub fn prototype() -> Object;
+    }
+}
+
+#[cfg(feature = "css-size")]
+pub fn supports_device_pixel_content_size() -> bool {
+    use js_sys::Object;
+
+    let proto = prototype::ResizeObserverEntry::prototype();
+    let desc = Object::get_own_property_descriptor(
+        &proto,
+        &JsValue::from_str("devicePixelContentBoxSize"),
+    );
+    !desc.is_undefined()
 }
 
 pub type RawCanvasType = HtmlCanvasElement;

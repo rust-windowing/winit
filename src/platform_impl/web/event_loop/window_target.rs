@@ -9,7 +9,7 @@ use super::{
     super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
     window::WindowId,
 };
-use crate::dpi::{PhysicalSize, Size};
+use crate::dpi::PhysicalSize;
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyboardInput, TouchPhase,
     WindowEvent,
@@ -43,10 +43,6 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn run(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
         self.runner.set_listener(event_handler);
-        let runner = self.runner.clone();
-        self.runner.set_on_scale_change(move |arg| {
-            runner.handle_scale_changed(arg.old_scale, arg.new_scale)
-        });
     }
 
     pub fn generate_id(&self) -> WindowId {
@@ -235,35 +231,45 @@ impl<T> EventLoopWindowTarget<T> {
             prevent_default,
         );
 
-        let runner = self.runner.clone();
-        let raw = canvas.raw().clone();
+        if cfg!(not(feature = "css-size")) {
+            let runner = self.runner.clone();
+            let raw = canvas.raw().clone();
 
-        // The size to restore to after exiting fullscreen.
-        let mut intended_size = PhysicalSize {
-            width: raw.width() as u32,
-            height: raw.height() as u32,
-        };
-        canvas.on_fullscreen_change(move || {
-            // If the canvas is marked as fullscreen, it is moving *into* fullscreen
-            // If it is not, it is moving *out of* fullscreen
-            let new_size = if backend::is_fullscreen(&raw) {
-                intended_size = PhysicalSize {
+            // The size to restore to after exiting fullscreen.
+            let mut intended_size = PhysicalSize {
+                width: raw.width() as u32,
+                height: raw.height() as u32,
+            };
+            canvas.on_fullscreen_change(move || {
+                let old_size = PhysicalSize {
                     width: raw.width() as u32,
                     height: raw.height() as u32,
                 };
 
-                backend::window_size().to_physical(backend::scale_factor())
-            } else {
-                intended_size
-            };
+                // If the canvas is marked as fullscreen, it is moving *into* fullscreen
+                // If it is not, it is moving *out of* fullscreen
+                let new_size = if backend::is_fullscreen(&raw) {
+                    intended_size = old_size;
 
-            backend::set_canvas_size(&raw, Size::Physical(new_size));
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::Resized(new_size),
+                    backend::inner_size(&raw)
+                        // I don't think it's possible for an element to become fullscreen whilst not being in the DOM.
+                        .unwrap()
+                        .to_physical(backend::scale_factor())
+                } else {
+                    intended_size
+                };
+
+                if old_size != new_size {
+                    raw.set_width(new_size.width);
+                    raw.set_height(new_size.height);
+                    runner.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::Resized(new_size),
+                    });
+                    runner.request_redraw(RootWindowId(id));
+                }
             });
-            runner.request_redraw(RootWindowId(id));
-        });
+        }
 
         let runner = self.runner.clone();
         canvas.on_dark_mode(move |is_dark_mode| {

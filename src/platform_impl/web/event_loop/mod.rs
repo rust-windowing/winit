@@ -1,4 +1,6 @@
 mod proxy;
+#[cfg(feature = "css-size")]
+mod resize;
 mod runner;
 mod state;
 mod window_target;

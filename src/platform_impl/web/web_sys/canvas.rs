@@ -59,6 +59,10 @@ impl Canvas {
             }
         };
 
+        #[cfg(not(feature = "css-size"))]
+        // Try to avoid this changing from under us when we don't have `ResizeObserver`.
+        super::set_canvas_style_property(&canvas, "box-sizing", "content-box");
+
         // A tabindex is needed in order to capture local keyboard events.
         // A "0" value means that the element should be focusable in
         // sequential keyboard navigation, but its order is defined by the

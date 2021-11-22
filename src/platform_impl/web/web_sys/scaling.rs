@@ -1,4 +1,3 @@
-use super::super::ScaleChangeArgs;
 use super::media_query_handle::MediaQueryListHandle;
 
 use std::{cell::RefCell, rc::Rc};
@@ -10,7 +9,7 @@ pub struct ScaleChangeDetector(Rc<RefCell<ScaleChangeDetectorInternal>>);
 impl ScaleChangeDetector {
     pub(crate) fn new<F>(handler: F) -> Self
     where
-        F: 'static + FnMut(ScaleChangeArgs),
+        F: 'static + FnMut(),
     {
         Self(ScaleChangeDetectorInternal::new(handler))
     }
@@ -19,21 +18,18 @@ impl ScaleChangeDetector {
 /// This is a helper type to help manage the `MediaQueryList` used for detecting
 /// changes of the `devicePixelRatio`.
 struct ScaleChangeDetectorInternal {
-    callback: Box<dyn FnMut(ScaleChangeArgs)>,
+    callback: Box<dyn FnMut()>,
     mql: Option<MediaQueryListHandle>,
-    last_scale: f64,
 }
 
 impl ScaleChangeDetectorInternal {
     fn new<F>(handler: F) -> Rc<RefCell<Self>>
     where
-        F: 'static + FnMut(ScaleChangeArgs),
+        F: 'static + FnMut(),
     {
-        let current_scale = super::scale_factor();
         let new_self = Rc::new(RefCell::new(Self {
             callback: Box::new(handler),
             mql: None,
-            last_scale: current_scale,
         }));
 
         let weak_self = Rc::downgrade(&new_self);
@@ -77,13 +73,8 @@ impl ScaleChangeDetectorInternal {
             .take()
             .expect("DevicePixelRatioChangeDetector::mql should not be None");
         let closure = mql.remove();
-        let new_scale = super::scale_factor();
-        (self.callback)(ScaleChangeArgs {
-            old_scale: self.last_scale,
-            new_scale,
-        });
+        (self.callback)();
         let new_mql = Self::create_mql(closure);
         self.mql = new_mql;
-        self.last_scale = new_scale;
     }
 }

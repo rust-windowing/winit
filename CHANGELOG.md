@@ -147,6 +147,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, implement a workaround for wrong configure size when using `xdg_decoration` in `kwin_wayland`
 - On macOS, fix an issue that prevented the menu bar from showing in borderless fullscreen mode.
 - On X11, EINTR while polling for events no longer causes a panic. Instead it will be treated as a spurious wakeup.
+- **Breaking:** On Web, size the canvas based on the page layout using `ResizeObserver`. `set_inner_size` will just set the CSS `width` and `height` properties.
 
 # 0.25.0 (2021-05-15)
 

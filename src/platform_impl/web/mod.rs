@@ -26,6 +26,9 @@ mod window;
 #[path = "web_sys/mod.rs"]
 mod backend;
 
+#[cfg(all(feature = "css-size", not(web_sys_unstable_apis)))]
+compile_error!("`web_sys_unstable_apis` must be enabled to use the `css-size` feature");
+
 pub use self::device::DeviceId;
 pub use self::error::OsError;
 pub(crate) use self::event_loop::{
@@ -35,9 +38,3 @@ pub use self::monitor::{MonitorHandle, VideoMode};
 pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
-
-#[derive(Clone, Copy)]
-pub(crate) struct ScaleChangeArgs {
-    old_scale: f64,
-    new_scale: f64,
-}
