@@ -611,6 +611,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn reset_dead_keys(&self) {
+        // not implemented
+    }
+
+    #[inline]
     pub fn display(&self) -> &Display {
         &self.display
     }

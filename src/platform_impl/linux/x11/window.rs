@@ -1,4 +1,6 @@
 use raw_window_handle::unix::XlibHandle;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering::Relaxed;
 use std::{
     cmp, env,
     ffi::CString,
@@ -104,6 +106,7 @@ pub struct UnownedWindow {
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
     redraw_sender: Sender<WindowId>,
+    reset_dead_keys: Arc<AtomicUsize>,
 }
 
 impl UnownedWindow {
@@ -252,6 +255,7 @@ impl UnownedWindow {
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
             redraw_sender: event_loop.redraw_sender.clone(),
+            reset_dead_keys: event_loop.reset_dead_keys.clone(),
         };
 
         // Title must be set before mapping. Some tiling window managers (i.e. i3) use the window
@@ -1337,6 +1341,11 @@ impl UnownedWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
         self.set_ime_position_physical(x, y);
+    }
+
+    #[inline]
+    pub fn reset_dead_keys(&self) {
+        self.reset_dead_keys.fetch_add(1, Relaxed);
     }
 
     #[inline]

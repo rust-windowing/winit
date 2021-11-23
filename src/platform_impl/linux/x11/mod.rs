@@ -21,6 +21,7 @@ pub use self::{
     xdisplay::{XConnection, XError, XNotSupported},
 };
 
+use std::sync::atomic::AtomicUsize;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -76,6 +77,7 @@ pub struct EventLoopWindowTarget<T> {
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: Sender<WindowId>,
+    reset_dead_keys: Arc<AtomicUsize>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -226,6 +228,7 @@ impl<T: 'static> EventLoop<T> {
                 wm_delete_window,
                 net_wm_ping,
                 redraw_sender,
+                reset_dead_keys: Arc::new(AtomicUsize::new(0)),
             }),
             _marker: ::std::marker::PhantomData,
         });

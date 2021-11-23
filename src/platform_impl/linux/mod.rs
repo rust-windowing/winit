@@ -441,7 +441,7 @@ impl Window {
 
     #[inline]
     pub fn reset_dead_keys(&self) {
-        common::xkb_state::reset_dead_keys()
+        x11_or_wayland!(match self; Window(w) => w.reset_dead_keys())
     }
 
     #[inline]

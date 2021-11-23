@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering::Relaxed;
 use std::{collections::HashMap, rc::Rc, slice, sync::Arc};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
@@ -160,6 +161,15 @@ impl<T: 'static> EventProcessor<T> {
         F: FnMut(Event<'_, T>),
     {
         let wt = get_xtarget(&self.target);
+        {
+            let reset_dead_keys = wt.reset_dead_keys.load(Relaxed);
+            if reset_dead_keys != 0 {
+                for seat in &mut self.seats {
+                    seat.kb_state.reset_dead_keys();
+                }
+                wt.reset_dead_keys.fetch_sub(reset_dead_keys, Relaxed);
+            }
+        }
         // XFilterEvent tells us when an event has been discarded by the input method.
         // Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
         // along with an extra copy of the KeyRelease events. This also prevents backspace and
