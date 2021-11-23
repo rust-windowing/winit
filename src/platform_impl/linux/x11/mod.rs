@@ -251,6 +251,18 @@ impl<T: 'static> EventLoop<T> {
                 );
             }
 
+            if self.event_queue.has_pending_events() {
+                // If there are pending events that have already been read from the socket
+                // but not yet dispatched, we HAVE to handle them now. Otherwise, if the
+                // application is using run_return, it has no way to get notified that it
+                // should call run_return again. The application will probably try to wait
+                // for the socket to become readable but that's no good because the socket
+                // might be empty while we already have events queued.
+                //
+                // TODO: Should we change `cause`?
+                continue;
+            }
+
             let start = Instant::now();
             let (deadline, timeout);
 
@@ -283,12 +295,8 @@ impl<T: 'static> EventLoop<T> {
                 }
             }
 
-            // If the event queue already contains buffered events, we must not
-            // wait for data on the socket.
-            if !self.event_queue.has_pending_events() {
-                self.poll.poll(&mut events, timeout).unwrap();
-                events.clear();
-            }
+            self.poll.poll(&mut events, timeout).unwrap();
+            events.clear();
 
             let wait_cancelled = deadline.map_or(false, |deadline| Instant::now() < deadline);
 
