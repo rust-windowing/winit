@@ -19,7 +19,7 @@
 - On X11, emit missing `WindowEvent::ScaleFactorChanged` when the only monitor gets reconnected.
 - On X11, if RANDR based scale factor is higher than 20 reset it to 1
 - On Wayland, add an enabled-by-default feature called `wayland-dlopen` so users can opt out of using `dlopen` to load system libraries.
-- **Breaking:** On Android, bump `ndk` and `ndk-glue` to 0.4.
+- **Breaking:** On Android, bump `ndk` and `ndk-glue` to 0.5.
 - On Windows, increase wait timer resolution for more accurate timing when using `WaitUntil`.
 - On macOS, fix native file dialogs hanging the event loop.
 - On Wayland, implement a workaround for wrong configure size when using `xdg_decoration` in `kwin_wayland`
