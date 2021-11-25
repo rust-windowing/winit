@@ -34,6 +34,11 @@ pub static APP_DELEGATE_CLASS: Lazy<AppDelegateClass> = Lazy::new(|| unsafe {
         sel!(applicationDidFinishLaunching:),
         did_finish_launching as extern "C" fn(&Object, Sel, id),
     );
+    decl.add_method(
+        sel!(applicationWillTerminate:),
+        will_terminate as extern "C" fn(&Object, Sel, id),
+    );
+
     decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
 
     AppDelegateClass(decl.register())
@@ -74,4 +79,10 @@ extern "C" fn dealloc(this: &Object, _: Sel) {
 extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
     trace_scope!("applicationDidFinishLaunching:");
     AppState::launched(this);
+}
+
+extern "C" fn will_terminate(_this: &Object, _: Sel, _: id) {
+    trace!("Triggered `applicationWillTerminate`");
+    AppState::exit();
+    trace!("Completed `applicationWillTerminate`");
 }
