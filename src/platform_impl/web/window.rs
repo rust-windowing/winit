@@ -7,7 +7,7 @@ use crate::window::{
     CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
-use raw_window_handle::web::WebHandle;
+use raw_window_handle::WebHandle;
 
 use super::{backend, monitor, EventLoopWindowTarget};
 

@@ -1,4 +1,4 @@
-use raw_window_handle::unix::XlibHandle;
+use raw_window_handle::XlibHandle;
 use std::{
     cmp, env,
     ffi::CString,

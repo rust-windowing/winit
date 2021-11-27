@@ -1,5 +1,6 @@
 # Unreleased
 
+- Update `raw-window-handle` to `v0.4`. This is _not_ a breaking change, we still implement `HasRawWindowHandle` from `v0.3`, see [rust-windowing/raw-window-handle#74](https://github.com/rust-windowing/raw-window-handle/pull/74).
 - On X11, bump `mio` to 0.8.
 - On Android, fixed `WindowExtAndroid::config` initially returning an empty `Configuration`.
 - On Android, fixed `Window::scale_factor` and `MonitorHandle::scale_factor` initially always returning 1.0.

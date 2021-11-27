@@ -7,7 +7,7 @@ use sctk::reexports::client::Display;
 
 use sctk::reexports::calloop;
 
-use raw_window_handle::unix::WaylandHandle;
+use raw_window_handle::WaylandHandle;
 use sctk::window::{Decorations, FallbackFrame};
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};

@@ -1,4 +1,4 @@
-use raw_window_handle::{macos::MacOSHandle, RawWindowHandle};
+use raw_window_handle::{AppKitHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     f64,
@@ -1059,12 +1059,12 @@ impl UnownedWindow {
 
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let handle = MacOSHandle {
+        let handle = AppKitHandle {
             ns_window: *self.ns_window as *mut _,
             ns_view: *self.ns_view as *mut _,
-            ..MacOSHandle::empty()
+            ..AppKitHandle::empty()
         };
-        RawWindowHandle::MacOS(handle)
+        RawWindowHandle::AppKit(handle)
     }
 }
 

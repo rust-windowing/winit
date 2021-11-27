@@ -595,9 +595,9 @@ impl Window {
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
         };
-        let mut handle = raw_window_handle::android::AndroidHandle::empty();
+        let mut handle = raw_window_handle::AndroidNdkHandle::empty();
         handle.a_native_window = a_native_window;
-        raw_window_handle::RawWindowHandle::Android(handle)
+        raw_window_handle::RawWindowHandle::AndroidNdk(handle)
     }
 
     pub fn config(&self) -> Configuration {
