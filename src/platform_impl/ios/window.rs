@@ -1,4 +1,4 @@
-use raw_window_handle::{UiKitHandle, RawWindowHandle};
+use raw_window_handle::{RawWindowHandle, UiKitHandle};
 use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},
@@ -307,12 +307,10 @@ impl Inner {
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let handle = UiKitHandle {
-            ui_window: self.window as _,
-            ui_view: self.view as _,
-            ui_view_controller: self.view_controller as _,
-            ..UiKitHandle::empty()
-        };
+        let mut handle = UiKitHandle::empty();
+        handle.ui_window = self.window as _;
+        handle.ui_view = self.view as _;
+        handle.ui_view_controller = self.view_controller as _;
         RawWindowHandle::UiKit(handle)
     }
 }

@@ -1458,10 +1458,9 @@ impl UnownedWindow {
 
     #[inline]
     pub fn raw_window_handle(&self) -> XlibHandle {
-        XlibHandle {
-            window: self.xwindow,
-            display: self.xconn.display as _,
-            ..XlibHandle::empty()
-        }
+        let mut handle = XlibHandle::empty();
+        handle.window = self.xlib_window();
+        handle.display = self.xlib_display();
+        handle
     }
 }

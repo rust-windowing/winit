@@ -1059,11 +1059,9 @@ impl UnownedWindow {
 
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let handle = AppKitHandle {
-            ns_window: *self.ns_window as *mut _,
-            ns_view: *self.ns_view as *mut _,
-            ..AppKitHandle::empty()
-        };
+        let mut handle = AppKitHandle::empty();
+        handle.ns_window = *self.ns_window as *mut _;
+        handle.ns_view = *self.ns_view as *mut _;
         RawWindowHandle::AppKit(handle)
     }
 }
