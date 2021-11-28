@@ -592,7 +592,7 @@ fn mkdid(w: c_int) -> crate::event::DeviceId {
 
 #[derive(Debug)]
 struct Device {
-    name: String,
+    _name: String,
     scroll_axes: Vec<(i32, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
@@ -658,7 +658,7 @@ impl Device {
         }
 
         let mut device = Device {
-            name: name.into_owned(),
+            _name: name.into_owned(),
             scroll_axes,
             attachment: info.attachment,
         };
