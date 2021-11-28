@@ -1,14 +1,14 @@
-use std::{thread, time};
-
-use simple_logger::SimpleLogger;
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
-
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
+    use std::{thread, time};
+
+    use simple_logger::SimpleLogger;
+    use winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::WindowBuilder,
+    };
+
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
