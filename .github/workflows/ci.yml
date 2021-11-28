@@ -50,7 +50,7 @@ jobs:
     env:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
-      RUSTFLAGS: "-C debuginfo=0"
+      RUSTFLAGS: "-C debuginfo=0 --deny warnings"
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
       CMD: ${{ matrix.platform.cmd }}
