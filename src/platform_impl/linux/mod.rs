@@ -141,7 +141,7 @@ pub enum WindowId {
 }
 
 impl WindowId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         #[cfg(feature = "wayland")]
         return WindowId::Wayland(wayland::WindowId::dummy());
         #[cfg(all(not(feature = "wayland"), feature = "x11"))]
@@ -158,7 +158,7 @@ pub enum DeviceId {
 }
 
 impl DeviceId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         #[cfg(feature = "wayland")]
         return DeviceId::Wayland(wayland::DeviceId::dummy());
         #[cfg(all(not(feature = "wayland"), feature = "x11"))]

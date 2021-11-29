@@ -25,7 +25,7 @@ use winapi::{
         windowsx, winerror,
     },
     um::{
-        libloaderapi, ole2, processthreadsapi, winbase,
+        libloaderapi, mmsystem, ole2, processthreadsapi, timeapi, winbase,
         winnt::{HANDLE, LONG, LPCSTR, SHORT},
         winuser,
     },
@@ -38,7 +38,7 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
-        dpi::{become_dpi_aware, dpi_to_scale_factor, enable_non_client_dpi_scaling},
+        dpi::{become_dpi_aware, dpi_to_scale_factor},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
         monitor::{self, MonitorHandle},
@@ -86,7 +86,7 @@ lazy_static! {
 pub(crate) struct WindowData<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
-    pub file_drop_handler: Option<FileDropHandler>,
+    pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
     pub recurse_depth: Cell<u32>,
 }
@@ -217,8 +217,8 @@ impl<T: 'static> EventLoop<T> {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main;
                 }
-                winuser::TranslateMessage(&mut msg);
-                winuser::DispatchMessageW(&mut msg);
+                winuser::TranslateMessage(&msg);
+                winuser::DispatchMessageW(&msg);
 
                 if let Err(payload) = runner.take_panic_error() {
                     runner.reset_runner();
@@ -324,6 +324,22 @@ fn get_wait_thread_id() -> DWORD {
     }
 }
 
+lazy_static! {
+    static ref WAIT_PERIOD_MIN: Option<UINT> = unsafe {
+        let mut caps = mmsystem::TIMECAPS {
+            wPeriodMin: 0,
+            wPeriodMax: 0,
+        };
+        if timeapi::timeGetDevCaps(&mut caps, mem::size_of::<mmsystem::TIMECAPS>() as _)
+            == mmsystem::TIMERR_NOERROR
+        {
+            Some(caps.wPeriodMin)
+        } else {
+            None
+        }
+    };
+}
+
 fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
     unsafe {
         let mut msg: winuser::MSG;
@@ -345,15 +361,15 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
 
             if wait_until_opt.is_some() {
                 if 0 != winuser::PeekMessageW(&mut msg, ptr::null_mut(), 0, 0, winuser::PM_REMOVE) {
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
                 }
             } else {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main;
                 } else {
-                    winuser::TranslateMessage(&mut msg);
-                    winuser::DispatchMessageW(&mut msg);
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
                 }
             }
 
@@ -366,16 +382,26 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
             if let Some(wait_until) = wait_until_opt {
                 let now = Instant::now();
                 if now < wait_until {
-                    // MsgWaitForMultipleObjects tends to overshoot just a little bit. We subtract
-                    // 1 millisecond from the requested time and spinlock for the remainder to
-                    // compensate for that.
+                    // Windows' scheduler has a default accuracy of several ms. This isn't good enough for
+                    // `WaitUntil`, so we request the Windows scheduler to use a higher accuracy if possible.
+                    // If we couldn't query the timer capabilities, then we use the default resolution.
+                    if let Some(period) = *WAIT_PERIOD_MIN {
+                        timeapi::timeBeginPeriod(period);
+                    }
+                    // `MsgWaitForMultipleObjects` is bound by the granularity of the scheduler period.
+                    // Because of this, we try to reduce the requested time just enough to undershoot `wait_until`
+                    // by the smallest amount possible, and then we busy loop for the remaining time inside the
+                    // NewEvents message handler.
                     let resume_reason = winuser::MsgWaitForMultipleObjectsEx(
                         0,
                         ptr::null(),
-                        dur2timeout(wait_until - now).saturating_sub(1),
+                        dur2timeout(wait_until - now).saturating_sub(WAIT_PERIOD_MIN.unwrap_or(1)),
                         winuser::QS_ALLEVENTS,
                         winuser::MWMO_INPUTAVAILABLE,
                     );
+                    if let Some(period) = *WAIT_PERIOD_MIN {
+                        timeapi::timeEndPeriod(period);
+                    }
                     if resume_reason == winerror::WAIT_TIMEOUT {
                         winuser::PostMessageW(msg_window_id, *PROCESS_NEW_EVENTS_MSG_ID, 0, 0);
                         wait_until_opt = None;
@@ -714,8 +740,8 @@ unsafe fn flush_paint_messages<T: 'static>(
                 return;
             }
 
-            winuser::TranslateMessage(&mut msg);
-            winuser::DispatchMessageW(&mut msg);
+            winuser::TranslateMessage(&msg);
+            winuser::DispatchMessageW(&msg);
         });
         true
     } else {
@@ -763,9 +789,9 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
 }
 
 #[cfg(target_arch = "x86_64")]
-type WindowLongPtr = LONG_PTR;
+pub(crate) type WindowLongPtr = LONG_PTR;
 #[cfg(target_arch = "x86")]
-type WindowLongPtr = LONG;
+pub(crate) type WindowLongPtr = LONG;
 
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
@@ -787,23 +813,27 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
             let initdata = createstruct.lpCreateParams as LONG_PTR;
             let initdata = &mut *(initdata as *mut InitData<'_, T>);
 
-            let runner = initdata.event_loop.runner_shared.clone();
-            if let Some((win, userdata)) = runner.catch_unwind(|| (initdata.post_init)(window)) {
-                initdata.window = Some(win);
-                let userdata = Box::into_raw(Box::new(userdata));
-                winuser::SetWindowLongPtrW(
-                    window,
-                    winuser::GWL_USERDATA,
-                    userdata as WindowLongPtr,
-                );
-                userdata
-            } else {
-                return -1;
-            }
+            let result = match initdata.on_nccreate(window) {
+                Some(userdata) => {
+                    winuser::SetWindowLongPtrW(window, winuser::GWL_USERDATA, userdata as _);
+                    winuser::DefWindowProcW(window, msg, wparam, lparam)
+                }
+                None => -1, // failed to create the window
+            };
+
+            return result;
         }
         // Getting here should quite frankly be impossible,
         // but we'll make window creation fail here just in case.
         (0, winuser::WM_CREATE) => return -1,
+        (_, winuser::WM_CREATE) => {
+            let createstruct = &mut *(lparam as *mut winuser::CREATESTRUCTW);
+            let initdata = createstruct.lpCreateParams as LONG_PTR;
+            let initdata = &mut *(initdata as *mut InitData<'_, T>);
+
+            initdata.on_create();
+            return winuser::DefWindowProcW(window, msg, wparam, lparam);
+        }
         (0, _) => return winuser::DefWindowProcW(window, msg, wparam, lparam),
         _ => userdata as *mut WindowData<T>,
     };
@@ -861,11 +891,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 .lock()
                 .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
-        }
-
-        winuser::WM_NCCREATE => {
-            enable_non_client_dpi_scaling(window);
-            winuser::DefWindowProcW(window, msg, wparam, lparam)
         }
 
         winuser::WM_NCLBUTTONDOWN => {
@@ -938,7 +963,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     winuser::MonitorFromRect(&new_rect, winuser::MONITOR_DEFAULTTONULL);
                 match fullscreen {
                     Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        if new_monitor != ptr::null_mut()
+                        if !new_monitor.is_null()
                             && fullscreen_monitor
                                 .as_ref()
                                 .map(|monitor| new_monitor != monitor.inner.hmonitor())
@@ -1020,8 +1045,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
         winuser::WM_CHAR | winuser::WM_SYSCHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
             use std::char;
-            let is_high_surrogate = 0xD800 <= wparam && wparam <= 0xDBFF;
-            let is_low_surrogate = 0xDC00 <= wparam && wparam <= 0xDFFF;
+            let is_high_surrogate = (0xD800..=0xDBFF).contains(&wparam);
+            let is_low_surrogate = (0xDC00..=0xDFFF).contains(&wparam);
 
             if is_high_surrogate {
                 userdata.window_state.lock().high_surrogate = Some(wparam as u16);

@@ -19,7 +19,9 @@ use std::{
 };
 
 lazy_static! {
-    static ref CONFIG: RwLock<Configuration> = RwLock::new(Configuration::new());
+    static ref CONFIG: RwLock<Configuration> = RwLock::new(Configuration::from_asset_manager(
+        &ndk_glue::native_activity().asset_manager()
+    ));
     // If this is `Some()` a `Poll::Wake` is considered an `EventSource::Internal` with the event
     // contained in the `Option`. The event is moved outside of the `Option` replacing it with a
     // `None`.
@@ -443,7 +445,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 pub struct WindowId;
 
 impl WindowId {
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         WindowId
     }
 }
@@ -452,7 +454,7 @@ impl WindowId {
 pub struct DeviceId;
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId
     }
 }

@@ -611,7 +611,7 @@ pub struct WindowId {
 }
 
 impl WindowId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         WindowId {
             window: std::ptr::null_mut(),
         }

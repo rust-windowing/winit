@@ -38,9 +38,9 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
-        dpi::{dpi_to_scale_factor, hwnd_dpi},
+        dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
-        event_loop::{self, EventLoopWindowTarget, WindowData, DESTROY_MSG_ID},
+        event_loop::{self, EventLoopWindowTarget, WindowLongPtr, DESTROY_MSG_ID},
         icon::{self, IconType},
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
@@ -71,57 +71,7 @@ impl Window {
         // First person to remove the need for cloning here gets a cookie!
         //
         // done. you owe me -- ossi
-        unsafe {
-            let drag_and_drop = pl_attr.drag_and_drop;
-            init(w_attr, pl_attr, event_loop, |win| {
-                let file_drop_handler = if drag_and_drop {
-                    use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
-
-                    let ole_init_result = ole2::OleInitialize(ptr::null_mut());
-                    // It is ok if the initialize result is `S_FALSE` because it might happen that
-                    // multiple windows are created on the same thread.
-                    if ole_init_result == OLE_E_WRONGCOMPOBJ {
-                        panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
-                    } else if ole_init_result == RPC_E_CHANGED_MODE {
-                        panic!(
-                            "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. \
-                            Make sure other crates are not using multithreaded COM library \
-                            on the same thread or disable drag and drop support."
-                        );
-                    }
-
-                    let file_drop_runner = event_loop.runner_shared.clone();
-                    let file_drop_handler = FileDropHandler::new(
-                        win.window.0,
-                        Box::new(move |event| {
-                            if let Ok(e) = event.map_nonuser_event() {
-                                file_drop_runner.send_event(e)
-                            }
-                        }),
-                    );
-                    let handler_interface_ptr =
-                        &mut (*file_drop_handler.data).interface as LPDROPTARGET;
-
-                    assert_eq!(
-                        ole2::RegisterDragDrop(win.window.0, handler_interface_ptr),
-                        S_OK
-                    );
-                    Some(file_drop_handler)
-                } else {
-                    None
-                };
-
-                event_loop.runner_shared.register_window(win.window.0);
-
-                event_loop::WindowData {
-                    window_state: win.window_state.clone(),
-                    event_loop_runner: event_loop.runner_shared.clone(),
-                    file_drop_handler,
-                    userdata_removed: Cell::new(false),
-                    recurse_depth: Cell::new(0),
-                }
-            })
-        }
+        unsafe { init(w_attr, pl_attr, event_loop) }
     }
 
     pub fn set_title(&self, text: &str) {
@@ -455,7 +405,7 @@ impl Window {
                     // string, so add it
                     display_name.push(0);
 
-                    let mut native_video_mode = video_mode.video_mode.native_video_mode.clone();
+                    let mut native_video_mode = video_mode.video_mode.native_video_mode;
 
                     let res = unsafe {
                         winuser::ChangeDisplaySettingsExW(
@@ -726,20 +676,169 @@ unsafe impl Send for WindowWrapper {}
 pub(super) struct InitData<'a, T: 'static> {
     // inputs
     pub event_loop: &'a EventLoopWindowTarget<T>,
-    pub post_init: &'a dyn Fn(HWND) -> (Window, WindowData<T>),
+    pub attributes: WindowAttributes,
+    pub pl_attribs: PlatformSpecificWindowBuilderAttributes,
+    pub window_flags: WindowFlags,
     // outputs
     pub window: Option<Window>,
 }
 
-unsafe fn init<T, F>(
+impl<'a, T: 'static> InitData<'a, T> {
+    unsafe fn create_window(&self, window: HWND) -> Window {
+        // Register for touch events if applicable
+        {
+            let digitizer = winuser::GetSystemMetrics(winuser::SM_DIGITIZER) as u32;
+            if digitizer & winuser::NID_READY != 0 {
+                winuser::RegisterTouchWindow(window, winuser::TWF_WANTPALM);
+            }
+        }
+
+        let dpi = hwnd_dpi(window);
+        let scale_factor = dpi_to_scale_factor(dpi);
+
+        // making the window transparent
+        if self.attributes.transparent && !self.pl_attribs.no_redirection_bitmap {
+            // Empty region for the blur effect, so the window is fully transparent
+            let region = CreateRectRgn(0, 0, -1, -1);
+
+            let bb = dwmapi::DWM_BLURBEHIND {
+                dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
+                fEnable: 1,
+                hRgnBlur: region,
+                fTransitionOnMaximized: 0,
+            };
+
+            dwmapi::DwmEnableBlurBehindWindow(window, &bb);
+            DeleteObject(region as _);
+        }
+
+        // If the system theme is dark, we need to set the window theme now
+        // before we update the window flags (and possibly show the
+        // window for the first time).
+        let current_theme = try_theme(window, self.pl_attribs.preferred_theme);
+
+        let window_state = {
+            let window_state = WindowState::new(
+                &self.attributes,
+                self.pl_attribs.taskbar_icon.clone(),
+                scale_factor,
+                current_theme,
+                self.pl_attribs.preferred_theme,
+            );
+            let window_state = Arc::new(Mutex::new(window_state));
+            WindowState::set_window_flags(window_state.lock(), window, |f| *f = self.window_flags);
+            window_state
+        };
+
+        enable_non_client_dpi_scaling(window);
+
+        Window {
+            window: WindowWrapper(window),
+            window_state,
+            thread_executor: self.event_loop.create_thread_executor(),
+        }
+    }
+
+    unsafe fn create_window_data(&self, win: &Window) -> event_loop::WindowData<T> {
+        let file_drop_handler = if self.pl_attribs.drag_and_drop {
+            use winapi::shared::winerror::{OLE_E_WRONGCOMPOBJ, RPC_E_CHANGED_MODE, S_OK};
+
+            let ole_init_result = ole2::OleInitialize(ptr::null_mut());
+            // It is ok if the initialize result is `S_FALSE` because it might happen that
+            // multiple windows are created on the same thread.
+            if ole_init_result == OLE_E_WRONGCOMPOBJ {
+                panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
+            } else if ole_init_result == RPC_E_CHANGED_MODE {
+                panic!(
+                    "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. \
+                    Make sure other crates are not using multithreaded COM library \
+                    on the same thread or disable drag and drop support."
+                );
+            }
+
+            let file_drop_runner = self.event_loop.runner_shared.clone();
+            let file_drop_handler = FileDropHandler::new(
+                win.window.0,
+                Box::new(move |event| {
+                    if let Ok(e) = event.map_nonuser_event() {
+                        file_drop_runner.send_event(e)
+                    }
+                }),
+            );
+            let handler_interface_ptr = &mut (*file_drop_handler.data).interface as LPDROPTARGET;
+
+            assert_eq!(
+                ole2::RegisterDragDrop(win.window.0, handler_interface_ptr),
+                S_OK
+            );
+            Some(file_drop_handler)
+        } else {
+            None
+        };
+
+        self.event_loop.runner_shared.register_window(win.window.0);
+
+        event_loop::WindowData {
+            window_state: win.window_state.clone(),
+            event_loop_runner: self.event_loop.runner_shared.clone(),
+            _file_drop_handler: file_drop_handler,
+            userdata_removed: Cell::new(false),
+            recurse_depth: Cell::new(0),
+        }
+    }
+
+    // Returns a pointer to window user data on success.
+    // The user data will be registered for the window and can be accessed within the window event callback.
+    pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<WindowLongPtr> {
+        let runner = self.event_loop.runner_shared.clone();
+        let result = runner.catch_unwind(|| unsafe {
+            let mut window = self.create_window(window);
+            let window_data = self.create_window_data(&mut window);
+            (window, window_data)
+        });
+
+        result.map(|(win, userdata)| {
+            self.window = Some(win);
+            let userdata = Box::into_raw(Box::new(userdata));
+            userdata as _
+        })
+    }
+
+    pub unsafe fn on_create(&mut self) {
+        let win = self.window.as_mut().expect("failed window creation");
+        let attributes = self.attributes.clone();
+
+        // Set visible before setting the size to ensure the
+        // attribute is correctly applied.
+        win.set_visible(attributes.visible);
+
+        let dimensions = attributes
+            .inner_size
+            .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+        win.set_inner_size(dimensions);
+        if attributes.maximized {
+            // Need to set MAXIMIZED after setting `inner_size` as
+            // `Window::set_inner_size` changes MAXIMIZED to false.
+            win.set_maximized(true);
+        }
+
+        if attributes.fullscreen.is_some() {
+            win.set_fullscreen(attributes.fullscreen);
+            force_window_active(win.window.0);
+        }
+
+        if let Some(position) = attributes.position {
+            win.set_outer_position(position);
+        }
+    }
+}
+unsafe fn init<T>(
     attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
-    create_window_data: F,
 ) -> Result<Window, RootOsError>
 where
     T: 'static,
-    F: Fn(&mut Window) -> WindowData<T>,
 {
     let title = OsStr::new(&attributes.title)
         .encode_wide()
@@ -780,17 +879,9 @@ where
 
     let mut initdata = InitData {
         event_loop,
-        post_init: &|hwnd| {
-            let mut window = post_init(
-                WindowWrapper(hwnd),
-                attributes.clone(),
-                pl_attribs.clone(),
-                window_flags,
-                event_loop,
-            );
-            let window_data = create_window_data(&mut window);
-            (window, window_data)
-        },
+        attributes,
+        pl_attribs: pl_attribs.clone(),
+        window_flags,
         window: None,
     };
 
@@ -810,7 +901,7 @@ where
         &mut initdata as *mut _ as *mut _,
     );
 
-    // If the `post_init` callback in `InitData` panicked, then should resume panicking here
+    // If the window creation in `InitData` panicked, then should resume panicking here
     if let Err(panic_error) = event_loop.runner_shared.take_panic_error() {
         panic::resume_unwind(panic_error)
     }
@@ -822,90 +913,6 @@ where
     // If the handle is non-null, then window creation must have succeeded, which means
     // that we *must* have populated the `InitData.window` field.
     Ok(initdata.window.unwrap())
-}
-
-unsafe fn post_init<T: 'static>(
-    real_window: WindowWrapper,
-    attributes: WindowAttributes,
-    pl_attribs: PlatformSpecificWindowBuilderAttributes,
-    window_flags: WindowFlags,
-    event_loop: &EventLoopWindowTarget<T>,
-) -> Window {
-    // Register for touch events if applicable
-    {
-        let digitizer = winuser::GetSystemMetrics(winuser::SM_DIGITIZER) as u32;
-        if digitizer & winuser::NID_READY != 0 {
-            winuser::RegisterTouchWindow(real_window.0, winuser::TWF_WANTPALM);
-        }
-    }
-
-    let dpi = hwnd_dpi(real_window.0);
-    let scale_factor = dpi_to_scale_factor(dpi);
-
-    // making the window transparent
-    if attributes.transparent && !pl_attribs.no_redirection_bitmap {
-        // Empty region for the blur effect, so the window is fully transparent
-        let region = CreateRectRgn(0, 0, -1, -1);
-
-        let bb = dwmapi::DWM_BLURBEHIND {
-            dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
-            fEnable: 1,
-            hRgnBlur: region,
-            fTransitionOnMaximized: 0,
-        };
-
-        dwmapi::DwmEnableBlurBehindWindow(real_window.0, &bb);
-        DeleteObject(region as _);
-    }
-
-    // If the system theme is dark, we need to set the window theme now
-    // before we update the window flags (and possibly show the
-    // window for the first time).
-    let current_theme = try_theme(real_window.0, pl_attribs.preferred_theme);
-
-    let window_state = {
-        let window_state = WindowState::new(
-            &attributes,
-            pl_attribs.taskbar_icon,
-            scale_factor,
-            current_theme,
-            pl_attribs.preferred_theme,
-        );
-        let window_state = Arc::new(Mutex::new(window_state));
-        WindowState::set_window_flags(window_state.lock(), real_window.0, |f| *f = window_flags);
-        window_state
-    };
-
-    let win = Window {
-        window: real_window,
-        window_state,
-        thread_executor: event_loop.create_thread_executor(),
-    };
-
-    // Set visible before setting the size to ensure the
-    // attribute is correctly applied.
-    win.set_visible(attributes.visible);
-
-    let dimensions = attributes
-        .inner_size
-        .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-    win.set_inner_size(dimensions);
-    if attributes.maximized {
-        // Need to set MAXIMIZED after setting `inner_size` as
-        // `Window::set_inner_size` changes MAXIMIZED to false.
-        win.set_maximized(true);
-    }
-
-    if let Some(_) = attributes.fullscreen {
-        win.set_fullscreen(attributes.fullscreen);
-        force_window_active(win.window.0);
-    }
-
-    if let Some(position) = attributes.position {
-        win.set_outer_position(position);
-    }
-
-    win
 }
 
 unsafe fn register_window_class<T: 'static>(
@@ -986,7 +993,7 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
     TASKBAR_LIST.with(|task_bar_list_ptr| {
         let mut task_bar_list = task_bar_list_ptr.get();
 
-        if task_bar_list == ptr::null_mut() {
+        if task_bar_list.is_null() {
             use winapi::{shared::winerror::S_OK, Interface};
 
             let hr = combaseapi::CoCreateInstance(

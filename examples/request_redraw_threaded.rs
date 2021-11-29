@@ -7,6 +7,7 @@ use winit::{
     window::WindowBuilder,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
@@ -37,4 +38,9 @@ fn main() {
             _ => (),
         }
     });
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    unimplemented!() // `Window` can't be sent between threads
 }

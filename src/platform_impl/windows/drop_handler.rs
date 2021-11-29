@@ -181,7 +181,7 @@ impl FileDropHandler {
             },
         };
 
-        let mut drop_format = FORMATETC {
+        let drop_format = FORMATETC {
             cfFormat: CF_HDROP as CLIPFORMAT,
             ptd: ptr::null(),
             dwAspect: DVASPECT_CONTENT,
@@ -190,7 +190,7 @@ impl FileDropHandler {
         };
 
         let mut medium = std::mem::zeroed();
-        let get_data_result = (*data_obj).GetData(&mut drop_format, &mut medium);
+        let get_data_result = (*data_obj).GetData(&drop_format, &mut medium);
         if SUCCEEDED(get_data_result) {
             let hglobal = (*medium.u).hGlobal();
             let hdrop = (*hglobal) as shellapi::HDROP;
@@ -213,15 +213,15 @@ impl FileDropHandler {
                 callback(OsString::from_wide(&path_buf[0..character_count]).into());
             }
 
-            return Some(hdrop);
+            Some(hdrop)
         } else if get_data_result == DV_E_FORMATETC {
             // If the dropped item is not a file this error will occur.
             // In this case it is OK to return without taking further action.
             debug!("Error occured while processing dropped/hovered item: item is not a file.");
-            return None;
+            None
         } else {
             debug!("Unexpected error occured while processing dropped/hovered item.");
-            return None;
+            None
         }
     }
 }

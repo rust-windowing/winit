@@ -30,7 +30,7 @@ where
 }
 
 pub fn wchar_to_string(wchar: &[wchar_t]) -> String {
-    String::from_utf16_lossy(wchar).to_string()
+    String::from_utf16_lossy(wchar)
 }
 
 pub fn wchar_ptr_to_string(wchar: *const wchar_t) -> String {
