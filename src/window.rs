@@ -799,7 +799,6 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
-    /// - **Web:** This uses the pointer lock API
     /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
