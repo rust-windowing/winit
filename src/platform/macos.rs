@@ -241,14 +241,10 @@ pub trait EventLoopWindowTargetExtMacOS {
 
 impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
     fn hide_application(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hide: 0] }
+        self.p.hide_application()
     }
 
     fn hide_other_applications(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hideOtherApplications: 0] }
+        self.p.hide_other_applications()
     }
 }

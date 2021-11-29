@@ -85,6 +85,20 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 }
 
+impl<T> EventLoopWindowTarget<T> {
+    pub(crate) fn hide_application(&self) {
+        let cls = objc::runtime::Class::get("NSApplication").unwrap();
+        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+        unsafe { msg_send![app, hide: 0] }
+    }
+
+    pub(crate) fn hide_other_applications(&self) {
+        let cls = objc::runtime::Class::get("NSApplication").unwrap();
+        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+        unsafe { msg_send![app, hideOtherApplications: 0] }
+    }
+}
+
 pub struct EventLoop<T: 'static> {
     pub(crate) delegate: IdRef,
 

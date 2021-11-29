@@ -112,9 +112,7 @@ impl WindowExtWindows for Window {
 
     #[inline]
     fn set_enable(&self, enabled: bool) {
-        unsafe {
-            winapi::um::winuser::EnableWindow(self.hwnd() as _, enabled as _);
-        }
+        self.window.set_enable(enabled)
     }
 
     #[inline]

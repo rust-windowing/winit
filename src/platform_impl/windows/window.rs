@@ -567,6 +567,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_enable(&self, enabled: bool) {
+        unsafe { winuser::EnableWindow(self.hwnd() as _, enabled as _) };
+    }
+
+    #[inline]
     pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         if let Some(ref taskbar_icon) = taskbar_icon {
             taskbar_icon
