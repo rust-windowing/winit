@@ -7,7 +7,7 @@ use sctk::reexports::client::Display;
 
 use sctk::reexports::calloop;
 
-use raw_window_handle::unix::WaylandHandle;
+use raw_window_handle::WaylandHandle;
 use sctk::window::{Decorations, FallbackFrame};
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
@@ -488,14 +488,10 @@ impl Window {
 
     #[inline]
     pub fn raw_window_handle(&self) -> WaylandHandle {
-        let display = self.display.get_display_ptr() as *mut _;
-        let surface = self.surface.as_ref().c_ptr() as *mut _;
-
-        WaylandHandle {
-            display,
-            surface,
-            ..WaylandHandle::empty()
-        }
+        let mut handle = WaylandHandle::empty();
+        handle.display = self.display.get_display_ptr() as *mut _;
+        handle.surface = self.surface.as_ref().c_ptr() as *mut _;
+        handle
     }
 
     #[inline]
