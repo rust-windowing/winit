@@ -679,8 +679,15 @@ impl UnownedWindow {
                         .expect("failed to set video mode");
                 }
 
-                let window_position = self.outer_position_physical();
-                self.shared_state.lock().restore_position = Some(window_position);
+                {
+                    let window_position = self.outer_position_physical();
+                    let mut ss = self.shared_state.lock();
+                    // Don't overwrite the restore position if we're switching between
+                    // fullscreen modes.
+                    if ss.restore_position.is_none() {
+                        ss.restore_position = Some(window_position);
+                    }
+                }
                 let monitor_origin: (i32, i32) = monitor.position().into();
                 let mut pending: XcbPendingCommands = self
                     .set_position_inner(monitor_origin.0, monitor_origin.1)
