@@ -1,0 +1,50 @@
+name: Integration Tests
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '**.rs'
+      - '**.toml'
+      - '.github/workflows/ci.yml'
+  push:
+    branches: [master]
+    paths:
+      - '**.rs'
+      - '**.toml'
+      - '.github/workflows/ci.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install x11 dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install xorg xorg-dev libxcb-xinput0 libxcb-xkb1 libxkbcommon-x11-0 ninja-build
+    - name: Install meson
+      run: |
+        pip3 install --user meson
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+    - name: Install rust
+      run: |
+        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    - name: Build x11 module
+      run: |
+        cd it/x11-module
+        meson build
+        meson install -C build
+    - name: Build tests
+      run: |
+        cd it
+        cargo build
+    - name: Run tests
+      run: |
+        cd it
+        export X_PATH=/usr/lib/xorg/Xorg
+        cargo run
