@@ -1,5 +1,6 @@
 # Unreleased
 
+- Fix linking to the `ColorSync` framework on macOS 10.7, and in newer Rust versions.
 - On Web, implement cursor grabbing through the pointer lock API.
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
 - On macOS, fix Pinyin IME input by reverting a change that intended to improve IME.
