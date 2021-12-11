@@ -1,3 +1,7 @@
+# Unreleased
+
+- On X11, add mappings for numpad comma, numpad enter, numlock and pause.
+
 # 0.26.0 (2021-12-01)
 
 - Update `raw-window-handle` to `v0.4`. This is _not_ a breaking change, we still implement `HasRawWindowHandle` from `v0.3`, see [rust-windowing/raw-window-handle#74](https://github.com/rust-windowing/raw-window-handle/pull/74). Note that you might have to run `cargo update -p raw-window-handle` after upgrading.
