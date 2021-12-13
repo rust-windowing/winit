@@ -597,6 +597,21 @@ struct Device {
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
     attachment: c_int,
+    stylus: Option<StylusInfo>
+}
+
+#[derive(Debug, Copy, Clone)]
+struct ValuatorInfo {
+    axis: i32,
+    min: f64,
+    max: f64,
+}
+
+#[derive(Debug, Copy, Clone)]
+struct StylusInfo {
+    pressure: ValuatorInfo,
+    tilt_x: Option<ValuatorInfo>,
+    tilt_y: Option<ValuatorInfo>
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -618,6 +633,16 @@ impl Device {
         let mut scroll_axes = Vec::new();
 
         let wt = get_xtarget(&el.target);
+
+        let mut has_pressure = false;
+        let pressure_atom = unsafe { wt.xconn.get_atom_unchecked(b"Abs Pressure\0") };
+        let tilt_x_atom = unsafe { wt.xconn.get_atom_unchecked(b"Abs Tilt X\0") };
+        let tilt_y_atom = unsafe { wt.xconn.get_atom_unchecked(b"Abs Tilt Y\0") };
+        let mut stylus = StylusInfo {
+            pressure: ValuatorInfo { min: 0., max: 0., axis: 0 },
+            tilt_x: None,
+            tilt_y: None,
+        };
 
         if Device::physical_device(info) {
             // Register for global raw events
@@ -651,7 +676,21 @@ impl Device {
                                 position: 0.0,
                             },
                         ));
-                    }
+                    },
+                    ffi::XIValuatorClass => {
+                        let info = unsafe {
+                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
+                        };
+                        let valuator_info = ValuatorInfo{ axis: info.number, min: info.min, max: info.max };
+                        if info.label == pressure_atom {
+                            stylus.pressure = valuator_info;
+                            has_pressure = true;
+                        } else if info.label == tilt_x_atom {
+                            stylus.tilt_x = Some(valuator_info);
+                        } else if info.label == tilt_y_atom {
+                            stylus.tilt_y = Some(valuator_info);
+                        }
+                    },
                     _ => {}
                 }
             }
@@ -661,6 +700,7 @@ impl Device {
             _name: name.into_owned(),
             scroll_axes,
             attachment: info.attachment,
+            stylus: if has_pressure { Some(stylus) } else { None }
         };
         device.reset_scroll_position(info);
         device
