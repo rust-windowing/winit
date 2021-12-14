@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
 - Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.
+- On X11, create windows with a parent window via `WindowBuilder::with_x11_parent()`.
 
 # 0.26.1 (2022-01-05)
 
