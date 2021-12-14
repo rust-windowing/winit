@@ -331,6 +331,8 @@ pub trait WindowBuilderExtUnix {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
     #[cfg(feature = "x11")]
     fn with_x11_screen(self, screen_id: i32) -> Self;
+    #[cfg(feature = "x11")]
+    fn with_x11_parent(self, parent_id: u64) -> Self;
 
     /// Build window with `WM_CLASS` hint; defaults to the name of the binary. Only relevant on X11.
     #[cfg(feature = "x11")]
@@ -397,6 +399,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     #[cfg(feature = "x11")]
     fn with_x11_screen(mut self, screen_id: i32) -> Self {
         self.platform_specific.screen_id = Some(screen_id);
+        self
+    }
+
+    #[inline]
+    #[cfg(feature = "x11")]
+    fn with_x11_parent(mut self, parent_id: u64) -> Self {
+        self.platform_specific.parent_id = Some(parent_id);
         self
     }
 
