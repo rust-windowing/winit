@@ -130,6 +130,7 @@ If your PR makes notable changes to Winit's features, please update this section
 
 ### Unix
 * Window urgency
+* Setting the X11 parent window
 * X11 Window Class
 * X11 Override Redirect Flag
 * GTK Theme Variant
