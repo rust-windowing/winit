@@ -35,7 +35,7 @@ fn main() {
         if let Event::WindowEvent { event, .. } = event {
             use winit::event::WindowEvent::*;
             match event {
-                CloseRequested => *control_flow = ControlFlow::Exit,
+                CloseRequested => *control_flow = ControlFlow::Exit(0),
                 DroppedFile(path) => {
                     window.set_window_icon(Some(load_icon(&path)));
                 }

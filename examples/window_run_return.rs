@@ -45,7 +45,7 @@ fn main() {
                     quit = true;
                 }
                 Event::MainEventsCleared => {
-                    *control_flow = ControlFlow::Exit;
+                    *control_flow = ControlFlow::Exit(0);
                 }
                 _ => (),
             }

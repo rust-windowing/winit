@@ -21,7 +21,7 @@ fn main() {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = ControlFlow::Exit,
+            } => *control_flow = ControlFlow::Exit(0),
 
             // Keyboard input event to handle minimize via a hotkey
             Event::WindowEvent {

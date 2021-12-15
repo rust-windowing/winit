@@ -148,7 +148,7 @@ fn main() {
     event_loop.run(move |event, _event_loop, control_flow| {
         *control_flow = match !window_senders.is_empty() {
             true => ControlFlow::Wait,
-            false => ControlFlow::Exit,
+            false => ControlFlow::Exit(0),
         };
         match event {
             Event::WindowEvent { event, window_id } => match event {

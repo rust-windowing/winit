@@ -22,7 +22,7 @@ fn main() {
             eprintln!("Switch which window is to be dragged by pressing \"x\".")
         }
         Event::WindowEvent { event, window_id } => match event {
-            WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+            WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit(0),
             WindowEvent::MouseInput {
                 state: ElementState::Pressed,
                 button: MouseButton::Left,

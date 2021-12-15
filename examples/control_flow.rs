@@ -88,7 +88,7 @@ fn main() {
                     window.request_redraw();
                 }
                 if close_requested {
-                    *control_flow = ControlFlow::Exit;
+                    *control_flow = ControlFlow::Exit(0);
                 }
             }
             Event::RedrawRequested(_window_id) => {}

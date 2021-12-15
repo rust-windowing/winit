@@ -30,7 +30,7 @@ fn main() {
                         windows.remove(&window_id);
 
                         if windows.is_empty() {
-                            *control_flow = ControlFlow::Exit;
+                            *control_flow = ControlFlow::Exit(0);
                         }
                     }
                     WindowEvent::KeyboardInput {

@@ -101,7 +101,7 @@ fn main() {
                         window.set_minimized(minimized);
                     }
                     VirtualKeyCode::Q => {
-                        *control_flow = ControlFlow::Exit;
+                        *control_flow = ControlFlow::Exit(0);
                     }
                     VirtualKeyCode::V => {
                         visible = !visible;
@@ -118,7 +118,7 @@ fn main() {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            } if window_id == window.id() => *control_flow = ControlFlow::Exit(0),
             _ => (),
         }
     });
