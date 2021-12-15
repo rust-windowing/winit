@@ -87,8 +87,9 @@ pub enum ControlFlow {
     WaitUntil(Instant),
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `Exit`, and any future attempts to do so will result
-    /// in the `control_flow` parameter being reset to `Exit`.
-    Exit,
+    /// in the `control_flow` parameter being reset to `Exit`. The contained number will be used as
+    /// exit code, if the platform supports exiting with one.
+    Exit(i32),
 }
 
 impl Default for ControlFlow {

@@ -655,7 +655,7 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run_return<F>(&mut self, callback: F)
+    pub fn run_return<F>(&mut self, callback: F) -> i32
     where
         F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
@@ -743,8 +743,9 @@ fn sticky_exit_callback<T, F>(
 {
     // make ControlFlow::Exit sticky by providing a dummy
     // control flow reference if it is already Exit.
-    let mut dummy = ControlFlow::Exit;
-    let cf = if *control_flow == ControlFlow::Exit {
+    let mut dummy;
+    let cf = if let ControlFlow::Exit(code) = *control_flow {
+        dummy = ControlFlow::Exit(code);
         &mut dummy
     } else {
         control_flow

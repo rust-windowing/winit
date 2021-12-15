@@ -206,11 +206,11 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
     {
-        self.run_return(callback);
-        process::exit(0)
+        let exit_code = self.run_return(callback);
+        process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F)
+    pub fn run_return<F>(&mut self, mut callback: F) -> i32
     where
         F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -235,7 +235,9 @@ impl<T: 'static> EventLoop<T> {
         // really an option. Instead we inform that the event loop got destroyed. We may
         // communicate an error that something was terminated, but winit doesn't provide us
         // with an API to do that via some event.
-        loop {
+        // Still, we set the exit code as 1 (non-zero) to inform at least about something
+        // "unusual".
+        let exit_code = loop {
             // Handle pending user events. We don't need back buffer, since we can't dispatch
             // user events indirectly via callback to the user.
             for user_event in pending_user_events.borrow_mut().drain(..) {
@@ -434,17 +436,17 @@ impl<T: 'static> EventLoop<T> {
                 if let Ok(dispatched) = queue.dispatch_pending(state, |_, _, _| unimplemented!()) {
                     dispatched > 0
                 } else {
-                    break;
+                    break 1;
                 }
             };
 
             match control_flow {
-                ControlFlow::Exit => break,
+                ControlFlow::Exit(code) => break code,
                 ControlFlow::Poll => {
                     // Non-blocking dispatch.
                     let timeout = Duration::from_millis(0);
                     if self.loop_dispatch(Some(timeout)).is_err() {
-                        break;
+                        break 1;
                     }
 
                     callback(
@@ -461,7 +463,7 @@ impl<T: 'static> EventLoop<T> {
                     };
 
                     if self.loop_dispatch(timeout).is_err() {
-                        break;
+                        break 1;
                     }
 
                     callback(
@@ -484,7 +486,7 @@ impl<T: 'static> EventLoop<T> {
                     };
 
                     if self.loop_dispatch(Some(duration)).is_err() {
-                        break;
+                        break 1;
                     }
 
                     let now = Instant::now();
@@ -510,9 +512,10 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
             }
-        }
+        };
 
         callback(Event::LoopDestroyed, &self.window_target, &mut control_flow);
+        exit_code
     }
 
     #[inline]
