@@ -67,7 +67,9 @@
 //!             ..
 //!         } => {
 //!             println!("The close button was pressed; stopping");
-//!             *control_flow = ControlFlow::Exit
+//!             // The number contained by the exit variant determines which exit code the
+//!             // application will have where that's sensible.
+//!             *control_flow = ControlFlow::Exit(0);
 //!         },
 //!         Event::MainEventsCleared => {
 //!             // Application update code.

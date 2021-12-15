@@ -32,7 +32,7 @@ pub use crate::icon::{BadIcon, Icon};
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
-///         } => *control_flow = ControlFlow::Exit,
+///         } => *control_flow = ControlFlow::Exit(0),
 ///         _ => (),
 ///     }
 /// });
