@@ -88,7 +88,7 @@ pub enum ControlFlow {
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `Exit`, and any future attempts to do so will result
     /// in the `control_flow` parameter being reset to `Exit`. The contained number will be used as
-    /// exit code, if the platform supports exiting with one.
+    /// exit code, if the platform supports that (this means _not_ ios, android and wasm32).
     Exit(i32),
 }
 
