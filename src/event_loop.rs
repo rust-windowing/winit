@@ -87,9 +87,11 @@ pub enum ControlFlow {
     WaitUntil(Instant),
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `Exit`, and any future attempts to do so will result
-    /// in the `control_flow` parameter being reset to `Exit`. The contained number will be used as
-    /// exit code, if the platform supports that (this means _not_ ios, android and wasm32).
-    Exit(i32),
+    /// in the `control_flow` parameter being reset to `Exit`.
+    /// The contained number will be used as exit code, if the platform supports that (this
+    /// _excludes_ ios, android and wasm32), it's an [`u8`] to prevent some weird surprises as
+    /// described in [`std::process::exit`].
+    Exit(u8),
 }
 
 impl Default for ControlFlow {

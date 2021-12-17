@@ -655,7 +655,7 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
+    pub fn run_return<F>(&mut self, callback: F) -> u8
     where
         F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {

@@ -258,7 +258,7 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F) -> i32
+    pub fn run_return<F>(&mut self, mut callback: F) -> u8
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
@@ -391,7 +391,7 @@ impl<T: 'static> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let exit_code = self.run_return(callback);
-        ::std::process::exit(exit_code);
+        ::std::process::exit(i32::from(exit_code));
     }
 
     fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)
