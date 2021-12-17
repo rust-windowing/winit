@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
+- Add a value to the `Exit` variant of `ControlFlow` which controls the exit code after running.
 
 # 0.26.0 (2021-12-01)
 
