@@ -34,6 +34,11 @@ pub trait EventLoopExtRunReturn {
     /// underlying OS APIs, which cannot be hidden by `winit` without severe stability repercussions.
     ///
     /// You are strongly encouraged to use `run`, unless the use of this is absolutely necessary.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Unix-alikes** (**X11** or **Wayland**): This function returns `1` upon disconnection from
+    ///   the display server.
     fn run_return<F>(&mut self, event_handler: F) -> u8
     where
         F: FnMut(
