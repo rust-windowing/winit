@@ -84,13 +84,13 @@ impl<T: 'static> Runner<T> {
     }
 
     fn handle_single_event(&mut self, event: Event<'_, T>, control: &mut root::ControlFlow) {
-        let is_closed = *control == root::ControlFlow::Exit;
+        let is_closed = matches!(*control, root::ControlFlow::Exit(_));
 
         (self.event_handler)(event, control);
 
         // Maintain closed state, even if the callback changes it
         if is_closed {
-            *control = root::ControlFlow::Exit;
+            *control = root::ControlFlow::Exit(0);
         }
     }
 }
@@ -369,7 +369,7 @@ impl<T: 'static> Shared<T> {
     }
 
     fn handle_unload(&self) {
-        self.apply_control_flow(root::ControlFlow::Exit);
+        self.apply_control_flow(root::ControlFlow::Exit(0));
         let mut control = self.current_control_flow();
         // We don't call `handle_loop_destroyed` here because we don't need to
         // perform cleanup when the web browser is going to destroy the page.
@@ -381,7 +381,7 @@ impl<T: 'static> Shared<T> {
     // It should only ever be called from `scale_changed`.
     fn handle_single_event_sync(&self, event: Event<'_, T>, control: &mut root::ControlFlow) {
         if self.is_closed() {
-            *control = root::ControlFlow::Exit;
+            *control = root::ControlFlow::Exit(0);
         }
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
@@ -396,7 +396,7 @@ impl<T: 'static> Shared<T> {
     // It should only ever be called from `run_until_cleared` and `scale_changed`.
     fn handle_event(&self, event: Event<'static, T>, control: &mut root::ControlFlow) {
         if self.is_closed() {
-            *control = root::ControlFlow::Exit;
+            *control = root::ControlFlow::Exit(0);
         }
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
@@ -409,7 +409,7 @@ impl<T: 'static> Shared<T> {
             RunnerEnum::Destroyed => return,
         }
 
-        let is_closed = *control == root::ControlFlow::Exit;
+        let is_closed = matches!(*control, root::ControlFlow::Exit(_));
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
@@ -456,7 +456,7 @@ impl<T: 'static> Shared<T> {
                     ),
                 }
             }
-            root::ControlFlow::Exit => State::Exit,
+            root::ControlFlow::Exit(_) => State::Exit,
         };
 
         match *self.0.runner.borrow_mut() {
@@ -514,7 +514,7 @@ impl<T: 'static> Shared<T> {
         match *self.0.runner.borrow() {
             RunnerEnum::Running(ref runner) => runner.state.control_flow(),
             RunnerEnum::Pending => root::ControlFlow::Poll,
-            RunnerEnum::Destroyed => root::ControlFlow::Exit,
+            RunnerEnum::Destroyed => root::ControlFlow::Exit(0),
         }
     }
 }
