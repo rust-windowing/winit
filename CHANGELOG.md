@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
+- On Windows, reversed horizontal scrolling in `WindowEvent::MouseWheel` to match the direction of vertical scrolling.
 
 # 0.26.0 (2021-12-01)
 
