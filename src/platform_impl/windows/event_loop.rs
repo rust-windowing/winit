@@ -1200,7 +1200,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
-            let value = value as f32 / winuser::WHEEL_DELTA as f32;
+            let value = -value as f32 / winuser::WHEEL_DELTA as f32;
 
             update_modifiers(window, userdata);
 
