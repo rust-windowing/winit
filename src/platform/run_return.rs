@@ -22,8 +22,7 @@ pub trait EventLoopExtRunReturn {
     /// Initializes the `winit` event loop.
     ///
     /// Unlike `run`, this function accepts non-`'static` (i.e. non-`move`) closures and returns
-    /// control flow to the caller when `control_flow` is set to `ControlFlow::Exit`, where its
-    /// content representing the exit code is the return value.
+    /// control flow to the caller when `control_flow` is set to `ControlFlow::Exit`.
     ///
     /// # Caveats
     /// Despite its appearance at first glance, this is *not* a perfect replacement for
@@ -39,7 +38,7 @@ pub trait EventLoopExtRunReturn {
     ///
     /// - **Unix-alikes** (**X11** or **Wayland**): This function returns `1` upon disconnection from
     ///   the display server.
-    fn run_return<F>(&mut self, event_handler: F) -> u8
+    fn run_return<F>(&mut self, event_handler: F) -> i32
     where
         F: FnMut(
             Event<'_, Self::UserEvent>,
@@ -51,7 +50,7 @@ pub trait EventLoopExtRunReturn {
 impl<T> EventLoopExtRunReturn for EventLoop<T> {
     type UserEvent = T;
 
-    fn run_return<F>(&mut self, event_handler: F) -> u8
+    fn run_return<F>(&mut self, event_handler: F) -> i32
     where
         F: FnMut(
             Event<'_, Self::UserEvent>,

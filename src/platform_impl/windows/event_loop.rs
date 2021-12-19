@@ -189,10 +189,10 @@ impl<T: 'static> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         let exit_code = self.run_return(event_handler);
-        ::std::process::exit(i32::from(exit_code));
+        ::std::process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F) -> u8
+    pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {

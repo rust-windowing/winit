@@ -207,10 +207,10 @@ impl<T: 'static> EventLoop<T> {
         F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
     {
         let exit_code = self.run_return(callback);
-        process::exit(i32::from(exit_code));
+        process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F) -> u8
+    pub fn run_return<F>(&mut self, mut callback: F) -> i32
     where
         F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
