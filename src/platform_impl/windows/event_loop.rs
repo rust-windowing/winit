@@ -893,6 +893,19 @@ unsafe fn public_window_callback_inner<T: 'static>(
             0
         }
 
+        winuser::WM_ENTERIDLE => {
+            let mut msg = mem::zeroed();
+            winuser::PeekMessageW(&mut msg, window, 0, 0, winuser::PM_NOREMOVE);
+            match msg.message {
+                winuser::WM_NULL | winuser::WM_PAINT => {
+                    userdata.send_event(Event::MainEventsCleared);
+                    winuser::PostMessageW(window, winuser::WM_ENTERIDLE, 0, 0);
+                }
+                _ => {}
+            }
+            0
+        }
+
         winuser::WM_NCLBUTTONDOWN => {
             if wparam == winuser::HTCAPTION as _ {
                 winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, lparam);
