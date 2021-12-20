@@ -441,7 +441,7 @@ impl<T: 'static> EventLoop<T> {
             };
 
             match control_flow {
-                ControlFlow::Exit(code) => break code,
+                ControlFlow::ExitWithCode(code) => break code,
                 ControlFlow::Poll => {
                     // Non-blocking dispatch.
                     let timeout = Duration::from_millis(0);

@@ -329,7 +329,7 @@ impl<T: 'static> EventLoop<T> {
             let (deadline, timeout);
 
             match control_flow {
-                ControlFlow::Exit(code) => break code,
+                ControlFlow::ExitWithCode(code) => break code,
                 ControlFlow::Poll => {
                     cause = StartCause::Poll;
                     deadline = None;

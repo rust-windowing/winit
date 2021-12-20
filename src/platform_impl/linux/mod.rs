@@ -744,8 +744,8 @@ fn sticky_exit_callback<T, F>(
     // make ControlFlow::Exit sticky by providing a dummy
     // control flow reference if it is already Exit.
     let mut dummy;
-    let cf = if let ControlFlow::Exit(code) = *control_flow {
-        dummy = ControlFlow::Exit(code);
+    let cf = if let ControlFlow::ExitWithCode(code) = *control_flow {
+        dummy = ControlFlow::ExitWithCode(code);
         &mut dummy
     } else {
         control_flow
