@@ -225,7 +225,7 @@ impl<T: 'static> EventLoop<T> {
                     panic::resume_unwind(payload);
                 }
 
-                if matches!(runner.control_flow(), ControlFlow::Exit(_))
+                if matches!(runner.control_flow(), ControlFlow::ExitWithCode(_))
                     && !runner.handling_events()
                 {
                     break 'main;
@@ -236,7 +236,7 @@ impl<T: 'static> EventLoop<T> {
         unsafe {
             runner.loop_destroyed();
         }
-        let exit_code = if let ControlFlow::Exit(code) = runner.control_flow() {
+        let exit_code = if let ControlFlow::ExitWithCode(code) = runner.control_flow() {
             code
         } else {
             // we can't know what exactly the user wanted to return, so just assume 0
@@ -773,7 +773,7 @@ unsafe fn process_control_flow<T: 'static>(runner: &EventLoopRunner<T>) {
                 Box::into_raw(WaitUntilInstantBox::new(until)) as LPARAM,
             );
         }
-        ControlFlow::Exit(_) => (),
+        ControlFlow::ExitWithCode(_) => (),
     }
 }
 

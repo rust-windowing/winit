@@ -241,8 +241,8 @@ impl<T> EventLoopRunner<T> {
             let mut event_handler = self.event_handler.take()
                 .expect("either event handler is re-entrant (likely), or no event handler is registered (very unlikely)");
 
-            if let ControlFlow::Exit(code) = control_flow  {
-                event_handler(event, &mut ControlFlow::Exit(code));
+            if let ControlFlow::ExitWithCode(code) = control_flow  {
+                event_handler(event, &mut ControlFlow::ExitWithCode(code));
             } else {
                 event_handler(event, &mut control_flow);
             }
@@ -372,7 +372,7 @@ impl<T> EventLoopRunner<T> {
         let start_cause = match (init, self.control_flow()) {
             (true, _) => StartCause::Init,
             (false, ControlFlow::Poll) => StartCause::Poll,
-            (false, ControlFlow::Exit(_)) | (false, ControlFlow::Wait) => {
+            (false, ControlFlow::ExitWithCode(_)) | (false, ControlFlow::Wait) => {
                 StartCause::WaitCancelled {
                     requested_resume: None,
                     start: self.last_events_cleared.get(),
