@@ -91,7 +91,12 @@ pub enum ControlFlow {
     /// exit code, if the platform supports that (this _excludes_ ios, android and wasm32). All
     /// platform-specific caveats as described in [`std::process::exit`] apply, which is used under
     /// the hood for this.
-    Exit(i32),
+    ExitWithCode(i32),
+}
+
+impl ControlFlow {
+    /// Alias for [`ControlFlow::ExitWithCode`]`(0)`.
+    pub const Exit: Self = Self::ExitWithCode(0);
 }
 
 impl Default for ControlFlow {
