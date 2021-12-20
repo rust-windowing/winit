@@ -21,7 +21,7 @@ fn main() {
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit(0),
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
@@ -33,7 +33,7 @@ fn main() {
                 } => {
                     use winit::event::VirtualKeyCode::*;
                     match key {
-                        Escape => *control_flow = ControlFlow::Exit(0),
+                        Escape => *control_flow = ControlFlow::Exit,
                         G => window.set_cursor_grab(!modifiers.shift()).unwrap(),
                         H => window.set_cursor_visible(modifiers.shift()),
                         _ => (),

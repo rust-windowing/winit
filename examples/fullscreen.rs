@@ -36,7 +36,7 @@ fn main() {
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit(0),
+                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
@@ -46,7 +46,7 @@ fn main() {
                         },
                     ..
                 } => match (virtual_code, state) {
-                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit(0),
+                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
                     (VirtualKeyCode::F, ElementState::Pressed) => {
                         if window.fullscreen().is_some() {
                             window.set_fullscreen(None);

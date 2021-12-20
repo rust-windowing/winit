@@ -42,7 +42,7 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                *control_flow = ControlFlow::Exit(0);
+                *control_flow = ControlFlow::Exit;
                 return;
             }
             _ => (),

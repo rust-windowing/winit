@@ -63,7 +63,7 @@ fn main() {
                                     // event loop (i.e. if it's a multi-window application), you need to
                                     // drop the window. That closes it, and results in `Destroyed` being
                                     // sent.
-                                    *control_flow = ControlFlow::Exit(0);
+                                    *control_flow = ControlFlow::Exit;
                                 }
                             }
                             N => {
