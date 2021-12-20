@@ -96,6 +96,7 @@ pub enum ControlFlow {
 
 impl ControlFlow {
     /// Alias for [`ControlFlow::ExitWithCode`]`(0)`.
+    #[allow(non_upper_case_globals)]
     pub const Exit: Self = Self::ExitWithCode(0);
 }
 
