@@ -743,15 +743,11 @@ fn sticky_exit_callback<T, F>(
 {
     // make ControlFlow::Exit sticky by providing a dummy
     // control flow reference if it is already Exit.
-    let mut dummy;
-    let cf = if let ControlFlow::ExitWithCode(code) = *control_flow {
-        dummy = ControlFlow::ExitWithCode(code);
-        &mut dummy
+    if let ControlFlow::ExitWithCode(code) = *control_flow {
+        callback(evt, target, &mut ControlFlow::ExitWithCode(code))
     } else {
-        control_flow
-    };
-    // user callback
-    callback(evt, target, cf)
+        callback(evt, target, control_flow)
+    }
 }
 
 fn assert_is_main_thread(suggested_method: &str) {

@@ -209,13 +209,13 @@ impl<T: 'static> EventLoop<T> {
 
         let runner = &self.window_target.p.runner_shared;
 
-        unsafe {
+        let exit_code = unsafe {
             let mut msg = mem::zeroed();
 
             runner.poll();
             'main: loop {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
-                    break 'main;
+                    break 'main 0;
                 }
                 winuser::TranslateMessage(&msg);
                 winuser::DispatchMessageW(&msg);
@@ -225,23 +225,17 @@ impl<T: 'static> EventLoop<T> {
                     panic::resume_unwind(payload);
                 }
 
-                if matches!(runner.control_flow(), ControlFlow::ExitWithCode(_))
-                    && !runner.handling_events()
-                {
-                    break 'main;
+                if let ControlFlow::ExitWithCode(code) = runner.control_flow() {
+                    if !runner.handling_events() {
+                        break 'main code;
+                    }
                 }
             }
-        }
+        };
 
         unsafe {
             runner.loop_destroyed();
         }
-        let exit_code = if let ControlFlow::ExitWithCode(code) = runner.control_flow() {
-            code
-        } else {
-            // we can't know what exactly the user wanted to return, so just assume 0
-            0
-        };
 
         runner.reset_runner();
         exit_code
