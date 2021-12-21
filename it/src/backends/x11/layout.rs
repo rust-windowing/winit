@@ -38,17 +38,25 @@ const KEYPAD: u8 = 3;
 const FOUR_LEVEL: u8 = 4;
 const FOUR_LEVEL_SEMIALPHABETIC: u8 = 5;
 
+// The number of types we actually use
 const NUM_TYPES: u8 = FOUR_LEVEL_SEMIALPHABETIC - ONE_LEVEL + 1;
-const NUM_LEVELS: usize = 15;
+// The total number of types we configure. Over the lifetime of the X server, the number
+// of types must never decrease. Therefore we have to use a large value here and configure
+// dummy types.
+const TOTAL_NUM_TYPES: u8 = 32;
+const NUM_LEVELS: usize = 15 + (TOTAL_NUM_TYPES - NUM_TYPES) as usize;
 
 pub(super) fn set_names(
     xkb: &XcbXkb,
     c: &XConnection,
     slave: ffi::xcb_input_device_id_t,
 ) -> ffi::xcb_void_cookie_t {
-    let mut levels_per_type: [u8; NUM_TYPES as usize] = [1, 2, 2, 2, 4, 4];
+    let mut levels_per_type = vec![1, 2, 2, 2, 4, 4];
+    for _ in NUM_TYPES..TOTAL_NUM_TYPES {
+        levels_per_type.push(1);
+    }
     let mut level_names: [u32; NUM_LEVELS] = [0; NUM_LEVELS];
-    assert_eq!(levels_per_type.into_iter().sum::<u8>(), NUM_LEVELS as u8);
+    assert_eq!(levels_per_type.iter().copied().sum::<u8>(), NUM_LEVELS as u8);
     let values = ffi::xcb_xkb_set_names_values_t {
         n_levels_per_type: levels_per_type.as_mut_ptr(),
         kt_level_names: level_names.as_mut_ptr(),
@@ -61,9 +69,9 @@ pub(super) fn set_names(
             0,
             ffi::XCB_XKB_NAME_DETAIL_KT_LEVEL_NAMES,
             0,
-            NUM_TYPES,
+            TOTAL_NUM_TYPES,
             0,
-            NUM_TYPES,
+            TOTAL_NUM_TYPES,
             0,
             0,
             0,
@@ -245,6 +253,16 @@ fn create_msg(layouts: &[HashMap<u32, Vec<u32>>]) -> Msg {
         body.extend_from_slice(as_maybe_uninit_bytes(&set_key_type));
         body.extend_from_slice(as_maybe_uninit_bytes(set_map_entries));
     }
+    for _ in NUM_TYPES..TOTAL_NUM_TYPES {
+        // ONE_LEVEL
+        let set_key_type = ffi::xcb_xkb_set_key_type_t {
+            real_mods: 0,
+            num_levels: 1,
+            n_map_entries: 0,
+            ..Default::default()
+        };
+        body.extend_from_slice(as_maybe_uninit_bytes(&set_key_type));
+    }
     struct Syms<'a> {
         syms: Vec<&'a [u32]>,
         width: usize,
@@ -371,7 +389,7 @@ fn create_msg(layouts: &[HashMap<u32, Vec<u32>>]) -> Msg {
         min_key_code: KEY_OFFSET as _,
         max_key_code: 255,
         first_type: ONE_LEVEL,
-        n_types: NUM_TYPES,
+        n_types: TOTAL_NUM_TYPES,
         first_key_sym: (FIRST_KEY + KEY_OFFSET) as _,
         n_key_syms: NUM_KEYS as _,
         total_syms,
