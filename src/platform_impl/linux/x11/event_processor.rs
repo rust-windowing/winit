@@ -45,7 +45,7 @@ impl<T: 'static> EventProcessor<T> {
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid), Device::new(&self, info));
+                devices.insert(DeviceId(info.deviceid), Device::new(self, info));
             }
         }
     }
@@ -925,7 +925,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             // Issue key press events for all pressed keys
                             Self::handle_pressed_keys(
-                                &wt,
+                                wt,
                                 window_id,
                                 ElementState::Pressed,
                                 &self.mod_keymap,
@@ -949,7 +949,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             // Issue key release events for all pressed keys
                             Self::handle_pressed_keys(
-                                &wt,
+                                wt,
                                 window_id,
                                 ElementState::Released,
                                 &self.mod_keymap,
@@ -1220,11 +1220,8 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        match self.ime_receiver.try_recv() {
-            Ok((window_id, x, y)) => {
-                wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
-            }
-            Err(_) => (),
+        if let Ok((window_id, x, y)) = self.ime_receiver.try_recv() {
+            wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
         }
     }
 

@@ -43,7 +43,6 @@ fn main() {
                 ..
             } => {
                 *control_flow = ControlFlow::Exit;
-                return;
             }
             _ => (),
         }

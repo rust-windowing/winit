@@ -63,11 +63,7 @@ pub enum InputMethodResult {
 
 impl InputMethodResult {
     pub fn is_fallback(&self) -> bool {
-        if let &InputMethodResult::Fallback(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, InputMethodResult::Fallback(_))
     }
 
     pub fn ok(self) -> Option<InputMethod> {
@@ -249,7 +245,7 @@ impl PotentialInputMethods {
     pub fn open_im(
         &mut self,
         xconn: &Arc<XConnection>,
-        callback: Option<&dyn Fn() -> ()>,
+        callback: Option<&dyn Fn()>,
     ) -> InputMethodResult {
         use self::InputMethodResult::*;
 
@@ -259,10 +255,8 @@ impl PotentialInputMethods {
             let im = input_method.open_im(xconn);
             if let Some(im) = im {
                 return XModifiers(im);
-            } else {
-                if let Some(ref callback) = callback {
-                    callback();
-                }
+            } else if let Some(ref callback) = callback {
+                callback();
             }
         }
 

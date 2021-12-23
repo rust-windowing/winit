@@ -150,7 +150,7 @@ impl UnownedWindow {
 
         let position = window_attrs
             .position
-            .map(|position| position.to_physical::<i32>(scale_factor).into());
+            .map(|position| position.to_physical::<i32>(scale_factor));
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
@@ -184,7 +184,7 @@ impl UnownedWindow {
         // creating
         let (visual, depth, require_colormap) = match pl_attribs.visual_infos {
             Some(vi) => (vi.visual, vi.depth, false),
-            None if window_attrs.transparent == true => {
+            None if window_attrs.transparent => {
                 // Find a suitable visual
                 let mut vinfo = MaybeUninit::uninit();
                 let vinfo_initialized = unsafe {
@@ -341,7 +341,9 @@ impl UnownedWindow {
                 } //.queue();
             }
 
-            window.set_pid().map(|flusher| flusher.queue());
+            if let Some(flusher) = window.set_pid() {
+                flusher.queue()
+            }
 
             window.set_window_types(pl_attribs.x11_window_types).queue();
 
@@ -431,7 +433,7 @@ impl UnownedWindow {
 
             // Select XInput2 events
             let mask = {
-                let mask = ffi::XI_MotionMask
+                ffi::XI_MotionMask
                     | ffi::XI_ButtonPressMask
                     | ffi::XI_ButtonReleaseMask
                     //| ffi::XI_KeyPressMask
@@ -442,8 +444,7 @@ impl UnownedWindow {
                     | ffi::XI_FocusOutMask
                     | ffi::XI_TouchBeginMask
                     | ffi::XI_TouchUpdateMask
-                    | ffi::XI_TouchEndMask;
-                mask
+                    | ffi::XI_TouchEndMask
             };
             xconn
                 .select_xinput_events(window.xwindow, ffi::XIAllMasterDevices, mask)
@@ -467,9 +468,10 @@ impl UnownedWindow {
                 window.set_maximized_inner(window_attrs.maximized).queue();
             }
             if window_attrs.fullscreen.is_some() {
-                window
-                    .set_fullscreen_inner(window_attrs.fullscreen.clone())
-                    .map(|flusher| flusher.queue());
+                if let Some(flusher) = window.set_fullscreen_inner(window_attrs.fullscreen.clone())
+                {
+                    flusher.queue()
+                }
 
                 if let Some(PhysicalPosition { x, y }) = position {
                     let shared_state = window.shared_state.get_mut();

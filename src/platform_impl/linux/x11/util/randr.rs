@@ -39,15 +39,15 @@ impl XConnection {
     pub unsafe fn get_xft_dpi(&self) -> Option<f64> {
         (self.xlib.XrmInitialize)();
         let resource_manager_str = (self.xlib.XResourceManagerString)(self.display);
-        if resource_manager_str == ptr::null_mut() {
+        if resource_manager_str.is_null() {
             return None;
         }
         if let Ok(res) = ::std::ffi::CStr::from_ptr(resource_manager_str).to_str() {
             let name: &str = "Xft.dpi:\t";
-            for pair in res.split("\n") {
+            for pair in res.split('\n') {
                 if pair.starts_with(&name) {
                     let res = &pair[name.len()..];
-                    return f64::from_str(&res).ok();
+                    return f64::from_str(res).ok();
                 }
             }
         }
