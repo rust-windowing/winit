@@ -73,8 +73,8 @@ pub struct EventLoop<T: 'static> {
 
 macro_rules! call_event_handler {
     ( $event_handler:expr, $window_target:expr, $cf:expr, $event:expr ) => {{
-        if let ControlFlow::Exit(code) = $cf {
-            $event_handler($event, $window_target, &mut ControlFlow::Exit(code));
+        if let ControlFlow::ExitWithCode(code) = $cf {
+            $event_handler($event, $window_target, &mut ControlFlow::ExitWithCode(code));
         } else {
             $event_handler($event, $window_target, &mut $cf);
         }
@@ -104,10 +104,10 @@ impl<T: 'static> EventLoop<T> {
             + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         let exit_code = self.run_return(event_handler);
-        ::std::process::exit(i32::from(exit_code));
+        ::std::process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F) -> u8
+    pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
     where
         F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -339,7 +339,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
             match control_flow {
-                ControlFlow::Exit(code) => {
+                ControlFlow::ExitWithCode(code) => {
                     self.first_event = poll(
                         self.looper
                             .poll_once_timeout(Duration::from_millis(0))
