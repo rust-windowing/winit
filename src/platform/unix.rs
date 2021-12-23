@@ -345,9 +345,31 @@ pub trait WindowBuilderExtUnix {
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(self, variant: String) -> Self;
     /// Build window with resize increment hint. Only implemented on X11.
+    ///
+    /// ```
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::window::WindowBuilder;
+    /// # use winit::platform::unix::WindowBuilderExtUnix;
+    /// // Specify the size in logical dimensions like this:
+    /// WindowBuilder::new().with_resize_increments(LogicalSize::new(400.0, 200.0));
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// WindowBuilder::new().with_resize_increments(PhysicalSize::new(400, 200));
+    /// ```
     #[cfg(feature = "x11")]
     fn with_resize_increments<S: Into<Size>>(self, increments: S) -> Self;
     /// Build window with base size hint. Only implemented on X11.
+    ///
+    /// ```
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::window::WindowBuilder;
+    /// # use winit::platform::unix::WindowBuilderExtUnix;
+    /// // Specify the size in logical dimensions like this:
+    /// WindowBuilder::new().with_base_size(LogicalSize::new(400.0, 200.0));
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// WindowBuilder::new().with_base_size(PhysicalSize::new(400, 200));
+    /// ```
     #[cfg(feature = "x11")]
     fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
 
