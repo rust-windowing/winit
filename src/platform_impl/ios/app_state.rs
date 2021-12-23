@@ -296,7 +296,7 @@ impl AppState {
                 };
                 (waiting_event_handler, event)
             }
-            (ControlFlow::Exit(_), _) => bug!("unexpected `ControlFlow` `Exit`"),
+            (ControlFlow::ExitWithCode(_), _) => bug!("unexpected `ControlFlow` `Exit`"),
             s => bug!("`EventHandler` unexpectedly woke up {:?}", s),
         };
 
@@ -451,7 +451,7 @@ impl AppState {
                 });
                 self.waker.start()
             }
-            (_, ControlFlow::Exit(_)) => {
+            (_, ControlFlow::ExitWithCode(_)) => {
                 // https://developer.apple.com/library/archive/qa/qa1561/_index.html
                 // it is not possible to quit an iOS app gracefully and programatically
                 warn!("`ControlFlow::Exit` ignored on iOS");
