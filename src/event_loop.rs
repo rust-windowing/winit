@@ -87,15 +87,23 @@ pub enum ControlFlow {
     WaitUntil(Instant),
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `Exit`, and any future attempts to do so will result
-    /// in the `control_flow` parameter being reset to `Exit`. The contained number will be used as
-    /// exit code, if the platform supports that (this _excludes_ ios, android and wasm32). All
-    /// platform-specific caveats as described in [`std::process::exit`] apply, which is used under
-    /// the hood for this.
+    /// in the `control_flow` parameter being reset to `Exit`.
+    ///
+    /// The contained number will be used as exit code.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android**, **iOS**, **WASM**: The supplied exit code is unused.
+    /// - **Unix-alikes**: On some alikes such as on Linux, only the 8 least significant bits will
+    ///   be used, which can cause surprises with negative exit values (`-42` would end up as `214`).
+    ///   See [`std::process::exit`].
     ExitWithCode(i32),
 }
 
 impl ControlFlow {
-    /// Alias for [`ControlFlow::ExitWithCode`]`(0)`.
+    /// Alias for [`ExitWithCode`]`(0)`.
+    ///
+    /// [`ExitWithCode`]: ControlFlow::ExitWithCode
     #[allow(non_upper_case_globals)]
     pub const Exit: Self = Self::ExitWithCode(0);
 }
