@@ -34,7 +34,7 @@ impl State {
             State::WaitUntil { end, .. } => ControlFlow::WaitUntil(*end),
             State::Wait { .. } => ControlFlow::Wait,
             State::Poll { .. } => ControlFlow::Poll,
-            State::Exit => ControlFlow::Exit(0),
+            State::Exit => ControlFlow::Exit,
         }
     }
 }
