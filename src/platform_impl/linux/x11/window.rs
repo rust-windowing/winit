@@ -432,8 +432,7 @@ impl UnownedWindow {
             }
 
             // Select XInput2 events
-            let mask = {
-                ffi::XI_MotionMask
+            let mask = ffi::XI_MotionMask
                     | ffi::XI_ButtonPressMask
                     | ffi::XI_ButtonReleaseMask
                     //| ffi::XI_KeyPressMask
@@ -444,8 +443,7 @@ impl UnownedWindow {
                     | ffi::XI_FocusOutMask
                     | ffi::XI_TouchBeginMask
                     | ffi::XI_TouchUpdateMask
-                    | ffi::XI_TouchEndMask
-            };
+                    | ffi::XI_TouchEndMask;
             xconn
                 .select_xinput_events(window.xwindow, ffi::XIAllMasterDevices, mask)
                 .queue();
