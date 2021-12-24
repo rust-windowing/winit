@@ -64,9 +64,9 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 ///
 /// ## Persistency
 /// Almost every change is persistent between multiple calls to the event loop closure within a
-/// given run loop. The only exception to this is `Exit` which, once set, cannot be unset. Changes
-/// are **not** persistent between multiple calls to `run_return` - issuing a new call will reset
-/// the control flow to `Poll`.
+/// given run loop. The only exception to this is `ExitWithCode` which, once set, cannot be unset.
+/// Changes are **not** persistent between multiple calls to `run_return` - issuing a new call will
+/// reset the control flow to `Poll`.
 ///
 /// [events_cleared]: crate::event::Event::RedrawEventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -86,17 +86,20 @@ pub enum ControlFlow {
     /// arrives or the given time is reached.
     WaitUntil(Instant),
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
-    /// `control_flow` cannot be changed from `Exit`, and any future attempts to do so will result
-    /// in the `control_flow` parameter being reset to `Exit`.
+    /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
+    /// result in the `control_flow` parameter being reset to `ExitWithCode`.
     ///
-    /// The contained number will be used as exit code.
+    /// The contained number will be used as exit code. The [`Exit`] constant is a shortcut for this
+    /// with exit code 0.
     ///
     /// ## Platform-specific
     ///
     /// - **Android**, **iOS**, **WASM**: The supplied exit code is unused.
-    /// - **Unix-alikes**: On some alikes such as on Linux, only the 8 least significant bits will
-    ///   be used, which can cause surprises with negative exit values (`-42` would end up as `214`).
-    ///   See [`std::process::exit`].
+    /// - **Unix-alikes** (**Wayland** or **X11**): On some platforms, only the 8 least significant
+    ///   bits will be used, which can cause surprises with negative exit values (`-42` would end
+    ///   up as `214`). See [`std::process::exit`].
+    ///
+    /// [`Exit`]: ControlFlow::Exit
     ExitWithCode(i32),
 }
 
@@ -161,6 +164,11 @@ impl<T> EventLoop<T> {
     /// event loop's behavior.
     ///
     /// Any values not passed to this function will *not* be dropped.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Unix-alikes** (**X11** or **Wayland**): The program terminates with exit code 1 in case
+    ///   the display server disconnects.
     ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]

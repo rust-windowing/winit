@@ -1,7 +1,7 @@
 # Unreleased
 
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
-- **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running, add an `Exit` constant instead.
+- **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage, mostly this won't affect existing programs.
 
 # 0.26.0 (2021-12-01)
 
