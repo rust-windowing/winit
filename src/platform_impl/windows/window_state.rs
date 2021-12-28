@@ -3,18 +3,24 @@ use crate::{
     event::ModifiersState,
     icon::Icon,
     platform_impl::platform::{event_loop, util, Fullscreen},
-    window::{CursorIcon, Theme, WindowAttributes},
+    window::{CursorIcon, CursorRgba, Theme, WindowAttributes},
 };
+use std::ffi::c_void;
 use std::io;
+use std::ptr;
 use std::sync::MutexGuard;
 use windows_sys::Win32::{
-    Foundation::{HWND, RECT},
-    Graphics::Gdi::InvalidateRgn,
+    Foundation::{HWND, RECT, S_FALSE},
+    Graphics::Gdi::{
+        CreateBitmap, CreateDIBSection, DeleteDC, GetDC, InvalidateRgn, BITMAPINFO, BITMAPV4HEADER,
+        BI_BITFIELDS, DIB_RGB_COLORS,
+    },
     UI::WindowsAndMessaging::{
-        AdjustWindowRectEx, GetMenu, GetWindowLongW, SendMessageW, SetWindowLongW, SetWindowPos,
-        ShowWindow, GWL_EXSTYLE, GWL_STYLE, HWND_NOTOPMOST, HWND_TOPMOST, SWP_ASYNCWINDOWPOS,
-        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER,
-        SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WINDOWPLACEMENT, WINDOW_EX_STYLE,
+        AdjustWindowRectEx, CreateIconIndirect, DestroyIcon, GetMenu, GetWindowLongW, SendMessageW,
+        SetCursor, SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE, HICON,
+        HWND_NOTOPMOST, HWND_TOPMOST, ICONINFO, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE,
+        SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WINDOWPLACEMENT, WINDOW_EX_STYLE,
         WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
         WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP,
         WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX,
@@ -60,8 +66,98 @@ pub struct SavedWindow {
 }
 
 #[derive(Clone)]
+pub struct RgbaHandle {
+    pub hcursor: HICON,
+}
+
+impl RgbaHandle {
+    pub fn new(cursor: &CursorRgba) -> RgbaHandle {
+        unsafe {
+            let mut bmh: BITMAPV4HEADER = std::mem::zeroed();
+
+            bmh.bV4Size = std::mem::size_of::<BITMAPV4HEADER>() as u32;
+            bmh.bV4Width = cursor.width as i32;
+            bmh.bV4Height = -(cursor.height as i32);
+            bmh.bV4Planes = 1;
+            bmh.bV4BitCount = 32;
+            bmh.bV4V4Compression = BI_BITFIELDS as u32;
+            bmh.bV4AlphaMask = 0xFF000000;
+            bmh.bV4RedMask = 0x00FF0000;
+            bmh.bV4GreenMask = 0x0000FF00;
+            bmh.bV4BlueMask = 0x000000FF;
+
+            let hdc = GetDC(0);
+
+            let maskbitlen = (cursor.width * cursor.height) as usize;
+            let maskbits = vec![0xFF; maskbitlen];
+
+            let mut pixels: *mut c_void = ptr::null_mut();
+            let mut ii: ICONINFO = std::mem::zeroed();
+
+            ii.fIcon = S_FALSE;
+            ii.xHotspot = cursor.xhot;
+            ii.yHotspot = cursor.yhot;
+
+            ii.hbmColor = CreateDIBSection(
+                hdc,
+                (&bmh as *const _) as *const BITMAPINFO,
+                DIB_RGB_COLORS,
+                &mut pixels,
+                0,
+                0,
+            );
+
+            ii.hbmMask = CreateBitmap(
+                cursor.width as i32,
+                cursor.height as i32,
+                1,
+                1,
+                maskbits.as_ptr() as *const c_void,
+            );
+
+            ptr::copy_nonoverlapping(
+                cursor.data.as_ptr() as *const u8,
+                pixels as *mut u8,
+                cursor.data.len() * std::mem::size_of::<u32>(),
+            );
+
+            let hicon: HICON = CreateIconIndirect(&ii);
+            if hicon == 0 {
+                panic!("CreateIconIndirect() failed");
+            }
+
+            let handle = Self { hcursor: hicon };
+
+            DeleteDC(hdc);
+
+            handle
+        }
+    }
+
+    pub fn display(&self) {
+        unsafe { SetCursor(self.hcursor as HICON) };
+    }
+}
+
+impl Drop for RgbaHandle {
+    fn drop(&mut self) {
+        unsafe {
+            DestroyIcon(self.hcursor as HICON);
+        }
+    }
+}
+
+#[derive(Clone)]
+#[allow(dead_code)]
+pub enum CursorHandle {
+    None,
+    Icon(CursorIcon),
+    Rgba(RgbaHandle),
+}
+
+#[derive(Clone)]
 pub struct MouseProperties {
-    pub cursor: CursorIcon,
+    pub cursor: CursorHandle,
     pub capture_count: u32,
     cursor_flags: CursorFlags,
     pub last_position: Option<PhysicalPosition<f64>>,
@@ -130,7 +226,7 @@ impl WindowState {
     ) -> WindowState {
         WindowState {
             mouse: MouseProperties {
-                cursor: CursorIcon::default(),
+                cursor: CursorHandle::Icon(CursorIcon::default()),
                 capture_count: 0,
                 cursor_flags: CursorFlags::empty(),
                 last_position: None,

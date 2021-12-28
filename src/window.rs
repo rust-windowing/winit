@@ -937,6 +937,11 @@ impl Window {
         self.window.set_cursor_icon(cursor);
     }
 
+    #[inline]
+    pub fn set_cursor_rgba(&self, cursor: CursorRgba) {
+        self.window.set_cursor_rgba(cursor);
+    }
+
     /// Changes the position of the cursor in window coordinates.
     ///
     /// ```no_run
@@ -1308,6 +1313,15 @@ impl Default for CursorIcon {
     fn default() -> Self {
         CursorIcon::Default
     }
+}
+
+#[derive(Clone)]
+pub struct CursorRgba {
+    pub xhot: u32,
+    pub yhot: u32,
+    pub width: u32,
+    pub height: u32,
+    pub data: Vec<u32>,
 }
 
 /// Fullscreen modes.

@@ -67,10 +67,12 @@ use crate::{
         ime::ImeContext,
         monitor::{self, MonitorHandle},
         util,
-        window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
+        window_state::{
+            CursorFlags, CursorHandle, RgbaHandle, SavedWindow, WindowFlags, WindowState,
+        },
         Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, CursorRgba, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -288,11 +290,24 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        self.window_state_lock().mouse.cursor = cursor;
+        self.window_state_lock().mouse.cursor = CursorHandle::Icon(cursor);
         self.thread_executor.execute_in_thread(move || unsafe {
             let cursor = LoadCursorW(0, cursor.to_windows_cursor());
             SetCursor(cursor);
         });
+    }
+
+    #[inline]
+    pub fn set_cursor_rgba(&self, cursor: CursorRgba) {
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let cursor = RgbaHandle::new(&cursor);
+
+            cursor.display();
+
+            window_state.lock().unwrap().mouse.cursor = CursorHandle::Rgba(cursor);
+        })
     }
 
     #[inline]
