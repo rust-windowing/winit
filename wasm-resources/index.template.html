@@ -1,0 +1,25 @@
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    canvas {
+      /* Set a background color for the canvas to make it easier to tell the where the canvas is when debugging */
+      background-color: crimson;
+    }
+  </style>
+</head>
+
+<body>
+  <script type=" module">
+  import init from "./{{example}}.js";
+  window.addEventListener("load", () => {
+  init();
+  });
+  </script>
+  <div id="foo"></div>
+  <h1>Winit web example</h1>
+</body>
+
+</html>

@@ -82,6 +82,14 @@ For example code using Winit with WebAssembly, check out the [web example]. For
 information on using Rust on WebAssembly, check out the [Rust and WebAssembly
 book].
 
+To run the web example:
+
+1. Ensure you have bash and python 3 installed.
+2. The versions of wasm-bindgen and wasm-bindgen-cli need to match, so do the following to ensure this:
+    1. Run `cargo update` to ensure winit is using the latest wasm-bindgen release.
+    2. Run `cargo install -f wasm-bindgen-cli` to ensure you have the latest wasm-bindgen-cli release installed.
+3. Run `./run-wasm-example.sh web` in the root of the winit repo.
+
 [web with_canvas]: https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.WindowBuilderExtWebSys.html#tymethod.with_canvas
 [web canvas getter]: https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.WindowExtWebSys.html#tymethod.canvas
 [web example]: ./examples/web.rs

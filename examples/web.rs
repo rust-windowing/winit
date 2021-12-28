@@ -20,9 +20,10 @@ pub fn main() {
 
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
-        let body = document.body().unwrap();
+        let parent_div = document.get_element_by_id("foo").unwrap();
 
-        body.append_child(&canvas)
+        parent_div
+            .append_child(&canvas)
             .expect("Append canvas to HTML body");
     }
 
