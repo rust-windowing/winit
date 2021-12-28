@@ -1,11 +1,14 @@
-#![cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd", target_os = "openbsd"))]
+#![cfg(any(
+    target_os = "linux",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
 
 use std::os::raw;
 #[cfg(feature = "x11")]
 use std::{ptr, sync::Arc};
-
-#[cfg(feature = "wayland")]
-use smithay_client_toolkit::window::{ButtonState as SCTKButtonState, Theme as SCTKTheme};
 
 use crate::{
     event_loop::{EventLoop, EventLoopWindowTarget},
@@ -210,10 +213,6 @@ pub trait WindowExtUnix {
     #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
-    /// Set window urgency hint (`XUrgencyHint`). Only relevant on X.
-    #[cfg(feature = "x11")]
-    fn set_urgent(&self, is_urgent: bool);
-
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
@@ -237,10 +236,6 @@ pub trait WindowExtUnix {
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
-
-    /// Sets the color theme of the client side window decorations on wayland
-    #[cfg(feature = "wayland")]
-    fn set_wayland_theme<T: Theme>(&self, theme: T);
 
     /// Check if the window is ready for drawing
     ///
@@ -296,16 +291,6 @@ impl WindowExtUnix for Window {
 
     #[inline]
     #[cfg(feature = "x11")]
-    fn set_urgent(&self, is_urgent: bool) {
-        match self.window {
-            LinuxWindow::X(ref w) => w.set_urgent(is_urgent),
-            #[cfg(feature = "wayland")]
-            _ => (),
-        }
-    }
-
-    #[inline]
-    #[cfg(feature = "x11")]
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xcb_connection()),
@@ -328,19 +313,9 @@ impl WindowExtUnix for Window {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
-            LinuxWindow::Wayland(ref w) => Some(w.display().as_ref().c_ptr() as *mut _),
+            LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
             #[cfg(feature = "x11")]
             _ => None,
-        }
-    }
-
-    #[inline]
-    #[cfg(feature = "wayland")]
-    fn set_wayland_theme<T: Theme>(&self, theme: T) {
-        match self.window {
-            LinuxWindow::Wayland(ref w) => w.set_theme(WaylandTheme(theme)),
-            #[cfg(feature = "x11")]
-            _ => {}
         }
     }
 
@@ -463,102 +438,5 @@ impl MonitorHandleExtUnix for MonitorHandle {
     #[inline]
     fn native_id(&self) -> u32 {
         self.inner.native_identifier()
-    }
-}
-
-/// Wrapper for implementing SCTK's theme trait.
-#[cfg(feature = "wayland")]
-struct WaylandTheme<T: Theme>(T);
-
-pub trait Theme: Send + 'static {
-    /// Primary color of the scheme.
-    fn primary_color(&self, window_active: bool) -> [u8; 4];
-
-    /// Secondary color of the scheme.
-    fn secondary_color(&self, window_active: bool) -> [u8; 4];
-
-    /// Color for the close button.
-    fn close_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the close button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn close_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.secondary_color(true)
-    }
-
-    /// Background color for the maximize button.
-    fn maximize_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the maximize button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn maximize_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.secondary_color(true)
-    }
-
-    /// Background color for the minimize button.
-    fn minimize_button_color(&self, status: ButtonState) -> [u8; 4];
-
-    /// Icon color for the minimize button, defaults to the secondary color.
-    #[allow(unused_variables)]
-    fn minimize_button_icon_color(&self, status: ButtonState) -> [u8; 4] {
-        self.secondary_color(true)
-    }
-}
-
-#[cfg(feature = "wayland")]
-impl<T: Theme> SCTKTheme for WaylandTheme<T> {
-    fn get_primary_color(&self, active: bool) -> [u8; 4] {
-        self.0.primary_color(active)
-    }
-
-    fn get_secondary_color(&self, active: bool) -> [u8; 4] {
-        self.0.secondary_color(active)
-    }
-
-    fn get_close_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.close_button_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_close_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0
-            .close_button_icon_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_maximize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.maximize_button_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_maximize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0
-            .maximize_button_icon_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_minimize_button_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0.minimize_button_color(ButtonState::from_sctk(status))
-    }
-
-    fn get_minimize_button_icon_color(&self, status: SCTKButtonState) -> [u8; 4] {
-        self.0
-            .minimize_button_icon_color(ButtonState::from_sctk(status))
-    }
-}
-
-pub enum ButtonState {
-    /// Button is being hovered over by pointer.
-    Hovered,
-    /// Button is not being hovered over by pointer.
-    Idle,
-    /// Button is disabled.
-    Disabled,
-}
-
-#[cfg(feature = "wayland")]
-impl ButtonState {
-    fn from_sctk(button_state: SCTKButtonState) -> Self {
-        match button_state {
-            SCTKButtonState::Hovered => Self::Hovered,
-            SCTKButtonState::Idle => Self::Idle,
-            SCTKButtonState::Disabled => Self::Disabled,
-        }
     }
 }

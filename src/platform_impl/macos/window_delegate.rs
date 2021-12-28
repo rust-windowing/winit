@@ -7,15 +7,16 @@ use std::{
 use cocoa::{
     appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSUInteger},
+    foundation::NSUInteger,
 };
 use objc::{
     declare::ClassDecl,
+    rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 
 use crate::{
-    dpi::LogicalSize,
+    dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
@@ -112,7 +113,9 @@ impl WindowDelegateState {
         let moved = self.previous_position != Some((x, y));
         if moved {
             self.previous_position = Some((x, y));
-            self.emit_event(WindowEvent::Moved((x, y).into()));
+            let scale_factor = self.get_scale_factor();
+            let physical_pos = LogicalPosition::<f64>::from((x, y)).to_physical(scale_factor);
+            self.emit_event(WindowEvent::Moved(physical_pos));
         }
     }
 
@@ -272,11 +275,11 @@ extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
     trace!("Triggered `windowWillClose:`");
     with_state(this, |state| unsafe {
         // `setDelegate:` retains the previous value and then autoreleases it
-        let pool = NSAutoreleasePool::new(nil);
-        // Since El Capitan, we need to be careful that delegate methods can't
-        // be called after the window closes.
-        let () = msg_send![*state.ns_window, setDelegate: nil];
-        pool.drain();
+        autoreleasepool(|| {
+            // Since El Capitan, we need to be careful that delegate methods can't
+            // be called after the window closes.
+            let () = msg_send![*state.ns_window, setDelegate: nil];
+        });
         state.emit_event(WindowEvent::Destroyed);
     });
     trace!("Completed `windowWillClose:`");
@@ -450,7 +453,8 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    shared_state.fullscreen = Some(Fullscreen::Borderless(window.current_monitor()))
+                    let current_monitor = Some(window.current_monitor_inner());
+                    shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
                 }
             }
             shared_state.in_fullscreen_transition = true;
@@ -478,10 +482,10 @@ extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
 }
 
 extern "C" fn window_will_use_fullscreen_presentation_options(
-    _this: &Object,
+    this: &Object,
     _: Sel,
     _: id,
-    _proposed_options: NSUInteger,
+    proposed_options: NSUInteger,
 ) -> NSUInteger {
     // Generally, games will want to disable the menu bar and the dock. Ideally,
     // this would be configurable by the user. Unfortunately because of our
@@ -491,10 +495,22 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
     // still want to make this configurable for borderless fullscreen. Right now
     // we don't, for consistency. If we do, it should be documented that the
     // user-provided options are ignored in exclusive fullscreen.
-    (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
-        .bits()
+    let mut options: NSUInteger = proposed_options;
+    with_state(this, |state| {
+        state.with_window(|window| {
+            trace!("Locked shared state in `window_will_use_fullscreen_presentation_options`");
+            let shared_state = window.shared_state.lock().unwrap();
+            if let Some(Fullscreen::Exclusive(_)) = shared_state.fullscreen {
+                options = (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                    | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                    | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
+                    .bits();
+            }
+            trace!("Unlocked shared state in `window_will_use_fullscreen_presentation_options`");
+        })
+    });
+
+    options
 }
 
 /// Invoked when entered fullscreen

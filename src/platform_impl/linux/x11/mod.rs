@@ -32,15 +32,14 @@ use std::{
     ptr,
     rc::Rc,
     slice,
-    sync::{mpsc, Arc, Mutex, Weak},
+    sync::mpsc::{Receiver, Sender},
+    sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
 
 use libc::{self, setlocale, LC_CTYPE};
 
-use mio::{unix::EventedFd, Events, Poll, PollOpt, Ready, Token};
-
-use mio_extras::channel::{channel, Receiver, SendError, Sender};
+use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 
 use self::{
     dnd::{Dnd, DndState},
@@ -57,7 +56,12 @@ use crate::{
 };
 
 const X_TOKEN: Token = Token(0);
-const USER_TOKEN: Token = Token(1);
+const USER_REDRAW_TOKEN: Token = Token(1);
+
+struct WakeSender<T> {
+    sender: Sender<T>,
+    waker: Arc<Waker>,
+}
 
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
@@ -67,26 +71,30 @@ pub struct EventLoopWindowTarget<T> {
     root: ffi::Window,
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
-    pending_redraws: Arc<Mutex<HashSet<WindowId>>>,
+    redraw_sender: WakeSender<WindowId>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
 pub struct EventLoop<T: 'static> {
     poll: Poll,
+    waker: Arc<Waker>,
     event_processor: EventProcessor<T>,
-    user_channel: Receiver<T>,
+    redraw_channel: Receiver<WindowId>,
+    user_channel: Receiver<T>, //waker.wake needs to be called whenever something gets sent
     user_sender: Sender<T>,
     target: Rc<RootELW<T>>,
 }
 
 pub struct EventLoopProxy<T: 'static> {
     user_sender: Sender<T>,
+    waker: Arc<Waker>,
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         EventLoopProxy {
             user_sender: self.user_sender.clone(),
+            waker: self.waker.clone(),
         }
     }
 }
@@ -129,7 +137,7 @@ impl<T: 'static> EventLoop<T> {
         let ime = RefCell::new({
             let result = Ime::new(Arc::clone(&xconn));
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
-                panic!(format!("Failed to open input method: {:#?}", state));
+                panic!("Failed to open input method: {:#?}", state);
             }
             result.expect("Failed to set input method destruction callback")
         });
@@ -174,10 +182,18 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
-        let pending_redraws: Arc<Mutex<HashSet<WindowId>>> = Default::default();
-
         let mut mod_keymap = ModifierKeymap::new();
         mod_keymap.reset_from_x_connection(&xconn);
+
+        let poll = Poll::new().unwrap();
+        let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
+
+        poll.registry()
+            .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
+            .unwrap();
+
+        let (user_sender, user_channel) = std::sync::mpsc::channel();
+        let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
 
         let target = Rc::new(RootELW {
             p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
@@ -189,30 +205,13 @@ impl<T: 'static> EventLoop<T> {
                 xconn,
                 wm_delete_window,
                 net_wm_ping,
-                pending_redraws: pending_redraws.clone(),
+                redraw_sender: WakeSender {
+                    sender: redraw_sender, // not used again so no clone
+                    waker: waker.clone(),
+                },
             }),
             _marker: ::std::marker::PhantomData,
         });
-
-        let poll = Poll::new().unwrap();
-
-        let (user_sender, user_channel) = channel();
-
-        poll.register(
-            &EventedFd(&get_xtarget(&target).xconn.x11_fd),
-            X_TOKEN,
-            Ready::readable(),
-            PollOpt::level(),
-        )
-        .unwrap();
-
-        poll.register(
-            &user_channel,
-            USER_TOKEN,
-            Ready::readable(),
-            PollOpt::level(),
-        )
-        .unwrap();
 
         let event_processor = EventProcessor {
             target: target.clone(),
@@ -237,20 +236,21 @@ impl<T: 'static> EventLoop<T> {
 
         event_processor.init_device(ffi::XIAllDevices);
 
-        let result = EventLoop {
+        EventLoop {
             poll,
+            waker,
+            event_processor,
+            redraw_channel,
             user_channel,
             user_sender,
-            event_processor,
             target,
-        };
-
-        result
+        }
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             user_sender: self.user_sender.clone(),
+            waker: self.waker.clone(),
         }
     }
 
@@ -277,8 +277,6 @@ impl<T: 'static> EventLoop<T> {
             // Process all pending events
             self.drain_events(&mut callback, &mut control_flow);
 
-            let wt = get_xtarget(&self.target);
-
             // Empty the user event buffer
             {
                 while let Ok(event) = self.user_channel.try_recv() {
@@ -301,12 +299,16 @@ impl<T: 'static> EventLoop<T> {
             }
             // Empty the redraw requests
             {
-                // Release the lock to prevent deadlock
-                let windows: Vec<_> = wt.pending_redraws.lock().unwrap().drain().collect();
+                let mut windows = HashSet::new();
 
-                for wid in windows {
+                while let Ok(window_id) = self.redraw_channel.try_recv() {
+                    windows.insert(window_id);
+                }
+
+                for window_id in windows {
+                    let window_id = crate::window::WindowId(super::WindowId::X(window_id));
                     sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(super::WindowId::X(wid))),
+                        Event::RedrawRequested(window_id),
                         &self.target,
                         &mut control_flow,
                         &mut callback,
@@ -358,7 +360,11 @@ impl<T: 'static> EventLoop<T> {
             // If the XConnection already contains buffered events, we don't
             // need to wait for data on the socket.
             if !self.event_processor.poll() {
-                self.poll.poll(&mut events, timeout).unwrap();
+                if let Err(e) = self.poll.poll(&mut events, timeout) {
+                    if e.raw_os_error() != Some(libc::EINTR) {
+                        panic!("epoll returned an error: {:?}", e);
+                    }
+                }
                 events.clear();
             }
 
@@ -393,7 +399,6 @@ impl<T: 'static> EventLoop<T> {
     {
         let target = &self.target;
         let mut xev = MaybeUninit::uninit();
-
         let wt = get_xtarget(&self.target);
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
@@ -408,7 +413,8 @@ impl<T: 'static> EventLoop<T> {
                             super::WindowId::X(wid),
                         )) = event
                         {
-                            wt.pending_redraws.lock().unwrap().insert(wid);
+                            wt.redraw_sender.sender.send(wid).unwrap();
+                            wt.redraw_sender.waker.wake().unwrap();
                         } else {
                             callback(event, window_target, control_flow);
                         }
@@ -437,13 +443,10 @@ impl<T> EventLoopWindowTarget<T> {
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.user_sender.send(event).map_err(|e| {
-            EventLoopClosed(if let SendError::Disconnected(x) = e {
-                x
-            } else {
-                unreachable!()
-            })
-        })
+        self.user_sender
+            .send(event)
+            .map_err(|e| EventLoopClosed(e.0))
+            .map(|_| self.waker.wake().unwrap())
     }
 }
 
@@ -491,7 +494,7 @@ impl<'a> Deref for DeviceInfo<'a> {
 pub struct WindowId(ffi::Window);
 
 impl WindowId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         WindowId(0)
     }
 }
@@ -500,7 +503,7 @@ impl WindowId {
 pub struct DeviceId(c_int);
 
 impl DeviceId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         DeviceId(0)
     }
 }
@@ -521,7 +524,7 @@ impl Window {
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let window = Arc::new(UnownedWindow::new(&event_loop, attribs, pl_attribs)?);
+        let window = Arc::new(UnownedWindow::new(event_loop, attribs, pl_attribs)?);
         event_loop
             .windows
             .borrow_mut()
@@ -589,7 +592,7 @@ fn mkdid(w: c_int) -> crate::event::DeviceId {
 
 #[derive(Debug)]
 struct Device {
-    name: String,
+    _name: String,
     scroll_axes: Vec<(i32, ScrollAxis)>,
     // For master devices, this is the paired device (pointer <-> keyboard).
     // For slave devices, this is the master.
@@ -655,7 +658,7 @@ impl Device {
         }
 
         let mut device = Device {
-            name: name.into_owned(),
+            _name: name.into_owned(),
             scroll_axes,
             attachment: info.attachment,
         };

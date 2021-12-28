@@ -13,6 +13,7 @@ use crate::{
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
+    monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::Idiom,
 };
 
@@ -24,7 +25,8 @@ use crate::platform_impl::platform::{
         CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
         CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext,
         CFRunLoopSourceCreate, CFRunLoopSourceInvalidate, CFRunLoopSourceRef,
-        CFRunLoopSourceSignal, CFRunLoopWakeUp, NSString, UIApplicationMain, UIUserInterfaceIdiom,
+        CFRunLoopSourceSignal, CFRunLoopWakeUp, NSStringRust, UIApplicationMain,
+        UIUserInterfaceIdiom,
     },
     monitor, view, MonitorHandle,
 };
@@ -55,9 +57,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         unsafe { monitor::uiscreens() }
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
         // guaranteed to be on main thread
-        unsafe { monitor::main_uiscreen() }
+        let monitor = unsafe { monitor::main_uiscreen() };
+
+        Some(RootMonitorHandle { inner: monitor })
     }
 }
 
@@ -117,7 +121,7 @@ impl<T: 'static> EventLoop<T> {
                 0,
                 ptr::null(),
                 nil,
-                NSString::alloc(nil).init_str("AppDelegate"),
+                NSStringRust::alloc(nil).init_str("AppDelegate"),
             );
             unreachable!()
         }

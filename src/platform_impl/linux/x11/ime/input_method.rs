@@ -42,12 +42,12 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
 #[derive(Debug)]
 pub struct InputMethod {
     pub im: ffi::XIM,
-    name: String,
+    _name: String,
 }
 
 impl InputMethod {
     fn new(im: ffi::XIM, name: String) -> Self {
-        InputMethod { im, name }
+        InputMethod { im, _name: name }
     }
 }
 

@@ -69,12 +69,16 @@ impl Drop for Window {
 pub struct WindowId(pub(crate) platform_impl::WindowId);
 
 impl WindowId {
-    /// Returns a dummy `WindowId`, useful for unit testing. The only guarantee made about the return
-    /// value of this function is that it will always be equal to itself and to future values returned
-    /// by this function.  No other guarantees are made. This may be equal to a real `WindowId`.
+    /// Returns a dummy `WindowId`, useful for unit testing.
+    ///
+    /// # Safety
+    ///
+    /// The only guarantee made about the return value of this function is that
+    /// it will always be equal to itself and to future values returned by this function.
+    /// No other guarantees are made. This may be equal to a real `WindowId`.
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         WindowId(platform_impl::WindowId::dummy())
     }
 }
@@ -115,6 +119,31 @@ pub struct WindowAttributes {
     ///
     /// The default is `None`.
     pub max_inner_size: Option<Size>,
+
+    /// The desired position of the window. If this is `None`, some platform-specific position
+    /// will be chosen.
+    ///
+    /// The default is `None`.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS**: The top left corner position of the window content, the window's "inner"
+    /// position. The window title bar will be placed above it.
+    /// The window will be positioned such that it fits on screen, maintaining
+    /// set `inner_size` if any.
+    /// If you need to precisely position the top left corner of the whole window you have to
+    /// use [`Window::set_outer_position`] after creating the window.
+    /// - **Windows**: The top left corner position of the window title bar, the window's "outer"
+    /// position.
+    /// There may be a small gap between this position and the window due to the specifics of the
+    /// Window Manager.
+    /// - **X11**: The top left corner of the window, the window's "outer" position.
+    /// - **Others**: Ignored.
+    ///
+    /// See [`Window::set_outer_position`].
+    ///
+    /// [`Window::set_outer_position`]: crate::window::Window::set_outer_position
+    pub position: Option<Position>,
 
     /// Whether the window is resizable or not.
     ///
@@ -170,6 +199,7 @@ impl Default for WindowAttributes {
             inner_size: None,
             min_inner_size: None,
             max_inner_size: None,
+            position: None,
             resizable: true,
             title: "winit window".to_owned(),
             maximized: false,
@@ -220,6 +250,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
         self.window.max_inner_size = Some(max_size.into());
+        self
+    }
+
+    /// Sets a desired initial position for the window.
+    ///
+    /// See [`WindowAttributes::position`] for details.
+    ///
+    /// [`WindowAttributes::position`]: crate::window::WindowAttributes::position
+    #[inline]
+    pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
+        self.window.position = Some(position.into());
         self
     }
 
@@ -401,7 +442,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Android:** Unsupported.
+    /// - **Android:** Subsequent calls after `MainEventsCleared` are not handled.
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()
@@ -526,7 +567,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Andraid / Web:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
         self.window.set_max_inner_size(max_size.map(|s| s.into()))
@@ -597,6 +638,17 @@ impl Window {
         self.window.set_maximized(maximized)
     }
 
+    /// Gets the window's current maximized state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_maximized(&self) -> bool {
+        self.window.is_maximized()
+    }
+
     /// Sets the window to fullscreen or back.
     ///
     /// ## Platform-specific
@@ -614,7 +666,7 @@ impl Window {
     ///
     ///   The dock and the menu bar are always disabled in fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
-    /// - **Wayland:** Does not support exclusive fullscreen mode.
+    /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **Android:** Unsupported.
     #[inline]
@@ -628,6 +680,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread.
     /// - **Android:** Will always return `None`.
+    /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
@@ -676,10 +729,43 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
+    }
+
+    /// Brings the window to the front and sets input focus. Has no effect if the window is
+    /// already in focus, minimized, or not visible.
+    ///
+    /// This method steals input focus from other applications. Do not use this method unless
+    /// you are certain that's what the user wants. Focus stealing can cause an extremely disruptive
+    /// user experience.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    #[inline]
+    pub fn focus_window(&self) {
+        self.window.focus_window()
+    }
+
+    /// Requests user attention to the window, this has no effect if the application
+    /// is already focused. How requesting for user attention manifests is platform dependent,
+    /// see `UserAttentionType` for details.
+    ///
+    /// Providing `None` will unset the request for user attention. Unsetting the request for
+    /// user attention might not be done automatically by the WM when the window receives input.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web :** Unsupported.
+    /// - **macOS:** `None` has no effect.
+    /// - **X11:** Requests for user attention must be manually cleared.
+    /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
+    #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        self.window.request_user_attention(request_type)
     }
 }
 
@@ -707,9 +793,12 @@ impl Window {
 
     /// Grabs the cursor, preventing it from leaving the window.
     ///
+    /// There's no guarantee that the cursor will be hidden. You should
+    /// hide it by yourself if you want so.
+    ///
     /// ## Platform-specific
     ///
-    /// - **macOS / Wayland:** This locks the cursor in a fixed location, which looks visually awkward.
+    /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
     /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
@@ -732,17 +821,35 @@ impl Window {
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window.set_cursor_visible(visible)
     }
+
+    /// Moves the window with the left mouse button until the button is released.
+    ///
+    /// There's no guarantee that this will work unless the left mouse button was pressed
+    /// immediately before this function is called.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11:** Un-grabs the cursor.
+    /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
+    /// - **macOS:** May prevent the button release event to be triggered.
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        self.window.drag_window()
+    }
 }
 
 /// Monitor info functions.
 impl Window {
-    /// Returns the monitor on which the window currently resides
+    /// Returns the monitor on which the window currently resides.
+    ///
+    /// Returns `None` if current monitor can't be detected.
     ///
     /// ## Platform-specific
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn current_monitor(&self) -> MonitorHandle {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         self.window.current_monitor()
     }
 
@@ -763,20 +870,27 @@ impl Window {
 
     /// Returns the primary monitor of the system.
     ///
+    /// Returns `None` if it can't identify any monitor as a primary one.
+    ///
     /// This is the same as `EventLoopWindowTarget::primary_monitor`, and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
     /// **iOS:** Can only be called on the main thread.
+    /// **Wayland:** Always returns `None`.
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle {
-            inner: self.window.primary_monitor(),
-        }
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        self.window.primary_monitor()
     }
 }
 
 unsafe impl raw_window_handle::HasRawWindowHandle for Window {
+    /// Returns a `raw_window_handle::RawWindowHandle` for the Window
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android:** Only available after receiving the Resumed event and before Suspended. *If you*
+    /// *try to get the handle outside of that period, this function will panic*!
     fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         self.window.raw_window_handle()
     }
@@ -847,14 +961,38 @@ impl Default for CursorIcon {
     }
 }
 
+/// Fullscreen modes.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Fullscreen {
     Exclusive(VideoMode),
-    Borderless(MonitorHandle),
+
+    /// Providing `None` to `Borderless` will fullscreen on the current monitor.
+    Borderless(Option<MonitorHandle>),
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Theme {
     Light,
     Dark,
+}
+
+/// ## Platform-specific
+///
+/// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UserAttentionType {
+    /// ## Platform-specific
+    /// - **macOS:** Bounces the dock icon until the application is in focus.
+    /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
+    Critical,
+    /// ## Platform-specific
+    /// - **macOS:** Bounces the dock icon once.
+    /// - **Windows:** Flashes the taskbar button until the application is in focus.
+    Informational,
+}
+
+impl Default for UserAttentionType {
+    fn default() -> Self {
+        UserAttentionType::Informational
+    }
 }

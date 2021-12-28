@@ -3,7 +3,7 @@ use crate::{
     event::ModifiersState,
     icon::Icon,
     platform_impl::platform::{event_loop, util},
-    window::{CursorIcon, Fullscreen, WindowAttributes},
+    window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
 };
 use parking_lot::MutexGuard;
 use std::{io, ptr};
@@ -31,21 +31,21 @@ pub struct WindowState {
 
     pub modifiers_state: ModifiersState,
     pub fullscreen: Option<Fullscreen>,
-    pub is_dark_mode: bool,
+    pub current_theme: Theme,
+    pub preferred_theme: Option<Theme>,
     pub high_surrogate: Option<u16>,
-    window_flags: WindowFlags,
+    pub window_flags: WindowFlags,
 }
 
 #[derive(Clone)]
 pub struct SavedWindow {
-    pub client_rect: RECT,
-    pub scale_factor: f64,
+    pub placement: winuser::WINDOWPLACEMENT,
 }
 
 #[derive(Clone)]
 pub struct MouseProperties {
     pub cursor: CursorIcon,
-    pub buttons_down: u32,
+    pub capture_count: u32,
     cursor_flags: CursorFlags,
     pub last_position: Option<PhysicalPosition<f64>>,
 }
@@ -68,10 +68,12 @@ bitflags! {
         const TRANSPARENT    = 1 << 6;
         const CHILD          = 1 << 7;
         const MAXIMIZED      = 1 << 8;
+        const POPUP          = 1 << 14;
 
         /// Marker flag for fullscreen. Should always match `WindowState::fullscreen`, but is
         /// included here to make masking easier.
-        const MARKER_FULLSCREEN = 1 << 9;
+        const MARKER_EXCLUSIVE_FULLSCREEN = 1 << 9;
+        const MARKER_BORDERLESS_FULLSCREEN = 1 << 13;
 
         /// The `WM_SIZE` event contains some parameters that can effect the state of `WindowFlags`.
         /// In most cases, it's okay to let those parameters change the state. However, when we're
@@ -84,12 +86,7 @@ bitflags! {
 
         const MINIMIZED = 1 << 12;
 
-        const FULLSCREEN_AND_MASK = !(
-            WindowFlags::DECORATIONS.bits |
-            WindowFlags::RESIZABLE.bits |
-            WindowFlags::MAXIMIZED.bits
-        );
-        const FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
+        const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
@@ -100,12 +97,13 @@ impl WindowState {
         attributes: &WindowAttributes,
         taskbar_icon: Option<Icon>,
         scale_factor: f64,
-        is_dark_mode: bool,
+        current_theme: Theme,
+        preferred_theme: Option<Theme>,
     ) -> WindowState {
         WindowState {
             mouse: MouseProperties {
                 cursor: CursorIcon::default(),
-                buttons_down: 0,
+                capture_count: 0,
                 cursor_flags: CursorFlags::empty(),
                 last_position: None,
             },
@@ -121,7 +119,8 @@ impl WindowState {
 
             modifiers_state: ModifiersState::default(),
             fullscreen: None,
-            is_dark_mode,
+            current_theme,
+            preferred_theme,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
         }
@@ -176,9 +175,8 @@ impl MouseProperties {
 
 impl WindowFlags {
     fn mask(mut self) -> WindowFlags {
-        if self.contains(WindowFlags::MARKER_FULLSCREEN) {
-            self &= WindowFlags::FULLSCREEN_AND_MASK;
-            self |= WindowFlags::FULLSCREEN_OR_MASK;
+        if self.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN) {
+            self |= WindowFlags::EXCLUSIVE_FULLSCREEN_OR_MASK;
         }
         if !self.contains(WindowFlags::VISIBLE) {
             self &= WindowFlags::INVISIBLE_AND_MASK;
@@ -213,11 +211,11 @@ impl WindowFlags {
         if self.contains(WindowFlags::NO_BACK_BUFFER) {
             style_ex |= WS_EX_NOREDIRECTIONBITMAP;
         }
-        if self.contains(WindowFlags::TRANSPARENT) && self.contains(WindowFlags::DECORATIONS) {
-            style_ex |= WS_EX_LAYERED;
-        }
         if self.contains(WindowFlags::CHILD) {
             style |= WS_CHILD; // This is incompatible with WS_POPUP if that gets added eventually.
+        }
+        if self.contains(WindowFlags::POPUP) {
+            style |= WS_POPUP;
         }
         if self.contains(WindowFlags::MINIMIZED) {
             style |= WS_MINIMIZE;
@@ -228,6 +226,12 @@ impl WindowFlags {
 
         style |= WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
         style_ex |= WS_EX_ACCEPTFILES;
+
+        if self.intersects(
+            WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN | WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
+        ) {
+            style &= !WS_OVERLAPPEDWINDOW;
+        }
 
         (style, style_ex)
     }
@@ -319,7 +323,9 @@ impl WindowFlags {
                 // We generally don't want style changes here to affect window
                 // focus, but for fullscreen windows they must be activated
                 // (i.e. focused) so that they appear on top of the taskbar
-                if !new.contains(WindowFlags::MARKER_FULLSCREEN) {
+                if !new.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN)
+                    && !new.contains(WindowFlags::MARKER_BORDERLESS_FULLSCREEN)
+                {
                     flags |= winuser::SWP_NOACTIVATE;
                 }
 

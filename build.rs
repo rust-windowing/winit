@@ -1,21 +1,10 @@
-#[cfg(all(
-    any(
-        target_os = "linux",
-        target_os = "dragonfly",
-        target_os = "freebsd",
-        target_os = "netbsd",
-        target_os = "openbsd"
-    ),
-    not(feature = "x11"),
-    not(feature = "wayland")
-))]
-compile_error!("at least one of the \"x11\"/\"wayland\" features must be enabled");
-
-#[cfg(all(
-    target_arch = "wasm32",
-    not(feature = "web-sys"),
-    not(feature = "stdweb")
-))]
-compile_error!("at least one of the \"web-sys\"/\"stdweb\" features must be enabled");
-
-fn main() {}
+fn main() {
+    // If building for macos and WINIT_LINK_COLORSYNC is set to true
+    // use CGDisplayCreateUUIDFromDisplayID from ColorSync instead of CoreGraphics
+    if std::env::var("CARGO_CFG_TARGET_OS").map_or(false, |os| os == "macos")
+        && std::env::var("WINIT_LINK_COLORSYNC")
+            .map_or(false, |v| v == "1" || v.eq_ignore_ascii_case("true"))
+    {
+        println!("cargo:rustc-cfg=use_colorsync_cgdisplaycreateuuidfromdisplayid");
+    }
+}

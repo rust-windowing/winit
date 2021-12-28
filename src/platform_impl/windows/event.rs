@@ -39,8 +39,8 @@ pub fn get_key_mods() -> ModifiersState {
 bitflags! {
     #[derive(Default)]
     pub struct ModifiersStateSide: u32 {
-        const LSHIFT = 0b010 << 0;
-        const RSHIFT = 0b001 << 0;
+        const LSHIFT = 0b010;
+        const RSHIFT = 0b001;
 
         const LCTRL = 0b010 << 3;
         const RCTRL = 0b001 << 3;
@@ -259,12 +259,12 @@ pub fn vkey_to_winit_vkey(vkey: c_int) -> Option<VirtualKeyCode> {
         winuser::VK_NUMPAD7 => Some(VirtualKeyCode::Numpad7),
         winuser::VK_NUMPAD8 => Some(VirtualKeyCode::Numpad8),
         winuser::VK_NUMPAD9 => Some(VirtualKeyCode::Numpad9),
-        winuser::VK_MULTIPLY => Some(VirtualKeyCode::Multiply),
-        winuser::VK_ADD => Some(VirtualKeyCode::Add),
+        winuser::VK_MULTIPLY => Some(VirtualKeyCode::NumpadMultiply),
+        winuser::VK_ADD => Some(VirtualKeyCode::NumpadAdd),
         //winuser::VK_SEPARATOR => Some(VirtualKeyCode::Separator),
-        winuser::VK_SUBTRACT => Some(VirtualKeyCode::Subtract),
-        winuser::VK_DECIMAL => Some(VirtualKeyCode::Decimal),
-        winuser::VK_DIVIDE => Some(VirtualKeyCode::Divide),
+        winuser::VK_SUBTRACT => Some(VirtualKeyCode::NumpadSubtract),
+        winuser::VK_DECIMAL => Some(VirtualKeyCode::NumpadDecimal),
+        winuser::VK_DIVIDE => Some(VirtualKeyCode::NumpadDivide),
         winuser::VK_F1 => Some(VirtualKeyCode::F1),
         winuser::VK_F2 => Some(VirtualKeyCode::F2),
         winuser::VK_F3 => Some(VirtualKeyCode::F3),
@@ -343,6 +343,7 @@ pub fn handle_extended_keys(
     extended: bool,
 ) -> Option<(c_int, UINT)> {
     // Welcome to hell https://blog.molecular-matters.com/2011/09/05/properly-handling-keyboard-input/
+    scancode |= if extended { 0xE000 } else { 0x0000 };
     let vkey = match vkey {
         winuser::VK_SHIFT => unsafe {
             winuser::MapVirtualKeyA(scancode, winuser::MAPVK_VSC_TO_VK_EX) as _
@@ -363,20 +364,23 @@ pub fn handle_extended_keys(
         }
         _ => {
             match scancode {
-                // This is only triggered when using raw input. Without this check, we get two events whenever VK_PAUSE is
-                // pressed, the first one having scancode 0x1D but vkey VK_PAUSE...
-                0x1D if vkey == winuser::VK_PAUSE => return None,
-                // ...and the second having scancode 0x45 but an unmatched vkey!
-                0x45 => winuser::VK_PAUSE,
-                // VK_PAUSE and VK_SCROLL have the same scancode when using modifiers, alongside incorrect vkey values.
-                0x46 => {
-                    if extended {
-                        scancode = 0x45;
-                        winuser::VK_PAUSE
-                    } else {
-                        winuser::VK_SCROLL
-                    }
+                // When VK_PAUSE is pressed it emits a LeftControl + NumLock scancode event sequence, but reports VK_PAUSE
+                // as the virtual key on both events, or VK_PAUSE on the first event or 0xFF when using raw input.
+                // Don't emit anything for the LeftControl event in the pair...
+                0xE01D if vkey == winuser::VK_PAUSE => return None,
+                // ...and emit the Pause event for the second event in the pair.
+                0x45 if vkey == winuser::VK_PAUSE || vkey == 0xFF => {
+                    scancode = 0xE059;
+                    winuser::VK_PAUSE
                 }
+                // VK_PAUSE has an incorrect vkey value when used with modifiers. VK_PAUSE also reports a different
+                // scancode when used with modifiers than when used without
+                0xE046 => {
+                    scancode = 0xE059;
+                    winuser::VK_PAUSE
+                }
+                // VK_SCROLL has an incorrect vkey value when used with modifiers.
+                0x46 => winuser::VK_SCROLL,
                 _ => vkey,
             }
         }

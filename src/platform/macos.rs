@@ -4,30 +4,11 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::EventLoopWindowTarget,
+    event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
+    platform_impl::get_aux_state_mut,
     window::{Window, WindowBuilder},
 };
-
-/// Corresponds to `NSRequestUserAttentionType`.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum RequestUserAttentionType {
-    /// Corresponds to `NSCriticalRequest`.
-    ///
-    /// Dock icon will bounce until the application is focused.
-    Critical,
-
-    /// Corresponds to `NSInformationalRequest`.
-    ///
-    /// Dock icon will bounce once.
-    Informational,
-}
-
-impl Default for RequestUserAttentionType {
-    fn default() -> Self {
-        RequestUserAttentionType::Critical
-    }
-}
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -41,10 +22,6 @@ pub trait WindowExtMacOS {
     /// The pointer will become invalid when the `Window` is destroyed.
     fn ns_view(&self) -> *mut c_void;
 
-    /// Request user attention, causing the application's dock icon to bounce.
-    /// Note that this has no effect if the application is already focused.
-    fn request_user_attention(&self, request_type: RequestUserAttentionType);
-
     /// Returns whether or not the window is in simple fullscreen mode.
     fn simple_fullscreen(&self) -> bool;
 
@@ -56,6 +33,12 @@ pub trait WindowExtMacOS {
     /// And allows the user to have a fullscreen window without using another
     /// space or taking control over the entire monitor.
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
+
+    /// Returns whether or not the window has shadow.
+    fn has_shadow(&self) -> bool;
+
+    /// Sets whether or not the window has shadow.
+    fn set_has_shadow(&self, has_shadow: bool);
 }
 
 impl WindowExtMacOS for Window {
@@ -70,11 +53,6 @@ impl WindowExtMacOS for Window {
     }
 
     #[inline]
-    fn request_user_attention(&self, request_type: RequestUserAttentionType) {
-        self.window.request_user_attention(request_type)
-    }
-
-    #[inline]
     fn simple_fullscreen(&self) -> bool {
         self.window.simple_fullscreen()
     }
@@ -82,6 +60,16 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         self.window.set_simple_fullscreen(fullscreen)
+    }
+
+    #[inline]
+    fn has_shadow(&self) -> bool {
+        self.window.has_shadow()
+    }
+
+    #[inline]
+    fn set_has_shadow(&self, has_shadow: bool) {
+        self.window.set_has_shadow(has_shadow)
     }
 }
 
@@ -113,8 +101,6 @@ impl Default for ActivationPolicy {
 ///  - `with_titlebar_buttons_hidden`
 ///  - `with_fullsize_content_view`
 pub trait WindowBuilderExtMacOS {
-    /// Sets the activation policy for the window being built.
-    fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
     fn with_movable_by_window_background(self, movable_by_window_background: bool)
         -> WindowBuilder;
@@ -131,15 +117,10 @@ pub trait WindowBuilderExtMacOS {
     /// Build window with `resizeIncrements` property. Values must not be 0.
     fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
+    fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
-    #[inline]
-    fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
-        self.platform_specific.activation_policy = activation_policy;
-        self
-    }
-
     #[inline]
     fn with_movable_by_window_background(
         mut self,
@@ -190,6 +171,45 @@ impl WindowBuilderExtMacOS for WindowBuilder {
         self.platform_specific.disallow_hidpi = disallow_hidpi;
         self
     }
+
+    #[inline]
+    fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
+        self.platform_specific.has_shadow = has_shadow;
+        self
+    }
+}
+
+pub trait EventLoopExtMacOS {
+    /// Sets the activation policy for the application. It is set to
+    /// `NSApplicationActivationPolicyRegular` by default.
+    ///
+    /// This function only takes effect if it's called before calling [`run`](crate::event_loop::EventLoop::run) or
+    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
+    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy);
+
+    /// Used to prevent a default menubar menu from getting created
+    ///
+    /// The default menu creation is enabled by default.
+    ///
+    /// This function only takes effect if it's called before calling
+    /// [`run`](crate::event_loop::EventLoop::run) or
+    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
+    fn enable_default_menu_creation(&mut self, enable: bool);
+}
+impl<T> EventLoopExtMacOS for EventLoop<T> {
+    #[inline]
+    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy) {
+        unsafe {
+            get_aux_state_mut(&**self.event_loop.delegate).activation_policy = activation_policy;
+        }
+    }
+
+    #[inline]
+    fn enable_default_menu_creation(&mut self, enable: bool) {
+        unsafe {
+            get_aux_state_mut(&**self.event_loop.delegate).create_default_menu = enable;
+        }
+    }
 }
 
 /// Additional methods on `MonitorHandle` that are specific to MacOS.
@@ -221,14 +241,10 @@ pub trait EventLoopWindowTargetExtMacOS {
 
 impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
     fn hide_application(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hide: 0] }
+        self.p.hide_application()
     }
 
     fn hide_other_applications(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hideOtherApplications: 0] }
+        self.p.hide_other_applications()
     }
 }

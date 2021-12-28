@@ -1,4 +1,4 @@
-use raw_window_handle::{macos::MacOSHandle, RawWindowHandle};
+use raw_window_handle::{AppKitHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     f64,
@@ -16,7 +16,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform::macos::{ActivationPolicy, RequestUserAttentionType, WindowExtMacOS},
+    platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
@@ -28,20 +28,22 @@ use crate::{
         window_delegate::new_delegate,
         OsError,
     },
-    window::{CursorIcon, Fullscreen, WindowAttributes, WindowId as RootWindowId},
+    window::{
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+    },
 };
 use cocoa::{
     appkit::{
-        self, CGFloat, NSApp, NSApplication, NSApplicationActivationPolicy,
-        NSApplicationPresentationOptions, NSColor, NSRequestUserAttentionType, NSScreen, NSView,
-        NSWindow, NSWindowButton, NSWindowStyleMask,
+        self, CGFloat, NSApp, NSApplication, NSApplicationPresentationOptions, NSColor,
+        NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSDictionary, NSPoint, NSRect, NSSize},
+    foundation::{NSDictionary, NSPoint, NSRect, NSSize},
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassDecl,
+    rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 
@@ -49,7 +51,7 @@ use objc::{
 pub struct Id(pub usize);
 
 impl Id {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         Id(0)
     }
 }
@@ -60,9 +62,8 @@ pub fn get_window_id(window_cocoa_id: id) -> Id {
     Id(window_cocoa_id as *const Object as _)
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
-    pub activation_policy: ActivationPolicy,
     pub movable_by_window_background: bool,
     pub titlebar_transparent: bool,
     pub title_hidden: bool,
@@ -71,22 +72,22 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub fullsize_content_view: bool,
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
+    pub has_shadow: bool,
 }
 
-fn create_app(activation_policy: ActivationPolicy) -> Option<id> {
-    unsafe {
-        let ns_app = NSApp();
-        if ns_app == nil {
-            None
-        } else {
-            use self::NSApplicationActivationPolicy::*;
-            ns_app.setActivationPolicy_(match activation_policy {
-                ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
-                ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
-                ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
-            });
-            ns_app.finishLaunching();
-            Some(ns_app)
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            movable_by_window_background: false,
+            titlebar_transparent: false,
+            title_hidden: false,
+            titlebar_hidden: false,
+            titlebar_buttons_hidden: false,
+            fullsize_content_view: false,
+            resize_increments: None,
+            disallow_hidpi: false,
+            has_shadow: true,
         }
     }
 }
@@ -110,8 +111,6 @@ unsafe fn create_view(
             ns_view.setWantsLayer(YES);
         }
 
-        ns_window.setContentView_(*ns_view);
-        ns_window.makeFirstResponder_(*ns_view);
         (ns_view, cursor_state)
     })
 }
@@ -120,16 +119,16 @@ fn create_window(
     attrs: &WindowAttributes,
     pl_attrs: &PlatformSpecificWindowBuilderAttributes,
 ) -> Option<IdRef> {
-    unsafe {
-        let pool = NSAutoreleasePool::new(nil);
+    autoreleasepool(|| unsafe {
         let screen = match attrs.fullscreen {
-            Some(Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }))
+            Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
             | Some(Fullscreen::Exclusive(RootVideoMode {
                 video_mode: VideoMode { ref monitor, .. },
             })) => {
                 let monitor_screen = monitor.ns_screen();
                 Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
             }
+            Some(Fullscreen::Borderless(None)) => Some(appkit::NSScreen::mainScreen(nil)),
             None => None,
         };
         let frame = match screen {
@@ -144,7 +143,17 @@ fn create_window(
                     }
                     None => (800.0, 600.0),
                 };
-                NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(width, height))
+                let (left, bottom) = match attrs.position {
+                    Some(position) => {
+                        let logical = util::window_position(position.to_logical(scale_factor));
+                        // macOS wants the position of the bottom left corner,
+                        // but caller is setting the position of top left corner
+                        (logical.x, logical.y - height)
+                    }
+                    // This value is ignored by calling win.center() below
+                    None => (0.0, 0.0),
+                };
+                NSRect::new(NSPoint::new(left, bottom), NSSize::new(width, height))
             }
         };
 
@@ -224,12 +233,16 @@ fn create_window(
                 }
             }
 
-            ns_window.center();
+            if !pl_attrs.has_shadow {
+                ns_window.setHasShadow_(NO);
+            }
+            if attrs.position.is_none() {
+                ns_window.center();
+            }
             ns_window
         });
-        pool.drain();
         res
-    }
+    })
 }
 
 struct WindowClass(*const Class);
@@ -268,7 +281,10 @@ pub struct SharedState {
     is_simple_fullscreen: bool,
     pub saved_style: Option<NSWindowStyleMask>,
     /// Presentation options saved before entering `set_simple_fullscreen`, and
-    /// restored upon exiting it
+    /// restored upon exiting it. Also used when transitioning from Borderless to
+    /// Exclusive fullscreen in `set_fullscreen` because we need to disable the menu
+    /// bar in exclusive fullscreen but want to restore the original options when
+    /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
     pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
 }
@@ -320,24 +336,19 @@ impl UnownedWindow {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
+        trace!("Creating new window");
 
-        let pool = unsafe { NSAutoreleasePool::new(nil) };
+        let ns_window = create_window(&win_attribs, &pl_attribs)
+            .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        let ns_app = create_app(pl_attribs.activation_policy).ok_or_else(|| {
-            unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSApplication`"))
-        })?;
+        let (ns_view, cursor_state) = unsafe { create_view(*ns_window, &pl_attribs) }
+            .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSView`")))?;
 
-        let ns_window = create_window(&win_attribs, &pl_attribs).ok_or_else(|| {
-            unsafe { pool.drain() };
-            os_error!(OsError::CreationError("Couldn't create `NSWindow`"))
-        })?;
-
-        let (ns_view, cursor_state) =
-            unsafe { create_view(*ns_window, &pl_attribs) }.ok_or_else(|| {
-                unsafe { pool.drain() };
-                os_error!(OsError::CreationError("Couldn't create `NSView`"))
-            })?;
+        // Configure the new view as the "key view" for the window
+        unsafe {
+            ns_window.setContentView_(*ns_view);
+            ns_window.setInitialFirstResponder_(*ns_view);
+        }
 
         let input_context = unsafe { util::create_input_context(*ns_view) };
 
@@ -349,7 +360,6 @@ impl UnownedWindow {
                 ns_window.setBackgroundColor_(NSColor::clearColor(nil));
             }
 
-            ns_app.activateIgnoringOtherApps_(YES);
             win_attribs.min_inner_size.map(|dim| {
                 let logical_dim = dim.to_logical(scale_factor);
                 set_min_inner_size(*ns_window, logical_dim)
@@ -399,19 +409,14 @@ impl UnownedWindow {
         // Setting the window as key has to happen *after* we set the fullscreen
         // state, since otherwise we'll briefly see the window at normal size
         // before it transitions.
-        unsafe {
-            if visible {
-                window.ns_window.makeKeyAndOrderFront_(nil);
-            } else {
-                window.ns_window.makeKeyWindow();
-            }
+        if visible {
+            // Tightly linked with `app_state::window_activation_hack`
+            unsafe { window.ns_window.makeKeyAndOrderFront_(nil) };
         }
 
         if maximized {
             window.set_maximized(maximized);
         }
-
-        unsafe { pool.drain() };
 
         Ok((window, delegate))
     }
@@ -470,17 +475,8 @@ impl UnownedWindow {
     pub fn set_outer_position(&self, position: Position) {
         let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
-        let dummy = NSRect::new(
-            NSPoint::new(
-                position.x,
-                // While it's true that we're setting the top-left position,
-                // it still needs to be in a bottom-left coordinate system.
-                CGDisplay::main().pixels_high() as f64 - position.y,
-            ),
-            NSSize::new(0f64, 0f64),
-        );
         unsafe {
-            util::set_frame_top_left_point_async(*self.ns_window, dummy.origin);
+            util::set_frame_top_left_point_async(*self.ns_window, util::window_position(position));
         }
     }
 
@@ -610,6 +606,16 @@ impl UnownedWindow {
         Ok(())
     }
 
+    #[inline]
+    pub fn drag_window(&self) -> Result<(), ExternalError> {
+        unsafe {
+            let event: id = msg_send![NSApp(), currentEvent];
+            let _: () = msg_send![*self.ns_window, performWindowDragWithEvent: event];
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn is_zoomed(&self) -> bool {
         // because `isZoomed` doesn't work if the window's borderless,
         // we make it resizable temporalily.
@@ -629,7 +635,7 @@ impl UnownedWindow {
             self.set_style_mask_async(curr_mask);
         }
 
-        is_zoomed != 0
+        is_zoomed != NO
     }
 
     fn saved_style(&self, shared_state: &mut SharedState) -> NSWindowStyleMask {
@@ -705,6 +711,11 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn is_maximized(&self) -> bool {
+        self.is_zoomed()
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         trace!("Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
@@ -732,10 +743,15 @@ impl UnownedWindow {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(RootMonitorHandle { inner: ref monitor }) => monitor,
+                Fullscreen::Borderless(borderless) => {
+                    let RootMonitorHandle { inner: monitor } = borderless
+                        .clone()
+                        .unwrap_or_else(|| self.current_monitor_inner());
+                    monitor
+                }
                 Fullscreen::Exclusive(RootVideoMode {
                     video_mode: VideoMode { ref monitor, .. },
-                }) => monitor,
+                }) => monitor.clone(),
             }
             .ns_screen()
             .unwrap();
@@ -768,6 +784,15 @@ impl UnownedWindow {
             let display_id = video_mode.monitor().inner.native_identifier();
 
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
+
+            if matches!(old_fullscreen, Some(Fullscreen::Borderless(_))) {
+                unsafe {
+                    let app = NSApp();
+                    trace!("Locked shared state in `set_fullscreen`");
+                    let mut shared_state_lock = self.shared_state.lock().unwrap();
+                    shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
+                }
+            }
 
             unsafe {
                 // Fade to black (and wait for the fade to complete) to hide the
@@ -819,7 +844,6 @@ impl UnownedWindow {
         trace!("Locked shared state in `set_fullscreen`");
         let mut shared_state_lock = self.shared_state.lock().unwrap();
         shared_state_lock.fullscreen = fullscreen.clone();
-        trace!("Unlocked shared state in `set_fullscreen`");
 
         INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
 
@@ -860,16 +884,42 @@ impl UnownedWindow {
                 // of the menu bar, and this looks broken, so we must make sure
                 // that the menu bar is disabled. This is done in the window
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
+                let app = NSApp();
+                trace!("Locked shared state in `set_fullscreen`");
+                shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
+
+                let presentation_options =
+                    NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                        | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                        | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
+                app.setPresentationOptions_(presentation_options);
+
                 let () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
             },
             (
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
                 &Some(Fullscreen::Borderless(_)),
             ) => unsafe {
+                let presentation_options =
+                    shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
+                        NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
+                        | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
+                    });
+                NSApp().setPresentationOptions_(presentation_options);
+
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
+
+                // Restore the normal window level following the Borderless fullscreen
+                // `CGShieldingWindowLevel() + 1` hack.
+                let () = msg_send![
+                    *self.ns_window,
+                    setLevel: ffi::NSWindowLevel::NSNormalWindowLevel
+                ];
             },
             _ => INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst),
-        }
+        };
+        trace!("Unlocked shared state in `set_fullscreen`");
     }
 
     #[inline]
@@ -949,7 +999,36 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> RootMonitorHandle {
+    pub fn focus_window(&self) {
+        let is_minimized: BOOL = unsafe { msg_send![*self.ns_window, isMiniaturized] };
+        let is_minimized = is_minimized == YES;
+        let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
+        let is_visible = is_visible == YES;
+
+        if !is_minimized && is_visible {
+            unsafe {
+                NSApp().activateIgnoringOtherApps_(YES);
+                util::make_key_and_order_front_async(*self.ns_window);
+            }
+        }
+    }
+
+    #[inline]
+    pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
+        let ns_request_type = request_type.map(|ty| match ty {
+            UserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
+            UserAttentionType::Informational => NSRequestUserAttentionType::NSInformationalRequest,
+        });
+        unsafe {
+            if let Some(ty) = ns_request_type {
+                NSApp().requestUserAttention_(ty);
+            }
+        }
+    }
+
+    #[inline]
+    // Allow directly accessing the current monitor internally without unwrapping.
+    pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
         unsafe {
             let screen: id = msg_send![*self.ns_window, screen];
             let desc = NSScreen::deviceDescription(screen);
@@ -963,23 +1042,27 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+        Some(self.current_monitor_inner())
+    }
+
+    #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         monitor::available_monitors()
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        monitor::primary_monitor()
+    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+        let monitor = monitor::primary_monitor();
+        Some(RootMonitorHandle { inner: monitor })
     }
 
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let handle = MacOSHandle {
-            ns_window: *self.ns_window as *mut _,
-            ns_view: *self.ns_view as *mut _,
-            ..MacOSHandle::empty()
-        };
-        RawWindowHandle::MacOS(handle)
+        let mut handle = AppKitHandle::empty();
+        handle.ns_window = *self.ns_window as *mut _;
+        handle.ns_view = *self.ns_view as *mut _;
+        RawWindowHandle::AppKit(handle)
     }
 }
 
@@ -992,18 +1075,6 @@ impl WindowExtMacOS for UnownedWindow {
     #[inline]
     fn ns_view(&self) -> *mut c_void {
         *self.ns_view as *mut _
-    }
-
-    #[inline]
-    fn request_user_attention(&self, request_type: RequestUserAttentionType) {
-        unsafe {
-            NSApp().requestUserAttention_(match request_type {
-                RequestUserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
-                RequestUserAttentionType::Informational => {
-                    NSRequestUserAttentionType::NSInformationalRequest
-                }
-            });
-        }
     }
 
     #[inline]
@@ -1094,6 +1165,19 @@ impl WindowExtMacOS for UnownedWindow {
             }
         }
     }
+
+    #[inline]
+    fn has_shadow(&self) -> bool {
+        unsafe { self.ns_window.hasShadow() == YES }
+    }
+
+    #[inline]
+    fn set_has_shadow(&self, has_shadow: bool) {
+        unsafe {
+            self.ns_window
+                .setHasShadow_(if has_shadow { YES } else { NO })
+        }
+    }
 }
 
 impl Drop for UnownedWindow {
@@ -1101,7 +1185,7 @@ impl Drop for UnownedWindow {
         trace!("Dropping `UnownedWindow` ({:?})", self as *mut _);
         // Close the window if it has not yet been closed.
         if *self.ns_window != nil {
-            unsafe { util::close_async(*self.ns_window) };
+            unsafe { util::close_async(self.ns_window.clone()) };
         }
     }
 }
@@ -1119,14 +1203,14 @@ unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: Logica
     // If necessary, resize the window to match constraint
     if current_rect.size.width < min_size.width {
         current_rect.size.width = min_size.width;
-        window.setFrame_display_(current_rect, 0)
+        window.setFrame_display_(current_rect, NO)
     }
     if current_rect.size.height < min_size.height {
         // The origin point of a rectangle is at its bottom left in Cocoa.
         // To ensure the window's top-left point remains the same:
         current_rect.origin.y += current_rect.size.height - min_size.height;
         current_rect.size.height = min_size.height;
-        window.setFrame_display_(current_rect, 0)
+        window.setFrame_display_(current_rect, NO)
     }
 }
 
@@ -1143,13 +1227,13 @@ unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: Logica
     // If necessary, resize the window to match constraint
     if current_rect.size.width > max_size.width {
         current_rect.size.width = max_size.width;
-        window.setFrame_display_(current_rect, 0)
+        window.setFrame_display_(current_rect, NO)
     }
     if current_rect.size.height > max_size.height {
         // The origin point of a rectangle is at its bottom left in Cocoa.
         // To ensure the window's top-left point remains the same:
         current_rect.origin.y += current_rect.size.height - max_size.height;
         current_rect.size.height = max_size.height;
-        window.setFrame_display_(current_rect, 0)
+        window.setFrame_display_(current_rect, NO)
     }
 }

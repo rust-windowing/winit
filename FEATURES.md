@@ -116,8 +116,9 @@ If your PR makes notable changes to Winit's features, please update this section
 ### Windows
 * Setting the taskbar icon
 * Setting the parent window
+* Setting a menu bar
 * `WS_EX_NOREDIRECTIONBITMAP` support
-* Theme the title bar according to Windows 10 Dark Mode setting
+* Theme the title bar according to Windows 10 Dark Mode setting or set a preferred theme
 
 ### macOS
 * Window activation policy
@@ -182,7 +183,7 @@ Legend:
 |Fullscreen                       |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Fullscreen toggle                |✔️     |✔️     |✔️         |✔️             |**N/A**|✔️     |✔️        |
 |Exclusive fullscreen             |✔️     |✔️     |✔️         |**N/A**         |❌    |✔️     |**N/A**|
-|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |**N/A**|
+|HiDPI support                    |✔️     |✔️     |✔️         |✔️             |▢[#721]|✔️    |✔️    |
 |Popup windows                    |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
 
 ### System information
@@ -198,14 +199,15 @@ Legend:
 |Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|❓        |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
-|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |✔️        |
-|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |✔️        |
-|Multitouch              |✔️       |❌      |✔️       |✔️          |❓     |✔️     |✔️        |
+|Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
+|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
+|Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |
 |Raw Device Events       |▢[#750]  |▢[#750] |▢[#750]  |❌          |❌    |❌     |❓        |
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |
+|Drag window with cursor |✔️         |✔️       |✔️        |✔️            |**N/A**|**N/A**|**N/A**   |
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.

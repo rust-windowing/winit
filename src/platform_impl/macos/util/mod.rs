@@ -3,17 +3,27 @@ mod cursor;
 
 pub use self::{cursor::*, r#async::*};
 
-use std::ops::{BitAnd, Deref};
+use std::{
+    cell::Cell,
+    ops::{BitAnd, Deref},
+    rc::Rc,
+};
 
+use block::ConcreteBlock;
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSAutoreleasePool, NSRect, NSString, NSUInteger},
+    foundation::{NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
 
-use crate::platform_impl::platform::ffi;
+use crate::{
+    dpi::LogicalPosition,
+    platform_impl::platform::ffi::{
+        self, NSRange, NSStringEnumerationByComposedCharacterSequences,
+    },
+};
 
 // Replace with `!` once stable
 #[derive(Debug)]
@@ -60,9 +70,7 @@ impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
             unsafe {
-                let pool = NSAutoreleasePool::new(nil);
                 let () = msg_send![self.0, release];
-                pool.drain();
             };
         }
     }
@@ -91,10 +99,46 @@ pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
     CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)
 }
 
+/// Converts from winit screen-coordinates to macOS screen-coordinates.
+/// Winit: top-left is (0, 0) and y increasing downwards
+/// macOS: bottom-left is (0, 0) and y increasing upwards
+pub fn window_position(position: LogicalPosition<f64>) -> NSPoint {
+    NSPoint::new(
+        position.x,
+        CGDisplay::main().pixels_high() as f64 - position.y,
+    )
+}
+
 pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
     IdRef::new(NSString::alloc(nil).init_str(s))
 }
 
+/// Returns the number of characters in a string.
+/// (A single character may consist of multiple UTF-32 code units.
+/// This is possible when long sequences of composing characters are present)
+///
+/// Unsafe because assumes that the `string` is an `NSString` object
+pub unsafe fn ns_string_char_count(string: id) -> usize {
+    let length: NSUInteger = msg_send![string, length];
+    let range = NSRange {
+        location: 0,
+        length,
+    };
+    let char_count = Rc::new(Cell::new(0));
+    let block = {
+        let char_count = char_count.clone();
+        ConcreteBlock::new(move || char_count.set(char_count.get() + 1)).copy()
+    };
+    let block = &*block;
+    let () = msg_send![string,
+        enumerateSubstringsInRange:range
+        options:NSStringEnumerationByComposedCharacterSequences
+        usingBlock:block
+    ];
+    char_count.get()
+}
+
+#[allow(dead_code)] // In case we want to use this function in the future
 pub unsafe fn app_name() -> Option<id> {
     let bundle: id = msg_send![class!(NSBundle), mainBundle];
     let dict: id = msg_send![bundle, infoDictionary];

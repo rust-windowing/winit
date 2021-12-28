@@ -10,15 +10,17 @@
 ))]
 fn main() {
     use std::{thread::sleep, time::Duration};
+
+    use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
-        platform::desktop::EventLoopExtDesktop,
+        platform::run_return::EventLoopExtRunReturn,
         window::WindowBuilder,
     };
     let mut event_loop = EventLoop::new();
 
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
     let _window = WindowBuilder::new()
         .with_title("A fantastic window!")
         .build(&event_loop)

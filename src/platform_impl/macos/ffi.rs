@@ -2,6 +2,8 @@
 
 #![allow(dead_code, non_snake_case, non_upper_case_globals)]
 
+use std::ffi::c_void;
+
 use cocoa::{
     base::id,
     foundation::{NSInteger, NSUInteger},
@@ -116,6 +118,8 @@ pub enum NSWindowLevel {
     NSScreenSaverWindowLevel = kCGScreenSaverWindowLevelKey as _,
 }
 
+pub const NSStringEnumerationByComposedCharacterSequences: NSUInteger = 2;
+
 pub type CGDisplayFadeInterval = f32;
 pub type CGDisplayReservationInterval = f32;
 pub type CGDisplayBlendFraction = f32;
@@ -159,7 +163,19 @@ pub const IOYUV422Pixels: &str = "Y4U2V2";
 pub const IO8BitOverlayPixels: &str = "O8";
 
 pub type CGWindowLevel = i32;
-pub type CGDisplayModeRef = *mut libc::c_void;
+pub type CGDisplayModeRef = *mut c_void;
+
+#[cfg_attr(
+    not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
+    link(name = "CoreGraphics", kind = "framework")
+)]
+#[cfg_attr(
+    use_colorsync_cgdisplaycreateuuidfromdisplayid,
+    link(name = "ColorSync", kind = "framework")
+)]
+extern "C" {
+    pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
+}
 
 #[link(name = "CoreGraphics", kind = "framework")]
 extern "C" {
@@ -189,7 +205,6 @@ extern "C" {
         synchronous: Boolean,
     ) -> CGError;
     pub fn CGReleaseDisplayFadeReservation(token: CGDisplayFadeReservationToken) -> CGError;
-    pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
     pub fn CGShieldingWindowLevel() -> CGWindowLevel;
     pub fn CGDisplaySetDisplayMode(
         display: CGDirectDisplayID,

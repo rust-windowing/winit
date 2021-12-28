@@ -1,5 +1,6 @@
 // This example is used by developers to test various window functions.
 
+use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
@@ -8,7 +9,7 @@ use winit::{
 };
 
 fn main() {
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
@@ -20,13 +21,13 @@ fn main() {
     eprintln!("debugging keys:");
     eprintln!("  (E) Enter exclusive fullscreen");
     eprintln!("  (F) Toggle borderless fullscreen");
+    eprintln!("  (P) Toggle borderless fullscreen on system's preffered monitor");
     eprintln!("  (M) Toggle minimized");
     eprintln!("  (Q) Quit event loop");
     eprintln!("  (V) Toggle visibility");
     eprintln!("  (X) Toggle maximized");
 
     let mut minimized = false;
-    let mut maximized = false;
     let mut visible = true;
 
     event_loop.run(move |event, _, control_flow| {
@@ -70,7 +71,7 @@ fn main() {
                             size.width * size.height
                         }
 
-                        let monitor = window.current_monitor();
+                        let monitor = window.current_monitor().unwrap();
                         if let Some(mode) = monitor
                             .video_modes()
                             .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
@@ -88,6 +89,13 @@ fn main() {
                             window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
                         }
                     }
+                    VirtualKeyCode::P => {
+                        if window.fullscreen().is_some() {
+                            window.set_fullscreen(None);
+                        } else {
+                            window.set_fullscreen(Some(Fullscreen::Borderless(None)));
+                        }
+                    }
                     VirtualKeyCode::M => {
                         minimized = !minimized;
                         window.set_minimized(minimized);
@@ -100,8 +108,8 @@ fn main() {
                         window.set_visible(visible);
                     }
                     VirtualKeyCode::X => {
-                        maximized = !maximized;
-                        window.set_maximized(maximized);
+                        let is_maximized = window.is_maximized();
+                        window.set_maximized(!is_maximized);
                     }
                     _ => (),
                 },

@@ -1,13 +1,15 @@
-use std::{thread, time};
-
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
-
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    simple_logger::init().unwrap();
+    use std::{thread, time};
+
+    use simple_logger::SimpleLogger;
+    use winit::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop},
+        window::WindowBuilder,
+    };
+
+    SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
     let window = WindowBuilder::new()
@@ -36,4 +38,9 @@ fn main() {
             _ => (),
         }
     });
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    unimplemented!() // `Window` can't be sent between threads
 }

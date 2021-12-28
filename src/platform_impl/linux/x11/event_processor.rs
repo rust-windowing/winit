@@ -20,6 +20,9 @@ use crate::{
     event_loop::EventLoopWindowTarget as RootELW,
 };
 
+/// The X11 documentation states: "Keycodes lie in the inclusive range [8,255]".
+const KEYCODE_OFFSET: u8 = 8;
+
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
@@ -565,7 +568,7 @@ impl<T: 'static> EventProcessor<T> {
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
                 if keycode != 0 {
-                    let scancode = keycode - 8;
+                    let scancode = keycode - KEYCODE_OFFSET as u32;
                     let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
@@ -706,7 +709,7 @@ impl<T: 'static> EventProcessor<T> {
                                 event: MouseInput {
                                     device_id,
                                     state,
-                                    button: Other(x as u8),
+                                    button: Other(x as u16),
                                     modifiers,
                                 },
                             }),
@@ -921,9 +924,12 @@ impl<T: 'static> EventProcessor<T> {
                             });
 
                             // Issue key press events for all pressed keys
-                            self.handle_pressed_keys(
+                            Self::handle_pressed_keys(
+                                &wt,
                                 window_id,
                                 ElementState::Pressed,
+                                &self.mod_keymap,
+                                &mut self.device_mod_state,
                                 &mut callback,
                             );
                         }
@@ -942,9 +948,12 @@ impl<T: 'static> EventProcessor<T> {
                             let window_id = mkwid(xev.event);
 
                             // Issue key release events for all pressed keys
-                            self.handle_pressed_keys(
+                            Self::handle_pressed_keys(
+                                &wt,
                                 window_id,
                                 ElementState::Released,
+                                &self.mod_keymap,
+                                &mut self.device_mod_state,
                                 &mut callback,
                             );
 
@@ -1081,10 +1090,10 @@ impl<T: 'static> EventProcessor<T> {
 
                         let device_id = mkdid(xev.sourceid);
                         let keycode = xev.detail;
-                        if keycode < 8 {
+                        let scancode = keycode - KEYCODE_OFFSET as i32;
+                        if scancode < 0 {
                             return;
                         }
-                        let scancode = (keycode - 8) as u32;
                         let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
@@ -1093,7 +1102,7 @@ impl<T: 'static> EventProcessor<T> {
                         callback(Event::DeviceEvent {
                             device_id,
                             event: DeviceEvent::Key(KeyboardInput {
-                                scancode,
+                                scancode: scancode as u32,
                                 virtual_keycode,
                                 state,
                                 modifiers,
@@ -1155,57 +1164,56 @@ impl<T: 'static> EventProcessor<T> {
                     if let Some(prev_list) = prev_list {
                         let new_list = wt.xconn.available_monitors();
                         for new_monitor in new_list {
-                            prev_list
+                            // Previous list may be empty, in case of disconnecting and
+                            // reconnecting the only one monitor. We still need to emit events in
+                            // this case.
+                            let maybe_prev_scale_factor = prev_list
                                 .iter()
                                 .find(|prev_monitor| prev_monitor.name == new_monitor.name)
-                                .map(|prev_monitor| {
-                                    if new_monitor.scale_factor != prev_monitor.scale_factor {
-                                        for (window_id, window) in wt.windows.borrow().iter() {
-                                            if let Some(window) = window.upgrade() {
-                                                // Check if the window is on this monitor
-                                                let monitor = window.current_monitor();
-                                                if monitor.name == new_monitor.name {
-                                                    let (width, height) =
-                                                        window.inner_size_physical();
-                                                    let (new_width, new_height) = window
-                                                        .adjust_for_dpi(
-                                                            prev_monitor.scale_factor,
-                                                            new_monitor.scale_factor,
-                                                            width,
-                                                            height,
-                                                            &*window.shared_state.lock(),
-                                                        );
+                                .map(|prev_monitor| prev_monitor.scale_factor);
+                            if Some(new_monitor.scale_factor) != maybe_prev_scale_factor {
+                                for (window_id, window) in wt.windows.borrow().iter() {
+                                    if let Some(window) = window.upgrade() {
+                                        // Check if the window is on this monitor
+                                        let monitor = window.current_monitor();
+                                        if monitor.name == new_monitor.name {
+                                            let (width, height) = window.inner_size_physical();
+                                            let (new_width, new_height) = window.adjust_for_dpi(
+                                                // If there all monitors are closed before, scale
+                                                // factor would be already changed to 1.0.
+                                                maybe_prev_scale_factor.unwrap_or(1.0),
+                                                new_monitor.scale_factor,
+                                                width,
+                                                height,
+                                                &*window.shared_state.lock(),
+                                            );
 
-                                                    let window_id = crate::window::WindowId(
-                                                        crate::platform_impl::platform::WindowId::X(
-                                                            *window_id,
-                                                        ),
-                                                    );
-                                                    let old_inner_size =
-                                                        PhysicalSize::new(width, height);
-                                                    let mut new_inner_size =
-                                                        PhysicalSize::new(new_width, new_height);
+                                            let window_id = crate::window::WindowId(
+                                                crate::platform_impl::platform::WindowId::X(
+                                                    *window_id,
+                                                ),
+                                            );
+                                            let old_inner_size = PhysicalSize::new(width, height);
+                                            let mut new_inner_size =
+                                                PhysicalSize::new(new_width, new_height);
 
-                                                    callback(Event::WindowEvent {
-                                                        window_id,
-                                                        event: WindowEvent::ScaleFactorChanged {
-                                                            scale_factor: new_monitor.scale_factor,
-                                                            new_inner_size: &mut new_inner_size,
-                                                        },
-                                                    });
+                                            callback(Event::WindowEvent {
+                                                window_id,
+                                                event: WindowEvent::ScaleFactorChanged {
+                                                    scale_factor: new_monitor.scale_factor,
+                                                    new_inner_size: &mut new_inner_size,
+                                                },
+                                            });
 
-                                                    if new_inner_size != old_inner_size {
-                                                        let (new_width, new_height) =
-                                                            new_inner_size.into();
-                                                        window.set_inner_size_physical(
-                                                            new_width, new_height,
-                                                        );
-                                                    }
-                                                }
+                                            if new_inner_size != old_inner_size {
+                                                let (new_width, new_height) = new_inner_size.into();
+                                                window
+                                                    .set_inner_size_physical(new_width, new_height);
                                             }
                                         }
                                     }
-                                });
+                                }
+                            }
                         }
                     }
                 }
@@ -1221,29 +1229,36 @@ impl<T: 'static> EventProcessor<T> {
     }
 
     fn handle_pressed_keys<F>(
-        &self,
+        wt: &super::EventLoopWindowTarget<T>,
         window_id: crate::window::WindowId,
         state: ElementState,
+        mod_keymap: &ModifierKeymap,
+        device_mod_state: &mut ModifierKeyState,
         callback: &mut F,
     ) where
         F: FnMut(Event<'_, T>),
     {
-        let wt = get_xtarget(&self.target);
-
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-        let modifiers = self.device_mod_state.modifiers();
+        let modifiers = device_mod_state.modifiers();
 
-        // Get the set of keys currently pressed and apply Key events to each
-        let keys = wt.xconn.query_keymap();
-
-        for keycode in &keys {
-            if keycode < 8 {
-                continue;
-            }
-
-            let scancode = (keycode - 8) as u32;
+        // Update modifiers state and emit key events based on which keys are currently pressed.
+        for keycode in wt
+            .xconn
+            .query_keymap()
+            .into_iter()
+            .filter(|k| *k >= KEYCODE_OFFSET)
+        {
+            let scancode = (keycode - KEYCODE_OFFSET) as u32;
             let keysym = wt.xconn.keycode_to_keysym(keycode);
             let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+
+            if let Some(modifier) = mod_keymap.get_modifier(keycode as ffi::KeyCode) {
+                device_mod_state.key_event(
+                    ElementState::Pressed,
+                    keycode as ffi::KeyCode,
+                    modifier,
+                );
+            }
 
             #[allow(deprecated)]
             callback(Event::WindowEvent {

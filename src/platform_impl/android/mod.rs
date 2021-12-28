@@ -8,10 +8,11 @@ use crate::{
 };
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, MotionAction, KeyAction, Keycode},
+    event::{InputEvent, KeyAction, Keycode, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
+use raw_window_handle::{AndroidNdkHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex, RwLock},
@@ -19,24 +20,44 @@ use std::{
 };
 
 lazy_static! {
-    static ref CONFIG: RwLock<Configuration> = RwLock::new(Configuration::new());
+    static ref CONFIG: RwLock<Configuration> = RwLock::new(Configuration::from_asset_manager(
+        &ndk_glue::native_activity().asset_manager()
+    ));
+    // If this is `Some()` a `Poll::Wake` is considered an `EventSource::Internal` with the event
+    // contained in the `Option`. The event is moved outside of the `Option` replacing it with a
+    // `None`.
+    //
+    // This allows us to inject event into the event loop without going through `ndk-glue` and
+    // calling unsafe function that should only be called by Android.
+    static ref INTERNAL_EVENT: RwLock<Option<InternalEvent>> = RwLock::new(None);
+}
+
+enum InternalEvent {
+    RedrawRequested,
 }
 
 enum EventSource {
     Callback,
     InputQueue,
     User,
+    Internal(InternalEvent),
 }
 
 fn poll(poll: Poll) -> Option<EventSource> {
     match poll {
-        Poll::Event { data, .. } => match data as usize {
-            0 => Some(EventSource::Callback),
-            1 => Some(EventSource::InputQueue),
+        Poll::Event { ident, .. } => match ident {
+            ndk_glue::NDK_GLUE_LOOPER_EVENT_PIPE_IDENT => Some(EventSource::Callback),
+            ndk_glue::NDK_GLUE_LOOPER_INPUT_QUEUE_IDENT => Some(EventSource::InputQueue),
             _ => unreachable!(),
         },
         Poll::Timeout => None,
-        Poll::Wake => Some(EventSource::User),
+        Poll::Wake => Some(
+            INTERNAL_EVENT
+                .write()
+                .unwrap()
+                .take()
+                .map_or(EventSource::User, EventSource::Internal),
+        ),
         Poll::Callback => unreachable!(),
     }
 }
@@ -167,97 +188,129 @@ impl<T: 'static> EventLoop<T> {
                     Event::Destroy => {
                         let event = event::Event::WindowEvent {
                             window_id: window::WindowId(WindowId),
-                            event: event::WindowEvent::CloseRequested
+                            event: event::WindowEvent::CloseRequested,
                         };
+                    }
+                    Event::WindowHasFocus => {
                         call_event_handler!(
                             event_handler,
                             self.window_target(),
                             control_flow,
-                            event
+                            event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::Focused(true),
+                            }
                         );
-                    },
+                    }
+                    Event::WindowLostFocus => {
+                        call_event_handler!(
+                            event_handler,
+                            self.window_target(),
+                            control_flow,
+                            event::Event::WindowEvent {
+                                window_id: window::WindowId(WindowId),
+                                event: event::WindowEvent::Focused(false),
+                            }
+                        );
+                    }
                     _ => {}
                 },
                 Some(EventSource::InputQueue) => {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
                         while let Some(event) = input_queue.get_event() {
-                            //println!("event {:?}", event);
                             if let Some(event) = input_queue.pre_dispatch(event) {
+                                let mut handled = true;
                                 let window_id = window::WindowId(WindowId);
                                 let device_id = event::DeviceId(DeviceId);
                                 match &event {
                                     InputEvent::MotionEvent(motion_event) => {
                                         let phase = match motion_event.action() {
-                                            MotionAction::Down => Some(event::TouchPhase::Started),
-                                            MotionAction::Up => Some(event::TouchPhase::Ended),
+                                            MotionAction::Down | MotionAction::PointerDown => {
+                                                Some(event::TouchPhase::Started)
+                                            }
+                                            MotionAction::Up | MotionAction::PointerUp => {
+                                                Some(event::TouchPhase::Ended)
+                                            }
                                             MotionAction::Move => Some(event::TouchPhase::Moved),
                                             MotionAction::Cancel => {
                                                 Some(event::TouchPhase::Cancelled)
                                             }
-                                            _ => None, // TODO mouse events
+                                            _ => {
+                                                handled = false;
+                                                None // TODO mouse events
+                                            }
                                         };
-                                        let pointer = motion_event.pointer_at_index(0);
-                                        let location = PhysicalPosition {
-                                            x: pointer.x() as _,
-                                            y: pointer.y() as _,
-                                        };
-
                                         if let Some(phase) = phase {
-                                            let event = event::Event::WindowEvent {
-                                                window_id,
-                                                event: event::WindowEvent::Touch(event::Touch {
-                                                    device_id,
-                                                    phase,
-                                                    location,
-                                                    id: 0,
-                                                    force: None,
-                                                }),
-                                            };
-                                            call_event_handler!(
-                                                event_handler,
-                                                self.window_target(),
-                                                control_flow,
-                                                event
-                                            );
-                                        }
-                                    }
-                                    InputEvent::KeyEvent(key_event) => {
-                                        let scancode = key_event.scan_code() as u32;
-                                        let state = match key_event.action() {
-                                            KeyAction::Down => Some(event::ElementState::Pressed),
-                                            KeyAction::Up => Some(event::ElementState::Released),
-                                            _ => None,
-                                        };
-                                        let virtual_keycode = match key_event.key_code() {
-                                            Keycode::Back => Some(event::VirtualKeyCode::Back),
-                                            _ =>  None, // TODO match KeyCode to VirtualKeyCodes
-                                        };
-                                        let modifiers = event::ModifiersState::empty();
-                                        if let Some(state) = state {
-                                            let input = event::KeyboardInput {
-                                                scancode,
-                                                state,
-                                                virtual_keycode,
-                                                modifiers,
-                                            };
-                                            let event = event::Event::WindowEvent {
-                                                window_id,
-                                                event: event::WindowEvent::KeyboardInput{
-                                                    device_id,
-                                                    input,
-                                                    is_synthetic: false,
+                                            let pointers: Box<
+                                                dyn Iterator<Item = ndk::event::Pointer<'_>>,
+                                            > = match phase {
+                                                event::TouchPhase::Started
+                                                | event::TouchPhase::Ended => Box::new(
+                                                    std::iter::once(motion_event.pointer_at_index(
+                                                        motion_event.pointer_index(),
+                                                    )),
+                                                ),
+                                                event::TouchPhase::Moved
+                                                | event::TouchPhase::Cancelled => {
+                                                    Box::new(motion_event.pointers())
                                                 }
                                             };
-                                            call_event_handler!(
-                                                event_handler,
-                                                self.window_target(),
-                                                control_flow,
-                                                event
-                                            );
+
+                                            for pointer in pointers {
+                                                let location = PhysicalPosition {
+                                                    x: pointer.x() as _,
+                                                    y: pointer.y() as _,
+                                                };
+                                                let event = event::Event::WindowEvent {
+                                                    window_id,
+                                                    event: event::WindowEvent::Touch(
+                                                        event::Touch {
+                                                            device_id,
+                                                            phase,
+                                                            location,
+                                                            id: pointer.pointer_id() as u64,
+                                                            force: None,
+                                                        },
+                                                    ),
+                                                };
+                                                call_event_handler!(
+                                                    event_handler,
+                                                    self.window_target(),
+                                                    control_flow,
+                                                    event
+                                                );
+                                            }
                                         }
                                     }
+                                    InputEvent::KeyEvent(key) => {
+                                        let state = match key.action() {
+                                            KeyAction::Down => event::ElementState::Pressed,
+                                            KeyAction::Up => event::ElementState::Released,
+                                            _ => event::ElementState::Released,
+                                        };
+                                        #[allow(deprecated)]
+                                        let event = event::Event::WindowEvent {
+                                            window_id,
+                                            event: event::WindowEvent::KeyboardInput {
+                                                device_id,
+                                                input: event::KeyboardInput {
+                                                    scancode: key.scan_code() as u32,
+                                                    state,
+                                                    virtual_keycode: None,
+                                                    modifiers: event::ModifiersState::default(),
+                                                },
+                                                is_synthetic: false,
+                                            },
+                                        };
+                                        call_event_handler!(
+                                            event_handler,
+                                            self.window_target(),
+                                            control_flow,
+                                            event
+                                        );
+                                    }
                                 };
-                                input_queue.finish_event(event, true);
+                                input_queue.finish_event(event, handled);
                             }
                         }
                     }
@@ -273,9 +326,10 @@ impl<T: 'static> EventLoop<T> {
                         );
                     }
                 }
-                None => {
-                    control_flow = ControlFlow::Exit;
-                }
+                Some(EventSource::Internal(internal)) => match internal {
+                    InternalEvent::RedrawRequested => redraw = true,
+                },
+                None => {}
             }
 
             call_event_handler!(
@@ -320,6 +374,11 @@ impl<T: 'static> EventLoop<T> {
                     break 'event_loop;
                 }
                 ControlFlow::Poll => {
+                    self.first_event = poll(
+                        self.looper
+                            .poll_all_timeout(Duration::from_millis(0))
+                            .unwrap(),
+                    );
                     self.start_cause = event::StartCause::Poll;
                 }
                 ControlFlow::Wait => {
@@ -392,13 +451,15 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
+    pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
+        Some(monitor::MonitorHandle {
+            inner: MonitorHandle,
+        })
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         let mut v = VecDeque::with_capacity(1);
-        v.push_back(self.primary_monitor());
+        v.push_back(MonitorHandle);
         v
     }
 }
@@ -407,7 +468,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 pub struct WindowId;
 
 impl WindowId {
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         WindowId
     }
 }
@@ -416,7 +477,7 @@ impl WindowId {
 pub struct DeviceId;
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId
     }
 }
@@ -440,8 +501,10 @@ impl Window {
         WindowId
     }
 
-    pub fn primary_monitor(&self) -> MonitorHandle {
-        MonitorHandle
+    pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
+        Some(monitor::MonitorHandle {
+            inner: MonitorHandle,
+        })
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -450,10 +513,10 @@ impl Window {
         v
     }
 
-    pub fn current_monitor(&self) -> monitor::MonitorHandle {
-        monitor::MonitorHandle {
+    pub fn current_monitor(&self) -> Option<monitor::MonitorHandle> {
+        Some(monitor::MonitorHandle {
             inner: MonitorHandle,
-        }
+        })
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -461,7 +524,8 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        // TODO
+        *INTERNAL_EVENT.write().unwrap() = Some(InternalEvent::RedrawRequested);
+        ForeignLooper::for_thread().unwrap().wake();
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
@@ -502,6 +566,10 @@ impl Window {
 
     pub fn set_maximized(&self, _maximized: bool) {}
 
+    pub fn is_maximized(&self) -> bool {
+        false
+    }
+
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
         warn!("Cannot set fullscreen on Android");
     }
@@ -517,6 +585,10 @@ impl Window {
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
     pub fn set_ime_position(&self, _position: Position) {}
+
+    pub fn focus_window(&self) {}
+
+    pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 
@@ -534,15 +606,20 @@ impl Window {
 
     pub fn set_cursor_visible(&self, _: bool) {}
 
-    pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
-        let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
-            unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
+    pub fn drag_window(&self) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut handle = AndroidNdkHandle::empty();
+        if let Some(native_window) = ndk_glue::native_window().as_ref() {
+            handle.a_native_window = unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
         } else {
-            panic!("native window null");
+            panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
         };
-        let mut handle = raw_window_handle::android::AndroidHandle::empty();
-        handle.a_native_window = a_native_window;
-        raw_window_handle::RawWindowHandle::Android(handle)
+        RawWindowHandle::AndroidNdk(handle)
     }
 
     pub fn config(&self) -> Configuration {

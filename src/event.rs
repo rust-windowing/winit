@@ -113,7 +113,7 @@ pub enum Event<'a, T: 'static> {
 
     /// Emitted when the event loop is being shut down.
     ///
-    /// This is irreversable - if this event is emitted, it is guaranteed to be the last event that
+    /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as an "do on quit" event.
     LoopDestroyed,
 }
@@ -131,7 +131,7 @@ impl<T: Clone> Clone for Event<'static, T> {
                 device_id: *device_id,
                 event: event.clone(),
             },
-            NewEvents(cause) => NewEvents(cause.clone()),
+            NewEvents(cause) => NewEvents(*cause),
             MainEventsCleared => MainEventsCleared,
             RedrawRequested(wid) => RedrawRequested(*wid),
             RedrawEventsCleared => RedrawEventsCleared,
@@ -358,8 +358,8 @@ impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
         return match self {
-            Resized(size) => Resized(size.clone()),
-            Moved(pos) => Moved(pos.clone()),
+            Resized(size) => Resized(*size),
+            Moved(pos) => Moved(*pos),
             CloseRequested => CloseRequested,
             Destroyed => Destroyed,
             DroppedFile(file) => DroppedFile(file.clone()),
@@ -377,7 +377,7 @@ impl Clone for WindowEvent<'static> {
                 is_synthetic: *is_synthetic,
             },
 
-            ModifiersChanged(modifiers) => ModifiersChanged(modifiers.clone()),
+            ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -437,7 +437,7 @@ impl Clone for WindowEvent<'static> {
                 value: *value,
             },
             Touch(touch) => Touch(*touch),
-            ThemeChanged(theme) => ThemeChanged(theme.clone()),
+            ThemeChanged(theme) => ThemeChanged(*theme),
             ScaleFactorChanged { .. } => {
                 unreachable!("Static event can't be about scale factor changing")
             }
@@ -538,12 +538,16 @@ impl<'a> WindowEvent<'a> {
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing. The only guarantee made about the return
-    /// value of this function is that it will always be equal to itself and to future values returned
-    /// by this function.  No other guarantees are made. This may be equal to a real `DeviceId`.
+    /// Returns a dummy `DeviceId`, useful for unit testing.
+    ///
+    /// # Safety
+    ///
+    /// The only guarantee made about the return value of this function is that
+    /// it will always be equal to itself and to future values returned by this function.
+    /// No other guarantees are made. This may be equal to a real `DeviceId`.
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         DeviceId(platform_impl::DeviceId::dummy())
     }
 }
@@ -745,7 +749,7 @@ pub enum MouseButton {
     Left,
     Right,
     Middle,
-    Other(u8),
+    Other(u16),
 }
 
 /// Describes a difference in the mouse scroll wheel state.
@@ -892,12 +896,20 @@ pub enum VirtualKeyCode {
     Numpad7,
     Numpad8,
     Numpad9,
+    NumpadAdd,
+    NumpadDivide,
+    NumpadDecimal,
+    NumpadComma,
+    NumpadEnter,
+    NumpadEquals,
+    NumpadMultiply,
+    NumpadSubtract,
 
     AbntC1,
     AbntC2,
-    Add,
     Apostrophe,
     Apps,
+    Asterisk,
     At,
     Ax,
     Backslash,
@@ -906,8 +918,6 @@ pub enum VirtualKeyCode {
     Colon,
     Comma,
     Convert,
-    Decimal,
-    Divide,
     Equals,
     Grave,
     Kana,
@@ -921,7 +931,6 @@ pub enum VirtualKeyCode {
     MediaSelect,
     MediaStop,
     Minus,
-    Multiply,
     Mute,
     MyComputer,
     // also called "Next"
@@ -930,12 +939,10 @@ pub enum VirtualKeyCode {
     NavigateBackward,
     NextTrack,
     NoConvert,
-    NumpadComma,
-    NumpadEnter,
-    NumpadEquals,
     OEM102,
     Period,
     PlayPause,
+    Plus,
     Power,
     PrevTrack,
     RAlt,
@@ -947,7 +954,6 @@ pub enum VirtualKeyCode {
     Slash,
     Sleep,
     Stop,
-    Subtract,
     Sysrq,
     Tab,
     Underline,
@@ -996,9 +1002,9 @@ bitflags! {
         // left and right modifiers are currently commented out, but we should be able to support
         // them in a future release
         /// The "shift" key.
-        const SHIFT = 0b100 << 0;
-        // const LSHIFT = 0b010 << 0;
-        // const RSHIFT = 0b001 << 0;
+        const SHIFT = 0b100;
+        // const LSHIFT = 0b010;
+        // const RSHIFT = 0b001;
         /// The "control" key.
         const CTRL = 0b100 << 3;
         // const LCTRL = 0b010 << 3;

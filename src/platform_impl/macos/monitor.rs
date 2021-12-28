@@ -162,6 +162,7 @@ impl fmt::Debug for MonitorHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // TODO: Do this using the proper fmt API
         #[derive(Debug)]
+        #[allow(dead_code)]
         struct MonitorHandle {
             name: Option<String>,
             native_identifier: u32,
