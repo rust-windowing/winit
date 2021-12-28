@@ -8,7 +8,7 @@ use crate::{
 };
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, KeyAction, Keycode, MotionAction},
+    event::{InputEvent, KeyAction, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
 };
 use ndk_glue::{Event, Rect};
@@ -190,6 +190,12 @@ impl<T: 'static> EventLoop<T> {
                             window_id: window::WindowId(WindowId),
                             event: event::WindowEvent::CloseRequested,
                         };
+                        call_event_handler!(
+                            event_handler,
+                            self.window_target(),
+                            control_flow,
+                            event
+                        );
                     }
                     Event::WindowHasFocus => {
                         call_event_handler!(
