@@ -31,7 +31,22 @@ pub fn main() {
         *control_flow = ControlFlow::Wait;
 
         #[cfg(target_arch = "wasm32")]
-        log::debug!("{:?}", event);
+        {
+            log::debug!("{:?}", event);
+
+            // Getting access to browser logs requires a lot of setup on mobile devices.
+            // So we implement this basic logging system into the page to give developers an easy alternative.
+            // As a bonus its also kind of handy on desktop.
+            if let Event::WindowEvent { event, .. } = &event {
+                let window = web_sys::window().unwrap();
+                let document = window.document().unwrap();
+                let list = document.get_element_by_id("event_log").unwrap();
+                let log = document.create_element("li").unwrap();
+                log.set_text_content(Some(&format!("{:?}", event)));
+                list.insert_before(&log, list.first_child().as_ref())
+                    .unwrap();
+            }
+        }
 
         match event {
             Event::WindowEvent {
