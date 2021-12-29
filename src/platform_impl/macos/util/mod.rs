@@ -3,13 +3,8 @@ mod cursor;
 
 pub use self::{cursor::*, r#async::*};
 
-use std::{
-    cell::Cell,
-    ops::{BitAnd, Deref},
-    rc::Rc,
-};
+use std::ops::{BitAnd, Deref};
 
-use block::ConcreteBlock;
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
     base::{id, nil},
@@ -18,12 +13,8 @@ use cocoa::{
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, Sel, BOOL, YES};
 
-use crate::{
-    dpi::LogicalPosition,
-    platform_impl::platform::ffi::{
-        self, NSRange, NSStringEnumerationByComposedCharacterSequences,
-    },
-};
+use crate::dpi::LogicalPosition;
+use crate::platform_impl::platform::ffi;
 
 // Replace with `!` once stable
 #[derive(Debug)]
@@ -111,31 +102,6 @@ pub fn window_position(position: LogicalPosition<f64>) -> NSPoint {
 
 pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {
     IdRef::new(NSString::alloc(nil).init_str(s))
-}
-
-/// Returns the number of characters in a string.
-/// (A single character may consist of multiple UTF-32 code units.
-/// This is possible when long sequences of composing characters are present)
-///
-/// Unsafe because assumes that the `string` is an `NSString` object
-pub unsafe fn ns_string_char_count(string: id) -> usize {
-    let length: NSUInteger = msg_send![string, length];
-    let range = NSRange {
-        location: 0,
-        length,
-    };
-    let char_count = Rc::new(Cell::new(0));
-    let block = {
-        let char_count = char_count.clone();
-        ConcreteBlock::new(move || char_count.set(char_count.get() + 1)).copy()
-    };
-    let block = &*block;
-    let () = msg_send![string,
-        enumerateSubstringsInRange:range
-        options:NSStringEnumerationByComposedCharacterSequences
-        usingBlock:block
-    ];
-    char_count.get()
 }
 
 #[allow(dead_code)] // In case we want to use this function in the future
