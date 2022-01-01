@@ -1,12 +1,15 @@
 #![cfg(target_os = "macos")]
 
-use std::os::raw::c_void;
+use std::{os::raw::c_void, collections::hash_map::Entry};
+
+use cocoa::appkit::NSApp;
+use objc::{runtime::{Object, Sel}, msg_send, rc::autoreleasepool, Encode};
 
 use crate::{
     dpi::LogicalSize,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::get_aux_state_mut,
+    platform_impl::{get_aux_state_mut, create_delegate_class, IdRef, get_aux_state_ref, EventLoop as PlatformEventLoop},
     window::{Window, WindowBuilder},
 };
 
@@ -179,6 +182,82 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 }
 
+pub trait DelegateMethod {
+    fn register_method<T>(self, sel: Sel, el: &PlatformEventLoop<T>);
+}
+
+macro_rules! impl_delegate_method {
+    ($($t:ident),*) => {
+
+        // method_decl_impl!(-T, R, extern fn(&T, Sel $(, $t)*) -> R, $($t),*);
+    }
+}
+
+impl<A, B, R> DelegateMethod for Box<dyn Fn(A, B) -> R + 'static>
+where
+    A: Clone + Encode + 'static,
+    B: Clone + Encode + 'static,
+    R: Encode + 'static
+{
+    fn register_method<T>(self, sel: Sel, el: &PlatformEventLoop<T>) {
+        extern "C" fn method_handler<A, B, R>(this: &Object, sel: Sel, a: A, b: B) -> R
+        where
+            A: Clone + 'static,
+            B: Clone + 'static,
+            R: 'static,
+        {
+            let mut retval: Option<R> = None;
+            let aux = unsafe { get_aux_state_ref(this) };
+            if let Some(v) = aux.methods.get(sel.name()) {
+                for cb in v {
+                    // The `methods` is a `Vec<Box<Box<FnMut(A, B)>>>`
+                    // Could this be done with fewer indirections?
+                    if let Some(cb) = cb.downcast_ref::<Box<dyn Fn(A, B) -> R>>() {
+                        let v = (cb)(a.clone(), b.clone());
+                        if retval.is_none() {
+                            retval = Some(v);
+                        }
+                    } else {
+                        warn!("Failed to downcast closure when handling {}", sel.name());
+                    }
+                }
+            }
+            retval.expect(&format!(
+                "Couldn't get a return value during {:?}. This probably indicates that no appropriate callback was found", sel.name()
+            ))
+        }
+        let self_boxed = Box::new(self as Box<dyn Fn(A, B) -> R>);
+    
+        let delegate_class = unsafe {
+            let mut decl = create_delegate_class();
+            decl.add_method(
+                // sel!(application:openFiles:),
+                sel,
+                method_handler::<A, B, R> as extern "C" fn(&Object, Sel, A, B) -> R,
+            );
+            decl.register()
+        };
+        let mut delegate_state = unsafe {get_aux_state_mut(&mut **el.delegate)};
+        match delegate_state.methods.entry(sel.name().to_string()) {
+            Entry::Occupied(mut e) => {
+                e.get_mut().push(self_boxed);
+            }
+            Entry::Vacant(e) => {
+                e.insert(vec![self_boxed]);
+            }
+        }
+        unsafe {
+            let new_delegate = IdRef::new(msg_send![delegate_class, new]);
+            let mut new_state = get_aux_state_mut(&mut **new_delegate);
+            std::mem::swap(&mut *new_state, &mut *delegate_state);
+            let app = NSApp();
+            autoreleasepool(|| {
+                let _: () = msg_send![app, setDelegate:*new_delegate];
+            });
+        }
+    }
+}
+
 pub trait EventLoopExtMacOS {
     /// Sets the activation policy for the application. It is set to
     /// `NSApplicationActivationPolicyRegular` by default.
@@ -195,6 +274,9 @@ pub trait EventLoopExtMacOS {
     /// [`run`](crate::event_loop::EventLoop::run) or
     /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
     fn enable_default_menu_creation(&mut self, enable: bool);
+
+    /// Adds a new callback method for the application delegate.
+    fn add_application_method<F: DelegateMethod>(&mut self, sel: Sel, method: F);
 }
 impl<T> EventLoopExtMacOS for EventLoop<T> {
     #[inline]
@@ -209,6 +291,10 @@ impl<T> EventLoopExtMacOS for EventLoop<T> {
         unsafe {
             get_aux_state_mut(&**self.event_loop.delegate).create_default_menu = enable;
         }
+    }
+
+    fn add_application_method<F: DelegateMethod>(&mut self, sel: Sel, method: F) {
+        method.register_method(sel, &self.event_loop);
     }
 }
 

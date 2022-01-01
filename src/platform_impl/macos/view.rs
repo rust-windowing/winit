@@ -189,6 +189,8 @@ lazy_static! {
             sel!(flagsChanged:),
             flags_changed as extern "C" fn(&Object, Sel, id),
         );
+        let s = sel!(insertTab:);
+        s.name();
         decl.add_method(
             sel!(insertTab:),
             insert_tab as extern "C" fn(&Object, Sel, id),
