@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
+- Implemented Android Events: Pause, Resume; Added Android Event: Destroy, Added run_return function
 
 # 0.26.0 (2021-12-01)
 
