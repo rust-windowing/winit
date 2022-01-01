@@ -81,6 +81,7 @@ jobs:
     - name: Build tests
       shell: bash
       run: cargo $CMD test --no-run --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+
     - name: Run tests
       shell: bash
       if: (
@@ -88,6 +89,15 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32'))
       run: cargo $CMD test --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+
+    - name: Build run-wasm-example
+      shell: bash
+      if: (
+        !contains(matrix.platform.target, 'android') &&
+        !contains(matrix.platform.target, 'ios') &&
+        !contains(matrix.platform.target, 'wasm32') &&
+        !contains(matrix.platform.target, 'i686-unknown-linux-gnu'))
+      run: cargo build --package run-wasm-example --target ${{ matrix.platform.target }}
 
 
     - name: Build with serde enabled

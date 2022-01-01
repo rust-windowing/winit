@@ -20,7 +20,7 @@ pub fn main() {
 
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
-        let parent_div = document.get_element_by_id("foo").unwrap();
+        let parent_div = document.get_element_by_id("app").unwrap();
 
         parent_div
             .append_child(&canvas)
