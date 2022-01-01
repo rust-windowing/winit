@@ -118,9 +118,9 @@ impl fmt::Display for OsError {
             #[cfg(feature = "x11")]
             OsError::XError(ref e) => _f.pad(&e.description),
             #[cfg(feature = "x11")]
-            OsError::XMisc(ref e) => _f.pad(e),
+            OsError::XMisc(e) => _f.pad(e),
             #[cfg(feature = "wayland")]
-            OsError::WaylandMisc(ref e) => _f.pad(e),
+            OsError::WaylandMisc(e) => _f.pad(e),
         }
     }
 }
@@ -409,7 +409,7 @@ impl Window {
             #[cfg(feature = "x11")]
             Window::X(ref w) => w.set_always_on_top(_always_on_top),
             #[cfg(feature = "wayland")]
-            _ => (),
+            Window::Wayland(_) => (),
         }
     }
 
@@ -419,7 +419,7 @@ impl Window {
             #[cfg(feature = "x11")]
             Window::X(ref w) => w.set_window_icon(_window_icon),
             #[cfg(feature = "wayland")]
-            _ => (),
+            Window::Wayland(_) => (),
         }
     }
 
@@ -434,7 +434,7 @@ impl Window {
             #[cfg(feature = "x11")]
             Window::X(ref w) => w.focus_window(),
             #[cfg(feature = "wayland")]
-            _ => (),
+            Window::Wayland(_) => (),
         }
     }
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {

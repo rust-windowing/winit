@@ -634,25 +634,22 @@ impl Device {
             // Identify scroll axes
             for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };
-                match class._type {
-                    ffi::XIScrollClass => {
-                        let info = unsafe {
-                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
-                        };
-                        scroll_axes.push((
-                            info.number,
-                            ScrollAxis {
-                                increment: info.increment,
-                                orientation: match info.scroll_type {
-                                    ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
-                                    ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
-                                    _ => unreachable!(),
-                                },
-                                position: 0.0,
+                if class._type == ffi::XIScrollClass {
+                    let info = unsafe {
+                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIScrollClassInfo>(class)
+                    };
+                    scroll_axes.push((
+                        info.number,
+                        ScrollAxis {
+                            increment: info.increment,
+                            orientation: match info.scroll_type {
+                                ffi::XIScrollTypeHorizontal => ScrollOrientation::Horizontal,
+                                ffi::XIScrollTypeVertical => ScrollOrientation::Vertical,
+                                _ => unreachable!(),
                             },
-                        ));
-                    }
-                    _ => {}
+                            position: 0.0,
+                        },
+                    ));
                 }
             }
         }
@@ -670,20 +667,17 @@ impl Device {
         if Device::physical_device(info) {
             for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };
-                match class._type {
-                    ffi::XIValuatorClass => {
-                        let info = unsafe {
-                            mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
-                        };
-                        if let Some(&mut (_, ref mut axis)) = self
-                            .scroll_axes
-                            .iter_mut()
-                            .find(|&&mut (axis, _)| axis == info.number)
-                        {
-                            axis.position = info.value;
-                        }
+                if class._type == ffi::XIValuatorClass {
+                    let info = unsafe {
+                        mem::transmute::<&ffi::XIAnyClassInfo, &ffi::XIValuatorClassInfo>(class)
+                    };
+                    if let Some(&mut (_, ref mut axis)) = self
+                        .scroll_axes
+                        .iter_mut()
+                        .find(|&&mut (axis, _)| axis == info.number)
+                    {
+                        axis.position = info.value;
                     }
-                    _ => {}
                 }
             }
         }
