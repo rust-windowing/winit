@@ -21,9 +21,9 @@ pub struct AuxDelegateState {
 
     pub create_default_menu: bool,
 
-    /// Each key is a selector name and each value is a list of colsures that handle the
+    /// Each key is a selector name and each value is a colsure that handles the
     /// callback
-    pub methods: HashMap<String, Vec<Box<dyn Any>>>,
+    pub methods: HashMap<String, Box<dyn Any>>,
 }
 
 pub struct AppDelegateClass(pub *const Class);
