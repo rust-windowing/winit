@@ -86,19 +86,14 @@ fn main() {
         .join(format!("{}.wasm", &example));
     let example_dest = project_root().join("target/wasm-examples").join(&example);
     std::fs::create_dir_all(&example_dest).unwrap();
-    if let Err(err) = run_command(
-        "wasm-bindgen",
-        &[
-            "--target",
-            "web",
-            "--out-dir",
-            example_dest.as_os_str().to_str().unwrap(),
-            wasm_source.as_os_str().to_str().unwrap(),
-        ],
-    ) {
-        println!("{}", err);
-        return;
-    }
+    let mut bindgen = wasm_bindgen_cli_support::Bindgen::new();
+    bindgen
+        .web(true)
+        .unwrap()
+        .omit_default_module_path(false)
+        .input_path(&wasm_source)
+        .generate(&example_dest)
+        .unwrap();
 
     let index_template = include_str!("index.template.html");
     let index_processed = index_template.replace("{{example}}", &example);

@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 devserver_lib = "0.4.0"
 pico-args = "0.4.2"
+wasm-bindgen-cli-support = "0.2.78"

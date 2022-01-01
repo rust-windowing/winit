@@ -71,6 +71,8 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 #### WebAssembly
 
+To run the web example: `cargo run-wasm-example web`
+
 Winit supports compiling to the `wasm32-unknown-unknown` target with `web-sys`.
 
 On the web platform, a Winit window is backed by a `<canvas>` element. You can
@@ -81,14 +83,6 @@ insert it into the DOM yourself.
 For example code using Winit with WebAssembly, check out the [web example]. For
 information on using Rust on WebAssembly, check out the [Rust and WebAssembly
 book].
-
-To run the web example:
-
-1. The versions of wasm-bindgen and wasm-bindgen-cli need to match, so do the following to ensure this:
-    1. Run `cargo update` to ensure winit is using the latest wasm-bindgen release.
-    2. Run `cargo install -f wasm-bindgen-cli` to ensure you have the latest wasm-bindgen-cli release installed.
-2. Run `cargo run-wasm-example.sh web` in the root of the winit repo.
-    * You can also run `cargo run-wasm-example.sh web --release` to use the release profile.
 
 [web with_canvas]: https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.WindowBuilderExtWebSys.html#tymethod.with_canvas
 [web canvas getter]: https://docs.rs/winit/latest/wasm32-unknown-unknown/winit/platform/web/trait.WindowExtWebSys.html#tymethod.canvas
