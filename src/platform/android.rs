@@ -4,7 +4,6 @@ use crate::{
     event_loop::{EventLoop, EventLoopWindowTarget},
     window::{Window, WindowBuilder},
 };
-
 use ndk::configuration::Configuration;
 use ndk_glue::Rect;
 
