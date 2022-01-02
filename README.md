@@ -71,7 +71,7 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 #### WebAssembly
 
-To run the web example: `cargo run-wasm-example web`
+To run the web example: `cargo run-wasm --example web`
 
 Winit supports compiling to the `wasm32-unknown-unknown` target with `web-sys`.
 

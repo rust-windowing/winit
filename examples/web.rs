@@ -13,19 +13,27 @@ pub fn main() {
         .unwrap();
 
     #[cfg(target_arch = "wasm32")]
-    {
+    let log_list = {
         use winit::platform::web::WindowExtWebSys;
 
         let canvas = window.canvas();
 
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
-        let parent_div = document.get_element_by_id("app").unwrap();
+        let body = document.body().unwrap();
 
-        parent_div
-            .append_child(&canvas)
-            .expect("Append canvas to HTML body");
-    }
+        // Set a background color for the canvas to make it easier to tell the where the canvas is for debugging purposes.
+        canvas.style().set_css_text("background-color: crimson;");
+        body.append_child(&canvas).unwrap();
+
+        let log_header = document.create_element("h2").unwrap();
+        log_header.set_text_content(Some("Event Log"));
+        body.append_child(&log_header).unwrap();
+
+        let log_list = document.create_element("ul").unwrap();
+        body.append_child(&log_list).unwrap();
+        log_list
+    };
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
@@ -40,10 +48,10 @@ pub fn main() {
             if let Event::WindowEvent { event, .. } = &event {
                 let window = web_sys::window().unwrap();
                 let document = window.document().unwrap();
-                let list = document.get_element_by_id("event_log").unwrap();
                 let log = document.create_element("li").unwrap();
                 log.set_text_content(Some(&format!("{:?}", event)));
-                list.insert_before(&log, list.first_child().as_ref())
+                log_list
+                    .insert_before(&log, log_list.first_child().as_ref())
                     .unwrap();
             }
         }

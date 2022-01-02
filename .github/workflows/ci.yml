@@ -97,7 +97,7 @@ jobs:
         !contains(matrix.platform.target, 'ios') &&
         !contains(matrix.platform.target, 'wasm32') &&
         !contains(matrix.platform.target, 'i686-unknown-linux-gnu'))
-      run: cargo build --package run-wasm-example --target ${{ matrix.platform.target }}
+      run: cargo build --package run-wasm --target ${{ matrix.platform.target }}
 
 
     - name: Build with serde enabled
