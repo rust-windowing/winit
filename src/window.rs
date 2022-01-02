@@ -496,6 +496,19 @@ impl Window {
     /// See `outer_position` for more information about the coordinates. This automatically un-maximizes the
     /// window if it's maximized.
     ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::Window;
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// // Specify the position in logical dimensions like this:
+    /// window.set_outer_position(LogicalPosition::new(400.0, 200.0));
+    ///
+    /// // Or specify the position in physical dimensions like this:
+    /// window.set_outer_position(PhysicalPosition::new(400, 200));
+    /// ```
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread. Sets the top left coordinates of the
@@ -528,6 +541,19 @@ impl Window {
     /// See `inner_size` for more information about the values. This automatically un-maximizes the
     /// window if it's maximized.
     ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::Window;
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// // Specify the size in logical dimensions like this:
+    /// window.set_inner_size(LogicalSize::new(400.0, 200.0));
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// window.set_inner_size(PhysicalSize::new(400, 200));
+    /// ```
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android:** Unsupported.
@@ -555,6 +581,19 @@ impl Window {
 
     /// Sets a minimum dimension size for the window.
     ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::Window;
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// // Specify the size in logical dimensions like this:
+    /// window.set_min_inner_size(Some(LogicalSize::new(400.0, 200.0)));
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// window.set_min_inner_size(Some(PhysicalSize::new(400, 200)));
+    /// ```
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web:** Unsupported.
@@ -564,6 +603,19 @@ impl Window {
     }
 
     /// Sets a maximum dimension size for the window.
+    ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::Window;
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// // Specify the size in logical dimensions like this:
+    /// window.set_max_inner_size(Some(LogicalSize::new(400.0, 200.0)));
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// window.set_max_inner_size(Some(PhysicalSize::new(400, 200)));
+    /// ```
     ///
     /// ## Platform-specific
     ///
@@ -727,6 +779,19 @@ impl Window {
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
     ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::Window;
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// // Specify the position in logical dimensions like this:
+    /// window.set_ime_position(LogicalPosition::new(400.0, 200.0));
+    ///
+    /// // Or specify the position in physical dimensions like this:
+    /// window.set_ime_position(PhysicalPosition::new(400, 200));
+    /// ```
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web:** Unsupported.
@@ -782,6 +847,19 @@ impl Window {
     }
 
     /// Changes the position of the cursor in window coordinates.
+    ///
+    /// ```no_run
+    /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::Window;
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// // Specify the position in logical dimensions like this:
+    /// window.set_cursor_position(LogicalPosition::new(400.0, 200.0));
+    ///
+    /// // Or specify the position in physical dimensions like this:
+    /// window.set_cursor_position(PhysicalPosition::new(400, 200));
+    /// ```
     ///
     /// ## Platform-specific
     ///
