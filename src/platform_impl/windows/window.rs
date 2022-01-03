@@ -16,6 +16,7 @@ use winapi::{
     shared::{
         minwindef::{HINSTANCE, LPARAM, UINT, WPARAM},
         windef::{HWND, POINT, POINTS, RECT},
+        winerror::SUCCEEDED,
     },
     um::{
         combaseapi, dwmapi,
@@ -699,22 +700,6 @@ impl<'a, T: 'static> InitData<'a, T> {
         let dpi = hwnd_dpi(window);
         let scale_factor = dpi_to_scale_factor(dpi);
 
-        // making the window transparent
-        if self.attributes.transparent && !self.pl_attribs.no_redirection_bitmap {
-            // Empty region for the blur effect, so the window is fully transparent
-            let region = CreateRectRgn(0, 0, -1, -1);
-
-            let bb = dwmapi::DWM_BLURBEHIND {
-                dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
-                fEnable: 1,
-                hRgnBlur: region,
-                fTransitionOnMaximized: 0,
-            };
-
-            dwmapi::DwmEnableBlurBehindWindow(window, &bb);
-            DeleteObject(region as _);
-        }
-
         // If the system theme is dark, we need to set the window theme now
         // before we update the window flags (and possibly show the
         // window for the first time).
@@ -809,6 +794,28 @@ impl<'a, T: 'static> InitData<'a, T> {
 
     pub unsafe fn on_create(&mut self) {
         let win = self.window.as_mut().expect("failed window creation");
+
+        // making the window transparent
+        if self.attributes.transparent && !self.pl_attribs.no_redirection_bitmap {
+            // Empty region for the blur effect, so the window is fully transparent
+            let region = CreateRectRgn(0, 0, -1, -1);
+
+            let bb = dwmapi::DWM_BLURBEHIND {
+                dwFlags: dwmapi::DWM_BB_ENABLE | dwmapi::DWM_BB_BLURREGION,
+                fEnable: 1,
+                hRgnBlur: region,
+                fTransitionOnMaximized: 0,
+            };
+            let hr = dwmapi::DwmEnableBlurBehindWindow(win.hwnd(), &bb);
+            if !SUCCEEDED(hr) {
+                warn!(
+                    "Setting transparent window is failed. HRESULT Code: 0x{:X}",
+                    hr
+                );
+            }
+            DeleteObject(region as _);
+        }
+
         let attributes = self.attributes.clone();
 
         // Set visible before setting the size to ensure the
