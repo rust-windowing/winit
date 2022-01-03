@@ -1,6 +1,6 @@
 use simple_logger::SimpleLogger;
 use winit::{
-    event::{DeviceEvent, Event, WindowEvent},
+    event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -35,10 +35,7 @@ In other words, the deltas indicate the direction in which to move the content (
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                _ => (),
-            },
-            Event::DeviceEvent { event, .. } => match event {
-                DeviceEvent::MouseWheel { delta } => match delta {
+                WindowEvent::MouseWheel { delta, .. } => match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
                         println!("mouse wheel Line Delta: ({},{})", x, y);
                         let pixels_per_line = 120.0;
