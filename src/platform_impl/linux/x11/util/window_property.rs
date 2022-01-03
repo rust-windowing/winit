@@ -97,7 +97,7 @@ impl XConnection {
                         quantity_returned,
                         new_data,
                     );*/
-                    data.extend_from_slice(&new_data);
+                    data.extend_from_slice(new_data);
                     // Fun fact: XGetWindowProperty allocates one extra byte at the end.
                     (self.xlib.XFree)(buf as _); // Don't try to access new_data after this.
                 } else {

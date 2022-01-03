@@ -1,6 +1,7 @@
 # Unreleased
 
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
+- On macOS, fix Pinyin IME input by reverting a change that intended to improve IME.
 - On Windows, fix a crash with transparent windows on Windows 11.
 
 # 0.26.0 (2021-12-01)

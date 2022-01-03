@@ -62,11 +62,7 @@ impl XConnection {
 
             let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
 
-            if let Some(wm_check) = wm_check {
-                wm_check
-            } else {
-                return None;
-            }
+            wm_check?
         };
 
         // Querying the same property on the child window we were given, we should get this child
@@ -76,11 +72,7 @@ impl XConnection {
 
             let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
 
-            if let Some(wm_check) = wm_check {
-                wm_check
-            } else {
-                return None;
-            }
+            wm_check?
         };
 
         // These values should be the same.

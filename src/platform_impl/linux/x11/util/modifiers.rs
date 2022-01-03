@@ -151,7 +151,7 @@ impl ModifierKeyState {
 
     pub fn key_release(&mut self, keycode: ffi::KeyCode) {
         if let Some(modifier) = self.keys.remove(&keycode) {
-            if self.keys.values().find(|&&m| m == modifier).is_none() {
+            if !self.keys.values().any(|&m| m == modifier) {
                 set_modifier(&mut self.state, modifier, false);
             }
         }
