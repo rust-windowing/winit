@@ -12,9 +12,9 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{NSApp, NSEventType::NSApplicationDefined},
-    base::{id, nil, YES},
-    foundation::NSPoint,
+    appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
+    base::{id, nil, BOOL, NO, YES},
+    foundation::{NSInteger, NSPoint, NSTimeInterval},
 };
 use objc::rc::autoreleasepool;
 
@@ -117,7 +117,8 @@ pub struct EventLoop<T: 'static> {
 impl<T> EventLoop<T> {
     pub fn new() -> Self {
         let delegate = unsafe {
-            if !msg_send![class!(NSThread), isMainThread] {
+            let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
+            if is_main_thread == NO {
                 panic!("On macOS, `EventLoop` must be created on the main thread!");
             }
 
@@ -208,13 +209,13 @@ pub unsafe fn post_dummy_event(target: id) {
         event_class,
         otherEventWithType: NSApplicationDefined
         location: NSPoint::new(0.0, 0.0)
-        modifierFlags: 0
-        timestamp: 0
-        windowNumber: 0
+        modifierFlags: NSEventModifierFlags::empty()
+        timestamp: 0 as NSTimeInterval
+        windowNumber: 0 as NSInteger
         context: nil
-        subtype: 0
-        data1: 0
-        data2: 0
+        subtype: NSEventSubtype::NSWindowExposedEventType
+        data1: 0 as NSInteger
+        data2: 0 as NSInteger
     ];
     let () = msg_send![target, postEvent: dummy_event atStart: YES];
 }

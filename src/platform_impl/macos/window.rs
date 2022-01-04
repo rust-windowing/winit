@@ -1,6 +1,7 @@
 use raw_window_handle::{AppKitHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
+    convert::TryInto,
     f64,
     os::raw::c_void,
     sync::{
@@ -38,7 +39,7 @@ use cocoa::{
         NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
-    foundation::{NSDictionary, NSPoint, NSRect, NSSize},
+    foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSUInteger},
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
@@ -332,7 +333,8 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<(Arc<Self>, IdRef), RootOsError> {
         unsafe {
-            if !msg_send![class!(NSThread), isMainThread] {
+            let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
+            if is_main_thread == NO {
                 panic!("Windows can only be created on the main thread on macOS");
             }
         }
@@ -1034,9 +1036,9 @@ impl UnownedWindow {
             let desc = NSScreen::deviceDescription(screen);
             let key = util::ns_string_id_ref("NSScreenNumber");
             let value = NSDictionary::valueForKey_(desc, *key);
-            let display_id = msg_send![value, unsignedIntegerValue];
+            let display_id: NSUInteger = msg_send![value, unsignedIntegerValue];
             RootMonitorHandle {
-                inner: MonitorHandle::new(display_id),
+                inner: MonitorHandle::new(display_id.try_into().unwrap()),
             }
         }
     }

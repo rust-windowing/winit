@@ -2,7 +2,7 @@ use std::{
     boxed::Box,
     collections::VecDeque,
     os::raw::*,
-    slice, str,
+    ptr, slice, str,
     sync::{Arc, Mutex, Weak},
 };
 
@@ -314,7 +314,7 @@ extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
         let tracking_rect: NSInteger = msg_send![this,
             addTrackingRect:rect
             owner:this
-            userData:nil
+            userData:ptr::null_mut::<c_void>()
             assumeInside:NO
         ];
         state.tracking_rect = Some(tracking_rect);
@@ -335,7 +335,7 @@ extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
         let tracking_rect: NSInteger = msg_send![this,
             addTrackingRect:rect
             owner:this
-            userData:nil
+            userData:ptr::null_mut::<c_void>()
             assumeInside:NO
         ];
 
@@ -426,8 +426,8 @@ extern "C" fn set_marked_text(
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
         let _: () = msg_send![(*marked_text_ref), release];
         let marked_text = NSMutableAttributedString::alloc(nil);
-        let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
-        if has_attr {
+        let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+        if has_attr != NO {
             marked_text.initWithAttributedString(string);
         } else {
             marked_text.initWithString(string);
@@ -442,7 +442,9 @@ extern "C" fn unmark_text(this: &Object, _sel: Sel) {
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         let mutable_string = marked_text.mutableString();
-        let _: () = msg_send![mutable_string, setString:""];
+        let s: id = msg_send![class!(NSString), new];
+        let _: () = msg_send![mutable_string, setString: s];
+        let _: () = msg_send![s, release];
         let input_context: id = msg_send![this, inputContext];
         let _: () = msg_send![input_context, discardMarkedText];
     }
@@ -502,8 +504,8 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
-        let characters = if has_attr {
+        let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+        let characters = if has_attr != NO {
             // This is a *mut NSAttributedString
             msg_send![string, string]
         } else {
@@ -650,7 +652,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
 
-        let is_repeat = msg_send![event, isARepeat];
+        let is_repeat: BOOL = msg_send![event, isARepeat];
 
         update_potentially_stale_modifiers(state, event);
 
@@ -672,7 +674,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         let pass_along = {
             AppState::queue_event(EventWrapper::StaticEvent(window_event));
             // Emit `ReceivedCharacter` for key repeats
-            if is_repeat {
+            if is_repeat != NO {
                 for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
                     AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id,
@@ -914,7 +916,7 @@ fn mouse_motion(this: &Object, event: id) {
             || view_point.x > view_rect.size.width
             || view_point.y > view_rect.size.height
         {
-            let mouse_buttons_down: NSInteger = msg_send![class!(NSEvent), pressedMouseButtons];
+            let mouse_buttons_down: NSUInteger = msg_send![class!(NSEvent), pressedMouseButtons];
             if mouse_buttons_down == 0 {
                 // Point is outside of the client area (view) and no buttons are pressed
                 return;
