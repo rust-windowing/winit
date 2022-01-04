@@ -1,14 +1,12 @@
-//! The `EventLoop` struct and assorted supporting types, including `ControlFlow`.
+//! The [`EventLoop`] struct and assorted supporting types, including
+//! [`ControlFlow`].
 //!
-//! If you want to send custom events to the event loop, use [`EventLoop::create_proxy()`][create_proxy]
-//! to acquire an [`EventLoopProxy`][event_loop_proxy] and call its [`send_event`][send_event] method.
+//! If you want to send custom events to the event loop, use
+//! [`EventLoop::create_proxy`] to acquire an [`EventLoopProxy`] and call its
+//! [`send_event`](`EventLoopProxy::send_event`) method.
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
-//!
-//! [create_proxy]: crate::event_loop::EventLoop::create_proxy
-//! [event_loop_proxy]: crate::event_loop::EventLoopProxy
-//! [send_event]: crate::event_loop::EventLoopProxy::send_event
 use instant::Instant;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -117,16 +115,14 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 
 /// Set by the user callback given to the `EventLoop::run` method.
 ///
-/// Indicates the desired behavior of the event loop after [`Event::RedrawEventsCleared`][events_cleared]
-/// is emitted. Defaults to `Poll`.
+/// Indicates the desired behavior of the event loop after [`Event::RedrawEventsCleared`] is emitted.
+/// Defaults to `Poll`.
 ///
 /// ## Persistency
 /// Almost every change is persistent between multiple calls to the event loop closure within a
 /// given run loop. The only exception to this is `ExitWithCode` which, once set, cannot be unset.
 /// Changes are **not** persistent between multiple calls to `run_return` - issuing a new call will
 /// reset the control flow to `Poll`.
-///
-/// [events_cleared]: crate::event::Event::RedrawEventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of

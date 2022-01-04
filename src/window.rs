@@ -153,8 +153,6 @@ impl WindowBuilder {
     /// If this is not set, some platform-specific dimensions will be used.
     ///
     /// See [`Window::set_inner_size`] for details.
-    ///
-    /// [`Window::set_inner_size`]: crate::window::Window::set_inner_size
     #[inline]
     pub fn with_inner_size<S: Into<Size>>(mut self, size: S) -> Self {
         self.window.inner_size = Some(size.into());
@@ -167,8 +165,6 @@ impl WindowBuilder {
     /// from reserved).
     ///
     /// See [`Window::set_min_inner_size`] for details.
-    ///
-    /// [`Window::set_min_inner_size`]: crate::window::Window::set_min_inner_size
     #[inline]
     pub fn with_min_inner_size<S: Into<Size>>(mut self, min_size: S) -> Self {
         self.window.min_inner_size = Some(min_size.into());
@@ -181,8 +177,6 @@ impl WindowBuilder {
     /// the primary monitor's dimensions by the platform.
     ///
     /// See [`Window::set_max_inner_size`] for details.
-    ///
-    /// [`Window::set_max_inner_size`]: crate::window::Window::set_max_inner_size
     #[inline]
     pub fn with_max_inner_size<S: Into<Size>>(mut self, max_size: S) -> Self {
         self.window.max_inner_size = Some(max_size.into());
@@ -211,8 +205,6 @@ impl WindowBuilder {
     /// - **X11**: The top left corner of the window, the window's "outer"
     ///   position.
     /// - **Others**: Ignored.
-    ///
-    /// [`Window::set_outer_position`]: crate::window::Window::set_outer_position
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
         self.window.position = Some(position.into());
@@ -224,8 +216,6 @@ impl WindowBuilder {
     /// The default is `true`.
     ///
     /// See [`Window::set_resizable`] for details.
-    ///
-    /// [`Window::set_resizable`]: crate::window::Window::set_resizable
     #[inline]
     pub fn with_resizable(mut self, resizable: bool) -> Self {
         self.window.resizable = resizable;
@@ -237,8 +227,6 @@ impl WindowBuilder {
     /// The default is `"winit window"`.
     ///
     /// See [`Window::set_title`] for details.
-    ///
-    /// [`Window::set_title`]: crate::window::Window::set_title
     #[inline]
     pub fn with_title<T: Into<String>>(mut self, title: T) -> Self {
         self.window.title = title.into();
@@ -250,8 +238,6 @@ impl WindowBuilder {
     /// The default is `None`.
     ///
     /// See [`Window::set_fullscreen`] for details.
-    ///
-    /// [`Window::set_fullscreen`]: crate::window::Window::set_fullscreen
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
         self.window.fullscreen = fullscreen;
@@ -263,8 +249,6 @@ impl WindowBuilder {
     /// The default is `false`.
     ///
     /// See [`Window::set_maximized`] for details.
-    ///
-    /// [`Window::set_maximized`]: crate::window::Window::set_maximized
     #[inline]
     pub fn with_maximized(mut self, maximized: bool) -> Self {
         self.window.maximized = maximized;
@@ -276,8 +260,6 @@ impl WindowBuilder {
     /// The default is to show the window.
     ///
     /// See [`Window::set_visible`] for details.
-    ///
-    /// [`Window::set_visible`]: crate::window::Window::set_visible
     #[inline]
     pub fn with_visible(mut self, visible: bool) -> Self {
         self.window.visible = visible;
@@ -301,8 +283,6 @@ impl WindowBuilder {
     /// The default is `true`.
     ///
     /// See [`Window::set_decorations`] for details.
-    ///
-    /// [`Window::set_decorations`]: crate::window::Window::set_decorations
     #[inline]
     pub fn with_decorations(mut self, decorations: bool) -> Self {
         self.window.decorations = decorations;
@@ -314,8 +294,6 @@ impl WindowBuilder {
     /// The default is `false`.
     ///
     /// See [`Window::set_always_on_top`] for details.
-    ///
-    /// [`Window::set_always_on_top`]: crate::window::Window::set_always_on_top
     #[inline]
     pub fn with_always_on_top(mut self, always_on_top: bool) -> Self {
         self.window.always_on_top = always_on_top;
@@ -327,8 +305,6 @@ impl WindowBuilder {
     /// The default is `None`.
     ///
     /// See [`Window::set_window_icon`] for details.
-    ///
-    /// [`Window::set_window_icon`]: crate::window::Window::set_window_icon
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
