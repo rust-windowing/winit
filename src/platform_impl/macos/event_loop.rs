@@ -25,7 +25,7 @@ use crate::{
     platform_impl::platform::{
         app::APP_CLASS,
         app_delegate::APP_DELEGATE_CLASS,
-        app_state::AppState,
+        app_state::{AppState, Callback},
         monitor::{self, MonitorHandle},
         observer::*,
         util::IdRef,
@@ -111,7 +111,7 @@ pub struct EventLoop<T: 'static> {
     /// Every other reference should be a Weak reference which is only upgraded
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
-    _callback: Option<Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
+    _callback: Option<Rc<Callback<T>>>,
 }
 
 impl<T> EventLoop<T> {

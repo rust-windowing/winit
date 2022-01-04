@@ -127,7 +127,7 @@ fn create_window(
                 video_mode: VideoMode { ref monitor, .. },
             })) => {
                 let monitor_screen = monitor.ns_screen();
-                Some(monitor_screen.unwrap_or(appkit::NSScreen::mainScreen(nil)))
+                Some(monitor_screen.unwrap_or_else(|| appkit::NSScreen::mainScreen(nil)))
             }
             Some(Fullscreen::Borderless(None)) => Some(appkit::NSScreen::mainScreen(nil)),
             None => None,
@@ -158,13 +158,10 @@ fn create_window(
             }
         };
 
-        let mut masks = if !attrs.decorations && !screen.is_some() {
+        let mut masks = if (!attrs.decorations && screen.is_none()) || pl_attrs.titlebar_hidden {
             // Resizable UnownedWindow without a titlebar or borders
             // if decorations is set to false, ignore pl_attrs
-            NSWindowStyleMask::NSBorderlessWindowMask
-                | NSWindowStyleMask::NSResizableWindowMask
-                | NSWindowStyleMask::NSMiniaturizableWindowMask
-        } else if pl_attrs.titlebar_hidden {
+            //
             // if the titlebar is hidden, ignore other pl_attrs
             NSWindowStyleMask::NSBorderlessWindowMask
                 | NSWindowStyleMask::NSResizableWindowMask
@@ -192,7 +189,8 @@ fn create_window(
             appkit::NSBackingStoreBuffered,
             NO,
         ));
-        let res = ns_window.non_nil().map(|ns_window| {
+
+        ns_window.non_nil().map(|ns_window| {
             let title = util::ns_string_id_ref(&attrs.title);
             ns_window.setReleasedWhenClosed_(NO);
             ns_window.setTitle_(*title);
@@ -241,8 +239,7 @@ fn create_window(
                 ns_window.center();
             }
             ns_window
-        });
-        res
+        })
     })
 }
 
@@ -362,14 +359,14 @@ impl UnownedWindow {
                 ns_window.setBackgroundColor_(NSColor::clearColor(nil));
             }
 
-            win_attribs.min_inner_size.map(|dim| {
+            if let Some(dim) = win_attribs.min_inner_size {
                 let logical_dim = dim.to_logical(scale_factor);
-                set_min_inner_size(*ns_window, logical_dim)
-            });
-            win_attribs.max_inner_size.map(|dim| {
+                set_min_inner_size(*ns_window, logical_dim);
+            }
+            if let Some(dim) = win_attribs.max_inner_size {
                 let logical_dim = dim.to_logical(scale_factor);
-                set_max_inner_size(*ns_window, logical_dim)
-            });
+                set_max_inner_size(*ns_window, logical_dim);
+            }
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
