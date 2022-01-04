@@ -1,8 +1,8 @@
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(pub i32);
+pub struct DeviceId(pub i32);
 
-impl Id {
+impl DeviceId {
     pub const unsafe fn dummy() -> Self {
-        Id(0)
+        Self(0)
     }
 }

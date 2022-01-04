@@ -49,18 +49,18 @@ use objc::{
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(pub usize);
+pub struct WindowId(pub usize);
 
-impl Id {
+impl WindowId {
     pub const unsafe fn dummy() -> Self {
-        Id(0)
+        Self(0)
     }
 }
 
 // Convert the `cocoa::base::id` associated with a window to a usize to use as a unique identifier
 // for the window.
-pub fn get_window_id(window_cocoa_id: id) -> Id {
-    Id(window_cocoa_id as *const Object as _)
+pub fn get_window_id(window_cocoa_id: id) -> WindowId {
+    WindowId(window_cocoa_id as *const Object as _)
 }
 
 #[derive(Clone)]
@@ -485,7 +485,7 @@ impl UnownedWindow {
         unsafe { util::set_style_mask_sync(*self.ns_window, *self.ns_view, mask) };
     }
 
-    pub fn id(&self) -> Id {
+    pub fn id(&self) -> WindowId {
         get_window_id(*self.ns_window)
     }
 
