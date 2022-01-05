@@ -741,8 +741,8 @@ fn sticky_exit_callback<T, F>(
 ) where
     F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
 {
-    // make ControlFlow::Exit sticky by providing a dummy
-    // control flow reference if it is already Exit.
+    // make ControlFlow::ExitWithCode sticky by providing a dummy
+    // control flow reference if it is already ExitWithCode.
     if let ControlFlow::ExitWithCode(code) = *control_flow {
         callback(evt, target, &mut ControlFlow::ExitWithCode(code))
     } else {
