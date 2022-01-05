@@ -1,5 +1,6 @@
 # Unreleased
 
+- On Web, implement cursor grabbing through the pointer lock API.
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
 - On macOS, fix Pinyin IME input by reverting a change that intended to improve IME.
 - On Windows, fix a crash with transparent windows on Windows 11.
