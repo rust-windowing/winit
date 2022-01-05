@@ -235,8 +235,7 @@ impl<T: 'static> EventLoop<T> {
         // really an option. Instead we inform that the event loop got destroyed. We may
         // communicate an error that something was terminated, but winit doesn't provide us
         // with an API to do that via some event.
-        // Still, we set the exit code as 1 (non-zero) to inform at least about something
-        // "unusual".
+        // Still, we set the exit code to the error's OS error code, or to 1 if not possible.
         let exit_code = loop {
             // Handle pending user events. We don't need back buffer, since we can't dispatch
             // user events indirectly via callback to the user.
@@ -433,10 +432,9 @@ impl<T: 'static> EventLoop<T> {
                     _ => unreachable!(),
                 };
 
-                if let Ok(dispatched) = queue.dispatch_pending(state, |_, _, _| unimplemented!()) {
-                    dispatched > 0
-                } else {
-                    break 1;
+                match queue.dispatch_pending(state, |_, _, _| unimplemented!()) {
+                    Ok(dispatched) => dispatched > 0,
+                    Err(error) => break error.raw_os_error().unwrap_or(1),
                 }
             };
 
@@ -445,8 +443,8 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Poll => {
                     // Non-blocking dispatch.
                     let timeout = Duration::from_millis(0);
-                    if self.loop_dispatch(Some(timeout)).is_err() {
-                        break 1;
+                    if let Err(error) = self.loop_dispatch(Some(timeout)) {
+                        break error.raw_os_error().unwrap_or(1);
                     }
 
                     callback(
@@ -462,8 +460,8 @@ impl<T: 'static> EventLoop<T> {
                         None
                     };
 
-                    if self.loop_dispatch(timeout).is_err() {
-                        break 1;
+                    if let Err(error) = self.loop_dispatch(timeout) {
+                        break error.raw_os_error().unwrap_or(1);
                     }
 
                     callback(
@@ -485,8 +483,8 @@ impl<T: 'static> EventLoop<T> {
                         Duration::from_millis(0)
                     };
 
-                    if self.loop_dispatch(Some(duration)).is_err() {
-                        break 1;
+                    if let Err(error) = self.loop_dispatch(Some(duration)) {
+                        break error.raw_os_error().unwrap_or(1);
                     }
 
                     let now = Instant::now();
