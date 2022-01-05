@@ -16,8 +16,11 @@ pub struct EventLoop<T: 'static> {
     elw: root::EventLoopWindowTarget<T>,
 }
 
+#[derive(Default, Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {}
+
 impl<T> EventLoop<T> {
-    pub fn new() -> Self {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
         EventLoop {
             elw: root::EventLoopWindowTarget {
                 p: WindowTarget::new(),

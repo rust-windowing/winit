@@ -4,9 +4,8 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::get_aux_state_mut,
     window::{Window, WindowBuilder},
 };
 
@@ -74,7 +73,7 @@ impl WindowExtMacOS for Window {
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
     Regular,
@@ -179,36 +178,63 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 }
 
-pub trait EventLoopExtMacOS {
-    /// Sets the activation policy for the application. It is set to
-    /// `NSApplicationActivationPolicyRegular` by default.
+pub trait EventLoopBuilderExtMacOS {
+    /// Sets the activation policy for the application.
     ///
-    /// This function only takes effect if it's called before calling [`run`](crate::event_loop::EventLoop::run) or
-    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
-    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy);
+    /// It is set to [`ActivationPolicy::Regular`] by default.
+    ///
+    /// # Example
+    ///
+    /// Set the activation policy to "accessory".
+    ///
+    /// ```
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "macos")]
+    /// use winit::platform::macos::{EventLoopBuilderExtMacOS, ActivationPolicy};
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "macos")]
+    /// builder.with_activation_policy(ActivationPolicy::Accessory);
+    /// # if false { // We can't test this part
+    /// let event_loop = builder.build();
+    /// # }
+    /// ```
+    fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self;
 
-    /// Used to prevent a default menubar menu from getting created
+    /// Used to control whether a default menubar menu is created.
     ///
-    /// The default menu creation is enabled by default.
+    /// Menu creation is enabled by default.
     ///
-    /// This function only takes effect if it's called before calling
-    /// [`run`](crate::event_loop::EventLoop::run) or
-    /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
-    fn enable_default_menu_creation(&mut self, enable: bool);
+    /// # Example
+    ///
+    /// Disable creating a default menubar.
+    ///
+    /// ```
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "macos")]
+    /// use winit::platform::macos::EventLoopBuilderExtMacOS;
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "macos")]
+    /// builder.with_default_menu(false);
+    /// # if false { // We can't test this part
+    /// let event_loop = builder.build();
+    /// # }
+    /// ```
+    fn with_default_menu(&mut self, enable: bool) -> &mut Self;
 }
-impl<T> EventLoopExtMacOS for EventLoop<T> {
+
+impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
     #[inline]
-    fn set_activation_policy(&mut self, activation_policy: ActivationPolicy) {
-        unsafe {
-            get_aux_state_mut(&**self.event_loop.delegate).activation_policy = activation_policy;
-        }
+    fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
+        self.platform_specific.activation_policy = activation_policy;
+        self
     }
 
     #[inline]
-    fn enable_default_menu_creation(&mut self, enable: bool) {
-        unsafe {
-            get_aux_state_mut(&**self.event_loop.delegate).create_default_menu = enable;
-        }
+    fn with_default_menu(&mut self, enable: bool) -> &mut Self {
+        self.platform_specific.default_menu = enable;
+        self
     }
 }
 

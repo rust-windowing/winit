@@ -113,47 +113,43 @@ pub struct EventLoop<T: 'static> {
     window_target: RootELW<T>,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {
+    pub(crate) any_thread: bool,
+    pub(crate) dpi_aware: bool,
+}
+
+impl Default for PlatformSpecificEventLoopAttributes {
+    fn default() -> Self {
+        Self {
+            any_thread: false,
+            dpi_aware: true,
+        }
+    }
+}
+
 pub struct EventLoopWindowTarget<T: 'static> {
     thread_id: DWORD,
     thread_msg_target: HWND,
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
-macro_rules! main_thread_check {
-    ($fn_name:literal) => {{
-        let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
-        if thread_id != main_thread_id() {
-            panic!(concat!(
-                "Initializing the event loop outside of the main thread is a significant \
-                 cross-platform compatibility hazard. If you really, absolutely need to create an \
-                 EventLoop on a different thread, please use the `EventLoopExtWindows::",
-                $fn_name,
-                "` function."
-            ));
-        }
-    }};
-}
-
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> EventLoop<T> {
-        main_thread_check!("new_any_thread");
-
-        Self::new_any_thread()
-    }
-
-    pub fn new_any_thread() -> EventLoop<T> {
-        become_dpi_aware();
-        Self::new_dpi_unaware_any_thread()
-    }
-
-    pub fn new_dpi_unaware() -> EventLoop<T> {
-        main_thread_check!("new_dpi_unaware_any_thread");
-
-        Self::new_dpi_unaware_any_thread()
-    }
-
-    pub fn new_dpi_unaware_any_thread() -> EventLoop<T> {
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         let thread_id = unsafe { processthreadsapi::GetCurrentThreadId() };
+
+        if !attributes.any_thread && thread_id != main_thread_id() {
+            panic!(
+                "Initializing the event loop outside of the main thread is a significant \
+                 cross-platform compatibility hazard. If you absolutely need to create an \
+                 EventLoop on a different thread, you can use the \
+                 `EventLoopBuilderExtWindows::any_thread` function."
+            );
+        }
+
+        if attributes.dpi_aware {
+            become_dpi_aware();
+        }
 
         let thread_msg_target = create_event_target_window::<T>();
 
