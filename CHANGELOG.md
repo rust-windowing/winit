@@ -1,4 +1,4 @@
-# Unreleased
+# 0.26.1 (2022-01-05)
 
 - Fix linking to the `ColorSync` framework on macOS 10.7, and in newer Rust versions.
 - On Web, implement cursor grabbing through the pointer lock API.
