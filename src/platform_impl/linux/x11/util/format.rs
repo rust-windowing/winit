@@ -23,9 +23,9 @@ impl Format {
 
     pub fn get_actual_size(&self) -> usize {
         match self {
-            &Format::Char => mem::size_of::<c_char>(),
-            &Format::Short => mem::size_of::<c_short>(),
-            &Format::Long => mem::size_of::<c_long>(),
+            Format::Char => mem::size_of::<c_char>(),
+            Format::Short => mem::size_of::<c_short>(),
+            Format::Long => mem::size_of::<c_long>(),
         }
     }
 }

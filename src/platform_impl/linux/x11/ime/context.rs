@@ -58,7 +58,7 @@ impl ImeContext {
 
         Ok(ImeContext {
             ic,
-            ic_spot: ic_spot.unwrap_or_else(|| ffi::XPoint { x: 0, y: 0 }),
+            ic_spot: ic_spot.unwrap_or(ffi::XPoint { x: 0, y: 0 }),
         })
     }
 

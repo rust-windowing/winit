@@ -248,7 +248,7 @@ impl XConnection {
             );
 
             // The list of children isn't used
-            if children != ptr::null_mut() {
+            if !children.is_null() {
                 (self.xlib.XFree)(children as *mut _);
             }
 

@@ -539,12 +539,12 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
-        let mut state = match &mut self.window_target.p {
+        let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
             #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
 
-        self.event_loop.dispatch(timeout, &mut state)
+        self.event_loop.dispatch(timeout, state)
     }
 }

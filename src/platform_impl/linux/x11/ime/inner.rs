@@ -58,10 +58,8 @@ impl ImeInner {
     }
 
     pub unsafe fn destroy_all_contexts_if_necessary(&self) -> Result<bool, XError> {
-        for context in self.contexts.values() {
-            if let &Some(ref context) = context {
-                self.destroy_ic_if_necessary(context.ic)?;
-            }
+        for context in self.contexts.values().flatten() {
+            self.destroy_ic_if_necessary(context.ic)?;
         }
         Ok(!self.is_destroyed)
     }
