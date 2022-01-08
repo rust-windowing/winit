@@ -1,22 +1,35 @@
-
 #[cfg(target_os = "macos")]
 fn main() {
     // use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
         event_loop::{ControlFlow, EventLoop},
+        platform::macos::{
+            objc::{self, sel, sel_impl},
+            EventLoopExtMacOS,
+        },
         window::WindowBuilder,
-        platform::macos::{EventLoopExtMacOS, objc::{self, sel, sel_impl}}
     };
     // SimpleLogger::new().init().unwrap();
     let mut event_loop = EventLoop::new();
 
-    event_loop.add_application_method(
-        sel!(applicationDidChangeOcclusionState:),
-        Box::new(|_notification: *mut objc::runtime::Object| {
-            println!("The occlusion state has changed!");
-        }) as Box<dyn Fn(_)>
-    ).unwrap();
+    event_loop
+        .add_application_method(
+            sel!(applicationDidChangeOcclusionState:),
+            Box::new(|_notification: *mut objc::runtime::Object| {
+                println!("First callback: The occlusion state has changed!");
+            }) as Box<dyn Fn(_)>,
+        )
+        .unwrap();
+
+    event_loop
+        .add_application_method(
+            sel!(applicationDidChangeOcclusionState:),
+            Box::new(|_notification: *mut objc::runtime::Object| {
+                println!("SECOND callback: The occlusion state has changed!");
+            }) as Box<dyn Fn(_)>,
+        )
+        .unwrap();
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")

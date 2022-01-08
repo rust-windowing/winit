@@ -24,7 +24,7 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         app::APP_CLASS,
-        app_delegate::APP_DELEGATE_CLASS,
+        app_delegate::create_base_app_delegate_class,
         app_state::AppState,
         monitor::{self, MonitorHandle},
         observer::*,
@@ -127,7 +127,10 @@ impl<T> EventLoop<T> {
             // be marked as main.
             let app: id = msg_send![APP_CLASS.0, sharedApplication];
 
-            let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
+            let app_delegate_class = create_base_app_delegate_class();
+
+            let delegate = IdRef::new(msg_send![app_delegate_class, new]);
+
             autoreleasepool(|| {
                 let _: () = msg_send![app, setDelegate:*delegate];
             });

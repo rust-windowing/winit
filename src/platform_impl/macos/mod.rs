@@ -17,11 +17,11 @@ mod window_delegate;
 use std::{fmt, ops::Deref, sync::Arc};
 
 pub use self::{
-    app_delegate::{get_aux_state_mut, get_aux_state_ref, create_delegate_class, AuxDelegateState},
+    app_delegate::{create_delegate_class, get_aux_state_mut, get_aux_state_ref, AuxDelegateState},
     event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
     monitor::{MonitorHandle, VideoMode},
-    window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
     util::IdRef,
+    window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
 };
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
