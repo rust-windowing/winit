@@ -17,7 +17,10 @@ mod window_delegate;
 use std::{fmt, ops::Deref, sync::Arc};
 
 pub use self::{
-    app_delegate::{create_delegate_class, get_aux_state_mut, get_aux_state_ref, AuxDelegateState},
+    app_delegate::{
+        create_delegate_class, get_aux_state_mut, get_aux_state_ref, AuxDelegateState,
+        BASE_APP_DELEGATE_METHODS,
+    },
     event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
     monitor::{MonitorHandle, VideoMode},
     util::IdRef,

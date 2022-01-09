@@ -1,13 +1,13 @@
 #![cfg(target_os = "macos")]
 
-use std::{collections::hash_map::Entry, os::raw::c_void, sync::atomic::AtomicUsize};
+use std::{collections::hash_map::Entry, os::raw::c_void};
 
 use cocoa::appkit::NSApp;
 pub use objc;
 use objc::{
     msg_send,
     rc::autoreleasepool,
-    runtime::{Class, Object, Sel},
+    runtime::{Object, Sel},
     Encode,
 };
 
@@ -17,7 +17,7 @@ use crate::{
     monitor::MonitorHandle,
     platform_impl::{
         create_delegate_class, get_aux_state_mut, get_aux_state_ref,
-        EventLoop as PlatformEventLoop, IdRef,
+        EventLoop as PlatformEventLoop, IdRef, BASE_APP_DELEGATE_METHODS,
     },
     window::{Window, WindowBuilder},
 };
@@ -214,33 +214,33 @@ macro_rules! impl_delegate_method {
                     $($t: Clone + 'static, )*
                     R: 'static,
                 {
-                    // Let's call the handler function of the superclass first.
-                    unsafe {
-                        let this_class = this.class();
-                        println!("THIS {}", this_class.name());
-                        // let superclass: &'static Class = msg_send![this, superclass];
-                        if let Some(superclass) = this_class.superclass() {
-                            // Only call the superclass method if the superclass actually
-                            // defines this method. Otherwise it will fall back to the
-                            // same method call and cause an infinite recursion
-                            if superclass.instance_method(sel).is_some() {
-                                println!("SUPER {}", superclass.name());
-                                let _: R = objc::__send_super_message(this, superclass, sel, ($($p.clone(), )*)).unwrap();
+                    // Let's call the base winit handler first.
+                    {
+                        let guard = BASE_APP_DELEGATE_METHODS.read().unwrap();
+                        if let Some(base_method) = guard.get(sel.name()) {
+                            unsafe {
+                                let base_method = std::mem::transmute::<
+                                    unsafe extern fn(),
+                                    extern fn(&Object, Sel, $($t, )*) -> R
+                                >(*base_method);
+                                base_method(this, sel, $($p.clone(), )*);
                             }
                         }
                     }
                     let mut retval: Option<R> = None;
                     let aux = unsafe { get_aux_state_ref(this) };
-                    if let Some(cb) = aux.methods.get(this.class().name()) {
+                    if let Some(callbacks) = aux.user_methods.get(sel.name()) {
                         // The `methods` is a `Vec<Box<Box<Fn(...)>>>`
-                        // Could this be done with fewer indirections?
-                        if let Some(cb) = cb.downcast_ref::<Box<dyn Fn($($t, )*) -> R>>() {
-                            let v = (cb)($($p.clone(), )*);
-                            if retval.is_none() {
-                                retval = Some(v);
+                        for cb in callbacks.iter() {
+                            // Could this be done with fewer indirections?
+                            if let Some(cb) = cb.downcast_ref::<Box<dyn Fn($($t, )*) -> R>>() {
+                                let v = (cb)($($p.clone(), )*);
+                                if retval.is_none() {
+                                    retval = Some(v);
+                                }
+                            } else {
+                                warn!("Failed to downcast closure when handling {}", sel.name());
                             }
-                        } else {
-                            warn!("Failed to downcast closure when handling {}", sel.name());
                         }
                     }
                     retval.expect(&format!(
@@ -248,37 +248,39 @@ macro_rules! impl_delegate_method {
                     ))
                 }
                 // -------------------------------------------------------------------------
+
                 let self_boxed = Box::new(self as Box<dyn Fn($($t, )*) -> R>);
 
-                let delegate_class = unsafe {
-                    let prev_delegate_class = (**el.delegate).class();
-                    let mut decl = create_delegate_class(prev_delegate_class);
-                    decl.add_method(
-                        // sel!(application:openFiles:),
-                        sel,
-                        method_handler::<$($t, )* R> as extern "C" fn(&Object, Sel, $($t, )*) -> R,
-                    );
-                    decl.register()
-                };
-                println!("created delegate class {}", delegate_class.name());
+                // println!("created delegate class {}", delegate_class.name());
                 let mut delegate_state = unsafe {get_aux_state_mut(&mut **el.delegate)};
-                match delegate_state.methods.entry(delegate_class.name().to_string()) {
-                    Entry::Occupied(_) => {
-                        return Err(format!("A callback method has already been registered for the delegate class the name {:?}", delegate_class.name()));
+                match delegate_state.user_methods.entry(sel.name().to_string()) {
+                    Entry::Occupied(mut e) => {
+                        e.get_mut().push(self_boxed);
                     }
                     Entry::Vacant(e) => {
-                        e.insert(self_boxed);
+                        e.insert(vec![self_boxed]);
+
+                        // This user method doesn't have a defined callback in the app delegate class yet,
+                        // so let's create a new class for this method
+                        unsafe {
+                            let prev_delegate_class = (**el.delegate).class();
+                            let mut decl = create_delegate_class(prev_delegate_class);
+                            decl.add_method(
+                                // sel!(application:openFiles:),
+                                sel,
+                                method_handler::<$($t, )* R> as extern "C" fn(&Object, Sel, $($t, )*) -> R,
+                            );
+                            let delegate_class = decl.register();
+                            let new_delegate = IdRef::new(msg_send![delegate_class, new]);
+                            let mut new_state = get_aux_state_mut(&mut **new_delegate);
+                            std::mem::swap(&mut *new_state, &mut *delegate_state);
+                            let app = NSApp();
+                            autoreleasepool(|| {
+                                let _: () = msg_send![app, setDelegate:*new_delegate];
+                            });
+                            el.delegate = new_delegate;
+                        }
                     }
-                }
-                unsafe {
-                    let new_delegate = IdRef::new(msg_send![delegate_class, new]);
-                    let mut new_state = get_aux_state_mut(&mut **new_delegate);
-                    std::mem::swap(&mut *new_state, &mut *delegate_state);
-                    let app = NSApp();
-                    autoreleasepool(|| {
-                        let _: () = msg_send![app, setDelegate:*new_delegate];
-                    });
-                    el.delegate = new_delegate;
                 }
                 Ok(())
             }
@@ -313,7 +315,11 @@ pub trait EventLoopExtMacOS {
     fn enable_default_menu_creation(&mut self, enable: bool);
 
     /// Adds a new callback method for the application delegate.
-    fn add_application_method<F: DelegateMethod>(
+    /// 
+    /// ### Safety
+    /// As the underlying `add_method` documentation writes:
+    /// > Unsafe because the caller must ensure that the types match those that are expected when the method is invoked from Objective-C.
+    unsafe fn add_application_method<F: DelegateMethod>(
         &mut self,
         sel: Sel,
         method: F,
@@ -334,7 +340,7 @@ impl<T> EventLoopExtMacOS for EventLoop<T> {
         }
     }
 
-    fn add_application_method<F: DelegateMethod>(
+    unsafe fn add_application_method<F: DelegateMethod>(
         &mut self,
         sel: Sel,
         method: F,

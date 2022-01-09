@@ -10,7 +10,10 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     collections::HashMap,
     os::raw::c_void,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        RwLock,
+    },
 };
 
 static AUX_DELEGATE_STATE_NAME: &str = "auxState";
@@ -24,18 +27,31 @@ pub struct AuxDelegateState {
 
     pub create_default_menu: bool,
 
-    /// Each key is the name of the app delegate class for which
-    /// the user defined method was created.
-    /// Each value is a colsure that handles the callback
-    pub methods: HashMap<String, Box<dyn Any>>,
-    // /// Each key is a selector name and each value is a colsure that handles the
-    // /// callback
-    // pub methods: HashMap<String, Box<dyn Any>>,
+    // pub winit_methods: HashMap<String, objc::runtime::Imp>,
+    /// Contains the closures that the application added on top of the ones
+    /// that winit already had.
+    ///
+    /// Each key is the name of the selector
+    /// Each value is a vec of colsures that handle the callback
+    /// The first callback in the vec was registered first
+    pub user_methods: HashMap<String, Vec<Box<dyn Any>>>,
 }
 
 pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
 unsafe impl Sync for AppDelegateClass {}
+
+lazy_static! {
+    /// Contains the function pointers to the event
+    /// listener methods defined by winit on the application
+    /// delegate
+    ///
+    /// Each key is the name of a selector
+    /// Each value is the corresponding function pointer
+    pub static ref BASE_APP_DELEGATE_METHODS: RwLock<HashMap<String, objc::runtime::Imp>> = {
+        Default::default()
+    };
+}
 
 pub fn create_delegate_class(superclass: &Class) -> ClassDecl {
     static CLASS_SEQ_NUM: AtomicUsize = AtomicUsize::new(0);
@@ -48,7 +64,7 @@ pub fn create_delegate_class(superclass: &Class) -> ClassDecl {
 
 pub fn create_base_app_delegate_class() -> *const Class {
     let mut decl = create_delegate_class(class!(NSResponder));
-    unsafe {
+    let result = unsafe {
         decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
         decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
 
@@ -58,7 +74,17 @@ pub fn create_base_app_delegate_class() -> *const Class {
         );
         decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
         decl.register()
-    }
+    };
+
+    let methods: HashMap<_, _> = result
+        .instance_methods()
+        .iter()
+        .map(|x| (x.name().name().to_owned(), x.implementation()))
+        .collect();
+    let mut methods_guard = BASE_APP_DELEGATE_METHODS.write().unwrap();
+    *methods_guard = methods;
+
+    result
 }
 
 /// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
@@ -84,7 +110,7 @@ extern "C" fn new(class: &Class, _: Sel) -> id {
             Box::into_raw(Box::new(RefCell::new(AuxDelegateState {
                 activation_policy: ActivationPolicy::Regular,
                 create_default_menu: true,
-                methods: HashMap::default(),
+                user_methods: HashMap::default(),
             }))) as *mut c_void,
         );
         this
