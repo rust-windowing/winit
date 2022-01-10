@@ -114,7 +114,8 @@ pub unsafe fn app_name() -> Option<id> {
 }
 
 pub unsafe fn superclass<'a>(this: &'a Object) -> &'a Class {
-    msg_send![this, superclass]
+    let superclass: *const Class = msg_send![this, superclass];
+    &*superclass
 }
 
 pub unsafe fn create_input_context(view: id) -> IdRef {
