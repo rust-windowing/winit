@@ -204,7 +204,8 @@ impl Inner {
             let uiscreen = match monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
                     let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
-                    let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+                    let () =
+                        msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
                     uiscreen
                 }
                 Some(Fullscreen::Borderless(monitor)) => monitor

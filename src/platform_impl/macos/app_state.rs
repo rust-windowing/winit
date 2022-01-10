@@ -19,7 +19,7 @@ use cocoa::{
 };
 use objc::{
     rc::autoreleasepool,
-    runtime::{Object, YES},
+    runtime::{Object, BOOL, NO, YES},
 };
 
 use crate::{
@@ -356,14 +356,16 @@ impl AppState {
     }
 
     pub fn queue_event(wrapper: EventWrapper) {
-        if !unsafe { msg_send![class!(NSThread), isMainThread] } {
+        let is_main_thread: BOOL = unsafe { msg_send!(class!(NSThread), isMainThread) };
+        if is_main_thread == NO {
             panic!("Event queued from different thread: {:#?}", wrapper);
         }
         HANDLER.events().push_back(wrapper);
     }
 
     pub fn queue_events(mut wrappers: VecDeque<EventWrapper>) {
-        if !unsafe { msg_send![class!(NSThread), isMainThread] } {
+        let is_main_thread: BOOL = unsafe { msg_send!(class!(NSThread), isMainThread) };
+        if is_main_thread == NO {
             panic!("Events queued from different thread: {:#?}", wrappers);
         }
         HANDLER.events().append(&mut wrappers);
@@ -400,8 +402,9 @@ impl AppState {
 
                 let dialog_open = if window_count > 1 {
                     let dialog: id = msg_send![windows, lastObject];
-                    let is_main_window: bool = msg_send![dialog, isMainWindow];
-                    msg_send![dialog, isVisible] && !is_main_window
+                    let is_main_window: BOOL = msg_send![dialog, isMainWindow];
+                    let is_visible: BOOL = msg_send![dialog, isVisible];
+                    is_visible != NO && is_main_window == NO
                 } else {
                     false
                 };
@@ -419,9 +422,9 @@ impl AppState {
                 });
 
                 if window_count > 0 {
-                    let window: id = msg_send![windows, objectAtIndex:0];
-                    let window_has_focus = msg_send![window, isKeyWindow];
-                    if !dialog_open && window_has_focus && dialog_is_closing {
+                    let window: id = msg_send![windows, firstObject];
+                    let window_has_focus: BOOL = msg_send![window, isKeyWindow];
+                    if !dialog_open && window_has_focus != NO && dialog_is_closing {
                         HANDLER.dialog_is_closing.store(false, Ordering::SeqCst);
                     }
                     if dialog_open {
