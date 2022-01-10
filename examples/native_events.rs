@@ -13,37 +13,39 @@ fn main() {
     SimpleLogger::new().init().unwrap();
     let mut event_loop = EventLoop::new();
 
-    // ------------------------------------------------------------------
-    // It's allowed to register multiple callbacks for the same selector
-    // All of them are called in the order they were registered
-    event_loop
-        .add_application_method(
-            sel!(applicationDidChangeOcclusionState:),
-            Box::new(|_notification: *mut objc::runtime::Object| {
-                println!("First callback: The occlusion state has changed!");
-            }) as Box<dyn Fn(_)>,
-        )
-        .unwrap();
-    event_loop
-        .add_application_method(
-            sel!(applicationDidChangeOcclusionState:),
-            Box::new(|_notification: *mut objc::runtime::Object| {
-                println!("SECOND callback: The occlusion state has changed!");
-            }) as Box<dyn Fn(_)>,
-        )
-        .unwrap();
-    // ------------------------------------------------------------------
-    // It's also valid to register a callback for something
-    // that winit already has a callback for
-    // (both of them are called in this case)
-    event_loop
-        .add_application_method(
-            sel!(applicationDidFinishLaunching:),
-            Box::new(|_: *mut objc::runtime::Object| {
-                println!("User callback: applicationDidFinishLaunching");
-            }) as Box<dyn Fn(_)>,
-        )
-        .unwrap();
+    unsafe {
+        // ------------------------------------------------------------------
+        // It's allowed to register multiple callbacks for the same selector
+        // All of them are called in the order they were registered
+        event_loop
+            .add_application_method(
+                sel!(applicationDidChangeOcclusionState:),
+                Box::new(|_notification: *mut objc::runtime::Object| {
+                    println!("First callback: The occlusion state has changed!");
+                }) as Box<dyn Fn(_)>,
+            )
+            .unwrap();
+        event_loop
+            .add_application_method(
+                sel!(applicationDidChangeOcclusionState:),
+                Box::new(|_notification: *mut objc::runtime::Object| {
+                    println!("SECOND callback: The occlusion state has changed!");
+                }) as Box<dyn Fn(_)>,
+            )
+            .unwrap();
+        // ------------------------------------------------------------------
+        // It's also valid to register a callback for something
+        // that winit already has a callback for
+        // (both of them are called in this case)
+        event_loop
+            .add_application_method(
+                sel!(applicationDidFinishLaunching:),
+                Box::new(|_: *mut objc::runtime::Object| {
+                    println!("User callback: applicationDidFinishLaunching");
+                }) as Box<dyn Fn(_)>,
+            )
+            .unwrap();
+    }
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")

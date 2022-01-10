@@ -315,7 +315,7 @@ pub trait EventLoopExtMacOS {
     fn enable_default_menu_creation(&mut self, enable: bool);
 
     /// Adds a new callback method for the application delegate.
-    /// 
+    ///
     /// ### Safety
     /// As the underlying `add_method` documentation writes:
     /// > Unsafe because the caller must ensure that the types match those that are expected when the method is invoked from Objective-C.
