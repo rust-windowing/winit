@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use sctk::reexports::calloop::{LoopHandle, Source};
+use sctk::reexports::calloop::{LoopHandle, RegistrationToken};
 use sctk::reexports::client::protocol::wl_keyboard::WlKeyboard;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
@@ -19,16 +19,16 @@ pub(crate) struct Keyboard {
     pub keyboard: WlKeyboard,
 
     /// The source for repeat keys.
-    pub repeat_source: Option<Source<handlers::RepeatSource>>,
+    pub repeat_source: Option<RegistrationToken>,
 
     /// LoopHandle to drop `RepeatSource`, when dropping the keyboard.
-    pub loop_handle: LoopHandle<WinitState>,
+    pub loop_handle: LoopHandle<'static, WinitState>,
 }
 
 impl Keyboard {
     pub fn new(
         seat: &Attached<WlSeat>,
-        loop_handle: LoopHandle<WinitState>,
+        loop_handle: LoopHandle<'static, WinitState>,
         modifiers_state: Rc<RefCell<ModifiersState>>,
     ) -> Option<Self> {
         let mut inner = KeyboardInner::new(modifiers_state);

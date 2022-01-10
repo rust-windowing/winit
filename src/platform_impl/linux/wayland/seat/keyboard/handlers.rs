@@ -149,6 +149,8 @@ pub(super) fn handle_keyboard(
                 for ch in txt.chars() {
                     // event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
                 }
+            }
+        }
         Event::Modifiers { modifiers } => {
             let modifiers = ModifiersState::from(modifiers);
             if let Some(window_id) = inner.target_window_id {
@@ -284,12 +286,12 @@ pub enum Event<'a> {
 /// Returns an error if xkbcommon could not be initialized, the RMLVO specification
 /// contained invalid values, or if the provided seat does not have keyboard capability.
 pub fn map_keyboard_repeat<F, Data: 'static>(
-    loop_handle: calloop::LoopHandle<Data>,
+    loop_handle: calloop::LoopHandle<'static, Data>,
     seat: &Attached<wl_seat::WlSeat>,
     rmlvo: Option<RMLVO>,
     repeatkind: RepeatKind,
     callback: F,
-) -> Result<(wl_keyboard::WlKeyboard, calloop::Source<RepeatSource>), Error>
+) -> Result<(wl_keyboard::WlKeyboard, calloop::RegistrationToken), Error>
 where
     F: FnMut(Event<'_>, wl_keyboard::WlKeyboard, wayland_client::DispatchData<'_>) + 'static,
 {
@@ -698,7 +700,7 @@ impl calloop::EventSource for RepeatSource {
         readiness: calloop::Readiness,
         token: calloop::Token,
         mut callback: F,
-    ) -> std::io::Result<()>
+    ) -> std::io::Result<calloop::PostAction>
     where
         F: FnMut(Event<'static>, &mut wl_keyboard::WlKeyboard),
     {
@@ -730,16 +732,20 @@ impl calloop::EventSource for RepeatSource {
             })
     }
 
-    fn register(&mut self, poll: &mut calloop::Poll, token: calloop::Token) -> std::io::Result<()> {
-        self.timer.register(poll, token)
+    fn register(
+        &mut self,
+        poll: &mut calloop::Poll,
+        token_factory: &mut calloop::TokenFactory,
+    ) -> std::io::Result<()> {
+        self.timer.register(poll, token_factory)
     }
 
     fn reregister(
         &mut self,
         poll: &mut calloop::Poll,
-        token: calloop::Token,
+        token_factory: &mut calloop::TokenFactory,
     ) -> std::io::Result<()> {
-        self.timer.reregister(poll, token)
+        self.timer.reregister(poll, token_factory)
     }
 
     fn unregister(&mut self, poll: &mut calloop::Poll) -> std::io::Result<()> {
