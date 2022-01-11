@@ -7,7 +7,9 @@ use std::{
     cell::Cell,
     collections::VecDeque,
     marker::PhantomData,
-    mem, panic, ptr,
+    mem, 
+    mem::MaybeUninit,
+    panic, ptr,
     rc::Rc,
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -861,10 +863,26 @@ unsafe fn public_window_callback_inner<T: 'static>(
             return;
         }
         let events = {
+            let mut next_msg = MaybeUninit::uninit();
+            let peek_retval = unsafe {
+                winuser::PeekMessageW(
+                    next_msg.as_mut_ptr(),
+                    window,
+                    winuser::WM_KEYFIRST,
+                    winuser::WM_KEYLAST,
+                    winuser::PM_NOREMOVE,
+                )
+            };
+            let next_msg = (peek_retval != 0).then(|| next_msg.assume_init());
             let mut window_state = subclass_input.window_state.lock();
-            window_state
-                .key_event_builder
-                .process_message(window, msg, wparam, lparam, &mut result)
+            window_state.key_event_builder.process_message(
+                window,
+                msg,
+                wparam,
+                lparam,
+                &next_msg,
+                &mut result,
+            )
         };
         for event in events {
             subclass_input.send_event(Event::WindowEvent {
