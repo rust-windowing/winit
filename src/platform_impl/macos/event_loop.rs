@@ -155,11 +155,11 @@ impl<T> EventLoop<T> {
     where
         F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
-        self.run_return(callback);
-        process::exit(0);
+        let exit_code = self.run_return(callback);
+        process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, callback: F)
+    pub fn run_return<F>(&mut self, callback: F) -> i32
     where
         F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
@@ -176,7 +176,7 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        autoreleasepool(|| unsafe {
+        let exit_code = autoreleasepool(|| unsafe {
             let app = NSApp();
             assert_ne!(app, nil);
 
@@ -192,9 +192,11 @@ impl<T> EventLoop<T> {
                 drop(self._callback.take());
                 resume_unwind(panic);
             }
-            AppState::exit();
+            AppState::exit()
         });
         drop(self._callback.take());
+
+        exit_code
     }
 
     pub fn create_proxy(&self) -> Proxy<T> {

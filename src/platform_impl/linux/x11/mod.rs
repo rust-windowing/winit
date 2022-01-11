@@ -258,7 +258,7 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F)
+    pub fn run_return<F>(&mut self, mut callback: F) -> i32
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
@@ -266,7 +266,7 @@ impl<T: 'static> EventLoop<T> {
         let mut events = Events::with_capacity(8);
         let mut cause = StartCause::Init;
 
-        loop {
+        let exit_code = loop {
             sticky_exit_callback(
                 crate::event::Event::NewEvents(cause),
                 &self.target,
@@ -329,7 +329,7 @@ impl<T: 'static> EventLoop<T> {
             let (deadline, timeout);
 
             match control_flow {
-                ControlFlow::Exit => break,
+                ControlFlow::ExitWithCode(code) => break code,
                 ControlFlow::Poll => {
                     cause = StartCause::Poll;
                     deadline = None;
@@ -376,21 +376,22 @@ impl<T: 'static> EventLoop<T> {
                     requested_resume: deadline,
                 };
             }
-        }
+        };
 
         callback(
             crate::event::Event::LoopDestroyed,
             &self.target,
             &mut control_flow,
         );
+        exit_code
     }
 
     pub fn run<F>(mut self, callback: F) -> !
     where
         F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        self.run_return(callback);
-        ::std::process::exit(0);
+        let exit_code = self.run_return(callback);
+        ::std::process::exit(exit_code);
     }
 
     fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)

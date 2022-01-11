@@ -62,7 +62,6 @@ pub trait EventHandler: Debug {
 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-    will_exit: bool,
     window_target: Rc<RootWindowTarget<T>>,
 }
 
@@ -98,25 +97,25 @@ impl<T> Debug for EventLoopHandler<T> {
 impl<T> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
         self.with_callback(|this, mut callback| {
-            (callback)(event.userify(), &this.window_target, control_flow);
-            this.will_exit |= *control_flow == ControlFlow::Exit;
-            if this.will_exit {
-                *control_flow = ControlFlow::Exit;
+            if let ControlFlow::ExitWithCode(code) = *control_flow {
+                let dummy = &mut ControlFlow::ExitWithCode(code);
+                (callback)(event.userify(), &this.window_target, dummy);
+            } else {
+                (callback)(event.userify(), &this.window_target, control_flow);
             }
         });
     }
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
         self.with_callback(|this, mut callback| {
-            let mut will_exit = this.will_exit;
             for event in this.window_target.p.receiver.try_iter() {
-                (callback)(Event::UserEvent(event), &this.window_target, control_flow);
-                will_exit |= *control_flow == ControlFlow::Exit;
-                if will_exit {
-                    *control_flow = ControlFlow::Exit;
+                if let ControlFlow::ExitWithCode(code) = *control_flow {
+                    let dummy = &mut ControlFlow::ExitWithCode(code);
+                    (callback)(Event::UserEvent(event), &this.window_target, dummy);
+                } else {
+                    (callback)(Event::UserEvent(event), &this.window_target, control_flow);
                 }
             }
-            this.will_exit = will_exit;
         });
     }
 }
@@ -160,7 +159,10 @@ impl Handler {
     }
 
     fn should_exit(&self) -> bool {
-        *self.control_flow.lock().unwrap() == ControlFlow::Exit
+        matches!(
+            *self.control_flow.lock().unwrap(),
+            ControlFlow::ExitWithCode(_)
+        )
     }
 
     fn get_control_flow_and_update_prev(&self) -> ControlFlow {
@@ -268,16 +270,20 @@ impl AppState {
     ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
             callback,
-            will_exit: false,
             window_target,
         }));
     }
 
-    pub fn exit() {
+    pub fn exit() -> i32 {
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::LoopDestroyed));
         HANDLER.set_in_callback(false);
         HANDLER.callback.lock().unwrap().take();
+        if let ControlFlow::ExitWithCode(code) = HANDLER.get_old_and_new_control_flow().1 {
+            code
+        } else {
+            0
+        }
     }
 
     pub fn launched(app_delegate: &Object) {
@@ -332,7 +338,7 @@ impl AppState {
                     }
                 }
             }
-            ControlFlow::Exit => StartCause::Poll, //panic!("unexpected `ControlFlow::Exit`"),
+            ControlFlow::ExitWithCode(_) => StartCause::Poll, //panic!("unexpected `ControlFlow::Exit`"),
         };
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(cause)));
@@ -435,7 +441,7 @@ impl AppState {
         }
         HANDLER.update_start_time();
         match HANDLER.get_old_and_new_control_flow() {
-            (ControlFlow::Exit, _) | (_, ControlFlow::Exit) => (),
+            (ControlFlow::ExitWithCode(_), _) | (_, ControlFlow::ExitWithCode(_)) => (),
             (old, new) if old == new => (),
             (_, ControlFlow::Wait) => HANDLER.waker().stop(),
             (_, ControlFlow::WaitUntil(instant)) => HANDLER.waker().start_at(instant),

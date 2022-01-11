@@ -84,7 +84,7 @@ impl<T: 'static> Runner<T> {
     }
 
     fn handle_single_event(&mut self, event: Event<'_, T>, control: &mut root::ControlFlow) {
-        let is_closed = *control == root::ControlFlow::Exit;
+        let is_closed = matches!(*control, root::ControlFlow::ExitWithCode(_));
 
         (self.event_handler)(event, control);
 
@@ -409,7 +409,7 @@ impl<T: 'static> Shared<T> {
             RunnerEnum::Destroyed => return,
         }
 
-        let is_closed = *control == root::ControlFlow::Exit;
+        let is_closed = matches!(*control, root::ControlFlow::ExitWithCode(_));
 
         // Don't take events out of the queue if the loop is closed or the runner doesn't exist
         // If the runner doesn't exist and this method recurses, it will recurse infinitely
@@ -456,7 +456,7 @@ impl<T: 'static> Shared<T> {
                     ),
                 }
             }
-            root::ControlFlow::Exit => State::Exit,
+            root::ControlFlow::ExitWithCode(_) => State::Exit,
         };
 
         match *self.0.runner.borrow_mut() {
