@@ -57,5 +57,6 @@ If you believe a new release is warranted, you can make a pull-request with:
 This gives contributors an opportunity to squeeze in an extra PR or two that they feel is valuable
 enough to warrant blocking the release a little.
 
-Once the PR is merged, a CI job will automatically release the new version. Remember that the release
-date in the changelog must be kept in check with the actual release date.
+Once the PR is merged, a maintainer will create a new tag matching the version name (e.g. `v0.26.1`),
+and a CI job will automatically release the new version. Remember that the release date in the
+changelog must be kept in check with the actual release date.
