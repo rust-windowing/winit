@@ -1,8 +1,8 @@
 use std::os::raw::*;
 use std::slice;
+use std::sync::Mutex;
 
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 
 use super::{
     ffi::{
@@ -24,7 +24,7 @@ static MONITORS: Lazy<Mutex<Option<Vec<MonitorHandle>>>> = Lazy::new(Mutex::defa
 
 pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
     // We update this lazily.
-    (*MONITORS.lock()).take()
+    (*MONITORS.lock().unwrap()).take()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -293,7 +293,7 @@ impl XConnection {
     }
 
     pub fn available_monitors(&self) -> Vec<MonitorHandle> {
-        let mut monitors_lock = MONITORS.lock();
+        let mut monitors_lock = MONITORS.lock().unwrap();
         (*monitors_lock)
             .as_ref()
             .cloned()

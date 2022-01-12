@@ -3,10 +3,10 @@ use std::{
     ffi::{CStr, CString},
     fmt::Debug,
     os::raw::*,
+    sync::Mutex,
 };
 
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 
 use super::*;
 
@@ -17,7 +17,7 @@ static ATOM_CACHE: Lazy<Mutex<AtomCache>> = Lazy::new(|| Mutex::new(HashMap::wit
 impl XConnection {
     pub fn get_atom<T: AsRef<CStr> + Debug>(&self, name: T) -> ffi::Atom {
         let name = name.as_ref();
-        let mut atom_cache_lock = ATOM_CACHE.lock();
+        let mut atom_cache_lock = ATOM_CACHE.lock().unwrap();
         let cached_atom = (*atom_cache_lock).get(name).cloned();
         if let Some(atom) = cached_atom {
             atom

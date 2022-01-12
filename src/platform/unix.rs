@@ -56,7 +56,7 @@ pub type XlibErrorHook =
 pub fn register_xlib_error_hook(hook: XlibErrorHook) {
     // Append new hook.
     unsafe {
-        XLIB_ERROR_HOOKS.lock().push(hook);
+        XLIB_ERROR_HOOKS.lock().unwrap().push(hook);
     }
 }
 

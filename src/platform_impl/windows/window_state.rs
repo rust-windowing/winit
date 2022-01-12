@@ -5,8 +5,8 @@ use crate::{
     platform_impl::platform::{event_loop, util},
     window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
 };
-use parking_lot::MutexGuard;
 use std::io;
+use std::sync::MutexGuard;
 use windows_sys::Win32::{
     Foundation::{HWND, RECT},
     Graphics::Gdi::InvalidateRgn,

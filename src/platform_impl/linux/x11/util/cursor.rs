@@ -7,6 +7,7 @@ impl XConnection {
         let cursor = *self
             .cursor_cache
             .lock()
+            .unwrap()
             .entry(cursor)
             .or_insert_with(|| self.get_cursor(cursor));
 
