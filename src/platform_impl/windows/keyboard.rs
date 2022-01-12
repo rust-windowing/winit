@@ -83,24 +83,31 @@ impl KeyEventBuilder {
         lparam: LPARAM,
         result: &mut ProcResult,
     ) -> Vec<MessageAsKeyEvent> {
-        match msg_kind {
+
+        enum MatchResult {
+            Nothing,
+            TokenToRemove(PendingMessageToken),
+            MessagesToDispatch(Vec<MessageAsKeyEvent>)
+        }
+
+        let mut matcher = || -> MatchResult { match msg_kind {
             winuser::WM_SETFOCUS => {
                 // synthesize keydown events
                 let kbd_state = get_async_kbd_state();
                 let key_events = Self::synthesize_kbd_state(ElementState::Pressed, &kbd_state);
-                return self.pending.complete_multi(key_events);
+                return MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events));
             }
             winuser::WM_KILLFOCUS => {
                 // sythesize keyup events
                 let kbd_state = get_kbd_state();
                 let key_events = Self::synthesize_kbd_state(ElementState::Released, &kbd_state);
-                return self.pending.complete_multi(key_events);
+                return MatchResult::MessagesToDispatch(self.pending.complete_multi(key_events));
             }
             winuser::WM_KEYDOWN | winuser::WM_SYSKEYDOWN => {
                 if msg_kind == winuser::WM_SYSKEYDOWN && wparam as i32 == winuser::VK_F4 {
                     // Don't dispatch Alt+F4 to the application.
                     // This is handled in `event_loop.rs`
-                    return vec![];
+                    return MatchResult::Nothing;
                 }
                 let pending_token = self.pending.add_pending();
                 *result = ProcResult::Value(0);
@@ -142,14 +149,15 @@ impl KeyEventBuilder {
                 }
                 if let Some(event_info) = finished_event_info {
                     let ev = event_info.finalize(&mut layouts.strings);
-                    return self.pending.complete_pending(
+                    return MatchResult::MessagesToDispatch(self.pending.complete_pending(
                         pending_token,
                         MessageAsKeyEvent {
                             event: ev,
                             is_synthetic: false,
                         },
-                    );
+                    ));
                 }
+                return MatchResult::TokenToRemove(pending_token);
             }
             winuser::WM_DEADCHAR | winuser::WM_SYSDEADCHAR => {
                 let pending_token = self.pending.add_pending();
@@ -159,19 +167,19 @@ impl KeyEventBuilder {
                 let event_info = self.event_info.lock().unwrap().take().unwrap();
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
                 let ev = event_info.finalize(&mut layouts.strings);
-                return self.pending.complete_pending(
+                return MatchResult::MessagesToDispatch(self.pending.complete_pending(
                     pending_token,
                     MessageAsKeyEvent {
                         event: ev,
                         is_synthetic: false,
                     },
-                );
+                ));
             }
             winuser::WM_CHAR | winuser::WM_SYSCHAR => {
                 let mut event_info = self.event_info.lock().unwrap();
                 if event_info.is_none() {
                     trace!("Received a CHAR message but no `event_info` was available. The message is probably IME, returning.");
-                    return vec![];
+                    return MatchResult::Nothing;
                 }
                 let pending_token = self.pending.add_pending();
                 *result = ProcResult::Value(0);
@@ -191,7 +199,7 @@ impl KeyEventBuilder {
                         Some(ev_info) => &mut ev_info.utf16parts,
                         None => {
                             warn!("The event_info was None when it was expected to be some");
-                            return self.pending.remove_pending(pending_token);
+                            return MatchResult::TokenToRemove(pending_token);
                         }
                     };
                     let start_offset = utf16parts.len();
@@ -213,14 +221,14 @@ impl KeyEventBuilder {
                 if more_char_coming {
                     // No need to produce an event just yet, because there are still more characters that
                     // need to appended to this keyobard event
-                    return self.pending.remove_pending(pending_token);
+                    return MatchResult::TokenToRemove(pending_token);
                 } else {
                     let mut event_info = self.event_info.lock().unwrap();
                     let mut event_info = match event_info.take() {
                         Some(ev_info) => ev_info,
                         None => {
                             warn!("The event_info was None when it was expected to be some");
-                            return self.pending.remove_pending(pending_token);
+                            return MatchResult::TokenToRemove(pending_token);
                         }
                     };
                     let mut layouts = LAYOUT_CACHE.lock().unwrap();
@@ -253,18 +261,17 @@ impl KeyEventBuilder {
                         event_info.text = PartialText::Text(key.to_text());
                     }
                     let ev = event_info.finalize(&mut layouts.strings);
-                    return self.pending.complete_pending(
+                    return MatchResult::MessagesToDispatch(self.pending.complete_pending(
                         pending_token,
                         MessageAsKeyEvent {
                             event: ev,
                             is_synthetic: false,
                         },
-                    );
+                    ));
                 }
             }
             winuser::WM_KEYUP | winuser::WM_SYSKEYUP => {
                 let pending_token = self.pending.add_pending();
-
                 *result = ProcResult::Value(0);
 
                 let mut layouts = LAYOUT_CACHE.lock().unwrap();
@@ -289,21 +296,24 @@ impl KeyEventBuilder {
                 }
                 if let Some(event_info) = valid_event_info {
                     let event = event_info.finalize(&mut layouts.strings);
-                    return self.pending.complete_pending(
+                    return MatchResult::MessagesToDispatch(self.pending.complete_pending(
                         pending_token,
                         MessageAsKeyEvent {
                             event,
                             is_synthetic: false,
                         },
-                    );
-                } else {
-                    return self.pending.remove_pending(pending_token);
+                    ));
                 }
+                return MatchResult::TokenToRemove(pending_token);
             }
-            _ => (),
+            _ => MatchResult::Nothing,
+        }};
+        let matcher_result = matcher();
+        match matcher_result {
+            MatchResult::TokenToRemove(t) => self.pending.remove_pending(t),
+            MatchResult::MessagesToDispatch(m) => m,
+            MatchResult::Nothing => Vec::new(),
         }
-
-        Vec::new()
     }
 
     fn synthesize_kbd_state(
@@ -766,7 +776,7 @@ struct IdentifiedPendingMessage<T> {
     token: PendingMessageToken,
     msg: PendingMessage<T>,
 }
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PendingMessageToken(u32);
 
 /// While processing keyboard events, we sometimes need
@@ -787,7 +797,7 @@ pub struct PendingMessageToken(u32);
 /// the order they were encountered. These can then be dispatched to the application
 pub struct PendingEventQueue<T> {
     pending: Mutex<Vec<IdentifiedPendingMessage<T>>>,
-    last_id: AtomicU32,
+    next_id: AtomicU32,
 }
 impl<T> PendingEventQueue<T> {
     /// Add a new pending event to the "pending queue"
@@ -807,6 +817,7 @@ impl<T> PendingEventQueue<T> {
     ///
     /// See also: `add_pending`
     pub fn complete_pending(&self, token: PendingMessageToken, msg: T) -> Vec<T> {
+        
         let mut pending = self.pending.lock().unwrap();
         let mut target_is_first = false;
         for (i, pending_msg) in pending.iter_mut().enumerate() {
@@ -880,7 +891,7 @@ impl<T> PendingEventQueue<T> {
         // messages sitting in the pending queue.
         //
         // In that case, having two identical tokens is the least of your concerns.
-        let id = self.last_id.fetch_add(1, Relaxed);
+        let id = self.next_id.fetch_add(1, Relaxed);
         PendingMessageToken(id)
     }
 }
@@ -888,7 +899,7 @@ impl<T> Default for PendingEventQueue<T> {
     fn default() -> Self {
         PendingEventQueue {
             pending: Mutex::new(Vec::new()),
-            last_id: AtomicU32::new(0),
+            next_id: AtomicU32::new(0),
         }
     }
 }
