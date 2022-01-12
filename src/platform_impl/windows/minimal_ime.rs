@@ -1,4 +1,10 @@
-use std::{mem::MaybeUninit, sync::{atomic::{AtomicBool, Ordering::Relaxed}, Mutex}};
+use std::{
+    mem::MaybeUninit,
+    sync::{
+        atomic::{AtomicBool, Ordering::Relaxed},
+        Mutex,
+    },
+};
 
 use winapi::{
     shared::{
@@ -44,9 +50,9 @@ impl MinimalIme {
                     // It's important that we push the new character and release the lock
                     // before getting the next message
                     let next_msg = next_kbd_msg(hwnd);
-                    let more_char_coming = next_msg.map(|m| {
-                        matches!(m.message, winuser::WM_CHAR | winuser::WM_SYSCHAR)
-                    }).unwrap_or(false);
+                    let more_char_coming = next_msg
+                        .map(|m| matches!(m.message, winuser::WM_CHAR | winuser::WM_SYSCHAR))
+                        .unwrap_or(false);
                     if !more_char_coming {
                         let mut utf16parts = self.utf16parts.lock().unwrap();
                         let result = String::from_utf16(&utf16parts).ok();

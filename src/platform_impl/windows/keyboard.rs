@@ -67,7 +67,7 @@ impl Default for KeyEventBuilder {
     fn default() -> Self {
         KeyEventBuilder {
             event_info: Mutex::new(None),
-            pending: Default::default()
+            pending: Default::default(),
         }
     }
 }
@@ -758,7 +758,6 @@ fn is_current_fake(
     false
 }
 
-
 enum PendingMessage<T> {
     Incomplete,
     Complete(T),
@@ -807,11 +806,7 @@ impl<T> PendingEventQueue<T> {
     /// If the return value is non empty, it's guaranteed to contain `msg`
     ///
     /// See also: `add_pending`
-    pub fn complete_pending(
-        &self,
-        token: PendingMessageToken,
-        msg: T,
-    ) -> Vec<T> {
+    pub fn complete_pending(&self, token: PendingMessageToken, msg: T) -> Vec<T> {
         let mut pending = self.pending.lock().unwrap();
         let mut target_is_first = false;
         for (i, pending_msg) in pending.iter_mut().enumerate() {
@@ -891,9 +886,9 @@ impl<T> PendingEventQueue<T> {
 }
 impl<T> Default for PendingEventQueue<T> {
     fn default() -> Self {
-        PendingEventQueue { 
+        PendingEventQueue {
             pending: Mutex::new(Vec::new()),
-            last_id: AtomicU32::new(0)
+            last_id: AtomicU32::new(0),
         }
     }
 }
