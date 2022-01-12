@@ -1,9 +1,6 @@
-use std::{
-    mem::MaybeUninit,
-    sync::{
-        atomic::{AtomicBool, Ordering::Relaxed},
-        Mutex,
-    },
+use std::sync::{
+    atomic::{AtomicBool, Ordering::Relaxed},
+    Mutex,
 };
 
 use winapi::{

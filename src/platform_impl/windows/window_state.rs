@@ -2,9 +2,7 @@ use crate::{
     dpi::{PhysicalPosition, Size},
     icon::Icon,
     keyboard::ModifiersState,
-    platform_impl::platform::{
-        event_loop, keyboard::KeyEventBuilder, minimal_ime::MinimalIme, util,
-    },
+    platform_impl::platform::{event_loop, util},
     window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
 };
 use parking_lot::MutexGuard;
