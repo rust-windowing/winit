@@ -29,7 +29,7 @@ use crate::{
             scancode_to_keycode, EventWrapper,
         },
         ffi::*,
-        util::{self, IdRef, TraceGuard},
+        util::{self, IdRef},
         window::get_window_id,
         DEVICE_ID,
     },
@@ -301,7 +301,7 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 }
 
 extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
-    let _trace = TraceGuard::new("viewDidMoveToWindow");
+    trace_scope!("viewDidMoveToWindow");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -322,7 +322,7 @@ extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
 }
 
 extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
-    let _trace = TraceGuard::new("frameDidChange:");
+    trace_scope!("frameDidChange:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -344,7 +344,7 @@ extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
 }
 
 extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
-    let _trace = TraceGuard::new("drawRect:");
+    trace_scope!("drawRect:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -357,7 +357,7 @@ extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
 }
 
 extern "C" fn accepts_first_responder(_this: &Object, _sel: Sel) -> BOOL {
-    let _trace = TraceGuard::new("acceptsFirstResponder");
+    trace_scope!("acceptsFirstResponder");
     YES
 }
 
@@ -365,12 +365,12 @@ extern "C" fn accepts_first_responder(_this: &Object, _sel: Sel) -> BOOL {
 // IMKInputSession [0x7fc573576ff0 presentFunctionRowItemTextInputViewWithEndpoint:completionHandler:] : [self textInputContext]=0x7fc573558e10 *NO* NSRemoteViewController to client, NSError=Error Domain=NSCocoaErrorDomain Code=4099 "The connection from pid 0 was invalidated from this process." UserInfo={NSDebugDescription=The connection from pid 0 was invalidated from this process.}, com.apple.inputmethod.EmojiFunctionRowItem
 // TODO: Add an API extension for using `NSTouchBar`
 extern "C" fn touch_bar(_this: &Object, _sel: Sel) -> BOOL {
-    let _trace = TraceGuard::new("touchBar");
+    trace_scope!("touchBar");
     NO
 }
 
 extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
-    let _trace = TraceGuard::new("resetCursorRects");
+    trace_scope!("resetCursorRects");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -390,7 +390,7 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
 }
 
 extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
-    let _trace = TraceGuard::new("hasMarkedText");
+    trace_scope!("hasMarkedText");
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         (marked_text.length() > 0) as BOOL
@@ -398,7 +398,7 @@ extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
 }
 
 extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
-    let _trace = TraceGuard::new("markedRange");
+    trace_scope!("markedRange");
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         let length = marked_text.length();
@@ -411,7 +411,7 @@ extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
 }
 
 extern "C" fn selected_range(_this: &Object, _sel: Sel) -> NSRange {
-    let _trace = TraceGuard::new("selectedRange");
+    trace_scope!("selectedRange");
     util::EMPTY_RANGE
 }
 
@@ -422,7 +422,7 @@ extern "C" fn set_marked_text(
     _selected_range: NSRange,
     _replacement_range: NSRange,
 ) {
-    let _trace = TraceGuard::new("setMarkedText:selectedRange:replacementRange:");
+    trace_scope!("setMarkedText:selectedRange:replacementRange:");
     unsafe {
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
         let _: () = msg_send![(*marked_text_ref), release];
@@ -438,7 +438,7 @@ extern "C" fn set_marked_text(
 }
 
 extern "C" fn unmark_text(this: &Object, _sel: Sel) {
-    let _trace = TraceGuard::new("unmarkText");
+    trace_scope!("unmarkText");
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         let mutable_string = marked_text.mutableString();
@@ -451,7 +451,7 @@ extern "C" fn unmark_text(this: &Object, _sel: Sel) {
 }
 
 extern "C" fn valid_attributes_for_marked_text(_this: &Object, _sel: Sel) -> id {
-    let _trace = TraceGuard::new("validAttributesForMarkedText");
+    trace_scope!("validAttributesForMarkedText");
     unsafe { msg_send![class!(NSArray), array] }
 }
 
@@ -461,12 +461,12 @@ extern "C" fn attributed_substring_for_proposed_range(
     _range: NSRange,
     _actual_range: *mut c_void, // *mut NSRange
 ) -> id {
-    let _trace = TraceGuard::new("attributedSubstringForProposedRange:actualRange:");
+    trace_scope!("attributedSubstringForProposedRange:actualRange:");
     nil
 }
 
 extern "C" fn character_index_for_point(_this: &Object, _sel: Sel, _point: NSPoint) -> NSUInteger {
-    let _trace = TraceGuard::new("characterIndexForPoint:");
+    trace_scope!("characterIndexForPoint:");
     0
 }
 
@@ -476,7 +476,7 @@ extern "C" fn first_rect_for_character_range(
     _range: NSRange,
     _actual_range: *mut c_void, // *mut NSRange
 ) -> NSRect {
-    let _trace = TraceGuard::new("firstRectForCharacterRange:actualRange:");
+    trace_scope!("firstRectForCharacterRange:actualRange:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -494,7 +494,7 @@ extern "C" fn first_rect_for_character_range(
 }
 
 extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: NSRange) {
-    let _trace = TraceGuard::new("insertText:replacementRange:");
+    trace_scope!("insertText:replacementRange:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -528,7 +528,7 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
 }
 
 extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
-    let _trace = TraceGuard::new("doCommandBySelector:");
+    trace_scope!("doCommandBySelector:");
     // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human readable" character
     // happens, i.e. newlines, tabs, and Ctrl+C.
     unsafe {
@@ -633,7 +633,7 @@ fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
 }
 
 extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("keyDown:");
+    trace_scope!("keyDown:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -691,7 +691,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 }
 
 extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("keyUp:");
+    trace_scope!("keyUp:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -721,7 +721,7 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
 }
 
 extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("flagsChanged:");
+    trace_scope!("flagsChanged:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -781,7 +781,7 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
 }
 
 extern "C" fn insert_tab(this: &Object, _sel: Sel, _sender: id) {
-    let _trace = TraceGuard::new("insertTab:");
+    trace_scope!("insertTab:");
     unsafe {
         let window: id = msg_send![this, window];
         let first_responder: id = msg_send![window, firstResponder];
@@ -793,7 +793,7 @@ extern "C" fn insert_tab(this: &Object, _sel: Sel, _sender: id) {
 }
 
 extern "C" fn insert_back_tab(this: &Object, _sel: Sel, _sender: id) {
-    let _trace = TraceGuard::new("insertBackTab:");
+    trace_scope!("insertBackTab:");
     unsafe {
         let window: id = msg_send![this, window];
         let first_responder: id = msg_send![window, firstResponder];
@@ -807,7 +807,7 @@ extern "C" fn insert_back_tab(this: &Object, _sel: Sel, _sender: id) {
 // Allows us to receive Cmd-. (the shortcut for closing a dialog)
 // https://bugs.eclipse.org/bugs/show_bug.cgi?id=300620#c6
 extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
-    let _trace = TraceGuard::new("cancelOperation:");
+    trace_scope!("cancelOperation:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -861,37 +861,37 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
 }
 
 extern "C" fn mouse_down(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("mouseDown:");
+    trace_scope!("mouseDown:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Left, ElementState::Pressed);
 }
 
 extern "C" fn mouse_up(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("mouseUp:");
+    trace_scope!("mouseUp:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Left, ElementState::Released);
 }
 
 extern "C" fn right_mouse_down(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("rightMouseDown:");
+    trace_scope!("rightMouseDown:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Right, ElementState::Pressed);
 }
 
 extern "C" fn right_mouse_up(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("rightMouseUp:");
+    trace_scope!("rightMouseUp:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Right, ElementState::Released);
 }
 
 extern "C" fn other_mouse_down(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("otherMouseDown:");
+    trace_scope!("otherMouseDown:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Middle, ElementState::Pressed);
 }
 
 extern "C" fn other_mouse_up(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("otherMouseUp:");
+    trace_scope!("otherMouseUp:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Middle, ElementState::Released);
 }
@@ -958,7 +958,7 @@ extern "C" fn other_mouse_dragged(this: &Object, _sel: Sel, event: id) {
 }
 
 extern "C" fn mouse_entered(this: &Object, _sel: Sel, _event: id) {
-    let _trace = TraceGuard::new("mouseEntered:");
+    trace_scope!("mouseEntered:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -975,7 +975,7 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, _event: id) {
 }
 
 extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
-    let _trace = TraceGuard::new("mouseExited:");
+    trace_scope!("mouseExited:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -992,7 +992,7 @@ extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
 }
 
 extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("scrollWheel:");
+    trace_scope!("scrollWheel:");
 
     mouse_motion(this, event);
 
@@ -1044,7 +1044,7 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
 }
 
 extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
-    let _trace = TraceGuard::new("pressureChangeWithEvent:");
+    trace_scope!("pressureChangeWithEvent:");
 
     mouse_motion(this, event);
 
@@ -1072,11 +1072,11 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
 // Note that this *doesn't* help with any missing Cmd inputs.
 // https://github.com/chromium/chromium/blob/a86a8a6bcfa438fa3ac2eba6f02b3ad1f8e0756f/ui/views/cocoa/bridged_content_view.mm#L816
 extern "C" fn wants_key_down_for_event(_this: &Object, _sel: Sel, _event: id) -> BOOL {
-    let _trace = TraceGuard::new("_wantsKeyDownForEvent:");
+    trace_scope!("_wantsKeyDownForEvent:");
     YES
 }
 
 extern "C" fn accepts_first_mouse(_this: &Object, _sel: Sel, _event: id) -> BOOL {
-    let _trace = TraceGuard::new("acceptsFirstMouse:");
+    trace_scope!("acceptsFirstMouse:");
     YES
 }

@@ -1,7 +1,4 @@
-use crate::{
-    platform::macos::ActivationPolicy,
-    platform_impl::platform::{app_state::AppState, util::TraceGuard},
-};
+use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
 
 use cocoa::base::id;
 use objc::{
@@ -78,6 +75,6 @@ extern "C" fn dealloc(this: &Object, _: Sel) {
 }
 
 extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
-    let _trace = TraceGuard::new("applicationDidFinishLaunching:");
+    trace_scope!("applicationDidFinishLaunching:");
     AppState::launched(this);
 }
