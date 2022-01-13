@@ -84,36 +84,18 @@ pub trait Pixel: Copy + Into<f64> {
     }
 }
 
-impl Pixel for u8 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as u8
-    }
+macro_rules! pixel_int_impl {
+    ($($t:ty),*) => {$(
+        impl Pixel for $t {
+            fn from_f64(f: f64) -> Self {
+                round(f) as $t
+            }
+        }
+    )*}
 }
-impl Pixel for u16 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as u16
-    }
-}
-impl Pixel for u32 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as u32
-    }
-}
-impl Pixel for i8 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as i8
-    }
-}
-impl Pixel for i16 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as i16
-    }
-}
-impl Pixel for i32 {
-    fn from_f64(f: f64) -> Self {
-        round(f) as i32
-    }
-}
+
+pixel_int_impl!(u8, u16, u32, i8, i16, i32);
+
 impl Pixel for f32 {
     fn from_f64(f: f64) -> Self {
         f as f32
