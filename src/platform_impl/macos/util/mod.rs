@@ -81,7 +81,7 @@ impl Clone for IdRef {
 
 macro_rules! trace_scope {
     ($s:literal) => {
-        $crate::platform_impl::platform::util::TraceGuard::new(module_path!(), $s)
+        let _crate = $crate::platform_impl::platform::util::TraceGuard::new(module_path!(), $s);
     };
 }
 
