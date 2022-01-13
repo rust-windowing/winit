@@ -90,6 +90,7 @@ impl Window {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::VISIBLE, visible)
             });
@@ -131,6 +132,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::MAXIMIZED, false)
             });
@@ -185,6 +187,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::MAXIMIZED, false)
             });
@@ -215,6 +218,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::RESIZABLE, resizable)
             });
@@ -256,6 +260,7 @@ impl Window {
         let (tx, rx) = channel();
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             let result = window_state
                 .lock()
                 .mouse
@@ -273,6 +278,7 @@ impl Window {
         let (tx, rx) = channel();
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             let result = window_state
                 .lock()
                 .mouse
@@ -340,6 +346,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::MINIMIZED, minimized)
             });
@@ -352,6 +359,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::MAXIMIZED, maximized)
             });
@@ -384,6 +392,7 @@ impl Window {
         drop(window_state_lock);
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             // Change video mode if we're transitioning to or from exclusive
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
@@ -528,6 +537,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::DECORATIONS, decorations)
             });
@@ -540,6 +550,7 @@ impl Window {
         let window_state = Arc::clone(&self.window_state);
 
         self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::ALWAYS_ON_TOP, always_on_top)
             });
@@ -612,6 +623,7 @@ impl Window {
         }
 
         self.thread_executor.execute_in_thread(move || unsafe {
+            let _ = &window;
             let (flags, count) = request_type
                 .map(|ty| match ty {
                     UserAttentionType::Critical => {
