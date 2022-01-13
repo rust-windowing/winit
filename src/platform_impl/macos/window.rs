@@ -23,7 +23,7 @@ use crate::{
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
-        util::{self, IdRef},
+        util::{self, IdRef, TraceGuard},
         view::CursorState,
         view::{self, new_view},
         window_delegate::new_delegate,
@@ -254,13 +254,24 @@ lazy_static! {
     static ref WINDOW_CLASS: WindowClass = unsafe {
         let window_superclass = class!(NSWindow);
         let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
+
+        pub extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
+            let _trace = TraceGuard::new("canBecomeMainWindow");
+            YES
+        }
+
+        pub extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
+            let _trace = TraceGuard::new("canBecomeKeyWindow");
+            YES
+        }
+
         decl.add_method(
             sel!(canBecomeMainWindow),
-            util::yes as extern "C" fn(&Object, Sel) -> BOOL,
+            can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
         );
         decl.add_method(
             sel!(canBecomeKeyWindow),
-            util::yes as extern "C" fn(&Object, Sel) -> BOOL,
+            can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
         );
         WindowClass(decl.register())
     };

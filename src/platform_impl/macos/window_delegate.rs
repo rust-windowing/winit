@@ -22,7 +22,7 @@ use crate::{
         app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
         event::{EventProxy, EventWrapper},
-        util::{self, IdRef},
+        util::{self, IdRef, TraceGuard},
         view::ViewState,
         window::{get_window_id, UnownedWindow},
     },
@@ -265,14 +265,13 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 }
 
 extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
-    trace!("Triggered `windowShouldClose:`");
+    let _trace = TraceGuard::new("windowShouldClose:");
     with_state(this, |state| state.emit_event(WindowEvent::CloseRequested));
-    trace!("Completed `windowShouldClose:`");
     NO
 }
 
 extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowWillClose:`");
+    let _trace = TraceGuard::new("windowWillClose:");
     with_state(this, |state| unsafe {
         // `setDelegate:` retains the previous value and then autoreleases it
         autoreleasepool(|| {
@@ -282,47 +281,42 @@ extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
         });
         state.emit_event(WindowEvent::Destroyed);
     });
-    trace!("Completed `windowWillClose:`");
 }
 
 extern "C" fn window_did_resize(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidResize:`");
+    let _trace = TraceGuard::new("windowDidResize:");
     with_state(this, |state| {
         state.emit_resize_event();
         state.emit_move_event();
     });
-    trace!("Completed `windowDidResize:`");
 }
 
 // This won't be triggered if the move was part of a resize.
 extern "C" fn window_did_move(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidMove:`");
+    let _trace = TraceGuard::new("windowDidMove:");
     with_state(this, |state| {
         state.emit_move_event();
     });
-    trace!("Completed `windowDidMove:`");
 }
 
 extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidChangeBackingProperties:`");
+    let _trace = TraceGuard::new("windowDidChangeBackingProperties:");
     with_state(this, |state| {
         state.emit_static_scale_factor_changed_event();
     });
-    trace!("Completed `windowDidChangeBackingProperties:`");
 }
 
 extern "C" fn window_did_become_key(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidBecomeKey:`");
+    let _trace = TraceGuard::new("windowDidBecomeKey:");
     with_state(this, |state| {
         // TODO: center the cursor if the window had mouse grab when it
         // lost focus
         state.emit_event(WindowEvent::Focused(true));
     });
-    trace!("Completed `windowDidBecomeKey:`");
 }
 
 extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidResignKey:`");
+    let _trace = TraceGuard::new("windowDidResignKey:");
     with_state(this, |state| {
         // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
         // NSWindowDelegate will receive a didResignKey event despite no event
@@ -349,12 +343,11 @@ extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
 
         state.emit_event(WindowEvent::Focused(false));
     });
-    trace!("Completed `windowDidResignKey:`");
 }
 
 /// Invoked when the dragged image enters destination bounds or frame
 extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
-    trace!("Triggered `draggingEntered:`");
+    let _trace = TraceGuard::new("draggingEntered:");
 
     use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
     use std::path::PathBuf;
@@ -376,20 +369,18 @@ extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
         }
     }
 
-    trace!("Completed `draggingEntered:`");
     YES
 }
 
 /// Invoked when the image is released
 extern "C" fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> BOOL {
-    trace!("Triggered `prepareForDragOperation:`");
-    trace!("Completed `prepareForDragOperation:`");
+    let _trace = TraceGuard::new("prepareForDragOperation:");
     YES
 }
 
 /// Invoked after the released image has been removed from the screen
 extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
-    trace!("Triggered `performDragOperation:`");
+    let _trace = TraceGuard::new("performDragOperation:");
 
     use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
     use std::path::PathBuf;
@@ -411,28 +402,25 @@ extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL 
         }
     }
 
-    trace!("Completed `performDragOperation:`");
     YES
 }
 
 /// Invoked when the dragging operation is complete
 extern "C" fn conclude_drag_operation(_: &Object, _: Sel, _: id) {
-    trace!("Triggered `concludeDragOperation:`");
-    trace!("Completed `concludeDragOperation:`");
+    let _trace = TraceGuard::new("concludeDragOperation:");
 }
 
 /// Invoked when the dragging operation is cancelled
 extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `draggingExited:`");
+    let _trace = TraceGuard::new("draggingExited:");
     with_state(this, |state| {
         state.emit_event(WindowEvent::HoveredFileCancelled)
     });
-    trace!("Completed `draggingExited:`");
 }
 
 /// Invoked when before enter fullscreen
 extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowWillEnterFullscreen:`");
+    let _trace = TraceGuard::new("windowWillEnterFullscreen:");
 
     INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
 
@@ -461,12 +449,11 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
             trace!("Unlocked shared state in `window_will_enter_fullscreen`");
         })
     });
-    trace!("Completed `windowWillEnterFullscreen:`");
 }
 
 /// Invoked when before exit fullscreen
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowWillExitFullScreen:`");
+    let _trace = TraceGuard::new("windowWillExitFullScreen:");
 
     INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
 
@@ -478,7 +465,6 @@ extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
             trace!("Unlocked shared state in `window_will_exit_fullscreen`");
         });
     });
-    trace!("Completed `windowWillExitFullScreen:`");
 }
 
 extern "C" fn window_will_use_fullscreen_presentation_options(
@@ -487,6 +473,7 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
     _: id,
     proposed_options: NSUInteger,
 ) -> NSUInteger {
+    let _trace = TraceGuard::new("window:willUseFullScreenPresentationOptions:");
     // Generally, games will want to disable the menu bar and the dock. Ideally,
     // this would be configurable by the user. Unfortunately because of our
     // `CGShieldingWindowLevel() + 1` hack (see `set_fullscreen`), our window is
@@ -515,9 +502,9 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
+    let _trace = TraceGuard::new("windowDidEnterFullscreen:");
     INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
 
-    trace!("Triggered `windowDidEnterFullscreen:`");
     with_state(this, |state| {
         state.initial_fullscreen = false;
         state.with_window(|window| {
@@ -532,14 +519,13 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
             }
         });
     });
-    trace!("Completed `windowDidEnterFullscreen:`");
 }
 
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
+    let _trace = TraceGuard::new("windowDidExitFullscreen:");
     INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
 
-    trace!("Triggered `windowDidExitFullscreen:`");
     with_state(this, |state| {
         state.with_window(|window| {
             window.restore_state_from_fullscreen();
@@ -554,7 +540,6 @@ extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
             }
         })
     });
-    trace!("Completed `windowDidExitFullscreen:`");
 }
 
 /// Invoked when fail to enter fullscreen
@@ -574,7 +559,7 @@ extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
 /// This method indicates that there was an error, and you should clean up any
 /// work you may have done to prepare to enter full-screen mode.
 extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `windowDidFailToEnterFullscreen:`");
+    let _trace = TraceGuard::new("windowDidFailToEnterFullscreen:");
     with_state(this, |state| {
         state.with_window(|window| {
             trace!("Locked shared state in `window_did_fail_to_enter_fullscreen`");
@@ -595,5 +580,4 @@ extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) 
             state.with_window(|window| window.restore_state_from_fullscreen());
         }
     });
-    trace!("Completed `windowDidFailToEnterFullscreen:`");
 }
