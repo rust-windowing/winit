@@ -641,7 +641,7 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 pub struct Window;
 
 impl Window {
-    pub fn new<T: 'static>(
+    pub(crate) fn new<T: 'static>(
         _el: &EventLoopWindowTarget<T>,
         _window_attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,

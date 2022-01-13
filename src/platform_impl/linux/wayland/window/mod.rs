@@ -75,7 +75,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         event_loop_window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         platform_attributes: PlatformAttributes,

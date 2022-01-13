@@ -638,7 +638,7 @@ impl Deref for Window {
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,

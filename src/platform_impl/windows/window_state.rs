@@ -112,7 +112,7 @@ pub enum ImeState {
 }
 
 impl WindowState {
-    pub fn new(
+    pub(crate) fn new(
         attributes: &WindowAttributes,
         taskbar_icon: Option<Icon>,
         scale_factor: f64,

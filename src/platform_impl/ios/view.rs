@@ -429,7 +429,7 @@ unsafe fn get_window_class() -> &'static Class {
 }
 
 // requires main thread
-pub unsafe fn create_view(
+pub(crate) unsafe fn create_view(
     _window_attributes: &WindowAttributes,
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,
@@ -449,7 +449,7 @@ pub unsafe fn create_view(
 }
 
 // requires main thread
-pub unsafe fn create_view_controller(
+pub(crate) unsafe fn create_view_controller(
     _window_attributes: &WindowAttributes,
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     view: id,
@@ -505,7 +505,7 @@ pub unsafe fn create_view_controller(
 }
 
 // requires main thread
-pub unsafe fn create_window(
+pub(crate) unsafe fn create_window(
     window_attributes: &WindowAttributes,
     _platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,

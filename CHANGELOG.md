@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Removed the `WindowAttributes` struct, since all its functionality is accessible from `WindowBuilder`.
 - On macOS, Fix emitting `Event::LoopDestroyed` on CMD+Q.
 - On macOS, fixed an issue where having multiple windows would prevent run_return from ever returning.
 - On Wayland, fix bug where the cursor wouldn't hide in GNOME.

@@ -114,7 +114,7 @@ pub struct UnownedWindow {
 }
 
 impl UnownedWindow {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
         window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
