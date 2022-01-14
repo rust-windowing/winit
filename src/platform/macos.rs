@@ -1,12 +1,24 @@
 #![cfg(target_os = "macos")]
 
-use std::os::raw::c_void;
+use std::{collections::hash_map::Entry, os::raw::c_void};
+
+use cocoa::appkit::NSApp;
+pub use objc;
+use objc::{
+    msg_send,
+    rc::autoreleasepool,
+    runtime::{Object, Sel},
+    Encode,
+};
 
 use crate::{
     dpi::LogicalSize,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    platform_impl::get_aux_state_mut,
+    platform_impl::{
+        create_delegate_class, get_aux_state_mut, get_aux_state_ref,
+        EventLoop as PlatformEventLoop, IdRef, BASE_APP_DELEGATE_METHODS,
+    },
     window::{Window, WindowBuilder},
 };
 
@@ -179,6 +191,112 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 }
 
+pub trait DelegateMethod {
+    fn register_method<T>(self, sel: Sel, el: &mut PlatformEventLoop<T>) -> Result<(), String>;
+}
+macro_rules! impl_delegate_method {
+    ($($p:ident: $t:ident),*) => {
+        // method_decl_impl!(-T, R, extern fn(&T, Sel $(, $t)*) -> R, $($t),*);
+        impl<$($t, )* R> DelegateMethod for Box<dyn Fn($($t, )*) -> R + 'static>
+        where
+            $($t: Clone + Encode + 'static, )*
+            R: Encode + 'static
+        {
+            fn register_method<T>(self, sel: Sel, el: &mut PlatformEventLoop<T>) -> Result<(), String> {
+
+                // -------------------------------------------------------------------------
+                // HANDLER
+                // Allowing non-snake-case because we use the typename in the parameter name
+                // `param_$t`
+                #[allow(non_snake_case)]
+                extern "C" fn method_handler<$($t, )* R>(this: &Object, sel: Sel, $($p: $t, )*) -> R
+                where
+                    $($t: Clone + 'static, )*
+                    R: 'static,
+                {
+                    // Let's call the base winit handler first.
+                    {
+                        let guard = BASE_APP_DELEGATE_METHODS.read().unwrap();
+                        if let Some(base_method) = guard.get(sel.name()) {
+                            unsafe {
+                                let base_method = std::mem::transmute::<
+                                    unsafe extern fn(),
+                                    extern fn(&Object, Sel, $($t, )*) -> R
+                                >(*base_method);
+                                base_method(this, sel, $($p.clone(), )*);
+                            }
+                        }
+                    }
+                    let mut retval: Option<R> = None;
+                    let aux = unsafe { get_aux_state_ref(this) };
+                    if let Some(callbacks) = aux.user_methods.get(sel.name()) {
+                        // The `methods` is a `Vec<Box<Box<Fn(...)>>>`
+                        for cb in callbacks.iter() {
+                            // Could this be done with fewer indirections?
+                            if let Some(cb) = cb.downcast_ref::<Box<dyn Fn($($t, )*) -> R>>() {
+                                let v = (cb)($($p.clone(), )*);
+                                if retval.is_none() {
+                                    retval = Some(v);
+                                }
+                            } else {
+                                warn!("Failed to downcast closure when handling {}", sel.name());
+                            }
+                        }
+                    }
+                    retval.expect(&format!(
+                        "Couldn't get a return value during {:?}. This probably indicates that no appropriate callback was found", sel.name()
+                    ))
+                }
+                // -------------------------------------------------------------------------
+
+                let self_boxed = Box::new(self as Box<dyn Fn($($t, )*) -> R>);
+
+                // println!("created delegate class {}", delegate_class.name());
+                let mut delegate_state = unsafe {get_aux_state_mut(&mut **el.delegate)};
+                match delegate_state.user_methods.entry(sel.name().to_string()) {
+                    Entry::Occupied(mut e) => {
+                        e.get_mut().push(self_boxed);
+                    }
+                    Entry::Vacant(e) => {
+                        e.insert(vec![self_boxed]);
+
+                        // This user method doesn't have a defined callback in the app delegate class yet,
+                        // so let's create a new class for this method
+                        unsafe {
+                            let prev_delegate_class = (**el.delegate).class();
+                            let mut decl = create_delegate_class(prev_delegate_class);
+                            decl.add_method(
+                                // sel!(application:openFiles:),
+                                sel,
+                                method_handler::<$($t, )* R> as extern "C" fn(&Object, Sel, $($t, )*) -> R,
+                            );
+                            let delegate_class = decl.register();
+                            let new_delegate = IdRef::new(msg_send![delegate_class, new]);
+                            let mut new_state = get_aux_state_mut(&mut **new_delegate);
+                            std::mem::swap(&mut *new_state, &mut *delegate_state);
+                            let app = NSApp();
+                            autoreleasepool(|| {
+                                let _: () = msg_send![app, setDelegate:*new_delegate];
+                            });
+                            el.delegate = new_delegate;
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+    }
+}
+impl_delegate_method!();
+impl_delegate_method!(a: A);
+impl_delegate_method!(a: A, b: B);
+impl_delegate_method!(a: A, b: B, c: C);
+impl_delegate_method!(a: A, b: B, c: C, d: D);
+impl_delegate_method!(a: A, b: B, c: C, d: D, e: E);
+impl_delegate_method!(a: A, b: B, c: C, d: D, e: E, f: F);
+impl_delegate_method!(a: A, b: B, c: C, d: D, e: E, f: F, g: G);
+impl_delegate_method!(a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H);
+
 pub trait EventLoopExtMacOS {
     /// Sets the activation policy for the application. It is set to
     /// `NSApplicationActivationPolicyRegular` by default.
@@ -195,6 +313,17 @@ pub trait EventLoopExtMacOS {
     /// [`run`](crate::event_loop::EventLoop::run) or
     /// [`run_return`](crate::platform::run_return::EventLoopExtRunReturn::run_return)
     fn enable_default_menu_creation(&mut self, enable: bool);
+
+    /// Adds a new callback method for the application delegate.
+    ///
+    /// ### Safety
+    /// As the underlying `add_method` documentation writes:
+    /// > Unsafe because the caller must ensure that the types match those that are expected when the method is invoked from Objective-C.
+    unsafe fn add_application_method<F: DelegateMethod>(
+        &mut self,
+        sel: Sel,
+        method: F,
+    ) -> Result<(), String>;
 }
 impl<T> EventLoopExtMacOS for EventLoop<T> {
     #[inline]
@@ -209,6 +338,14 @@ impl<T> EventLoopExtMacOS for EventLoop<T> {
         unsafe {
             get_aux_state_mut(&**self.event_loop.delegate).create_default_menu = enable;
         }
+    }
+
+    unsafe fn add_application_method<F: DelegateMethod>(
+        &mut self,
+        sel: Sel,
+        method: F,
+    ) -> Result<(), String> {
+        method.register_method(sel, &mut self.event_loop)
     }
 }
 

@@ -6,12 +6,19 @@ use objc::{
     runtime::{Class, Object, Sel},
 };
 use std::{
-    cell::{RefCell, RefMut},
+    any::Any,
+    cell::{Ref, RefCell, RefMut},
+    collections::HashMap,
     os::raw::c_void,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        RwLock,
+    },
 };
 
 static AUX_DELEGATE_STATE_NAME: &str = "auxState";
 
+#[derive(Default)]
 pub struct AuxDelegateState {
     /// We store this value in order to be able to defer setting the activation policy until
     /// after the app has finished launching. If the activation policy is set earlier, the
@@ -19,6 +26,15 @@ pub struct AuxDelegateState {
     pub activation_policy: ActivationPolicy,
 
     pub create_default_menu: bool,
+
+    // pub winit_methods: HashMap<String, objc::runtime::Imp>,
+    /// Contains the closures that the application added on top of the ones
+    /// that winit already had.
+    ///
+    /// Each key is the name of the selector
+    /// Each value is a vec of colsures that handle the callback
+    /// The first callback in the vec was registered first
+    pub user_methods: HashMap<String, Vec<Box<dyn Any>>>,
 }
 
 pub struct AppDelegateClass(pub *const Class);
@@ -26,10 +42,29 @@ unsafe impl Send for AppDelegateClass {}
 unsafe impl Sync for AppDelegateClass {}
 
 lazy_static! {
-    pub static ref APP_DELEGATE_CLASS: AppDelegateClass = unsafe {
-        let superclass = class!(NSResponder);
-        let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
+    /// Contains the function pointers to the event
+    /// listener methods defined by winit on the application
+    /// delegate
+    ///
+    /// Each key is the name of a selector
+    /// Each value is the corresponding function pointer
+    pub static ref BASE_APP_DELEGATE_METHODS: RwLock<HashMap<String, objc::runtime::Imp>> = {
+        Default::default()
+    };
+}
 
+pub fn create_delegate_class(superclass: &Class) -> ClassDecl {
+    static CLASS_SEQ_NUM: AtomicUsize = AtomicUsize::new(0);
+    let curr_seq_num = CLASS_SEQ_NUM.fetch_add(1, Ordering::Relaxed);
+    // let superclass = class!(NSResponder);
+    let class_name = format!("WinitAppDelegate{}", curr_seq_num);
+    let decl = ClassDecl::new(&class_name, superclass).unwrap();
+    decl
+}
+
+pub fn create_base_app_delegate_class() -> *const Class {
+    let mut decl = create_delegate_class(class!(NSResponder));
+    let result = unsafe {
         decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
         decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
 
@@ -38,9 +73,18 @@ lazy_static! {
             did_finish_launching as extern "C" fn(&Object, Sel, id),
         );
         decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
-
-        AppDelegateClass(decl.register())
+        decl.register()
     };
+
+    let methods: HashMap<_, _> = result
+        .instance_methods()
+        .iter()
+        .map(|x| (x.name().name().to_owned(), x.implementation()))
+        .collect();
+    let mut methods_guard = BASE_APP_DELEGATE_METHODS.write().unwrap();
+    *methods_guard = methods;
+
+    result
 }
 
 /// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
@@ -48,6 +92,13 @@ pub unsafe fn get_aux_state_mut(this: &Object) -> RefMut<'_, AuxDelegateState> {
     let ptr: *mut c_void = *this.get_ivar(AUX_DELEGATE_STATE_NAME);
     // Watch out that this needs to be the correct type
     (*(ptr as *mut RefCell<AuxDelegateState>)).borrow_mut()
+}
+
+/// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
+pub unsafe fn get_aux_state_ref(this: &Object) -> Ref<'_, AuxDelegateState> {
+    let ptr: *mut c_void = *this.get_ivar(AUX_DELEGATE_STATE_NAME);
+    // Watch out that this needs to be the correct type
+    (*(ptr as *mut RefCell<AuxDelegateState>)).borrow()
 }
 
 extern "C" fn new(class: &Class, _: Sel) -> id {
@@ -59,6 +110,7 @@ extern "C" fn new(class: &Class, _: Sel) -> id {
             Box::into_raw(Box::new(RefCell::new(AuxDelegateState {
                 activation_policy: ActivationPolicy::Regular,
                 create_default_menu: true,
+                user_methods: HashMap::default(),
             }))) as *mut c_void,
         );
         this
