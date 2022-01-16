@@ -774,10 +774,10 @@ impl<T: 'static> EventProcessor<T> {
                                             event: MouseWheel {
                                                 device_id,
                                                 delta: match info.orientation {
-                                                    ScrollOrientation::Horizontal => {
-                                                        LineDelta(delta as f32, 0.0)
-                                                    }
                                                     // X11 vertical scroll coordinates are opposite to winit's
+                                                    ScrollOrientation::Horizontal => {
+                                                        LineDelta(-delta as f32, 0.0)
+                                                    }
                                                     ScrollOrientation::Vertical => {
                                                         LineDelta(0.0, -delta as f32)
                                                     }
