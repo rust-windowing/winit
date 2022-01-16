@@ -55,7 +55,7 @@ impl WindowDelegateState {
         let mut delegate_state = WindowDelegateState {
             ns_window: window.ns_window.clone(),
             ns_view: window.ns_view.clone(),
-            window: Arc::downgrade(&window),
+            window: Arc::downgrade(window),
             initial_fullscreen,
             previous_position: None,
             previous_scale_factor: scale_factor,
@@ -86,7 +86,7 @@ impl WindowDelegateState {
     pub fn emit_static_scale_factor_changed_event(&mut self) {
         let scale_factor = self.get_scale_factor();
         if scale_factor == self.previous_scale_factor {
-            return ();
+            return;
         };
 
         self.previous_scale_factor = scale_factor;

@@ -260,7 +260,7 @@ lazy_static! {
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
-        decl.add_protocol(&protocol);
+        decl.add_protocol(protocol);
         ViewClass(decl.register())
     };
 }
@@ -589,7 +589,7 @@ fn get_characters(event: id, ignore_modifiers: bool) -> String {
 
 // As defined in: https://www.unicode.org/Public/MAPPINGS/VENDORS/APPLE/CORPCHAR.TXT
 fn is_corporate_character(c: char) -> bool {
-    match c {
+    matches!(c,
         '\u{F700}'..='\u{F747}'
         | '\u{F802}'..='\u{F84F}'
         | '\u{F850}'
@@ -597,9 +597,8 @@ fn is_corporate_character(c: char) -> bool {
         | '\u{F85D}'
         | '\u{F85F}'
         | '\u{F860}'..='\u{F86B}'
-        | '\u{F870}'..='\u{F8FF}' => true,
-        _ => false,
-    }
+        | '\u{F870}'..='\u{F8FF}'
+    )
 }
 
 // Retrieves a layout-independent keycode given an event.
@@ -607,7 +606,7 @@ fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
     #[inline]
     fn get_code(ev: id, raw: bool) -> Option<VirtualKeyCode> {
         let characters = get_characters(ev, raw);
-        characters.chars().next().and_then(|c| char_to_keycode(c))
+        characters.chars().next().and_then(char_to_keycode)
     }
 
     // Cmd switches Roman letters for Dvorak-QWERTY layout, so we try modified characters first.

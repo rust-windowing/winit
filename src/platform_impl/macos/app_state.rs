@@ -60,8 +60,11 @@ pub trait EventHandler: Debug {
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
+pub(crate) type Callback<T> =
+    RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>;
+
 struct EventLoopHandler<T: 'static> {
-    callback: Weak<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+    callback: Weak<Callback<T>>,
     window_target: Rc<RootWindowTarget<T>>,
 }
 
@@ -142,7 +145,7 @@ impl Handler {
         self.pending_events.lock().unwrap()
     }
 
-    fn redraw<'a>(&'a self) -> MutexGuard<'a, Vec<WindowId>> {
+    fn redraw(&self) -> MutexGuard<'_, Vec<WindowId>> {
         self.pending_redraw.lock().unwrap()
     }
 
@@ -186,11 +189,11 @@ impl Handler {
     }
 
     fn take_events(&self) -> VecDeque<EventWrapper> {
-        mem::replace(&mut *self.events(), Default::default())
+        mem::take(&mut *self.events())
     }
 
     fn should_redraw(&self) -> Vec<WindowId> {
-        mem::replace(&mut *self.redraw(), Default::default())
+        mem::take(&mut *self.redraw())
     }
 
     fn get_in_callback(&self) -> bool {
@@ -264,10 +267,7 @@ pub static INTERRUPT_EVENT_LOOP_EXIT: AtomicBool = AtomicBool::new(false);
 pub enum AppState {}
 
 impl AppState {
-    pub fn set_callback<T>(
-        callback: Weak<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-        window_target: Rc<RootWindowTarget<T>>,
-    ) {
+    pub fn set_callback<T>(callback: Weak<Callback<T>>, window_target: Rc<RootWindowTarget<T>>) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
             callback,
             window_target,

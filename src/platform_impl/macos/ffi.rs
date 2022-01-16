@@ -15,7 +15,6 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
-use objc;
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
 
@@ -108,6 +107,7 @@ pub const kCGNumberOfWindowLevelKeys: NSInteger = 20;
 
 #[derive(Debug, Clone, Copy)]
 #[repr(isize)]
+#[allow(clippy::enum_variant_names)]
 pub enum NSWindowLevel {
     NSNormalWindowLevel = kCGBaseWindowLevelKey as _,
     NSFloatingWindowLevel = kCGFloatingWindowLevelKey as _,

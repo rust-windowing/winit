@@ -162,7 +162,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
 
     #[inline]
     fn with_resize_increments(mut self, increments: LogicalSize<f64>) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some(increments.into());
+        self.platform_specific.resize_increments = Some(increments);
         self
     }
 
