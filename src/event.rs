@@ -271,7 +271,7 @@ pub enum WindowEvent<'a> {
     ModifiersChanged(ModifiersState),
 
     /// An event from IME
-    Composition(CompositionEvent),
+    IME(IME),
 
     /// The cursor has moved on the window.
     CursorMoved {
@@ -379,7 +379,7 @@ impl Clone for WindowEvent<'static> {
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
-            Composition(composition) => Composition(composition.clone()),
+            IME(preedit_state) => IME(preedit_state.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
             #[allow(deprecated)]
             CursorMoved {
@@ -471,7 +471,7 @@ impl<'a> WindowEvent<'a> {
                 is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
-            Composition(event) => Some(Composition(event)),
+            IME(event) => Some(IME(event)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -631,12 +631,26 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 }
 
+/// Describes an event from input method.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum CompositionEvent {
-    CompositionStart(String),
-    CompositionUpdate(String, usize),
-    CompositionEnd(String),
+pub enum IME {
+    /// Notifies when the IME was enabled.
+    Enabled,
+
+    /// Notifies when a new composing text should be set at the cursor position.
+    ///
+    /// The value represents a pair of the preedit string and the cursor begin position and end
+    /// position. When both indices are `None`, the cursor should be hidden.
+    ///
+    /// The cursor position is byte-wise indexed.
+    Preedit(String, Option<usize>, Option<usize>),
+
+    /// Notifies when text should be inserted into the editor widget.
+    Commit(String),
+
+    /// Notifies when the IME was disabled.
+    Disabled,
 }
 
 /// Describes touch-screen input state.
