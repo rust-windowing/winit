@@ -693,8 +693,8 @@ impl<T: 'static> EventProcessor<T> {
                                             delta: match xev.detail {
                                                 4 => LineDelta(0.0, 1.0),
                                                 5 => LineDelta(0.0, -1.0),
-                                                6 => LineDelta(-1.0, 0.0),
-                                                7 => LineDelta(1.0, 0.0),
+                                                6 => LineDelta(1.0, 0.0),
+                                                7 => LineDelta(-1.0, 0.0),
                                                 _ => unreachable!(),
                                             },
                                             phase: TouchPhase::Moved,
