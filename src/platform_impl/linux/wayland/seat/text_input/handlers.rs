@@ -5,11 +5,11 @@ use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input
     Event as TextInputEvent, ZwpTextInputV3,
 };
 
-use crate::event::WindowEvent;
+use crate::event::{WindowEvent, IME};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::event_loop::WinitState;
 
-use super::{TextInputHandler, TextInputInner};
+use super::{Preedit, TextInputHandler, TextInputInner};
 
 #[inline]
 pub(super) fn handle_text_input(
@@ -38,6 +38,7 @@ pub(super) fn handle_text_input(
                 text_input: text_input.detach(),
             };
             window_handle.text_input_entered(text_input_handler);
+            event_sink.push_window_event(WindowEvent::IME(IME::Enabled), window_id);
         }
         TextInputEvent::Leave { surface } => {
             // Always issue a disable.
@@ -58,19 +59,41 @@ pub(super) fn handle_text_input(
                 text_input: text_input.detach(),
             };
             window_handle.text_input_left(text_input_handler);
+            event_sink.push_window_event(WindowEvent::IME(IME::Disabled), window_id);
+        }
+        TextInputEvent::PreeditString {
+            text,
+            cursor_begin,
+            cursor_end,
+        } => {
+            let cursor_begin = usize::try_from(cursor_begin).ok();
+            let cursor_end = usize::try_from(cursor_end).ok();
+            let text = text.unwrap_or_default();
+            inner.pending_preedit = Some(Preedit {
+                text,
+                cursor_begin,
+                cursor_end,
+            });
         }
         TextInputEvent::CommitString { text } => {
-            // Update currenly commited string.
-            inner.commit_string = text;
+            // Update currenly commited string and reset previous preedit.
+            inner.pending_preedit = None;
+            inner.pending_commit = Some(text.unwrap_or_default());
         }
         TextInputEvent::Done { .. } => {
-            let (window_id, text) = match (inner.target_window_id, inner.commit_string.take()) {
-                (Some(window_id), Some(text)) => (window_id, text),
+            let window_id = match inner.target_window_id {
+                Some(window_id) => window_id,
                 _ => return,
             };
 
-            for ch in text.chars() {
-                event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
+            if let Some(text) = inner.pending_commit.take() {
+                event_sink.push_window_event(WindowEvent::IME(IME::Commit(text)), window_id);
+            }
+
+            // Push preedit string we've got after latest commit.
+            if let Some(preedit) = inner.pending_preedit.take() {
+                let event = IME::Preedit(preedit.text, preedit.cursor_begin, preedit.cursor_end);
+                event_sink.push_window_event(WindowEvent::IME(event), window_id);
             }
         }
         _ => (),
