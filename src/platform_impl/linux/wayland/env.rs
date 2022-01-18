@@ -14,18 +14,30 @@ use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_rela
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::ZwpPointerConstraintsV1;
 use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_v1::XdgActivationV1;
+use sctk::reexports::protocols::unstable::primary_selection::v1::client::zwp_primary_selection_device_manager_v1::ZwpPrimarySelectionDeviceManagerV1;
+use sctk::reexports::protocols::misc::gtk_primary_selection::client::gtk_primary_selection_device_manager::GtkPrimarySelectionDeviceManager;
+use sctk::reexports::client::protocol::wl_data_device_manager::WlDataDeviceManager;
 
+use sctk::data_device::{DataDevice, DataDeviceHandler, DataDeviceHandling, DndEvent};
 use sctk::environment::{Environment, SimpleGlobal};
 use sctk::output::{OutputHandler, OutputHandling, OutputInfo, OutputStatusListener};
+use sctk::primary_selection::{
+    PrimarySelectionDevice, PrimarySelectionDeviceManager, PrimarySelectionHandler,
+    PrimarySelectionHandling,
+};
+
 use sctk::seat::{SeatData, SeatHandler, SeatHandling, SeatListener};
 use sctk::shell::{Shell, ShellHandler, ShellHandling};
 use sctk::shm::ShmHandler;
+use sctk::MissingGlobal;
 
 /// Set of extra features that are supported by the compositor.
 #[derive(Debug, Clone, Copy)]
 pub struct WindowingFeatures {
     cursor_grab: bool,
     xdg_activation: bool,
+    clipboard: bool,
+    primary_clipboard: bool,
 }
 
 impl WindowingFeatures {
@@ -33,9 +45,14 @@ impl WindowingFeatures {
     pub fn new(env: &Environment<WinitEnv>) -> Self {
         let cursor_grab = env.get_global::<ZwpPointerConstraintsV1>().is_some();
         let xdg_activation = env.get_global::<XdgActivationV1>().is_some();
+        let clipboard = env.get_global::<WlDataDeviceManager>().is_some();
+        let primary_clipboard = env.get_primary_selection_manager().is_some();
+
         Self {
             cursor_grab,
             xdg_activation,
+            clipboard,
+            primary_clipboard,
         }
     }
 
@@ -45,6 +62,14 @@ impl WindowingFeatures {
 
     pub fn xdg_activation(&self) -> bool {
         self.xdg_activation
+    }
+
+    pub fn clipboard(&self) -> bool {
+        self.clipboard
+    }
+
+    pub fn primary_clipboard(&self) -> bool {
+        self.primary_clipboard
     }
 }
 
@@ -56,6 +81,9 @@ sctk::environment!(WinitEnv,
         WlShell => shell,
         XdgWmBase => shell,
         ZxdgShellV6 => shell,
+        WlDataDeviceManager => data_device,
+        ZwpPrimarySelectionDeviceManagerV1 => primary_selection,
+        GtkPrimarySelectionDeviceManager => primary_selection,
         ZxdgDecorationManagerV1 => decoration_manager,
         ZwpRelativePointerManagerV1 => relative_pointer_manager,
         ZwpPointerConstraintsV1 => pointer_constraints,
@@ -82,6 +110,10 @@ pub struct WinitEnv {
 
     shell: ShellHandler,
 
+    data_device: DataDeviceHandler,
+
+    primary_selection: PrimarySelectionHandler,
+
     relative_pointer_manager: SimpleGlobal<ZwpRelativePointerManagerV1>,
 
     pointer_constraints: SimpleGlobal<ZwpPointerConstraintsV1>,
@@ -99,7 +131,7 @@ impl WinitEnv {
         let outputs = OutputHandler::new();
 
         // Keyboard/Pointer/Touch input.
-        let seats = SeatHandler::new();
+        let mut seats = SeatHandler::new();
 
         // Essential globals.
         let shm = ShmHandler::new();
@@ -109,6 +141,12 @@ impl WinitEnv {
         // Gracefully handle shell picking, since SCTK automatically supports multiple
         // backends.
         let shell = ShellHandler::new();
+
+        // Clipboard and drag'n'drop.
+        let data_device = DataDeviceHandler::init(&mut seats);
+
+        // Primary clipboard.
+        let primary_selection = PrimarySelectionHandler::init(&mut seats);
 
         // Server side decorations.
         let decoration_manager = SimpleGlobal::new();
@@ -132,6 +170,8 @@ impl WinitEnv {
             compositor,
             subcompositor,
             shell,
+            data_device,
+            primary_selection,
             decoration_manager,
             relative_pointer_manager,
             pointer_constraints,
@@ -162,5 +202,36 @@ impl OutputHandling for WinitEnv {
         f: F,
     ) -> OutputStatusListener {
         self.outputs.listen(f)
+    }
+}
+
+impl DataDeviceHandling for WinitEnv {
+    fn set_callback<F: FnMut(WlSeat, DndEvent<'_>, DispatchData<'_>) + 'static>(
+        &mut self,
+        callback: F,
+    ) -> Result<(), MissingGlobal> {
+        self.data_device.set_callback(callback)
+    }
+
+    fn with_device<F: FnOnce(&DataDevice)>(
+        &self,
+        seat: &WlSeat,
+        f: F,
+    ) -> Result<(), MissingGlobal> {
+        self.data_device.with_device(seat, f)
+    }
+}
+
+impl PrimarySelectionHandling for WinitEnv {
+    fn with_primary_selection<F: FnOnce(&PrimarySelectionDevice)>(
+        &self,
+        seat: &WlSeat,
+        f: F,
+    ) -> Result<(), MissingGlobal> {
+        self.primary_selection.with_primary_selection(seat, f)
+    }
+
+    fn get_primary_selection_manager(&self) -> Option<PrimarySelectionDeviceManager> {
+        self.primary_selection.get_primary_selection_manager()
     }
 }

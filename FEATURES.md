@@ -217,6 +217,7 @@ Changes in the API that have been agreed upon but aren't implemented across all 
 |New API for HiDPI ([#315] [#319])   |✔️    |✔️    |✔️       |✔️          |▢[#721]|✔️    |❓        |
 |Event Loop 2.0 ([#459])             |✔️    |✔️    |❌       |✔️          |❌     |✔️    |❓        |
 |Keyboard Input ([#812])             |❌    |❌    |❌       |❌          |❌     |❌    |❓        |
+|Clipboard handling                  |❌    |❌    |❌       |✔️          |❌     |❌    |❓        |
 
 ### Completed API Reworks
 |Feature                             |Windows|MacOS |Linux x11|Linux Wayland|Android|iOS    |WASM      |

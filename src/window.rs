@@ -1,9 +1,11 @@
 //! The `Window` struct and associated types.
+use std::collections::HashSet;
 use std::fmt;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
+    event::ClipboardMetadata,
     event_loop::EventLoopWindowTarget,
     monitor::{MonitorHandle, VideoMode},
     platform_impl,
@@ -959,6 +961,33 @@ impl Window {
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.window.primary_monitor()
+    }
+}
+
+/// Clipboard functions.
+impl Window {
+    /// Request system clipboard content.
+    ///
+    /// The result of loading content with provided `mimes` mime types is delivered via
+    /// [`crate::event::WindowEvent::ClipboardContent`] with the given `metadata`.
+    #[inline]
+    pub fn request_clipboard_content(
+        &self,
+        mimes: HashSet<String>,
+        metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        self.window.request_clipboard_content(mimes, metadata);
+    }
+
+    /// Set system clipboard content to provided `content` and advertising it with given `mimes`
+    /// mime types.
+    #[inline]
+    pub fn set_clipboard_content<C: AsRef<[u8]> + 'static>(
+        &self,
+        content: C,
+        mimes: HashSet<String>,
+    ) {
+        self.window.set_clipboard_content(content, mimes);
     }
 }
 

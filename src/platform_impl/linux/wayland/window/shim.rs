@@ -1,7 +1,13 @@
 use std::cell::Cell;
+use std::collections::HashSet;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use sctk::reexports::calloop;
+
 use sctk::reexports::client::protocol::wl_output::WlOutput;
+use sctk::reexports::client::protocol::wl_seat::WlSeat;
+
 use sctk::reexports::client::Attached;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_token_v1;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_v1::XdgActivationV1;
@@ -11,8 +17,9 @@ use sctk::window::{Decorations, FallbackFrame, Window};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
-use crate::event::WindowEvent;
+use crate::event::{ClipboardMetadata, WindowEvent};
 use crate::platform_impl::wayland;
+use crate::platform_impl::wayland::clipboard::{ClipboardManager, ClipboardType};
 use crate::platform_impl::wayland::env::WinitEnv;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
@@ -21,7 +28,7 @@ use crate::platform_impl::wayland::WindowId;
 use crate::window::{CursorIcon, UserAttentionType};
 
 /// A request to SCTK window from Winit window.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum WindowRequest {
     /// Set fullscreen.
     ///
@@ -69,6 +76,16 @@ pub enum WindowRequest {
 
     /// Set IME window position.
     IMEPosition(LogicalPosition<u32>),
+
+    /// Set clipboard content.
+    SetClipboardContent(ClipboardType, std::rc::Rc<dyn AsRef<[u8]>>, HashSet<String>),
+
+    /// Requeset clipboard content
+    RequestClipboardContent(
+        ClipboardType,
+        HashSet<String>,
+        Option<std::sync::Arc<ClipboardMetadata>>,
+    ),
 
     /// Request Attention.
     ///
@@ -167,16 +184,33 @@ pub struct WindowHandle {
 
     /// Indicator whether user attention is requested.
     attention_requested: Cell<bool>,
+
+    /// Clipboard manager.
+    clipboard_manager: ClipboardManager,
+}
+
+#[derive(Debug)]
+pub struct LatestSeat {
+    pub seat: WlSeat,
+    pub serial: u32,
+}
+
+impl LatestSeat {
+    pub fn new(seat: WlSeat, serial: u32) -> Self {
+        Self { seat, serial }
+    }
 }
 
 impl WindowHandle {
     pub fn new(
         env: &Environment<WinitEnv>,
         window: Window<FallbackFrame>,
+        loop_handle: calloop::LoopHandle<'static, WinitState>,
         size: Arc<Mutex<LogicalSize<u32>>>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
         let xdg_activation = env.get_global::<XdgActivationV1>();
+        let clipboard_manager = ClipboardManager::new(env.clone(), loop_handle);
 
         Self {
             window,
@@ -189,6 +223,7 @@ impl WindowHandle {
             text_inputs: Vec::new(),
             xdg_activation,
             attention_requested: Cell::new(false),
+            clipboard_manager,
         }
     }
 
@@ -333,6 +368,30 @@ impl WindowHandle {
             pointer.drag_window(&self.window);
         }
     }
+
+    pub fn update_seat_info(&mut self, seat: Option<LatestSeat>) {
+        self.clipboard_manager.update_seat_info(seat);
+    }
+
+    pub fn set_clipboard_content(
+        &self,
+        ty: ClipboardType,
+        content: Rc<dyn AsRef<[u8]> + 'static>,
+        mimes: HashSet<String>,
+    ) {
+        self.clipboard_manager.set_content(ty, content, mimes);
+    }
+
+    pub fn request_clipboard_content(
+        &self,
+        ty: ClipboardType,
+        mimes: HashSet<String>,
+        metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        let window_id = wayland::make_wid(self.window.surface());
+        self.clipboard_manager
+            .request_content(window_id, ty, mimes, metadata);
+    }
 }
 
 #[inline]
@@ -424,6 +483,12 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     // We should refresh the frame after resize.
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
+                }
+                WindowRequest::SetClipboardContent(ty, content, mimes) => {
+                    window_handle.set_clipboard_content(ty, content, mimes);
+                }
+                WindowRequest::RequestClipboardContent(ty, mimes, metadata) => {
+                    window_handle.request_clipboard_content(ty, mimes, metadata);
                 }
                 WindowRequest::Attention(request_type) => {
                     window_handle.set_user_attention(request_type);

@@ -1,4 +1,5 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -12,6 +13,7 @@ use sctk::window::{Decorations, FallbackFrame};
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::event::ClipboardMetadata;
 use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
@@ -19,6 +21,7 @@ use crate::platform_impl::{
 };
 use crate::window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes};
 
+use super::clipboard::ClipboardType;
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
 use super::output::{MonitorHandle, OutputManagerHandle};
@@ -206,6 +209,7 @@ impl Window {
         let window_handle = WindowHandle::new(
             &event_loop_window_target.env,
             window,
+            event_loop_window_target.event_loop_handle.clone(),
             size.clone(),
             window_requests.clone(),
         );
@@ -458,6 +462,64 @@ impl Window {
         let scale_factor = self.scale_factor() as f64;
         let position = position.to_logical(scale_factor);
         self.send_request(WindowRequest::IMEPosition(position));
+    }
+
+    #[inline]
+    pub fn set_clipboard_content<C: AsRef<[u8]> + 'static>(
+        &self,
+        content: C,
+        mimes: HashSet<String>,
+    ) {
+        if !self.windowing_features.clipboard() {
+            return;
+        }
+
+        let content = Rc::new(content);
+        let ty = ClipboardType::Clipboard;
+        self.send_request(WindowRequest::SetClipboardContent(ty, content, mimes));
+    }
+
+    #[inline]
+    pub fn set_primary_clipboard_content<C: AsRef<[u8]> + 'static>(
+        &self,
+        content: C,
+        mimes: HashSet<String>,
+    ) {
+        if !self.windowing_features.primary_clipboard() {
+            return;
+        }
+
+        let ty = ClipboardType::Primary;
+        let content = Rc::new(content);
+        self.send_request(WindowRequest::SetClipboardContent(ty, content, mimes));
+    }
+
+    #[inline]
+    pub fn request_clipboard_content(
+        &self,
+        mimes: HashSet<String>,
+        metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        if !self.windowing_features.clipboard() {
+            return;
+        }
+
+        let ty = ClipboardType::Clipboard;
+        self.send_request(WindowRequest::RequestClipboardContent(ty, mimes, metadata));
+    }
+
+    #[inline]
+    pub fn request_primary_clipboard_content(
+        &self,
+        mimes: HashSet<String>,
+        metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        if !self.windowing_features.primary_clipboard() {
+            return;
+        }
+
+        let ty = ClipboardType::Primary;
+        self.send_request(WindowRequest::RequestClipboardContent(ty, mimes, metadata));
     }
 
     #[inline]

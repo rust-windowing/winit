@@ -1,6 +1,9 @@
 use raw_window_handle::XlibHandle;
+
 use std::{
-    cmp, env,
+    cmp,
+    collections::HashSet,
+    env,
     ffi::CString,
     mem::{self, replace, MaybeUninit},
     os::raw::*,
@@ -8,6 +11,7 @@ use std::{
     ptr, slice,
     sync::Arc,
 };
+
 use x11_dl::xlib::TrueColor;
 
 use libc;
@@ -16,6 +20,7 @@ use parking_lot::Mutex;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    event::ClipboardMetadata,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
         x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
@@ -1445,6 +1450,38 @@ impl UnownedWindow {
     #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.xwindow)
+    }
+
+    #[inline]
+    pub fn request_clipboard_content(
+        &self,
+        _mimes: HashSet<String>,
+        _metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        unimplemented!();
+    }
+
+    #[inline]
+    pub fn set_clipboard_content<C: AsRef<[u8]>>(&self, _content: C, _mimes: HashSet<String>) {
+        unimplemented!();
+    }
+
+    #[inline]
+    pub fn request_primary_clipboard_content(
+        &self,
+        _mimes: HashSet<String>,
+        _metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        unimplemented!();
+    }
+
+    #[inline]
+    pub fn set_primary_clipboard_content<C: AsRef<[u8]>>(
+        &self,
+        _content: C,
+        _mimes: HashSet<String>,
+    ) {
+        unimplemented!();
     }
 
     #[inline]

@@ -9,9 +9,10 @@
 #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
+use std::collections::{HashSet, VecDeque};
 #[cfg(feature = "wayland")]
 use std::error::Error;
-use std::{collections::VecDeque, env, fmt};
+use std::{env, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
@@ -26,7 +27,7 @@ use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    event::Event,
+    event::{ClipboardMetadata, Event},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
@@ -449,6 +450,42 @@ impl Window {
     #[inline]
     pub fn request_redraw(&self) {
         x11_or_wayland!(match self; Window(w) => w.request_redraw())
+    }
+
+    #[inline]
+    pub fn request_clipboard_content(
+        &self,
+        mime: HashSet<String>,
+        metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        x11_or_wayland!(match self; Window(w) => w.request_clipboard_content(mime, metadata))
+    }
+
+    #[inline]
+    pub fn set_clipboard_content<C: AsRef<[u8]> + 'static>(
+        &self,
+        content: C,
+        mimes: HashSet<String>,
+    ) {
+        x11_or_wayland!(match self; Window(w) => w.set_clipboard_content(content, mimes))
+    }
+
+    #[inline]
+    pub fn request_primary_clipboard_content(
+        &self,
+        mimes: HashSet<String>,
+        metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        x11_or_wayland!(match self; Window(w) => w.request_primary_clipboard_content(mimes, metadata))
+    }
+
+    #[inline]
+    pub fn set_primary_clipboard_content<C: AsRef<[u8]> + 'static>(
+        &self,
+        content: C,
+        mimes: HashSet<String>,
+    ) {
+        x11_or_wayland!(match self; Window(w) => w.set_primary_clipboard_content(content, mimes))
     }
 
     #[inline]

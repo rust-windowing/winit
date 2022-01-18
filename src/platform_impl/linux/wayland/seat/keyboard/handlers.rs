@@ -6,6 +6,7 @@ use sctk::seat::keyboard::Event as KeyboardEvent;
 
 use crate::event::{ElementState, KeyboardInput, ModifiersState, WindowEvent};
 use crate::platform_impl::wayland::event_loop::WinitState;
+use crate::platform_impl::wayland::window::shim::LatestSeat;
 use crate::platform_impl::wayland::{self, DeviceId};
 
 use super::keymap;
@@ -19,8 +20,16 @@ pub(super) fn handle_keyboard(
 ) {
     let event_sink = &mut winit_state.event_sink;
     match event {
-        KeyboardEvent::Enter { surface, .. } => {
+        KeyboardEvent::Enter {
+            surface, serial, ..
+        } => {
             let window_id = wayland::make_wid(&surface);
+
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
+                Some(window_handle) => window_handle,
+                None => return,
+            };
+            window_handle.update_seat_info(Some(LatestSeat::new(inner.seat.clone(), serial)));
 
             // Window gained focus.
             event_sink.push_window_event(WindowEvent::Focused(true), window_id);
@@ -35,6 +44,11 @@ pub(super) fn handle_keyboard(
         }
         KeyboardEvent::Leave { surface, .. } => {
             let window_id = wayland::make_wid(&surface);
+
+            match winit_state.window_map.get_mut(&window_id) {
+                Some(window_handle) => window_handle.update_seat_info(None),
+                None => return,
+            };
 
             // Notify that no modifiers are being pressed.
             if !inner.modifiers_state.borrow().is_empty() {
@@ -55,12 +69,19 @@ pub(super) fn handle_keyboard(
             keysym,
             state,
             utf8,
+            serial,
             ..
         } => {
             let window_id = match inner.target_window_id {
                 Some(window_id) => window_id,
                 None => return,
             };
+
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
+                Some(window_handle) => window_handle,
+                None => return,
+            };
+            window_handle.update_seat_info(Some(LatestSeat::new(inner.seat.clone(), serial)));
 
             let state = match state {
                 KeyState::Pressed => ElementState::Pressed,

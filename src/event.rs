@@ -270,6 +270,9 @@ pub enum WindowEvent<'a> {
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
+    /// Loaded clipboard content.
+    ClipboardContent(ClipboardContent),
+
     /// The cursor has moved on the window.
     CursorMoved {
         device_id: DeviceId,
@@ -354,6 +357,27 @@ pub enum WindowEvent<'a> {
     ThemeChanged(Theme),
 }
 
+/// Metadata which is passed along request to load clipboard.
+pub type ClipboardMetadata = dyn std::any::Any + Send + Sync + 'static;
+
+#[derive(Debug, Clone)]
+pub struct ClipboardContent {
+    /// Clipboard data.
+    pub data: Vec<u8>,
+
+    /// Mime type which was picked to be loaded.
+    pub mime: String,
+
+    /// Metadata passed to `request_clipboard_content`.
+    pub metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+}
+
+impl PartialEq for ClipboardContent {
+    fn eq(&self, other: &Self) -> bool {
+        self.data == other.data
+    }
+}
+
 impl Clone for WindowEvent<'static> {
     fn clone(&self) -> Self {
         use self::WindowEvent::*;
@@ -366,6 +390,7 @@ impl Clone for WindowEvent<'static> {
             HoveredFile(file) => HoveredFile(file.clone()),
             HoveredFileCancelled => HoveredFileCancelled,
             ReceivedCharacter(c) => ReceivedCharacter(*c),
+            ClipboardContent(content) => ClipboardContent(content.clone()),
             Focused(f) => Focused(*f),
             KeyboardInput {
                 device_id,
@@ -456,6 +481,7 @@ impl<'a> WindowEvent<'a> {
             DroppedFile(file) => Some(DroppedFile(file)),
             HoveredFile(file) => Some(HoveredFile(file)),
             HoveredFileCancelled => Some(HoveredFileCancelled),
+            ClipboardContent(content) => Some(ClipboardContent(content)),
             ReceivedCharacter(c) => Some(ReceivedCharacter(c)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput {

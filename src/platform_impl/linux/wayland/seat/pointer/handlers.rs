@@ -14,6 +14,7 @@ use crate::event::{
     DeviceEvent, ElementState, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,
 };
 use crate::platform_impl::wayland::event_loop::WinitState;
+use crate::platform_impl::wayland::window::shim::LatestSeat;
 use crate::platform_impl::wayland::{self, DeviceId};
 
 use super::{PointerData, WinitPointer};
@@ -55,6 +56,7 @@ pub(super) fn handle_pointer(
             let scale_factor = sctk::get_surface_scale_factor(&surface) as f64;
             pointer_data.surface = Some(surface);
 
+            window_handle.update_seat_info(Some(LatestSeat::new(seat.clone(), serial)));
             // Notify window that pointer entered the surface.
             let winit_pointer = WinitPointer {
                 pointer,
@@ -98,6 +100,8 @@ pub(super) fn handle_pointer(
                 None => return,
             };
 
+            window_handle.update_seat_info(Some(LatestSeat::new(seat.clone(), serial)));
+
             // Notify a window that pointer is no longer observing it.
             let winit_pointer = WinitPointer {
                 pointer,
@@ -128,7 +132,6 @@ pub(super) fn handle_pointer(
             };
 
             let window_id = wayland::make_wid(surface);
-
             let scale_factor = sctk::get_surface_scale_factor(surface) as f64;
             let position = LogicalPosition::new(surface_x, surface_y).to_physical(scale_factor);
 
@@ -154,6 +157,12 @@ pub(super) fn handle_pointer(
                 Some(window_id) => window_id,
                 None => return,
             };
+
+            let window_handle = match winit_state.window_map.get_mut(&window_id) {
+                Some(window_handle) => window_handle,
+                None => return,
+            };
+            window_handle.update_seat_info(Some(LatestSeat::new(seat, serial)));
 
             let state = match state {
                 wl_pointer::ButtonState::Pressed => ElementState::Pressed,
