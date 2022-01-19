@@ -22,7 +22,7 @@ Moving your finger downwards on a scroll wheel should make the window move down,
 
 When moving fingers on a trackpad down and to the right, you should see positive X and Y deltas, and the window should move down and to the right.
 
-With reverse scrolling, you should the the inverse behavior.
+With reverse scrolling, you should see the inverse behavior.
 
 In both cases the example window should move like the content of a scroll area in any other application.
 
