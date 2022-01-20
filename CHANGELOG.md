@@ -1,7 +1,7 @@
 # Unreleased
 
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.
-- On macOS, add support for touchpad magnification gesture with new event `WindowEvent::TouchpadMagnify`.
+- On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
 
 # 0.26.1 (2022-01-05)
 

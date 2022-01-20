@@ -10,7 +10,7 @@ fn main() {
     let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()
-        .with_title("Touchpad magnify events")
+        .with_title("Touchpad gestures")
         .build(&event_loop)
         .unwrap();
 
@@ -28,7 +28,14 @@ fn main() {
                     } else {
                         println!("Zoomed out {}", delta);
                     }
-                },
+                }
+                WindowEvent::TouchpadRotate { delta, .. } => {
+                    if delta > 0.0 {
+                        println!("Rotated left {}", delta);
+                    } else {
+                        println!("Rotated right {}", delta);
+                    }
+                }
                 _ => (),
             },
             _ => (),

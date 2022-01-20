@@ -242,6 +242,10 @@ lazy_static! {
             magnify_with_event as extern "C" fn(&Object, Sel, id),
         );
         decl.add_method(
+            sel!(rotateWithEvent:),
+            rotate_with_event as extern "C" fn(&Object, Sel, id),
+        );
+        decl.add_method(
             sel!(pressureChangeWithEvent:),
             pressure_change_with_event as extern "C" fn(&Object, Sel, id),
         );
@@ -1053,8 +1057,6 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
 extern "C" fn magnify_with_event(this: &Object, _sel: Sel, event: id) {
     trace!("Triggered `magnifyWithEvent`");
 
-    mouse_motion(this, event);
-
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -1064,7 +1066,7 @@ extern "C" fn magnify_with_event(this: &Object, _sel: Sel, event: id) {
             NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
             NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
             NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
-            _ => return
+            _ => return,
         };
 
         let window_event = Event::WindowEvent {
@@ -1079,6 +1081,35 @@ extern "C" fn magnify_with_event(this: &Object, _sel: Sel, event: id) {
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
     trace!("Completed `magnifyWithEvent`");
+}
+
+extern "C" fn rotate_with_event(this: &Object, _sel: Sel, event: id) {
+    trace!("Triggered `rotateWithEvent`");
+
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        let delta = event.rotation();
+        let phase = match event.phase() {
+            NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
+            NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
+            NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
+            _ => return,
+        };
+
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::TouchpadRotate {
+                device_id: DEVICE_ID,
+                delta,
+                phase,
+            },
+        };
+
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
+    }
+    trace!("Completed `rotateWithEvent`");
 }
 
 extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {

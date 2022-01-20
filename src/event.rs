@@ -318,6 +318,18 @@ pub enum WindowEvent<'a> {
         phase: TouchPhase,
     },
 
+    /// Touchpad rotation event with two-finger rotation gesture.
+    ///
+    /// Positive delta values indicate rotation to left (counterclockwise) and
+    /// negative delta values indicate rotation to right (clockwise).
+    ///
+    /// At the moment, only supported on macOS.
+    TouchpadRotate {
+        device_id: DeviceId,
+        delta: f32,
+        phase: TouchPhase,
+    },
+
     /// Touchpad pressure event.
     ///
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
@@ -433,8 +445,17 @@ impl Clone for WindowEvent<'static> {
             TouchpadMagnify {
                 device_id,
                 delta,
-                phase
+                phase,
             } => TouchpadMagnify {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
+            TouchpadRotate {
+                device_id,
+                delta,
+                phase,
+            } => TouchpadRotate {
                 device_id: *device_id,
                 delta: *delta,
                 phase: *phase,
@@ -528,8 +549,17 @@ impl<'a> WindowEvent<'a> {
             TouchpadMagnify {
                 device_id,
                 delta,
-                phase
+                phase,
             } => Some(TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
+            }),
+            TouchpadRotate {
+                device_id,
+                delta,
+                phase,
+            } => Some(TouchpadRotate {
                 device_id,
                 delta,
                 phase,
