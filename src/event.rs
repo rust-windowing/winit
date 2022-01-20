@@ -306,6 +306,18 @@ pub enum WindowEvent<'a> {
         modifiers: ModifiersState,
     },
 
+    /// Touchpad magnification event with two-finger pinch gesture.
+    ///
+    /// Positive delta values indicate magnification (zooming in) and
+    /// negative delta values indicate shrinking (zooming out).
+    ///
+    /// At the moment, only supported on macOS.
+    TouchpadMagnify {
+        device_id: DeviceId,
+        delta: f64,
+        phase: TouchPhase,
+    },
+
     /// Touchpad pressure event.
     ///
     /// At the moment, only supported on Apple forcetouch-capable macbooks.
@@ -418,6 +430,15 @@ impl Clone for WindowEvent<'static> {
                 button: *button,
                 modifiers: *modifiers,
             },
+            TouchpadMagnify {
+                device_id,
+                delta,
+                phase
+            } => TouchpadMagnify {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
             TouchpadPressure {
                 device_id,
                 pressure,
@@ -503,6 +524,15 @@ impl<'a> WindowEvent<'a> {
                 state,
                 button,
                 modifiers,
+            }),
+            TouchpadMagnify {
+                device_id,
+                delta,
+                phase
+            } => Some(TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
             }),
             TouchpadPressure {
                 device_id,
