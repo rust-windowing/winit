@@ -1019,9 +1019,7 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
             NSEventPhase::NSEventPhaseEnded | NSEventPhase::NSEventPhaseCancelled => {
                 TouchPhase::Ended
             }
-            _ => {
-                TouchPhase::Moved
-            }
+            _ => TouchPhase::Moved,
         };
 
         let device_event = Event::DeviceEvent {
