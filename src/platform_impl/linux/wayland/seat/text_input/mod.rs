@@ -52,15 +52,25 @@ struct TextInputInner {
     /// Currently focused surface.
     target_window_id: Option<WindowId>,
 
-    /// Pending string to commit.
-    commit_string: Option<String>,
+    /// Pending commit event which will be dispatched on `text_input_v3::Done`.
+    pending_commit: Option<String>,
+
+    /// Pending preedit event which will be dispatched on `text_input_v3::Done`.
+    pending_preedit: Option<Preedit>,
+}
+
+struct Preedit {
+    text: String,
+    cursor_begin: Option<usize>,
+    cursor_end: Option<usize>,
 }
 
 impl TextInputInner {
     fn new() -> Self {
         Self {
             target_window_id: None,
-            commit_string: None,
+            pending_commit: None,
+            pending_preedit: None,
         }
     }
 }
