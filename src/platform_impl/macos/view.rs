@@ -1065,6 +1065,7 @@ extern "C" fn magnify_with_event(this: &Object, _sel: Sel, event: id) {
         let phase = match event.phase() {
             NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
             NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
+            NSEventPhase::NSEventPhaseCancelled => TouchPhase::Cancelled,
             NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
             _ => return,
         };
@@ -1094,6 +1095,7 @@ extern "C" fn rotate_with_event(this: &Object, _sel: Sel, event: id) {
         let phase = match event.phase() {
             NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
             NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
+            NSEventPhase::NSEventPhaseCancelled => TouchPhase::Cancelled,
             NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
             _ => return,
         };
