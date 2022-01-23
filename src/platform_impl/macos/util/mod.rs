@@ -11,7 +11,7 @@ use cocoa::{
     foundation::{NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
-use objc::runtime::{Class, Object, Sel, BOOL, YES};
+use objc::runtime::{Class, Object};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -79,6 +79,35 @@ impl Clone for IdRef {
     }
 }
 
+macro_rules! trace_scope {
+    ($s:literal) => {
+        let _crate = $crate::platform_impl::platform::util::TraceGuard::new(module_path!(), $s);
+    };
+}
+
+pub(crate) struct TraceGuard {
+    module_path: &'static str,
+    called_from_fn: &'static str,
+}
+
+impl TraceGuard {
+    #[inline]
+    pub(crate) fn new(module_path: &'static str, called_from_fn: &'static str) -> Self {
+        trace!(target: module_path, "Triggered `{}`", called_from_fn);
+        Self {
+            module_path,
+            called_from_fn,
+        }
+    }
+}
+
+impl Drop for TraceGuard {
+    #[inline]
+    fn drop(&mut self) {
+        trace!(target: self.module_path, "Completed `{}`", self.called_from_fn);
+    }
+}
+
 // For consistency with other platforms, this will...
 // 1. translate the bottom-left window corner into the top-left window corner
 // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
@@ -127,10 +156,6 @@ pub unsafe fn create_input_context(view: id) -> IdRef {
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
     let () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
-}
-
-pub extern "C" fn yes(_: &Object, _: Sel) -> BOOL {
-    YES
 }
 
 pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, on: bool) {
