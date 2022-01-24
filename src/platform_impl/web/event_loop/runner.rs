@@ -1,8 +1,9 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
-use crate::event::{Event, StartCause};
+use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop as root;
 use crate::window::WindowId;
 
+use crate::event::WindowEvent::IME;
 use instant::{Duration, Instant};
 use std::{
     cell::RefCell,
@@ -26,6 +27,7 @@ pub struct Execution<T: 'static> {
     events: RefCell<VecDeque<Event<'static, T>>>,
     id: RefCell<u32>,
     all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
+    input: RefCell<Option<backend::Input>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
@@ -102,11 +104,53 @@ impl<T: 'static> Shared<T> {
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
             all_canvases: RefCell::new(Vec::new()),
+            input: RefCell::new(None),
             redraw_pending: RefCell::new(HashSet::new()),
             destroy_pending: RefCell::new(VecDeque::new()),
             scale_change_detector: RefCell::new(None),
             unload_event_handle: RefCell::new(None),
         }))
+    }
+
+    pub fn create_input(&self, id: super::window::Id) {
+        let mut input =self
+            .0
+            .input
+            .borrow_mut();
+        let input = input
+            .get_or_insert(backend::Input::create().unwrap());
+
+        {
+            let runner=self.clone();
+            input.on_composition_start(move || {
+                runner.send_event(super::Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::IME(crate::event::IME::Enabled),
+                });
+            });
+            let runner=self.clone();
+            // we don't have gather cursor position from Composition event.
+            // so we leave none here.
+            input.on_composition_update(move |text: Option<String>| {
+                runner.send_event(super::Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::IME(crate::event::IME::Preedit(
+                        text.unwrap_or("".to_owned()),
+                        None,
+                        None,
+                    )),
+                });
+            });
+            let runner=self.clone();
+            input.on_composition_end(move |text: Option<String>| {
+                runner.send_event(super::Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::IME(crate::event::IME::Commit(
+                        text.unwrap_or("".to_owned()),
+                    )),
+                });
+            });
+        }
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {

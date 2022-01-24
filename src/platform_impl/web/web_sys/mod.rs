@@ -1,11 +1,13 @@
 mod canvas;
 mod event;
 mod event_handle;
+mod input;
 mod media_query_handle;
 mod scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
+pub use self::input::Input;
 pub use self::scaling::ScaleChangeDetector;
 pub use self::timeout::{AnimationFrameRequest, Timeout};
 

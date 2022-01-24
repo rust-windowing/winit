@@ -39,7 +39,7 @@ impl Window {
         let mut canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
-
+        target.register_input(id);
         target.register(&mut canvas, id);
 
         let runner = target.runner.clone();
