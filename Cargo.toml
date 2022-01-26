@@ -101,7 +101,6 @@ features = [
     'console',
     "AddEventListenerOptions",
     'CssStyleDeclaration',
-
     'CompositionEvent',
     'BeforeUnloadEvent',
     'Document',
@@ -118,6 +117,7 @@ features = [
     'MediaQueryList',
     'MediaQueryListEvent',
     'MouseEvent',
+    'Navigator',
     'Node',
     'PointerEvent',
     'Window',

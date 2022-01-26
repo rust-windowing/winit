@@ -15,9 +15,11 @@ use std::cell::{Ref, RefCell};
 use std::collections::vec_deque::IntoIter as VecDequeIter;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use web_sys::HtmlCanvasElement;
 
 pub struct Window {
     canvas: Rc<RefCell<backend::Canvas>>,
+    input:Rc<RefCell<Option<backend::Input>>>,
     previous_pointer: RefCell<&'static str>,
     id: Id,
     register_redraw_request: Box<dyn Fn()>,
@@ -55,6 +57,7 @@ impl Window {
 
         let window = Window {
             canvas,
+            input: target.runner.input(),
             previous_pointer: RefCell::new("auto"),
             id,
             register_redraw_request,
@@ -280,8 +283,43 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_position(&self, _position: Position) {
+    pub fn set_ime_position(&self, position: Position) {
         // Currently a no-op as it does not seem there is good support for this on web
+        // move dummy input element to this position.
+        // so we can input text here.
+
+        const MOBILE_DEVICE: [&str; 6] = ["Android", "iPhone", "iPad", "iPod", "webOS", "BlackBerry"];
+        /// If context is running under mobile device?
+        fn is_mobile() -> Option<bool> {
+            let user_agent = web_sys::window()?.navigator().user_agent().ok()?;
+            let is_mobile = MOBILE_DEVICE.iter().any(|&name| user_agent.contains(name));
+            Some(is_mobile)
+        }
+
+        let input=self.input.borrow_mut();
+        let input = input.as_ref().unwrap();
+        let style = input.style();
+        if Some(false) == is_mobile(){
+            let (x,y):(f32,f32)=position.to_physical::<f32>(self.scale_factor()).into();
+            let canvas = self.canvas.borrow();
+            let canvas:&HtmlCanvasElement = canvas.raw();
+            let bounding_rect = input.raw().get_bounding_client_rect();
+            let y = (y + (canvas.scroll_top() + canvas.offset_top()) as f32)
+                .min(canvas.client_height() as f32 - bounding_rect.height() as f32);
+            let x = x + (canvas.scroll_left() + canvas.offset_left()) as f32;
+            // Canvas is translated 50% horizontally in html.
+            let x = (x - canvas.offset_width() as f32 / 2.0)
+                .min(canvas.client_width() as f32 - bounding_rect.width() as f32);
+            style.set_property("position", "absolute").ok();
+            style.set_property("top", &(y.to_string() + "px")).ok();
+            style.set_property("left", &(x.to_string() + "px")).ok();
+            input.raw().focus();
+        }else{
+            style.set_property("position", "absolute").ok();
+            style.set_property("top", "0px").ok();
+            style.set_property("left", "0px").ok();
+            input.raw().focus();
+        }
     }
 
     #[inline]

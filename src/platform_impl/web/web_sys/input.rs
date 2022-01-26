@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{CompositionEvent, HtmlInputElement, MouseEvent};
+use web_sys::{CompositionEvent, HtmlInputElement, MouseEvent, CssStyleDeclaration};
 
 const AGENT_ID: &str = "winit_input_agent";
 pub struct Input {
@@ -37,7 +37,6 @@ impl Input {
         };
         input.set_id(AGENT_ID);
         input.set_size(1);
-        input.set_autofocus(true);
         input.set_hidden(true);
 
         Ok(Self {
@@ -50,6 +49,9 @@ impl Input {
             on_composition_end: None,
             on_focus_out: None,
         })
+    }
+    pub fn raw(&self)->&HtmlInputElement{
+        &self.common.raw
     }
     pub fn on_composition_start<F>(&mut self, mut handler: F)
     where
@@ -83,6 +85,9 @@ impl Input {
                 handler(event.data());
             },
         ));
+    }
+    pub fn style(&self)->CssStyleDeclaration{
+        self.common.raw.style()
     }
 }
 impl Common {
