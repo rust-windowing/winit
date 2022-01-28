@@ -136,7 +136,7 @@ impl EventLoop<()> {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
-    pub fn new() -> EventLoop<()> {
+    pub fn new() -> Result<EventLoop<()>, String> {
         EventLoop::<()>::with_user_event()
     }
 }
@@ -149,11 +149,16 @@ impl<T> EventLoop<T> {
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread.
-    pub fn with_user_event() -> EventLoop<T> {
-        EventLoop {
-            event_loop: platform_impl::EventLoop::new(),
-            _marker: ::std::marker::PhantomData,
-        }
+    pub fn with_user_event() -> Result<EventLoop<T>, String> {
+        return match platform_impl::EventLoop::new() {
+            Ok(e) => return {
+                Ok(EventLoop {
+                    event_loop: e,
+                    _marker: ::std::marker::PhantomData,
+                })
+            },
+            Err(e) => Err(e)
+        };
     }
 
     /// Hijacks the calling thread and initializes the winit event loop with the provided

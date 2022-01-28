@@ -568,10 +568,13 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> EventLoop<T> {
-        assert_is_main_thread("new_any_thread");
+    pub fn new() -> Result<EventLoop<T>, String> {
+        match assert_is_main_thread("new_any_thread") {
+            Ok(_) => (),
+            Err(e) => return Err(e)
+        }
 
-        EventLoop::new_any_thread()
+        Ok(EventLoop::new_any_thread())
     }
 
     pub fn new_any_thread() -> EventLoop<T> {
@@ -750,15 +753,16 @@ fn sticky_exit_callback<T, F>(
     }
 }
 
-fn assert_is_main_thread(suggested_method: &str) {
+fn assert_is_main_thread(suggested_method: &str) -> Result<(), String> {
     if !is_main_thread() {
-        panic!(
-            "Initializing the event loop outside of the main thread is a significant \
+        return Err(
+            format!("Initializing the event loop outside of the main thread is a significant \
              cross-platform compatibility hazard. If you really, absolutely need to create an \
              EventLoop on a different thread, please use the `EventLoopExtUnix::{}` function.",
-            suggested_method
-        );
+            suggested_method)
+        )
     }
+    Ok(())
 }
 
 #[cfg(target_os = "linux")]

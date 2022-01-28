@@ -18,7 +18,7 @@ fn main() {
         platform::run_return::EventLoopExtRunReturn,
         window::WindowBuilder,
     };
-    let mut event_loop = EventLoop::new();
+    let mut event_loop = EventLoop::new().unwrap();
 
     SimpleLogger::new().init().unwrap();
     let _window = WindowBuilder::new()
