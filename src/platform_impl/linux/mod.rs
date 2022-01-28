@@ -569,7 +569,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, String> {
-        match assert_is_main_thread("new_any_thread") {
+        match error_if_not_main_thread("new_any_thread") {
             Ok(_) => (),
             Err(e) => return Err(e)
         }
@@ -627,7 +627,7 @@ impl<T: 'static> EventLoop<T> {
 
     #[cfg(feature = "wayland")]
     pub fn new_wayland() -> Result<Result<EventLoop<T>, Box<dyn Error>>, String> {
-        match assert_is_main_thread("new_wayland_any_thread") {
+        match error_if_not_main_thread("new_wayland_any_thread") {
             Ok(_) => (),
             Err(e) => return Err(e)
         }
@@ -642,7 +642,7 @@ impl<T: 'static> EventLoop<T> {
 
     #[cfg(feature = "x11")]
     pub fn new_x11() -> Result<Result<EventLoop<T>, XNotSupported>, String> {
-        match assert_is_main_thread("new_x11_any_thread") {
+        match error_if_not_main_thread("new_x11_any_thread") {
             Ok(_) => (),
             Err(e) => return Err(e)
         }
@@ -760,7 +760,7 @@ fn sticky_exit_callback<T, F>(
     }
 }
 
-fn assert_is_main_thread(suggested_method: &str) -> Result<(), String> {
+fn error_if_not_main_thread(suggested_method: &str) -> Result<(), String> {
     if !is_main_thread() {
         return Err(
             format!("Initializing the event loop outside of the main thread is a significant \
