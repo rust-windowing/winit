@@ -626,10 +626,13 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(feature = "wayland")]
-    pub fn new_wayland() -> Result<EventLoop<T>, Box<dyn Error>> {
-        assert_is_main_thread("new_wayland_any_thread");
+    pub fn new_wayland() -> Result<Result<EventLoop<T>, Box<dyn Error>>, String> {
+        match assert_is_main_thread("new_wayland_any_thread") {
+            Ok(_) => (),
+            Err(e) => return Err(e)
+        }
 
-        EventLoop::new_wayland_any_thread()
+        Ok(EventLoop::new_wayland_any_thread())
     }
 
     #[cfg(feature = "wayland")]
@@ -638,10 +641,14 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(feature = "x11")]
-    pub fn new_x11() -> Result<EventLoop<T>, XNotSupported> {
-        assert_is_main_thread("new_x11_any_thread");
+    pub fn new_x11() -> Result<Result<EventLoop<T>, XNotSupported>, String> {
+        match assert_is_main_thread("new_x11_any_thread") {
+            Ok(_) => (),
+            Err(e) => return Err(e)
+        }
 
-        EventLoop::new_x11_any_thread()
+        Ok(EventLoop::new_x11_any_thread())
+
     }
 
     #[cfg(feature = "x11")]

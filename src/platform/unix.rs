@@ -176,14 +176,14 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
     #[inline]
     #[cfg(feature = "x11")]
     fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventLoop::new_x11().map(wrap_ev)
+        LinuxEventLoop::new_x11().unwrap().map(wrap_ev)
     }
 
     #[inline]
     #[cfg(feature = "wayland")]
     fn new_wayland() -> Self {
         wrap_ev(
-            LinuxEventLoop::new_wayland()
+            LinuxEventLoop::new_wayland().unwrap()
                 // TODO: propagate
                 .expect("failed to open Wayland connection"),
         )
