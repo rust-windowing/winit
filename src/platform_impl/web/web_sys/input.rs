@@ -48,7 +48,7 @@ impl Input {
         }
         input.set_id(AGENT_ID);
         input.set_size(1);
-        // input.set_hidden(true);
+      //  input.set_hidden(true);
         input.set_autofocus(true);
 
         Ok(Self {
@@ -105,6 +105,7 @@ impl Input {
             move |event: CompositionEvent| {
                 handler(event.data());
                 composing.set(false);
+                event.stop_propagation();
                 input.set_value("");
             },
         ));
@@ -125,12 +126,15 @@ impl Input {
     }
     pub fn on_keydown<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(String),
+        F: 'static + FnMut(KeyboardEvent),
     {
+        let composing = self.common.composing.clone();
         self.on_key_down = Some(
             self.common
                 .add_event("keydown", move |event: KeyboardEvent| {
-                    handler(event.key());
+                    if !composing.get() {
+                        handler(event);
+                    }
                 }),
         );
     }
@@ -151,7 +155,7 @@ impl Common {
         let closure = Closure::wrap(Box::new(move |event: E| {
             {
                 let event_ref = event.as_ref();
-                event_ref.stop_propagation();
+                event_ref.stop_immediate_propagation();
                 event_ref.cancel_bubble();
             }
 

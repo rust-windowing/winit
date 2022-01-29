@@ -15,6 +15,7 @@ use std::{
     ops::Deref,
     rc::{Rc, Weak},
 };
+use web_sys::KeyboardEvent;
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
 
@@ -123,30 +124,30 @@ impl<T: 'static> Shared<T> {
 
         {
             let runner = self.clone();
-            input.on_input(move |text: Option<String>, is_composing: bool| {
+            input.on_input(move |text: Option<String>| {
                 if let Some(text) = text {
-                    if !text.is_empty() && !is_composing {
+                    if !text.is_empty() {
                         runner.send_event(super::Event::WindowEvent {
                             window_id: WindowId(id),
                             event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
                         });
                     }
+                }else{
+                    runner.send_event(super::Event::WindowEvent { window_id: WindowId(id), event: WindowEvent::ReceivedCharacter('\u{0008}')})
                 }
             });
-            let runner = self.clone();
-            input.on_keydown(move |keycode: String| {
-                if "Backspace" == &keycode {
-                    runner.send_event(super::Event::DeviceEvent {
-                        device_id: unsafe { DeviceId(super::device::Id::dummy()) },
-                        event: DeviceEvent::Key(KeyboardInput {
-                            scancode: 0x0e,
-                            state: ElementState::Pressed,
-                            virtual_keycode: Some(VirtualKeyCode::Back),
-                            modifiers: Default::default(),
-                        }),
-                    });
-                }
-            });
+            {
+                let runner = self.clone();
+                input.on_keydown(move |event: KeyboardEvent| {
+                    if let Some(canvas) = runner.0.all_canvases.borrow().get(id.0 as usize) {
+                        if let Some(canvas) = canvas.1.upgrade() {
+                            canvas.borrow().raw().focus();
+                        }else{
+                            web_sys::console::log_1(&"Failed to upgrade Weak ptr".into());
+                        }
+                    }
+                });
+            }
             let runner = self.clone();
             input.on_composition_start(move || {
                 runner.send_event(super::Event::WindowEvent {
@@ -168,6 +169,8 @@ impl<T: 'static> Shared<T> {
                             Some(len),
                         )),
                     });
+                }else{
+                    runner.send_event(super::Event::WindowEvent { window_id: WindowId(id), event: WindowEvent::ReceivedCharacter('\u{0008}') })
                 }
             });
             let runner = self.clone();
