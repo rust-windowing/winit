@@ -1,5 +1,7 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
-use crate::event::{Event, StartCause, WindowEvent};
+use crate::event::{
+    DeviceId, ElementState, Event, KeyboardInput, StartCause, VirtualKeyCode, WindowEvent,
+};
 use crate::event_loop as root;
 use crate::window::WindowId;
 
@@ -112,27 +114,38 @@ impl<T: 'static> Shared<T> {
     }
 
     pub fn create_input(&self, id: super::window::Id) {
-        let mut input =self
-            .0
-            .input
-            .borrow_mut();
-        let input = input
-            .get_or_insert(backend::Input::create().unwrap());
+        //initialize one input for one page.
+        let input_clone = self.0.input.clone();
+        let mut input = self.0.input.borrow_mut();
+
+        let input = input.get_or_insert(backend::Input::create().unwrap());
+        //install event handler
 
         {
-            let runner=self.clone();
+            let runner = self.clone();
+            input.on_input(move |text: Option<String>, is_composing: bool| {
+                if let Some(text) = text {
+                    if !text.is_empty() && !is_composing {
+                        runner.send_event(super::Event::WindowEvent {
+                            window_id: WindowId(id),
+                            event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
+                        });
+                    }
+                }
+            });
+            let runner = self.clone();
             input.on_composition_start(move || {
                 runner.send_event(super::Event::WindowEvent {
                     window_id: WindowId(id),
                     event: WindowEvent::IME(crate::event::IME::Enabled),
                 });
             });
-            let runner=self.clone();
+            let runner = self.clone();
             // we don't have gather cursor position from Composition event.
             // so we leave none here.
             input.on_composition_update(move |text: Option<String>| {
-                if let Some(text)=text{
-                    let len =text.len();
+                if let Some(text) = text {
+                    let len = text.len();
                     runner.send_event(super::Event::WindowEvent {
                         window_id: WindowId(id),
                         event: WindowEvent::IME(crate::event::IME::Preedit(
@@ -142,17 +155,24 @@ impl<T: 'static> Shared<T> {
                         )),
                     });
                 }
-
             });
-            let runner=self.clone();
+            let runner = self.clone();
             input.on_composition_end(move |text: Option<String>| {
-                runner.send_event(super::Event::WindowEvent {
-                    window_id: WindowId(id),
-                    event: WindowEvent::IME(crate::event::IME::Commit(
-                        text.unwrap_or("".to_owned()),
-                    )),
-                });
+                if let Some(text) = text {
+                    runner.send_event(super::Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::IME(crate::event::IME::Commit(text)),
+                    });
+                }
             });
+        }
+        //install input element to body.
+        {
+            web_sys::window()
+                .and_then(|win| win.document())
+                .and_then(|doc| doc.body())
+                .and_then(|body| body.append_child(input.raw()).ok())
+                .expect("couldn't append canvas to document body");
         }
     }
     pub fn input(&self) -> Rc<RefCell<Option<backend::Input>>> {

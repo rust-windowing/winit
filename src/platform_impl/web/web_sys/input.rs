@@ -5,7 +5,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{CompositionEvent, HtmlInputElement, MouseEvent, CssStyleDeclaration};
+use web_sys::{
+    CompositionEvent, CssStyleDeclaration, HtmlInputElement, InputEvent, KeyboardEvent, MouseEvent,
+};
 
 const AGENT_ID: &str = "winit_input_agent";
 pub struct Input {
@@ -14,6 +16,7 @@ pub struct Input {
     on_composition_update: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_focus_out: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
+    on_input: Option<EventListenerHandle<dyn FnMut(InputEvent)>>,
 }
 struct Common {
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
@@ -37,7 +40,7 @@ impl Input {
         };
         input.set_id(AGENT_ID);
         input.set_size(1);
-        input.set_hidden(true);
+        //input.set_hidden(true);
 
         Ok(Self {
             common: Common {
@@ -48,9 +51,10 @@ impl Input {
             on_composition_update: None,
             on_composition_end: None,
             on_focus_out: None,
+            on_input: None,
         })
     }
-    pub fn raw(&self)->&HtmlInputElement{
+    pub fn raw(&self) -> &HtmlInputElement {
         &self.common.raw
     }
     pub fn on_composition_start<F>(&mut self, mut handler: F)
@@ -63,6 +67,7 @@ impl Input {
                 handler();
             },
         ));
+        self.raw().set_value("");
     }
     pub fn on_composition_update<F>(&mut self, mut handler: F)
     where
@@ -75,6 +80,7 @@ impl Input {
             },
         ));
     }
+
     pub fn on_composition_end<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(Option<String>),
@@ -85,8 +91,19 @@ impl Input {
                 handler(event.data());
             },
         ));
+        self.raw().set_value("");
     }
-    pub fn style(&self)->CssStyleDeclaration{
+
+    pub fn on_input<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(Option<String>, bool),
+    {
+        self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
+            handler(event.data(), event.is_composing());
+        }));
+        self.raw().set_value("");
+    }
+    pub fn style(&self) -> CssStyleDeclaration {
         self.common.raw.style()
     }
 }

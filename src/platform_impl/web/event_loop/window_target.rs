@@ -46,7 +46,6 @@ impl<T> WindowTarget<T> {
         window::Id(self.runner.generate_id())
     }
 
-    //
     pub fn register_input(&self, id: window::Id) {
         self.runner.create_input(id);
     }
