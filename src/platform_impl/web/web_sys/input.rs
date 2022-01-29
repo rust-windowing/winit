@@ -1,7 +1,7 @@
 use super::event_handle::EventListenerHandle;
 use crate::error::OsError as RootOE;
 use crate::platform_impl::OsError;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
@@ -17,11 +17,12 @@ pub struct Input {
     on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_focus_out: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_input: Option<EventListenerHandle<dyn FnMut(InputEvent)>>,
+    on_key_down: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
 }
 struct Common {
     /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: HtmlInputElement,
-    composing: Rc<RefCell<bool>>,
+    composing: Rc<Cell<bool>>,
 }
 impl Input {
     pub fn create() -> Result<Self, RootOE> {
@@ -38,20 +39,29 @@ impl Input {
                 .map_err(|_| os_error!(OsError("Failed to create input element".to_owned())))?
                 .unchecked_into()
         };
+        {
+            let style = input.style();
+            // Transparent
+            style.set_property("opacity", "0").unwrap();
+            // Hide under canvas
+            style.set_property("z-index", "-1").unwrap();
+        }
         input.set_id(AGENT_ID);
         input.set_size(1);
-        //input.set_hidden(true);
+        // input.set_hidden(true);
+        input.set_autofocus(true);
 
         Ok(Self {
             common: Common {
                 raw: input,
-                composing: Rc::new(RefCell::new(false)),
+                composing: Rc::new(Cell::new(false)),
             },
             on_composition_start: None,
             on_composition_update: None,
             on_composition_end: None,
             on_focus_out: None,
             on_input: None,
+            on_key_down: None,
         })
     }
     pub fn raw(&self) -> &HtmlInputElement {
@@ -61,13 +71,16 @@ impl Input {
     where
         F: 'static + FnMut(),
     {
+        let composing = self.common.composing.clone();
+        let input = self.raw().clone();
         self.on_composition_start = Some(self.common.add_event(
             "compositionstart",
             move |_: CompositionEvent| {
                 handler();
+                composing.set(true);
+                input.set_value("");
             },
         ));
-        self.raw().set_value("");
     }
     pub fn on_composition_update<F>(&mut self, mut handler: F)
     where
@@ -85,23 +98,41 @@ impl Input {
     where
         F: 'static + FnMut(Option<String>),
     {
+        let input = self.raw().clone();
+        let composing = self.common.composing.clone();
         self.on_composition_end = Some(self.common.add_event(
             "compositionend",
             move |event: CompositionEvent| {
                 handler(event.data());
+                composing.set(false);
+                input.set_value("");
             },
         ));
-        self.raw().set_value("");
     }
 
     pub fn on_input<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(Option<String>, bool),
+        F: 'static + FnMut(Option<String>),
     {
+        let input = self.raw().clone();
+        let composing = self.common.composing.clone();
         self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
-            handler(event.data(), event.is_composing());
+            if !composing.get() {
+                handler(event.data());
+                input.set_value("");
+            }
         }));
-        self.raw().set_value("");
+    }
+    pub fn on_keydown<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(String),
+    {
+        self.on_key_down = Some(
+            self.common
+                .add_event("keydown", move |event: KeyboardEvent| {
+                    handler(event.key());
+                }),
+        );
     }
     pub fn style(&self) -> CssStyleDeclaration {
         self.common.raw.style()

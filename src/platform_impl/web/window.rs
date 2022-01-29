@@ -304,10 +304,8 @@ impl Window {
             let (x, y): (f32, f32) = position.to_physical::<f32>(self.scale_factor()).into();
             let canvas = self.canvas.borrow();
             let canvas: &HtmlCanvasElement = canvas.raw();
-            let bounding_rect = input.raw().get_bounding_client_rect();
-            let y = canvas.client_height() as f32 - bounding_rect.height() as f32;
-            // Canvas is translated 50% horizontally in html.
-            let x = canvas.client_width() as f32 - bounding_rect.width() as f32;
+            let x = x + canvas.offset_left() as f32;
+            let y = y + canvas.offset_top() as f32;
             style.set_property("position", "absolute").ok();
             style.set_property("top", &(y.to_string() + "px")).ok();
             style.set_property("left", &(x.to_string() + "px")).ok();

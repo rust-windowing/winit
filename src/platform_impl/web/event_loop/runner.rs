@@ -1,6 +1,7 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
 use crate::event::{
-    DeviceId, ElementState, Event, KeyboardInput, StartCause, VirtualKeyCode, WindowEvent,
+    DeviceEvent, DeviceId, ElementState, Event, KeyboardInput, StartCause, VirtualKeyCode,
+    WindowEvent,
 };
 use crate::event_loop as root;
 use crate::window::WindowId;
@@ -115,7 +116,6 @@ impl<T: 'static> Shared<T> {
 
     pub fn create_input(&self, id: super::window::Id) {
         //initialize one input for one page.
-        let input_clone = self.0.input.clone();
         let mut input = self.0.input.borrow_mut();
 
         let input = input.get_or_insert(backend::Input::create().unwrap());
@@ -131,6 +131,20 @@ impl<T: 'static> Shared<T> {
                             event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
                         });
                     }
+                }
+            });
+            let runner = self.clone();
+            input.on_keydown(move |keycode: String| {
+                if "Backspace" == &keycode {
+                    runner.send_event(super::Event::DeviceEvent {
+                        device_id: unsafe { DeviceId(super::device::Id::dummy()) },
+                        event: DeviceEvent::Key(KeyboardInput {
+                            scancode: 0x0e,
+                            state: ElementState::Pressed,
+                            virtual_keycode: Some(VirtualKeyCode::Back),
+                            modifiers: Default::default(),
+                        }),
+                    });
                 }
             });
             let runner = self.clone();
