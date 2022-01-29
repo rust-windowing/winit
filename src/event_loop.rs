@@ -122,7 +122,7 @@ impl EventLoop<()> {
     /// Builds a new event loop with a `()` as the user event type.
     ///
     /// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
-    /// Attempting to create the event loop on a different thread will panic. This restriction isn't
+    /// Attempting to create the event loop on a different thread will return an error. This restriction isn't
     /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
     /// porting to platforms that require it. `EventLoopExt::new_any_thread` functions are exposed
     /// in the relevant `platform` module if the target platform supports creating an event loop on
