@@ -1,5 +1,5 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
-use crate::event::{Event, StartCause, WindowEvent};
+use crate::event::{DeviceId, ElementState, Event, KeyboardInput, StartCause, WindowEvent};
 use crate::event_loop as root;
 use crate::window::WindowId;
 
@@ -13,6 +13,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
+use web_sys::KeyboardEvent;
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
 
 impl<T> Clone for Shared<T> {
@@ -120,30 +121,14 @@ impl<T: 'static> Shared<T> {
 
         {
             let runner = self.clone();
-            input.on_input(move |text: Option<String>| {
-                if let Some(text) = text {
-                    if !text.is_empty() {
-                        runner.send_event(super::Event::WindowEvent {
-                            window_id: WindowId(id),
-                            event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
-                        });
-                    }
-                } else {
-                    runner.send_event(super::Event::WindowEvent {
-                        window_id: WindowId(id),
-                        event: WindowEvent::ReceivedCharacter('\u{0008}'),
-                    })
-                }
-            });
-            let runner = self.clone();
             input.on_composition_start(move || {
                 runner.send_event(super::Event::WindowEvent {
                     window_id: WindowId(id),
                     event: WindowEvent::IME(crate::event::IME::Enabled),
                 });
             });
-            let runner = self.clone();
 
+            let runner = self.clone();
             input.on_composition_update(move |text: Option<String>| {
                 if let Some(text) = text {
                     let len = text.len();
@@ -155,13 +140,9 @@ impl<T: 'static> Shared<T> {
                             Some(len),
                         )),
                     });
-                } else {
-                    runner.send_event(super::Event::WindowEvent {
-                        window_id: WindowId(id),
-                        event: WindowEvent::ReceivedCharacter('\u{0008}'),
-                    })
                 }
             });
+
             let runner = self.clone();
             input.on_composition_end(move |text: Option<String>| {
                 if let Some(text) = text {
@@ -171,6 +152,42 @@ impl<T: 'static> Shared<T> {
                     });
                 }
             });
+
+            let runner = self.clone();
+            input.on_input(move |text: Option<String>| {
+                if let Some(text) = text {
+                    if !text.is_empty() {
+                        runner.send_event(super::Event::WindowEvent {
+                            window_id: WindowId(id),
+                            event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
+                        });
+                    }
+                }
+            });
+
+            #[allow(deprecated)]
+            {
+                let runner = self.clone();
+                input.on_keydown(move |event: KeyboardEvent| {
+                    web_sys::console::log_1(&event);
+                    if !(&event.key() == "Process") {
+                        web_sys::console::log_1(&event.key().into());
+                        runner.send_event(crate::event::Event::WindowEvent {
+                            window_id: WindowId(id),
+                            event: WindowEvent::KeyboardInput {
+                                device_id: DeviceId(unsafe { super::device::Id::dummy() }),
+                                input: KeyboardInput {
+                                    scancode: backend::scan_code(&event),
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: backend::virtual_key_code(&event),
+                                    modifiers: backend::keyboard_modifiers(&event),
+                                },
+                                is_synthetic: false,
+                            },
+                        });
+                    }
+                });
+            }
         }
         //install input element to body.
         {

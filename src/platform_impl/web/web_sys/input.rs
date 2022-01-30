@@ -5,7 +5,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, InputEvent};
+use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, InputEvent, KeyboardEvent};
 
 const AGENT_ID: &str = "winit_input_agent";
 pub struct Input {
@@ -14,6 +14,7 @@ pub struct Input {
     on_composition_update: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_input: Option<EventListenerHandle<dyn FnMut(InputEvent)>>,
+    on_key_down: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
 }
 struct Common {
     raw: HtmlInputElement,
@@ -55,11 +56,13 @@ impl Input {
             on_composition_update: None,
             on_composition_end: None,
             on_input: None,
+            on_key_down: None,
         })
     }
     pub fn raw(&self) -> &HtmlInputElement {
         &self.common.raw
     }
+
     pub fn on_composition_start<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(),
@@ -73,6 +76,7 @@ impl Input {
             },
         ));
     }
+
     pub fn on_composition_update<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(Option<String>),
@@ -118,6 +122,16 @@ impl Input {
         }));
     }
 
+    pub fn on_keydown<F>(&mut self, mut handler: F)
+    where
+        F: 'static + FnMut(KeyboardEvent),
+    {
+        self.on_key_down = Some(
+            self.common
+                .add_event("keydown", move |event: KeyboardEvent| handler(event)),
+        );
+    }
+
     pub fn style(&self) -> CssStyleDeclaration {
         self.common.raw.style()
     }
@@ -126,21 +140,13 @@ impl Common {
     fn add_event<E, F>(
         &self,
         event_name: &'static str,
-        mut handler: F,
+        handler: F,
     ) -> EventListenerHandle<dyn FnMut(E)>
     where
         E: 'static + AsRef<web_sys::Event> + wasm_bindgen::convert::FromWasmAbi,
         F: 'static + FnMut(E),
     {
-        let closure = Closure::wrap(Box::new(move |event: E| {
-            {
-                let event_ref = event.as_ref();
-                event_ref.stop_immediate_propagation();
-                event_ref.cancel_bubble();
-            }
-
-            handler(event);
-        }) as Box<dyn FnMut(E)>);
+        let closure = Closure::wrap(Box::new(handler) as Box<dyn FnMut(E)>);
 
         let listener = EventListenerHandle::new(&self.raw, event_name, closure);
 
