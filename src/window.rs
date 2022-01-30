@@ -701,6 +701,17 @@ impl Window {
         self.window.is_maximized()
     }
 
+    /// Gets the window's current vibility state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_visible(&self) -> bool {
+        self.window.is_visible()
+    }
+
     /// Sets the window to fullscreen or back.
     ///
     /// ## Platform-specific

@@ -768,6 +768,12 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> bool {
+        let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
+        is_visible == YES
+    }
+
+    #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         if shared_state_lock.is_simple_fullscreen {

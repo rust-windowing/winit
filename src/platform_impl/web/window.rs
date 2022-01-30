@@ -246,6 +246,10 @@ impl Window {
         false
     }
 
+    pub fn is_visible(&self) -> bool {
+        true
+    }
+
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {

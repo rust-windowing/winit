@@ -548,6 +548,10 @@ impl Window {
         false
     }
 
+    pub fn is_visible(&self) -> bool {
+        true
+    }
+
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
         warn!("Cannot set fullscreen on Android");
     }

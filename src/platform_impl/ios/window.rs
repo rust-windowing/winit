@@ -199,6 +199,11 @@ impl Inner {
         false
     }
 
+    pub fn is_visible(&self) -> bool {
+        warn!("`Window::is_visible` is ignored on iOS");
+        true
+    }
+
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
             let uiscreen = match monitor {

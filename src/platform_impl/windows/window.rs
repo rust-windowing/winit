@@ -373,6 +373,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> bool {
+        unsafe { winuser::IsWindowVisible(self.window.0) == 1 }
+    }
+
+    #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         let window_state = self.window_state.lock();
         window_state.fullscreen.clone()

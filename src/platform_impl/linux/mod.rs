@@ -384,6 +384,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.is_visible())
+    }
+
+    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
     }
