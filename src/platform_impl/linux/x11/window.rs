@@ -829,6 +829,11 @@ impl UnownedWindow {
         }
     }
 
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn

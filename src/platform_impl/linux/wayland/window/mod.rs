@@ -364,6 +364,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.send_request(WindowRequest::Maximize(maximized));
     }
