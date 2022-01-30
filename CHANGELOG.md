@@ -1,5 +1,7 @@
 # Unreleased
 
+- On Web, implement IME support. please not create DOM element with `id='winit_input_agent'`
+- On Web, `Window::set_ime_position` now works. you need to use to support IME on web because we don't have good way to get ime enabled. 
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.
 
 # 0.26.1 (2022-01-05)

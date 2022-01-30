@@ -169,9 +169,7 @@ impl<T: 'static> Shared<T> {
             {
                 let runner = self.clone();
                 input.on_keydown(move |event: KeyboardEvent| {
-                    web_sys::console::log_1(&event);
                     if !(&event.key() == "Process") {
-                        web_sys::console::log_1(&event.key().into());
                         runner.send_event(crate::event::Event::WindowEvent {
                             window_id: WindowId(id),
                             event: WindowEvent::KeyboardInput {
