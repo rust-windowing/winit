@@ -701,12 +701,13 @@ impl Window {
         self.window.is_maximized()
     }
 
-    /// Gets the window's current vibility state.
+    /// Gets the window's current vibility state. `None` means it couldn't be determined.
+    /// It is not recommended to use this to drive your rendering backend.
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **X11:** Not implemented.
+    /// - **Wayland / iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         self.window.is_visible()
