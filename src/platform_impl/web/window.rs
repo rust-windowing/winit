@@ -246,8 +246,8 @@ impl Window {
         false
     }
 
-    pub fn is_visible(&self) -> bool {
-        true
+    pub fn is_visible(&self) -> Option<bool> {
+        None
     }
 
     #[inline]

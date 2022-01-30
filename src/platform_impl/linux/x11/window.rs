@@ -830,8 +830,8 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn is_visible(&self) -> bool {
-        true
+    pub fn is_visible(&self) -> Option<bool> {
+        None
     }
 
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {

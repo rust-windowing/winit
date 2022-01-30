@@ -768,9 +768,9 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn is_visible(&self) -> bool {
+    pub fn is_visible(&self) -> Option<bool> {
         let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
-        is_visible == YES
+        Some(is_visible == YES)
     }
 
     #[inline]

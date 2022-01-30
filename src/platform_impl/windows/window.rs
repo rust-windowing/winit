@@ -373,8 +373,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn is_visible(&self) -> bool {
-        unsafe { winuser::IsWindowVisible(self.window.0) == 1 }
+    pub fn is_visible(&self) -> Option<bool> {
+        Some(unsafe { winuser::IsWindowVisible(self.window.0) == 1 })
     }
 
     #[inline]

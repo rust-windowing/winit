@@ -708,7 +708,7 @@ impl Window {
     /// - **Wayland / X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
-    pub fn is_visible(&self) -> bool {
+    pub fn is_visible(&self) -> Option<bool> {
         self.window.is_visible()
     }
 

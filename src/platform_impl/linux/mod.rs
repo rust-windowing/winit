@@ -384,7 +384,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn is_visible(&self) -> bool {
+    pub fn is_visible(&self) -> Option<bool> {
         x11_or_wayland!(match self; Window(w) => w.is_visible())
     }
 

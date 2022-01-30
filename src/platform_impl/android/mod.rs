@@ -548,8 +548,8 @@ impl Window {
         false
     }
 
-    pub fn is_visible(&self) -> bool {
-        true
+    pub fn is_visible(&self) -> Option<bool> {
+        None
     }
 
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
