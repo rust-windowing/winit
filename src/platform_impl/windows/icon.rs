@@ -164,6 +164,6 @@ impl fmt::Debug for WinIcon {
 
 pub fn unset_for_window(hwnd: HWND, icon_type: IconType) {
     unsafe {
-        winuser::SendMessageW(hwnd, winuser::WM_SETICON, icon_type as WPARAM, 0 as LPARAM);
+        winuser::SendMessageW(hwnd, winuser::WM_SETICON, icon_type as WPARAM, 0_isize);
     }
 }

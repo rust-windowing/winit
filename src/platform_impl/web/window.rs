@@ -41,9 +41,9 @@ impl Window {
         let mut canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
-        target.register_input(id);
-        target.register(&mut canvas, id);
 
+        target.register(&mut canvas, id);
+        target.register_input(id);
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
             runner.send_event(event::Event::WindowEvent {
@@ -309,12 +309,12 @@ impl Window {
             style.set_property("position", "absolute").ok();
             style.set_property("top", &(y.to_string() + "px")).ok();
             style.set_property("left", &(x.to_string() + "px")).ok();
-            input.raw().focus();
+            input.raw().focus().ok();
         } else {
             style.set_property("position", "absolute").ok();
             style.set_property("top", "0px").ok();
             style.set_property("left", "0px").ok();
-            input.raw().focus();
+            input.raw().focus().ok();
         }
     }
 

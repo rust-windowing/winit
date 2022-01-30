@@ -1,13 +1,11 @@
 use super::event_handle::EventListenerHandle;
 use crate::error::OsError as RootOE;
 use crate::platform_impl::OsError;
-use std::cell::{Cell, RefCell};
+use std::cell::Cell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{
-    CompositionEvent, CssStyleDeclaration, HtmlInputElement, InputEvent, KeyboardEvent, MouseEvent,
-};
+use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, InputEvent};
 
 const AGENT_ID: &str = "winit_input_agent";
 pub struct Input {
@@ -15,14 +13,11 @@ pub struct Input {
     on_composition_start: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_composition_update: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
-    on_focus_out: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_input: Option<EventListenerHandle<dyn FnMut(InputEvent)>>,
-    on_key_down: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
 }
 struct Common {
-    /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
     raw: HtmlInputElement,
-    composing: Rc<Cell<bool>>,
+    end: Rc<Cell<bool>>,
 }
 impl Input {
     pub fn create() -> Result<Self, RootOE> {
@@ -48,20 +43,18 @@ impl Input {
         }
         input.set_id(AGENT_ID);
         input.set_size(1);
-      //  input.set_hidden(true);
+        //  input.set_hidden(true);
         input.set_autofocus(true);
 
         Ok(Self {
             common: Common {
                 raw: input,
-                composing: Rc::new(Cell::new(false)),
+                end: Rc::new(Cell::new(false)),
             },
             on_composition_start: None,
             on_composition_update: None,
             on_composition_end: None,
-            on_focus_out: None,
             on_input: None,
-            on_key_down: None,
         })
     }
     pub fn raw(&self) -> &HtmlInputElement {
@@ -71,13 +64,11 @@ impl Input {
     where
         F: 'static + FnMut(),
     {
-        let composing = self.common.composing.clone();
         let input = self.raw().clone();
         self.on_composition_start = Some(self.common.add_event(
             "compositionstart",
             move |_: CompositionEvent| {
                 handler();
-                composing.set(true);
                 input.set_value("");
             },
         ));
@@ -99,14 +90,13 @@ impl Input {
         F: 'static + FnMut(Option<String>),
     {
         let input = self.raw().clone();
-        let composing = self.common.composing.clone();
+        let end = self.common.end.clone();
         self.on_composition_end = Some(self.common.add_event(
             "compositionend",
             move |event: CompositionEvent| {
                 handler(event.data());
-                composing.set(false);
-                event.stop_propagation();
                 input.set_value("");
+                end.set(true);
             },
         ));
     }
@@ -116,28 +106,18 @@ impl Input {
         F: 'static + FnMut(Option<String>),
     {
         let input = self.raw().clone();
-        let composing = self.common.composing.clone();
+        let end = self.common.end.clone();
         self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
-            if !composing.get() {
-                handler(event.data());
+            if !end.get() & !event.is_composing() {
                 input.set_value("");
+                handler(event.data());
+            }
+            if !event.is_composing() {
+                end.set(false);
             }
         }));
     }
-    pub fn on_keydown<F>(&mut self, mut handler: F)
-    where
-        F: 'static + FnMut(KeyboardEvent),
-    {
-        let composing = self.common.composing.clone();
-        self.on_key_down = Some(
-            self.common
-                .add_event("keydown", move |event: KeyboardEvent| {
-                    if !composing.get() {
-                        handler(event);
-                    }
-                }),
-        );
-    }
+
     pub fn style(&self) -> CssStyleDeclaration {
         self.common.raw.style()
     }

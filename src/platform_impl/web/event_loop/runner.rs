@@ -1,8 +1,5 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
-use crate::event::{
-    DeviceEvent, DeviceId, ElementState, Event, KeyboardInput, StartCause, VirtualKeyCode,
-    WindowEvent,
-};
+use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop as root;
 use crate::window::WindowId;
 
@@ -15,7 +12,6 @@ use std::{
     ops::Deref,
     rc::{Rc, Weak},
 };
-use web_sys::KeyboardEvent;
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
 
@@ -132,22 +128,13 @@ impl<T: 'static> Shared<T> {
                             event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
                         });
                     }
-                }else{
-                    runner.send_event(super::Event::WindowEvent { window_id: WindowId(id), event: WindowEvent::ReceivedCharacter('\u{0008}')})
+                } else {
+                    runner.send_event(super::Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::ReceivedCharacter('\u{0008}'),
+                    })
                 }
             });
-            {
-                let runner = self.clone();
-                input.on_keydown(move |event: KeyboardEvent| {
-                    if let Some(canvas) = runner.0.all_canvases.borrow().get(id.0 as usize) {
-                        if let Some(canvas) = canvas.1.upgrade() {
-                            canvas.borrow().raw().focus();
-                        }else{
-                            web_sys::console::log_1(&"Failed to upgrade Weak ptr".into());
-                        }
-                    }
-                });
-            }
             let runner = self.clone();
             input.on_composition_start(move || {
                 runner.send_event(super::Event::WindowEvent {
@@ -156,8 +143,7 @@ impl<T: 'static> Shared<T> {
                 });
             });
             let runner = self.clone();
-            // we don't have gather cursor position from Composition event.
-            // so we leave none here.
+
             input.on_composition_update(move |text: Option<String>| {
                 if let Some(text) = text {
                     let len = text.len();
@@ -169,8 +155,11 @@ impl<T: 'static> Shared<T> {
                             Some(len),
                         )),
                     });
-                }else{
-                    runner.send_event(super::Event::WindowEvent { window_id: WindowId(id), event: WindowEvent::ReceivedCharacter('\u{0008}') })
+                } else {
+                    runner.send_event(super::Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::ReceivedCharacter('\u{0008}'),
+                    })
                 }
             });
             let runner = self.clone();
