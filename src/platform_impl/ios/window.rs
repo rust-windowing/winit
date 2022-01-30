@@ -199,6 +199,11 @@ impl Inner {
         false
     }
 
+    pub fn is_resizable(&self) -> bool {
+        warn!("`Window::is_resizable` is ignored on iOS");
+        false
+    }
+
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
             let uiscreen = match monitor {
