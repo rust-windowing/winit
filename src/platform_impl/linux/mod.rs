@@ -384,11 +384,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn is_decorated(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_decorated())
-    }
-
-    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
     }
@@ -406,6 +401,11 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_decorations(decorations))
+    }
+
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.is_decorated())
     }
 
     #[inline]

@@ -701,17 +701,6 @@ impl Window {
         self.window.is_maximized()
     }
 
-    /// Gets the window's current decorations state.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland / X11:** Not implemented.
-    /// - **iOS / Android / Web:** Unsupported.
-    #[inline]
-    pub fn is_decorated(&self) -> bool {
-        self.window.is_decorated()
-    }
-
     /// Sets the window to fullscreen or back.
     ///
     /// ## Platform-specific
@@ -759,6 +748,17 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
+    }
+
+    /// Gets the window's current decorations state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        self.window.is_decorated()
     }
 
     /// Change whether or not the window will always be on top of other windows.

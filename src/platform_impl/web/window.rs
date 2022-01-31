@@ -246,10 +246,6 @@ impl Window {
         false
     }
 
-    pub fn is_decorated(&self) -> bool {
-        true
-    }
-
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
@@ -271,6 +267,10 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
         // Intentionally a no-op, no canvas decorations
+    }
+
+    pub fn is_decorated(&self) -> bool {
+        true
     }
 
     #[inline]

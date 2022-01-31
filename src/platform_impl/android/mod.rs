@@ -548,10 +548,6 @@ impl Window {
         false
     }
 
-    pub fn is_decorated(&self) -> bool {
-        true
-    }
-
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
         warn!("Cannot set fullscreen on Android");
     }
@@ -561,6 +557,10 @@ impl Window {
     }
 
     pub fn set_decorations(&self, _decorations: bool) {}
+
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
 
     pub fn set_always_on_top(&self, _always_on_top: bool) {}
 

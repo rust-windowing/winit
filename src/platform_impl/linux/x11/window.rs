@@ -829,11 +829,6 @@ impl UnownedWindow {
         }
     }
 
-    #[inline]
-    pub fn is_decorated(&self) -> bool {
-        true
-    }
-
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn
@@ -898,6 +893,11 @@ impl UnownedWindow {
             .flush()
             .expect("Failed to set decoration state");
         self.invalidate_cached_frame_extents();
+    }
+
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
     }
 
     fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
