@@ -829,11 +829,6 @@ impl UnownedWindow {
         }
     }
 
-    #[inline]
-    pub fn is_visible(&self) -> Option<bool> {
-        None
-    }
-
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn
@@ -982,6 +977,11 @@ impl UnownedWindow {
                 .expect("Failed to call XUnmapWindow");
             shared_state.visibility = Visibility::No;
         }
+    }
+
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
     }
 
     fn update_cached_frame_extents(&self) {

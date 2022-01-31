@@ -502,6 +502,12 @@ impl UnownedWindow {
         }
     }
 
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
+        Some(is_visible == YES)
+    }
+
     pub fn request_redraw(&self) {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
@@ -765,12 +771,6 @@ impl UnownedWindow {
     #[inline]
     pub fn is_maximized(&self) -> bool {
         self.is_zoomed()
-    }
-
-    #[inline]
-    pub fn is_visible(&self) -> Option<bool> {
-        let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
-        Some(is_visible == YES)
     }
 
     #[inline]

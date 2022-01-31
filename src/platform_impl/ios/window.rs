@@ -60,6 +60,11 @@ impl Inner {
         }
     }
 
+    pub fn is_visible(&self) -> Option<bool> {
+        warn!("`Window::is_visible` is ignored on iOS");
+        None
+    }
+
     pub fn request_redraw(&self) {
         unsafe {
             if self.gl_or_metal_backed {
@@ -197,11 +202,6 @@ impl Inner {
     pub fn is_maximized(&self) -> bool {
         warn!("`Window::is_maximized` is ignored on iOS");
         false
-    }
-
-    pub fn is_visible(&self) -> Option<bool> {
-        warn!("`Window::is_visible` is ignored on iOS");
-        None
     }
 
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {

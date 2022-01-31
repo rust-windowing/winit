@@ -538,6 +538,10 @@ impl Window {
 
     pub fn set_visible(&self, _visibility: bool) {}
 
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
     pub fn set_resizable(&self, _resizeable: bool) {}
 
     pub fn set_minimized(&self, _minimized: bool) {}
@@ -546,10 +550,6 @@ impl Window {
 
     pub fn is_maximized(&self) -> bool {
         false
-    }
-
-    pub fn is_visible(&self) -> Option<bool> {
-        None
     }
 
     pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {

@@ -89,6 +89,11 @@ impl Window {
         // Intentionally a no-op
     }
 
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
     pub fn request_redraw(&self) {
         (self.register_redraw_request)();
     }
@@ -244,10 +249,6 @@ impl Window {
     pub fn is_maximized(&self) -> bool {
         // Canvas cannot be 'maximized'
         false
-    }
-
-    pub fn is_visible(&self) -> Option<bool> {
-        None
     }
 
     #[inline]

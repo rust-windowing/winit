@@ -271,6 +271,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
+    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         Err(NotSupportedError::new())
     }
@@ -361,11 +366,6 @@ impl Window {
     #[inline]
     pub fn is_maximized(&self) -> bool {
         self.maximized.load(Ordering::Relaxed)
-    }
-
-    #[inline]
-    pub fn is_visible(&self) -> Option<bool> {
-        None
     }
 
     #[inline]

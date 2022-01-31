@@ -98,6 +98,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        Some(unsafe { winuser::IsWindowVisible(self.window.0) == 1 })
+    }
+
+    #[inline]
     pub fn request_redraw(&self) {
         unsafe {
             winuser::RedrawWindow(
@@ -370,11 +375,6 @@ impl Window {
     pub fn is_maximized(&self) -> bool {
         let window_state = self.window_state.lock();
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)
-    }
-
-    #[inline]
-    pub fn is_visible(&self) -> Option<bool> {
-        Some(unsafe { winuser::IsWindowVisible(self.window.0) == 1 })
     }
 
     #[inline]
