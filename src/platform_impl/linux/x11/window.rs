@@ -829,11 +829,6 @@ impl UnownedWindow {
         }
     }
 
-    #[inline]
-    pub fn is_resizable(&self) -> bool {
-        true
-    }
-
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
         let horz_atom = unsafe {
             self.xconn
@@ -1209,6 +1204,11 @@ impl UnownedWindow {
             normal_hints.set_max_size(max_inner_size);
         })
         .expect("Failed to call `XSetWMNormalHints`");
+    }
+
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        true
     }
 
     #[inline]

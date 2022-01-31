@@ -337,6 +337,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_resizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> u32 {
         // The scale factor from `get_surface_scale_factor` is always greater than zero, so
         // u32 conversion is safe.
@@ -361,11 +366,6 @@ impl Window {
     #[inline]
     pub fn is_maximized(&self) -> bool {
         self.maximized.load(Ordering::Relaxed)
-    }
-
-    #[inline]
-    pub fn is_resizable(&self) -> bool {
-        true
     }
 
     #[inline]

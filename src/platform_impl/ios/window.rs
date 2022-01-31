@@ -159,6 +159,11 @@ impl Inner {
         warn!("`Window::set_resizable` is ignored on iOS")
     }
 
+    pub fn is_resizable(&self) -> bool {
+        warn!("`Window::is_resizable` is ignored on iOS");
+        false
+    }
+
     pub fn scale_factor(&self) -> f64 {
         unsafe {
             let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
@@ -196,11 +201,6 @@ impl Inner {
 
     pub fn is_maximized(&self) -> bool {
         warn!("`Window::is_maximized` is ignored on iOS");
-        false
-    }
-
-    pub fn is_resizable(&self) -> bool {
-        warn!("`Window::is_resizable` is ignored on iOS");
         false
     }
 

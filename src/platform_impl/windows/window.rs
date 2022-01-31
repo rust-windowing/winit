@@ -225,6 +225,12 @@ impl Window {
         });
     }
 
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        let window_state = self.window_state.lock();
+        window_state.window_flags.contains(WindowFlags::RESIZABLE)
+    }
+
     /// Returns the `hwnd` of this window.
     #[inline]
     pub fn hwnd(&self) -> HWND {
@@ -370,12 +376,6 @@ impl Window {
     pub fn is_maximized(&self) -> bool {
         let window_state = self.window_state.lock();
         window_state.window_flags.contains(WindowFlags::MAXIMIZED)
-    }
-
-    #[inline]
-    pub fn is_resizable(&self) -> bool {
-        let window_state = self.window_state.lock();
-        window_state.window_flags.contains(WindowFlags::RESIZABLE)
     }
 
     #[inline]

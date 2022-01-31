@@ -669,6 +669,17 @@ impl Window {
         self.window.set_resizable(resizable)
     }
 
+    /// Gets the window's current resizable state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        self.window.is_resizable()
+    }
+
     /// Sets the window to minimized or back
     ///
     /// ## Platform-specific
@@ -699,17 +710,6 @@ impl Window {
     #[inline]
     pub fn is_maximized(&self) -> bool {
         self.window.is_maximized()
-    }
-
-    /// Gets the window's current resizable state.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **Wayland / X11:** Not implemented.
-    /// - **iOS / Android / Web:** Unsupported.
-    #[inline]
-    pub fn is_resizable(&self) -> bool {
-        self.window.is_resizable()
     }
 
     /// Sets the window to fullscreen or back.

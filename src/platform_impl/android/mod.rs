@@ -540,15 +540,15 @@ impl Window {
 
     pub fn set_resizable(&self, _resizeable: bool) {}
 
+    pub fn is_resizable(&self) -> bool {
+        false
+    }
+
     pub fn set_minimized(&self, _minimized: bool) {}
 
     pub fn set_maximized(&self, _maximized: bool) {}
 
     pub fn is_maximized(&self) -> bool {
-        false
-    }
-
-    pub fn is_resizable(&self) -> bool {
         false
     }
 
