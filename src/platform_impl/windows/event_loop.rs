@@ -1088,7 +1088,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
             }
             if wparam == winuser::SC_MINIMIZE {
                 let mut w = userdata.window_state.lock();
-                w.saved_inner_rect = Some(util::get_client_rect(&mut *window).unwrap());
+                w.saved_inner_rect = Some(
+                    util::get_client_rect(&mut *window)
+                        .expect("Unexpected GetClientRct failure: please report this error to https://github.com/rust-windowing/winit")
+                );
                 w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
             }
             // Send `WindowEvent::Minimized` here if we decide to implement one
