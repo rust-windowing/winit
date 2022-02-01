@@ -15,7 +15,7 @@ use winapi::{
     ctypes::c_int,
     shared::{
         minwindef::{HINSTANCE, LPARAM, UINT, WPARAM},
-        windef::{HWND, POINT, POINTS, RECT},
+        windef::{HWND, POINT, POINTS},
         winerror::SUCCEEDED,
     },
     um::{
@@ -161,10 +161,11 @@ impl Window {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let rect = match self.window_state.lock().saved_inner_rect {
-            Some(rect) => rect,
-            _ => util::get_client_rect(self.window.0).expect("Unexpected GetClientRct failure: please report this error to https://github.com/rust-windowing/winit")
-        };
+        let rect = self.window_state.lock()
+            .saved_inner_rect
+            .unwrap_or_else( ||
+                util::get_client_rect(self.window.0).expect("Unexpected GetClientRct failure: please report this error to https://github.com/rust-windowing/winit")
+            );
 
         PhysicalSize::new(
             (rect.right - rect.left) as u32,

@@ -1083,8 +1083,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
         winuser::WM_SYSCOMMAND => {
             if wparam == winuser::SC_RESTORE {
                 let mut w = userdata.window_state.lock();
-                w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, false));
                 w.saved_inner_rect = None;
+                w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, false));
             }
             if wparam == winuser::SC_MINIMIZE {
                 let mut w = userdata.window_state.lock();
