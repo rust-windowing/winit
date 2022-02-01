@@ -1084,9 +1084,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
             if wparam == winuser::SC_RESTORE {
                 let mut w = userdata.window_state.lock();
                 w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, false));
+                w.saved_inner_rect = None;
             }
             if wparam == winuser::SC_MINIMIZE {
                 let mut w = userdata.window_state.lock();
+                w.saved_inner_rect = Some(util::get_client_rect(&mut *window).unwrap());
                 w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
             }
             // Send `WindowEvent::Minimized` here if we decide to implement one

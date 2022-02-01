@@ -27,6 +27,7 @@ pub struct WindowState {
     pub taskbar_icon: Option<Icon>,
 
     pub saved_window: Option<SavedWindow>,
+    pub saved_inner_rect: Option<RECT>,
     pub scale_factor: f64,
 
     pub modifiers_state: ModifiersState,
@@ -115,6 +116,7 @@ impl WindowState {
             taskbar_icon,
 
             saved_window: None,
+            saved_inner_rect: None,
             scale_factor,
 
             modifiers_state: ModifiersState::default(),
