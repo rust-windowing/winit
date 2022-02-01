@@ -434,13 +434,15 @@ impl<T: 'static> EventLoop<T> {
                 }
                 events.clear();
 
-                // We don't go straight into executing the event loop iteration, we instead
-                // go to the start of this loop and check again if there's any pending event.
-                // We must do this because during the execution of the iteration we sometimes
-                // wake the mio waker, and if the waker is already awaken before we call poll(),
-                // then poll doesn't block, but it returns immediately.
-                // This caused the event loop to run continously even if the control_flow was `Wait`
-                continue;
+                if control_flow == ControlFlow::Wait {
+                    // We don't go straight into executing the event loop iteration, we instead go
+                    // to the start of this loop and check again if there's any pending event. We
+                    // must do this because during the execution of the iteration we sometimes wake
+                    // the mio waker, and if the waker is already awaken before we call poll(),
+                    // then poll doesn't block, but it returns immediately. This caused the event
+                    // loop to run continously even if the control_flow was `Wait`
+                    continue;
+                }
             }
 
             let wait_cancelled = iter_result
