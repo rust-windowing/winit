@@ -75,7 +75,6 @@ extern "C" fn dealloc(this: &Object, _: Sel) {
 }
 
 extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
-    trace!("Triggered `applicationDidFinishLaunching`");
+    trace_scope!("applicationDidFinishLaunching:");
     AppState::launched(this);
-    trace!("Completed `applicationDidFinishLaunching`");
 }

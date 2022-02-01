@@ -1,5 +1,8 @@
 #![cfg(target_os = "macos")]
 
+#[macro_use]
+mod util;
+
 mod app;
 mod app_delegate;
 mod app_state;
@@ -9,7 +12,6 @@ mod ffi;
 mod menu;
 mod monitor;
 mod observer;
-mod util;
 mod view;
 mod window;
 mod window_delegate;
