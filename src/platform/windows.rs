@@ -97,6 +97,9 @@ pub trait WindowExtWindows {
 
     /// Returns the current window theme.
     fn theme(&self) -> Theme;
+
+    /// Whether to show or hide the window icon in the taskbar.
+    fn set_skip_taskbar(&self, skip: bool);
 }
 
 impl WindowExtWindows for Window {
@@ -123,6 +126,11 @@ impl WindowExtWindows for Window {
     #[inline]
     fn theme(&self) -> Theme {
         self.window.theme()
+    }
+
+    #[inline]
+    fn set_skip_taskbar(&self, skip: bool) {
+        self.window.set_skip_taskbar(skip)
     }
 }
 
@@ -173,6 +181,9 @@ pub trait WindowBuilderExtWindows {
 
     /// Forces a theme or uses the system settings if `None` was provided.
     fn with_theme(self, theme: Option<Theme>) -> WindowBuilder;
+
+    /// Whether show or hide the window icon in the taskbar.
+    fn with_skip_taskbar(self, skip: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -215,6 +226,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_theme(mut self, theme: Option<Theme>) -> WindowBuilder {
         self.platform_specific.preferred_theme = theme;
+        self
+    }
+
+    #[inline]
+    fn with_skip_taskbar(mut self, skip: bool) -> WindowBuilder {
+        self.platform_specific.skip_taskbar = skip;
         self
     }
 }

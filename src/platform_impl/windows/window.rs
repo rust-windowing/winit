@@ -25,7 +25,7 @@ use winapi::{
         objbase::COINIT_APARTMENTTHREADED,
         ole2,
         oleidl::LPDROPTARGET,
-        shobjidl_core::{CLSID_TaskbarList, ITaskbarList2},
+        shobjidl_core::{CLSID_TaskbarList, ITaskbarList, ITaskbarList2},
         wingdi::{CreateRectRgn, DeleteObject},
         winnt::{LPCWSTR, SHORT},
         winuser,
@@ -652,6 +652,41 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_skip_taskbar(&self, skip: bool) {
+        com_initialized();
+        unsafe {
+            TASKBAR_LIST.with(|task_bar_list_ptr| {
+                let mut task_bar_list = task_bar_list_ptr.get();
+
+                if task_bar_list.is_null() {
+                    use winapi::{shared::winerror::S_OK, Interface};
+
+                    let hr = combaseapi::CoCreateInstance(
+                        &CLSID_TaskbarList,
+                        ptr::null_mut(),
+                        combaseapi::CLSCTX_ALL,
+                        &ITaskbarList::uuidof(),
+                        &mut task_bar_list as *mut _ as *mut _,
+                    );
+
+                    if hr != S_OK || (*task_bar_list).HrInit() != S_OK {
+                        // In some old windows, the taskbar object could not be created, we just ignore it
+                        return;
+                    }
+                    task_bar_list_ptr.set(task_bar_list)
+                }
+
+                task_bar_list = task_bar_list_ptr.get();
+                if skip {
+                    (*task_bar_list).DeleteTab(self.window.0);
+                } else {
+                    (*task_bar_list).AddTab(self.window.0);
+                }
+            });
+        }
+    }
+
+    #[inline]
     pub fn focus_window(&self) {
         let window = self.window.clone();
         let window_flags = self.window_state.lock().window_flags();
@@ -828,6 +863,8 @@ impl<'a, T: 'static> InitData<'a, T> {
             DeleteObject(region as _);
         }
 
+        win.set_skip_taskbar(self.pl_attribs.skip_taskbar);
+
         let attributes = self.attributes.clone();
 
         // Set visible before setting the size to ensure the
@@ -994,7 +1031,8 @@ thread_local! {
         }
     };
 
-    static TASKBAR_LIST: Cell<*mut ITaskbarList2> = Cell::new(ptr::null_mut());
+    static TASKBAR_LIST: Cell<*mut ITaskbarList> = Cell::new(ptr::null_mut());
+    static TASKBAR_LIST2: Cell<*mut ITaskbarList2> = Cell::new(ptr::null_mut());
 }
 
 pub fn com_initialized() {
@@ -1012,7 +1050,7 @@ pub fn com_initialized() {
 unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
     com_initialized();
 
-    TASKBAR_LIST.with(|task_bar_list_ptr| {
+    TASKBAR_LIST2.with(|task_bar_list_ptr| {
         let mut task_bar_list = task_bar_list_ptr.get();
 
         if task_bar_list.is_null() {
