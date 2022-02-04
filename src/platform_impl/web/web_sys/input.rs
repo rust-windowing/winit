@@ -70,7 +70,8 @@ impl Input {
         let input = self.raw().clone();
         self.on_composition_start = Some(self.common.add_event(
             "compositionstart",
-            move |_: CompositionEvent| {
+            move |event: CompositionEvent| {
+                web_sys::console::log_1(&event);
                 handler();
                 input.set_value("");
             },
@@ -84,6 +85,7 @@ impl Input {
         self.on_composition_update = Some(self.common.add_event(
             "compositionupdate",
             move |event: CompositionEvent| {
+                web_sys::console::log_1(&event);
                 handler(event.data());
             },
         ));
@@ -98,6 +100,7 @@ impl Input {
         self.on_composition_end = Some(self.common.add_event(
             "compositionend",
             move |event: CompositionEvent| {
+                web_sys::console::log_1(&event);
                 handler(event.data());
                 input.set_value("");
                 end.set(true);
@@ -112,6 +115,7 @@ impl Input {
         let input = self.raw().clone();
         let end = self.common.end.clone();
         self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
+            web_sys::console::log_1(&event);
             if !end.get() & !event.is_composing() {
                 input.set_value("");
                 handler(event.data());
@@ -128,7 +132,10 @@ impl Input {
     {
         self.on_key_down = Some(
             self.common
-                .add_event("keydown", move |event: KeyboardEvent| handler(event)),
+                .add_event("keydown", move |event: KeyboardEvent|{
+                    web_sys::console::log_1(&event);
+                    handler(event)
+                }),
         );
     }
 
