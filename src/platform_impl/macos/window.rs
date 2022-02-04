@@ -363,7 +363,6 @@ impl Drop for SharedStateMutexGuard<'_> {
 pub struct UnownedWindow {
     pub ns_window: IdRef, // never changes
     pub ns_view: IdRef,   // never changes
-    input_context: IdRef, // never changes
     shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
     cursor_state: Weak<Mutex<CursorState>>,
@@ -397,8 +396,6 @@ impl UnownedWindow {
             ns_window.setContentView_(*ns_view);
             ns_window.setInitialFirstResponder_(*ns_view);
         }
-
-        let input_context = unsafe { util::create_input_context(*ns_view) };
 
         let scale_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
 
@@ -442,7 +439,6 @@ impl UnownedWindow {
         let window = Arc::new(UnownedWindow {
             ns_view,
             ns_window,
-            input_context,
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
             cursor_state,
@@ -1046,14 +1042,7 @@ impl UnownedWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
-        unsafe {
-            view::set_ime_position(
-                *self.ns_view,
-                *self.input_context,
-                logical_spot.x,
-                logical_spot.y,
-            );
-        }
+        unsafe { view::set_ime_position(*self.ns_view, logical_spot.x, logical_spot.y) };
     }
 
     #[inline]

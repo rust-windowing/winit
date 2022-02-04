@@ -87,7 +87,7 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
     }
 }
 
-pub unsafe fn set_ime_position(ns_view: id, input_context: id, x: f64, y: f64) {
+pub unsafe fn set_ime_position(ns_view: id, x: f64, y: f64) {
     let state_ptr: *mut c_void = *(*ns_view).get_mut_ivar("winitState");
     let state = &mut *(state_ptr as *mut ViewState);
     let content_rect =
@@ -95,6 +95,7 @@ pub unsafe fn set_ime_position(ns_view: id, input_context: id, x: f64, y: f64) {
     let base_x = content_rect.origin.x as f64;
     let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
     state.ime_spot = Some((base_x + x, base_y - y));
+    let input_context: id = msg_send![ns_view, inputContext];
     let _: () = msg_send![input_context, invalidateCharacterCoordinates];
 }
 
