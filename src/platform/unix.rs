@@ -6,11 +6,13 @@
     target_os = "openbsd"
 ))]
 
+use std::collections::HashSet;
 use std::os::raw;
 #[cfg(feature = "x11")]
 use std::{ptr, sync::Arc};
 
 use crate::{
+    event::ClipboardMetadata,
     event_loop::{EventLoop, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
@@ -192,6 +194,18 @@ impl<T> EventLoopExtUnix for EventLoop<T> {
 
 /// Additional methods on `Window` that are specific to Unix.
 pub trait WindowExtUnix {
+    fn request_primary_clipboard_content(
+        &self,
+        mimes: HashSet<String>,
+        metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    );
+
+    fn set_primary_clipboard_content<C: AsRef<[u8]> + 'static>(
+        &self,
+        content: C,
+        mimes: HashSet<String>,
+    );
+
     /// Returns the ID of the `Window` xlib object that is used by this window.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
@@ -248,6 +262,31 @@ pub trait WindowExtUnix {
 }
 
 impl WindowExtUnix for Window {
+    /// Request primary system clipboard content.
+    ///
+    /// This clipboard is usually present on middle mouse button.
+    ///
+    /// The result of loading content with provided `mimes` mime types is delivered via
+    /// [`crate::event::WindowEvent::ClipboardContent`] with the given `metadata`.
+    fn request_primary_clipboard_content(
+        &self,
+        mimes: HashSet<String>,
+        metadata: Option<std::sync::Arc<ClipboardMetadata>>,
+    ) {
+        self.window
+            .request_primary_clipboard_content(mimes, metadata);
+    }
+
+    /// Set primary system clipboard content to provided `content` and advertising it with given
+    /// `mimes` mime types.
+    fn set_primary_clipboard_content<C: AsRef<[u8]> + 'static>(
+        &self,
+        content: C,
+        mimes: HashSet<String>,
+    ) {
+        self.window.set_primary_clipboard_content(content, mimes);
+    }
+
     #[inline]
     #[cfg(feature = "x11")]
     fn xlib_window(&self) -> Option<raw::c_ulong> {

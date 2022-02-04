@@ -8,10 +8,12 @@
 
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 
+pub use clipboard::{ClipboardManager, ClipboardType};
 pub use event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget};
 pub use output::{MonitorHandle, VideoMode};
 pub use window::Window;
 
+mod clipboard;
 mod env;
 mod event_loop;
 mod output;

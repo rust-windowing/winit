@@ -34,7 +34,7 @@ impl Keyboard {
         loop_handle: LoopHandle<'static, WinitState>,
         modifiers_state: Rc<RefCell<ModifiersState>>,
     ) -> Option<Self> {
-        let mut inner = KeyboardInner::new(modifiers_state);
+        let mut inner = KeyboardInner::new(seat.detach(), modifiers_state);
         let keyboard_data = keyboard::map_keyboard_repeat(
             loop_handle.clone(),
             seat,
@@ -72,6 +72,9 @@ struct KeyboardInner {
     /// Currently focused surface.
     target_window_id: Option<WindowId>,
 
+    /// Seat assocciated with this keyboard.
+    seat: WlSeat,
+
     /// A pending state of modifiers.
     ///
     /// This state is getting set if we've got a modifiers update
@@ -84,11 +87,12 @@ struct KeyboardInner {
 }
 
 impl KeyboardInner {
-    fn new(modifiers_state: Rc<RefCell<ModifiersState>>) -> Self {
+    fn new(seat: WlSeat, modifiers_state: Rc<RefCell<ModifiersState>>) -> Self {
         Self {
             target_window_id: None,
             pending_modifers_state: None,
             modifiers_state,
+            seat,
         }
     }
 }
