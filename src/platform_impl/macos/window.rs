@@ -1042,7 +1042,7 @@ impl UnownedWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
-        unsafe { view::set_ime_position(*self.ns_view, logical_spot.x, logical_spot.y) };
+        unsafe { view::set_ime_position(*self.ns_view, logical_spot) };
     }
 
     #[inline]
