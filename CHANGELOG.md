@@ -8,7 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
+- On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`.
+- On X11, fix KeyboardInput events sending with ibus input method.
 - On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
 - **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
 - Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.

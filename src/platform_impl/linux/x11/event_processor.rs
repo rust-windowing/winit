@@ -37,6 +37,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
     pub(super) active_window: Option<ffi::Window>,
+    pub(super) key_event_times: [ffi::Time; 256],
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -129,6 +130,18 @@ impl<T: 'static> EventProcessor<T> {
                 })
             }
         {
+            if xev.get_type() == ffi::KeyPress || xev.get_type() == ffi::KeyRelease {
+                Self::handle_key_event(
+                    xev,
+                    true,
+                    wt,
+                    &self.mod_keymap,
+                    &mut self.key_event_times,
+                    &mut self.device_mod_state,
+                    self.active_window,
+                    &mut callback,
+                );
+            }
             return;
         }
 
@@ -524,74 +537,16 @@ impl<T: 'static> EventProcessor<T> {
             }
 
             ffi::KeyPress | ffi::KeyRelease => {
-                use crate::event::ElementState::{Pressed, Released};
-
-                // Note that in compose/pre-edit sequences, this will always be Released.
-                let state = if xev.get_type() == ffi::KeyPress {
-                    Pressed
-                } else {
-                    Released
-                };
-
-                let xkev: &mut ffi::XKeyEvent = xev.as_mut();
-
-                let window = xkev.window;
-                let window_id = mkwid(window);
-
-                // Standard virtual core keyboard ID. XInput2 needs to be used to get a reliable
-                // value, though this should only be an issue under multiseat configurations.
-                let device = util::VIRTUAL_CORE_KEYBOARD;
-                let device_id = mkdid(device);
-                let keycode = xkev.keycode;
-
-                // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
-                // a keycode of 0.
-                if keycode != 0 {
-                    let scancode = keycode - KEYCODE_OFFSET as u32;
-                    let keysym = wt.xconn.lookup_keysym(xkev);
-                    let virtual_keycode = events::keysym_to_element(keysym as c_uint);
-
-                    Self::update_modifiers(
-                        &mut self.device_mod_state,
-                        self.active_window,
-                        ModifiersState::from_x11_mask(xkev.state),
-                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode),
-                        &mut callback,
-                    );
-
-                    let modifiers = self.device_mod_state.modifiers();
-
-                    #[allow(deprecated)]
-                    callback(Event::WindowEvent {
-                        window_id,
-                        event: WindowEvent::KeyboardInput {
-                            device_id,
-                            input: KeyboardInput {
-                                state,
-                                scancode,
-                                virtual_keycode,
-                                modifiers,
-                            },
-                            is_synthetic: false,
-                        },
-                    });
-                }
-
-                if state == Pressed {
-                    let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
-                        wt.xconn.lookup_utf8(ic, xkev)
-                    } else {
-                        return;
-                    };
-
-                    for chr in written.chars() {
-                        let event = Event::WindowEvent {
-                            window_id,
-                            event: WindowEvent::ReceivedCharacter(chr),
-                        };
-                        callback(event);
-                    }
-                }
+                Self::handle_key_event(
+                    xev,
+                    false,
+                    wt,
+                    &self.mod_keymap,
+                    &mut self.key_event_times,
+                    &mut self.device_mod_state,
+                    self.active_window,
+                    &mut callback,
+                );
             }
 
             ffi::GenericEvent => {
@@ -1234,6 +1189,103 @@ impl<T: 'static> EventProcessor<T> {
                     window_id: mkwid(window_id),
                     event: WindowEvent::ModifiersChanged(modifiers),
                 });
+            }
+        }
+    }
+
+    fn handle_key_event<F>(
+        xev: &mut ffi::XEvent,
+        filtered_by_im: bool,
+        wt: &super::EventLoopWindowTarget<T>,
+        mod_keymap: &ModifierKeymap,
+        key_event_times: &mut [ffi::Time; 256],
+        device_mod_state: &mut ModifierKeyState,
+        active_window: Option<ffi::Window>,
+        callback: &mut F,
+    ) where
+        F: FnMut(Event<'_, T>),
+    {
+        use crate::event::ElementState::{Pressed, Released};
+
+        // Note that in compose/pre-edit sequences, this will always be Released.
+        let state = if xev.get_type() == ffi::KeyPress {
+            Pressed
+        } else {
+            Released
+        };
+
+        let xkev: &mut ffi::XKeyEvent = xev.as_mut();
+
+        let window = xkev.window;
+        let window_id = mkwid(window);
+
+        // Standard virtual core keyboard ID. XInput2 needs to be used to get a reliable
+        // value, though this should only be an issue under multiseat configurations.
+        let device = util::VIRTUAL_CORE_KEYBOARD;
+        let device_id = mkdid(device);
+        let keycode = xkev.keycode;
+
+        // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
+        // a keycode of 0.
+        if keycode != 0 {
+            let signed_time = xkev.time as i64;
+            let time_since_previous_event =
+                signed_time.wrapping_sub(key_event_times[keycode as usize] as i64);
+
+            // An event is a replay of a previous event if it:
+            // 1) Isn't filtered by the IM.
+            // 2) Isn't the first time that an event with this keycode arrives.
+            // 3) Has a timestamp earlier or equal to the latest non-replayed event with this keycode.
+            let replayed_event = !filtered_by_im
+                && time_since_previous_event != signed_time
+                && time_since_previous_event <= 0;
+
+            if !replayed_event {
+                key_event_times[keycode as usize] = xkev.time;
+                let scancode = keycode - KEYCODE_OFFSET as u32;
+                let keysym = wt.xconn.lookup_keysym(xkev);
+                let virtual_keycode = events::keysym_to_element(keysym as c_uint);
+
+                Self::update_modifiers(
+                    device_mod_state,
+                    active_window,
+                    ModifiersState::from_x11_mask(xkev.state),
+                    mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode),
+                    callback,
+                );
+
+                let modifiers = device_mod_state.modifiers();
+
+                #[allow(deprecated)]
+                callback(Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::KeyboardInput {
+                        device_id,
+                        input: KeyboardInput {
+                            state,
+                            scancode,
+                            virtual_keycode,
+                            modifiers,
+                        },
+                        is_synthetic: false,
+                    },
+                });
+            }
+        }
+
+        if state == Pressed && !filtered_by_im {
+            let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
+                wt.xconn.lookup_utf8(ic, xkev)
+            } else {
+                return;
+            };
+
+            for chr in written.chars() {
+                let event = Event::WindowEvent {
+                    window_id,
+                    event: WindowEvent::ReceivedCharacter(chr),
+                };
+                callback(event);
             }
         }
     }
