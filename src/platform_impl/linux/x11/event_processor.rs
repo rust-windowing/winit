@@ -10,7 +10,7 @@ use super::{
     XExtension,
 };
 
-use util::modifiers::{ModifierKeyState, ModifierKeymap};
+use util::modifiers::{Modifier, ModifierKeyState, ModifierKeymap};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -130,27 +130,6 @@ impl<T: 'static> EventProcessor<T> {
             }
         {
             return;
-        }
-
-        // We can't call a `&mut self` method because of the above borrow,
-        // so we use this macro for repeated modifier state updates.
-        macro_rules! update_modifiers {
-            ( $state:expr , $modifier:expr ) => {{
-                match ($state, $modifier) {
-                    (state, modifier) => {
-                        if let Some(modifiers) =
-                            self.device_mod_state.update_state(&state, modifier)
-                        {
-                            if let Some(window_id) = self.active_window {
-                                callback(Event::WindowEvent {
-                                    window_id: mkwid(window_id),
-                                    event: WindowEvent::ModifiersChanged(modifiers),
-                                });
-                            }
-                        }
-                    }
-                }
-            }};
         }
 
         let event_type = xev.get_type();
@@ -572,9 +551,12 @@ impl<T: 'static> EventProcessor<T> {
                     let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
-                    update_modifiers!(
+                    Self::update_modifiers(
+                        &mut self.device_mod_state,
+                        self.active_window,
                         ModifiersState::from_x11_mask(xkev.state),
-                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
+                        self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode),
+                        &mut callback,
                     );
 
                     let modifiers = self.device_mod_state.modifiers();
@@ -645,7 +627,13 @@ impl<T: 'static> EventProcessor<T> {
                         }
 
                         let modifiers = ModifiersState::from_x11(&xev.mods);
-                        update_modifiers!(modifiers, None);
+                        Self::update_modifiers(
+                            &mut self.device_mod_state,
+                            self.active_window,
+                            modifiers,
+                            None,
+                            &mut callback,
+                        );
 
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
@@ -722,7 +710,13 @@ impl<T: 'static> EventProcessor<T> {
                         let new_cursor_pos = (xev.event_x, xev.event_y);
 
                         let modifiers = ModifiersState::from_x11(&xev.mods);
-                        update_modifiers!(modifiers, None);
+                        Self::update_modifiers(
+                            &mut self.device_mod_state,
+                            self.active_window,
+                            modifiers,
+                            None,
+                            &mut callback,
+                        );
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state.lock();
@@ -1222,6 +1216,25 @@ impl<T: 'static> EventProcessor<T> {
 
         if let Ok((window_id, x, y)) = self.ime_receiver.try_recv() {
             wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
+        }
+    }
+
+    fn update_modifiers<F>(
+        device_mod_state: &mut ModifierKeyState,
+        active_window: Option<ffi::Window>,
+        state: ModifiersState,
+        modifier: Option<Modifier>,
+        callback: &mut F,
+    ) where
+        F: FnMut(Event<'_, T>),
+    {
+        if let Some(modifiers) = device_mod_state.update_state(&state, modifier) {
+            if let Some(window_id) = active_window {
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window_id),
+                    event: WindowEvent::ModifiersChanged(modifiers),
+                });
+            }
         }
     }
 
