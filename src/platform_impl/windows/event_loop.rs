@@ -17,6 +17,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use log::trace;
 use once_cell::sync::Lazy;
 use raw_window_handle::{RawDisplayHandle, WindowsDisplayHandle};
 
@@ -128,12 +129,39 @@ static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
 static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
     Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
 
+struct Userdata<T: 'static> {
+    recurse_depth: Cell<u32>,
+    removed: Cell<bool>,
+    window_data: Option<WindowData<T>>,
+}
+
+impl<T> Userdata<T> {
+    fn new() -> Self {
+        Self {
+            recurse_depth: Cell::new(0),
+            removed: Cell::new(false),
+            window_data: None,
+        }
+    }
+
+    #[must_use]
+    fn recurse_depth(&self) -> u32 {
+        self.recurse_depth.get()
+    }
+
+    fn increment_recurse_depth(&self) {
+        self.recurse_depth.set(self.recurse_depth() + 1);
+    }
+
+    fn decrement_recurse_depth(&self) {
+        self.recurse_depth.set(self.recurse_depth() - 1);
+    }
+}
+
 pub(crate) struct WindowData<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
     pub _file_drop_handler: Option<FileDropHandler>,
-    pub userdata_removed: Cell<bool>,
-    pub recurse_depth: Cell<u32>,
 }
 
 impl<T> WindowData<T> {
@@ -888,6 +916,27 @@ unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
     });
 }
 
+macro_rules! trace_msg {
+    ($window:expr, $msg:expr, $wparam:expr, $lparam:expr, $userdata_ptr:expr) => {{
+        let window = $window;
+        let wparam = $wparam;
+        let lparam = $lparam;
+
+        let indent_width = ((*$userdata_ptr).recurse_depth() * 2) as usize;
+        let msg_name = super::util::msg_name($msg);
+        let msg_len = msg_name.len();
+        let base_spacing: usize = 28;
+        let mut spacing = base_spacing.saturating_sub(msg_len + indent_width);
+        if spacing == 0 {
+            spacing = 4;
+        }
+        let pointer_width = 16;
+        trace!(
+            "{0:>indent_width$}{msg_name}{0:>spacing$}hwnd={window:?}  w={wparam: <pointer_width$x}  l={lparam:#x}", ""
+        );
+    }};
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 //
@@ -901,53 +950,61 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     wparam: WPARAM,
     lparam: LPARAM,
 ) -> LRESULT {
-    let userdata = super::get_window_long(window, GWL_USERDATA);
+    let userdata_ptr = super::get_window_long(window, GWL_USERDATA);
+    let userdata_ptr = match userdata_ptr {
+        0 => {
+            let userdata = Box::into_raw(Box::new(Userdata::<T>::new()));
+            super::set_window_long(window, GWL_USERDATA, userdata as isize);
+            userdata
+        }
+        isize::MIN => {
+            log::warn!("{}", super::util::msg_name(msg));
+            return DefWindowProcW(window, msg, wparam, lparam);
+        }
+        _ => userdata_ptr as _,
+    };
 
-    let userdata_ptr = match (userdata, msg) {
-        (0, WM_NCCREATE) => {
+    trace_msg!(window, msg, wparam, lparam, userdata_ptr);
+
+    (*userdata_ptr).increment_recurse_depth();
+    let result = match msg {
+        WM_NCCREATE => {
             let createstruct = &mut *(lparam as *mut CREATESTRUCTW);
-            let initdata = &mut *(createstruct.lpCreateParams as *mut InitData<'_, T>);
+            let initdata = &mut *createstruct.lpCreateParams.cast::<InitData<'_, T>>();
 
-            let result = match initdata.on_nccreate(window) {
-                Some(userdata) => {
-                    super::set_window_long(window, GWL_USERDATA, userdata as _);
+            match initdata.on_nccreate(window) {
+                Some(window_data) => {
+                    (*userdata_ptr).window_data = Some(window_data);
                     DefWindowProcW(window, msg, wparam, lparam)
                 }
                 None => -1, // failed to create the window
-            };
-
-            return result;
+            }
         }
-        // Getting here should quite frankly be impossible,
-        // but we'll make window creation fail here just in case.
-        (0, WM_CREATE) => return -1,
-        (_, WM_CREATE) => {
+        WM_CREATE => {
             let createstruct = &mut *(lparam as *mut CREATESTRUCTW);
-            let initdata = createstruct.lpCreateParams;
-            let initdata = &mut *(initdata as *mut InitData<'_, T>);
+            let initdata = &mut *createstruct.lpCreateParams.cast::<InitData<'_, T>>();
 
             initdata.on_create();
-            return DefWindowProcW(window, msg, wparam, lparam);
+            DefWindowProcW(window, msg, wparam, lparam)
         }
-        (0, _) => return DefWindowProcW(window, msg, wparam, lparam),
-        _ => userdata as *mut WindowData<T>,
+        WM_NCDESTROY => {
+            super::set_window_long(window, GWL_USERDATA, isize::MIN);
+            (*userdata_ptr).removed.set(true);
+            0
+        }
+        _ => {
+            if let Some(window_data) = (*userdata_ptr).window_data.as_ref() {
+                public_window_callback_inner(window, msg, wparam, lparam, window_data)
+            } else {
+                // This should only ever be relevant for the one `WM_GETMINMAXINFO` we get
+                // before `WM_NCCREATE`
+                DefWindowProcW(window, msg, wparam, lparam)
+            }
+        }
     };
+    (*userdata_ptr).decrement_recurse_depth();
 
-    let (result, userdata_removed, recurse_depth) = {
-        let userdata = &*(userdata_ptr);
-
-        userdata.recurse_depth.set(userdata.recurse_depth.get() + 1);
-
-        let result = public_window_callback_inner(window, msg, wparam, lparam, userdata);
-
-        let userdata_removed = userdata.userdata_removed.get();
-        let recurse_depth = userdata.recurse_depth.get() - 1;
-        userdata.recurse_depth.set(recurse_depth);
-
-        (result, userdata_removed, recurse_depth)
-    };
-
-    if userdata_removed && recurse_depth == 0 {
+    if (*userdata_ptr).removed.get() && (*userdata_ptr).recurse_depth() == 0 {
         drop(Box::from_raw(userdata_ptr));
     }
 
@@ -959,6 +1016,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
     msg: u32,
     wparam: WPARAM,
     lparam: LPARAM,
+    // TODO: Maybe rename this to windowdata?
     userdata: &WindowData<T>,
 ) -> LRESULT {
     RedrawWindow(
@@ -1036,12 +1094,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 event: Destroyed,
             });
             userdata.event_loop_runner.remove_window(window);
-            0
-        }
-
-        WM_NCDESTROY => {
-            super::set_window_long(window, GWL_USERDATA, 0);
-            userdata.userdata_removed.set(true);
             0
         }
 
