@@ -122,6 +122,7 @@ impl<T: 'static> Shared<T> {
         {
             let runner = self.clone();
             input.on_composition_start(move || {
+                web_sys::console::log_1(&"IME::Enabled".into());
                 runner.send_event(super::Event::WindowEvent {
                     window_id: WindowId(id),
                     event: WindowEvent::IME(crate::event::IME::Enabled),
@@ -133,6 +134,7 @@ impl<T: 'static> Shared<T> {
                 if let Some(text) = text {
                     if !text.is_empty() {
                         let len = text.len();
+                        web_sys::console::log_1(&format!("IME::Preedit {}",text).into());
                         runner.send_event(super::Event::WindowEvent {
                             window_id: WindowId(id),
                             event: WindowEvent::IME(crate::event::IME::Preedit(
@@ -148,6 +150,7 @@ impl<T: 'static> Shared<T> {
             let runner = self.clone();
             input.on_composition_end(move |text: Option<String>| {
                 if let Some(text) = text {
+                    web_sys::console::log_1(&format!("IME::Commit {}",text).into());
                     runner.send_event(super::Event::WindowEvent {
                         window_id: WindowId(id),
                         event: WindowEvent::IME(crate::event::IME::Commit(text)),
@@ -159,6 +162,7 @@ impl<T: 'static> Shared<T> {
             input.on_input(move |text: Option<String>| {
                 if let Some(text) = text {
                     if !text.is_empty() {
+                        web_sys::console::log_1(&format!("ReceivedCharacter {}",text).into());
                         runner.send_event(super::Event::WindowEvent {
                             window_id: WindowId(id),
                             event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
@@ -172,6 +176,7 @@ impl<T: 'static> Shared<T> {
                 let runner = self.clone();
                 input.on_keydown(move |event: KeyboardEvent| {
                     if !(&event.key() == "Process") {
+                        web_sys::console::log_1(&format!("KeyboardInput {}",event.key()).into());
                         runner.send_event(crate::event::Event::WindowEvent {
                             window_id: WindowId(id),
                             event: WindowEvent::KeyboardInput {
