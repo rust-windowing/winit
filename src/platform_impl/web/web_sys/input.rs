@@ -119,6 +119,7 @@ impl Input {
             if !end.get() & !event.is_composing() {
                 input.set_value("");
                 handler(event.data());
+                event.stop_immediate_propagation();
             }
             if !event.is_composing() {
                 end.set(false);

@@ -131,15 +131,17 @@ impl<T: 'static> Shared<T> {
             let runner = self.clone();
             input.on_composition_update(move |text: Option<String>| {
                 if let Some(text) = text {
-                    let len = text.len();
-                    runner.send_event(super::Event::WindowEvent {
-                        window_id: WindowId(id),
-                        event: WindowEvent::IME(crate::event::IME::Preedit(
-                            text,
-                            Some(len),
-                            Some(len),
-                        )),
-                    });
+                    if !text.is_empty() {
+                        let len = text.len();
+                        runner.send_event(super::Event::WindowEvent {
+                            window_id: WindowId(id),
+                            event: WindowEvent::IME(crate::event::IME::Preedit(
+                                text,
+                                Some(len),
+                                Some(len),
+                            )),
+                        });
+                    }
                 }
             });
 

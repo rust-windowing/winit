@@ -299,10 +299,8 @@ impl Window {
         let input = self.input.borrow_mut();
         let input = input.as_ref().unwrap();
         let style = input.style();
-        /*
-        if Some(false) == is_mobile() {
 
-         */
+        if Some(false) == is_mobile() {
             let (x, y): (f32, f32) = position.to_physical::<f32>(self.scale_factor()).into();
             let canvas = self.canvas.borrow();
             let canvas: &HtmlCanvasElement = canvas.raw();
@@ -312,13 +310,12 @@ impl Window {
             style.set_property("top", &(y.to_string() + "px")).ok();
             style.set_property("left", &(x.to_string() + "px")).ok();
             input.raw().focus().ok();
-            /*
         } else {
             style.set_property("position", "absolute").ok();
             style.set_property("top", "0px").ok();
             style.set_property("left", "0px").ok();
             input.raw().focus().ok();
-        }*/
+        }
     }
 
     #[inline]
