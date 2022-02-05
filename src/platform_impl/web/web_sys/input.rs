@@ -19,6 +19,7 @@ pub struct Input {
 struct Common {
     raw: HtmlInputElement,
     end: Rc<Cell<bool>>,
+    composing: Rc<Cell<bool>>,
 }
 impl Input {
     pub fn create() -> Result<Self, RootOE> {
@@ -51,6 +52,7 @@ impl Input {
             common: Common {
                 raw: input,
                 end: Rc::new(Cell::new(false)),
+                composing: Rc::new(Cell::new(false)),
             },
             on_composition_start: None,
             on_composition_update: None,
@@ -68,12 +70,17 @@ impl Input {
         F: 'static + FnMut(),
     {
         let input = self.raw().clone();
+        let composing = self.common.composing.clone();
         self.on_composition_start = Some(self.common.add_event(
             "compositionstart",
             move |event: CompositionEvent| {
-                web_sys::console::log_1(&event);
-                handler();
-                input.set_value("");
+                //do not emit it many times.
+                if !composing.get() {
+                    web_sys::console::log_1(&event);
+                    handler();
+                    input.set_value("");
+                }
+                composing.set(true);
             },
         ));
     }
@@ -97,6 +104,7 @@ impl Input {
     {
         let input = self.raw().clone();
         let end = self.common.end.clone();
+        let composing = self.common.composing.clone();
         self.on_composition_end = Some(self.common.add_event(
             "compositionend",
             move |event: CompositionEvent| {
@@ -104,6 +112,7 @@ impl Input {
                 handler(event.data());
                 input.set_value("");
                 end.set(true);
+                composing.set(false);
             },
         ));
     }
@@ -114,9 +123,10 @@ impl Input {
     {
         let input = self.raw().clone();
         let end = self.common.end.clone();
+        let composing = self.common.composing.clone();
         self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
             web_sys::console::log_1(&event);
-            if !end.get() & !event.is_composing() {
+            if !end.get() & !composing.get() {
                 input.set_value("");
                 handler(event.data());
                 event.stop_immediate_propagation();
@@ -133,7 +143,7 @@ impl Input {
     {
         self.on_key_down = Some(
             self.common
-                .add_event("keydown", move |event: KeyboardEvent|{
+                .add_event("keydown", move |event: KeyboardEvent| {
                     web_sys::console::log_1(&event);
                     handler(event)
                 }),
