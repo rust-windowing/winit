@@ -261,42 +261,42 @@ impl Canvas {
         }
     }
 
-    pub fn on_pointer_move<F>(&mut self, handler: F)
+    pub fn on_touch_move<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>),
     {
         match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_pointer_move(&self.common, handler),
+            MouseState::HasPointerEvent(h) => h.on_touch_move(&self.common, handler),
             _ => {}
         }
     }
 
-    pub fn on_pointer_down<F>(&mut self, handler: F)
+    pub fn on_touch_down<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>),
     {
         match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_pointer_down(&self.common, handler),
+            MouseState::HasPointerEvent(h) => h.on_touch_down(&self.common, handler),
             _ => {}
         }
     }
 
-    pub fn on_pointer_up<F>(&mut self, handler: F)
+    pub fn on_touch_up<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>),
     {
         match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_pointer_up(&self.common, handler),
+            MouseState::HasPointerEvent(h) => h.on_touch_up(&self.common, handler),
             _ => {}
         }
     }
 
-    pub fn on_pointer_cancel<F>(&mut self, handler: F)
+    pub fn on_touch_cancel<F>(&mut self, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>),
     {
         match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_pointer_cancel(&self.common, handler),
+            MouseState::HasPointerEvent(h) => h.on_touch_cancel(&self.common, handler),
             _ => {}
         }
     }
