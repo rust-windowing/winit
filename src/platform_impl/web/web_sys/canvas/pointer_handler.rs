@@ -115,7 +115,7 @@ impl PointerHandler {
 
     pub fn on_pointer_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, PointerType),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>),
     {
         self.on_pointer_move = Some(canvas_common.add_event(
             "pointermove",
