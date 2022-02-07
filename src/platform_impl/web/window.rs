@@ -19,7 +19,7 @@ use web_sys::HtmlCanvasElement;
 
 pub struct Window {
     canvas: Rc<RefCell<backend::Canvas>>,
-    input: Rc<RefCell<Option<backend::Input>>>,
+    input: Rc<RefCell<backend::Input>>,
     previous_pointer: RefCell<&'static str>,
     id: Id,
     register_redraw_request: Box<dyn Fn()>,
@@ -38,12 +38,13 @@ impl Window {
         let id = target.generate_id();
 
         let canvas = backend::Canvas::create(platform_attr)?;
+        let input = backend::Input::create()?;
         let mut canvas = Rc::new(RefCell::new(canvas));
-
+        let mut input = Rc::new(RefCell::new(input));
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
         target.register(&mut canvas, id);
-        target.register_input(id);
+        target.register_input(&mut input, id);
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
             runner.send_event(event::Event::WindowEvent {
@@ -57,7 +58,7 @@ impl Window {
 
         let window = Window {
             canvas,
-            input: target.runner.input(),
+            input,
             previous_pointer: RefCell::new("auto"),
             id,
             register_redraw_request,
@@ -287,6 +288,38 @@ impl Window {
         // move dummy input element to this position.
         // so we can input text here.
 
+        // search DOM tree to find current window bound text input element.
+        web_sys::window()
+            .and_then(|win| win.document())
+            .and_then(|doc| Some(doc.get_elements_by_class_name("winit_input_agent")))
+            .map(|elements| {
+                for i in 0..elements.length() {
+                    if let Some(input) = elements.item(i) {
+                        if let Some(attr) = input.get_attribute("winit_text_agent_id") {
+                            if attr != self.id.0.to_string() {
+                                if Some("true".to_owned()) == input.get_attribute("using") {
+                                    //detach from DOM tree
+                                    if let Some(body) = web_sys::window().unwrap().document().unwrap().body(){
+                                        body.replace_child(&input,self.input.borrow().raw()).ok();
+                                        self.input.borrow().set_attribute("using","true");
+                                        break;
+                                    }
+                                }
+                            } else {
+                                if Some("true".to_owned()) != input.get_attribute("using") {
+                                    if let Some(body) = web_sys::window().unwrap().document().unwrap().body(){
+                                        body.append_child(self.input.borrow().raw()).ok();
+                                        self.input.borrow().set_attribute("using","true");
+
+                                    }
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }).expect("Failed to modify dom Tree");
+
         const MOBILE_DEVICE: [&str; 6] =
             ["Android", "iPhone", "iPad", "iPod", "webOS", "BlackBerry"];
         /// If context is running under mobile device?
@@ -297,7 +330,6 @@ impl Window {
         }
 
         let input = self.input.borrow_mut();
-        let input = input.as_ref().unwrap();
         let style = input.style();
 
         if Some(false) == is_mobile() {

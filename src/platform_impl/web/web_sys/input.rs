@@ -7,7 +7,6 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, InputEvent, KeyboardEvent};
 
-const AGENT_ID: &str = "winit_input_agent";
 pub struct Input {
     common: Common,
     on_composition_start: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
@@ -43,7 +42,7 @@ impl Input {
             // Hide under canvas
             style.set_property("z-index", "-1").unwrap();
         }
-        input.set_id(AGENT_ID);
+
         input.set_size(1);
         //  input.set_hidden(true);
         input.set_autofocus(true);
@@ -152,6 +151,19 @@ impl Input {
 
     pub fn style(&self) -> CssStyleDeclaration {
         self.common.raw.style()
+    }
+    pub fn remove_listeners(&mut self) {
+        self.on_key_down = None;
+        self.on_input = None;
+        self.on_composition_start = None;
+        self.on_composition_update = None;
+        self.on_composition_end = None;
+    }
+    pub fn set_attribute(&self, attribute: &str, value: &str) {
+        self.common
+            .raw
+            .set_attribute(attribute, value)
+            .expect(&format!("Set attribute: {}", attribute));
     }
 }
 impl Common {

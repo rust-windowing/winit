@@ -1,5 +1,5 @@
 use super::{super::ScaleChangeArgs, backend, state::State};
-use crate::event::{DeviceId, ElementState, Event, KeyboardInput, StartCause, WindowEvent};
+use crate::event::{Event, StartCause};
 use crate::event_loop as root;
 use crate::window::WindowId;
 
@@ -13,7 +13,6 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use web_sys::KeyboardEvent;
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
 
 impl<T> Clone for Shared<T> {
@@ -27,7 +26,7 @@ pub struct Execution<T: 'static> {
     events: RefCell<VecDeque<Event<'static, T>>>,
     id: RefCell<u32>,
     all_canvases: RefCell<Vec<(WindowId, Weak<RefCell<backend::Canvas>>)>>,
-    input: Rc<RefCell<Option<backend::Input>>>,
+    all_inputs: RefCell<Vec<(WindowId, Weak<RefCell<backend::Input>>)>>,
     redraw_pending: RefCell<HashSet<WindowId>>,
     destroy_pending: RefCell<VecDeque<WindowId>>,
     scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
@@ -104,7 +103,7 @@ impl<T: 'static> Shared<T> {
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
             all_canvases: RefCell::new(Vec::new()),
-            input: Rc::new(RefCell::new(None)),
+            all_inputs: RefCell::new(Vec::new()),
             redraw_pending: RefCell::new(HashSet::new()),
             destroy_pending: RefCell::new(VecDeque::new()),
             scale_change_detector: RefCell::new(None),
@@ -112,99 +111,11 @@ impl<T: 'static> Shared<T> {
         }))
     }
 
-    pub fn create_input(&self, id: super::window::Id) {
-        //initialize one input for one page.
-        let mut input = self.0.input.borrow_mut();
-
-        let input = input.get_or_insert(backend::Input::create().unwrap());
-        //install event handler
-
-        {
-            let runner = self.clone();
-            input.on_composition_start(move || {
-                web_sys::console::log_1(&"IME::Enabled".into());
-                runner.send_event(super::Event::WindowEvent {
-                    window_id: WindowId(id),
-                    event: WindowEvent::IME(crate::event::IME::Enabled),
-                });
-            });
-
-            let runner = self.clone();
-            input.on_composition_update(move |text: Option<String>| {
-                if let Some(text) = text {
-                    if !text.is_empty() {
-                        let len = text.len();
-                        web_sys::console::log_1(&format!("IME::Preedit {}", text).into());
-                        runner.send_event(super::Event::WindowEvent {
-                            window_id: WindowId(id),
-                            event: WindowEvent::IME(crate::event::IME::Preedit(
-                                text,
-                                Some(len),
-                                Some(len),
-                            )),
-                        });
-                    }
-                }
-            });
-
-            let runner = self.clone();
-            input.on_composition_end(move |text: Option<String>| {
-                if let Some(text) = text {
-                    web_sys::console::log_1(&format!("IME::Commit {}", text).into());
-                    runner.send_event(super::Event::WindowEvent {
-                        window_id: WindowId(id),
-                        event: WindowEvent::IME(crate::event::IME::Commit(text)),
-                    });
-                }
-            });
-
-            let runner = self.clone();
-            input.on_input(move |text: Option<String>| {
-                if let Some(text) = text {
-                    if !text.is_empty() {
-                        web_sys::console::log_1(&format!("ReceivedCharacter {}", text).into());
-                        runner.send_event(super::Event::WindowEvent {
-                            window_id: WindowId(id),
-                            event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
-                        });
-                    }
-                }
-            });
-
-            #[allow(deprecated)]
-            {
-                let runner = self.clone();
-                input.on_keydown(move |event: KeyboardEvent| {
-                    if !(&event.key() == "Process" || &event.key() == "Unidentified") {
-                        web_sys::console::log_1(&format!("KeyboardInput {}", event.key()).into());
-                        runner.send_event(crate::event::Event::WindowEvent {
-                            window_id: WindowId(id),
-                            event: WindowEvent::KeyboardInput {
-                                device_id: DeviceId(unsafe { super::device::Id::dummy() }),
-                                input: KeyboardInput {
-                                    scancode: backend::scan_code(&event),
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: backend::virtual_key_code(&event),
-                                    modifiers: backend::keyboard_modifiers(&event),
-                                },
-                                is_synthetic: false,
-                            },
-                        });
-                    }
-                });
-            }
-        }
-        //install input element to body.
-        {
-            web_sys::window()
-                .and_then(|win| win.document())
-                .and_then(|doc| doc.body())
-                .and_then(|body| body.append_child(input.raw()).ok())
-                .expect("couldn't append canvas to document body");
-        }
-    }
-    pub fn input(&self) -> Rc<RefCell<Option<backend::Input>>> {
-        self.0.input.clone()
+    pub fn add_input(&self, id: WindowId, input: &Rc<RefCell<backend::Input>>) {
+        self.0
+            .all_inputs
+            .borrow_mut()
+            .push((id, Rc::downgrade(input)));
     }
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
         self.0
@@ -567,6 +478,7 @@ impl<T: 'static> Shared<T> {
     fn handle_loop_destroyed(&self, control: &mut root::ControlFlow) {
         self.handle_event(Event::LoopDestroyed, control);
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
+        let all_inputs = std::mem::take(&mut *self.0.all_inputs.borrow_mut());
         *self.0.scale_change_detector.borrow_mut() = None;
         *self.0.unload_event_handle.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
@@ -578,6 +490,12 @@ impl<T: 'static> Shared<T> {
             if let Some(canvas) = canvas.upgrade() {
                 let mut canvas = canvas.borrow_mut();
                 canvas.remove_listeners();
+            }
+        }
+        for (_, input) in all_inputs {
+            if let Some(input) = input.upgrade() {
+                let mut input = input.borrow_mut();
+                input.remove_listeners();
             }
         }
         // At this point, the `self.0` `Rc` should only be strongly referenced

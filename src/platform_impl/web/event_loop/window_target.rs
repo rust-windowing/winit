@@ -10,6 +10,7 @@ use std::cell::RefCell;
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::rc::Rc;
+use web_sys::KeyboardEvent;
 
 pub struct WindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
@@ -46,8 +47,85 @@ impl<T> WindowTarget<T> {
         window::Id(self.runner.generate_id())
     }
 
-    pub fn register_input(&self, id: window::Id) {
-        self.runner.create_input(id);
+    pub fn register_input(&self, input: &Rc<RefCell<backend::Input>>, id: window::Id) {
+        self.runner.add_input(WindowId(id), input);
+        let mut input = input.borrow_mut();
+        input.set_attribute("class", "winit_text_agent");
+        input.set_attribute("winit_text_agent_id", &id.0.to_string());
+        input.set_attribute("using", "false");
+        let runner = self.runner.clone();
+        input.on_composition_start(move || {
+            web_sys::console::log_1(&"IME::Enabled".into());
+            runner.send_event(super::Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::IME(crate::event::IME::Enabled),
+            });
+        });
+
+        let runner = self.runner.clone();
+        input.on_composition_update(move |text: Option<String>| {
+            if let Some(text) = text {
+                if !text.is_empty() {
+                    let len = text.len();
+                    web_sys::console::log_1(&format!("IME::Preedit {}", text).into());
+                    runner.send_event(super::Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::IME(crate::event::IME::Preedit(
+                            text,
+                            Some(len),
+                            Some(len),
+                        )),
+                    });
+                }
+            }
+        });
+
+        let runner = self.runner.clone();
+        input.on_composition_end(move |text: Option<String>| {
+            if let Some(text) = text {
+                web_sys::console::log_1(&format!("IME::Commit {}", text).into());
+                runner.send_event(super::Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::IME(crate::event::IME::Commit(text)),
+                });
+            }
+        });
+
+        let runner = self.runner.clone();
+        input.on_input(move |text: Option<String>| {
+            if let Some(text) = text {
+                if !text.is_empty() {
+                    web_sys::console::log_1(&format!("ReceivedCharacter {}", text).into());
+                    runner.send_event(super::Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
+                    });
+                }
+            }
+        });
+
+        #[allow(deprecated)]
+        {
+            let runner = self.runner.clone();
+            input.on_keydown(move |event: KeyboardEvent| {
+                if !(&event.key() == "Process" || &event.key() == "Unidentified") {
+                    web_sys::console::log_1(&format!("KeyboardInput {}", event.key()).into());
+                    runner.send_event(crate::event::Event::WindowEvent {
+                        window_id: WindowId(id),
+                        event: WindowEvent::KeyboardInput {
+                            device_id: DeviceId(unsafe { super::device::Id::dummy() }),
+                            input: KeyboardInput {
+                                scancode: backend::scan_code(&event),
+                                state: ElementState::Pressed,
+                                virtual_keycode: backend::virtual_key_code(&event),
+                                modifiers: backend::keyboard_modifiers(&event),
+                            },
+                            is_synthetic: false,
+                        },
+                    });
+                }
+            });
+        }
     }
 
     pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: window::Id) {

@@ -111,6 +111,7 @@ features = [
     'FocusEvent',
     'HtmlCanvasElement',
     'HtmlInputElement',
+    'HtmlCollection',
     'HtmlElement',
     'KeyboardEvent',
     'InputEvent',
