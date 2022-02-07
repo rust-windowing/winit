@@ -1,18 +1,19 @@
 use super::event_handle::EventListenerHandle;
 use crate::error::OsError as RootOE;
 use crate::platform_impl::OsError;
+use super::event;
 use std::cell::Cell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, InputEvent, KeyboardEvent};
+use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, KeyboardEvent};
 
 pub struct Input {
     common: Common,
     on_composition_start: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_composition_update: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
-    on_input: Option<EventListenerHandle<dyn FnMut(InputEvent)>>,
+    on_input: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_key_down: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
 }
 struct Common {
@@ -118,17 +119,17 @@ impl Input {
 
     pub fn on_input<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(Option<String>),
+        F: 'static + FnMut(char),
     {
         let input = self.raw().clone();
         let end = self.common.end.clone();
         let composing = self.common.composing.clone();
-        self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
+        self.on_input = Some(self.common.add_event("keypress", move |event: KeyboardEvent| {
             web_sys::console::log_1(&event);
+
             if !end.get() & !composing.get() {
                 input.set_value("");
-                handler(event.data());
-                event.stop_immediate_propagation();
+                handler(event::codepoint(&event));
             }
             if !event.is_composing() {
                 end.set(false);

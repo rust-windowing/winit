@@ -91,16 +91,11 @@ impl<T> WindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        input.on_input(move |text: Option<String>| {
-            if let Some(text) = text {
-                if !text.is_empty() {
-                    web_sys::console::log_1(&format!("ReceivedCharacter {}", text).into());
-                    runner.send_event(super::Event::WindowEvent {
-                        window_id: WindowId(id),
-                        event: WindowEvent::ReceivedCharacter(text.chars().next().unwrap()),
-                    });
-                }
-            }
+        input.on_input(move |char_code:char| {
+            runner.send_event(Event::WindowEvent {
+                window_id: WindowId(id),
+                event: WindowEvent::ReceivedCharacter(char_code),
+            });
         });
 
         #[allow(deprecated)]
