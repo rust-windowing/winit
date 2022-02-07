@@ -293,32 +293,18 @@ impl Window {
             .and_then(|win| win.document())
             .and_then(|doc| Some(doc.get_elements_by_class_name("winit_input_agent")))
             .map(|elements| {
-                for i in 0..elements.length() {
-                    if let Some(input) = elements.item(i) {
-                        if let Some(attr) = input.get_attribute("winit_text_agent_id") {
-                            if attr != self.id.0.to_string() {
-                                if Some("true".to_owned()) == input.get_attribute("using") {
-                                    //detach from DOM tree
-                                    if let Some(body) =
-                                        web_sys::window().unwrap().document().unwrap().body()
-                                    {
-                                        body.replace_child(&input, self.input.borrow().raw()).ok();
-                                        self.input.borrow().set_attribute("using", "true");
-                                        break;
-                                    }
-                                }
-                            } else {
-                                if Some("true".to_owned()) != input.get_attribute("using") {
-                                    if let Some(body) =
-                                        web_sys::window().unwrap().document().unwrap().body()
-                                    {
-                                        body.append_child(self.input.borrow().raw()).ok();
-                                        self.input.borrow().set_attribute("using", "true");
-                                    }
-                                }
-                                break;
-                            }
-                        }
+                if elements.length() == 0 {
+                    if let Some(body) = web_sys::window().unwrap().document().unwrap().body() {
+                        body.append_child(self.input.borrow().raw()).ok();
+                    }
+                } else if elements.length() == 1 {
+                    //detach from DOM tree
+                    if let Some(body) = web_sys::window().unwrap().document().unwrap().body() {
+                        body.replace_child(
+                            &elements.get_with_index(0).unwrap(),
+                            self.input.borrow().raw(),
+                        )
+                        .ok();
                     }
                 }
             })
