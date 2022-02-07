@@ -299,18 +299,21 @@ impl Window {
                             if attr != self.id.0.to_string() {
                                 if Some("true".to_owned()) == input.get_attribute("using") {
                                     //detach from DOM tree
-                                    if let Some(body) = web_sys::window().unwrap().document().unwrap().body(){
-                                        body.replace_child(&input,self.input.borrow().raw()).ok();
-                                        self.input.borrow().set_attribute("using","true");
+                                    if let Some(body) =
+                                        web_sys::window().unwrap().document().unwrap().body()
+                                    {
+                                        body.replace_child(&input, self.input.borrow().raw()).ok();
+                                        self.input.borrow().set_attribute("using", "true");
                                         break;
                                     }
                                 }
                             } else {
                                 if Some("true".to_owned()) != input.get_attribute("using") {
-                                    if let Some(body) = web_sys::window().unwrap().document().unwrap().body(){
+                                    if let Some(body) =
+                                        web_sys::window().unwrap().document().unwrap().body()
+                                    {
                                         body.append_child(self.input.borrow().raw()).ok();
-                                        self.input.borrow().set_attribute("using","true");
-
+                                        self.input.borrow().set_attribute("using", "true");
                                     }
                                 }
                                 break;
@@ -318,7 +321,8 @@ impl Window {
                         }
                     }
                 }
-            }).expect("Failed to modify dom Tree");
+            })
+            .expect("Failed to modify dom Tree");
 
         const MOBILE_DEVICE: [&str; 6] =
             ["Android", "iPhone", "iPad", "iPod", "webOS", "BlackBerry"];
