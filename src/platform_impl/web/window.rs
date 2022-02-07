@@ -289,26 +289,21 @@ impl Window {
         // so we can input text here.
 
         // search DOM tree to find current window bound text input element.
-        web_sys::window()
+        let input = web_sys::window()
             .and_then(|win| win.document())
-            .and_then(|doc| Some(doc.get_elements_by_class_name("winit_input_agent")))
-            .map(|elements| {
-                if elements.length() == 0 {
-                    if let Some(body) = web_sys::window().unwrap().document().unwrap().body() {
-                        body.append_child(self.input.borrow().raw()).ok();
-                    }
-                } else if elements.length() == 1 {
-                    //detach from DOM tree
-                    if let Some(body) = web_sys::window().unwrap().document().unwrap().body() {
-                        body.replace_child(
-                            &elements.get_with_index(0).unwrap(),
-                            self.input.borrow().raw(),
-                        )
-                        .ok();
-                    }
+            .and_then(|doc| doc.get_element_by_id("winit_input_agent"));
+        if let Some(input) = input {
+            if Some(self.id.0.to_string()) != input.get_attribute("winit_input_agent_id") {
+                //detach from DOM tree
+                if let Some(body) = web_sys::window().unwrap().document().unwrap().body() {
+                    body.replace_child(&input, self.input.borrow().raw()).ok();
                 }
-            })
-            .expect("Failed to modify dom Tree");
+            }
+        } else {
+            if let Some(body) = web_sys::window().unwrap().document().unwrap().body() {
+                body.append_child(self.input.borrow().raw()).ok();
+            }
+        }
 
         const MOBILE_DEVICE: [&str; 6] =
             ["Android", "iPhone", "iPad", "iPod", "webOS", "BlackBerry"];

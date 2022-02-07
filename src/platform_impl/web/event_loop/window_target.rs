@@ -51,6 +51,7 @@ impl<T> WindowTarget<T> {
         self.runner.add_input(WindowId(id), input);
         let mut input = input.borrow_mut();
         input.set_attribute("class", "winit_input_agent");
+        input.set_attribute("winit_input_agent_id", &id.0.to_string());
         let runner = self.runner.clone();
         input.on_composition_start(move || {
             web_sys::console::log_1(&"IME::Enabled".into());
