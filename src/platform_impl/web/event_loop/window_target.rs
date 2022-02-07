@@ -50,7 +50,7 @@ impl<T> WindowTarget<T> {
     pub fn register_input(&self, input: &Rc<RefCell<backend::Input>>, id: window::Id) {
         self.runner.add_input(WindowId(id), input);
         let mut input = input.borrow_mut();
-        input.set_attribute("class", "winit_input_agent");
+        input.set_id("winit_input_agent");
         input.set_attribute("winit_input_agent_id", &id.0.to_string());
         let runner = self.runner.clone();
         input.on_composition_start(move || {
