@@ -368,11 +368,13 @@ fn wait_thread(parent_thread_id: DWORD, msg_window_id: HWND) {
                     winuser::TranslateMessage(&msg);
                     winuser::DispatchMessageW(&msg);
                 }
-            } else if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
-                break 'main;
             } else {
-                winuser::TranslateMessage(&msg);
-                winuser::DispatchMessageW(&msg);
+                if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
+                    break 'main;
+                } else {
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
+                }
             }
 
             if msg.message == *WAIT_UNTIL_MSG_ID {
@@ -845,7 +847,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
 
         userdata.recurse_depth.set(userdata.recurse_depth.get() + 1);
 
-        let result = public_window_callback_inner(window, msg, wparam, lparam, userdata);
+        let result = public_window_callback_inner(window, msg, wparam, lparam, &userdata);
 
         let userdata_removed = userdata.userdata_removed.get();
         let recurse_depth = userdata.recurse_depth.get() - 1;
@@ -1516,8 +1518,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 *GET_POINTER_DEVICE_RECTS,
             ) {
                 let pointer_id = LOWORD(wparam as DWORD) as UINT;
-                let mut entries_count = 0_u32;
-                let mut pointers_count = 0_u32;
+                let mut entries_count = 0 as UINT;
+                let mut pointers_count = 0 as UINT;
                 if GetPointerFrameInfoHistory(
                     pointer_id,
                     &mut entries_count as *mut _,

@@ -208,16 +208,18 @@ impl<T> EventLoopRunner<T> {
                 self.move_state_to(RunnerState::HandlingRedrawEvents);
             }
             self.call_event_handler(event);
-        } else if self.should_buffer() {
-            // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
-            // the event to a buffer to be processed later.
-            self.event_buffer
-                .borrow_mut()
-                .push_back(BufferedEvent::from_event(event))
         } else {
-            self.move_state_to(RunnerState::HandlingMainEvents);
-            self.call_event_handler(event);
-            self.dispatch_buffered_events();
+            if self.should_buffer() {
+                // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
+                // the event to a buffer to be processed later.
+                self.event_buffer
+                    .borrow_mut()
+                    .push_back(BufferedEvent::from_event(event))
+            } else {
+                self.move_state_to(RunnerState::HandlingMainEvents);
+                self.call_event_handler(event);
+                self.dispatch_buffered_events();
+            }
         }
     }
 
