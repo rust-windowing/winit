@@ -33,7 +33,7 @@ use crate::{
             event::{EventProxy, EventWrapper},
             event_loop::{post_dummy_event, PanicInfo},
             menu,
-            observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
+            observer::EventLoopWaker,
             util::{IdRef, Never},
             window::get_window_id,
         },
@@ -133,7 +133,6 @@ struct Handler {
     start_time: Mutex<Option<Instant>>,
     callback: Mutex<Option<Box<dyn EventHandler>>>,
     pending_events: Mutex<VecDeque<EventWrapper>>,
-    pending_redraw: Mutex<Vec<WindowId>>,
     waker: Mutex<EventLoopWaker>,
 }
 
@@ -143,10 +142,6 @@ unsafe impl Sync for Handler {}
 impl Handler {
     fn events(&self) -> MutexGuard<'_, VecDeque<EventWrapper>> {
         self.pending_events.lock().unwrap()
-    }
-
-    fn redraw(&self) -> MutexGuard<'_, Vec<WindowId>> {
-        self.pending_redraw.lock().unwrap()
     }
 
     fn waker(&self) -> MutexGuard<'_, EventLoopWaker> {
@@ -190,10 +185,6 @@ impl Handler {
 
     fn take_events(&self) -> VecDeque<EventWrapper> {
         mem::take(&mut *self.events())
-    }
-
-    fn should_redraw(&self) -> Vec<WindowId> {
-        mem::take(&mut *self.redraw())
     }
 
     fn get_in_callback(&self) -> bool {
@@ -345,18 +336,6 @@ impl AppState {
         HANDLER.set_in_callback(false);
     }
 
-    // This is called from multiple threads at present
-    pub fn queue_redraw(window_id: WindowId) {
-        let mut pending_redraw = HANDLER.redraw();
-        if !pending_redraw.contains(&window_id) {
-            pending_redraw.push(window_id);
-        }
-        unsafe {
-            let rl = CFRunLoopGetMain();
-            CFRunLoopWakeUp(rl);
-        }
-    }
-
     pub fn handle_redraw(window_id: WindowId) {
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
     }
@@ -393,10 +372,6 @@ impl AppState {
             HANDLER.handle_nonuser_event(event);
         }
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::MainEventsCleared));
-        for window_id in HANDLER.should_redraw() {
-            HANDLER
-                .handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawRequested(window_id)));
-        }
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
         HANDLER.set_in_callback(false);
 

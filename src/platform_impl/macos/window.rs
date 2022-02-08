@@ -19,7 +19,6 @@ use crate::{
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
-        app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
@@ -29,9 +28,7 @@ use crate::{
         window_delegate::new_delegate,
         OsError,
     },
-    window::{
-        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
-    },
+    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 use cocoa::{
     appkit::{
@@ -44,6 +41,7 @@ use cocoa::{
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassDecl,
+    msg_send,
     rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
@@ -503,11 +501,9 @@ impl UnownedWindow {
     }
 
     pub fn request_redraw(&self) {
-        use objc::{msg_send, runtime::{Object, YES}};
-        println!("Modified redraw request");
         let view = *self.ns_view as *mut _;
-        unsafe{
-            let _: () = objc::msg_send![view, setNeedsDisplay:YES];
+        unsafe {
+            let _: () = objc::msg_send![view, setNeedsDisplay: YES];
         }
     }
 
