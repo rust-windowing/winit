@@ -795,7 +795,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// Web: Also enable IME functionality.if you don't use this you can't convert by IME.
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
