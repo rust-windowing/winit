@@ -232,7 +232,7 @@ fn touch_physical_position(
     event: &PointerEvent,
     canvas: &HtmlCanvasElement,
 ) -> PhysicalPosition<f64> {
-    // not scale factor here because we can modify the dpi.
+    // not window scale factor here because we can modify the scale factor.
     let dpi_width = canvas.width() as f64 / canvas.offset_width() as f64;
     let dpi_height = canvas.height() as f64 / canvas.offset_height() as f64;
     PhysicalPosition {
