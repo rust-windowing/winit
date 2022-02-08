@@ -128,13 +128,12 @@ impl Input {
             self.common
                 .add_event("keypress", move |event: KeyboardEvent| {
                     web_sys::console::log_1(&event);
-
+                    if !event.is_composing() {
+                        end.set(false);
+                    }
                     if !end.get() & !composing.get() {
                         input.set_value("");
                         handler(event::codepoint(&event));
-                    }
-                    if !event.is_composing() {
-                        end.set(false);
                     }
                 }),
         );
