@@ -1,7 +1,7 @@
+use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::error::OsError as RootOE;
 use crate::platform_impl::OsError;
-use super::event;
 use std::cell::Cell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
@@ -124,17 +124,20 @@ impl Input {
         let input = self.raw().clone();
         let end = self.common.end.clone();
         let composing = self.common.composing.clone();
-        self.on_input = Some(self.common.add_event("keypress", move |event: KeyboardEvent| {
-            web_sys::console::log_1(&event);
+        self.on_input = Some(
+            self.common
+                .add_event("keypress", move |event: KeyboardEvent| {
+                    web_sys::console::log_1(&event);
 
-            if !end.get() & !composing.get() {
-                input.set_value("");
-                handler(event::codepoint(&event));
-            }
-            if !event.is_composing() {
-                end.set(false);
-            }
-        }));
+                    if !end.get() & !composing.get() {
+                        input.set_value("");
+                        handler(event::codepoint(&event));
+                    }
+                    if !event.is_composing() {
+                        end.set(false);
+                    }
+                }),
+        );
     }
 
     pub fn on_keydown<F>(&mut self, mut handler: F)
