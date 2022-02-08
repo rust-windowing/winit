@@ -503,7 +503,12 @@ impl UnownedWindow {
     }
 
     pub fn request_redraw(&self) {
-        AppState::queue_redraw(RootWindowId(self.id()));
+        use objc::{msg_send, runtime::{Object, YES}};
+        println!("Modified redraw request");
+        let view = *self.ns_view as *mut _;
+        unsafe{
+            let _: () = objc::msg_send![view, setNeedsDisplay:YES];
+        }
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
