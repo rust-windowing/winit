@@ -90,13 +90,15 @@ impl<T> WindowTarget<T> {
             }
         });
 
+        /*
         let runner = self.runner.clone();
-        input.on_input(move |char_code: char| {
+        input.on_key_press(move |char_code: char| {
             runner.send_event(Event::WindowEvent {
                 window_id: WindowId(id),
                 event: WindowEvent::ReceivedCharacter(char_code),
             });
         });
+        */
 
         #[allow(deprecated)]
         {
@@ -111,7 +113,7 @@ impl<T> WindowTarget<T> {
                             input: KeyboardInput {
                                 scancode: backend::scan_code(&event),
                                 state: ElementState::Pressed,
-                                virtual_keycode: backend::virtual_key_code(&event),
+                                virtual_keycode: backend::virtual_key_code_next(&event),
                                 modifiers: backend::keyboard_modifiers(&event),
                             },
                             is_synthetic: false,

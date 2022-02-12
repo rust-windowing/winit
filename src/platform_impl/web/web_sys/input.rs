@@ -1,4 +1,3 @@
-use super::event;
 use super::event_handle::EventListenerHandle;
 use crate::error::OsError as RootOE;
 use crate::platform_impl::OsError;
@@ -116,8 +115,8 @@ impl Input {
             },
         ));
     }
-
-    pub fn on_input<F>(&mut self, mut handler: F)
+/*
+    pub fn on_key_press<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(char),
     {
@@ -133,12 +132,12 @@ impl Input {
                     }
                     if !end.get() & !composing.get() {
                         input.set_value("");
-                        handler(event::codepoint(&event));
+                        //handler(event::codepoint(&event));
                     }
                 }),
         );
     }
-
+*/
     pub fn on_keydown<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(KeyboardEvent),
