@@ -5,7 +5,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, KeyboardEvent,InputEvent};
+use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, InputEvent, KeyboardEvent};
 
 pub struct Input {
     common: Common,
@@ -123,19 +123,16 @@ impl Input {
         let input = self.raw().clone();
         let end = self.common.end.clone();
         let composing = self.common.composing.clone();
-        self.on_input = Some(
-            self.common
-                .add_event("keypress", move |event: InputEvent| {
-                    web_sys::console::log_1(&event);
-                    if !event.is_composing() {
-                        end.set(false);
-                    }
-                    if !end.get() & !composing.get() {
-                        input.set_value("");
-                        handler(event.data());
-                    }
-                }),
-        );
+        self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
+            web_sys::console::log_1(&event);
+            if !event.is_composing() {
+                end.set(false);
+            }
+            if !end.get() & !composing.get() {
+                input.set_value("");
+                handler(event.data());
+            }
+        }));
     }
 
     pub fn on_keydown<F>(&mut self, mut handler: F)

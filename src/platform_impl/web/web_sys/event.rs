@@ -235,9 +235,9 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
 pub fn virtual_key_code_next(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
     // it seems to mobile text input report Enter ArrowLeft,ArrowRight as "" in KeyboardEvent.code.
     // but KeyboardEvent.key report even on mobile.
-    let code=if event.code().len()<event.key().len(){
+    let code = if event.code().len() < event.key().len() {
         event.key()
-    }else{
+    } else {
         event.code()
     };
 

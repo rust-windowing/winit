@@ -90,20 +90,15 @@ impl<T> WindowTarget<T> {
             }
         });
 
-
         let runner = self.runner.clone();
         input.on_input(move |text: Option<String>| {
-            if let Some(text)= text{
-                runner.send_events(text.chars().map(|ch|{
-                    crate::event::Event::WindowEvent {
-                        window_id: WindowId(id),
-                        event: WindowEvent::ReceivedCharacter(ch)
-                    }
+            if let Some(text) = text {
+                runner.send_events(text.chars().map(|ch| crate::event::Event::WindowEvent {
+                    window_id: WindowId(id),
+                    event: WindowEvent::ReceivedCharacter(ch),
                 }));
             }
-
         });
-
 
         #[allow(deprecated)]
         {

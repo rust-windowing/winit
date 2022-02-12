@@ -7,7 +7,9 @@ mod scaling;
 mod timeout;
 
 pub use self::canvas::Canvas;
-pub use self::event::{codepoint, keyboard_modifiers, scan_code, virtual_key_code,virtual_key_code_next};
+pub use self::event::{
+    codepoint, keyboard_modifiers, scan_code, virtual_key_code, virtual_key_code_next,
+};
 pub use self::input::Input;
 pub use self::scaling::ScaleChangeDetector;
 pub use self::timeout::{AnimationFrameRequest, Timeout};
