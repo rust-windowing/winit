@@ -112,6 +112,7 @@ features = [
     'HtmlCanvasElement',
     'HtmlInputElement',
     'HtmlElement',
+    'InputEvent',
     'KeyboardEvent',
     'MediaQueryList',
     'MediaQueryListEvent',

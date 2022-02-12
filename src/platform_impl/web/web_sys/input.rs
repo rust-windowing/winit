@@ -5,14 +5,14 @@ use std::cell::Cell;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, KeyboardEvent};
+use web_sys::{CompositionEvent, CssStyleDeclaration, HtmlInputElement, KeyboardEvent,InputEvent};
 
 pub struct Input {
     common: Common,
     on_composition_start: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_composition_update: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
     on_composition_end: Option<EventListenerHandle<dyn FnMut(CompositionEvent)>>,
-    on_input: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
+    on_input: Option<EventListenerHandle<dyn FnMut(InputEvent)>>,
     on_key_down: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
 }
 struct Common {
@@ -115,29 +115,29 @@ impl Input {
             },
         ));
     }
-/*
-    pub fn on_key_press<F>(&mut self, mut handler: F)
+
+    pub fn on_input<F>(&mut self, mut handler: F)
     where
-        F: 'static + FnMut(char),
+        F: 'static + FnMut(Option<String>),
     {
         let input = self.raw().clone();
         let end = self.common.end.clone();
         let composing = self.common.composing.clone();
         self.on_input = Some(
             self.common
-                .add_event("keypress", move |event: KeyboardEvent| {
+                .add_event("keypress", move |event: InputEvent| {
                     web_sys::console::log_1(&event);
                     if !event.is_composing() {
                         end.set(false);
                     }
                     if !end.get() & !composing.get() {
                         input.set_value("");
-                        //handler(event::codepoint(&event));
+                        handler(event.data());
                     }
                 }),
         );
     }
-*/
+
     pub fn on_keydown<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(KeyboardEvent),
