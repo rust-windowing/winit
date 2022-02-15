@@ -122,15 +122,11 @@ impl Input {
     {
         let input = self.raw().clone();
         let end = self.common.end.clone();
-        let composing = self.common.composing.clone();
         self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
             web_sys::console::log_1(&event);
-            if !end.get() & !composing.get() {
-                input.set_value("");
-                handler(event.data());
-            }
+
             if !event.is_composing() {
-                if end.replace(false) {
+                if !end.replace(false) {
                     input.set_value("");
                     handler(event.data());
                 }
