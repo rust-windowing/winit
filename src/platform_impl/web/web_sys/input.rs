@@ -17,7 +17,6 @@ pub struct Input {
 }
 struct Common {
     raw: HtmlInputElement,
-    end: Rc<Cell<bool>>,
     composing: Rc<Cell<bool>>,
 }
 impl Input {
@@ -50,7 +49,6 @@ impl Input {
         Ok(Self {
             common: Common {
                 raw: input,
-                end: Rc::new(Cell::new(false)),
                 composing: Rc::new(Cell::new(false)),
             },
             on_composition_start: None,
@@ -102,7 +100,6 @@ impl Input {
         F: 'static + FnMut(Option<String>),
     {
         let input = self.raw().clone();
-        let end = self.common.end.clone();
         let composing = self.common.composing.clone();
         self.on_composition_end = Some(self.common.add_event(
             "compositionend",
@@ -110,7 +107,6 @@ impl Input {
                 web_sys::console::log_1(&event);
                 handler(event.data());
                 input.set_value("");
-                end.set(true);
                 composing.set(false);
             },
         ));
@@ -121,15 +117,13 @@ impl Input {
         F: 'static + FnMut(Option<String>),
     {
         let input = self.raw().clone();
-        let end = self.common.end.clone();
+        let composing = self.common.composing.clone();
         self.on_input = Some(self.common.add_event("input", move |event: InputEvent| {
             web_sys::console::log_1(&event);
-
-            if !event.is_composing() {
-                if !end.replace(false) {
-                    input.set_value("");
-                    handler(event.data());
-                }
+            let text = input.value();
+            if !text.is_empty() && !composing.get() {
+                input.set_value("");
+                handler(Some(text));
             }
         }));
     }
