@@ -130,7 +130,7 @@ impl Input {
                 handler(event.data());
             }
             if !event.is_composing() {
-                if end.replace(false){
+                if end.replace(false) {
                     input.set_value("");
                     handler(event.data());
                 }
