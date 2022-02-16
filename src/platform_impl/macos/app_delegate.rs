@@ -13,12 +13,8 @@ use std::{
 static AUX_DELEGATE_STATE_NAME: &str = "auxState";
 
 pub struct AuxDelegateState {
-    /// We store this value in order to be able to defer setting the activation policy until
-    /// after the app has finished launching. If the activation policy is set earlier, the
-    /// menubar is initially unresponsive on macOS 10.15 for example.
     pub activation_policy: ActivationPolicy,
-
-    pub create_default_menu: bool,
+    pub default_menu: bool,
 }
 
 pub struct AppDelegateClass(pub *const Class);
@@ -54,11 +50,12 @@ extern "C" fn new(class: &Class, _: Sel) -> id {
     unsafe {
         let this: id = msg_send![class, alloc];
         let this: id = msg_send![this, init];
+        // TODO: Remove the need for this initialization here
         (*this).set_ivar(
             AUX_DELEGATE_STATE_NAME,
             Box::into_raw(Box::new(RefCell::new(AuxDelegateState {
                 activation_policy: ActivationPolicy::Regular,
-                create_default_menu: true,
+                default_menu: true,
             }))) as *mut c_void,
         );
         this

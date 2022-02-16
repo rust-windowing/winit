@@ -83,7 +83,7 @@ impl WindowId {
     }
 }
 
-/// Object that allows you to build windows.
+/// Object that allows building windows.
 #[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.

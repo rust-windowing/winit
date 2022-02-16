@@ -18,9 +18,12 @@ mod window_delegate;
 
 use std::{fmt, ops::Deref, sync::Arc};
 
-pub use self::{
-    app_delegate::{get_aux_state_mut, AuxDelegateState},
-    event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
+pub(crate) use self::{
+    app_delegate::get_aux_state_mut,
+    event_loop::{
+        EventLoop, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+        Proxy as EventLoopProxy,
+    },
     monitor::{MonitorHandle, VideoMode},
     window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
 };
