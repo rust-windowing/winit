@@ -286,6 +286,28 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.p.primary_monitor()
     }
+
+    /// Change [`DeviceEvent`] filter mode.
+    ///
+    /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows, winit
+    /// will ignore them by default for unfocused windows on Linux/BSD. This method allows changing
+    /// this filter at runtime to explicitly capture them again.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / Windows / macOS / iOS / Android / Web**: Unsupported.
+    ///
+    /// [`DeviceEvent`]: crate::event::DeviceEvent
+    pub fn set_device_event_filter(&mut self, _filter: DeviceEventFilter) {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        ))]
+        self.p.set_device_event_filter(_filter);
+    }
 }
 
 /// Used to send custom events to `EventLoop`.
@@ -330,3 +352,20 @@ impl<T> fmt::Display for EventLoopClosed<T> {
 }
 
 impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
+
+/// Fiter controlling the propagation of device events.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum DeviceEventFilter {
+    /// Always filter out device events.
+    Always,
+    /// Filter out device events while the window is not focused.
+    Unfocused,
+    /// Report all device events regardless of window focus.
+    Never,
+}
+
+impl Default for DeviceEventFilter {
+    fn default() -> Self {
+        Self::Unfocused
+    }
+}
