@@ -21,6 +21,7 @@ use std::{
 
 lazy_static! {
     static ref CONFIG: RwLock<Configuration> = RwLock::new(Configuration::from_asset_manager(
+        #[allow(deprecated)] // TODO: rust-windowing/winit#2196
         &ndk_glue::native_activity().asset_manager()
     ));
     // If this is `Some()` a `Poll::Wake` is considered an `EventSource::Internal` with the event
@@ -150,6 +151,7 @@ impl<T: 'static> EventLoop<T> {
                     Event::Pause => self.running = false,
                     Event::Resume => self.running = true,
                     Event::ConfigChanged => {
+                        #[allow(deprecated)] // TODO: rust-windowing/winit#2196
                         let am = ndk_glue::native_activity().asset_manager();
                         let config = Configuration::from_asset_manager(&am);
                         let old_scale_factor = MonitorHandle.scale_factor();
