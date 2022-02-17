@@ -83,7 +83,7 @@ impl WindowId {
     }
 }
 
-/// Object that allows you to build windows.
+/// Object that allows building windows.
 #[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
@@ -682,6 +682,17 @@ impl Window {
         self.window.set_resizable(resizable)
     }
 
+    /// Gets the window's current resizable state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        self.window.is_resizable()
+    }
+
     /// Sets the window to minimized or back
     ///
     /// ## Platform-specific
@@ -761,6 +772,17 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
+    }
+
+    /// Gets the window's current decorations state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        self.window.is_decorated()
     }
 
     /// Change whether or not the window will always be on top of other windows.

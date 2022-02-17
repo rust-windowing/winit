@@ -32,7 +32,7 @@ use std::{
     ptr,
     rc::Rc,
     slice,
-    sync::mpsc::{Receiver, Sender},
+    sync::mpsc::{Receiver, Sender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
@@ -63,6 +63,39 @@ struct WakeSender<T> {
     waker: Arc<Waker>,
 }
 
+struct PeekableReceiver<T> {
+    recv: Receiver<T>,
+    first: Option<T>,
+}
+
+impl<T> PeekableReceiver<T> {
+    pub fn from_recv(recv: Receiver<T>) -> Self {
+        Self { recv, first: None }
+    }
+    pub fn has_incoming(&mut self) -> bool {
+        if self.first.is_some() {
+            return true;
+        }
+        match self.recv.try_recv() {
+            Ok(v) => {
+                self.first = Some(v);
+                return true;
+            }
+            Err(TryRecvError::Empty) => return false,
+            Err(TryRecvError::Disconnected) => {
+                warn!("Channel was disconnected when checking incoming");
+                return false;
+            }
+        }
+    }
+    pub fn try_recv(&mut self) -> Result<T, TryRecvError> {
+        if let Some(first) = self.first.take() {
+            return Ok(first);
+        }
+        self.recv.try_recv()
+    }
+}
+
 pub struct EventLoopWindowTarget<T> {
     xconn: Arc<XConnection>,
     wm_delete_window: ffi::Atom,
@@ -79,8 +112,8 @@ pub struct EventLoop<T: 'static> {
     poll: Poll,
     waker: Arc<Waker>,
     event_processor: EventProcessor<T>,
-    redraw_channel: Receiver<WindowId>,
-    user_channel: Receiver<T>, //waker.wake needs to be called whenever something gets sent
+    redraw_receiver: PeekableReceiver<WindowId>,
+    user_receiver: PeekableReceiver<T>, //waker.wake needs to be called whenever something gets sent
     user_sender: Sender<T>,
     target: Rc<RootELW<T>>,
 }
@@ -240,8 +273,8 @@ impl<T: 'static> EventLoop<T> {
             poll,
             waker,
             event_processor,
-            redraw_channel,
-            user_channel,
+            redraw_receiver: PeekableReceiver::from_recv(redraw_channel),
+            user_receiver: PeekableReceiver::from_recv(user_channel),
             user_sender,
             target,
         }
@@ -262,29 +295,38 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        let mut control_flow = ControlFlow::default();
-        let mut events = Events::with_capacity(8);
-        let mut cause = StartCause::Init;
-
-        let exit_code = loop {
+        struct IterationResult {
+            deadline: Option<Instant>,
+            timeout: Option<Duration>,
+            wait_start: Instant,
+        }
+        fn single_iteration<T, F>(
+            this: &mut EventLoop<T>,
+            control_flow: &mut ControlFlow,
+            cause: &mut StartCause,
+            callback: &mut F,
+        ) -> IterationResult
+        where
+            F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        {
             sticky_exit_callback(
-                crate::event::Event::NewEvents(cause),
-                &self.target,
-                &mut control_flow,
-                &mut callback,
+                crate::event::Event::NewEvents(*cause),
+                &this.target,
+                control_flow,
+                callback,
             );
 
             // Process all pending events
-            self.drain_events(&mut callback, &mut control_flow);
+            this.drain_events(callback, control_flow);
 
             // Empty the user event buffer
             {
-                while let Ok(event) = self.user_channel.try_recv() {
+                while let Ok(event) = this.user_receiver.try_recv() {
                     sticky_exit_callback(
                         crate::event::Event::UserEvent(event),
-                        &self.target,
-                        &mut control_flow,
-                        &mut callback,
+                        &this.target,
+                        control_flow,
+                        callback,
                     );
                 }
             }
@@ -292,16 +334,16 @@ impl<T: 'static> EventLoop<T> {
             {
                 sticky_exit_callback(
                     crate::event::Event::MainEventsCleared,
-                    &self.target,
-                    &mut control_flow,
-                    &mut callback,
+                    &this.target,
+                    control_flow,
+                    callback,
                 );
             }
             // Empty the redraw requests
             {
                 let mut windows = HashSet::new();
 
-                while let Ok(window_id) = self.redraw_channel.try_recv() {
+                while let Ok(window_id) = this.redraw_receiver.try_recv() {
                     windows.insert(window_id);
                 }
 
@@ -309,9 +351,9 @@ impl<T: 'static> EventLoop<T> {
                     let window_id = crate::window::WindowId(super::WindowId::X(window_id));
                     sticky_exit_callback(
                         Event::RedrawRequested(window_id),
-                        &self.target,
-                        &mut control_flow,
-                        &mut callback,
+                        &this.target,
+                        control_flow,
+                        callback,
                     );
                 }
             }
@@ -319,9 +361,9 @@ impl<T: 'static> EventLoop<T> {
             {
                 sticky_exit_callback(
                     crate::event::Event::RedrawEventsCleared,
-                    &self.target,
-                    &mut control_flow,
-                    &mut callback,
+                    &this.target,
+                    control_flow,
+                    callback,
                 );
             }
 
@@ -329,14 +371,20 @@ impl<T: 'static> EventLoop<T> {
             let (deadline, timeout);
 
             match control_flow {
-                ControlFlow::ExitWithCode(code) => break code,
+                ControlFlow::ExitWithCode(_) => {
+                    return IterationResult {
+                        wait_start: start,
+                        deadline: None,
+                        timeout: None,
+                    };
+                }
                 ControlFlow::Poll => {
-                    cause = StartCause::Poll;
+                    *cause = StartCause::Poll;
                     deadline = None;
                     timeout = Some(Duration::from_millis(0));
                 }
                 ControlFlow::Wait => {
-                    cause = StartCause::WaitCancelled {
+                    *cause = StartCause::WaitCancelled {
                         start,
                         requested_resume: None,
                     };
@@ -344,38 +392,71 @@ impl<T: 'static> EventLoop<T> {
                     timeout = None;
                 }
                 ControlFlow::WaitUntil(wait_deadline) => {
-                    cause = StartCause::ResumeTimeReached {
+                    *cause = StartCause::ResumeTimeReached {
                         start,
-                        requested_resume: wait_deadline,
+                        requested_resume: *wait_deadline,
                     };
-                    timeout = if wait_deadline > start {
-                        Some(wait_deadline - start)
+                    timeout = if *wait_deadline > start {
+                        Some(*wait_deadline - start)
                     } else {
                         Some(Duration::from_millis(0))
                     };
-                    deadline = Some(wait_deadline);
+                    deadline = Some(*wait_deadline);
                 }
             }
+            return IterationResult {
+                wait_start: start,
+                deadline,
+                timeout,
+            };
+        }
 
-            // If the XConnection already contains buffered events, we don't
-            // need to wait for data on the socket.
-            if !self.event_processor.poll() {
-                if let Err(e) = self.poll.poll(&mut events, timeout) {
+        let mut control_flow = ControlFlow::default();
+        let mut events = Events::with_capacity(8);
+        let mut cause = StartCause::Init;
+
+        // run the initial loop iteration
+        let mut iter_result = single_iteration(self, &mut control_flow, &mut cause, &mut callback);
+
+        let exit_code = loop {
+            if let ControlFlow::ExitWithCode(code) = control_flow {
+                break code;
+            }
+            let has_pending = self.event_processor.poll()
+                || self.user_receiver.has_incoming()
+                || self.redraw_receiver.has_incoming();
+            if !has_pending {
+                // Wait until
+                if let Err(e) = self.poll.poll(&mut events, iter_result.timeout) {
                     if e.raw_os_error() != Some(libc::EINTR) {
                         panic!("epoll returned an error: {:?}", e);
                     }
                 }
                 events.clear();
+
+                if control_flow == ControlFlow::Wait {
+                    // We don't go straight into executing the event loop iteration, we instead go
+                    // to the start of this loop and check again if there's any pending event. We
+                    // must do this because during the execution of the iteration we sometimes wake
+                    // the mio waker, and if the waker is already awaken before we call poll(),
+                    // then poll doesn't block, but it returns immediately. This caused the event
+                    // loop to run continously even if the control_flow was `Wait`
+                    continue;
+                }
             }
 
-            let wait_cancelled = deadline.map_or(false, |deadline| Instant::now() < deadline);
+            let wait_cancelled = iter_result
+                .deadline
+                .map_or(false, |deadline| Instant::now() < deadline);
 
             if wait_cancelled {
                 cause = StartCause::WaitCancelled {
-                    start,
-                    requested_resume: deadline,
+                    start: iter_result.wait_start,
+                    requested_resume: iter_result.deadline,
                 };
             }
+
+            iter_result = single_iteration(self, &mut control_flow, &mut cause, &mut callback);
         };
 
         callback(
