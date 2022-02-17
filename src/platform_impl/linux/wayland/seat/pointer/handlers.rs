@@ -297,9 +297,17 @@ pub(super) fn handle_pointer(
 
 #[inline]
 pub(super) fn handle_relative_pointer(event: RelativePointerEvent, winit_state: &mut WinitState) {
-    if let RelativePointerEvent::RelativeMotion { dx, dy, .. } = event {
-        winit_state
-            .event_sink
-            .push_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
+    match event {
+        RelativePointerEvent::RelativeMotion {
+            dx_unaccel,
+            dy_unaccel,
+            ..
+        } => winit_state.event_sink.push_device_event(
+            DeviceEvent::MouseMotion {
+                delta: (dx_unaccel, dy_unaccel),
+            },
+            DeviceId,
+        ),
+        _ => (),
     }
 }
