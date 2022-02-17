@@ -349,6 +349,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         // You can't unminimize the window on Wayland.
         if !minimized {

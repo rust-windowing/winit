@@ -895,6 +895,11 @@ impl UnownedWindow {
         self.invalidate_cached_frame_extents();
     }
 
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
     fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
         let mut hints = self.xconn.get_motif_hints(self.xwindow);
 

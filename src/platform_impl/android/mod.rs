@@ -561,6 +561,10 @@ impl Window {
 
     pub fn set_decorations(&self, _decorations: bool) {}
 
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
     pub fn set_always_on_top(&self, _always_on_top: bool) {}
 
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}

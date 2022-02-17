@@ -427,6 +427,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_decorated(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.is_decorated())
+    }
+
+    #[inline]
     pub fn set_always_on_top(&self, _always_on_top: bool) {
         match self {
             #[cfg(feature = "x11")]
