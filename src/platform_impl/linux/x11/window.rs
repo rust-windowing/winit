@@ -1212,6 +1212,11 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn is_resizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn xlib_display(&self) -> *mut c_void {
         self.xconn.display as _
     }

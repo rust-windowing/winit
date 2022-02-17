@@ -367,6 +367,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_resizable(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.is_resizable())
+    }
+
+    #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         x11_or_wayland!(match self; Window(w) => w.set_cursor_icon(cursor))
     }

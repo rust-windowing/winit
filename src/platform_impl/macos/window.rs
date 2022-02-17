@@ -602,6 +602,12 @@ impl UnownedWindow {
         } // Otherwise, we don't change the mask until we exit fullscreen.
     }
 
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        let is_resizable: BOOL = unsafe { msg_send![*self.ns_window, isResizable] };
+        is_resizable == YES
+    }
+
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         let cursor = util::Cursor::from(cursor);
         if let Some(cursor_access) = self.cursor_state.upgrade() {

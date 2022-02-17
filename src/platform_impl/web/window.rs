@@ -151,6 +151,10 @@ impl Window {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
+    pub fn is_resizable(&self) -> bool {
+        true
+    }
+
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         super::backend::scale_factor()
