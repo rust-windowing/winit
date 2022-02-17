@@ -650,6 +650,19 @@ impl Window {
         self.window.set_visible(visible)
     }
 
+    /// Gets the window's current vibility state.
+    ///
+    /// If `None` means it couldn't be determined so it is not recommended to use this to drive your rendering backend.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11:** Not implemented.
+    /// - **Wayland / iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        self.window.is_visible()
+    }
+
     /// Sets whether the window is resizable or not.
     ///
     /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be

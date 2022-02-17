@@ -89,6 +89,11 @@ impl Window {
         // Intentionally a no-op
     }
 
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
     pub fn request_redraw(&self) {
         (self.register_redraw_request)();
     }

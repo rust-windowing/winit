@@ -543,6 +543,10 @@ impl Window {
 
     pub fn set_visible(&self, _visibility: bool) {}
 
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
     pub fn set_resizable(&self, _resizeable: bool) {}
 
     pub fn is_resizable(&self) -> bool {

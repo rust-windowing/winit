@@ -322,6 +322,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        x11_or_wayland!(match self; Window(w) => w.is_visible())
+    }
+
+    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         x11_or_wayland!(match self; Window(w) => w.outer_position())
     }

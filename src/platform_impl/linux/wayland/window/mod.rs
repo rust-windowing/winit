@@ -271,6 +271,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
+    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         Err(NotSupportedError::new())
     }

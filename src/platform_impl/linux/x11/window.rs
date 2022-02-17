@@ -984,6 +984,11 @@ impl UnownedWindow {
         }
     }
 
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
     fn update_cached_frame_extents(&self) {
         let extents = self
             .xconn

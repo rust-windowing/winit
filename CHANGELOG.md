@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Added `Window::is_visible`.
 - Added `Window::is_resizable`.
 - Added `Window::is_decorated`.
 - On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
