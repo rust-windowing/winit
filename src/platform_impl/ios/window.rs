@@ -265,6 +265,11 @@ impl Inner {
         warn!("`Window::set_decorations` is ignored on iOS")
     }
 
+    pub fn is_decorated(&self) -> bool {
+        warn!("`Window::is_decorated` is ignored on iOS");
+        true
+    }
+
     pub fn set_always_on_top(&self, _always_on_top: bool) {
         warn!("`Window::set_always_on_top` is ignored on iOS")
     }

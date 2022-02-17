@@ -49,6 +49,29 @@ pub mod x11;
 /// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
+#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) enum Backend {
+    #[cfg(feature = "x11")]
+    X,
+    #[cfg(feature = "wayland")]
+    Wayland,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {
+    pub(crate) forced_backend: Option<Backend>,
+    pub(crate) any_thread: bool,
+}
+
+impl Default for PlatformSpecificEventLoopAttributes {
+    fn default() -> Self {
+        Self {
+            forced_backend: None,
+            any_thread: false,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
@@ -409,6 +432,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_decorated(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.is_decorated())
+    }
+
+    #[inline]
     pub fn set_always_on_top(&self, _always_on_top: bool) {
         match self {
             #[cfg(feature = "x11")]
@@ -573,13 +601,28 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> EventLoop<T> {
-        assert_is_main_thread("new_any_thread");
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
+        if !attributes.any_thread && !is_main_thread() {
+            panic!(
+                "Initializing the event loop outside of the main thread is a significant \
+                 cross-platform compatibility hazard. If you absolutely need to create an \
+                 EventLoop on a different thread, you can use the \
+                 `EventLoopBuilderExtUnix::any_thread` function."
+            );
+        }
 
-        EventLoop::new_any_thread()
-    }
+        #[cfg(feature = "x11")]
+        if attributes.forced_backend == Some(Backend::X) {
+            // TODO: Propagate
+            return EventLoop::new_x11_any_thread().unwrap();
+        }
 
-    pub fn new_any_thread() -> EventLoop<T> {
+        #[cfg(feature = "wayland")]
+        if attributes.forced_backend == Some(Backend::Wayland) {
+            // TODO: Propagate
+            return EventLoop::new_wayland_any_thread().expect("failed to open Wayland connection");
+        }
+
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
                 "x11" => {
@@ -628,26 +671,12 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(feature = "wayland")]
-    pub fn new_wayland() -> Result<EventLoop<T>, Box<dyn Error>> {
-        assert_is_main_thread("new_wayland_any_thread");
-
-        EventLoop::new_wayland_any_thread()
-    }
-
-    #[cfg(feature = "wayland")]
-    pub fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
+    fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
         wayland::EventLoop::new().map(EventLoop::Wayland)
     }
 
     #[cfg(feature = "x11")]
-    pub fn new_x11() -> Result<EventLoop<T>, XNotSupported> {
-        assert_is_main_thread("new_x11_any_thread");
-
-        EventLoop::new_x11_any_thread()
-    }
-
-    #[cfg(feature = "x11")]
-    pub fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
+    fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
         let xconn = match X11_BACKEND.lock().as_ref() {
             Ok(xconn) => xconn.clone(),
             Err(err) => return Err(err.clone()),
@@ -752,17 +781,6 @@ fn sticky_exit_callback<T, F>(
         callback(evt, target, &mut ControlFlow::ExitWithCode(code))
     } else {
         callback(evt, target, control_flow)
-    }
-}
-
-fn assert_is_main_thread(suggested_method: &str) {
-    if !is_main_thread() {
-        panic!(
-            "Initializing the event loop outside of the main thread is a significant \
-             cross-platform compatibility hazard. If you really, absolutely need to create an \
-             EventLoop on a different thread, please use the `EventLoopExtUnix::{}` function.",
-            suggested_method
-        );
     }
 }
 

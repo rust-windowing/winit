@@ -28,8 +28,9 @@ mod backend;
 
 pub use self::device::Id as DeviceId;
 pub use self::error::OsError;
-pub use self::event_loop::{
-    EventLoop, Proxy as EventLoopProxy, WindowTarget as EventLoopWindowTarget,
+pub(crate) use self::event_loop::{
+    EventLoop, PlatformSpecificEventLoopAttributes, Proxy as EventLoopProxy,
+    WindowTarget as EventLoopWindowTarget,
 };
 pub use self::monitor::{Handle as MonitorHandle, Mode as VideoMode};
 pub use self::window::{

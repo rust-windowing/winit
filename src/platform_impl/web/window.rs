@@ -273,6 +273,10 @@ impl Window {
         // Intentionally a no-op, no canvas decorations
     }
 
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
     #[inline]
     pub fn set_always_on_top(&self, _always_on_top: bool) {
         // Intentionally a no-op, no window ordering

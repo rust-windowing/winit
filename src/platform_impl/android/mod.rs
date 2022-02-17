@@ -71,6 +71,9 @@ pub struct EventLoop<T: 'static> {
     running: bool,
 }
 
+#[derive(Default, Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {}
+
 macro_rules! call_event_handler {
     ( $event_handler:expr, $window_target:expr, $cf:expr, $event:expr ) => {{
         if let ControlFlow::ExitWithCode(code) = $cf {
@@ -82,7 +85,7 @@ macro_rules! call_event_handler {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Self {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
         Self {
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
@@ -561,6 +564,10 @@ impl Window {
     }
 
     pub fn set_decorations(&self, _decorations: bool) {}
+
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
 
     pub fn set_always_on_top(&self, _always_on_top: bool) {}
 

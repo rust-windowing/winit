@@ -8,9 +8,18 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On Windows and macOS, added `Window::is_resizable`.
+- Added `Window::is_resizable`.
+- Added `Window::is_decorated`.
+- On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
+- On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
+- **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
 - Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.
+- Add `EventLoopBuilder`, which allows you to create and tweak the settings of an event loop before creating it.
+- Deprecated `EventLoop::with_user_event`; use `EventLoopBuilder::with_user_event` instead.
+- **Breaking:** Replaced `EventLoopExtMacOS` with `EventLoopBuilderExtMacOS` (which also has renamed methods).
+- **Breaking:** Replaced `EventLoopExtWindows` with `EventLoopBuilderExtWindows` (which also has renamed methods).
+- **Breaking:** Replaced `EventLoopExtUnix` with `EventLoopBuilderExtUnix` (which also has renamed methods).
 
 # 0.26.1 (2022-01-05)
 

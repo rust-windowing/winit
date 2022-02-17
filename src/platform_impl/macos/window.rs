@@ -1010,6 +1010,11 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn is_decorated(&self) -> bool {
+        self.decorations.load(Ordering::Acquire)
+    }
+
+    #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         let level = if always_on_top {
             ffi::NSWindowLevel::NSFloatingWindowLevel

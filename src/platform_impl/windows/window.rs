@@ -551,6 +551,12 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_decorated(&self) -> bool {
+        let window_state = self.window_state.lock();
+        window_state.window_flags.contains(WindowFlags::DECORATIONS)
+    }
+
+    #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
