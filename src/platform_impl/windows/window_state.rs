@@ -26,6 +26,8 @@ pub struct WindowState {
     pub window_icon: Option<Icon>,
     pub taskbar_icon: Option<Icon>,
 
+    pub dragging: bool,
+
     pub saved_window: Option<SavedWindow>,
     pub scale_factor: f64,
 
@@ -113,6 +115,8 @@ impl WindowState {
 
             window_icon: attributes.window_icon.clone(),
             taskbar_icon,
+
+            dragging: false,
 
             saved_window: None,
             scale_factor,
