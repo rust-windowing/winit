@@ -183,7 +183,7 @@ impl EventLoop<()> {
 }
 
 impl<T> EventLoop<T> {
-    #[deprecated = "Use `EventLoopBuiler::<T>::with_user_event().build()` instead."]
+    #[deprecated = "Use `EventLoopBuilder::<T>::with_user_event().build()` instead."]
     pub fn with_user_event() -> EventLoop<T> {
         EventLoopBuilder::<T>::with_user_event().build()
     }
