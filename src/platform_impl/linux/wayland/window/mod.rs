@@ -271,6 +271,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
+    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         Err(NotSupportedError::new())
     }
@@ -337,6 +342,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_resizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> u32 {
         // The scale factor from `get_surface_scale_factor` is always greater than zero, so
         // u32 conversion is safe.
@@ -346,6 +356,11 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorate: bool) {
         self.send_request(WindowRequest::Decorate(decorate));
+    }
+
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
     }
 
     #[inline]

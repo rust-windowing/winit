@@ -296,7 +296,7 @@ impl AppState {
         };
         HANDLER.set_ready();
         HANDLER.waker().start();
-        let create_default_menu = unsafe { get_aux_state_mut(app_delegate).create_default_menu };
+        let create_default_menu = unsafe { get_aux_state_mut(app_delegate).default_menu };
         if create_default_menu {
             // The menubar initialization should be before the `NewEvents` event, to allow
             // overriding of the default menu even if it's created
@@ -486,7 +486,7 @@ fn apply_activation_policy(app_delegate: &Object) {
         let ns_app = NSApp();
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the
-        // menu bar won't be interactable.
+        // menu bar is initially unresponsive on macOS 10.15.
         let act_pol = get_aux_state_mut(app_delegate).activation_policy;
         ns_app.setActivationPolicy_(match act_pol {
             ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,

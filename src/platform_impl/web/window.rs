@@ -89,6 +89,11 @@ impl Window {
         // Intentionally a no-op
     }
 
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
     pub fn request_redraw(&self) {
         (self.register_redraw_request)();
     }
@@ -149,6 +154,10 @@ impl Window {
     #[inline]
     pub fn set_resizable(&self, _resizable: bool) {
         // Intentionally a no-op: users can't resize canvas elements
+    }
+
+    pub fn is_resizable(&self) -> bool {
+        true
     }
 
     #[inline]
@@ -267,6 +276,10 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
         // Intentionally a no-op, no canvas decorations
+    }
+
+    pub fn is_decorated(&self) -> bool {
+        true
     }
 
     #[inline]

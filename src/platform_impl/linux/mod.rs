@@ -49,6 +49,29 @@ pub mod x11;
 /// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
+#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) enum Backend {
+    #[cfg(feature = "x11")]
+    X,
+    #[cfg(feature = "wayland")]
+    Wayland,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {
+    pub(crate) forced_backend: Option<Backend>,
+    pub(crate) any_thread: bool,
+}
+
+impl Default for PlatformSpecificEventLoopAttributes {
+    fn default() -> Self {
+        Self {
+            forced_backend: None,
+            any_thread: false,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
@@ -299,6 +322,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        x11_or_wayland!(match self; Window(w) => w.is_visible())
+    }
+
+    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         x11_or_wayland!(match self; Window(w) => w.outer_position())
     }
@@ -341,6 +369,11 @@ impl Window {
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_resizable(resizable))
+    }
+
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.is_resizable())
     }
 
     #[inline]
@@ -401,6 +434,11 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         x11_or_wayland!(match self; Window(w) => w.set_decorations(decorations))
+    }
+
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        x11_or_wayland!(match self; Window(w) => w.is_decorated())
     }
 
     #[inline]
@@ -568,33 +606,51 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<EventLoop<T>, String> {
-        match error_if_not_main_thread("new_any_thread") {
-            Ok(_) => (),
-            Err(e) => return Err(e)
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, String> {
+        if !attributes.any_thread && !is_main_thread() {
+            return Err(
+                "Initializing the event loop outside of the main thread is a significant \
+                 cross-platform compatibility hazard. If you absolutely need to create an \
+                 EventLoop on a different thread, you can use the \
+                 `EventLoopBuilderExtUnix::any_thread` function.".to_string()
+            );
         }
 
-        Ok(EventLoop::new_any_thread())
-    }
+        #[cfg(feature = "x11")]
+        if attributes.forced_backend == Some(Backend::X) {
+            // TODO: Propagate
+            return Ok(EventLoop::new_x11_any_thread().unwrap());
+        }
 
-    pub fn new_any_thread() -> EventLoop<T> {
+        #[cfg(feature = "wayland")]
+        if attributes.forced_backend == Some(Backend::Wayland) {
+            // TODO: Propagate
+            return Ok(EventLoop::new_wayland_any_thread().expect("failed to open Wayland connection"));
+        }
+
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
                 "x11" => {
                     // TODO: propagate
                     #[cfg(feature = "x11")]
-                    return EventLoop::new_x11_any_thread()
-                        .expect("Failed to initialize X11 backend");
+                    return match EventLoop::new_x11_any_thread() {
+                        Ok(event_loop) => Ok(event_loop),
+                        Err(e) => Err(format!("Failed to initialize X11 Backend: {}", e)),
+                    };
+                        
                     #[cfg(not(feature = "x11"))]
-                    panic!("x11 feature is not enabled")
+                    Err("x11 feature is not enabled")
                 }
                 "wayland" => {
                     #[cfg(feature = "wayland")]
-                    return EventLoop::new_wayland_any_thread()
-                        .expect("Failed to initialize Wayland backend");
+                    return match EventLoop::new_wayland_any_thread() {
+                        Ok(event_loop) => Ok(event_loop),
+                        Err(e) => Err(format!("Failed to initialize Wayland Backend: {}", e)),
+                    };
                     #[cfg(not(feature = "wayland"))]
-                    panic!("wayland feature is not enabled");
+                    Err("wayland feature is not enabled");
                 }
+                // I don't know what to convert this to for the Result, so I'll keep it for now
                 _ => panic!(
                     "Unknown environment variable value for {}, try one of `x11`,`wayland`",
                     BACKEND_PREFERENCE_ENV_VAR,
@@ -604,13 +660,13 @@ impl<T: 'static> EventLoop<T> {
 
         #[cfg(feature = "wayland")]
         let wayland_err = match EventLoop::new_wayland_any_thread() {
-            Ok(event_loop) => return event_loop,
+            Ok(event_loop) => return Ok(event_loop),
             Err(err) => err,
         };
 
         #[cfg(feature = "x11")]
         let x11_err = match EventLoop::new_x11_any_thread() {
-            Ok(event_loop) => return event_loop,
+            Ok(event_loop) => return Ok(event_loop),
             Err(err) => err,
         };
 
@@ -626,33 +682,12 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(feature = "wayland")]
-    pub fn new_wayland() -> Result<Result<EventLoop<T>, Box<dyn Error>>, String> {
-        match error_if_not_main_thread("new_wayland_any_thread") {
-            Ok(_) => (),
-            Err(e) => return Err(e)
-        }
-
-        Ok(EventLoop::new_wayland_any_thread())
-    }
-
-    #[cfg(feature = "wayland")]
-    pub fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
+    fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
         wayland::EventLoop::new().map(EventLoop::Wayland)
     }
 
     #[cfg(feature = "x11")]
-    pub fn new_x11() -> Result<Result<EventLoop<T>, XNotSupported>, String> {
-        match error_if_not_main_thread("new_x11_any_thread") {
-            Ok(_) => (),
-            Err(e) => return Err(e)
-        }
-
-        Ok(EventLoop::new_x11_any_thread())
-
-    }
-
-    #[cfg(feature = "x11")]
-    pub fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
+    fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
         let xconn = match X11_BACKEND.lock().as_ref() {
             Ok(xconn) => xconn.clone(),
             Err(err) => return Err(err.clone()),
@@ -758,18 +793,6 @@ fn sticky_exit_callback<T, F>(
     } else {
         callback(evt, target, control_flow)
     }
-}
-
-fn error_if_not_main_thread(suggested_method: &str) -> Result<(), String> {
-    if !is_main_thread() {
-        return Err(
-            format!("Initializing the event loop outside of the main thread is a significant \
-             cross-platform compatibility hazard. If you really, absolutely need to create an \
-             EventLoop on a different thread, please use the `EventLoopExtUnix::{}` function.",
-            suggested_method)
-        )
-    }
-    Ok(())
 }
 
 #[cfg(target_os = "linux")]

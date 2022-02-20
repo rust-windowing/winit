@@ -2,8 +2,10 @@
 
 use winapi::{self, shared::windef::HMENU, shared::windef::HWND};
 
-pub use self::{
-    event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
+pub(crate) use self::{
+    event_loop::{
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+    },
     icon::WinIcon,
     monitor::{MonitorHandle, VideoMode},
     window::Window,

@@ -502,6 +502,12 @@ impl UnownedWindow {
         }
     }
 
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
+        Some(is_visible == YES)
+    }
+
     pub fn request_redraw(&self) {
         AppState::queue_redraw(RootWindowId(self.id()));
     }
@@ -600,6 +606,12 @@ impl UnownedWindow {
             }
             self.set_style_mask_async(mask);
         } // Otherwise, we don't change the mask until we exit fullscreen.
+    }
+
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        let is_resizable: BOOL = unsafe { msg_send![*self.ns_window, isResizable] };
+        is_resizable == YES
     }
 
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
@@ -1001,6 +1013,11 @@ impl UnownedWindow {
             };
             self.set_style_mask_async(new_mask);
         }
+    }
+
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        self.decorations.load(Ordering::Acquire)
     }
 
     #[inline]
