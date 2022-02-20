@@ -8,7 +8,7 @@ use winit::{
 
 fn main() {
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
 
     let mut resizable = false;
 

@@ -10,7 +10,7 @@ fn main() {
     };
 
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")

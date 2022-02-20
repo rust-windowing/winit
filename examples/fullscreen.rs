@@ -8,7 +8,7 @@ use winit::window::{Fullscreen, WindowBuilder};
 
 fn main() {
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new();
+    let event_loop = EventLoop::new().unwrap();
 
     print!("Please choose the fullscreen mode: (1) exclusive, (2) borderless: ");
     stdout().flush().unwrap();
