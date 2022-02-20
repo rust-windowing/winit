@@ -9,62 +9,61 @@ use winapi::shared::windef::{HMENU, HWND};
 use crate::{
     dpi::PhysicalSize,
     event::DeviceId,
-    event_loop::EventLoop,
+    event_loop::EventLoopBuilder,
     monitor::MonitorHandle,
-    platform_impl::{EventLoop as WindowsEventLoop, Parent, WinIcon},
+    platform_impl::{Parent, WinIcon},
     window::{BadIcon, Icon, Theme, Window, WindowBuilder},
 };
 
 /// Additional methods on `EventLoop` that are specific to Windows.
-pub trait EventLoopExtWindows {
-    /// Creates an event loop off of the main thread.
+pub trait EventLoopBuilderExtWindows {
+    /// Whether to allow the event loop to be created off of the main thread.
+    ///
+    /// By default, the window is only allowed to be created on the main
+    /// thread, to make platform compatibility easier.
     ///
     /// # `Window` caveats
     ///
     /// Note that any `Window` created on the new thread will be destroyed when the thread
     /// terminates. Attempting to use a `Window` after its parent thread terminates has
     /// unspecified, although explicitly not undefined, behavior.
-    fn new_any_thread() -> Self
-    where
-        Self: Sized;
+    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
 
-    /// By default, winit on Windows will attempt to enable process-wide DPI awareness. If that's
-    /// undesirable, you can create an `EventLoop` using this function instead.
-    fn new_dpi_unaware() -> Self
-    where
-        Self: Sized;
-
-    /// Creates a DPI-unaware event loop off of the main thread.
+    /// Whether to enable process-wide DPI awareness.
     ///
-    /// The `Window` caveats in [`new_any_thread`](EventLoopExtWindows::new_any_thread) also apply here.
-    fn new_dpi_unaware_any_thread() -> Self
-    where
-        Self: Sized;
+    /// By default, `winit` will attempt to enable process-wide DPI awareness. If
+    /// that's undesirable, you can disable it with this function.
+    ///
+    /// # Example
+    ///
+    /// Disable process-wide DPI awareness.
+    ///
+    /// ```
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "windows")]
+    /// use winit::platform::windows::EventLoopBuilderExtWindows;
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "windows")]
+    /// builder.with_dpi_aware(false);
+    /// # if false { // We can't test this part
+    /// let event_loop = builder.build();
+    /// # }
+    /// ```
+    fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self;
 }
 
-impl<T> EventLoopExtWindows for EventLoop<T> {
+impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
     #[inline]
-    fn new_any_thread() -> Self {
-        EventLoop {
-            event_loop: WindowsEventLoop::new_any_thread(),
-            _marker: ::std::marker::PhantomData,
-        }
+    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
+        self.platform_specific.any_thread = any_thread;
+        self
     }
 
     #[inline]
-    fn new_dpi_unaware() -> Self {
-        EventLoop {
-            event_loop: WindowsEventLoop::new_dpi_unaware(),
-            _marker: ::std::marker::PhantomData,
-        }
-    }
-
-    #[inline]
-    fn new_dpi_unaware_any_thread() -> Self {
-        EventLoop {
-            event_loop: WindowsEventLoop::new_dpi_unaware_any_thread(),
-            _marker: ::std::marker::PhantomData,
-        }
+    fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self {
+        self.platform_specific.dpi_aware = dpi_aware;
+        self
     }
 }
 

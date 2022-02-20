@@ -9,7 +9,7 @@ use winit::{
 
 fn main() {
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new();
 
     let mut windows = HashMap::new();
     for _ in 0..3 {

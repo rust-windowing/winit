@@ -22,13 +22,17 @@ use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     monitor::MonitorHandle as RootMonitorHandle,
-    platform_impl::platform::{
-        app::APP_CLASS,
-        app_delegate::APP_DELEGATE_CLASS,
-        app_state::{AppState, Callback},
-        monitor::{self, MonitorHandle},
-        observer::*,
-        util::IdRef,
+    platform::macos::ActivationPolicy,
+    platform_impl::{
+        get_aux_state_mut,
+        platform::{
+            app::APP_CLASS,
+            app_delegate::APP_DELEGATE_CLASS,
+            app_state::{AppState, Callback},
+            monitor::{self, MonitorHandle},
+            observer::*,
+            util::IdRef,
+        },
     },
 };
 
@@ -100,7 +104,9 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
-    pub(crate) delegate: IdRef,
+    /// The delegate is only weakly referenced by NSApplication, so we keep
+    /// it around here as well.
+    _delegate: IdRef,
 
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
@@ -114,8 +120,23 @@ pub struct EventLoop<T: 'static> {
     _callback: Option<Rc<Callback<T>>>,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {
+    pub(crate) activation_policy: ActivationPolicy,
+    pub(crate) default_menu: bool,
+}
+
+impl Default for PlatformSpecificEventLoopAttributes {
+    fn default() -> Self {
+        Self {
+            activation_policy: Default::default(), // Regular
+            default_menu: true,
+        }
+    }
+}
+
 impl<T> EventLoop<T> {
-    pub fn new() -> Self {
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         let delegate = unsafe {
             let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
             if is_main_thread == NO {
@@ -129,15 +150,21 @@ impl<T> EventLoop<T> {
             let app: id = msg_send![APP_CLASS.0, sharedApplication];
 
             let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
+
+            let mut aux_state = get_aux_state_mut(&**delegate);
+            aux_state.activation_policy = attributes.activation_policy;
+            aux_state.default_menu = attributes.default_menu;
+
             autoreleasepool(|| {
                 let _: () = msg_send![app, setDelegate:*delegate];
             });
+
             delegate
         };
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
         EventLoop {
-            delegate,
+            _delegate: delegate,
             window_target: Rc::new(RootWindowTarget {
                 p: Default::default(),
                 _marker: PhantomData,

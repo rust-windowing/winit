@@ -98,6 +98,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        Some(unsafe { winuser::IsWindowVisible(self.window.0) == 1 })
+    }
+
+    #[inline]
     pub fn request_redraw(&self) {
         unsafe {
             winuser::RedrawWindow(
@@ -223,6 +228,12 @@ impl Window {
                 f.set(WindowFlags::RESIZABLE, resizable)
             });
         });
+    }
+
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        let window_state = self.window_state.lock();
+        window_state.window_flags.contains(WindowFlags::RESIZABLE)
     }
 
     /// Returns the `hwnd` of this window.
@@ -542,6 +553,12 @@ impl Window {
                 f.set(WindowFlags::DECORATIONS, decorations)
             });
         });
+    }
+
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        let window_state = self.window_state.lock();
+        window_state.window_flags.contains(WindowFlags::DECORATIONS)
     }
 
     #[inline]

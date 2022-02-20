@@ -60,6 +60,11 @@ impl Inner {
         }
     }
 
+    pub fn is_visible(&self) -> Option<bool> {
+        warn!("`Window::is_visible` is ignored on iOS");
+        None
+    }
+
     pub fn request_redraw(&self) {
         unsafe {
             if self.gl_or_metal_backed {
@@ -157,6 +162,11 @@ impl Inner {
 
     pub fn set_resizable(&self, _resizable: bool) {
         warn!("`Window::set_resizable` is ignored on iOS")
+    }
+
+    pub fn is_resizable(&self) -> bool {
+        warn!("`Window::is_resizable` is ignored on iOS");
+        false
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -258,6 +268,11 @@ impl Inner {
 
     pub fn set_decorations(&self, _decorations: bool) {
         warn!("`Window::set_decorations` is ignored on iOS")
+    }
+
+    pub fn is_decorated(&self) -> bool {
+        warn!("`Window::is_decorated` is ignored on iOS");
+        true
     }
 
     pub fn set_always_on_top(&self, _always_on_top: bool) {
