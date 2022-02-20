@@ -93,14 +93,14 @@ impl<T> EventLoopBuilder<T> {
     ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn build(&mut self) -> EventLoop<T> {
-        EventLoop {
+    pub fn build(&mut self) -> Result<EventLoop<T>, String> {
+        Ok(EventLoop {
             event_loop: match platform_impl::EventLoop::new(&self.platform_specific) {
                 Ok(event_loop) => event_loop,
-                Err(err) => panic!("Error creating event loop: {}", err),
+                Err(err) => return Err(format!("Error creating event loop: {}", err)),
             },
             _marker: PhantomData,
-        }
+        })
     }
 }
 
@@ -180,14 +180,14 @@ impl Default for ControlFlow {
 impl EventLoop<()> {
     /// Alias for `EventLoopBuilder::new().build()`.
     #[inline]
-    pub fn new() -> EventLoop<()> {
+    pub fn new() -> Result<EventLoop<()>, String> {
         EventLoopBuilder::new().build()
     }
 }
 
 impl<T> EventLoop<T> {
     #[deprecated = "Use `EventLoopBuilder::<T>::with_user_event().build()` instead."]
-    pub fn with_user_event() -> EventLoop<T> {
+    pub fn with_user_event() -> Result<EventLoop<T>, String> {
         EventLoopBuilder::<T>::with_user_event().build()
     }
 
