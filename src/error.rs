@@ -84,4 +84,14 @@ impl error::Error for NotSupportedError {}
 #[derive(Debug)]
 pub enum CreationError {
     EventLoop(String),
+    InitializeBackend(String),
+}
+
+impl fmt::Display for CreationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            CreationError::EventLoop(s) => f.write_str(s),
+            CreationError::InitializeBackend(s) => f.write_str(s),
+        }
+    }
 }
