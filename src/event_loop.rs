@@ -179,9 +179,14 @@ impl Default for ControlFlow {
 }
 
 impl EventLoop<()> {
-    /// Alias for `EventLoopBuilder::new().build()`.
+    /// Alias for `EventLoopBuilder::new().build().unwrap()`.
     #[inline]
-    pub fn new() -> Result<EventLoop<()>, CreationError> {
+    pub fn new() -> EventLoop<()> {
+        EventLoopBuilder::new().build().unwrap()
+    }
+
+    /// Alias for `EventLoopBuilder::new().build()`.
+    pub fn new_result() -> Result<EventLoop<()>, CreationError> {
         EventLoopBuilder::new().build()
     }
 }
