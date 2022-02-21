@@ -25,7 +25,7 @@ pub use self::x11::XNotSupported;
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    error::{ExternalError, NotSupportedError, OsError as RootOsError, CreationError},
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     icon::Icon,
@@ -606,13 +606,13 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, String> {
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Result<Self, CreationError> {
         if !attributes.any_thread && !is_main_thread() {
-            return Err(
+            panic!(
                 "Initializing the event loop outside of the main thread is a significant \
                  cross-platform compatibility hazard. If you absolutely need to create an \
                  EventLoop on a different thread, you can use the \
-                 `EventLoopBuilderExtUnix::any_thread` function.".to_string()
+                 `EventLoopBuilderExtUnix::any_thread` function."
             );
         }
 
@@ -635,7 +635,7 @@ impl<T: 'static> EventLoop<T> {
                     #[cfg(feature = "x11")]
                     return match EventLoop::new_x11_any_thread() {
                         Ok(event_loop) => Ok(event_loop),
-                        Err(e) => Err(format!("Failed to initialize X11 Backend: {}", e)),
+                        Err(e) => Err(CreationError::InitializeBackend(format!("Failed to initialize X11 Backend: {}", e))),
                     };
                         
                     #[cfg(not(feature = "x11"))]
@@ -645,7 +645,7 @@ impl<T: 'static> EventLoop<T> {
                     #[cfg(feature = "wayland")]
                     return match EventLoop::new_wayland_any_thread() {
                         Ok(event_loop) => Ok(event_loop),
-                        Err(e) => Err(format!("Failed to initialize Wayland Backend: {}", e)),
+                        Err(e) => Err(CreationError::InitializeBackend(format!("Failed to initialize Wayland Backend: {}", e))),
                     };
                     #[cfg(not(feature = "wayland"))]
                     Err("wayland feature is not enabled");
