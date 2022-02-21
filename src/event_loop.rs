@@ -14,6 +14,7 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
 
+use crate::error::CreationError;
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
@@ -93,11 +94,11 @@ impl<T> EventLoopBuilder<T> {
     ///
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
-    pub fn build(&mut self) -> Result<EventLoop<T>, String> {
+    pub fn build(&mut self) -> Result<EventLoop<T>, CreationError> {
         Ok(EventLoop {
             event_loop: match platform_impl::EventLoop::new(&self.platform_specific) {
                 Ok(event_loop) => event_loop,
-                Err(err) => return Err(format!("Error creating event loop: {}", err)),
+                Err(err) => return Err(CreationError::EventLoop(format!("Error creating event loop: {}", err))),
             },
             _marker: PhantomData,
         })
@@ -180,14 +181,14 @@ impl Default for ControlFlow {
 impl EventLoop<()> {
     /// Alias for `EventLoopBuilder::new().build()`.
     #[inline]
-    pub fn new() -> Result<EventLoop<()>, String> {
+    pub fn new() -> Result<EventLoop<()>, CreationError> {
         EventLoopBuilder::new().build()
     }
 }
 
 impl<T> EventLoop<T> {
     #[deprecated = "Use `EventLoopBuilder::<T>::with_user_event().build()` instead."]
-    pub fn with_user_event() -> Result<EventLoop<T>, String> {
+    pub fn with_user_event() -> Result<EventLoop<T>, CreationError> {
         EventLoopBuilder::<T>::with_user_event().build()
     }
 
