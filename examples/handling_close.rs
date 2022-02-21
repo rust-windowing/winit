@@ -7,7 +7,7 @@ use winit::{
 
 fn main() {
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new();
 
     let _window = WindowBuilder::new()
         .with_title("Your faithful window")
