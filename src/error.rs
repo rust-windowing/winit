@@ -80,3 +80,8 @@ impl fmt::Display for NotSupportedError {
 impl error::Error for OsError {}
 impl error::Error for ExternalError {}
 impl error::Error for NotSupportedError {}
+
+#[derive(Debug)]
+pub enum CreationError {
+    EventLoop(String),
+}
