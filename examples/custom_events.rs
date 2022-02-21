@@ -13,7 +13,6 @@ fn main() {
     }
 
     SimpleLogger::new().init().unwrap();
-
     let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build().unwrap();
 
     let _window = WindowBuilder::new()
