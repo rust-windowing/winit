@@ -188,8 +188,11 @@ impl EventLoop<()> {
 
 impl<T> EventLoop<T> {
     #[deprecated = "Use `EventLoopBuilder::<T>::with_user_event().build()` instead."]
-    pub fn with_user_event() -> Result<EventLoop<T>, CreationError> {
-        EventLoopBuilder::<T>::with_user_event().build()
+    pub fn with_user_event() -> EventLoop<T> {
+        match EventLoopBuilder::<T>::with_user_event().build() {
+            Ok(event_loop) => event_loop,
+            Err(err) => panic!("Failed to create event loop: {}", err),
+        }
     }
 
     /// Hijacks the calling thread and initializes the winit event loop with the provided
