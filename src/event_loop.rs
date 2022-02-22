@@ -98,7 +98,7 @@ impl<T> EventLoopBuilder<T> {
         Ok(EventLoop {
             event_loop: match platform_impl::EventLoop::new(&self.platform_specific) {
                 Ok(event_loop) => event_loop,
-                Err(err) => return Err(CreationError::EventLoop(format!("Error creating event loop: {}", err))),
+                Err(err) => return Err(err),
             },
             _marker: PhantomData,
         })
