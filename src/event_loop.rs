@@ -184,11 +184,6 @@ impl EventLoop<()> {
     pub fn new() -> EventLoop<()> {
         EventLoopBuilder::new().build().unwrap()
     }
-
-    /// Alias for `EventLoopBuilder::new().build()`.
-    pub fn new_result() -> Result<EventLoop<()>, CreationError> {
-        EventLoopBuilder::new().build()
-    }
 }
 
 impl<T> EventLoop<T> {
