@@ -13,7 +13,40 @@ pub fn main() {
         .unwrap();
 
     #[cfg(target_arch = "wasm32")]
-    let log_list = {
+    let log_list = wasm::create_log_list(&window);
+
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Wait;
+
+        #[cfg(target_arch = "wasm32")]
+        wasm::log_event(&log_list, &event);
+
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                window_id,
+            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            Event::MainEventsCleared => {
+                window.request_redraw();
+            }
+            _ => (),
+        }
+    });
+}
+
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+    use wasm_bindgen::prelude::*;
+    use winit::{event::Event, window::Window};
+
+    #[wasm_bindgen(start)]
+    pub fn run() {
+        console_log::init_with_level(log::Level::Debug).expect("error initializing logger");
+
+        super::main();
+    }
+
+    pub fn create_log_list(window: &Window) -> web_sys::Element {
         use winit::platform::web::WindowExtWebSys;
 
         let canvas = window.canvas();
@@ -33,50 +66,22 @@ pub fn main() {
         let log_list = document.create_element("ul").unwrap();
         body.append_child(&log_list).unwrap();
         log_list
-    };
+    }
 
-    event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+    pub fn log_event(log_list: &web_sys::Element, event: &Event<()>) {
+        log::debug!("{:?}", event);
 
-        #[cfg(target_arch = "wasm32")]
-        {
-            log::debug!("{:?}", event);
-
-            // Getting access to browser logs requires a lot of setup on mobile devices.
-            // So we implement this basic logging system into the page to give developers an easy alternative.
-            // As a bonus its also kind of handy on desktop.
-            if let Event::WindowEvent { event, .. } = &event {
-                let window = web_sys::window().unwrap();
-                let document = window.document().unwrap();
-                let log = document.create_element("li").unwrap();
-                log.set_text_content(Some(&format!("{:?}", event)));
-                log_list
-                    .insert_before(&log, log_list.first_child().as_ref())
-                    .unwrap();
-            }
+        // Getting access to browser logs requires a lot of setup on mobile devices.
+        // So we implement this basic logging system into the page to give developers an easy alternative.
+        // As a bonus its also kind of handy on desktop.
+        if let Event::WindowEvent { event, .. } = &event {
+            let window = web_sys::window().unwrap();
+            let document = window.document().unwrap();
+            let log = document.create_element("li").unwrap();
+            log.set_text_content(Some(&format!("{:?}", event)));
+            log_list
+                .insert_before(&log, log_list.first_child().as_ref())
+                .unwrap();
         }
-
-        match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
-            Event::MainEventsCleared => {
-                window.request_redraw();
-            }
-            _ => (),
-        }
-    });
-}
-
-#[cfg(target_arch = "wasm32")]
-mod wasm {
-    use wasm_bindgen::prelude::*;
-
-    #[wasm_bindgen(start)]
-    pub fn run() {
-        console_log::init_with_level(log::Level::Debug).expect("error initializing logger");
-
-        super::main();
     }
 }
