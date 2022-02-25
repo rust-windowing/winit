@@ -608,6 +608,10 @@ impl<T: 'static> Shared<T> {
         {
             *self.0.resize_state.borrow_mut() = None;
         }
+        #[cfg(not(feature = "css-size"))]
+        {
+            *self.0.scale_change_detector.borrow_mut() = None;
+        }
         *self.0.unload_event_handle.borrow_mut() = None;
         // Dropping the `Runner` drops the event handler closure, which will in
         // turn drop all `Window`s moved into the closure.

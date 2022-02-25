@@ -68,17 +68,17 @@ pub fn scale_factor() -> f64 {
 /// Gets the size of the content box of `element` based on CSS.
 ///
 /// Returns `None` if the element isn't in the DOM.
-pub fn inner_size(element: &HtmlCanvasElement) -> Option<LogicalSize<f64>> {
+pub fn inner_size(raw: &HtmlCanvasElement) -> Option<LogicalSize<f64>> {
     let window = web_sys::window().unwrap();
     let document = window.document().unwrap();
-    if !document.contains(Some(element)) {
+    if !document.contains(Some(raw)) {
         return None;
     }
 
     // Use `getBoundingClientRect` instead of the width and height properties because it doesn't round to the nearest integer.
-    let rect = element.get_bounding_client_rect();
+    let rect = raw.get_bounding_client_rect();
     let style = window
-        .get_computed_style(element)
+        .get_computed_style(raw)
         .unwrap()
         .expect("`getComputedStyle` returned `None`");
 
@@ -102,20 +102,20 @@ pub fn inner_size(element: &HtmlCanvasElement) -> Option<LogicalSize<f64>> {
     })
 }
 
-pub fn set_inner_size(element: &HtmlCanvasElement, size: Size) {
+pub fn set_inner_size(raw: &HtmlCanvasElement, size: Size) {
     let scale_factor = scale_factor();
 
     let mut logical_size = size.to_logical::<f64>(scale_factor);
 
     if cfg!(not(feature = "css-size")) {
         let physical_size = size.to_physical(scale_factor);
-        element.set_width(physical_size.width);
-        element.set_height(physical_size.height);
+        raw.set_width(physical_size.width);
+        raw.set_height(physical_size.height);
     }
 
     let window = web_sys::window().unwrap();
     let style = window
-        .get_computed_style(element)
+        .get_computed_style(raw)
         // This can't fail according to the spec; I don't know why web-sys marks it as throwing and having an optional result.
         .expect("`getComputedStyle` failed")
         .expect("`getComputedStyle` returned `None`");
@@ -138,8 +138,8 @@ pub fn set_inner_size(element: &HtmlCanvasElement, size: Size) {
             + prop("padding-bottom");
     }
 
-    set_canvas_style_property(element, "width", &format!("{}px", logical_size.width));
-    set_canvas_style_property(element, "height", &format!("{}px", logical_size.height));
+    set_canvas_style_property(raw, "width", &format!("{}px", logical_size.width));
+    set_canvas_style_property(raw, "height", &format!("{}px", logical_size.height));
 }
 
 pub fn set_canvas_style_property(raw: &HtmlCanvasElement, property: &str, value: &str) {
