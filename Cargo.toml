@@ -125,3 +125,8 @@ version = "0.2.45"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 console_log = "0.2"
+
+[workspace]
+members = [
+    "run-wasm",
+]
