@@ -2,6 +2,25 @@
 //! allow end users to determine how the page should be laid out. Use the [`WindowExtWebSys`] trait
 //! to retrieve the canvas from the Window. Alternatively, use the [`WindowBuilderExtWebSys`] trait
 //! to provide your own canvas.
+//!
+//! # The `css-size` feature
+//!
+//! By default, the canvas' size is fixed; it can only be resized by calling
+//! [`Window::set_inner_size`]. The `css-size` feature changes this, setting the size of the
+//! canvas based on CSS. This allows much more easily laying it out within the page.
+//!
+//! `css-size` relies on `ResizeObserver`, which is still an unstable feature; so, to use it, you
+//! have to enable `web_sys_unstable_apis`. For example:
+//!
+//! ```sh
+//! RUSTFLAGS="--cfg=web_sys_unstable_apis" cargo build ...
+//! ```
+//!
+//! If a window's canvas isn't in the DOM when the window is created, the initial size won't be
+//! calculated until the first call to `inner_size`, to allow it to be added to the DOM.
+//! Otherwise, the canvas' size would be reported as 0x0 to any initialization code.
+//!
+//! [`Window::set_inner_size`]: window::Window::set_inner_size
 
 use crate::event::Event;
 use crate::event_loop::ControlFlow;
