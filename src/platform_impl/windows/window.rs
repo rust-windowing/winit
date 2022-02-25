@@ -808,7 +808,7 @@ impl<'a, T: 'static> InitData<'a, T> {
     // The user data will be registered for the window and can be accessed within the window event callback.
     pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<WindowLongPtr> {
         let runner = self.event_loop.runner_shared.clone();
-        let result = runner.catch_unwind(|| unsafe {
+        let result = runner.catch_unwind(|| {
             let mut window = self.create_window(window);
             let window_data = self.create_window_data(&mut window);
             (window, window_data)
