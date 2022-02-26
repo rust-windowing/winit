@@ -1179,9 +1179,12 @@ impl<T: 'static> EventProcessor<T> {
                                         if monitor.name == new_monitor.name {
                                             let (width, height) = window.inner_size_physical();
                                             let (new_width, new_height) = window.adjust_for_dpi(
-                                                // If there all monitors are closed before, scale
-                                                // factor would be already changed to 1.0.
-                                                maybe_prev_scale_factor.unwrap_or(1.0),
+                                                // If we couldn't determine the previous scale
+                                                // factor (e.g., because all monitors were closed
+                                                // before), just pick whatever the current monitor
+                                                // has set as a baseline.
+                                                maybe_prev_scale_factor
+                                                    .unwrap_or(monitor.scale_factor),
                                                 new_monitor.scale_factor,
                                                 width,
                                                 height,
