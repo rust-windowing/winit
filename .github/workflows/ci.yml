@@ -50,9 +50,10 @@ jobs:
     runs-on: ${{ matrix.platform.os }}
     steps:
     - uses: actions/checkout@v2
+
     # Used to cache cargo-web
     - name: Cache cargo folder
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: ~/.cargo
         key: ${{ matrix.platform.target }}-cargo-${{ matrix.rust_version }}
