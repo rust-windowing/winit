@@ -87,7 +87,7 @@ impl Window {
 
         let window_id = super::make_wid(&surface);
         let maximized = Arc::new(AtomicBool::new(false));
-        let maximzied_clone = maximized.clone();
+        let maximized_clone = maximized.clone();
         let fullscreen = Arc::new(AtomicBool::new(false));
         let fullscreen_clone = fullscreen.clone();
 
@@ -115,7 +115,7 @@ impl Window {
                         }
                         Event::Configure { new_size, states } => {
                             let is_maximized = states.contains(&State::Maximized);
-                            maximzied_clone.store(is_maximized, Ordering::Relaxed);
+                            maximized_clone.store(is_maximized, Ordering::Relaxed);
                             let is_fullscreen = states.contains(&State::Fullscreen);
                             fullscreen_clone.store(is_fullscreen, Ordering::Relaxed);
 
