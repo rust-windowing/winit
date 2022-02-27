@@ -456,7 +456,11 @@ impl<T: 'static> Shared<T> {
                     // Treat a change through this route the same way as `set_inner_size`, setting the CSS `width` and `height`.
                     backend::set_inner_size(canvas, mut_size.into());
                 }
-            } else if size.width == canvas.width() && size.height == canvas.height() {
+            } else if canvas.has_attribute("width")
+                && size.width == canvas.width()
+                && canvas.has_attribute("height")
+                && size.height == canvas.height()
+            {
                 // If the canvas is already the correct size, don't send any resize events.
                 // This should only really happen immediately after a window is created,
                 // if the initial size based on CSS was already correct.

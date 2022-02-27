@@ -6,8 +6,8 @@
 //! # The `css-size` feature
 //!
 //! By default, the canvas' size is fixed; it can only be resized by calling
-//! [`Window::set_inner_size`]. The `css-size` feature changes this, setting the size of the
-//! canvas based on CSS. This allows much more easily laying it out within the page.
+//! [`Window::set_inner_size`]. The `css-size` feature changes this, setting the size of the canvas
+//! based on CSS. This allows much more easily laying it out within the page.
 //!
 //! `css-size` relies on `ResizeObserver`, which is still an unstable feature; so, to use it, you
 //! have to enable `web_sys_unstable_apis`. For example:
@@ -16,11 +16,21 @@
 //! RUSTFLAGS="--cfg=web_sys_unstable_apis" cargo build ...
 //! ```
 //!
-//! If a window's canvas isn't in the DOM when the window is created, the initial size won't be
-//! calculated until the first call to `inner_size`, to allow it to be added to the DOM.
-//! Otherwise, the canvas' size would be reported as 0x0 to any initialization code.
+//! ## Initial size handling
 //!
-//! [`Window::set_inner_size`]: window::Window::set_inner_size
+//! If the canvas is created by `Window::new` (i.e., isn't passed via [`with_canvas`]), its size
+//! isn't initially known, since the canvas hasn't yet been put into the DOM. To work around this,
+//! the `Window` doesn't calculate its size until the first call to [`Window::inner_size`], to
+//! allow the canvas to be inserted into the page.
+//!
+//! This has some caveats; if you use a library which gets the size directly from the canvas, it
+//! won't trigger this, and will end up with an incorrect initial size. The most reliable method is
+//! to create the canvas yourself, insert it into the page, and then pass it to [`with_canvas`].
+//!
+//! [`Window::new`]: crate::window::Window::new
+//! [`Window::inner_size`]: crate::window::Window::inner_size
+//! [`Window::set_inner_size`]: crate::window::Window::set_inner_size
+//! [`with_canvas`]: crate::platform::web::WindowBuilderExtWebSys::with_canvas
 
 use crate::event::Event;
 use crate::event_loop::ControlFlow;

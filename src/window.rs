@@ -521,7 +521,7 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window's
     ///   [safe area] in screen space coordinates.
-    /// - **Web:** Returns the size of the canvas element.
+    /// - **Web:** Returns the size of the canvas element's framebuffer.
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
     #[inline]
@@ -550,7 +550,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android:** Unsupported.
-    /// - **Web:** Sets the size of the canvas element.
+    /// - **Web:** Sets the size of the canvas element's context box via the `style` attribute.
     #[inline]
     pub fn set_inner_size<S: Into<Size>>(&self, size: S) {
         self.window.set_inner_size(size.into())
