@@ -58,6 +58,22 @@ jobs:
         path: ~/.cargo
         key: ${{ matrix.platform.target }}-cargo-${{ matrix.rust_version }}
 
+    # Generate the lockfile so that `actions/cache` can use it in the key
+    - name: Generate Cargo.lock
+      run: cargo generate-lockfile
+
+    - name: Cache target folder
+      uses: actions/cache@v2
+      with:
+        path: target/
+        # When dependencies in the lockfile has changed, a new cache entry will
+        # be created, but we'll still try to fetch the older entry.
+        key: cargo-${{ matrix.platform.target }}-${{ matrix.rust_version }}-${{ hashFiles('**/Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+        # The cache is invalidated whenever Cargo.toml changes, this is mostly
+        # to avoid unbounded growth of the cache.
+        restore-keys: |
+          cargo-${{ matrix.platform.target }}-${{ matrix.rust_version }}-${{ hashFiles('**/Cargo.toml') }}
+
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
