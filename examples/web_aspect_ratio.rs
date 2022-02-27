@@ -6,7 +6,7 @@ pub fn main() {
 mod wasm {
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsCast;
-    use web_sys::{HtmlCanvasElement, HtmlElement};
+    use web_sys::HtmlCanvasElement;
     use winit::{
         dpi::PhysicalSize,
         event::{Event, WindowEvent},
@@ -16,10 +16,13 @@ mod wasm {
 
     const EXPLANATION: &str = "
 This example draws a circle in the middle of a 4/1 aspect ratio canvas which acts as a useful demonstration of winit's resize handling on web.
-Even when the browser window is resized or aspect-ratio of the div changed the circle should always:
+Even when the browser window is resized or aspect-ratio of the canvas changed the circle should always:
 * Fill the entire width or height of the canvas (whichever is smaller) without exceeding it.
 * Be perfectly round
 * Not be blurry or pixelated (there is no antialiasing so you may still see jagged edges depending on the DPI of your monitor)
+
+Currently winit does not handle resizes on web so the circle is rendered incorrectly.
+This example demonstrates the desired future functionality which will possibly be provided by https://github.com/rust-windowing/winit/pull/2074
 ";
 
     #[wasm_bindgen(start)]
@@ -29,7 +32,8 @@ Even when the browser window is resized or aspect-ratio of the div changed the c
 
         let window = WindowBuilder::new()
             .with_title("A fantastic window!")
-            // A small default size is used to better demonstrate issues that come from failing to update the size
+            // When running in a non-wasm environment this would set the window size to 100x100.
+            // However in this example it just sets a default initial size of 100x100 that is immediately overwritten due to the layout + styling of the page.
             .with_inner_size(PhysicalSize::new(100, 100))
             .build(&event_loop)
             .unwrap();
@@ -61,20 +65,12 @@ Even when the browser window is resized or aspect-ratio of the div changed the c
         let document = web_window.document().unwrap();
         let body = document.body().unwrap();
 
-        let parent_div = document.create_element("div").unwrap();
-        parent_div
-            .dyn_ref::<HtmlElement>()
-            .unwrap()
-            .style()
-            .set_css_text("margin: auto; width: 50%; aspect-ratio: 4 / 1;");
-        body.append_child(&parent_div).unwrap();
-
         // Set a background color for the canvas to make it easier to tell the where the canvas is for debugging purposes.
         let canvas = window.canvas();
         canvas
             .style()
-            .set_css_text("display: block; width: 100%; height: 100%; background-color: crimson;");
-        parent_div.append_child(&canvas).unwrap();
+            .set_css_text("display: block; background-color: crimson; margin: auto; width: 50%; aspect-ratio: 4 / 1;");
+        body.append_child(&canvas).unwrap();
 
         let explanation = document.create_element("pre").unwrap();
         explanation.set_text_content(Some(EXPLANATION));
