@@ -19,6 +19,7 @@ use crate::{
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
+        app_state::AppState,
         app_state::INTERRUPT_EVENT_LOOP_EXIT,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
@@ -28,7 +29,9 @@ use crate::{
         window_delegate::new_delegate,
         OsError,
     },
-    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
+    window::{
+        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+    },
 };
 use cocoa::{
     appkit::{
@@ -41,7 +44,6 @@ use cocoa::{
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassDecl,
-    msg_send,
     rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
@@ -505,6 +507,7 @@ impl UnownedWindow {
         unsafe {
             let _: () = objc::msg_send![view, setNeedsDisplay: YES];
         }
+        AppState::queue_redraw(RootWindowId(self.id()));
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
