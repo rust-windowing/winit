@@ -718,7 +718,6 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_maximized(&self) -> bool {
