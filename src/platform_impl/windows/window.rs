@@ -15,7 +15,7 @@ use winapi::{
     ctypes::c_int,
     shared::{
         minwindef::{HINSTANCE, LPARAM, UINT, WPARAM},
-        windef::{HWND, POINT, POINTS, RECT},
+        windef::{HWND, POINT, POINTS},
         winerror::SUCCEEDED,
     },
     um::{
@@ -123,6 +123,10 @@ impl Window {
 
     #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
+        if let Some(rect) = self.window_state.lock().saved_inner_rect {
+            return Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32));
+        }
+
         let mut position: POINT = unsafe { mem::zeroed() };
         if unsafe { winuser::ClientToScreen(self.window.0, &mut position) } == 0 {
             panic!("Unexpected ClientToScreen failure: please report this error to https://github.com/rust-windowing/winit")
@@ -162,10 +166,12 @@ impl Window {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let mut rect: RECT = unsafe { mem::zeroed() };
-        if unsafe { winuser::GetClientRect(self.window.0, &mut rect) } == 0 {
-            panic!("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
-        }
+        let rect = self.window_state.lock()
+            .saved_inner_rect
+            .unwrap_or_else( ||
+                util::get_client_rect(self.window.0).expect("Unexpected GetClientRct failure: please report this error to https://github.com/rust-windowing/winit")
+            );
+
         PhysicalSize::new(
             (rect.right - rect.left) as u32,
             (rect.bottom - rect.top) as u32,
@@ -358,6 +364,13 @@ impl Window {
 
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
+
+            window_state.lock().saved_inner_rect = if minimized {
+                Some(util::get_client_rect(window.0).expect("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit"))
+            } else {
+                None
+            };
+
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
                 f.set(WindowFlags::MINIMIZED, minimized)
             });
