@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Added `Window::is_decorated`.
 - On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
 - On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
+- On Windows, fix left mouse button release event not being sent on drag finish
 - **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
 - Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.

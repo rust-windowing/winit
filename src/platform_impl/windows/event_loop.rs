@@ -886,15 +886,21 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         winuser::WM_EXITSIZEMOVE => {
-            userdata
-                .window_state
-                .lock()
-                .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
+            let mut window_state = userdata.window_state.lock();
+            // when tricking windows into thinking that we are pressing on the HTCAPTION,
+            // we would not get WM_NCLBUTTONUP, so we have to check it manually,
+            // and when dragging is done - release the button ourselves
+            if window_state.dragging {
+                window_state.dragging = false;
+                winuser::PostMessageW(window, winuser::WM_LBUTTONUP, 0, lparam);
+            }
+            window_state.set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
         }
 
         winuser::WM_NCLBUTTONDOWN => {
             if wparam == winuser::HTCAPTION as _ {
+                userdata.window_state.lock().dragging = true;
                 winuser::PostMessageW(window, winuser::WM_MOUSEMOVE, 0, lparam);
             }
             winuser::DefWindowProcW(window, msg, wparam, lparam)
