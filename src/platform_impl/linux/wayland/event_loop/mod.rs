@@ -24,7 +24,7 @@ use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget
 use super::env::{WindowingFeatures, WinitEnv};
 use super::output::OutputManager;
 use super::seat::SeatManager;
-use super::window::shim::{self, WindowUpdate};
+use super::window::shim::{self, WindowRequest, WindowUpdate};
 use super::{DeviceId, WindowId};
 
 mod proxy;
@@ -249,7 +249,8 @@ impl<T: 'static> EventLoop<T> {
             }
 
             // Process 'new' pending updates.
-            self.with_state(|state| {
+            self.with_window_target(|window_target| {
+                let state = window_target.state.get_mut();
                 window_updates.clear();
                 window_updates.extend(
                     state
@@ -261,7 +262,8 @@ impl<T: 'static> EventLoop<T> {
 
             for (window_id, window_update) in window_updates.iter_mut() {
                 if let Some(scale_factor) = window_update.scale_factor.map(|f| f as f64) {
-                    let mut physical_size = self.with_state(|state| {
+                    let mut physical_size = self.with_window_target(|window_target| {
+                        let state = window_target.state.get_mut();
                         let window_handle = state.window_map.get(window_id).unwrap();
                         let mut size = window_handle.size.lock().unwrap();
 
@@ -294,7 +296,8 @@ impl<T: 'static> EventLoop<T> {
                 }
 
                 if let Some(size) = window_update.size.take() {
-                    let physical_size = self.with_state(|state| {
+                    let physical_size = self.with_window_target(|window_target| {
+                        let state = window_target.state.get_mut();
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         let mut window_size = window_handle.size.lock().unwrap();
 
@@ -319,6 +322,15 @@ impl<T: 'static> EventLoop<T> {
 
                         // Mark that refresh isn't required, since we've done it right now.
                         window_update.refresh_frame = false;
+
+                        // Queue request for redraw into the next iteration of the loop, since
+                        // resize and scale factor changes are double buffered.
+                        window_handle
+                            .pending_window_requests
+                            .lock()
+                            .unwrap()
+                            .push(WindowRequest::Redraw);
+                        window_target.event_loop_awakener.ping();
 
                         physical_size
                     });
@@ -356,7 +368,8 @@ impl<T: 'static> EventLoop<T> {
             // The purpose of the back buffer and that swap is to not hold borrow_mut when
             // we're doing callback to the user, since we can double borrow if the user decides
             // to create a window in one of those callbacks.
-            self.with_state(|state| {
+            self.with_window_target(|window_target| {
+                let state = window_target.state.get_mut();
                 std::mem::swap(
                     &mut event_sink_back_buffer,
                     &mut state.event_sink.window_events,
@@ -381,7 +394,8 @@ impl<T: 'static> EventLoop<T> {
             for (window_id, window_update) in window_updates.iter() {
                 // Handle refresh of the frame.
                 if window_update.refresh_frame {
-                    self.with_state(|state| {
+                    self.with_window_target(|window_target| {
+                        let state = window_target.state.get_mut();
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         window_handle.window.refresh();
                         if !window_update.redraw_requested {
@@ -526,9 +540,9 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&mut self, f: F) -> U {
+    fn with_window_target<U, F: FnOnce(&mut EventLoopWindowTarget<T>) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
-            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
+            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target,
             #[cfg(feature = "x11")]
             _ => unreachable!(),
         };

@@ -21,6 +21,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Replaced `EventLoopExtMacOS` with `EventLoopBuilderExtMacOS` (which also has renamed methods).
 - **Breaking:** Replaced `EventLoopExtWindows` with `EventLoopBuilderExtWindows` (which also has renamed methods).
 - **Breaking:** Replaced `EventLoopExtUnix` with `EventLoopBuilderExtUnix` (which also has renamed methods).
+- On Wayland, fix resize and scale factor changes not being propagated properly.
 
 # 0.26.1 (2022-01-05)
 
