@@ -62,6 +62,8 @@ pub trait EventLoopBuilderExtWindows {
     /// # Example
     ///
     /// ```no_run
+    /// # use winapi::um::winuser::{ACCEL, VkKeyScanW, VK_CONTROL, TranslateAcceleratorW, CreateAcceleratorTableW};
+    /// # use crate::winit::{event_loop::EventLoopBuilder, platform::windows::EventLoopBuilderExtWindows};
     /// thread_local! {
     ///     static ACCELS:Vec<ACCEL> = {
     ///         unsafe {
