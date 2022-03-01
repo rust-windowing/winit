@@ -36,6 +36,7 @@ use crate::{
     event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
+    platform::windows::TranslateAcceleratorCallback,
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -111,12 +112,13 @@ impl<T> ThreadMsgTargetData<T> {
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
     window_target: RootELW<T>,
+    translate_accel_callback: Option<Box<dyn Fn(winuser::MSG) -> bool>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) any_thread: bool,
     pub(crate) dpi_aware: bool,
+    pub(crate) translate_accel_callback: Option<Box<TranslateAcceleratorCallback>>,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -124,6 +126,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
         Self {
             any_thread: false,
             dpi_aware: true,
+            translate_accel_callback: None,
         }
     }
 }
@@ -173,6 +176,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: PhantomData,
             },
+            translate_accel_callback: Some(Box::new(|_| false)),
         }
     }
 
@@ -213,8 +217,15 @@ impl<T: 'static> EventLoop<T> {
                 if 0 == winuser::GetMessageW(&mut msg, ptr::null_mut(), 0, 0) {
                     break 'main 0;
                 }
-                winuser::TranslateMessage(&msg);
-                winuser::DispatchMessageW(&msg);
+
+                let translated = self
+                    .translate_accel_callback
+                    .as_deref()
+                    .unwrap_or(&Box::new(|_| false))(msg);
+                if !translated {
+                    winuser::TranslateMessage(&msg);
+                    winuser::DispatchMessageW(&msg);
+                }
 
                 if let Err(payload) = runner.take_panic_error() {
                     runner.reset_runner();

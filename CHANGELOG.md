@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, Added `EventLoopBuilderExtWindows::with_translate_accel_callback`
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.
 - Added `Window::is_decorated`.

@@ -15,6 +15,8 @@ use crate::{
     window::{BadIcon, Icon, Theme, Window, WindowBuilder},
 };
 
+pub type TranslateAcceleratorCallback = dyn FnMut(winapi::um::winuser::MSG) -> bool;
+
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
     /// Whether to allow the event loop to be created off of the main thread.
@@ -51,6 +53,49 @@ pub trait EventLoopBuilderExtWindows {
     /// # }
     /// ```
     fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self;
+
+    /// A callback, executed before dispatching a win32 message to the window procedure, where you
+    /// can call [`TranslateAcceleratorW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translateacceleratorw) to
+    /// processes accelerator keys for menu commands.
+    ///
+    /// The callback return value is used as an indicator to whether the message
+    /// should be translated using [`TranslateMessage`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage)
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// thread_local! {
+    ///     static ACCELS:Vec<ACCEL> = {
+    ///         unsafe {
+    ///             vec![ACCEL {
+    ///                 cmd: 554,
+    ///                 key: VkKeyScanW('a' as u16) as _  ,
+    ///                 fVirt: VK_CONTROL as _,
+    ///             }]
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// fn main() {
+    ///     let event_loop = EventLoopBuilder::new()
+    ///         .with_translate_accel_callback(Box::new(|mut m| unsafe {
+    ///             let mut translated = false;
+    ///             ACCELS.with(|accels| {
+    ///                 translated = TranslateAcceleratorW(
+    ///                     m.hwnd,
+    ///                     CreateAcceleratorTableW(accels.as_ptr() as _, 1),
+    ///                     &mut m,
+    ///                 ) == 1;
+    ///             });
+    ///             translated
+    ///         }))
+    ///         .build();
+    /// }
+    /// ```
+    fn with_translate_accel_callback(
+        &mut self,
+        callback: Box<TranslateAcceleratorCallback>,
+    ) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
@@ -63,6 +108,15 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
     #[inline]
     fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self {
         self.platform_specific.dpi_aware = dpi_aware;
+        self
+    }
+
+    #[inline]
+    fn with_translate_accel_callback(
+        &mut self,
+        callback: Box<TranslateAcceleratorCallback>,
+    ) -> &mut Self {
+        self.platform_specific.translate_accel_callback = Some(callback);
         self
     }
 }
