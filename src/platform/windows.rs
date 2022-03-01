@@ -15,8 +15,6 @@ use crate::{
     window::{BadIcon, Icon, Theme, Window, WindowBuilder},
 };
 
-pub type TranslateAcceleratorCallback = dyn FnMut(winapi::um::winuser::MSG) -> bool;
-
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
     /// Whether to allow the event loop to be created off of the main thread.
@@ -94,7 +92,7 @@ pub trait EventLoopBuilderExtWindows {
     /// ```
     fn with_translate_accel_callback(
         &mut self,
-        callback: Box<TranslateAcceleratorCallback>,
+        callback: Box<dyn FnMut(winapi::um::winuser::MSG) -> bool>,
     ) -> &mut Self;
 }
 
@@ -114,7 +112,7 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
     #[inline]
     fn with_translate_accel_callback(
         &mut self,
-        callback: Box<TranslateAcceleratorCallback>,
+        callback: Box<dyn FnMut(winapi::um::winuser::MSG) -> bool>,
     ) -> &mut Self {
         self.platform_specific.translate_accel_callback = Some(callback);
         self

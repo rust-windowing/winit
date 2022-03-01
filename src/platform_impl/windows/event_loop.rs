@@ -36,7 +36,6 @@ use crate::{
     event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
-    platform::windows::TranslateAcceleratorCallback,
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -118,7 +117,7 @@ pub struct EventLoop<T: 'static> {
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) any_thread: bool,
     pub(crate) dpi_aware: bool,
-    pub(crate) translate_accel_callback: Option<Box<TranslateAcceleratorCallback>>,
+    pub(crate) translate_accel_callback: Option<Box<dyn FnMut(winapi::um::winuser::MSG) -> bool>>,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
