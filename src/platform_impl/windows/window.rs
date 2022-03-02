@@ -180,6 +180,10 @@ impl Window {
     pub fn set_inner_size(&self, size: Size) {
         let scale_factor = self.scale_factor();
         let (width, height) = size.to_physical::<u32>(scale_factor).into();
+        let is_decorated = {
+            let window_flags = Arc::clone(&self.window_state).lock().window_flags;
+            window_flags.contains(WindowFlags::DECORATIONS)
+        };
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
@@ -189,7 +193,7 @@ impl Window {
             });
         });
 
-        util::set_inner_size_physical(self.window.0, width, height);
+        util::set_inner_size_physical(self.window.0, width, height, is_decorated);
     }
 
     #[inline]

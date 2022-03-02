@@ -88,14 +88,22 @@ pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
     PhysicalSize::new((rect.right - rect.left) as _, (rect.bottom - rect.top) as _)
 }
 
-pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
+pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32, is_decorated: bool) {
     unsafe {
+        let dpi = hwnd_dpi(window);
+        let titlebar_height = if !is_decorated {
+            winuser::GetSystemMetricsForDpi(winuser::SM_CYSIZE, dpi)
+                + winuser::GetSystemMetricsForDpi(winuser::SM_CXPADDEDBORDER, dpi) * 2
+                + winuser::GetSystemMetricsForDpi(winuser::SM_CYBORDER, dpi)
+        } else {
+            0
+        };
         let rect = adjust_window_rect(
             window,
             RECT {
                 top: 0,
                 left: 0,
-                bottom: y as LONG,
+                bottom: (y - titlebar_height as u32) as LONG,
                 right: x as LONG,
             },
         )
