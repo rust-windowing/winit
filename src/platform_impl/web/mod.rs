@@ -33,10 +33,7 @@ pub(crate) use self::event_loop::{
     WindowTarget as EventLoopWindowTarget,
 };
 pub use self::monitor::{Handle as MonitorHandle, Mode as VideoMode};
-pub use self::window::{
-    Id as WindowId, PlatformSpecificBuilderAttributes as PlatformSpecificWindowBuilderAttributes,
-    Window,
-};
+pub use self::window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, Window};
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 

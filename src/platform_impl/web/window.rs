@@ -29,7 +29,7 @@ impl Window {
     pub fn new<T>(
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
-        platform_attr: PlatformSpecificBuilderAttributes,
+        platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
         let runner = target.runner.clone();
 
@@ -363,6 +363,6 @@ impl Id {
 }
 
 #[derive(Default, Clone)]
-pub struct PlatformSpecificBuilderAttributes {
+pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
 }
