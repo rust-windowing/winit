@@ -30,6 +30,7 @@ pub struct Canvas {
     on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
     mouse_state: MouseState,
+    disable_web_scroll: Option<[EventListenerHandle<dyn FnMut(Event)>; 5]>,
 }
 
 struct Common {
@@ -74,11 +75,34 @@ impl Canvas {
             MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
         };
 
+        let common = Common {
+            raw: canvas,
+            wants_fullscreen: Rc::new(RefCell::new(false)),
+        };
+
+        let disable_web_scroll = if !attr.enable_web_scroll {
+            Some([
+                common.add_event("pointermove", move |event: Event| {
+                    event.prevent_default();
+                }),
+                common.add_event("pointermove", move |event: Event| {
+                    event.prevent_default();
+                }),
+                common.add_event("touchstart", move |event: Event| {
+                    event.prevent_default();
+                }),
+                common.add_event("touchend", move |event: Event| {
+                    event.prevent_default();
+                }),
+                common.add_event("wheel", move |event: Event| {
+                    event.prevent_default();
+                }),
+            ])
+        } else {
+            None
+        };
+
         Ok(Canvas {
-            common: Common {
-                raw: canvas,
-                wants_fullscreen: Rc::new(RefCell::new(false)),
-            },
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -88,6 +112,8 @@ impl Canvas {
             on_fullscreen_change: None,
             on_dark_mode: None,
             mouse_state,
+            disable_web_scroll,
+            common,
         })
     }
 
@@ -277,10 +303,6 @@ impl Canvas {
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
-            if prevent_default {
-                event.prevent_default();
-            }
-
             if let Some(delta) = event::mouse_scroll_delta(&event) {
                 handler(0, delta, event::mouse_modifiers(&event));
             }

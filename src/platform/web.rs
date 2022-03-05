@@ -19,6 +19,15 @@ pub trait WindowExtWebSys {
 }
 
 pub trait WindowBuilderExtWebSys {
+    /// Enable scrolling of the web page the canvas is in when the canvas is focused.
+    ///
+    /// Scrolling is disabled by default because the scroll input on many mobile devices
+    /// is the same as click and dragging which is a very common input method for many applications.
+    ///
+    /// So only call this method if you know that you will never need to handle mouse wheel inputs
+    /// or click and dragging.
+    fn enable_web_scroll(self) -> Self;
+
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
 
     /// Whether `event.preventDefault` should be automatically called to prevent event propagation
@@ -34,6 +43,12 @@ pub trait WindowBuilderExtWebSys {
 }
 
 impl WindowBuilderExtWebSys for WindowBuilder {
+    fn enable_web_scroll(mut self) -> Self {
+        self.platform_specific.enable_web_scroll = true;
+
+        self
+    }
+
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
         self.platform_specific.canvas = canvas;
 
