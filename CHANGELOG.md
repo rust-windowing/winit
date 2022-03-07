@@ -21,6 +21,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Replaced `EventLoopExtMacOS` with `EventLoopBuilderExtMacOS` (which also has renamed methods).
 - **Breaking:** Replaced `EventLoopExtWindows` with `EventLoopBuilderExtWindows` (which also has renamed methods).
 - **Breaking:** Replaced `EventLoopExtUnix` with `EventLoopBuilderExtUnix` (which also has renamed methods).
+- **Breaking:** The platform specific extensions for Windows `winit::platform::windows` have changed. All `HANDLE`-like types e.g. `HWND` and `HMENU` were converted from winapi types or `*mut c_void` to `isize`. This was done to be consistent with the type definitions in windows-sys and to not expose internal dependencies.
+- The internal bindings to the [Windows API](https://docs.microsoft.com/en-us/windows/) were changed from the unofficial [winapi](https://github.com/retep998/winapi-rs) bindings to the official Microsoft [windows-sys](https://github.com/microsoft/windows-rs) bindings.
 - On Wayland, fix resize and scale factor changes not being propagated properly.
 
 # 0.26.1 (2022-01-05)
