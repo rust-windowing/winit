@@ -139,7 +139,10 @@ where
     // However we want to keep that weak reference around after the function.
     std::mem::forget(info_from_raw);
 
-    stop_app_on_panic(Weak::clone(&panic_info), move || f(panic_info.0));
+    stop_app_on_panic(Weak::clone(&panic_info), move || {
+        let _ = &panic_info;
+        f(panic_info.0)
+    });
 }
 
 // begin is queued with the highest priority to ensure it is processed before other observers

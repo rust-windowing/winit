@@ -2,7 +2,7 @@ use std::{
     boxed::Box,
     collections::VecDeque,
     os::raw::*,
-    slice, str,
+    ptr, slice, str,
     sync::{Arc, Mutex, Weak},
 };
 
@@ -260,7 +260,7 @@ lazy_static! {
         decl.add_ivar::<*mut c_void>("winitState");
         decl.add_ivar::<id>("markedText");
         let protocol = Protocol::get("NSTextInputClient").unwrap();
-        decl.add_protocol(&protocol);
+        decl.add_protocol(protocol);
         ViewClass(decl.register())
     };
 }
@@ -301,7 +301,7 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
 }
 
 extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
-    trace!("Triggered `viewDidMoveToWindow`");
+    trace_scope!("viewDidMoveToWindow");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -314,15 +314,15 @@ extern "C" fn view_did_move_to_window(this: &Object, _sel: Sel) {
         let tracking_rect: NSInteger = msg_send![this,
             addTrackingRect:rect
             owner:this
-            userData:nil
+            userData:ptr::null_mut::<c_void>()
             assumeInside:NO
         ];
         state.tracking_rect = Some(tracking_rect);
     }
-    trace!("Completed `viewDidMoveToWindow`");
 }
 
 extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
+    trace_scope!("frameDidChange:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -335,7 +335,7 @@ extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
         let tracking_rect: NSInteger = msg_send![this,
             addTrackingRect:rect
             owner:this
-            userData:nil
+            userData:ptr::null_mut::<c_void>()
             assumeInside:NO
         ];
 
@@ -344,6 +344,7 @@ extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
 }
 
 extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
+    trace_scope!("drawRect:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -356,6 +357,7 @@ extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
 }
 
 extern "C" fn accepts_first_responder(_this: &Object, _sel: Sel) -> BOOL {
+    trace_scope!("acceptsFirstResponder");
     YES
 }
 
@@ -363,10 +365,12 @@ extern "C" fn accepts_first_responder(_this: &Object, _sel: Sel) -> BOOL {
 // IMKInputSession [0x7fc573576ff0 presentFunctionRowItemTextInputViewWithEndpoint:completionHandler:] : [self textInputContext]=0x7fc573558e10 *NO* NSRemoteViewController to client, NSError=Error Domain=NSCocoaErrorDomain Code=4099 "The connection from pid 0 was invalidated from this process." UserInfo={NSDebugDescription=The connection from pid 0 was invalidated from this process.}, com.apple.inputmethod.EmojiFunctionRowItem
 // TODO: Add an API extension for using `NSTouchBar`
 extern "C" fn touch_bar(_this: &Object, _sel: Sel) -> BOOL {
+    trace_scope!("touchBar");
     NO
 }
 
 extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
+    trace_scope!("resetCursorRects");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -386,20 +390,18 @@ extern "C" fn reset_cursor_rects(this: &Object, _sel: Sel) {
 }
 
 extern "C" fn has_marked_text(this: &Object, _sel: Sel) -> BOOL {
+    trace_scope!("hasMarkedText");
     unsafe {
-        trace!("Triggered `hasMarkedText`");
         let marked_text: id = *this.get_ivar("markedText");
-        trace!("Completed `hasMarkedText`");
         (marked_text.length() > 0) as BOOL
     }
 }
 
 extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
+    trace_scope!("markedRange");
     unsafe {
-        trace!("Triggered `markedRange`");
         let marked_text: id = *this.get_ivar("markedText");
         let length = marked_text.length();
-        trace!("Completed `markedRange`");
         if length > 0 {
             NSRange::new(0, length - 1)
         } else {
@@ -409,8 +411,7 @@ extern "C" fn marked_range(this: &Object, _sel: Sel) -> NSRange {
 }
 
 extern "C" fn selected_range(_this: &Object, _sel: Sel) -> NSRange {
-    trace!("Triggered `selectedRange`");
-    trace!("Completed `selectedRange`");
+    trace_scope!("selectedRange");
     util::EMPTY_RANGE
 }
 
@@ -421,37 +422,36 @@ extern "C" fn set_marked_text(
     _selected_range: NSRange,
     _replacement_range: NSRange,
 ) {
-    trace!("Triggered `setMarkedText`");
+    trace_scope!("setMarkedText:selectedRange:replacementRange:");
     unsafe {
         let marked_text_ref: &mut id = this.get_mut_ivar("markedText");
         let _: () = msg_send![(*marked_text_ref), release];
         let marked_text = NSMutableAttributedString::alloc(nil);
-        let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
-        if has_attr {
+        let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+        if has_attr != NO {
             marked_text.initWithAttributedString(string);
         } else {
             marked_text.initWithString(string);
         };
         *marked_text_ref = marked_text;
     }
-    trace!("Completed `setMarkedText`");
 }
 
 extern "C" fn unmark_text(this: &Object, _sel: Sel) {
-    trace!("Triggered `unmarkText`");
+    trace_scope!("unmarkText");
     unsafe {
         let marked_text: id = *this.get_ivar("markedText");
         let mutable_string = marked_text.mutableString();
-        let _: () = msg_send![mutable_string, setString:""];
+        let s: id = msg_send![class!(NSString), new];
+        let _: () = msg_send![mutable_string, setString: s];
+        let _: () = msg_send![s, release];
         let input_context: id = msg_send![this, inputContext];
         let _: () = msg_send![input_context, discardMarkedText];
     }
-    trace!("Completed `unmarkText`");
 }
 
 extern "C" fn valid_attributes_for_marked_text(_this: &Object, _sel: Sel) -> id {
-    trace!("Triggered `validAttributesForMarkedText`");
-    trace!("Completed `validAttributesForMarkedText`");
+    trace_scope!("validAttributesForMarkedText");
     unsafe { msg_send![class!(NSArray), array] }
 }
 
@@ -461,14 +461,12 @@ extern "C" fn attributed_substring_for_proposed_range(
     _range: NSRange,
     _actual_range: *mut c_void, // *mut NSRange
 ) -> id {
-    trace!("Triggered `attributedSubstringForProposedRange`");
-    trace!("Completed `attributedSubstringForProposedRange`");
+    trace_scope!("attributedSubstringForProposedRange:actualRange:");
     nil
 }
 
 extern "C" fn character_index_for_point(_this: &Object, _sel: Sel, _point: NSPoint) -> NSUInteger {
-    trace!("Triggered `characterIndexForPoint`");
-    trace!("Completed `characterIndexForPoint`");
+    trace_scope!("characterIndexForPoint:");
     0
 }
 
@@ -478,8 +476,8 @@ extern "C" fn first_rect_for_character_range(
     _range: NSRange,
     _actual_range: *mut c_void, // *mut NSRange
 ) -> NSRect {
+    trace_scope!("firstRectForCharacterRange:actualRange:");
     unsafe {
-        trace!("Triggered `firstRectForCharacterRange`");
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
         let (x, y) = state.ime_spot.unwrap_or_else(|| {
@@ -491,19 +489,18 @@ extern "C" fn first_rect_for_character_range(
             let y = util::bottom_left_to_top_left(content_rect);
             (x, y)
         });
-        trace!("Completed `firstRectForCharacterRange`");
         NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(0.0, 0.0))
     }
 }
 
 extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_range: NSRange) {
-    trace!("Triggered `insertText`");
+    trace_scope!("insertText:replacementRange:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
 
-        let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
-        let characters = if has_attr {
+        let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+        let characters = if has_attr != NO {
             // This is a *mut NSAttributedString
             msg_send![string, string]
         } else {
@@ -528,11 +525,10 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
 
         AppState::queue_events(events);
     }
-    trace!("Completed `insertText`");
 }
 
 extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
-    trace!("Triggered `doCommandBySelector`");
+    trace_scope!("doCommandBySelector:");
     // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human readable" character
     // happens, i.e. newlines, tabs, and Ctrl+C.
     unsafe {
@@ -565,7 +561,6 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, command: Sel) {
 
         AppState::queue_events(events);
     }
-    trace!("Completed `doCommandBySelector`");
 }
 
 fn get_characters(event: id, ignore_modifiers: bool) -> String {
@@ -587,7 +582,7 @@ fn get_characters(event: id, ignore_modifiers: bool) -> String {
 
 // As defined in: https://www.unicode.org/Public/MAPPINGS/VENDORS/APPLE/CORPCHAR.TXT
 fn is_corporate_character(c: char) -> bool {
-    match c {
+    matches!(c,
         '\u{F700}'..='\u{F747}'
         | '\u{F802}'..='\u{F84F}'
         | '\u{F850}'
@@ -595,9 +590,8 @@ fn is_corporate_character(c: char) -> bool {
         | '\u{F85D}'
         | '\u{F85F}'
         | '\u{F860}'..='\u{F86B}'
-        | '\u{F870}'..='\u{F8FF}' => true,
-        _ => false,
-    }
+        | '\u{F870}'..='\u{F8FF}'
+    )
 }
 
 // Retrieves a layout-independent keycode given an event.
@@ -605,7 +599,7 @@ fn retrieve_keycode(event: id) -> Option<VirtualKeyCode> {
     #[inline]
     fn get_code(ev: id, raw: bool) -> Option<VirtualKeyCode> {
         let characters = get_characters(ev, raw);
-        characters.chars().next().and_then(|c| char_to_keycode(c))
+        characters.chars().next().and_then(char_to_keycode)
     }
 
     // Cmd switches Roman letters for Dvorak-QWERTY layout, so we try modified characters first.
@@ -638,7 +632,7 @@ fn update_potentially_stale_modifiers(state: &mut ViewState, event: id) {
 }
 
 extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `keyDown`");
+    trace_scope!("keyDown:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -650,7 +644,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         let scancode = get_scancode(event) as u32;
         let virtual_keycode = retrieve_keycode(event);
 
-        let is_repeat = msg_send![event, isARepeat];
+        let is_repeat: BOOL = msg_send![event, isARepeat];
 
         update_potentially_stale_modifiers(state, event);
 
@@ -672,7 +666,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         let pass_along = {
             AppState::queue_event(EventWrapper::StaticEvent(window_event));
             // Emit `ReceivedCharacter` for key repeats
-            if is_repeat {
+            if is_repeat != NO {
                 for character in characters.chars().filter(|c| !is_corporate_character(*c)) {
                     AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id,
@@ -693,11 +687,10 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
             let _: () = msg_send![this, interpretKeyEvents: array];
         }
     }
-    trace!("Completed `keyDown`");
 }
 
 extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `keyUp`");
+    trace_scope!("keyUp:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -724,11 +717,10 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `keyUp`");
 }
 
 extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `flagsChanged`");
+    trace_scope!("flagsChanged:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -785,10 +777,10 @@ extern "C" fn flags_changed(this: &Object, _sel: Sel, event: id) {
             event: WindowEvent::ModifiersChanged(state.modifiers),
         }));
     }
-    trace!("Completed `flagsChanged`");
 }
 
 extern "C" fn insert_tab(this: &Object, _sel: Sel, _sender: id) {
+    trace_scope!("insertTab:");
     unsafe {
         let window: id = msg_send![this, window];
         let first_responder: id = msg_send![window, firstResponder];
@@ -800,6 +792,7 @@ extern "C" fn insert_tab(this: &Object, _sel: Sel, _sender: id) {
 }
 
 extern "C" fn insert_back_tab(this: &Object, _sel: Sel, _sender: id) {
+    trace_scope!("insertBackTab:");
     unsafe {
         let window: id = msg_send![this, window];
         let first_responder: id = msg_send![window, firstResponder];
@@ -813,7 +806,7 @@ extern "C" fn insert_back_tab(this: &Object, _sel: Sel, _sender: id) {
 // Allows us to receive Cmd-. (the shortcut for closing a dialog)
 // https://bugs.eclipse.org/bugs/show_bug.cgi?id=300620#c6
 extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
-    trace!("Triggered `cancelOperation`");
+    trace_scope!("cancelOperation:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -843,7 +836,6 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `cancelOperation`");
 }
 
 fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: ElementState) {
@@ -868,31 +860,37 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
 }
 
 extern "C" fn mouse_down(this: &Object, _sel: Sel, event: id) {
+    trace_scope!("mouseDown:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Left, ElementState::Pressed);
 }
 
 extern "C" fn mouse_up(this: &Object, _sel: Sel, event: id) {
+    trace_scope!("mouseUp:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Left, ElementState::Released);
 }
 
 extern "C" fn right_mouse_down(this: &Object, _sel: Sel, event: id) {
+    trace_scope!("rightMouseDown:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Right, ElementState::Pressed);
 }
 
 extern "C" fn right_mouse_up(this: &Object, _sel: Sel, event: id) {
+    trace_scope!("rightMouseUp:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Right, ElementState::Released);
 }
 
 extern "C" fn other_mouse_down(this: &Object, _sel: Sel, event: id) {
+    trace_scope!("otherMouseDown:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Middle, ElementState::Pressed);
 }
 
 extern "C" fn other_mouse_up(this: &Object, _sel: Sel, event: id) {
+    trace_scope!("otherMouseUp:");
     mouse_motion(this, event);
     mouse_click(this, event, MouseButton::Middle, ElementState::Released);
 }
@@ -914,7 +912,7 @@ fn mouse_motion(this: &Object, event: id) {
             || view_point.x > view_rect.size.width
             || view_point.y > view_rect.size.height
         {
-            let mouse_buttons_down: NSInteger = msg_send![class!(NSEvent), pressedMouseButtons];
+            let mouse_buttons_down: NSUInteger = msg_send![class!(NSEvent), pressedMouseButtons];
             if mouse_buttons_down == 0 {
                 // Point is outside of the client area (view) and no buttons are pressed
                 return;
@@ -940,6 +938,8 @@ fn mouse_motion(this: &Object, event: id) {
     }
 }
 
+// No tracing on these because that would be overly verbose
+
 extern "C" fn mouse_moved(this: &Object, _sel: Sel, event: id) {
     mouse_motion(this, event);
 }
@@ -957,7 +957,7 @@ extern "C" fn other_mouse_dragged(this: &Object, _sel: Sel, event: id) {
 }
 
 extern "C" fn mouse_entered(this: &Object, _sel: Sel, _event: id) {
-    trace!("Triggered `mouseEntered`");
+    trace_scope!("mouseEntered:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -971,11 +971,10 @@ extern "C" fn mouse_entered(this: &Object, _sel: Sel, _event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(enter_event));
     }
-    trace!("Completed `mouseEntered`");
 }
 
 extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
-    trace!("Triggered `mouseExited`");
+    trace_scope!("mouseExited:");
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
@@ -989,11 +988,10 @@ extern "C" fn mouse_exited(this: &Object, _sel: Sel, _event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `mouseExited`");
 }
 
 extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `scrollWheel`");
+    trace_scope!("scrollWheel:");
 
     mouse_motion(this, event);
 
@@ -1041,11 +1039,10 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
         AppState::queue_event(EventWrapper::StaticEvent(device_event));
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `scrollWheel`");
 }
 
 extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `pressureChangeWithEvent`");
+    trace_scope!("pressureChangeWithEvent:");
 
     mouse_motion(this, event);
 
@@ -1067,16 +1064,17 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `pressureChangeWithEvent`");
 }
 
 // Allows us to receive Ctrl-Tab and Ctrl-Esc.
 // Note that this *doesn't* help with any missing Cmd inputs.
 // https://github.com/chromium/chromium/blob/a86a8a6bcfa438fa3ac2eba6f02b3ad1f8e0756f/ui/views/cocoa/bridged_content_view.mm#L816
 extern "C" fn wants_key_down_for_event(_this: &Object, _sel: Sel, _event: id) -> BOOL {
+    trace_scope!("_wantsKeyDownForEvent:");
     YES
 }
 
 extern "C" fn accepts_first_mouse(_this: &Object, _sel: Sel, _event: id) -> BOOL {
+    trace_scope!("acceptsFirstMouse:");
     YES
 }

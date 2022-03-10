@@ -60,6 +60,11 @@ impl Inner {
         }
     }
 
+    pub fn is_visible(&self) -> Option<bool> {
+        warn!("`Window::is_visible` is ignored on iOS");
+        None
+    }
+
     pub fn request_redraw(&self) {
         unsafe {
             if self.gl_or_metal_backed {
@@ -159,6 +164,11 @@ impl Inner {
         warn!("`Window::set_resizable` is ignored on iOS")
     }
 
+    pub fn is_resizable(&self) -> bool {
+        warn!("`Window::is_resizable` is ignored on iOS");
+        false
+    }
+
     pub fn scale_factor(&self) -> f64 {
         unsafe {
             let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
@@ -204,7 +214,8 @@ impl Inner {
             let uiscreen = match monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
                     let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
-                    let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode];
+                    let () =
+                        msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
                     uiscreen
                 }
                 Some(Fullscreen::Borderless(monitor)) => monitor
@@ -257,6 +268,11 @@ impl Inner {
 
     pub fn set_decorations(&self, _decorations: bool) {
         warn!("`Window::set_decorations` is ignored on iOS")
+    }
+
+    pub fn is_decorated(&self) -> bool {
+        warn!("`Window::is_decorated` is ignored on iOS");
+        true
     }
 
     pub fn set_always_on_top(&self, _always_on_top: bool) {

@@ -2,16 +2,8 @@ name: CI
 
 on:
   pull_request:
-    paths:
-      - '**.rs'
-      - '**.toml'
-      - '.github/workflows/ci.yml'
   push:
     branches: [master]
-    paths:
-      - '**.rs'
-      - '**.toml'
-      - '.github/workflows/ci.yml'
 
 jobs:
   Check_Formatting:

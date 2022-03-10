@@ -87,7 +87,7 @@ impl Window {
 
         let window_id = super::make_wid(&surface);
         let maximized = Arc::new(AtomicBool::new(false));
-        let maximzied_clone = maximized.clone();
+        let maximized_clone = maximized.clone();
         let fullscreen = Arc::new(AtomicBool::new(false));
         let fullscreen_clone = fullscreen.clone();
 
@@ -115,7 +115,7 @@ impl Window {
                         }
                         Event::Configure { new_size, states } => {
                             let is_maximized = states.contains(&State::Maximized);
-                            maximzied_clone.store(is_maximized, Ordering::Relaxed);
+                            maximized_clone.store(is_maximized, Ordering::Relaxed);
                             let is_fullscreen = states.contains(&State::Fullscreen);
                             fullscreen_clone.store(is_fullscreen, Ordering::Relaxed);
 
@@ -271,6 +271,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
+    #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
         Err(NotSupportedError::new())
     }
@@ -337,6 +342,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn is_resizable(&self) -> bool {
+        true
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> u32 {
         // The scale factor from `get_surface_scale_factor` is always greater than zero, so
         // u32 conversion is safe.
@@ -346,6 +356,11 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorate: bool) {
         self.send_request(WindowRequest::Decorate(decorate));
+    }
+
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
     }
 
     #[inline]

@@ -895,6 +895,11 @@ impl UnownedWindow {
         self.invalidate_cached_frame_extents();
     }
 
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
     fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
         let mut hints = self.xconn.get_motif_hints(self.xwindow);
 
@@ -977,6 +982,11 @@ impl UnownedWindow {
                 .expect("Failed to call XUnmapWindow");
             shared_state.visibility = Visibility::No;
         }
+    }
+
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
     }
 
     fn update_cached_frame_extents(&self) {
@@ -1204,6 +1214,11 @@ impl UnownedWindow {
             normal_hints.set_max_size(max_inner_size);
         })
         .expect("Failed to call `XSetWMNormalHints`");
+    }
+
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        true
     }
 
     #[inline]

@@ -11,7 +11,7 @@ use cocoa::{
     foundation::{NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
-use objc::runtime::{Class, Object, Sel, BOOL, YES};
+use objc::runtime::{Class, Object};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -40,10 +40,9 @@ impl IdRef {
         IdRef(inner)
     }
 
-    #[allow(dead_code)]
     pub fn retain(inner: id) -> IdRef {
         if inner != nil {
-            let () = unsafe { msg_send![inner, retain] };
+            let _: id = unsafe { msg_send![inner, retain] };
         }
         IdRef(inner)
     }
@@ -69,17 +68,43 @@ impl Drop for IdRef {
 
 impl Deref for IdRef {
     type Target = id;
-    fn deref<'a>(&'a self) -> &'a id {
+    fn deref(&self) -> &id {
         &self.0
     }
 }
 
 impl Clone for IdRef {
     fn clone(&self) -> IdRef {
-        if self.0 != nil {
-            let _: id = unsafe { msg_send![self.0, retain] };
+        IdRef::retain(self.0)
+    }
+}
+
+macro_rules! trace_scope {
+    ($s:literal) => {
+        let _crate = $crate::platform_impl::platform::util::TraceGuard::new(module_path!(), $s);
+    };
+}
+
+pub(crate) struct TraceGuard {
+    module_path: &'static str,
+    called_from_fn: &'static str,
+}
+
+impl TraceGuard {
+    #[inline]
+    pub(crate) fn new(module_path: &'static str, called_from_fn: &'static str) -> Self {
+        trace!(target: module_path, "Triggered `{}`", called_from_fn);
+        Self {
+            module_path,
+            called_from_fn,
         }
-        IdRef(self.0)
+    }
+}
+
+impl Drop for TraceGuard {
+    #[inline]
+    fn drop(&mut self) {
+        trace!(target: self.module_path, "Completed `{}`", self.called_from_fn);
     }
 }
 
@@ -117,9 +142,9 @@ pub unsafe fn app_name() -> Option<id> {
     }
 }
 
-pub unsafe fn superclass<'a>(this: &'a Object) -> &'a Class {
-    let superclass: id = msg_send![this, superclass];
-    &*(superclass as *const _)
+pub unsafe fn superclass(this: &Object) -> &Class {
+    let superclass: *const Class = msg_send![this, superclass];
+    &*superclass
 }
 
 pub unsafe fn create_input_context(view: id) -> IdRef {
@@ -131,10 +156,6 @@ pub unsafe fn create_input_context(view: id) -> IdRef {
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
     let () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
-}
-
-pub extern "C" fn yes(_: &Object, _: Sel) -> BOOL {
-    YES
 }
 
 pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, on: bool) {

@@ -89,6 +89,11 @@ impl Window {
         // Intentionally a no-op
     }
 
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
     pub fn request_redraw(&self) {
         (self.register_redraw_request)();
     }
@@ -151,6 +156,10 @@ impl Window {
         // Intentionally a no-op: users can't resize canvas elements
     }
 
+    pub fn is_resizable(&self) -> bool {
+        true
+    }
+
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         super::backend::scale_factor()
@@ -207,8 +216,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+        self.canvas
+            .borrow()
+            .set_cursor_grab(grab)
+            .map_err(|e| ExternalError::Os(e))
     }
 
     #[inline]
@@ -264,6 +276,10 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {
         // Intentionally a no-op, no canvas decorations
+    }
+
+    pub fn is_decorated(&self) -> bool {
+        true
     }
 
     #[inline]

@@ -83,7 +83,7 @@ impl WindowId {
     }
 }
 
-/// Object that allows you to build windows.
+/// Object that allows building windows.
 #[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
@@ -650,6 +650,19 @@ impl Window {
         self.window.set_visible(visible)
     }
 
+    /// Gets the window's current vibility state.
+    ///
+    /// If `None` means it couldn't be determined so it is not recommended to use this to drive your rendering backend.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11:** Not implemented.
+    /// - **Wayland / iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        self.window.is_visible()
+    }
+
     /// Sets whether the window is resizable or not.
     ///
     /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
@@ -667,6 +680,17 @@ impl Window {
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
+    }
+
+    /// Gets the window's current resizable state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        self.window.is_resizable()
     }
 
     /// Sets the window to minimized or back
@@ -694,7 +718,6 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_maximized(&self) -> bool {
@@ -748,6 +771,17 @@ impl Window {
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
+    }
+
+    /// Gets the window's current decorations state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        self.window.is_decorated()
     }
 
     /// Change whether or not the window will always be on top of other windows.
@@ -877,7 +911,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
-    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_grab(grab)
