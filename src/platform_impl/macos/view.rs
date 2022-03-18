@@ -53,7 +53,8 @@ impl Default for CursorState {
 pub(super) struct ViewState {
     ns_window: id,
     pub cursor_state: Arc<Mutex<CursorState>>,
-    ime_spot: Option<(f64, f64)>,
+    /// The position of the candidate window.
+    ime_position: LogicalPosition<f64>,
     raw_characters: Option<String>,
     pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
@@ -71,7 +72,8 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
     let state = ViewState {
         ns_window,
         cursor_state,
-        ime_spot: None,
+        // By default, open the candidate window in the top left corner
+        ime_position: LogicalPosition::new(0.0, 0.0),
         raw_characters: None,
         modifiers: Default::default(),
         tracking_rect: None,
@@ -87,14 +89,11 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
     }
 }
 
-pub unsafe fn set_ime_position(ns_view: id, input_context: id, x: f64, y: f64) {
+pub unsafe fn set_ime_position(ns_view: id, position: LogicalPosition<f64>) {
     let state_ptr: *mut c_void = *(*ns_view).get_mut_ivar("winitState");
     let state = &mut *(state_ptr as *mut ViewState);
-    let content_rect =
-        NSWindow::contentRectForFrameRect_(state.ns_window, NSWindow::frame(state.ns_window));
-    let base_x = content_rect.origin.x as f64;
-    let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
-    state.ime_spot = Some((base_x + x, base_y - y));
+    state.ime_position = position;
+    let input_context: id = msg_send![ns_view, inputContext];
     let _: () = msg_send![input_context, invalidateCharacterCoordinates];
 }
 
@@ -480,15 +479,16 @@ extern "C" fn first_rect_for_character_range(
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
-        let (x, y) = state.ime_spot.unwrap_or_else(|| {
-            let content_rect = NSWindow::contentRectForFrameRect_(
-                state.ns_window,
-                NSWindow::frame(state.ns_window),
-            );
-            let x = content_rect.origin.x;
-            let y = util::bottom_left_to_top_left(content_rect);
-            (x, y)
-        });
+        let content_rect =
+            NSWindow::contentRectForFrameRect_(state.ns_window, NSWindow::frame(state.ns_window));
+        let base_x = content_rect.origin.x as f64;
+        let base_y = (content_rect.origin.y + content_rect.size.height) as f64;
+        let x = base_x + state.ime_position.x;
+        let y = base_y - state.ime_position.y;
+        // This is not ideal: We _should_ return a different position based on
+        // the currently selected character (which varies depending on the type
+        // and size of the character), but in the current `winit` API there is
+        // no way to express this. Same goes for the `NSSize`.
         NSRect::new(NSPoint::new(x as _, y as _), NSSize::new(0.0, 0.0))
     }
 }
