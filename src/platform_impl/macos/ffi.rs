@@ -5,10 +5,10 @@
 use std::ffi::c_void;
 
 use super::thin_cocoa::{id, NSInteger, NSUInteger};
-use core_foundation::{
+use super::thin_core_foundation::{
     array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
 };
-use core_graphics::{
+use super::thin_core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
@@ -216,5 +216,5 @@ extern "C" {
     pub fn CGDisplayModeGetRefreshRate(mode: CGDisplayModeRef) -> f64;
     pub fn CGDisplayModeCopyPixelEncoding(mode: CGDisplayModeRef) -> CFStringRef;
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
-    pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
+    // pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
 }

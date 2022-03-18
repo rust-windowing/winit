@@ -4,6 +4,9 @@
 mod util;
 
 pub use util::thin_cocoa;
+pub use util::thin_core_foundation;
+pub use util::thin_core_graphics;
+pub use util::thin_core_video_sys;
 
 mod app;
 mod app_delegate;
@@ -56,7 +59,7 @@ pub struct Window {
 
 #[derive(Debug)]
 pub enum OsError {
-    CGError(core_graphics::base::CGError),
+    CGError(super::thin_core_graphics::base::CGError),
     CreationError(&'static str),
 }
 

@@ -17,6 +17,7 @@ use super::thin_cocoa::{
     },
     {id, nil}, {NSDictionary, NSPoint, NSRect, NSSize, NSUInteger},
 };
+use super::thin_core_graphics::display::{CGDisplay, CGDisplayMode};
 use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
@@ -40,7 +41,6 @@ use crate::{
         CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
     },
 };
-use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassDecl,
     rc::autoreleasepool,

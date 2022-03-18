@@ -1,14 +1,17 @@
 mod r#async;
 mod cursor;
 pub mod thin_cocoa;
+pub mod thin_core_foundation;
+pub mod thin_core_graphics;
+pub mod thin_core_video_sys;
 
 pub use self::{cursor::*, r#async::*};
 
 use std::ops::{BitAnd, Deref};
 
-use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object};
 use thin_cocoa::{id, nil, NSApp, NSPoint, NSRect, NSString, NSUInteger, NSWindowStyleMask};
+use thin_core_graphics::display::CGDisplay;
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;

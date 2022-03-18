@@ -1,20 +1,20 @@
 use std::{collections::VecDeque, fmt};
 
 use super::thin_cocoa::{id, nil, NSScreen, NSUInteger};
+use super::thin_core_foundation::{
+    array::{CFArrayGetCount, CFArrayGetValueAtIndex},
+    //string:CFString,
+    CFRelease,
+};
+use super::thin_core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
+use super::thin_core_video_sys::{
+    kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
+    CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
+};
 use super::{ffi, util};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-};
-use core_foundation::{
-    array::{CFArrayGetCount, CFArrayGetValueAtIndex},
-    base::{CFRelease, TCFType},
-    string::CFString,
-};
-use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
-use core_video_sys::{
-    kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
-    CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
 };
 
 #[derive(Clone)]
@@ -64,7 +64,7 @@ unsafe impl Send for NativeDisplayMode {}
 impl Drop for NativeDisplayMode {
     fn drop(&mut self) {
         unsafe {
-            ffi::CGDisplayModeRelease(self.0);
+            super::thin_core_graphics::display::CGDisplayModeRelease(self.0 as *mut _);
         }
     }
 }
@@ -265,6 +265,7 @@ impl MonitorHandle {
                     cv_refresh_rate
                 };
 
+                /*
                 let pixel_encoding =
                     CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode))
                         .to_string();
@@ -277,6 +278,8 @@ impl MonitorHandle {
                 } else {
                     unimplemented!()
                 };
+                */
+                let bit_depth = 32;
 
                 let video_mode = VideoMode {
                     size: (
