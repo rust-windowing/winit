@@ -226,8 +226,8 @@ impl<T> EventLoop<T> {
         exit_code
     }
 
-    pub fn create_proxy(&self) -> Proxy<T> {
-        Proxy::new(self.window_target.p.sender.clone())
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy::new(self.window_target.p.sender.clone())
     }
 }
 
@@ -281,14 +281,14 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     }
 }
 
-pub struct Proxy<T> {
+pub struct EventLoopProxy<T> {
     sender: mpsc::Sender<T>,
     source: CFRunLoopSourceRef,
 }
 
-unsafe impl<T: Send> Send for Proxy<T> {}
+unsafe impl<T: Send> Send for EventLoopProxy<T> {}
 
-impl<T> Drop for Proxy<T> {
+impl<T> Drop for EventLoopProxy<T> {
     fn drop(&mut self) {
         unsafe {
             CFRelease(self.source as _);
@@ -296,13 +296,13 @@ impl<T> Drop for Proxy<T> {
     }
 }
 
-impl<T> Clone for Proxy<T> {
+impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Proxy::new(self.sender.clone())
+        EventLoopProxy::new(self.sender.clone())
     }
 }
 
-impl<T> Proxy<T> {
+impl<T> EventLoopProxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
         unsafe {
             // just wake up the eventloop
@@ -318,7 +318,7 @@ impl<T> Proxy<T> {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            Proxy { sender, source }
+            EventLoopProxy { sender, source }
         }
     }
 
