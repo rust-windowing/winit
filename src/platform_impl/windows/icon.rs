@@ -18,7 +18,7 @@ use crate::icon::*;
 use super::util;
 
 impl Pixel {
-    fn to_bgra(&mut self) {
+    fn convert_to_bgra(&mut self) {
         mem::swap(&mut self.r, &mut self.b);
     }
 }
@@ -32,7 +32,7 @@ impl RgbaIcon {
             unsafe { std::slice::from_raw_parts_mut(rgba.as_ptr() as *mut Pixel, pixel_count) };
         for pixel in pixels {
             and_mask.push(pixel.a.wrapping_sub(std::u8::MAX)); // invert alpha channel
-            pixel.to_bgra();
+            pixel.convert_to_bgra();
         }
         assert_eq!(and_mask.len(), pixel_count);
         let handle = unsafe {

@@ -33,7 +33,8 @@ pub struct VideoMode {
     pub(crate) bit_depth: u16,
     pub(crate) refresh_rate: u16,
     pub(crate) monitor: MonitorHandle,
-    pub(crate) native_video_mode: DEVMODEW,
+    // DEVMODEW is huge so we box it to avoid blowing up the size of winit::window::Fullscreen
+    pub(crate) native_video_mode: Box<DEVMODEW>,
 }
 
 impl PartialEq for VideoMode {
@@ -236,7 +237,7 @@ impl MonitorHandle {
                         bit_depth: mode.dmBitsPerPel as u16,
                         refresh_rate: mode.dmDisplayFrequency as u16,
                         monitor: self.clone(),
-                        native_video_mode: mode,
+                        native_video_mode: Box::new(mode),
                     },
                 });
             }
