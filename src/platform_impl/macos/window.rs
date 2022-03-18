@@ -10,6 +10,13 @@ use std::{
     },
 };
 
+use super::thin_cocoa::{
+    {
+        self, CGFloat, NSApp, NSApplication, NSApplicationPresentationOptions, NSColor,
+        NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
+    },
+    {id, nil}, {NSDictionary, NSPoint, NSRect, NSSize, NSUInteger},
+};
 use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
@@ -32,14 +39,6 @@ use crate::{
     window::{
         CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
     },
-};
-use cocoa::{
-    appkit::{
-        self, CGFloat, NSApp, NSApplication, NSApplicationPresentationOptions, NSColor,
-        NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
-    },
-    base::{id, nil},
-    foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSUInteger},
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
@@ -108,7 +107,7 @@ unsafe fn create_view(
         // the view and its associated OpenGL context. To work around this, on Mojave we
         // explicitly make the view layer-backed up front so that AppKit doesn't do it
         // itself and break the association with its context.
-        if f64::floor(appkit::NSAppKitVersionNumber) > appkit::NSAppKitVersionNumber10_12 {
+        if f64::floor(thin_cocoa::NSAppKitVersionNumber) > thin_cocoa::NSAppKitVersionNumber10_12 {
             ns_view.setWantsLayer(YES);
         }
 
@@ -127,9 +126,9 @@ fn create_window(
                 video_mode: VideoMode { ref monitor, .. },
             })) => {
                 let monitor_screen = monitor.ns_screen();
-                Some(monitor_screen.unwrap_or_else(|| appkit::NSScreen::mainScreen(nil)))
+                Some(monitor_screen.unwrap_or_else(|| thin_cocoa::NSScreen::mainScreen(nil)))
             }
-            Some(Fullscreen::Borderless(None)) => Some(appkit::NSScreen::mainScreen(nil)),
+            Some(Fullscreen::Borderless(None)) => Some(thin_cocoa::NSScreen::mainScreen(nil)),
             None => None,
         };
         let frame = match screen {
@@ -186,7 +185,7 @@ fn create_window(
         let ns_window = IdRef::new(ns_window.initWithContentRect_styleMask_backing_defer_(
             frame,
             masks,
-            appkit::NSBackingStoreBuffered,
+            thin_cocoa::NSBackingStoreType::NSBackingStoreBuffered,
             NO,
         ));
 
@@ -200,7 +199,8 @@ fn create_window(
                 ns_window.setTitlebarAppearsTransparent_(YES);
             }
             if pl_attrs.title_hidden {
-                ns_window.setTitleVisibility_(appkit::NSWindowTitleVisibility::NSWindowTitleHidden);
+                ns_window
+                    .setTitleVisibility_(thin_cocoa::NSWindowTitleVisibility::NSWindowTitleHidden);
             }
             if pl_attrs.titlebar_buttons_hidden {
                 for titlebar_button in &[
@@ -417,12 +417,12 @@ impl UnownedWindow {
                 set_max_inner_size(*ns_window, logical_dim);
             }
 
-            use cocoa::foundation::NSArray;
+            use thin_cocoa::NSArray;
             // register for drag and drop operations.
             let () = msg_send![
                 *ns_window,
                 registerForDraggedTypes:
-                    NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)
+                    NSArray::arrayWithObject(nil, thin_cocoa::NSFilenamesPboardType)
             ];
         }
 
@@ -660,9 +660,11 @@ impl UnownedWindow {
         let scale_factor = self.scale_factor();
         let window_position = physical_window_position.to_logical::<CGFloat>(scale_factor);
         let logical_cursor_position = cursor_position.to_logical::<CGFloat>(scale_factor);
-        let point = appkit::CGPoint {
-            x: logical_cursor_position.x + window_position.x,
-            y: logical_cursor_position.y + window_position.y,
+        let point = unsafe {
+            std::mem::transmute(thin_cocoa::CGPoint {
+                x: logical_cursor_position.x + window_position.x,
+                y: logical_cursor_position.y + window_position.y,
+            })
         };
         CGDisplay::warp_mouse_cursor_position(point)
             .map_err(|e| ExternalError::Os(os_error!(OsError::CGError(e))))?;

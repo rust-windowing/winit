@@ -1,8 +1,4 @@
-use cocoa::{
-    appkit::NSImage,
-    base::{id, nil},
-    foundation::{NSDictionary, NSPoint, NSString},
-};
+use super::thin_cocoa::{id, nil, NSDictionary, NSImage, NSPoint, NSString};
 use objc::{runtime::Sel, runtime::NO};
 use std::cell::RefCell;
 

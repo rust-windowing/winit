@@ -4,10 +4,8 @@ use std::{
     sync::{atomic::Ordering, Arc, Weak},
 };
 
-use cocoa::{
-    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
-    base::{id, nil},
-    foundation::NSUInteger,
+use super::thin_cocoa::{
+    self, id, nil, NSApplicationPresentationOptions, NSUInteger, NSView, NSWindow,
 };
 use objc::{
     declare::ClassDecl,
@@ -349,14 +347,15 @@ extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
 extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
     trace_scope!("draggingEntered:");
 
-    use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
+    use super::thin_cocoa::{NSFastEnumeration, NSPasteboard};
     use std::path::PathBuf;
 
     let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
-    let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+    let filenames =
+        unsafe { NSPasteboard::propertyListForType(pb, super::thin_cocoa::NSFilenamesPboardType) };
 
     for file in unsafe { filenames.iter() } {
-        use cocoa::foundation::NSString;
+        use super::thin_cocoa::NSString;
         use std::ffi::CStr;
 
         unsafe {
@@ -382,15 +381,16 @@ extern "C" fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> BOOL {
 extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
     trace_scope!("performDragOperation:");
 
-    use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
     use std::path::PathBuf;
+    use thin_cocoa::{NSFastEnumeration, NSPasteboard};
 
     let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
-    let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+    let filenames =
+        unsafe { NSPasteboard::propertyListForType(pb, thin_cocoa::NSFilenamesPboardType) };
 
     for file in unsafe { filenames.iter() } {
-        use cocoa::foundation::NSString;
         use std::ffi::CStr;
+        use thin_cocoa::NSString;
 
         unsafe {
             let f = NSString::UTF8String(file);

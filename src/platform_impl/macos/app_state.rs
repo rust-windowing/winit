@@ -12,11 +12,7 @@ use std::{
     time::Instant,
 };
 
-use cocoa::{
-    appkit::{NSApp, NSApplication, NSWindow},
-    base::{id, nil},
-    foundation::NSSize,
-};
+use super::thin_cocoa::{id, nil, NSApp, NSApplication, NSSize, NSWindow};
 use objc::{
     rc::autoreleasepool,
     runtime::{Object, BOOL, NO, YES},
@@ -482,7 +478,7 @@ unsafe fn window_activation_hack(ns_app: id) {
 }
 fn apply_activation_policy(app_delegate: &Object) {
     unsafe {
-        use cocoa::appkit::NSApplicationActivationPolicy::*;
+        use super::thin_cocoa::NSApplicationActivationPolicy::*;
         let ns_app = NSApp();
         // We need to delay setting the activation policy and activating the app
         // until `applicationDidFinishLaunching` has been called. Otherwise the

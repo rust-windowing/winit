@@ -3,10 +3,8 @@ use std::{
     sync::{Mutex, Weak},
 };
 
-use cocoa::{
-    appkit::{CGFloat, NSScreen, NSWindow, NSWindowStyleMask},
-    base::{id, nil},
-    foundation::{NSPoint, NSSize, NSString},
+use super::thin_cocoa::{
+    id, nil, CGFloat, NSPoint, NSScreen, NSSize, NSString, NSWindow, NSWindowStyleMask,
 };
 use dispatch::Queue;
 use objc::rc::autoreleasepool;

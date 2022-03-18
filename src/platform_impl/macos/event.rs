@@ -1,9 +1,6 @@
 use std::os::raw::c_ushort;
 
-use cocoa::{
-    appkit::{NSEvent, NSEventModifierFlags},
-    base::id,
-};
+use super::thin_cocoa::{id, NSEvent, NSEventModifierFlags};
 
 use crate::{
     dpi::LogicalSize,
@@ -263,7 +260,7 @@ pub fn event_mods(event: id) -> ModifiersState {
     m
 }
 
-pub fn get_scancode(event: cocoa::base::id) -> c_ushort {
+pub fn get_scancode(event: super::thin_cocoa::id) -> c_ushort {
     // In AppKit, `keyCode` refers to the position (scancode) of a key rather than its character,
     // and there is no easy way to navtively retrieve the layout-dependent character.
     // In winit, we use keycode to refer to the key's character, and so this function aligns

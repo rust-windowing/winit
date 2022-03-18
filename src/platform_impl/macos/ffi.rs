@@ -4,10 +4,7 @@
 
 use std::ffi::c_void;
 
-use cocoa::{
-    base::id,
-    foundation::{NSInteger, NSUInteger},
-};
+use super::thin_cocoa::{id, NSInteger, NSUInteger};
 use core_foundation::{
     array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
 };

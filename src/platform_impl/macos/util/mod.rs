@@ -1,17 +1,14 @@
 mod r#async;
 mod cursor;
+pub mod thin_cocoa;
 
 pub use self::{cursor::*, r#async::*};
 
 use std::ops::{BitAnd, Deref};
 
-use cocoa::{
-    appkit::{NSApp, NSWindowStyleMask},
-    base::{id, nil},
-    foundation::{NSPoint, NSRect, NSString, NSUInteger},
-};
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object};
+use thin_cocoa::{id, nil, NSApp, NSPoint, NSRect, NSString, NSUInteger, NSWindowStyleMask};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -159,7 +156,7 @@ pub unsafe fn open_emoji_picker() {
 }
 
 pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, on: bool) {
-    use cocoa::appkit::NSWindow;
+    use thin_cocoa::NSWindow;
 
     let current_style_mask = window.styleMask();
     if on {

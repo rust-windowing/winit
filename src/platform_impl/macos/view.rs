@@ -6,10 +6,9 @@ use std::{
     sync::{Arc, Mutex, Weak},
 };
 
-use cocoa::{
-    appkit::{NSApp, NSEvent, NSEventModifierFlags, NSEventPhase, NSView, NSWindow},
-    base::{id, nil},
-    foundation::{NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger},
+use super::thin_cocoa::{
+    id, nil, NSApp, NSEvent, NSEventModifierFlags, NSEventPhase, NSInteger, NSPoint, NSRect,
+    NSSize, NSString, NSUInteger, NSView, NSWindow,
 };
 use objc::{
     declare::ClassDecl,

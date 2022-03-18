@@ -11,10 +11,9 @@ use std::{
     sync::mpsc,
 };
 
-use cocoa::{
-    appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
-    base::{id, nil, BOOL, NO, YES},
-    foundation::{NSInteger, NSPoint, NSTimeInterval},
+use super::thin_cocoa::{
+    id, nil, NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined,
+    NSInteger, NSPoint, NSTimeInterval, BOOL, NO, YES,
 };
 use objc::rc::autoreleasepool;
 
@@ -92,13 +91,13 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 impl<T> EventLoopWindowTarget<T> {
     pub(crate) fn hide_application(&self) {
         let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+        let app: super::thin_cocoa::id = unsafe { msg_send![cls, sharedApplication] };
         unsafe { msg_send![app, hide: 0] }
     }
 
     pub(crate) fn hide_other_applications(&self) {
         let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
+        let app: super::thin_cocoa::id = unsafe { msg_send![cls, sharedApplication] };
         unsafe { msg_send![app, hideOtherApplications: 0] }
     }
 }

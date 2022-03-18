@@ -1,14 +1,10 @@
 use std::{collections::VecDeque, fmt};
 
+use super::thin_cocoa::{id, nil, NSScreen, NSUInteger};
 use super::{ffi, util};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-};
-use cocoa::{
-    appkit::NSScreen,
-    base::{id, nil},
-    foundation::NSUInteger,
 };
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex},

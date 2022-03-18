@@ -1,6 +1,6 @@
 use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
 
-use cocoa::base::id;
+use super::thin_cocoa::id;
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel},

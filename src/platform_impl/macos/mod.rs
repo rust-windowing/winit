@@ -3,6 +3,8 @@
 #[macro_use]
 mod util;
 
+pub use util::thin_cocoa;
+
 mod app;
 mod app_delegate;
 mod app_state;
