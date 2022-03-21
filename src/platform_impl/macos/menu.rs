@@ -77,7 +77,10 @@ pub fn initialize() {
         let quit_item_title = quit_item_prefix.stringByAppendingString_(process_name);
         let quit_item = menu_item(
             quit_item_title,
-            selector("terminate:"),
+            // Ususally `terminate:` would be used, however, we would probably
+            // like `run_return` to be able to keep going after the application
+            // was quit.
+            selector("stop:"),
             Some(KeyEquivalent {
                 key: "q",
                 masks: None,
