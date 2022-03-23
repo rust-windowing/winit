@@ -21,6 +21,9 @@ use crate::{
 };
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
+
+type EventHandler<T> = Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>;
+
 pub(crate) struct EventLoopRunner<T: 'static> {
     // The event loop's win32 handles
     pub(super) thread_msg_target: HWND,
@@ -29,8 +32,7 @@ pub(crate) struct EventLoopRunner<T: 'static> {
     control_flow: Cell<ControlFlow>,
     runner_state: Cell<RunnerState>,
     last_events_cleared: Cell<Instant>,
-
-    event_handler: Cell<Option<Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>>,
+    event_handler: EventHandler<T>,
     event_buffer: RefCell<VecDeque<BufferedEvent<T>>>,
 
     owned_windows: Cell<HashSet<HWND>>,

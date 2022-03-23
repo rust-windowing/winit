@@ -421,22 +421,14 @@ impl Window {
             // Change video mode if we're transitioning to or from exclusive
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
-                (&None, &Some(Fullscreen::Exclusive(ref video_mode)))
-                | (
-                    &Some(Fullscreen::Borderless(_)),
-                    &Some(Fullscreen::Exclusive(ref video_mode)),
-                )
-                | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Exclusive(ref video_mode))) =>
-                {
+                (_, Some(Fullscreen::Exclusive(video_mode))) => {
                     let monitor = video_mode.monitor();
                     let monitor_info = monitor::get_monitor_info(monitor.inner.hmonitor()).unwrap();
-
-                    let native_video_mode = video_mode.video_mode.native_video_mode;
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             monitor_info.szDevice.as_ptr(),
-                            &native_video_mode,
+                            &*video_mode.video_mode.native_video_mode,
                             0,
                             CDS_FULLSCREEN,
                             ptr::null(),
@@ -449,8 +441,7 @@ impl Window {
                     debug_assert!(res != DISP_CHANGE_FAILED);
                     assert_eq!(res, DISP_CHANGE_SUCCESSFUL);
                 }
-                (&Some(Fullscreen::Exclusive(_)), &None)
-                | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+                (Some(Fullscreen::Exclusive(_)), _) => {
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             ptr::null(),
@@ -809,8 +800,8 @@ impl<'a, T: 'static> InitData<'a, T> {
     pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<isize> {
         let runner = self.event_loop.runner_shared.clone();
         let result = runner.catch_unwind(|| {
-            let mut window = self.create_window(window);
-            let window_data = self.create_window_data(&mut window);
+            let window = self.create_window(window);
+            let window_data = self.create_window_data(&window);
             (window, window_data)
         });
 
