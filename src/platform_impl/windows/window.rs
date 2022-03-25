@@ -62,8 +62,7 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
-        definitions::ITaskbarList2,
-        definitions::{CLSID_TaskbarList, IID_ITaskbarList2},
+        definitions::{CLSID_TaskbarList, IID_ITaskbarList2, ITaskbarList2},
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
@@ -846,19 +845,20 @@ impl<'a, T: 'static> InitData<'a, T> {
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
-        let dimensions = attributes
-            .inner_size
-            .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-        win.set_inner_size(dimensions);
-        if attributes.maximized {
-            // Need to set MAXIMIZED after setting `inner_size` as
-            // `Window::set_inner_size` changes MAXIMIZED to false.
-            win.set_maximized(true);
-        }
-
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
             force_window_active(win.window.0);
+        } else {
+            let dimensions = attributes
+                .inner_size
+                .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+            win.set_inner_size(dimensions);
+
+            if attributes.maximized {
+                // Need to set MAXIMIZED after setting `inner_size` as
+                // `Window::set_inner_size` changes MAXIMIZED to false.
+                win.set_maximized(true);
+            }
         }
 
         if let Some(position) = attributes.position {
