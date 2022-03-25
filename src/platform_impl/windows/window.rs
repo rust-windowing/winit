@@ -486,6 +486,14 @@ impl Window {
                 );
             });
 
+            // Mark as fullscreen window wrt to z-order
+            //
+            // this needs to be called before the below fullscreen SetWindowPos as this itself
+            // will generate WM_SIZE messages of the old window size that can race with what we set below
+            unsafe {
+                taskbar_mark_fullscreen(window.0, fullscreen.is_some());
+            }
+
             // Update window bounds
             match &fullscreen {
                 Some(fullscreen) => {
@@ -532,10 +540,6 @@ impl Window {
                         }
                     }
                 }
-            }
-
-            unsafe {
-                taskbar_mark_fullscreen(window.0, fullscreen.is_some());
             }
         });
     }
