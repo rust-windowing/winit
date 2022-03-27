@@ -2,7 +2,7 @@ use std::io::{stdin, stdout, Write};
 
 use simple_logger::SimpleLogger;
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::EventLoop;
 use winit::monitor::{MonitorHandle, VideoMode};
 use winit::window::{Fullscreen, WindowBuilder};
 
@@ -32,11 +32,11 @@ fn main() {
         .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
@@ -46,7 +46,7 @@ fn main() {
                         },
                     ..
                 } => match (virtual_code, state) {
-                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
+                    (VirtualKeyCode::Escape, _) => control_flow.set_exit(),
                     (VirtualKeyCode::F, ElementState::Pressed) => {
                         if window.fullscreen().is_some() {
                             window.set_fullscreen(None);

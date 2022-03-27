@@ -18,7 +18,7 @@ pub use crate::icon::{BadIcon, Icon};
 /// ```no_run
 /// use winit::{
 ///     event::{Event, WindowEvent},
-///     event_loop::{ControlFlow, EventLoop},
+///     event_loop::EventLoop,
 ///     window::Window,
 /// };
 ///
@@ -26,13 +26,13 @@ pub use crate::icon::{BadIcon, Icon};
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
-///     *control_flow = ControlFlow::Wait;
+///     control_flow.set_wait();
 ///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
-///         } => *control_flow = ControlFlow::Exit,
+///         } => control_flow.set_exit(),
 ///         _ => (),
 ///     }
 /// });

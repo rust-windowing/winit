@@ -4,7 +4,7 @@ use std::time::Duration;
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -24,16 +24,16 @@ fn main() {
 
         match event {
             Event::NewEvents(StartCause::Init) => {
-                *control_flow = ControlFlow::WaitUntil(Instant::now() + timer_length)
+                control_flow.set_wait_until(Instant::now() + timer_length);
             }
             Event::NewEvents(StartCause::ResumeTimeReached { .. }) => {
-                *control_flow = ControlFlow::WaitUntil(Instant::now() + timer_length);
+                control_flow.set_wait_until(Instant::now() + timer_length);
                 println!("\nTimer\n");
             }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = ControlFlow::Exit,
+            } => control_flow.set_exit(),
             _ => (),
         }
     });
