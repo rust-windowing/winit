@@ -1352,6 +1352,11 @@ impl UnownedWindow {
         self.set_cursor_position_physical(x, y)
     }
 
+    #[inline]
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         let pointer = self
             .xconn

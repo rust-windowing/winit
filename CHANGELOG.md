@@ -8,8 +8,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On macOS and Windows, add `set_cursor_hittest` to let the window ignore mouse events.
 - On Windows, remove internally unique DC per window.
-- macOS: Remove the need to call `set_ime_position` after moving the window.
+- On macOS, remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.
 - Added `Window::is_decorated`.
@@ -98,7 +99,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, initialize the Menu Bar with minimal defaults. (Can be prevented using `enable_default_menu_creation`)
 - On macOS, change the default behavior for first click when the window was unfocused. Now the window becomes focused and then emits a `MouseInput` event on a "first mouse click".
 - Implement mint (math interoperability standard types) conversions (under feature flag `mint`).
-- On macOS and Windows, added `set_ignore_mouse_events` to let the window ignore mouse events.
 
 # 0.24.0 (2020-12-09)
 

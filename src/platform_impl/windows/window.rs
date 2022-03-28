@@ -360,12 +360,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ignore_mouse_events(&self, ignore: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
         self.thread_executor.execute_in_thread(move || {
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
-                f.set(WindowFlags::IGNORE_CURSOR_EVENT, ignore)
+                f.set(WindowFlags::IGNORE_CURSOR_EVENT, !hittest)
             });
         });
 

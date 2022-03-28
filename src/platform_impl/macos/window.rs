@@ -679,9 +679,9 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_ignore_mouse_events(&self, ignore: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         unsafe {
-            util::set_ignore_mouse_events(*self.ns_window, ignore);
+            util::set_ignore_mouse_events(*self.ns_window, !hittest);
         }
 
         Ok(())

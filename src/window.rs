@@ -952,16 +952,15 @@ impl Window {
 
     /// Modifies whether the window catches cursor events.
     ///
-    /// Mouse events pass through the window such that any other window behind it receives them.
-    ///
-    /// If `false`, this will catch the cursor events. If `true`, this will ignore the cursor.
+    /// If `true`, the window will catch the cursor events. If `false`, events are passed through
+    /// the window such that any other window behind it receives them. By default hittest is enabled.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / X11 / Wayland:** Unsupported.
+    /// - **iOS / Android / Web / X11 / Wayland:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
-    pub fn set_ignore_mouse_events(&self, ignore: bool) -> Result<(), ExternalError> {
-        self.window.set_ignore_mouse_events(ignore)
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.window.set_cursor_hittest(hittest)
     }
 }
 

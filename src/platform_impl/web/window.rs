@@ -240,7 +240,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ignore_mouse_events(&self, _ignore: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 

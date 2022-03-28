@@ -607,7 +607,7 @@ impl Window {
         ))
     }
 
-    pub fn set_ignore_mouse_events(&self, _ignore: bool) -> Result<(), error::ExternalError> {
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))
