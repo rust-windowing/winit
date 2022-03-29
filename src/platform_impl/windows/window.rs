@@ -62,7 +62,9 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
-        definitions::{CLSID_TaskbarList, IID_ITaskbarList2, ITaskbarList2},
+        definitions::{
+            CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
+        },
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
@@ -673,17 +675,17 @@ impl Window {
                 let mut task_bar_list = task_bar_list_ptr.get();
 
                 if task_bar_list.is_null() {
-                    use winapi::{shared::winerror::S_OK, Interface};
-
-                    let hr = combaseapi::CoCreateInstance(
+                    let hr = CoCreateInstance(
                         &CLSID_TaskbarList,
                         ptr::null_mut(),
-                        combaseapi::CLSCTX_ALL,
-                        &ITaskbarList::uuidof(),
+                        CLSCTX_ALL,
+                        &IID_ITaskbarList,
                         &mut task_bar_list as *mut _ as *mut _,
                     );
 
-                    if hr != S_OK || (*task_bar_list).HrInit() != S_OK {
+                    let hr_init = (*(*task_bar_list).lpVtbl).HrInit;
+
+                    if hr != S_OK || hr_init(task_bar_list.cast()) != S_OK {
                         // In some old windows, the taskbar object could not be created, we just ignore it
                         return;
                     }
@@ -692,9 +694,11 @@ impl Window {
 
                 task_bar_list = task_bar_list_ptr.get();
                 if skip {
-                    (*task_bar_list).DeleteTab(self.window.0);
+                    let delete_tab = (*(*task_bar_list).lpVtbl).DeleteTab;
+                    delete_tab(task_bar_list, self.window.0);
                 } else {
-                    (*task_bar_list).AddTab(self.window.0);
+                    let add_tab = (*(*task_bar_list).lpVtbl).AddTab;
+                    add_tab(task_bar_list, self.window.0);
                 }
             });
         }
@@ -1055,30 +1059,30 @@ pub fn com_initialized() {
 unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
     com_initialized();
 
-    TASKBAR_LIST2.with(|task_bar_list_ptr| {
-        let mut task_bar_list = task_bar_list_ptr.get();
+    TASKBAR_LIST2.with(|task_bar_list2_ptr| {
+        let mut task_bar_list2 = task_bar_list2_ptr.get();
 
-        if task_bar_list.is_null() {
+        if task_bar_list2.is_null() {
             let hr = CoCreateInstance(
                 &CLSID_TaskbarList,
                 ptr::null_mut(),
                 CLSCTX_ALL,
                 &IID_ITaskbarList2,
-                &mut task_bar_list as *mut _ as *mut _,
+                &mut task_bar_list2 as *mut _ as *mut _,
             );
 
-            let hr_init = (*(*task_bar_list).lpVtbl).parent.HrInit;
+            let hr_init = (*(*task_bar_list2).lpVtbl).parent.HrInit;
 
-            if hr != S_OK || hr_init(task_bar_list.cast()) != S_OK {
+            if hr != S_OK || hr_init(task_bar_list2.cast()) != S_OK {
                 // In some old windows, the taskbar object could not be created, we just ignore it
                 return;
             }
-            task_bar_list_ptr.set(task_bar_list)
+            task_bar_list2_ptr.set(task_bar_list2)
         }
 
-        task_bar_list = task_bar_list_ptr.get();
-        let mark_fullscreen_window = (*(*task_bar_list).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list, handle, if fullscreen { 1 } else { 0 });
+        task_bar_list2 = task_bar_list2_ptr.get();
+        let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
+        mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
     })
 }
 
