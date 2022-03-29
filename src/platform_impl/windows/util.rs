@@ -219,53 +219,53 @@ pub fn is_maximized(window: HWND) -> bool {
     }
 }
 
-pub fn hwnd_decoration_thickness(hwnd: HWND, border_only: bool) -> RECT {
-    unsafe {
-        let style = get_window_long(hwnd, GWL_STYLE) as u32;
-        let style_ex = get_window_long(hwnd, GWL_EXSTYLE) as u32;
+// pub fn hwnd_decoration_thickness(hwnd: HWND, border_only: bool) -> RECT {
+//     unsafe {
+//         let style = get_window_long(hwnd, GWL_STYLE) as u32;
+//         let style_ex = get_window_long(hwnd, GWL_EXSTYLE) as u32;
 
-        let adjust_style = if !border_only {
-            style
-        } else {
-            style & !WS_CAPTION
-        };
-        let mut decoration_thickness = RECT {
-            left: 0,
-            top: 0,
-            right: 0,
-            bottom: 0,
-        };
-        if has_flag(style, WS_SIZEBOX) {
-            #[allow(non_snake_case)]
-            if let Some(AdjustWindowRectExForDpi) = *ADJUST_WINDOW_RECT_EX_FOR_DPI {
-                AdjustWindowRectExForDpi(
-                    &mut decoration_thickness,
-                    adjust_style,
-                    false as _,
-                    style_ex,
-                    hwnd_dpi(hwnd),
-                );
-            } else {
-                AdjustWindowRectEx(
-                    &mut decoration_thickness,
-                    adjust_style,
-                    false as _,
-                    style_ex,
-                );
-            }
-            decoration_thickness.left *= -1;
-            decoration_thickness.top *= -1;
-        } else if has_flag(style, WS_BORDER) {
-            decoration_thickness = RECT {
-                left: 1,
-                top: 1,
-                right: 1,
-                bottom: 1,
-            };
-        }
-        decoration_thickness
-    }
-}
+//         let adjust_style = if !border_only {
+//             style
+//         } else {
+//             style & !WS_CAPTION
+//         };
+//         let mut decoration_thickness = RECT {
+//             left: 0,
+//             top: 0,
+//             right: 0,
+//             bottom: 0,
+//         };
+//         if has_flag(style, WS_SIZEBOX) {
+//             #[allow(non_snake_case)]
+//             if let Some(AdjustWindowRectExForDpi) = *ADJUST_WINDOW_RECT_EX_FOR_DPI {
+//                 AdjustWindowRectExForDpi(
+//                     &mut decoration_thickness,
+//                     adjust_style,
+//                     false as _,
+//                     style_ex,
+//                     hwnd_dpi(hwnd),
+//                 );
+//             } else {
+//                 AdjustWindowRectEx(
+//                     &mut decoration_thickness,
+//                     adjust_style,
+//                     false as _,
+//                     style_ex,
+//                 );
+//             }
+//             decoration_thickness.left *= -1;
+//             decoration_thickness.top *= -1;
+//         } else if has_flag(style, WS_BORDER) {
+//             decoration_thickness = RECT {
+//                 left: 1,
+//                 top: 1,
+//                 right: 1,
+//                 bottom: 1,
+//             };
+//         }
+//         decoration_thickness
+//     }
+// }
 
 impl CursorIcon {
     pub(crate) fn to_windows_cursor(self) -> PCWSTR {
