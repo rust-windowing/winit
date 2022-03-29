@@ -65,19 +65,19 @@ pub trait EventLoopBuilderExtWindows {
     /// # Example
     ///
     /// ```
-    /// # use  windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessageW};
+    /// # use  windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage};
     /// use winit::event_loop::EventLoopBuilder;
     /// #[cfg(target_os = "windows")]
     /// use winit::platform::windows::EventLoopBuilderExtWindows;
     ///
     /// let mut builder = EventLoopBuilder::new();
     /// #[cfg(target_os = "windows")]
-    /// builder.with_msg_hook(Box::new(|msg|{
+    /// builder.with_msg_hook(Box::new(|mut msg|{
     ///     # let accels: Vec<ACCEL> = Vec::new();
     ///     unsafe {
-    ///        let translated = TranslateAcceleratorW(msg.hwnd, CreateAcceleratorTableW(accels.as_ptr() as _, 1), &mut m) == 1;
-    ///         if !transalted {
-    ///             TranslateMessageW(&msg);
+    ///        let translated = TranslateAcceleratorW(msg.hwnd, CreateAcceleratorTableW(accels.as_ptr() as _, 1), &mut msg) == 1;
+    ///         if !translated {
+    ///             TranslateMessage(&msg);
     ///             DispatchMessageW(&msg);
     ///         }
     ///     }
