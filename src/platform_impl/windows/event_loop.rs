@@ -6,6 +6,7 @@ use parking_lot::Mutex;
 use std::{
     cell::Cell,
     collections::VecDeque,
+    ffi::c_void,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
@@ -150,13 +151,13 @@ impl<T> ThreadMsgTargetData<T> {
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
     window_target: RootELW<T>,
-    msg_hook: Option<Box<dyn FnMut(MSG) -> bool>>,
+    msg_hook: Option<Box<dyn FnMut(*mut c_void) -> bool>>,
 }
 
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) any_thread: bool,
     pub(crate) dpi_aware: bool,
-    pub(crate) msg_hook: Option<Box<dyn FnMut(MSG) -> bool>>,
+    pub(crate) msg_hook: Option<Box<dyn FnMut(*mut c_void) -> bool>>,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -256,7 +257,7 @@ impl<T: 'static> EventLoop<T> {
                 }
 
                 let handled = if let Some(callback) = self.msg_hook.as_deref_mut() {
-                    callback(msg)
+                    callback(&mut msg as *mut _ as *mut _)
                 } else {
                     false
                 };

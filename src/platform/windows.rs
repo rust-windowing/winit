@@ -1,6 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use std::path::Path;
+use std::{ffi::c_void, path::Path};
 
 use crate::{
     dpi::PhysicalSize,
@@ -19,8 +19,6 @@ pub type HMENU = isize;
 pub type HMONITOR = isize;
 /// Instance Handle type used by Win32 API
 pub type HINSTANCE = isize;
-/// Message queue type used by Win32 API.
-pub use windows_sys::Win32::UI::WindowsAndMessaging::MSG;
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
@@ -65,7 +63,7 @@ pub trait EventLoopBuilderExtWindows {
     /// # Example
     ///
     /// ```
-    /// # use  windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage};
+    /// # use  windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage, MSG};
     /// use winit::event_loop::EventLoopBuilder;
     /// #[cfg(target_os = "windows")]
     /// use winit::platform::windows::EventLoopBuilderExtWindows;
@@ -73,18 +71,23 @@ pub trait EventLoopBuilderExtWindows {
     /// let mut builder = EventLoopBuilder::new();
     /// #[cfg(target_os = "windows")]
     /// builder.with_msg_hook(Box::new(|mut msg|{
-    ///     # let accels: Vec<ACCEL> = Vec::new();
+    ///     let msg = msg as *mut MSG;
+    /// #   let accels: Vec<ACCEL> = Vec::new();
     ///     unsafe {
-    ///        let translated = TranslateAcceleratorW(msg.hwnd, CreateAcceleratorTableW(accels.as_ptr() as _, 1), &mut msg) == 1;
+    ///         let translated = TranslateAcceleratorW(
+    ///             (*msg).hwnd,
+    ///             CreateAcceleratorTableW(accels.as_ptr() as _, 1),
+    ///             msg,
+    ///         ) == 1;
     ///         if !translated {
-    ///             TranslateMessage(&msg);
-    ///             DispatchMessageW(&msg);
+    ///             TranslateMessage(msg);
+    ///             DispatchMessageW(msg);
     ///         }
     ///     }
     ///     true
     /// }));
     /// ```
-    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(MSG) -> bool>) -> &mut Self;
+    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(*mut c_void) -> bool>) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
@@ -101,7 +104,7 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
     }
 
     #[inline]
-    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(MSG) -> bool>) -> &mut Self {
+    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(*mut c_void) -> bool>) -> &mut Self {
         self.platform_specific.msg_hook = Some(callback);
         self
     }
