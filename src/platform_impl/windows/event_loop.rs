@@ -255,12 +255,12 @@ impl<T: 'static> EventLoop<T> {
                     break 'main 0;
                 }
 
-                let translated = if let Some(callback) = self.msg_hook.as_deref_mut() {
+                let handled = if let Some(callback) = self.msg_hook.as_deref_mut() {
                     callback(msg)
                 } else {
                     false
                 };
-                if !translated {
+                if !handled {
                     TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                 }
