@@ -49,18 +49,18 @@ use objc::{
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(pub usize);
+pub struct WindowId(pub usize);
 
-impl Id {
+impl WindowId {
     pub const unsafe fn dummy() -> Self {
-        Id(0)
+        Self(0)
     }
 }
 
 // Convert the `cocoa::base::id` associated with a window to a usize to use as a unique identifier
 // for the window.
-pub fn get_window_id(window_cocoa_id: id) -> Id {
-    Id(window_cocoa_id as *const Object as _)
+pub fn get_window_id(window_cocoa_id: id) -> WindowId {
+    WindowId(window_cocoa_id as *const Object as _)
 }
 
 #[derive(Clone)]
@@ -363,7 +363,6 @@ impl Drop for SharedStateMutexGuard<'_> {
 pub struct UnownedWindow {
     pub ns_window: IdRef, // never changes
     pub ns_view: IdRef,   // never changes
-    input_context: IdRef, // never changes
     shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
     cursor_state: Weak<Mutex<CursorState>>,
@@ -397,8 +396,6 @@ impl UnownedWindow {
             ns_window.setContentView_(*ns_view);
             ns_window.setInitialFirstResponder_(*ns_view);
         }
-
-        let input_context = unsafe { util::create_input_context(*ns_view) };
 
         let scale_factor = unsafe { NSWindow::backingScaleFactor(*ns_window) as f64 };
 
@@ -442,7 +439,6 @@ impl UnownedWindow {
         let window = Arc::new(UnownedWindow {
             ns_view,
             ns_window,
-            input_context,
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
             cursor_state,
@@ -485,7 +481,7 @@ impl UnownedWindow {
         unsafe { util::set_style_mask_sync(*self.ns_window, *self.ns_view, mask) };
     }
 
-    pub fn id(&self) -> Id {
+    pub fn id(&self) -> WindowId {
         get_window_id(*self.ns_window)
     }
 
@@ -500,6 +496,12 @@ impl UnownedWindow {
             true => unsafe { util::make_key_and_order_front_async(*self.ns_window) },
             false => unsafe { util::order_out_async(*self.ns_window) },
         }
+    }
+
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        let is_visible: BOOL = unsafe { msg_send![*self.ns_window, isVisible] };
+        Some(is_visible == YES)
     }
 
     pub fn request_redraw(&self) {
@@ -600,6 +602,12 @@ impl UnownedWindow {
             }
             self.set_style_mask_async(mask);
         } // Otherwise, we don't change the mask until we exit fullscreen.
+    }
+
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        let is_resizable: BOOL = unsafe { msg_send![*self.ns_window, isResizable] };
+        is_resizable == YES
     }
 
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
@@ -1004,6 +1012,11 @@ impl UnownedWindow {
     }
 
     #[inline]
+    pub fn is_decorated(&self) -> bool {
+        self.decorations.load(Ordering::Acquire)
+    }
+
+    #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         let level = if always_on_top {
             ffi::NSWindowLevel::NSFloatingWindowLevel
@@ -1029,14 +1042,7 @@ impl UnownedWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
-        unsafe {
-            view::set_ime_position(
-                *self.ns_view,
-                *self.input_context,
-                logical_spot.x,
-                logical_spot.y,
-            );
-        }
+        unsafe { view::set_ime_position(*self.ns_view, logical_spot) };
     }
 
     #[inline]

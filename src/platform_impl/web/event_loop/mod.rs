@@ -3,24 +3,27 @@ mod runner;
 mod state;
 mod window_target;
 
-pub use self::proxy::Proxy;
-pub use self::window_target::WindowTarget;
+pub use self::proxy::EventLoopProxy;
+pub use self::window_target::EventLoopWindowTarget;
 
 use super::{backend, device, window};
 use crate::event::Event;
-use crate::event_loop as root;
+use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
 
 use std::marker::PhantomData;
 
 pub struct EventLoop<T: 'static> {
-    elw: root::EventLoopWindowTarget<T>,
+    elw: RootEventLoopWindowTarget<T>,
 }
 
+#[derive(Default, Debug, Copy, Clone, PartialEq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {}
+
 impl<T> EventLoop<T> {
-    pub fn new() -> Self {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
         EventLoop {
-            elw: root::EventLoopWindowTarget {
-                p: WindowTarget::new(),
+            elw: RootEventLoopWindowTarget {
+                p: EventLoopWindowTarget::new(),
                 _marker: PhantomData,
             },
         }
@@ -28,9 +31,9 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &root::EventLoopWindowTarget<T>, &mut root::ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        let target = root::EventLoopWindowTarget {
+        let target = RootEventLoopWindowTarget {
             p: self.elw.p.clone(),
             _marker: PhantomData,
         };
@@ -48,11 +51,11 @@ impl<T> EventLoop<T> {
         unreachable!();
     }
 
-    pub fn create_proxy(&self) -> Proxy<T> {
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
         self.elw.p.proxy()
     }
 
-    pub fn window_target(&self) -> &root::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
         &self.elw
     }
 }

@@ -1,0 +1,2 @@
+[alias]
+run-wasm = ["run", "--release", "--package", "run-wasm", "--"]
