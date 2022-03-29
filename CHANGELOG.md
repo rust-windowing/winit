@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On Windows, Added `EventLoopBuilderExtWindows::with_translate_accel_callback`
+- On Windows, Added `EventLoopBuilderExtWindows::with_msg_hook`
 - On Windows, remove internally unique DC per window.
 - macOS: Remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.

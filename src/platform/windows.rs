@@ -19,6 +19,8 @@ pub type HMENU = isize;
 pub type HMONITOR = isize;
 /// Instance Handle type used by Win32 API
 pub type HINSTANCE = isize;
+/// Message queue type used by Win32 API.
+pub use windows_sys::Win32::UI::WindowsAndMessaging::MSG;
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
@@ -57,50 +59,32 @@ pub trait EventLoopBuilderExtWindows {
     /// ```
     fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self;
 
-    /// A callback, executed before dispatching a win32 message to the window procedure, where you
-    /// can call [`TranslateAcceleratorW`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translateacceleratorw) to
-    /// processes accelerator keys for menu commands.
-    ///
-    /// The callback return value is used as an indicator to whether the message
-    /// should be translated using [`TranslateMessage`](https://docs.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-translatemessage)
+    /// A callback to be executed before dispatching a win32 message to the window procedure.
+    /// Return true to disable winit's internal message dispatching.
     ///
     /// # Example
     ///
-    /// ```no_run
-    /// # use winapi::um::winuser::{ACCEL, VkKeyScanW, VK_CONTROL, TranslateAcceleratorW, CreateAcceleratorTableW};
-    /// # use crate::winit::{event_loop::EventLoopBuilder, platform::windows::EventLoopBuilderExtWindows};
-    /// thread_local! {
-    ///     static ACCELS:Vec<ACCEL> = {
-    ///         unsafe {
-    ///             vec![ACCEL {
-    ///                 cmd: 554,
-    ///                 key: VkKeyScanW('a' as u16) as _  ,
-    ///                 fVirt: VK_CONTROL as _,
-    ///             }]
+    /// ```
+    /// # use  windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessageW};
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "windows")]
+    /// use winit::platform::windows::EventLoopBuilderExtWindows;
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "windows")]
+    /// builder.with_msg_hook(Box::new(|msg|{
+    ///     # let accels: Vec<ACCEL> = Vec::new();
+    ///     unsafe {
+    ///        let translated = TranslateAcceleratorW(msg.hwnd, CreateAcceleratorTableW(accels.as_ptr() as _, 1), &mut m) == 1;
+    ///         if !transalted {
+    ///             TranslateMessageW(&msg);
+    ///             DispatchMessageW(&msg);
     ///         }
     ///     }
-    /// }
-    ///
-    /// fn main() {
-    ///     let event_loop = EventLoopBuilder::new()
-    ///         .with_translate_accel_callback(Box::new(|mut m| unsafe {
-    ///             let mut translated = false;
-    ///             ACCELS.with(|accels| {
-    ///                 translated = TranslateAcceleratorW(
-    ///                     m.hwnd,
-    ///                     CreateAcceleratorTableW(accels.as_ptr() as _, 1),
-    ///                     &mut m,
-    ///                 ) == 1;
-    ///             });
-    ///             translated
-    ///         }))
-    ///         .build();
-    /// }
+    ///     true
+    /// }));
     /// ```
-    fn with_translate_accel_callback(
-        &mut self,
-        callback: Box<dyn FnMut(winapi::um::winuser::MSG) -> bool>,
-    ) -> &mut Self;
+    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(MSG) -> bool>) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
@@ -117,11 +101,8 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
     }
 
     #[inline]
-    fn with_translate_accel_callback(
-        &mut self,
-        callback: Box<dyn FnMut(winapi::um::winuser::MSG) -> bool>,
-    ) -> &mut Self {
-        self.platform_specific.translate_accel_callback = Some(callback);
+    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(MSG) -> bool>) -> &mut Self {
+        self.platform_specific.msg_hook = Some(callback);
         self
     }
 }

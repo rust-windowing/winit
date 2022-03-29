@@ -150,13 +150,13 @@ impl<T> ThreadMsgTargetData<T> {
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
     window_target: RootELW<T>,
-    translate_accel_callback: Option<Box<dyn Fn(winuser::MSG) -> bool>>,
+    msg_hook: Option<Box<dyn FnMut(MSG) -> bool>>,
 }
 
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) any_thread: bool,
     pub(crate) dpi_aware: bool,
-    pub(crate) translate_accel_callback: Option<Box<dyn FnMut(winapi::um::winuser::MSG) -> bool>>,
+    pub(crate) msg_hook: Option<Box<dyn FnMut(MSG) -> bool>>,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -164,7 +164,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
         Self {
             any_thread: false,
             dpi_aware: true,
-            translate_accel_callback: None,
+            msg_hook: None,
         }
     }
 }
@@ -176,7 +176,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
+    pub(crate) fn new(attributes: &mut PlatformSpecificEventLoopAttributes) -> Self {
         let thread_id = unsafe { GetCurrentThreadId() };
 
         if !attributes.any_thread && thread_id != main_thread_id() {
@@ -213,7 +213,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: PhantomData,
             },
-            translate_accel_callback: Some(Box::new(|_| false)),
+            msg_hook: attributes.msg_hook.take(),
         }
     }
 
@@ -255,13 +255,14 @@ impl<T: 'static> EventLoop<T> {
                     break 'main 0;
                 }
 
-                let translated = self
-                    .translate_accel_callback
-                    .as_deref()
-                    .unwrap_or(&Box::new(|_| false))(msg);
+                let translated = if let Some(callback) = self.msg_hook.as_deref_mut() {
+                    callback(msg)
+                } else {
+                    false
+                };
                 if !translated {
-                    winuser::TranslateMessage(&msg);
-                    winuser::DispatchMessageW(&msg);
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
                 }
 
                 if let Err(payload) = runner.take_panic_error() {

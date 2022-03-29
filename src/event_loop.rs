@@ -95,7 +95,7 @@ impl<T> EventLoopBuilder<T> {
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
         EventLoop {
-            event_loop: platform_impl::EventLoop::new(&self.platform_specific),
+            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
             _marker: PhantomData,
         }
     }
