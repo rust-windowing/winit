@@ -2,24 +2,26 @@
 
 use std::sync::Once;
 
+use windows_sys::Win32::{
+    Foundation::{HWND, S_OK},
+    Graphics::Gdi::{
+        GetDC, GetDeviceCaps, MonitorFromWindow, HMONITOR, LOGPIXELSX, MONITOR_DEFAULTTONEAREST,
+    },
+    UI::{
+        HiDpi::{
+            DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, MDT_EFFECTIVE_DPI,
+            PROCESS_PER_MONITOR_DPI_AWARE,
+        },
+        WindowsAndMessaging::IsProcessDPIAware,
+    },
+};
+
 use crate::platform_impl::platform::util::{
     ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE,
     SET_PROCESS_DPI_AWARENESS, SET_PROCESS_DPI_AWARENESS_CONTEXT,
 };
-use winapi::{
-    shared::{
-        minwindef::FALSE,
-        windef::{DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE, HMONITOR, HWND},
-        winerror::S_OK,
-    },
-    um::{
-        shellscalingapi::{MDT_EFFECTIVE_DPI, PROCESS_PER_MONITOR_DPI_AWARE},
-        wingdi::{GetDeviceCaps, LOGPIXELSX},
-        winuser::{self, MONITOR_DEFAULTTONEAREST},
-    },
-};
 
-const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DPI_AWARENESS_CONTEXT = -4isize as _;
+const DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2: DPI_AWARENESS_CONTEXT = -4;
 
 pub fn become_dpi_aware() {
     static ENABLE_DPI_AWARENESS: Once = Once::new();
@@ -28,7 +30,7 @@ pub fn become_dpi_aware() {
             if let Some(SetProcessDpiAwarenessContext) = *SET_PROCESS_DPI_AWARENESS_CONTEXT {
                 // We are on Windows 10 Anniversary Update (1607) or later.
                 if SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)
-                    == FALSE
+                    == false.into()
                 {
                     // V2 only works with Windows 10 Creators Update (1703). Try using the older
                     // V1 if we can't set V2.
@@ -76,8 +78,8 @@ pub fn dpi_to_scale_factor(dpi: u32) -> f64 {
 }
 
 pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
-    let hdc = winuser::GetDC(hwnd);
-    if hdc.is_null() {
+    let hdc = GetDC(hwnd);
+    if hdc == 0 {
         panic!("[winit] `GetDC` returned null!");
     }
     if let Some(GetDpiForWindow) = *GET_DPI_FOR_WINDOW {
@@ -88,8 +90,8 @@ pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
         }
     } else if let Some(GetDpiForMonitor) = *GET_DPI_FOR_MONITOR {
         // We are on Windows 8.1 or later.
-        let monitor = winuser::MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
-        if monitor.is_null() {
+        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        if monitor == 0 {
             return BASE_DPI;
         }
 
@@ -102,7 +104,7 @@ pub unsafe fn hwnd_dpi(hwnd: HWND) -> u32 {
         }
     } else {
         // We are on Vista or later.
-        if winuser::IsProcessDPIAware() != FALSE {
+        if IsProcessDPIAware() != false.into() {
             // If the process is DPI aware, then scaling must be handled by the application using
             // this DPI value.
             GetDeviceCaps(hdc, LOGPIXELSX) as u32

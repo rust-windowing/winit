@@ -147,12 +147,6 @@ pub unsafe fn superclass(this: &Object) -> &Class {
     &*superclass
 }
 
-pub unsafe fn create_input_context(view: id) -> IdRef {
-    let input_context: id = msg_send![class!(NSTextInputContext), alloc];
-    let input_context: id = msg_send![input_context, initWithClient: view];
-    IdRef::new(input_context)
-}
-
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
     let () = msg_send![NSApp(), orderFrontCharacterPalette: nil];

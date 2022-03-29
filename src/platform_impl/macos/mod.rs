@@ -21,11 +21,10 @@ use std::{fmt, ops::Deref, sync::Arc};
 pub(crate) use self::{
     app_delegate::get_aux_state_mut,
     event_loop::{
-        EventLoop, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
-        Proxy as EventLoopProxy,
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoMode},
-    window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
+    window::{PlatformSpecificWindowBuilderAttributes, UnownedWindow, WindowId},
 };
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,

@@ -9,6 +9,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, Added `EventLoopBuilderExtWindows::with_translate_accel_callback`
+- On Windows, remove internally unique DC per window.
+- macOS: Remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.
 - Added `Window::is_decorated`.
@@ -22,7 +24,11 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Replaced `EventLoopExtMacOS` with `EventLoopBuilderExtMacOS` (which also has renamed methods).
 - **Breaking:** Replaced `EventLoopExtWindows` with `EventLoopBuilderExtWindows` (which also has renamed methods).
 - **Breaking:** Replaced `EventLoopExtUnix` with `EventLoopBuilderExtUnix` (which also has renamed methods).
+- **Breaking:** The platform specific extensions for Windows `winit::platform::windows` have changed. All `HANDLE`-like types e.g. `HWND` and `HMENU` were converted from winapi types or `*mut c_void` to `isize`. This was done to be consistent with the type definitions in windows-sys and to not expose internal dependencies.
+- The internal bindings to the [Windows API](https://docs.microsoft.com/en-us/windows/) were changed from the unofficial [winapi](https://github.com/retep998/winapi-rs) bindings to the official Microsoft [windows-sys](https://github.com/microsoft/windows-rs) bindings.
 - On Wayland, fix resize and scale factor changes not being propagated properly.
+- On Wayland, fix polling during consecutive `EventLoop::run_return` invocations.
+- On Windows, fix race issue creating fullscreen windows with `WindowBuilder::with_fullscreen`
 
 # 0.26.1 (2022-01-05)
 
@@ -31,6 +37,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
 - On macOS, fix Pinyin IME input by reverting a change that intended to improve IME.
 - On Windows, fix a crash with transparent windows on Windows 11.
+- **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
 
 # 0.26.0 (2021-12-01)
 
@@ -247,13 +254,13 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
 - **Breaking**: Overhaul how Winit handles DPI:
-  + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
-  + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
-  + `hidpi_factor` has been renamed to `scale_factor`.
-  + `HiDpiFactorChanged` has been renamed to `ScaleFactorChanged`, and lets you control how the OS
+  - Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
+  - Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
+  - `hidpi_factor` has been renamed to `scale_factor`.
+  - `HiDpiFactorChanged` has been renamed to `ScaleFactorChanged`, and lets you control how the OS
     resizes the window in response to the change.
-  + On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`.
-  + `Size` and `Position` types are now generic over their exact pixel type.
+  - On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`.
+  - `Size` and `Position` types are now generic over their exact pixel type.
 
 # 0.20.0 Alpha 6 (2020-01-03)
 
@@ -358,7 +365,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
   consists of `Fullscreen::Exclusive(VideoMode)` and
   `Fullscreen::Borderless(MonitorHandle)` variants.
-    - Adds support for exclusive fullscreen mode.
+  - Adds support for exclusive fullscreen mode.
 - On iOS, add support for hiding the home indicator.
 - On iOS, add support for deferring system gestures.
 - On iOS, fix a crash that occurred while acquiring a monitor's name.
@@ -557,7 +564,7 @@ and `WindowEvent::HoveredFile`.
 # Version 0.16.1 (2018-07-02)
 
 - Added logging through `log`. Logging will become more extensive over time.
-- On X11 and Windows, the window's DPI factor is guessed before creating the window. This *greatly* cuts back on unsightly auto-resizing that would occur immediately after window creation.
+- On X11 and Windows, the window's DPI factor is guessed before creating the window. This _greatly_ cuts back on unsightly auto-resizing that would occur immediately after window creation.
 - Fixed X11 backend compilation for environments where `c_char` is unsigned.
 
 # Version 0.16.0 (2018-06-25)
@@ -707,7 +714,7 @@ and `WindowEvent::HoveredFile`.
 
 # Version 0.10.1 (2018-02-05)
 
-*Yanked*
+_Yanked_
 
 # Version 0.10.0 (2017-12-27)
 
