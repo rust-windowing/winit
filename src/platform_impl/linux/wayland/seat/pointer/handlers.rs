@@ -193,9 +193,9 @@ pub(super) fn handle_pointer(
 
                 // Old seat compatibility.
                 match axis {
-                    // Wayland vertical sign convention is the inverse of winit.
+                    // Wayland sign convention is the inverse of winit.
                     wl_pointer::Axis::VerticalScroll => y -= value as f32,
-                    wl_pointer::Axis::HorizontalScroll => x += value as f32,
+                    wl_pointer::Axis::HorizontalScroll => x -= value as f32,
                     _ => unreachable!(),
                 }
 
@@ -216,9 +216,9 @@ pub(super) fn handle_pointer(
             } else {
                 let (mut x, mut y) = pointer_data.axis_data.axis_buffer.unwrap_or((0.0, 0.0));
                 match axis {
-                    // Wayland vertical sign convention is the inverse of winit.
+                    // Wayland sign convention is the inverse of winit.
                     wl_pointer::Axis::VerticalScroll => y -= value as f32,
-                    wl_pointer::Axis::HorizontalScroll => x += value as f32,
+                    wl_pointer::Axis::HorizontalScroll => x -= value as f32,
                     _ => unreachable!(),
                 }
 
@@ -237,9 +237,9 @@ pub(super) fn handle_pointer(
                 .unwrap_or((0., 0.));
 
             match axis {
-                // Wayland vertical sign convention is the inverse of winit.
+                // Wayland sign convention is the inverse of winit.
                 wl_pointer::Axis::VerticalScroll => y -= discrete as f32,
-                wl_pointer::Axis::HorizontalScroll => x += discrete as f32,
+                wl_pointer::Axis::HorizontalScroll => x -= discrete as f32,
                 _ => unreachable!(),
             }
 
@@ -297,9 +297,17 @@ pub(super) fn handle_pointer(
 
 #[inline]
 pub(super) fn handle_relative_pointer(event: RelativePointerEvent, winit_state: &mut WinitState) {
-    if let RelativePointerEvent::RelativeMotion { dx, dy, .. } = event {
-        winit_state
-            .event_sink
-            .push_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
+    match event {
+        RelativePointerEvent::RelativeMotion {
+            dx_unaccel,
+            dy_unaccel,
+            ..
+        } => winit_state.event_sink.push_device_event(
+            DeviceEvent::MouseMotion {
+                delta: (dx_unaccel, dy_unaccel),
+            },
+            DeviceId,
+        ),
+        _ => (),
     }
 }

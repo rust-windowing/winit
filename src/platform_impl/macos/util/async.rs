@@ -10,11 +10,15 @@ use cocoa::{
 };
 use dispatch::Queue;
 use objc::rc::autoreleasepool;
-use objc::runtime::NO;
+use objc::runtime::{BOOL, NO};
 
 use crate::{
     dpi::LogicalSize,
-    platform_impl::platform::{ffi, util::IdRef, window::SharedState},
+    platform_impl::platform::{
+        ffi,
+        util::IdRef,
+        window::{SharedState, SharedStateMutexGuard},
+    },
 };
 
 // Unsafe wrapper type that allows us to dispatch things that aren't Send.
@@ -51,7 +55,8 @@ pub unsafe fn set_style_mask_async(ns_window: id, ns_view: id, mask: NSWindowSty
     });
 }
 pub unsafe fn set_style_mask_sync(ns_window: id, ns_view: id, mask: NSWindowStyleMask) {
-    if msg_send![class!(NSThread), isMainThread] {
+    let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
+    if is_main_thread != NO {
         set_style_mask(ns_window, ns_view, mask);
     } else {
         let ns_window = MainThreadSafe(ns_window);
@@ -110,10 +115,11 @@ pub unsafe fn toggle_full_screen_async(
             if !curr_mask.contains(required) {
                 set_style_mask(*ns_window, *ns_view, required);
                 if let Some(shared_state) = shared_state.upgrade() {
-                    trace!("Locked shared state in `toggle_full_screen_callback`");
-                    let mut shared_state_lock = shared_state.lock().unwrap();
+                    let mut shared_state_lock = SharedStateMutexGuard::new(
+                        shared_state.lock().unwrap(),
+                        "toggle_full_screen_callback",
+                    );
                     (*shared_state_lock).saved_style = Some(curr_mask);
-                    trace!("Unlocked shared state in `toggle_full_screen_callback`");
                 }
             }
         }
@@ -143,8 +149,8 @@ pub unsafe fn set_maximized_async(
     let shared_state = MainThreadSafe(shared_state);
     Queue::main().exec_async(move || {
         if let Some(shared_state) = shared_state.upgrade() {
-            trace!("Locked shared state in `set_maximized`");
-            let mut shared_state_lock = shared_state.lock().unwrap();
+            let mut shared_state_lock =
+                SharedStateMutexGuard::new(shared_state.lock().unwrap(), "set_maximized");
 
             // Save the standard frame sized if it is not zoomed
             if !is_zoomed {
@@ -170,8 +176,6 @@ pub unsafe fn set_maximized_async(
                 };
                 ns_window.setFrame_display_(new_rect, NO);
             }
-
-            trace!("Unlocked shared state in `set_maximized`");
         }
     });
 }

@@ -62,7 +62,8 @@
 // window size/position.
 macro_rules! assert_main_thread {
     ($($t:tt)*) => {
-        if !msg_send![class!(NSThread), isMainThread] {
+        let is_main_thread: ::objc::runtime::BOOL = msg_send!(class!(NSThread), isMainThread);
+        if is_main_thread == ::objc::runtime::NO {
             panic!($($t)*);
         }
     };
@@ -77,8 +78,10 @@ mod window;
 
 use std::fmt;
 
-pub use self::{
-    event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
+pub(crate) use self::{
+    event_loop::{
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+    },
     monitor::{MonitorHandle, VideoMode},
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };

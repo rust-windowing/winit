@@ -90,7 +90,7 @@ impl Eq for MonitorHandle {}
 
 impl PartialOrd for MonitorHandle {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -204,7 +204,7 @@ impl XConnection {
             let overlapping_area = window_rect.get_overlapping_area(&monitor.rect);
             if overlapping_area > largest_overlap {
                 largest_overlap = overlapping_area;
-                matched_monitor = &monitor;
+                matched_monitor = monitor;
             }
         }
 
@@ -242,8 +242,11 @@ impl XConnection {
                 if is_active {
                     let is_primary = *(*crtc).outputs.offset(0) == primary;
                     has_primary |= is_primary;
-                    MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
-                        .map(|monitor_id| available.push(monitor_id));
+                    if let Some(monitor_id) =
+                        MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
+                    {
+                        available.push(monitor_id)
+                    }
                 }
                 (self.xrandr.XRRFreeCrtcInfo)(crtc);
             }

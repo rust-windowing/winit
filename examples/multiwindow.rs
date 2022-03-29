@@ -41,7 +41,7 @@ fn main() {
                             },
                         ..
                     } => {
-                        let window = Window::new(&event_loop).unwrap();
+                        let window = Window::new(event_loop).unwrap();
                         windows.insert(window.id(), window);
                     }
                     _ => (),

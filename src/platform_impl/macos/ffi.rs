@@ -15,7 +15,6 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
-use objc;
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
 
@@ -107,6 +106,8 @@ pub const kCGCursorWindowLevelKey: NSInteger = 19;
 pub const kCGNumberOfWindowLevelKeys: NSInteger = 20;
 
 #[derive(Debug, Clone, Copy)]
+#[repr(isize)]
+#[allow(clippy::enum_variant_names)]
 pub enum NSWindowLevel {
     NSNormalWindowLevel = kCGBaseWindowLevelKey as _,
     NSFloatingWindowLevel = kCGFloatingWindowLevelKey as _,
@@ -117,8 +118,6 @@ pub enum NSWindowLevel {
     NSPopUpMenuWindowLevel = kCGPopUpMenuWindowLevelKey as _,
     NSScreenSaverWindowLevel = kCGScreenSaverWindowLevelKey as _,
 }
-
-pub const NSStringEnumerationByComposedCharacterSequences: NSUInteger = 2;
 
 pub type CGDisplayFadeInterval = f32;
 pub type CGDisplayReservationInterval = f32;
@@ -165,14 +164,14 @@ pub const IO8BitOverlayPixels: &str = "O8";
 pub type CGWindowLevel = i32;
 pub type CGDisplayModeRef = *mut c_void;
 
-#[cfg_attr(
-    not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
-    link(name = "CoreGraphics", kind = "framework")
-)]
-#[cfg_attr(
-    use_colorsync_cgdisplaycreateuuidfromdisplayid,
-    link(name = "ColorSync", kind = "framework")
-)]
+// `CGDisplayCreateUUIDFromDisplayID` comes from the `ColorSync` framework.
+// However, that framework was only introduced "publicly" in macOS 10.13.
+//
+// Since we want to support older versions, we can't link to `ColorSync`
+// directly. Fortunately, it has always been available as a subframework of
+// `ApplicationServices`, see:
+// https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/SystemFrameworks/SystemFrameworks.html#//apple_ref/doc/uid/TP40001067-CH210-BBCFFIEG
+#[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
 }

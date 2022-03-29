@@ -2,16 +2,8 @@ name: CI
 
 on:
   pull_request:
-    paths:
-      - '**.rs'
-      - '**.toml'
-      - '.github/workflows/ci.yml'
   push:
     branches: [master]
-    paths:
-      - '**.rs'
-      - '**.toml'
-      - '.github/workflows/ci.yml'
 
 jobs:
   Check_Formatting:
@@ -50,7 +42,7 @@ jobs:
     env:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
-      RUSTFLAGS: "-C debuginfo=0"
+      RUSTFLAGS: "-C debuginfo=0 --deny warnings"
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
       CMD: ${{ matrix.platform.cmd }}

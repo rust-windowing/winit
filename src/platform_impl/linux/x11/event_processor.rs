@@ -45,7 +45,7 @@ impl<T: 'static> EventProcessor<T> {
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid), Device::new(&self, info));
+                devices.insert(DeviceId(info.deviceid), Device::new(self, info));
             }
         }
     }
@@ -693,8 +693,8 @@ impl<T: 'static> EventProcessor<T> {
                                             delta: match xev.detail {
                                                 4 => LineDelta(0.0, 1.0),
                                                 5 => LineDelta(0.0, -1.0),
-                                                6 => LineDelta(-1.0, 0.0),
-                                                7 => LineDelta(1.0, 0.0),
+                                                6 => LineDelta(1.0, 0.0),
+                                                7 => LineDelta(-1.0, 0.0),
                                                 _ => unreachable!(),
                                             },
                                             phase: TouchPhase::Moved,
@@ -774,10 +774,10 @@ impl<T: 'static> EventProcessor<T> {
                                             event: MouseWheel {
                                                 device_id,
                                                 delta: match info.orientation {
-                                                    ScrollOrientation::Horizontal => {
-                                                        LineDelta(delta as f32, 0.0)
-                                                    }
                                                     // X11 vertical scroll coordinates are opposite to winit's
+                                                    ScrollOrientation::Horizontal => {
+                                                        LineDelta(-delta as f32, 0.0)
+                                                    }
                                                     ScrollOrientation::Vertical => {
                                                         LineDelta(0.0, -delta as f32)
                                                     }
@@ -925,7 +925,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             // Issue key press events for all pressed keys
                             Self::handle_pressed_keys(
-                                &wt,
+                                wt,
                                 window_id,
                                 ElementState::Pressed,
                                 &self.mod_keymap,
@@ -949,7 +949,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             // Issue key release events for all pressed keys
                             Self::handle_pressed_keys(
-                                &wt,
+                                wt,
                                 window_id,
                                 ElementState::Released,
                                 &self.mod_keymap,
@@ -1220,11 +1220,8 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        match self.ime_receiver.try_recv() {
-            Ok((window_id, x, y)) => {
-                wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
-            }
-            Err(_) => (),
+        if let Ok((window_id, x, y)) = self.ime_receiver.try_recv() {
+            wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
         }
     }
 

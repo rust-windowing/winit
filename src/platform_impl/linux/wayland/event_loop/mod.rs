@@ -24,7 +24,7 @@ use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget
 use super::env::{WindowingFeatures, WinitEnv};
 use super::output::OutputManager;
 use super::seat::SeatManager;
-use super::window::shim::{self, WindowUpdate};
+use super::window::shim::{self, WindowRequest, WindowUpdate};
 use super::{DeviceId, WindowId};
 
 mod proxy;
@@ -206,19 +206,15 @@ impl<T: 'static> EventLoop<T> {
     where
         F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
     {
-        self.run_return(callback);
-        process::exit(0)
+        let exit_code = self.run_return(callback);
+        process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F)
+    pub fn run_return<F>(&mut self, mut callback: F) -> i32
     where
         F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        // Send pending events to the server.
-        let _ = self.display.flush();
-
-        let mut control_flow = ControlFlow::default();
-
+        let mut control_flow = ControlFlow::Poll;
         let pending_user_events = self.pending_user_events.clone();
 
         callback(
@@ -235,7 +231,108 @@ impl<T: 'static> EventLoop<T> {
         // really an option. Instead we inform that the event loop got destroyed. We may
         // communicate an error that something was terminated, but winit doesn't provide us
         // with an API to do that via some event.
-        loop {
+        // Still, we set the exit code to the error's OS error code, or to 1 if not possible.
+        let exit_code = loop {
+            // Send pending events to the server.
+            let _ = self.display.flush();
+
+            // During the run of the user callback, some other code monitoring and reading the
+            // Wayland socket may have been run (mesa for example does this with vsync), if that
+            // is the case, some events may have been enqueued in our event queue.
+            //
+            // If some messages are there, the event loop needs to behave as if it was instantly
+            // woken up by messages arriving from the Wayland socket, to avoid delaying the
+            // dispatch of these events until we're woken up again.
+            let instant_wakeup = {
+                let mut wayland_source = self.wayland_dispatcher.as_source_mut();
+                let queue = wayland_source.queue();
+                let state = match &mut self.window_target.p {
+                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
+                        window_target.state.get_mut()
+                    }
+                    #[cfg(feature = "x11")]
+                    _ => unreachable!(),
+                };
+
+                match queue.dispatch_pending(state, |_, _, _| unimplemented!()) {
+                    Ok(dispatched) => dispatched > 0,
+                    Err(error) => break error.raw_os_error().unwrap_or(1),
+                }
+            };
+
+            match control_flow {
+                ControlFlow::ExitWithCode(code) => break code,
+                ControlFlow::Poll => {
+                    // Non-blocking dispatch.
+                    let timeout = Duration::from_millis(0);
+                    if let Err(error) = self.loop_dispatch(Some(timeout)) {
+                        break error.raw_os_error().unwrap_or(1);
+                    }
+
+                    callback(
+                        Event::NewEvents(StartCause::Poll),
+                        &self.window_target,
+                        &mut control_flow,
+                    );
+                }
+                ControlFlow::Wait => {
+                    let timeout = if instant_wakeup {
+                        Some(Duration::from_millis(0))
+                    } else {
+                        None
+                    };
+
+                    if let Err(error) = self.loop_dispatch(timeout) {
+                        break error.raw_os_error().unwrap_or(1);
+                    }
+
+                    callback(
+                        Event::NewEvents(StartCause::WaitCancelled {
+                            start: Instant::now(),
+                            requested_resume: None,
+                        }),
+                        &self.window_target,
+                        &mut control_flow,
+                    );
+                }
+                ControlFlow::WaitUntil(deadline) => {
+                    let start = Instant::now();
+
+                    // Compute the amount of time we'll block for.
+                    let duration = if deadline > start && !instant_wakeup {
+                        deadline - start
+                    } else {
+                        Duration::from_millis(0)
+                    };
+
+                    if let Err(error) = self.loop_dispatch(Some(duration)) {
+                        break error.raw_os_error().unwrap_or(1);
+                    }
+
+                    let now = Instant::now();
+
+                    if now < deadline {
+                        callback(
+                            Event::NewEvents(StartCause::WaitCancelled {
+                                start,
+                                requested_resume: Some(deadline),
+                            }),
+                            &self.window_target,
+                            &mut control_flow,
+                        )
+                    } else {
+                        callback(
+                            Event::NewEvents(StartCause::ResumeTimeReached {
+                                start,
+                                requested_resume: deadline,
+                            }),
+                            &self.window_target,
+                            &mut control_flow,
+                        )
+                    }
+                }
+            }
+
             // Handle pending user events. We don't need back buffer, since we can't dispatch
             // user events indirectly via callback to the user.
             for user_event in pending_user_events.borrow_mut().drain(..) {
@@ -248,7 +345,8 @@ impl<T: 'static> EventLoop<T> {
             }
 
             // Process 'new' pending updates.
-            self.with_state(|state| {
+            self.with_window_target(|window_target| {
+                let state = window_target.state.get_mut();
                 window_updates.clear();
                 window_updates.extend(
                     state
@@ -260,7 +358,8 @@ impl<T: 'static> EventLoop<T> {
 
             for (window_id, window_update) in window_updates.iter_mut() {
                 if let Some(scale_factor) = window_update.scale_factor.map(|f| f as f64) {
-                    let mut physical_size = self.with_state(|state| {
+                    let mut physical_size = self.with_window_target(|window_target| {
+                        let state = window_target.state.get_mut();
                         let window_handle = state.window_map.get(window_id).unwrap();
                         let mut size = window_handle.size.lock().unwrap();
 
@@ -293,7 +392,8 @@ impl<T: 'static> EventLoop<T> {
                 }
 
                 if let Some(size) = window_update.size.take() {
-                    let physical_size = self.with_state(|state| {
+                    let physical_size = self.with_window_target(|window_target| {
+                        let state = window_target.state.get_mut();
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         let mut window_size = window_handle.size.lock().unwrap();
 
@@ -318,6 +418,15 @@ impl<T: 'static> EventLoop<T> {
 
                         // Mark that refresh isn't required, since we've done it right now.
                         window_update.refresh_frame = false;
+
+                        // Queue request for redraw into the next iteration of the loop, since
+                        // resize and scale factor changes are double buffered.
+                        window_handle
+                            .pending_window_requests
+                            .lock()
+                            .unwrap()
+                            .push(WindowRequest::Redraw);
+                        window_target.event_loop_awakener.ping();
 
                         physical_size
                     });
@@ -355,7 +464,8 @@ impl<T: 'static> EventLoop<T> {
             // The purpose of the back buffer and that swap is to not hold borrow_mut when
             // we're doing callback to the user, since we can double borrow if the user decides
             // to create a window in one of those callbacks.
-            self.with_state(|state| {
+            self.with_window_target(|window_target| {
+                let state = window_target.state.get_mut();
                 std::mem::swap(
                     &mut event_sink_back_buffer,
                     &mut state.event_sink.window_events,
@@ -380,7 +490,8 @@ impl<T: 'static> EventLoop<T> {
             for (window_id, window_update) in window_updates.iter() {
                 // Handle refresh of the frame.
                 if window_update.refresh_frame {
-                    self.with_state(|state| {
+                    self.with_window_target(|window_target| {
+                        let state = window_target.state.get_mut();
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         window_handle.window.refresh();
                         if !window_update.redraw_requested {
@@ -409,110 +520,10 @@ impl<T: 'static> EventLoop<T> {
                 &mut control_flow,
                 &mut callback,
             );
-
-            // Send pending events to the server.
-            let _ = self.display.flush();
-
-            // During the run of the user callback, some other code monitoring and reading the
-            // Wayland socket may have been run (mesa for example does this with vsync), if that
-            // is the case, some events may have been enqueued in our event queue.
-            //
-            // If some messages are there, the event loop needs to behave as if it was instantly
-            // woken up by messages arriving from the Wayland socket, to avoid delaying the
-            // dispatch of these events until we're woken up again.
-            let instant_wakeup = {
-                let mut wayland_source = self.wayland_dispatcher.as_source_mut();
-                let queue = wayland_source.queue();
-                let state = match &mut self.window_target.p {
-                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
-                        window_target.state.get_mut()
-                    }
-                    #[cfg(feature = "x11")]
-                    _ => unreachable!(),
-                };
-
-                if let Ok(dispatched) = queue.dispatch_pending(state, |_, _, _| unimplemented!()) {
-                    dispatched > 0
-                } else {
-                    break;
-                }
-            };
-
-            match control_flow {
-                ControlFlow::Exit => break,
-                ControlFlow::Poll => {
-                    // Non-blocking dispatch.
-                    let timeout = Duration::from_millis(0);
-                    if self.loop_dispatch(Some(timeout)).is_err() {
-                        break;
-                    }
-
-                    callback(
-                        Event::NewEvents(StartCause::Poll),
-                        &self.window_target,
-                        &mut control_flow,
-                    );
-                }
-                ControlFlow::Wait => {
-                    let timeout = if instant_wakeup {
-                        Some(Duration::from_millis(0))
-                    } else {
-                        None
-                    };
-
-                    if self.loop_dispatch(timeout).is_err() {
-                        break;
-                    }
-
-                    callback(
-                        Event::NewEvents(StartCause::WaitCancelled {
-                            start: Instant::now(),
-                            requested_resume: None,
-                        }),
-                        &self.window_target,
-                        &mut control_flow,
-                    );
-                }
-                ControlFlow::WaitUntil(deadline) => {
-                    let start = Instant::now();
-
-                    // Compute the amount of time we'll block for.
-                    let duration = if deadline > start && !instant_wakeup {
-                        deadline - start
-                    } else {
-                        Duration::from_millis(0)
-                    };
-
-                    if self.loop_dispatch(Some(duration)).is_err() {
-                        break;
-                    }
-
-                    let now = Instant::now();
-
-                    if now < deadline {
-                        callback(
-                            Event::NewEvents(StartCause::WaitCancelled {
-                                start,
-                                requested_resume: Some(deadline),
-                            }),
-                            &self.window_target,
-                            &mut control_flow,
-                        )
-                    } else {
-                        callback(
-                            Event::NewEvents(StartCause::ResumeTimeReached {
-                                start,
-                                requested_resume: deadline,
-                            }),
-                            &self.window_target,
-                            &mut control_flow,
-                        )
-                    }
-                }
-            }
-        }
+        };
 
         callback(Event::LoopDestroyed, &self.window_target, &mut control_flow);
+        exit_code
     }
 
     #[inline]
@@ -525,9 +536,9 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&mut self, f: F) -> U {
+    fn with_window_target<U, F: FnOnce(&mut EventLoopWindowTarget<T>) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
-            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
+            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target,
             #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
@@ -536,12 +547,12 @@ impl<T: 'static> EventLoop<T> {
     }
 
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
-        let mut state = match &mut self.window_target.p {
+        let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
             #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
 
-        self.event_loop.dispatch(timeout, &mut state)
+        self.event_loop.dispatch(timeout, state)
     }
 }

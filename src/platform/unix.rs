@@ -11,7 +11,7 @@ use std::os::raw;
 use std::{ptr, sync::Arc};
 
 use crate::{
-    event_loop::{EventLoop, EventLoopWindowTarget},
+    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
@@ -21,8 +21,7 @@ use crate::dpi::Size;
 #[cfg(feature = "x11")]
 use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
 use crate::platform_impl::{
-    EventLoop as LinuxEventLoop, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
-    Window as LinuxWindow,
+    Backend, EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow,
 };
 
 // TODO: stupid hack so that glutin can do its work
@@ -93,100 +92,42 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 }
 
-/// Additional methods on `EventLoop` that are specific to Unix.
-pub trait EventLoopExtUnix {
-    /// Builds a new `EventLoop` that is forced to use X11.
-    ///
-    /// # Panics
-    ///
-    /// If called outside the main thread. To initialize an X11 event loop outside
-    /// the main thread, use [`new_x11_any_thread`](#tymethod.new_x11_any_thread).
+/// Additional methods on [`EventLoopBuilder`] that are specific to Unix.
+pub trait EventLoopBuilderExtUnix {
+    /// Force using X11.
     #[cfg(feature = "x11")]
-    fn new_x11() -> Result<Self, XNotSupported>
-    where
-        Self: Sized;
+    fn with_x11(&mut self) -> &mut Self;
 
-    /// Builds a new `EventLoop` that is forced to use Wayland.
-    ///
-    /// # Panics
-    ///
-    /// If called outside the main thread. To initialize a Wayland event loop outside
-    /// the main thread, use [`new_wayland_any_thread`](#tymethod.new_wayland_any_thread).
+    /// Force using Wayland.
     #[cfg(feature = "wayland")]
-    fn new_wayland() -> Self
-    where
-        Self: Sized;
+    fn with_wayland(&mut self) -> &mut Self;
 
-    /// Builds a new `EventLoop` on any thread.
+    /// Whether to allow the event loop to be created off of the main thread.
     ///
-    /// This method bypasses the cross-platform compatibility requirement
-    /// that `EventLoop` be created on the main thread.
-    fn new_any_thread() -> Self
-    where
-        Self: Sized;
-
-    /// Builds a new X11 `EventLoop` on any thread.
-    ///
-    /// This method bypasses the cross-platform compatibility requirement
-    /// that `EventLoop` be created on the main thread.
-    #[cfg(feature = "x11")]
-    fn new_x11_any_thread() -> Result<Self, XNotSupported>
-    where
-        Self: Sized;
-
-    /// Builds a new Wayland `EventLoop` on any thread.
-    ///
-    /// This method bypasses the cross-platform compatibility requirement
-    /// that `EventLoop` be created on the main thread.
-    #[cfg(feature = "wayland")]
-    fn new_wayland_any_thread() -> Self
-    where
-        Self: Sized;
+    /// By default, the window is only allowed to be created on the main
+    /// thread, to make platform compatibility easier.
+    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self;
 }
 
-fn wrap_ev<T>(event_loop: LinuxEventLoop<T>) -> EventLoop<T> {
-    EventLoop {
-        event_loop,
-        _marker: std::marker::PhantomData,
-    }
-}
-
-impl<T> EventLoopExtUnix for EventLoop<T> {
-    #[inline]
-    fn new_any_thread() -> Self {
-        wrap_ev(LinuxEventLoop::new_any_thread())
-    }
-
+impl<T> EventLoopBuilderExtUnix for EventLoopBuilder<T> {
     #[inline]
     #[cfg(feature = "x11")]
-    fn new_x11_any_thread() -> Result<Self, XNotSupported> {
-        LinuxEventLoop::new_x11_any_thread().map(wrap_ev)
+    fn with_x11(&mut self) -> &mut Self {
+        self.platform_specific.forced_backend = Some(Backend::X);
+        self
     }
 
     #[inline]
     #[cfg(feature = "wayland")]
-    fn new_wayland_any_thread() -> Self {
-        wrap_ev(
-            LinuxEventLoop::new_wayland_any_thread()
-                // TODO: propagate
-                .expect("failed to open Wayland connection"),
-        )
+    fn with_wayland(&mut self) -> &mut Self {
+        self.platform_specific.forced_backend = Some(Backend::Wayland);
+        self
     }
 
     #[inline]
-    #[cfg(feature = "x11")]
-    fn new_x11() -> Result<Self, XNotSupported> {
-        LinuxEventLoop::new_x11().map(wrap_ev)
-    }
-
-    #[inline]
-    #[cfg(feature = "wayland")]
-    fn new_wayland() -> Self {
-        wrap_ev(
-            LinuxEventLoop::new_wayland()
-                // TODO: propagate
-                .expect("failed to open Wayland connection"),
-        )
+    fn with_any_thread(&mut self, any_thread: bool) -> &mut Self {
+        self.platform_specific.any_thread = any_thread;
+        self
     }
 }
 
@@ -345,9 +286,31 @@ pub trait WindowBuilderExtUnix {
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(self, variant: String) -> Self;
     /// Build window with resize increment hint. Only implemented on X11.
+    ///
+    /// ```
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::window::WindowBuilder;
+    /// # use winit::platform::unix::WindowBuilderExtUnix;
+    /// // Specify the size in logical dimensions like this:
+    /// WindowBuilder::new().with_resize_increments(LogicalSize::new(400.0, 200.0));
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// WindowBuilder::new().with_resize_increments(PhysicalSize::new(400, 200));
+    /// ```
     #[cfg(feature = "x11")]
     fn with_resize_increments<S: Into<Size>>(self, increments: S) -> Self;
     /// Build window with base size hint. Only implemented on X11.
+    ///
+    /// ```
+    /// # use winit::dpi::{LogicalSize, PhysicalSize};
+    /// # use winit::window::WindowBuilder;
+    /// # use winit::platform::unix::WindowBuilderExtUnix;
+    /// // Specify the size in logical dimensions like this:
+    /// WindowBuilder::new().with_base_size(LogicalSize::new(400.0, 200.0));
+    ///
+    /// // Or specify the size in physical dimensions like this:
+    /// WindowBuilder::new().with_base_size(PhysicalSize::new(400, 200));
+    /// ```
     #[cfg(feature = "x11")]
     fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
 
@@ -357,7 +320,7 @@ pub trait WindowBuilderExtUnix {
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
     #[cfg(feature = "wayland")]
-    fn with_app_id(self, app_id: String) -> Self;
+    fn with_app_id<T: Into<String>>(self, app_id: T) -> Self;
 }
 
 impl WindowBuilderExtUnix for WindowBuilder {
@@ -422,8 +385,8 @@ impl WindowBuilderExtUnix for WindowBuilder {
 
     #[inline]
     #[cfg(feature = "wayland")]
-    fn with_app_id(mut self, app_id: String) -> Self {
-        self.platform_specific.app_id = Some(app_id);
+    fn with_app_id<T: Into<String>>(mut self, app_id: T) -> Self {
+        self.platform_specific.app_id = Some(app_id.into());
         self
     }
 }

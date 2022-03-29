@@ -34,10 +34,10 @@ fn main() {
                         // We need to update our chosen video mode if the window
                         // was moved to an another monitor, so that the window
                         // appears on this monitor instead when we go fullscreen
-                        let previous_video_mode = video_modes.iter().cloned().nth(video_mode_id);
+                        let previous_video_mode = video_modes.get(video_mode_id).cloned();
                         video_modes = window.current_monitor().unwrap().video_modes().collect();
                         video_mode_id = video_mode_id.min(video_modes.len());
-                        let video_mode = video_modes.iter().nth(video_mode_id);
+                        let video_mode = video_modes.get(video_mode_id);
 
                         // Different monitors may support different video modes,
                         // and the index we chose previously may now point to a
@@ -45,7 +45,7 @@ fn main() {
                         if video_mode != previous_video_mode.as_ref() {
                             println!(
                                 "Window moved to another monitor, picked video mode: {}",
-                                video_modes.iter().nth(video_mode_id).unwrap()
+                                video_modes.get(video_mode_id).unwrap()
                             );
                         }
                     }
@@ -77,16 +77,13 @@ fn main() {
                                     Right => (video_modes.len() - 1).min(video_mode_id + 1),
                                     _ => unreachable!(),
                                 };
-                                println!(
-                                    "Picking video mode: {}",
-                                    video_modes.iter().nth(video_mode_id).unwrap()
-                                );
+                                println!("Picking video mode: {}", video_modes[video_mode_id]);
                             }
                             F => window.set_fullscreen(match (state, modifiers.alt()) {
                                 (true, false) => Some(Fullscreen::Borderless(None)),
-                                (true, true) => Some(Fullscreen::Exclusive(
-                                    video_modes.iter().nth(video_mode_id).unwrap().clone(),
-                                )),
+                                (true, true) => {
+                                    Some(Fullscreen::Exclusive(video_modes[video_mode_id].clone()))
+                                }
                                 (false, _) => None,
                             }),
                             G => window.set_cursor_grab(state).unwrap(),
@@ -173,7 +170,7 @@ fn main() {
                     }
                 }
             },
-            _ => (),
+            _ => {}
         }
     })
 }

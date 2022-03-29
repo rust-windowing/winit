@@ -1,4 +1,4 @@
-use raw_window_handle::unix::XlibHandle;
+use raw_window_handle::XlibHandle;
 use std::{
     cmp, env,
     ffi::CString,
@@ -150,7 +150,7 @@ impl UnownedWindow {
 
         let position = window_attrs
             .position
-            .map(|position| position.to_physical::<i32>(scale_factor).into());
+            .map(|position| position.to_physical::<i32>(scale_factor));
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
@@ -184,7 +184,7 @@ impl UnownedWindow {
         // creating
         let (visual, depth, require_colormap) = match pl_attribs.visual_infos {
             Some(vi) => (vi.visual, vi.depth, false),
-            None if window_attrs.transparent == true => {
+            None if window_attrs.transparent => {
                 // Find a suitable visual
                 let mut vinfo = MaybeUninit::uninit();
                 let vinfo_initialized = unsafe {
@@ -341,7 +341,9 @@ impl UnownedWindow {
                 } //.queue();
             }
 
-            window.set_pid().map(|flusher| flusher.queue());
+            if let Some(flusher) = window.set_pid() {
+                flusher.queue()
+            }
 
             window.set_window_types(pl_attribs.x11_window_types).queue();
 
@@ -430,8 +432,7 @@ impl UnownedWindow {
             }
 
             // Select XInput2 events
-            let mask = {
-                let mask = ffi::XI_MotionMask
+            let mask = ffi::XI_MotionMask
                     | ffi::XI_ButtonPressMask
                     | ffi::XI_ButtonReleaseMask
                     //| ffi::XI_KeyPressMask
@@ -443,8 +444,6 @@ impl UnownedWindow {
                     | ffi::XI_TouchBeginMask
                     | ffi::XI_TouchUpdateMask
                     | ffi::XI_TouchEndMask;
-                mask
-            };
             xconn
                 .select_xinput_events(window.xwindow, ffi::XIAllMasterDevices, mask)
                 .queue();
@@ -467,9 +466,10 @@ impl UnownedWindow {
                 window.set_maximized_inner(window_attrs.maximized).queue();
             }
             if window_attrs.fullscreen.is_some() {
-                window
-                    .set_fullscreen_inner(window_attrs.fullscreen.clone())
-                    .map(|flusher| flusher.queue());
+                if let Some(flusher) = window.set_fullscreen_inner(window_attrs.fullscreen.clone())
+                {
+                    flusher.queue()
+                }
 
                 if let Some(PhysicalPosition { x, y }) = position {
                     let shared_state = window.shared_state.get_mut();
@@ -895,6 +895,11 @@ impl UnownedWindow {
         self.invalidate_cached_frame_extents();
     }
 
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
     fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
         let mut hints = self.xconn.get_motif_hints(self.xwindow);
 
@@ -977,6 +982,11 @@ impl UnownedWindow {
                 .expect("Failed to call XUnmapWindow");
             shared_state.visibility = Visibility::No;
         }
+    }
+
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        None
     }
 
     fn update_cached_frame_extents(&self) {
@@ -1204,6 +1214,11 @@ impl UnownedWindow {
             normal_hints.set_max_size(max_inner_size);
         })
         .expect("Failed to call `XSetWMNormalHints`");
+    }
+
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        true
     }
 
     #[inline]
@@ -1458,10 +1473,9 @@ impl UnownedWindow {
 
     #[inline]
     pub fn raw_window_handle(&self) -> XlibHandle {
-        XlibHandle {
-            window: self.xwindow,
-            display: self.xconn.display as _,
-            ..XlibHandle::empty()
-        }
+        let mut handle = XlibHandle::empty();
+        handle.window = self.xlib_window();
+        handle.display = self.xlib_display();
+        handle
     }
 }
