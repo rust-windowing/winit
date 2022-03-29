@@ -26,17 +26,13 @@ use windows_sys::{
                 IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
                 SM_YVIRTUALSCREEN, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
                 SWP_NOREPOSITION, SWP_NOZORDER, SW_MAXIMIZE, WINDOWPLACEMENT, WINDOW_EX_STYLE,
-                WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_SIZEBOX,
+                WINDOW_STYLE, WS_CAPTION, WS_SIZEBOX,
             },
         },
     },
 };
 
-use crate::{
-    dpi::PhysicalSize,
-    platform_impl::platform::{dpi::hwnd_dpi, get_window_long},
-    window::CursorIcon,
-};
+use crate::{dpi::PhysicalSize, platform_impl::platform::get_window_long, window::CursorIcon};
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
