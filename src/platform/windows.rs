@@ -70,8 +70,8 @@ pub trait EventLoopBuilderExtWindows {
     ///
     /// let mut builder = EventLoopBuilder::new();
     /// #[cfg(target_os = "windows")]
-    /// builder.with_msg_hook(Box::new(|mut msg|{
-    ///     let msg = msg as *mut MSG;
+    /// builder.with_msg_hook(Box::new(|msg|{
+    ///     let msg = msg as *const MSG;
     /// #   let accels: Vec<ACCEL> = Vec::new();
     ///     unsafe {
     ///         let translated = TranslateAcceleratorW(
@@ -87,7 +87,7 @@ pub trait EventLoopBuilderExtWindows {
     ///     true
     /// }));
     /// ```
-    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(*mut c_void) -> bool>) -> &mut Self;
+    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(*const c_void) -> bool>) -> &mut Self;
 }
 
 impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
@@ -104,7 +104,7 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
     }
 
     #[inline]
-    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(*mut c_void) -> bool>) -> &mut Self {
+    fn with_msg_hook(&mut self, callback: Box<dyn FnMut(*const c_void) -> bool>) -> &mut Self {
         self.platform_specific.msg_hook = Some(callback);
         self
     }
