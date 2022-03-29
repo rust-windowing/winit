@@ -433,6 +433,7 @@ impl<T> BufferedEvent<T> {
                     (window_id.0).0,
                     new_inner_size.width as _,
                     new_inner_size.height as _,
+                    true,
                 );
             }
         }

@@ -53,19 +53,20 @@ use windows_sys::Win32::{
             PeekMessageW, PostMessageW, PostThreadMessageW, RegisterClassExW,
             RegisterWindowMessageA, SetCursor, SetWindowPos, TranslateMessage, CREATESTRUCTW,
             GIDC_ARRIVAL, GIDC_REMOVAL, GWL_EXSTYLE, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT,
-            MAPVK_VK_TO_VSC, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE, PM_NOREMOVE, PM_QS_PAINT,
-            PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL,
-            SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
-            WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DESTROY,
-            WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
-            WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
-            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
-            WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
-            WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR,
-            WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN,
-            WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN,
-            WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-            WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+            MAPVK_VK_TO_VSC, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_NOREMOVE,
+            PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS, RI_KEY_E0, RI_KEY_E1,
+            RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE,
+            SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE,
+            WM_DESTROY, WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
+            WM_GETMINMAXINFO, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS,
+            WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL,
+            WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
+            WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
+            WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
+            WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
+            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
+            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
+            WS_VISIBLE,
         },
     },
 };
@@ -1757,9 +1758,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let window_state = userdata.window_state.lock();
 
             if window_state.min_size.is_some() || window_state.max_size.is_some() {
+                let is_decorated = window_state.window_flags.contains(WindowFlags::DECORATIONS);
                 if let Some(min_size) = window_state.min_size {
                     let min_size = min_size.to_physical(window_state.scale_factor);
-                    let (width, height): (u32, u32) = util::adjust_size(window, min_size).into();
+                    let (width, height): (u32, u32) =
+                        util::adjust_size(window, min_size, is_decorated).into();
                     (*mmi).ptMinTrackSize = POINT {
                         x: width as i32,
                         y: height as i32,
@@ -1767,7 +1770,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 }
                 if let Some(max_size) = window_state.max_size {
                     let max_size = max_size.to_physical(window_state.scale_factor);
-                    let (width, height): (u32, u32) = util::adjust_size(window, max_size).into();
+                    let (width, height): (u32, u32) =
+                        util::adjust_size(window, max_size, is_decorated).into();
                     (*mmi).ptMaxTrackSize = POINT {
                         x: width as i32,
                         y: height as i32,
@@ -2020,30 +2024,30 @@ unsafe fn public_window_callback_inner<T: 'static>(
             DefWindowProcW(window, msg, wparam, lparam)
         }
 
-        winuser::WM_NCCALCSIZE => {
+        WM_NCCALCSIZE => {
             let win_flags = userdata.window_state.lock().window_flags();
 
             if !win_flags.contains(WindowFlags::DECORATIONS) {
-                let params = &mut *(lparam as *mut winuser::NCCALCSIZE_PARAMS);
+                let params = &mut *(lparam as *mut NCCALCSIZE_PARAMS);
 
                 // adjust the maximized borderless window to fill the work area rectangle of the display monitor and doesn't cover the taskbar
                 if util::is_maximized(window) {
                     let monitor = monitor::current_monitor(window);
                     if let Ok(monitor_info) = monitor::get_monitor_info(monitor.hmonitor()) {
-                        params.rgrc[0] = monitor_info.rcWork;
+                        params.rgrc[0] = monitor_info.monitorInfo.rcWork;
                     }
-                } else {
-                    let decoration_thickness = util::hwnd_decoration_thickness(window, true);
-                    let rect = &mut params.rgrc[0];
-                    // We add `1` to the thickness to account for 1px of cross-monitor spill-over.
-                    // We should probably calculate this some way rather than just emedding a constant offset.
-                    rect.left += decoration_thickness.left + 1;
-                    rect.right -= decoration_thickness.right + 1;
-                    rect.bottom -= decoration_thickness.bottom + 1;
+                    // } else {
+                    //     let decoration_thickness = util::hwnd_decoration_thickness(window, true);
+                    //     let rect = &mut params.rgrc[0];
+                    //     // We add `1` to the thickness to account for 1px of cross-monitor spill-over.
+                    //     // We should probably calculate this some way rather than just emedding a constant offset.
+                    //     rect.left += decoration_thickness.left + 1;
+                    //     rect.right -= decoration_thickness.right + 1;
+                    //     rect.bottom -= decoration_thickness.bottom + 1;
                 }
                 0 // return 0 here to make the window borderless aka without decorations
             } else {
-                winuser::DefWindowProcW(window, msg, wparam, lparam)
+                DefWindowProcW(window, msg, wparam, lparam)
             }
         }
 

@@ -20,21 +20,23 @@ use windows_sys::{
             Input::KeyboardAndMouse::GetActiveWindow,
             WindowsAndMessaging::{
                 AdjustWindowRectEx, ClipCursor, GetClientRect, GetClipCursor, GetMenu,
-                GetSystemMetrics, GetWindowLongW, GetWindowPlacement, GetWindowRect, SetWindowPos,
-                ShowCursor, GWL_EXSTYLE, GWL_STYLE, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS,
-                IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS,
-                IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN,
-                SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE,
-                SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOZORDER, SW_MAXIMIZE, WINDOWPLACEMENT,
-                WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_SIZEBOX,
+                GetSystemMetrics, GetWindowPlacement, GetWindowRect, SetWindowPos, ShowCursor,
+                GWL_EXSTYLE, GWL_STYLE, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
+                IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE,
+                IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
+                SM_YVIRTUALSCREEN, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
+                SWP_NOREPOSITION, SWP_NOZORDER, SW_MAXIMIZE, WINDOWPLACEMENT, WINDOW_EX_STYLE,
+                WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_SIZEBOX,
             },
         },
     },
 };
 
-use crate::{dpi::PhysicalSize, window::CursorIcon};
-
-use super::{dpi::hwnd_dpi, get_window_long};
+use crate::{
+    dpi::PhysicalSize,
+    platform_impl::platform::{dpi::hwnd_dpi, get_window_long},
+    window::CursorIcon,
+};
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
@@ -84,7 +86,7 @@ pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
     }
 }
 
-pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
+pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>, is_decorated: bool) -> PhysicalSize<u32> {
     let (width, height): (u32, u32) = size.into();
     let rect = RECT {
         left: 0,
@@ -92,11 +94,11 @@ pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
         top: 0,
         bottom: height as i32,
     };
-    let rect = adjust_window_rect(hwnd, rect).unwrap_or(rect);
+    let rect = adjust_window_rect(hwnd, rect, is_decorated).unwrap_or(rect);
     PhysicalSize::new((rect.right - rect.left) as _, (rect.bottom - rect.top) as _)
 }
 
-pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
+pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32, is_decorated: bool) {
     unsafe {
         let rect = adjust_window_rect(
             window,
@@ -106,6 +108,7 @@ pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
                 bottom: y as i32,
                 right: x as i32,
             },
+            is_decorated,
         )
         .expect("adjust_window_rect failed");
 
@@ -124,10 +127,17 @@ pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
     }
 }
 
-pub fn adjust_window_rect(hwnd: HWND, rect: RECT) -> Option<RECT> {
+pub fn adjust_window_rect(hwnd: HWND, rect: RECT, is_decorated: bool) -> Option<RECT> {
     unsafe {
-        let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-        let style_ex = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+        let mut style = get_window_long(hwnd, GWL_STYLE) as u32;
+        // if the window isn't decorated, remove `WS_SIZEBOX` and `WS_CAPTION` so
+        // `AdjustWindowRect*` functions doesn't account for the hidden caption and borders and
+        // calculates a correct size for the client area.
+        if !is_decorated {
+            style &= !WS_CAPTION;
+            style &= !WS_SIZEBOX;
+        }
+        let style_ex = get_window_long(hwnd, GWL_EXSTYLE) as u32;
         adjust_window_rect_with_styles(hwnd, style, style_ex, rect)
     }
 }
