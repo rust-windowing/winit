@@ -63,7 +63,7 @@ pub trait EventLoopBuilderExtWindows {
     /// # Example
     ///
     /// ```
-    /// # use  windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage, MSG};
+    /// # use windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage, MSG};
     /// use winit::event_loop::EventLoopBuilder;
     /// #[cfg(target_os = "windows")]
     /// use winit::platform::windows::EventLoopBuilderExtWindows;
