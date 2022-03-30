@@ -78,7 +78,7 @@ pub trait EventLoopBuilderExtWindows {
     ///             (*msg).hwnd,
     ///             CreateAcceleratorTableW(accels.as_ptr() as _, 1),
     ///             msg,
-    ///         ) == 1;
+    ///         ) == 1
     ///     };
     ///     translated
     /// });
