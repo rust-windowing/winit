@@ -50,7 +50,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 ///
 /// This is used to make specifying options that affect the whole application
 /// easier. But note that constructing multiple event loops is not supported.
-#[derive(Debug, Clone, Default)]
+#[derive(Default)]
 pub struct EventLoopBuilder<T: 'static> {
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
     _p: PhantomData<T>,
@@ -95,7 +95,7 @@ impl<T> EventLoopBuilder<T> {
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
         EventLoop {
-            event_loop: platform_impl::EventLoop::new(&self.platform_specific),
+            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
             _marker: PhantomData,
         }
     }
