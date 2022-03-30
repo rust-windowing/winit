@@ -151,13 +151,13 @@ impl<T> ThreadMsgTargetData<T> {
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
     window_target: RootELW<T>,
-    msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool>>,
+    msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) any_thread: bool,
     pub(crate) dpi_aware: bool,
-    pub(crate) msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool>>,
+    pub(crate) msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
