@@ -140,6 +140,10 @@ pub enum ControlFlow {
     Wait,
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
+    ///
+    /// Useful for implementing efficient timers. Applications which want to render at the display's
+    /// native refresh rate should instead use `Poll` and the VSync functionality of a graphics API
+    /// to reduce odds of missed frames.
     WaitUntil(Instant),
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
