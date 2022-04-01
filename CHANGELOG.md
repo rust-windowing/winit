@@ -30,6 +30,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix resize and scale factor changes not being propagated properly.
 - On Wayland, fix polling during consecutive `EventLoop::run_return` invocations.
 - On Windows, fix race issue creating fullscreen windows with `WindowBuilder::with_fullscreen`
+- On Android, `virtual_keycode` for `KeyboardInput` events is now filled in where a suitable match is found.
 
 # 0.26.1 (2022-01-05)
 
