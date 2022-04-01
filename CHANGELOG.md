@@ -9,12 +9,14 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
+- On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
 - On Windows, remove internally unique DC per window.
 - macOS: Remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.
 - Added `Window::is_decorated`.
 - On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
+- On X11, fix scale factor calculation when the only monitor is reconnected
 - On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
 - **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
 - Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
@@ -29,6 +31,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix resize and scale factor changes not being propagated properly.
 - On Wayland, fix polling during consecutive `EventLoop::run_return` invocations.
 - On Windows, fix race issue creating fullscreen windows with `WindowBuilder::with_fullscreen`
+- On Android, `virtual_keycode` for `KeyboardInput` events is now filled in where a suitable match is found.
 
 # 0.26.1 (2022-01-05)
 

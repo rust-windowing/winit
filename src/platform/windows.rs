@@ -1,6 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use std::path::Path;
+use std::{ffi::c_void, path::Path};
 
 use crate::{
     dpi::PhysicalSize,
@@ -56,6 +56,36 @@ pub trait EventLoopBuilderExtWindows {
     /// # }
     /// ```
     fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self;
+
+    /// A callback to be executed before dispatching a win32 message to the window procedure.
+    /// Return true to disable winit's internal message dispatching.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage, MSG};
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "windows")]
+    /// use winit::platform::windows::EventLoopBuilderExtWindows;
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "windows")]
+    /// builder.with_msg_hook(|msg|{
+    ///     let msg = msg as *const MSG;
+    /// #   let accels: Vec<ACCEL> = Vec::new();
+    ///     let translated = unsafe {
+    ///         TranslateAcceleratorW(
+    ///             (*msg).hwnd,
+    ///             CreateAcceleratorTableW(accels.as_ptr() as _, 1),
+    ///             msg,
+    ///         ) == 1
+    ///     };
+    ///     translated
+    /// });
+    /// ```
+    fn with_msg_hook<F>(&mut self, callback: F) -> &mut Self
+    where
+        F: FnMut(*const c_void) -> bool + 'static;
 }
 
 impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
@@ -68,6 +98,15 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
     #[inline]
     fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self {
         self.platform_specific.dpi_aware = dpi_aware;
+        self
+    }
+
+    #[inline]
+    fn with_msg_hook<F>(&mut self, callback: F) -> &mut Self
+    where
+        F: FnMut(*const c_void) -> bool + 'static,
+    {
+        self.platform_specific.msg_hook = Some(Box::new(callback));
         self
     }
 }

@@ -6,6 +6,7 @@ use parking_lot::Mutex;
 use std::{
     cell::Cell,
     collections::VecDeque,
+    ffi::c_void,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
@@ -150,12 +151,13 @@ impl<T> ThreadMsgTargetData<T> {
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
     window_target: RootELW<T>,
+    msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) any_thread: bool,
     pub(crate) dpi_aware: bool,
+    pub(crate) msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -163,6 +165,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
         Self {
             any_thread: false,
             dpi_aware: true,
+            msg_hook: None,
         }
     }
 }
@@ -174,7 +177,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
+    pub(crate) fn new(attributes: &mut PlatformSpecificEventLoopAttributes) -> Self {
         let thread_id = unsafe { GetCurrentThreadId() };
 
         if !attributes.any_thread && thread_id != main_thread_id() {
@@ -211,6 +214,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: PhantomData,
             },
+            msg_hook: attributes.msg_hook.take(),
         }
     }
 
@@ -251,8 +255,16 @@ impl<T: 'static> EventLoop<T> {
                 if GetMessageW(&mut msg, 0, 0, 0) == false.into() {
                     break 'main 0;
                 }
-                TranslateMessage(&msg);
-                DispatchMessageW(&msg);
+
+                let handled = if let Some(callback) = self.msg_hook.as_deref_mut() {
+                    callback(&mut msg as *mut _ as *mut _)
+                } else {
+                    false
+                };
+                if !handled {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
 
                 if let Err(payload) = runner.take_panic_error() {
                     runner.reset_runner();
