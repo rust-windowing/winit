@@ -6,12 +6,9 @@ use parking_lot::Mutex;
 use std::{
     cell::Cell,
     collections::VecDeque,
-    ffi::{c_void, OsString},
+    ffi::c_void,
     marker::PhantomData,
-    mem,
-    os::windows::prelude::OsStringExt,
-    panic,
-    ptr::{self, null_mut},
+    mem, panic, ptr,
     rc::Rc,
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -37,10 +34,7 @@ use windows_sys::Win32::{
     UI::{
         Controls::{HOVER_DEFAULT, WM_MOUSELEAVE},
         Input::{
-            Ime::{
-                ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, GCS_COMPSTR,
-                GCS_RESULTSTR,
-            },
+            Ime::{GCS_COMPSTR, GCS_RESULTSTR},
             KeyboardAndMouse::{
                 MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
                 TRACKMOUSEEVENT, VK_F4,
@@ -89,6 +83,7 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+        ime::ImeContext,
         monitor::{self, MonitorHandle},
         raw_input, util,
         window::InitData,
@@ -1113,45 +1108,31 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_IME_COMPOSITION => {
-            if lparam as u32 & (GCS_COMPSTR | GCS_RESULTSTR) == 0 {
-                userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::IME(IME::Preedit(String::new(), None, None)),
-                });
-            } else {
-                let comp_mode = if (lparam as u32 & GCS_RESULTSTR) != 0 {
+            let event = if lparam as u32 & (GCS_COMPSTR | GCS_RESULTSTR) != 0 {
+                let gcs_mode = if (lparam as u32 & GCS_RESULTSTR) != 0 {
                     GCS_RESULTSTR
                 } else {
                     GCS_COMPSTR
                 };
-                let himc = ImmGetContext(window);
-                let comp_size = ImmGetCompositionStringW(himc, comp_mode, null_mut(), 0);
-                if comp_size > 0 {
-                    let mut comp = Vec::<u8>::with_capacity(comp_size as _);
-                    let comp_size = ImmGetCompositionStringW(
-                        himc,
-                        comp_mode,
-                        comp.as_mut_ptr() as *mut c_void,
-                        comp_size as u32,
-                    );
-                    comp.set_len(comp_size as _);
-                    let (prefix, shorts, suffix) = comp.align_to::<u16>();
-                    if prefix.is_empty() && suffix.is_empty() {
-                        if let Ok(comp_str) = OsString::from_wide(&shorts).into_string() {
-                            let event = if comp_mode == GCS_RESULTSTR {
-                                IME::Commit(comp_str)
-                            } else {
-                                IME::Preedit(comp_str, None, None)
-                            };
-                            userdata.send_event(Event::WindowEvent {
-                                window_id: RootWindowId(WindowId(window)),
-                                event: WindowEvent::IME(event),
-                            });
-                        }
+
+                let comp_str = unsafe { ImeContext::new(window).get_composition_string(gcs_mode) };
+                if let Some(comp_str) = comp_str {
+                    if gcs_mode == GCS_RESULTSTR {
+                        IME::Commit(comp_str)
+                    } else {
+                        IME::Preedit(comp_str, None, None)
                     }
+                } else {
+                    IME::Preedit(String::new(), None, None)
                 }
-                ImmReleaseContext(window, himc);
-            }
+            } else {
+                IME::Preedit(String::new(), None, None)
+            };
+
+            userdata.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: WindowEvent::IME(event),
+            });
 
             DefWindowProcW(window, msg, wparam, lparam)
         }
