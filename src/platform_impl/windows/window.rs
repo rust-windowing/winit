@@ -83,6 +83,9 @@ pub struct Window {
 
     // The events loop proxy.
     thread_executor: event_loop::EventLoopThreadExecutor,
+
+    // The IME context.
+    ime_context: ImeContext,
 }
 
 impl Window {
@@ -613,12 +616,15 @@ impl Window {
     #[inline]
     pub fn set_ime_position(&self, spot: Position) {
         unsafe {
-            ImeContext::new(self.hwnd()).set_ime_position(spot, self.scale_factor());
+            self.ime_context.set_ime_position(spot, self.scale_factor());
         }
     }
 
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
+        unsafe {
+            self.ime_context.set_ime_allowed(allowed);
+        }
         self.window_state.lock().ime_allowed = allowed;
     }
 
@@ -777,6 +783,7 @@ impl<'a, T: 'static> InitData<'a, T> {
             window: WindowWrapper(window),
             window_state,
             thread_executor: self.event_loop.create_thread_executor(),
+            ime_context: ImeContext::new(window),
         }
     }
 
