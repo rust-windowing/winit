@@ -22,7 +22,7 @@ pub struct ImeContext {
 }
 
 impl ImeContext {
-    pub unsafe fn new(hwnd: HWND) -> Self {
+    pub unsafe fn current(hwnd: HWND) -> Self {
         let himc = ImmGetContext(hwnd);
         ImeContext { hwnd, himc }
     }

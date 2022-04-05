@@ -1115,7 +1115,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     GCS_COMPSTR
                 };
 
-                let comp_str = unsafe { ImeContext::new(window).get_composition_string(gcs_mode) };
+                let comp_str =
+                    unsafe { ImeContext::current(window).get_composition_string(gcs_mode) };
                 if let Some(comp_str) = comp_str {
                     if gcs_mode == GCS_RESULTSTR {
                         IME::Commit(comp_str)

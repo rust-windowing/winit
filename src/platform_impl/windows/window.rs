@@ -783,7 +783,7 @@ impl<'a, T: 'static> InitData<'a, T> {
             window: WindowWrapper(window),
             window_state,
             thread_executor: self.event_loop.create_thread_executor(),
-            ime_context: ImeContext::new(window),
+            ime_context: ImeContext::current(window),
         }
     }
 
