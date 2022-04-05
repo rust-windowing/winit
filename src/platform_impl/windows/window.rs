@@ -625,7 +625,6 @@ impl Window {
         unsafe {
             self.ime_context.set_ime_allowed(allowed);
         }
-        self.window_state.lock().ime_allowed = allowed;
     }
 
     #[inline]
