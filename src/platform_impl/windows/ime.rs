@@ -8,9 +8,12 @@ use std::{
 use windows_sys::Win32::{
     Foundation::POINT,
     Globalization::HIMC,
-    UI::Input::Ime::{
-        ImmAssociateContext, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
-        ImmSetCandidateWindow, CANDIDATEFORM, CFS_CANDIDATEPOS,
+    UI::{
+        Input::Ime::{
+            ImmAssociateContext, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
+            ImmSetCandidateWindow, CANDIDATEFORM, CFS_CANDIDATEPOS,
+        },
+        WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED},
     },
 };
 
@@ -28,6 +31,9 @@ impl ImeContext {
     }
 
     pub unsafe fn get_composition_string(&self, gcs_mode: u32) -> Option<String> {
+        if !ImeContext::system_has_ime() {
+            return None;
+        }
         let size = ImmGetCompositionStringW(self.himc, gcs_mode, null_mut(), 0);
         if size <= 0 {
             return None;
@@ -53,24 +59,32 @@ impl ImeContext {
     }
 
     pub unsafe fn set_ime_position(&self, spot: Position, scale_factor: f64) {
-        let (x, y) = spot.to_physical::<i32>(scale_factor).into();
+        if ImeContext::system_has_ime() {
+            let (x, y) = spot.to_physical::<i32>(scale_factor).into();
 
-        let candidate_form = CANDIDATEFORM {
-            dwIndex: 0,
-            dwStyle: CFS_CANDIDATEPOS,
-            ptCurrentPos: POINT { x, y },
-            rcArea: zeroed(),
-        };
+            let candidate_form = CANDIDATEFORM {
+                dwIndex: 0,
+                dwStyle: CFS_CANDIDATEPOS,
+                ptCurrentPos: POINT { x, y },
+                rcArea: zeroed(),
+            };
 
-        ImmSetCandidateWindow(self.himc, &candidate_form);
+            ImmSetCandidateWindow(self.himc, &candidate_form);
+        }
     }
 
     pub unsafe fn set_ime_allowed(&self, allowed: bool) {
-        if allowed {
-            ImmAssociateContext(self.hwnd, self.himc);
-        } else {
-            ImmAssociateContext(self.hwnd, 0);
+        if ImeContext::system_has_ime() {
+            if allowed {
+                ImmAssociateContext(self.hwnd, self.himc);
+            } else {
+                ImmAssociateContext(self.hwnd, 0);
+            }
         }
+    }
+
+    unsafe fn system_has_ime() -> bool {
+        return GetSystemMetrics(SM_IMMENABLED) != 0;
     }
 }
 
