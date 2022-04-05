@@ -6,9 +6,12 @@ use parking_lot::Mutex;
 use std::{
     cell::Cell,
     collections::VecDeque,
-    ffi::c_void,
+    ffi::{c_void, OsString},
     marker::PhantomData,
-    mem, panic, ptr,
+    mem,
+    os::windows::prelude::OsStringExt,
+    panic,
+    ptr::{self, null_mut},
     rc::Rc,
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -34,6 +37,10 @@ use windows_sys::Win32::{
     UI::{
         Controls::{HOVER_DEFAULT, WM_MOUSELEAVE},
         Input::{
+            Ime::{
+                ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, GCS_COMPSTR,
+                GCS_RESULTSTR,
+            },
             KeyboardAndMouse::{
                 MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
                 TRACKMOUSEEVENT, VK_F4,
@@ -59,6 +66,7 @@ use windows_sys::Win32::{
             SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
             WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DESTROY,
             WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
+            WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
             WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
             WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
             WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
@@ -73,7 +81,7 @@ use windows_sys::Win32::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
+    event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent, IME},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
@@ -1092,6 +1100,73 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     });
                 }
             }
+            0
+        }
+
+        WM_IME_STARTCOMPOSITION => {
+            userdata.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: WindowEvent::IME(IME::Enabled),
+            });
+
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
+
+        WM_IME_COMPOSITION => {
+            if lparam as u32 & (GCS_COMPSTR | GCS_RESULTSTR) == 0 {
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::IME(IME::Preedit(String::new(), None, None)),
+                });
+            } else {
+                let comp_mode = if (lparam as u32 & GCS_RESULTSTR) != 0 {
+                    GCS_RESULTSTR
+                } else {
+                    GCS_COMPSTR
+                };
+                let himc = ImmGetContext(window);
+                let comp_size = ImmGetCompositionStringW(himc, comp_mode, null_mut(), 0);
+                if comp_size > 0 {
+                    let mut comp = Vec::<u8>::with_capacity(comp_size as _);
+                    let comp_size = ImmGetCompositionStringW(
+                        himc,
+                        comp_mode,
+                        comp.as_mut_ptr() as *mut c_void,
+                        comp_size as u32,
+                    );
+                    comp.set_len(comp_size as _);
+                    let (prefix, shorts, suffix) = comp.align_to::<u16>();
+                    if prefix.is_empty() && suffix.is_empty() {
+                        if let Ok(comp_str) = OsString::from_wide(&shorts).into_string() {
+                            let event = if comp_mode == GCS_RESULTSTR {
+                                IME::Commit(comp_str)
+                            } else {
+                                IME::Preedit(comp_str, None, None)
+                            };
+                            userdata.send_event(Event::WindowEvent {
+                                window_id: RootWindowId(WindowId(window)),
+                                event: WindowEvent::IME(event),
+                            });
+                        }
+                    }
+                }
+                ImmReleaseContext(window, himc);
+            }
+
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
+
+        WM_IME_ENDCOMPOSITION => {
+            userdata.send_event(Event::WindowEvent {
+                window_id: RootWindowId(WindowId(window)),
+                event: WindowEvent::IME(IME::Disabled),
+            });
+
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
+
+        WM_IME_SETCONTEXT => {
+            // hide composing text drwan by IME.
             0
         }
 

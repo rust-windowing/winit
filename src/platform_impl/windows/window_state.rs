@@ -42,6 +42,8 @@ pub struct WindowState {
     pub preferred_theme: Option<Theme>,
     pub high_surrogate: Option<u16>,
     pub window_flags: WindowFlags,
+
+    pub ime_allowed: bool,
 }
 
 #[derive(Clone)]
@@ -130,6 +132,8 @@ impl WindowState {
             preferred_theme,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
+
+            ime_allowed: false,
         }
     }
 

@@ -635,8 +635,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_allowed(&self, _allowed: bool) {
-        error!("`Window::set_ime_allowed` is not yet implemented");
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.window_state.lock().ime_allowed = allowed;
     }
 
     #[inline]
