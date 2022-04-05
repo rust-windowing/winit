@@ -34,7 +34,7 @@ use windows_sys::Win32::{
     UI::{
         Controls::{HOVER_DEFAULT, WM_MOUSELEAVE},
         Input::{
-            Ime::{GCS_COMPSTR, GCS_RESULTSTR},
+            Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
                 MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
                 TRACKMOUSEEVENT, VK_F4,
@@ -1134,7 +1134,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 event: WindowEvent::IME(event),
             });
 
-            DefWindowProcW(window, msg, wparam, lparam)
+            // Hide composing text drwan by IME.
+            0
         }
 
         WM_IME_ENDCOMPOSITION => {
@@ -1147,8 +1148,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_IME_SETCONTEXT => {
-            // hide composing text drwan by IME.
-            0
+            // Hide composing text drwan by IME.
+            let wparam = wparam & (!ISC_SHOWUICOMPOSITIONWINDOW as usize);
+
+            DefWindowProcW(window, msg, wparam, lparam)
         }
 
         // this is necessary for us to maintain minimize/restore state

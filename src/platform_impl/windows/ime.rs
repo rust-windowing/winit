@@ -9,8 +9,8 @@ use windows_sys::Win32::{
     Foundation::POINT,
     Globalization::HIMC,
     UI::Input::Ime::{
-        ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow,
-        CFS_POINT, COMPOSITIONFORM,
+        ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext, ImmSetCandidateWindow,
+        CANDIDATEFORM, CFS_CANDIDATEPOS,
     },
 };
 
@@ -55,13 +55,14 @@ impl ImeContext {
     pub unsafe fn set_ime_position(self, spot: Position, scale_factor: f64) {
         let (x, y) = spot.to_physical::<i32>(scale_factor).into();
 
-        let composition_form = COMPOSITIONFORM {
-            dwStyle: CFS_POINT,
+        let candidate_form = CANDIDATEFORM {
+            dwIndex: 0,
+            dwStyle: CFS_CANDIDATEPOS,
             ptCurrentPos: POINT { x, y },
             rcArea: zeroed(),
         };
 
-        ImmSetCompositionWindow(self.himc, &composition_form);
+        ImmSetCandidateWindow(self.himc, &candidate_form);
     }
 }
 
