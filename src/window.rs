@@ -957,7 +957,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / X11 / Wayland:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web / X11:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_hittest(hittest)

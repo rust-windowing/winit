@@ -469,8 +469,10 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.send_request(WindowRequest::PassthroughMouseInput(!hittest));
+
+        Ok(())
     }
 
     #[inline]

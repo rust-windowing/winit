@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On macOS and Windows, add `set_cursor_hittest` to let the window ignore mouse events.
+- On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
 - On Windows, remove internally unique DC per window.
 - On macOS, remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
