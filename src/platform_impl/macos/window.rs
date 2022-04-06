@@ -461,7 +461,7 @@ impl UnownedWindow {
         if maximized {
             window.set_maximized(maximized);
         }
-
+        trace!("Done unowned window::new");
         Ok((window, delegate))
     }
 
@@ -1043,6 +1043,13 @@ impl UnownedWindow {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
         unsafe { view::set_ime_position(*self.ns_view, logical_spot) };
+    }
+
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        unsafe {
+            view::set_ime_allowed(*self.ns_view, allowed);
+        }
     }
 
     #[inline]

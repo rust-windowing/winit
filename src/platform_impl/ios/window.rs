@@ -287,6 +287,10 @@ impl Inner {
         warn!("`Window::set_ime_position` is ignored on iOS")
     }
 
+    pub fn set_ime_allowed(&self, _allowed: bool) {
+        warn!("`Window::set_ime_allowed` is ignored on iOS")
+    }
+
     pub fn focus_window(&self) {
         warn!("`Window::set_focus` is ignored on iOS")
     }
