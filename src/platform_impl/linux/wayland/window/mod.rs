@@ -496,7 +496,12 @@ impl Window {
     pub fn set_ime_position(&self, position: Position) {
         let scale_factor = self.scale_factor() as f64;
         let position = position.to_logical(scale_factor);
-        self.send_request(WindowRequest::IMEPosition(position));
+        self.send_request(WindowRequest::ImePosition(position));
+    }
+
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.send_request(WindowRequest::AllowIme(allowed));
     }
 
     #[inline]

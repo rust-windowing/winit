@@ -748,6 +748,8 @@ impl Window {
 
     pub fn set_ime_position(&self, _position: Position) {}
 
+    pub fn set_ime_allowed(&self, _allowed: bool) {}
+
     pub fn focus_window(&self) {}
 
     pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
