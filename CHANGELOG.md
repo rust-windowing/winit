@@ -39,6 +39,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
 - **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
 - On Wayland and X11, fix window not resizing with `Window::set_inner_size` after calling `Window:set_resizable(false)`.
+- **Breaking:** Added new `WindowEvent::Ime` supported on desktop platforms.
+- Added `Window::set_ime_allowed` supported on desktop platforms.
+- **Breaking:** IME input on desktop platforms won't be received unless it's explicitly allowed via `Window::set_ime_allowed` and new `WindowEvent::Ime` events are handled.
 
 # 0.26.1 (2022-01-05)
 

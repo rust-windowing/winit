@@ -12,10 +12,12 @@ use super::{
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{
-        DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, TouchPhase, WindowEvent,
+        DeviceEvent, ElementState, Event, Ime, KeyboardInput, ModifiersState, TouchPhase,
+        WindowEvent,
     },
     event_loop::EventLoopWindowTarget as RootELW,
 };
@@ -26,6 +28,7 @@ const KEYCODE_OFFSET: u8 = 8;
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
     pub(super) ime_receiver: ImeReceiver,
+    pub(super) ime_event_receiver: ImeEventReceiver,
     pub(super) randr_event_offset: c_int,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
@@ -37,6 +40,8 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) first_touch: Option<u64>,
     // Currently focused window belonging to this process
     pub(super) active_window: Option<ffi::Window>,
+    pub(super) is_composing: bool,
+    pub(super) composed_text: Option<String>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -608,6 +613,10 @@ impl<T: 'static> EventProcessor<T> {
                             event: WindowEvent::ReceivedCharacter(chr),
                         };
                         callback(event);
+                    }
+                    if self.is_composing && !written.is_empty() {
+                        self.composed_text = Some(written);
+                        self.is_composing = false;
                     }
                 }
             }
@@ -1223,8 +1232,64 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        if let Ok((window_id, x, y)) = self.ime_receiver.try_recv() {
-            wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
+        // Handle IME requests.
+        if let Ok(request) = self.ime_receiver.try_recv() {
+            let mut ime = wt.ime.borrow_mut();
+            match request {
+                ImeRequest::Position(window_id, x, y) => {
+                    ime.send_xim_spot(window_id, x, y);
+                }
+                ImeRequest::Allow(window_id, allowed) => {
+                    ime.set_ime_allowed(window_id, allowed);
+                }
+            }
+        }
+
+        match self.ime_event_receiver.try_recv() {
+            Ok((window, event)) => match event {
+                ImeEvent::Enabled => {
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Enabled),
+                    });
+                }
+                ImeEvent::Start => {
+                    self.is_composing = true;
+                    self.composed_text = None;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None, None)),
+                    });
+                }
+                ImeEvent::Update(text, position) => {
+                    if self.is_composing {
+                        callback(Event::WindowEvent {
+                            window_id: mkwid(window),
+                            event: WindowEvent::Ime(Ime::Preedit(
+                                text,
+                                Some(position),
+                                Some(position),
+                            )),
+                        });
+                    }
+                }
+                ImeEvent::End => {
+                    self.is_composing = false;
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Commit(
+                            self.composed_text.take().unwrap_or("".to_owned()),
+                        )),
+                    });
+                }
+                ImeEvent::Disabled => {
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::Ime(Ime::Disabled),
+                    });
+                }
+            },
+            Err(_) => (),
         }
     }
 

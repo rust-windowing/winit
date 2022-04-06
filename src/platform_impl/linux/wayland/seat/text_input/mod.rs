@@ -20,6 +20,17 @@ impl TextInputHandler {
         self.text_input.set_cursor_rectangle(x, y, 0, 0);
         self.text_input.commit();
     }
+
+    #[inline]
+    pub fn set_input_allowed(&self, allowed: bool) {
+        if allowed {
+            self.text_input.enable();
+        } else {
+            self.text_input.disable();
+        }
+
+        self.text_input.commit();
+    }
 }
 
 /// A wrapper around text input to automatically destroy the object on `Drop`.
@@ -52,15 +63,25 @@ struct TextInputInner {
     /// Currently focused surface.
     target_window_id: Option<WindowId>,
 
-    /// Pending string to commit.
-    commit_string: Option<String>,
+    /// Pending commit event which will be dispatched on `text_input_v3::Done`.
+    pending_commit: Option<String>,
+
+    /// Pending preedit event which will be dispatched on `text_input_v3::Done`.
+    pending_preedit: Option<Preedit>,
+}
+
+struct Preedit {
+    text: String,
+    cursor_begin: Option<usize>,
+    cursor_end: Option<usize>,
 }
 
 impl TextInputInner {
     fn new() -> Self {
         Self {
             target_window_id: None,
-            commit_string: None,
+            pending_commit: None,
+            pending_preedit: None,
         }
     }
 }

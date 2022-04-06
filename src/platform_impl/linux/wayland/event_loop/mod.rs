@@ -32,9 +32,8 @@ mod sink;
 mod state;
 
 pub use proxy::EventLoopProxy;
+pub use sink::EventSink;
 pub use state::WinitState;
-
-use sink::EventSink;
 
 type WinitDispatcher = calloop::Dispatcher<'static, WaylandSource, WinitState>;
 
