@@ -472,6 +472,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_ime_allowed(allowed))
+    }
+
+    #[inline]
     pub fn focus_window(&self) {
         match self {
             #[cfg(feature = "x11")]

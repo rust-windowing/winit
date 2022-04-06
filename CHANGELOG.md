@@ -37,6 +37,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix `TouchPhase::Ended` always reporting the location of the first touch down, unless the compositor
   sent a cancel or frame event.
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
+- **Breaking:** Added new `WindowEvent::IME` supported on desktop platforms.
+- Added `Window::set_ime_allowed` supported on desktop platforms.
+- **Breaking:** IME input on desktop platforms won't be received unless it's explicitly allowed via `Window::set_ime_allowed` and new `WindowEvent::IME` events are handled.
 
 # 0.26.1 (2022-01-05)
 

@@ -497,6 +497,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.send_request(WindowRequest::AllowIME(allowed));
+    }
+
+    #[inline]
     pub fn display(&self) -> &Display {
         &self.display
     }

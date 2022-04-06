@@ -26,7 +26,8 @@ use crate::{
 };
 
 use super::{
-    ffi, util, EventLoopWindowTarget, ImeSender, WakeSender, WindowId, XConnection, XError,
+    ffi, util, EventLoopWindowTarget, ImeRequest, ImeSender, WakeSender, WindowId, XConnection,
+    XError,
 };
 
 #[derive(Debug)]
@@ -453,7 +454,10 @@ impl UnownedWindow {
                 .queue();
 
             {
-                let result = event_loop.ime.borrow_mut().create_context(window.xwindow);
+                let result = event_loop
+                    .ime
+                    .borrow_mut()
+                    .create_context(window.xwindow, false);
                 if let Err(err) = result {
                     let e = match err {
                         ImeContextCreationError::XError(err) => OsError::XError(err),
@@ -1403,17 +1407,21 @@ impl UnownedWindow {
             .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))
     }
 
-    pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
-        let _ = self
-            .ime_sender
-            .lock()
-            .send((self.xwindow, x as i16, y as i16));
-    }
-
     #[inline]
     pub fn set_ime_position(&self, spot: Position) {
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
-        self.set_ime_position_physical(x, y);
+        let _ = self
+            .ime_sender
+            .lock()
+            .send(ImeRequest::Position(self.xwindow, x, y));
+    }
+
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        let _ = self
+            .ime_sender
+            .lock()
+            .send(ImeRequest::AllowIME(self.xwindow, allowed));
     }
 
     #[inline]
