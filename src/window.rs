@@ -834,6 +834,33 @@ impl Window {
         self.window.set_ime_position(position.into())
     }
 
+    /// Sets whether the window should get IME events
+    ///
+    /// When IME is allowed, the window will receive [`IME`] events, and during the
+    /// preedit phase the window will NOT get [`KeyboardInput`] or
+    /// [`ReceivedCharacter`] events. The window should allow IME while it is
+    /// expecting text input.
+    ///
+    /// When IME is not allowed, the window won't receive [`IME`] events, and will
+    /// receive [`KeyboardInput`] events for every keypress instead. Without
+    /// allowing IME, the window will also get [`ReceivedCharacter`] events for
+    /// certain keyboard input. Not allowing IME is useful for games for example.
+    ///
+    /// IME is **not** allowed by default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
+    /// - ** iOS / Android / Web :** Unsupported.
+    ///
+    /// [`IME`]: crate::event::WindowEvent::IME
+    /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
+    /// [`ReceivedCharacter`]: crate::event::WindowEvent::ReceivedCharacter
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.window.set_ime_allowed(allowed);
+    }
+
     /// Brings the window to the front and sets input focus. Has no effect if the window is
     /// already in focus, minimized, or not visible.
     ///

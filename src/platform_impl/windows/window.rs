@@ -31,10 +31,6 @@ use windows_sys::Win32::{
     },
     UI::{
         Input::{
-            Ime::{
-                ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
-                COMPOSITIONFORM,
-            },
             KeyboardAndMouse::{
                 EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT,
                 INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
@@ -49,8 +45,8 @@ use windows_sys::Win32::{
             SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW,
             CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
             GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER,
-            SM_IMMENABLED, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
-            WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WM_NCLBUTTONDOWN,
+            WNDCLASSEXW,
         },
     },
 };
@@ -69,6 +65,7 @@ use crate::{
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
+        ime::ImeContext,
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
@@ -613,25 +610,19 @@ impl Window {
         self.window_state.lock().taskbar_icon = taskbar_icon;
     }
 
-    pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
-        if unsafe { GetSystemMetrics(SM_IMMENABLED) } != 0 {
-            let composition_form = COMPOSITIONFORM {
-                dwStyle: CFS_POINT,
-                ptCurrentPos: POINT { x, y },
-                rcArea: unsafe { mem::zeroed() },
-            };
-            unsafe {
-                let himc = ImmGetContext(self.hwnd());
-                ImmSetCompositionWindow(himc, &composition_form);
-                ImmReleaseContext(self.hwnd(), himc);
-            }
+    #[inline]
+    pub fn set_ime_position(&self, spot: Position) {
+        unsafe {
+            ImeContext::current(self.hwnd()).set_ime_position(spot, self.scale_factor());
         }
     }
 
     #[inline]
-    pub fn set_ime_position(&self, spot: Position) {
-        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
-        self.set_ime_position_physical(x, y);
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.window_state.lock().ime_allowed = allowed;
+        unsafe {
+            ImeContext::set_ime_allowed(self.hwnd(), allowed);
+        }
     }
 
     #[inline]
@@ -784,6 +775,8 @@ impl<'a, T: 'static> InitData<'a, T> {
         };
 
         enable_non_client_dpi_scaling(window);
+
+        ImeContext::set_ime_allowed(window, false);
 
         Window {
             window: WindowWrapper(window),
