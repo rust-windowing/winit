@@ -1108,33 +1108,34 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_IME_COMPOSITION => {
-            let event = if lparam as u32 & (GCS_COMPSTR | GCS_RESULTSTR) != 0 {
-                let gcs_mode = if (lparam as u32 & GCS_RESULTSTR) != 0 {
-                    GCS_RESULTSTR
-                } else {
-                    GCS_COMPSTR
-                };
+            let event: Option<IME> = if lparam as u32 & (GCS_COMPSTR | GCS_RESULTSTR) != 0 {
+                let ime_context = ImeContext::current(window);
 
-                let comp_str = ImeContext::current(window).get_composition_string(gcs_mode);
-                if let Some(comp_str) = comp_str {
-                    if gcs_mode == GCS_RESULTSTR {
-                        IME::Commit(comp_str)
+                if (lparam as u32 & GCS_RESULTSTR) != 0 {
+                    ime_context
+                        .get_composed_text()
+                        .map(|text| IME::Commit(text))
+                } else if (lparam as u32 & GCS_COMPSTR) != 0 {
+                    if let Some((text, first, last)) = ime_context.get_composing_text_and_cursor() {
+                        Some(IME::Preedit(text, first, last))
                     } else {
-                        IME::Preedit(comp_str, None, None)
+                        None
                     }
                 } else {
-                    IME::Preedit(String::new(), None, None)
+                    unreachable!()
                 }
             } else {
-                IME::Preedit(String::new(), None, None)
+                None
             };
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: WindowEvent::IME(event),
-            });
+            if let Some(event) = event {
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::IME(event),
+                });
+            }
 
-            // Hide composing text drwan by IME.
+            // Not calling DefWindowProc to hide composing text drawn by IME.
             0
         }
 
