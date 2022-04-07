@@ -58,6 +58,12 @@ pub struct Window {
 
     /// Requests that SCTK window should perform.
     window_requests: Arc<Mutex<Vec<WindowRequest>>>,
+
+    /// Whether the window is resizeable.
+    resizeable: AtomicBool,
+
+    /// Whether the window is decorated.
+    decorated: AtomicBool,
 }
 
 impl Window {
@@ -248,6 +254,8 @@ impl Window {
             fullscreen,
             maximized,
             windowing_features,
+            resizeable: AtomicBool::new(attributes.resizable),
+            decorated: AtomicBool::new(attributes.decorations),
         };
 
         Ok(window)
@@ -338,12 +346,13 @@ impl Window {
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
+        self.resizeable.store(resizable, Ordering::Relaxed);
         self.send_request(WindowRequest::Resizeable(resizable));
     }
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        true
+        self.resizeable.load(Ordering::Relaxed)
     }
 
     #[inline]
@@ -355,12 +364,13 @@ impl Window {
 
     #[inline]
     pub fn set_decorations(&self, decorate: bool) {
+        self.decorated.store(decorate, Ordering::Relaxed);
         self.send_request(WindowRequest::Decorate(decorate));
     }
 
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        true
+        self.decorated.load(Ordering::Relaxed)
     }
 
     #[inline]
