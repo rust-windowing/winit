@@ -1121,34 +1121,37 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
                 // check whether composing.
 
-                if lparam as u32 & (GCS_COMPSTR | GCS_RESULTSTR) != 0 {
-                    let ime_context = ImeContext::current(window);
+                let ime_context = ImeContext::current(window);
 
-                    // Google Japanese Input and ATOK have both flags, so
-                    // first, receive composing result if exist.
-                    if (lparam as u32 & GCS_RESULTSTR) != 0 {
-                        if let Some(text) = ime_context.get_composed_text() {
-                            userdata.window_state.lock().ime_state = ImeState::Enabled;
+                if lparam == 0 {
+                    userdata.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: WindowEvent::IME(IME::Preedit(String::new(), None, None)),
+                    });
+                }
 
-                            userdata.send_event(Event::WindowEvent {
-                                window_id: RootWindowId(WindowId(window)),
-                                event: WindowEvent::IME(IME::Commit(text)),
-                            });
-                        }
+                // Google Japanese Input and ATOK have both flags, so
+                // first, receive composing result if exist.
+                if (lparam as u32 & GCS_RESULTSTR) != 0 {
+                    if let Some(text) = ime_context.get_composed_text() {
+                        userdata.window_state.lock().ime_state = ImeState::Enabled;
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::IME(IME::Commit(text)),
+                        });
                     }
+                }
 
-                    // Next, receive preedit range for next composing if exist.
-                    if (lparam as u32 & GCS_COMPSTR) != 0 {
-                        if let Some((text, first, last)) =
-                            ime_context.get_composing_text_and_cursor()
-                        {
-                            userdata.window_state.lock().ime_state = ImeState::Preedit;
+                // Next, receive preedit range for next composing if exist.
+                if (lparam as u32 & GCS_COMPSTR) != 0 {
+                    if let Some((text, first, last)) = ime_context.get_composing_text_and_cursor() {
+                        userdata.window_state.lock().ime_state = ImeState::Preedit;
 
-                            userdata.send_event(Event::WindowEvent {
-                                window_id: RootWindowId(WindowId(window)),
-                                event: WindowEvent::IME(IME::Preedit(text, first, last)),
-                            });
-                        }
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::IME(IME::Preedit(text, first, last)),
+                        });
                     }
                 }
             }
