@@ -12,8 +12,7 @@ use windows_sys::Win32::{
         Input::Ime::{
             ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
             ImmSetCandidateWindow, ATTR_TARGET_CONVERTED, ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM,
-            CFS_CANDIDATEPOS, GCS_COMPATTR, GCS_COMPSTR, GCS_RESULTSTR, IACE_CHILDREN,
-            IACE_DEFAULT,
+            CFS_EXCLUDE, GCS_COMPATTR, GCS_COMPSTR, GCS_RESULTSTR, IACE_CHILDREN, IACE_DEFAULT,
         },
         WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED},
     },
@@ -115,7 +114,7 @@ impl ImeContext {
 
             let candidate_form = CANDIDATEFORM {
                 dwIndex: 0,
-                dwStyle: CFS_CANDIDATEPOS,
+                dwStyle: CFS_EXCLUDE,
                 ptCurrentPos: POINT { x, y },
                 rcArea: zeroed(),
             };
