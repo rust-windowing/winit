@@ -1118,10 +1118,13 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 w.ime_allowed && w.ime_state != ImeState::Disabled
             };
             if ime_allowed_and_composing {
+                // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
+                // check whether composing.
+
                 if lparam as u32 & (GCS_COMPSTR | GCS_RESULTSTR) != 0 {
                     let ime_context = ImeContext::current(window);
 
-                    // Google Japanese IME and ATOK have both flags, so
+                    // Google Japanese Input and ATOK have both flags, so
                     // first, receive composing result if exist.
                     if (lparam as u32 & GCS_RESULTSTR) != 0 {
                         if let Some(text) = ime_context.get_composed_text() {
