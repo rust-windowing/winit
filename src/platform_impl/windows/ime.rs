@@ -10,9 +10,10 @@ use windows_sys::Win32::{
     Globalization::HIMC,
     UI::{
         Input::Ime::{
-            ImmAssociateContext, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
+            ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
             ImmSetCandidateWindow, ATTR_TARGET_CONVERTED, ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM,
-            CFS_CANDIDATEPOS, GCS_COMPATTR, GCS_COMPSTR, GCS_RESULTSTR,
+            CFS_CANDIDATEPOS, GCS_COMPATTR, GCS_COMPSTR, GCS_RESULTSTR, IACE_CHILDREN,
+            IACE_DEFAULT,
         },
         WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED},
     },
@@ -123,12 +124,12 @@ impl ImeContext {
         }
     }
 
-    pub unsafe fn set_ime_allowed(&self, allowed: bool) {
+    pub unsafe fn set_ime_allowed(hwnd: HWND, allowed: bool) {
         if ImeContext::system_has_ime() {
             if allowed {
-                ImmAssociateContext(self.hwnd, self.himc);
+                ImmAssociateContextEx(hwnd, 0, IACE_DEFAULT);
             } else {
-                ImmAssociateContext(self.hwnd, 0);
+                ImmAssociateContextEx(hwnd, 0, IACE_CHILDREN);
             }
         }
     }
