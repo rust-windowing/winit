@@ -35,6 +35,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Added new `WindowEvent::IME` supported on macOS, Windows, X11, and Wayland.
 - Added `Window::set_ime_allowed` supported on macOS, Windows, X11, and Wayland.
 - **Breaking:** IME input on macOS, Windows, X11, and Wayland won't be received unless it's explicitly allowed via `Window::set_ime_allowed` and new `WindowEvent::IME` events are handled.
+- **Breaking:** On Windows, IME-drawn composing text won't be rendered and the behavior is the same with the other platforms.
 
 # 0.26.1 (2022-01-05)
 
