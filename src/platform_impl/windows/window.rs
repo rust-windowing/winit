@@ -619,6 +619,7 @@ impl Window {
 
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
+        self.window_state.lock().ime_allowed = allowed;
         unsafe {
             ImeContext::set_ime_allowed(self.hwnd(), allowed);
         }
