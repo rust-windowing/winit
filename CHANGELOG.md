@@ -10,6 +10,20 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - On Web, implement IME support. please not create DOM element with `id='winit_input_agent'`
 - On Web, `Window::set_ime_position` now works. you need to use to support IME on web because we don't have good way to get ime enabled. 
+- On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
+- On Web, implement IME support. please not create DOM element with `id='winit_input_agent'`
+- On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
+- On Web, `Window::set_ime_position` now works. you need to use to support IME on web because we don't have good way to get ime enabled.
+- On Windows, remove internally unique DC per window.
+- macOS: Remove the need to call `set_ime_position` after moving the window.
+- Added `Window::is_visible`.
+- Added `Window::is_resizable`.
+- Added `Window::is_decorated`.
+- On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
+- On X11, fix scale factor calculation when the only monitor is reconnected
+- On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
+- **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
+- Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.
 - Add `EventLoopBuilder`, which allows you to create and tweak the settings of an event loop before creating it.
 - Deprecated `EventLoop::with_user_event`; use `EventLoopBuilder::with_user_event` instead.
