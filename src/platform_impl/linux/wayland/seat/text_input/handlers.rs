@@ -41,7 +41,6 @@ pub(super) fn handle_text_input(
                 text_input: text_input.detach(),
             };
             window_handle.text_input_entered(text_input_handler);
-            event_sink.push_window_event(WindowEvent::IME(IME::Enabled), window_id);
         }
         TextInputEvent::Leave { surface } => {
             // Always issue a disable.
