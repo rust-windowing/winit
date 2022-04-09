@@ -83,7 +83,7 @@ impl WindowId {
     }
 }
 
-/// Object that allows you to build windows.
+/// Object that allows building windows.
 #[derive(Clone, Default)]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
@@ -650,6 +650,19 @@ impl Window {
         self.window.set_visible(visible)
     }
 
+    /// Gets the window's current vibility state.
+    ///
+    /// If `None` means it couldn't be determined so it is not recommended to use this to drive your rendering backend.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11:** Not implemented.
+    /// - **Wayland / iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_visible(&self) -> Option<bool> {
+        self.window.is_visible()
+    }
+
     /// Sets whether the window is resizable or not.
     ///
     /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
@@ -667,6 +680,17 @@ impl Window {
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
+    }
+
+    /// Gets the window's current resizable state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_resizable(&self) -> bool {
+        self.window.is_resizable()
     }
 
     /// Sets the window to minimized or back
@@ -694,7 +718,6 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_maximized(&self) -> bool {
@@ -750,6 +773,17 @@ impl Window {
         self.window.set_decorations(decorations)
     }
 
+    /// Gets the window's current decorations state.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / X11:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn is_decorated(&self) -> bool {
+        self.window.is_decorated()
+    }
+
     /// Change whether or not the window will always be on top of other windows.
     ///
     /// ## Platform-specific
@@ -799,6 +833,33 @@ impl Window {
     #[inline]
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
+    }
+
+    /// Sets whether the window should get IME events
+    ///
+    /// When IME is allowed, the window will receive [`IME`] events, and during the
+    /// preedit phase the window will NOT get [`KeyboardInput`] or
+    /// [`ReceivedCharacter`] events. The window should allow IME while it is
+    /// expecting text input.
+    ///
+    /// When IME is not allowed, the window won't receive [`IME`] events, and will
+    /// receive [`KeyboardInput`] events for every keypress instead. Without
+    /// allowing IME, the window will also get [`ReceivedCharacter`] events for
+    /// certain keyboard input. Not allowing IME is useful for games for example.
+    ///
+    /// IME is **not** allowed by default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
+    /// - **Windows / iOS / Android / Web :** Unsupported.
+    ///
+    /// [`IME`]: crate::event::WindowEvent::IME
+    /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
+    /// [`ReceivedCharacter`]: crate::event::WindowEvent::ReceivedCharacter
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.window.set_ime_allowed(allowed);
     }
 
     /// Brings the window to the front and sets input focus. Has no effect if the window is

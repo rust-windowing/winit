@@ -20,6 +20,17 @@ impl TextInputHandler {
         self.text_input.set_cursor_rectangle(x, y, 0, 0);
         self.text_input.commit();
     }
+
+    #[inline]
+    pub fn set_input_allowed(&self, allowed: bool) {
+        if allowed {
+            self.text_input.enable();
+        } else {
+            self.text_input.disable();
+        }
+
+        self.text_input.commit();
+    }
 }
 
 /// A wrapper around text input to automatically destroy the object on `Drop`.

@@ -1,38 +1,42 @@
-use super::{super::monitor, backend, device, proxy::Proxy, runner, window};
+use super::{
+    super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
+    window::WindowId,
+};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{
-    DeviceEvent, DeviceId, ElementState, Event, KeyboardInput, TouchPhase, WindowEvent,
+    DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyboardInput, TouchPhase,
+    WindowEvent,
 };
 use crate::event_loop::ControlFlow;
 use crate::monitor::MonitorHandle as RootMH;
-use crate::window::{Theme, WindowId};
+use crate::window::{Theme, WindowId as RootWindowId};
 use std::cell::RefCell;
 use std::clone::Clone;
 use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::rc::Rc;
 use web_sys::KeyboardEvent;
 
-pub struct WindowTarget<T: 'static> {
+pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
 }
 
-impl<T> Clone for WindowTarget<T> {
+impl<T> Clone for EventLoopWindowTarget<T> {
     fn clone(&self) -> Self {
-        WindowTarget {
+        Self {
             runner: self.runner.clone(),
         }
     }
 }
 
-impl<T> WindowTarget<T> {
+impl<T> EventLoopWindowTarget<T> {
     pub fn new() -> Self {
-        WindowTarget {
+        Self {
             runner: runner::Shared::new(),
         }
     }
 
-    pub fn proxy(&self) -> Proxy<T> {
-        Proxy::new(self.runner.clone())
+    pub fn proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy::new(self.runner.clone())
     }
 
     pub fn run(&self, event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) {
@@ -43,12 +47,12 @@ impl<T> WindowTarget<T> {
         });
     }
 
-    pub fn generate_id(&self) -> window::Id {
-        window::Id(self.runner.generate_id())
+    pub fn generate_id(&self) -> WindowId {
+        WindowId(self.runner.generate_id())
     }
 
-    pub fn register_input(&self, input: &Rc<RefCell<backend::Input>>, id: window::Id) {
-        self.runner.add_input(WindowId(id), input);
+    pub fn register_input(&self, input: &Rc<RefCell<backend::Input>>, id: WindowId) {
+        self.runner.add_input(RootWindowId(id), input);
         let mut input = input.borrow_mut();
         input.raw().set_id("winit_input_agent");
         input.set_attribute("winit_input_agent_id", &id.0.to_string());
@@ -56,7 +60,7 @@ impl<T> WindowTarget<T> {
         input.on_composition_start(move || {
             web_sys::console::log_1(&"IME::Enabled".into());
             runner.send_event(super::Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::IME(crate::event::IME::Enabled),
             });
         });
@@ -68,7 +72,7 @@ impl<T> WindowTarget<T> {
                     let len = text.len();
                     web_sys::console::log_1(&format!("IME::Preedit {}", text).into());
                     runner.send_event(super::Event::WindowEvent {
-                        window_id: WindowId(id),
+                        window_id: RootWindowId(id),
                         event: WindowEvent::IME(crate::event::IME::Preedit(
                             text,
                             Some(len),
@@ -84,7 +88,7 @@ impl<T> WindowTarget<T> {
             if let Some(text) = text {
                 web_sys::console::log_1(&format!("IME::Commit {}", text).into());
                 runner.send_event(super::Event::WindowEvent {
-                    window_id: WindowId(id),
+                    window_id: RootWindowId(id),
                     event: WindowEvent::IME(crate::event::IME::Commit(text)),
                 });
             }
@@ -94,45 +98,45 @@ impl<T> WindowTarget<T> {
         input.on_input(move |text: Option<String>| {
             if let Some(text) = text {
                 runner.send_events(text.chars().map(|ch| crate::event::Event::WindowEvent {
-                    window_id: WindowId(id),
+                    window_id: RootWindowId(id),
                     event: WindowEvent::ReceivedCharacter(ch),
                 }));
             }
         });
 
         #[allow(deprecated)]
-        {
-            let runner = self.runner.clone();
-            input.on_keydown(move |event: KeyboardEvent| {
-                if !(&event.key() == "Process" || &event.key() == "Unidentified") {
-                    web_sys::console::log_1(&format!("KeyboardInput {}", event.key()).into());
-                    runner.send_event(crate::event::Event::WindowEvent {
-                        window_id: WindowId(id),
-                        event: WindowEvent::KeyboardInput {
-                            device_id: DeviceId(unsafe { super::device::Id::dummy() }),
-                            input: KeyboardInput {
-                                scancode: backend::scan_code(&event),
-                                state: ElementState::Pressed,
-                                virtual_keycode: backend::virtual_key_code_next(&event),
-                                modifiers: backend::keyboard_modifiers(&event),
+            {
+                let runner = self.runner.clone();
+                input.on_keydown(move |event: KeyboardEvent| {
+                    if !(&event.key() == "Process" || &event.key() == "Unidentified") {
+                        web_sys::console::log_1(&format!("KeyboardInput {}", event.key()).into());
+                        runner.send_event(crate::event::Event::WindowEvent {
+                            window_id: RootWindowId(id),
+                            event: WindowEvent::KeyboardInput {
+                                device_id: RootDeviceId(unsafe { super::device::DeviceId::dummy() }),
+                                input: KeyboardInput {
+                                    scancode: backend::scan_code(&event),
+                                    state: ElementState::Pressed,
+                                    virtual_keycode: backend::virtual_key_code_next(&event),
+                                    modifiers: backend::keyboard_modifiers(&event),
+                                },
+                                is_synthetic: false,
                             },
-                            is_synthetic: false,
-                        },
-                    });
-                }
-            });
-        }
+                        });
+                    }
+                });
+            }
     }
 
-    pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: window::Id) {
-        self.runner.add_canvas(WindowId(id), canvas);
+    pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: WindowId) {
+        self.runner.add_canvas(RootWindowId(id), canvas);
         let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
         let runner = self.runner.clone();
         canvas.on_blur(move || {
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::Focused(false),
             });
         });
@@ -140,7 +144,7 @@ impl<T> WindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_focus(move || {
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::Focused(true),
             });
         });
@@ -149,9 +153,9 @@ impl<T> WindowTarget<T> {
         canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
             #[allow(deprecated)]
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
+                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
                     input: KeyboardInput {
                         scancode,
                         state: ElementState::Pressed,
@@ -167,9 +171,9 @@ impl<T> WindowTarget<T> {
         canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
             #[allow(deprecated)]
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::KeyboardInput {
-                    device_id: DeviceId(unsafe { device::Id::dummy() }),
+                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
                     input: KeyboardInput {
                         scancode,
                         state: ElementState::Released,
@@ -184,7 +188,7 @@ impl<T> WindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_received_character(move |char_code| {
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::ReceivedCharacter(char_code),
             });
         });
@@ -192,9 +196,9 @@ impl<T> WindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_cursor_leave(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::CursorLeft {
-                    device_id: DeviceId(device::Id(pointer_id)),
+                    device_id: RootDeviceId(DeviceId(pointer_id)),
                 },
             });
         });
@@ -202,9 +206,9 @@ impl<T> WindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_cursor_enter(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::CursorEntered {
-                    device_id: DeviceId(device::Id(pointer_id)),
+                    device_id: RootDeviceId(DeviceId(pointer_id)),
                 },
             });
         });
@@ -212,15 +216,15 @@ impl<T> WindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_cursor_move(move |pointer_id, position, delta, modifiers| {
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::CursorMoved {
-                    device_id: DeviceId(device::Id(pointer_id)),
+                    device_id: RootDeviceId(DeviceId(pointer_id)),
                     position,
                     modifiers,
                 },
             });
             runner.send_event(Event::DeviceEvent {
-                device_id: DeviceId(device::Id(pointer_id)),
+                device_id: RootDeviceId(DeviceId(pointer_id)),
                 event: DeviceEvent::MouseMotion {
                     delta: (delta.x, delta.y),
                 },
@@ -234,17 +238,17 @@ impl<T> WindowTarget<T> {
             // user code has the correct cursor position.
             runner.send_events(
                 std::iter::once(Event::WindowEvent {
-                    window_id: WindowId(id),
+                    window_id: RootWindowId(id),
                     event: WindowEvent::CursorMoved {
-                        device_id: DeviceId(device::Id(pointer_id)),
+                        device_id: RootDeviceId(DeviceId(pointer_id)),
                         position,
                         modifiers,
                     },
                 })
                 .chain(std::iter::once(Event::WindowEvent {
-                    window_id: WindowId(id),
+                    window_id: RootWindowId(id),
                     event: WindowEvent::MouseInput {
-                        device_id: DeviceId(device::Id(pointer_id)),
+                        device_id: RootDeviceId(DeviceId(pointer_id)),
                         state: ElementState::Pressed,
                         button,
                         modifiers,
@@ -256,9 +260,9 @@ impl<T> WindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_mouse_release(move |pointer_id, button, modifiers| {
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::MouseInput {
-                    device_id: DeviceId(device::Id(pointer_id)),
+                    device_id: RootDeviceId(DeviceId(pointer_id)),
                     state: ElementState::Released,
                     button,
                     modifiers,
@@ -269,9 +273,9 @@ impl<T> WindowTarget<T> {
         let runner = self.runner.clone();
         canvas.on_mouse_wheel(move |pointer_id, delta, modifiers| {
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::MouseWheel {
-                    device_id: DeviceId(device::Id(pointer_id)),
+                    device_id: RootDeviceId(DeviceId(pointer_id)),
                     delta,
                     phase: TouchPhase::Moved,
                     modifiers,
@@ -303,10 +307,10 @@ impl<T> WindowTarget<T> {
 
             backend::set_canvas_size(&raw, Size::Physical(new_size));
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::Resized(new_size),
             });
-            runner.request_redraw(WindowId(id));
+            runner.request_redraw(RootWindowId(id));
         });
 
         let runner = self.runner.clone();
@@ -317,19 +321,19 @@ impl<T> WindowTarget<T> {
                 Theme::Light
             };
             runner.send_event(Event::WindowEvent {
-                window_id: WindowId(id),
+                window_id: RootWindowId(id),
                 event: WindowEvent::ThemeChanged(theme),
             });
         });
     }
 
-    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
+    pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
         VecDeque::new().into_iter()
     }
 
     pub fn primary_monitor(&self) -> Option<RootMH> {
         Some(RootMH {
-            inner: monitor::Handle,
+            inner: MonitorHandle,
         })
     }
 }

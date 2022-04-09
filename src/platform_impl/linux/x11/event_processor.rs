@@ -12,7 +12,7 @@ use super::{
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver};
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{
@@ -702,8 +702,8 @@ impl<T: 'static> EventProcessor<T> {
                                             delta: match xev.detail {
                                                 4 => LineDelta(0.0, 1.0),
                                                 5 => LineDelta(0.0, -1.0),
-                                                6 => LineDelta(-1.0, 0.0),
-                                                7 => LineDelta(1.0, 0.0),
+                                                6 => LineDelta(1.0, 0.0),
+                                                7 => LineDelta(-1.0, 0.0),
                                                 _ => unreachable!(),
                                             },
                                             phase: TouchPhase::Moved,
@@ -783,10 +783,10 @@ impl<T: 'static> EventProcessor<T> {
                                             event: MouseWheel {
                                                 device_id,
                                                 delta: match info.orientation {
-                                                    ScrollOrientation::Horizontal => {
-                                                        LineDelta(delta as f32, 0.0)
-                                                    }
                                                     // X11 vertical scroll coordinates are opposite to winit's
+                                                    ScrollOrientation::Horizontal => {
+                                                        LineDelta(-delta as f32, 0.0)
+                                                    }
                                                     ScrollOrientation::Vertical => {
                                                         LineDelta(0.0, -delta as f32)
                                                     }
@@ -1188,9 +1188,12 @@ impl<T: 'static> EventProcessor<T> {
                                         if monitor.name == new_monitor.name {
                                             let (width, height) = window.inner_size_physical();
                                             let (new_width, new_height) = window.adjust_for_dpi(
-                                                // If there all monitors are closed before, scale
-                                                // factor would be already changed to 1.0.
-                                                maybe_prev_scale_factor.unwrap_or(1.0),
+                                                // If we couldn't determine the previous scale
+                                                // factor (e.g., because all monitors were closed
+                                                // before), just pick whatever the current monitor
+                                                // has set as a baseline.
+                                                maybe_prev_scale_factor
+                                                    .unwrap_or(monitor.scale_factor),
                                                 new_monitor.scale_factor,
                                                 width,
                                                 height,
@@ -1229,9 +1232,19 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        if let Ok((window_id, x, y)) = self.ime_receiver.try_recv() {
-            wt.ime.borrow_mut().send_xim_spot(window_id, x, y);
+        // Handle IME requests.
+        if let Ok(request) = self.ime_receiver.try_recv() {
+            let mut ime = wt.ime.borrow_mut();
+            match request {
+                ImeRequest::Position(window_id, x, y) => {
+                    ime.send_xim_spot(window_id, x, y);
+                }
+                ImeRequest::AllowIME(window_id, allowed) => {
+                    ime.set_ime_allowed(window_id, allowed);
+                }
+            }
         }
+
         match self.ime_event_receiver.try_recv() {
             Ok((window, event)) => match event {
                 ImeEvent::Enabled => {
@@ -1267,6 +1280,12 @@ impl<T: 'static> EventProcessor<T> {
                         event: WindowEvent::IME(IME::Commit(
                             self.composed_text.take().unwrap_or("".to_owned()),
                         )),
+                    });
+                }
+                ImeEvent::Disabled => {
+                    callback(Event::WindowEvent {
+                        window_id: mkwid(window),
+                        event: WindowEvent::IME(IME::Disabled),
                     });
                 }
             },

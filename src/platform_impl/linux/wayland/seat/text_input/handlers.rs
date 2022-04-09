@@ -30,8 +30,11 @@ pub(super) fn handle_text_input(
             inner.target_window_id = Some(window_id);
 
             // Enable text input on that surface.
-            text_input.enable();
-            text_input.commit();
+            if window_handle.ime_allowed.get() {
+                text_input.enable();
+                text_input.commit();
+                event_sink.push_window_event(WindowEvent::IME(IME::Enabled), window_id);
+            }
 
             // Notify a window we're currently over about text input handler.
             let text_input_handler = TextInputHandler {

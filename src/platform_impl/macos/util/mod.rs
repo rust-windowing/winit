@@ -4,6 +4,7 @@ mod cursor;
 pub use self::{cursor::*, r#async::*};
 
 use std::ops::{BitAnd, Deref};
+use std::os::raw::c_uchar;
 
 use cocoa::{
     appkit::{NSApp, NSWindowStyleMask},
@@ -11,7 +12,7 @@ use cocoa::{
     foundation::{NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
-use objc::runtime::{Class, Object, Sel, BOOL, YES};
+use objc::runtime::{Class, Object, BOOL, NO};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -79,6 +80,35 @@ impl Clone for IdRef {
     }
 }
 
+macro_rules! trace_scope {
+    ($s:literal) => {
+        let _crate = $crate::platform_impl::platform::util::TraceGuard::new(module_path!(), $s);
+    };
+}
+
+pub(crate) struct TraceGuard {
+    module_path: &'static str,
+    called_from_fn: &'static str,
+}
+
+impl TraceGuard {
+    #[inline]
+    pub(crate) fn new(module_path: &'static str, called_from_fn: &'static str) -> Self {
+        trace!(target: module_path, "Triggered `{}`", called_from_fn);
+        Self {
+            module_path,
+            called_from_fn,
+        }
+    }
+}
+
+impl Drop for TraceGuard {
+    #[inline]
+    fn drop(&mut self) {
+        trace!(target: self.module_path, "Completed `{}`", self.called_from_fn);
+    }
+}
+
 // For consistency with other platforms, this will...
 // 1. translate the bottom-left window corner into the top-left window corner
 // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
@@ -118,19 +148,9 @@ pub unsafe fn superclass(this: &Object) -> &Class {
     &*superclass
 }
 
-pub unsafe fn create_input_context(view: id) -> IdRef {
-    let input_context: id = msg_send![class!(NSTextInputContext), alloc];
-    let input_context: id = msg_send![input_context, initWithClient: view];
-    IdRef::new(input_context)
-}
-
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
     let () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
-}
-
-pub extern "C" fn yes(_: &Object, _: Sel) -> BOOL {
-    YES
 }
 
 pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, on: bool) {
@@ -145,4 +165,22 @@ pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, o
 
     // If we don't do this, key handling will break. Therefore, never call `setStyleMask` directly!
     window.makeFirstResponder_(view);
+}
+
+/// For invalid utf8 sequences potentially returned by `UTF8String`,
+/// it behaves identically to `String::from_utf8_lossy`
+///
+/// Safety: Assumes that `string` is an instance of `NSAttributedString` or `NSString`
+pub unsafe fn id_to_string_lossy(string: id) -> String {
+    let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+    let characters = if has_attr != NO {
+        // This is a *mut NSAttributedString
+        msg_send![string, string]
+    } else {
+        // This is already a *mut NSString
+        string
+    };
+    let utf8_sequence =
+        std::slice::from_raw_parts(characters.UTF8String() as *const c_uchar, characters.len());
+    String::from_utf8_lossy(utf8_sequence).into_owned()
 }

@@ -1,21 +1,36 @@
-use std::{
-    mem::transmute,
-    os::raw::{c_short, c_void},
-    ptr,
-    sync::Arc,
-};
+use std::mem::transmute;
+use std::os::raw::c_short;
+use std::ptr;
+use std::sync::Arc;
 
 use super::{ffi, util, XConnection, XError};
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
 use std::ffi::CStr;
 use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
+/// IME creation error.
 #[derive(Debug)]
 pub enum ImeContextCreationError {
+    /// Got the error from Xlib.
     XError(XError),
+
+    /// Got null pointer from Xlib but without exact reason.
     Null,
 }
+
+/// The callback used by XIM preedit functions.
 type XIMProcNonnull = unsafe extern "C" fn(ffi::XIM, ffi::XPointer, ffi::XPointer);
+
+/// Wrapper for creating XIM callbacks.
+#[inline]
+fn create_xim_callback(client_data: ffi::XPointer, callback: XIMProcNonnull) -> ffi::XIMCallback {
+    XIMCallback {
+        client_data,
+        callback: Some(callback),
+    }
+}
+
+/// The server started preedit.
 extern "C" fn preedit_start_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
@@ -32,6 +47,8 @@ extern "C" fn preedit_start_callback(
     -1
 }
 
+/// Done callback is called when the user finished preedit and the text is about to be inserted into
+/// underlying widget.
 extern "C" fn preedit_done_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
@@ -53,6 +70,7 @@ fn calc_byte_position(text: &Vec<char>, pos: usize) -> usize {
     byte_pos
 }
 
+/// Preedit text information to be drawn inline by the client.
 extern "C" fn preedit_draw_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
@@ -103,6 +121,7 @@ extern "C" fn preedit_draw_callback(
         .expect("failed to send preedit update event");
 }
 
+/// Handling of cursor movements in preedit text.
 extern "C" fn preedit_caret_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
@@ -122,65 +141,12 @@ extern "C" fn preedit_caret_callback(
         .expect("failed to send preedit update event");
 }
 
-unsafe fn create_pre_edit_attr<'a>(
-    xconn: &'a Arc<XConnection>,
-    preedit_callbacks: &'a PreeditCallbacks,
-) -> util::XSmartPointer<'a, c_void> {
-    util::XSmartPointer::new(
-        xconn,
-        (xconn.xlib.XVaCreateNestedList)(
-            0,
-            ffi::XNPreeditStartCallback_0.as_ptr() as *const _,
-            &(preedit_callbacks.start_callback) as *const _,
-            ffi::XNPreeditDoneCallback_0.as_ptr() as *const _,
-            &(preedit_callbacks.done_callback) as *const _,
-            ffi::XNPreeditCaretCallback_0.as_ptr() as *const _,
-            &(preedit_callbacks.caret_callback) as *const _,
-            ffi::XNPreeditDrawCallback_0.as_ptr() as *const _,
-            &(preedit_callbacks.draw_callback) as *const _,
-            ptr::null_mut::<()>(),
-        ),
-    )
-    .expect("XVaCreateNestedList returned NULL")
-}
-
-unsafe fn create_pre_edit_attr_with_spot<'a>(
-    xconn: &'a Arc<XConnection>,
-    ic_spot: &'a ffi::XPoint,
-    preedit_callbacks: &'a PreeditCallbacks,
-) -> util::XSmartPointer<'a, c_void> {
-    util::XSmartPointer::new(
-        xconn,
-        (xconn.xlib.XVaCreateNestedList)(
-            0,
-            ffi::XNSpotLocation_0.as_ptr() as *const _,
-            ic_spot,
-            ffi::XNPreeditStartCallback_0.as_ptr() as *const _,
-            &preedit_callbacks.start_callback as *const _,
-            ffi::XNPreeditDoneCallback_0.as_ptr() as *const _,
-            &preedit_callbacks.done_callback as *const _,
-            ffi::XNPreeditCaretCallback_0.as_ptr() as *const _,
-            &preedit_callbacks.caret_callback as *const _,
-            ffi::XNPreeditDrawCallback_0.as_ptr() as *const _,
-            &preedit_callbacks.draw_callback as *const _,
-            ptr::null_mut::<()>(),
-        ),
-    )
-    .expect("XVaCreateNestedList returned NULL")
-}
-
-fn create_xim_callback(client_data: ffi::XPointer, callback: XIMProcNonnull) -> ffi::XIMCallback {
-    XIMCallback {
-        client_data,
-        callback: Some(callback),
-    }
-}
-
-pub struct PreeditCallbacks {
-    pub start_callback: ffi::XIMCallback,
-    pub done_callback: ffi::XIMCallback,
-    pub draw_callback: ffi::XIMCallback,
-    pub caret_callback: ffi::XIMCallback,
+/// Struct to simplify callback creation and latter passing into Xlib XIM.
+struct PreeditCallbacks {
+    start_callback: ffi::XIMCallback,
+    done_callback: ffi::XIMCallback,
+    draw_callback: ffi::XIMCallback,
+    caret_callback: ffi::XIMCallback,
 }
 
 impl PreeditCallbacks {
@@ -201,22 +167,24 @@ impl PreeditCallbacks {
     }
 }
 
-pub struct ImeContextClientData {
-    pub window: ffi::Window,
-    pub event_sender: ImeEventSender,
-    pub text: Vec<char>,
-    pub cursor_pos: usize,
+struct ImeContextClientData {
+    window: ffi::Window,
+    event_sender: ImeEventSender,
+    text: Vec<char>,
+    cursor_pos: usize,
 }
 
-// WARNING: this struct doesn't destroy its XIC resource when dropped.
+// XXX: this struct doesn't destroy its XIC resource when dropped.
 // This is intentional, as it doesn't have enough information to know whether or not the context
 // still exists on the server. Since `ImeInner` has that awareness, destruction must be handled
 // through `ImeInner`.
 pub struct ImeContext {
-    pub ic: ffi::XIC,
-    pub ic_spot: ffi::XPoint,
-    pub preedit_callbacks: PreeditCallbacks,
-    pub client_data: Box<ImeContextClientData>,
+    pub(super) ic: ffi::XIC,
+    pub(super) ic_spot: ffi::XPoint,
+    pub(super) is_allowed: bool,
+    // Since the data is passed shared between X11 XIM callbacks, but couldn't be direclty free from
+    // there we keep the pointer to automatically deallocate it.
+    _client_data: Box<ImeContextClientData>,
 }
 
 impl ImeContext {
@@ -225,82 +193,111 @@ impl ImeContext {
         im: ffi::XIM,
         window: ffi::Window,
         ic_spot: Option<ffi::XPoint>,
+        is_allowed: bool,
         event_sender: ImeEventSender,
     ) -> Result<Self, ImeContextCreationError> {
-        let client_data = Box::new(ImeContextClientData {
+        let client_data = Box::into_raw(Box::new(ImeContextClientData {
             window,
             event_sender,
             text: Vec::new(),
             cursor_pos: 0,
-        });
-        let client_data_ptr = Box::into_raw(client_data);
-        let preedit_callbacks = PreeditCallbacks::new(client_data_ptr as ffi::XPointer);
-        let ic = if let Some(ic_spot) = ic_spot {
-            ImeContext::create_ic_with_spot(xconn, im, window, ic_spot, &preedit_callbacks)
+        }));
+
+        let ic = if is_allowed {
+            ImeContext::create_ic(xconn, im, window, client_data as ffi::XPointer)
+                .ok_or(ImeContextCreationError::Null)?
         } else {
-            ImeContext::create_ic(xconn, im, window, &preedit_callbacks)
+            ImeContext::create_none_ic(xconn, im, window).ok_or(ImeContextCreationError::Null)?
         };
 
-        let ic = ic.ok_or(ImeContextCreationError::Null)?;
         xconn
             .check_errors()
             .map_err(ImeContextCreationError::XError)?;
 
-        Ok(ImeContext {
+        let mut context = ImeContext {
             ic,
-            ic_spot: ic_spot.unwrap_or(ffi::XPoint { x: 0, y: 0 }),
-            preedit_callbacks,
-            client_data: Box::from_raw(client_data_ptr),
-        })
+            ic_spot: ffi::XPoint { x: 0, y: 0 },
+            is_allowed,
+            _client_data: Box::from_raw(client_data),
+        };
+
+        // Set the spot location, if it's present.
+        if let Some(ic_spot) = ic_spot {
+            context.set_spot(xconn, ic_spot.x, ic_spot.y)
+        }
+
+        Ok(context)
+    }
+
+    unsafe fn create_none_ic(
+        xconn: &Arc<XConnection>,
+        im: ffi::XIM,
+        window: ffi::Window,
+    ) -> Option<ffi::XIC> {
+        let ic = (xconn.xlib.XCreateIC)(
+            im,
+            ffi::XNInputStyle_0.as_ptr() as *const _,
+            ffi::XIMPreeditNone | ffi::XIMStatusNone,
+            ffi::XNClientWindow_0.as_ptr() as *const _,
+            window,
+            ptr::null_mut::<()>(),
+        );
+
+        (!ic.is_null()).then(|| ic)
     }
 
     unsafe fn create_ic(
         xconn: &Arc<XConnection>,
         im: ffi::XIM,
         window: ffi::Window,
-        preedit_callbacks: &PreeditCallbacks,
+        client_data: ffi::XPointer,
     ) -> Option<ffi::XIC> {
-        let pre_edit_attr = create_pre_edit_attr(xconn, preedit_callbacks);
-        let ic = (xconn.xlib.XCreateIC)(
-            im,
-            ffi::XNInputStyle_0.as_ptr() as *const _,
-            ffi::XIMPreeditCallbacks | ffi::XIMStatusNothing,
-            ffi::XNClientWindow_0.as_ptr() as *const _,
-            window,
-            ffi::XNPreeditAttributes_0.as_ptr(),
-            pre_edit_attr.ptr,
-            ptr::null_mut::<()>(),
-        );
-        if ic.is_null() {
-            None
-        } else {
-            Some(ic)
-        }
-    }
+        let preedit_callbacks = PreeditCallbacks::new(client_data);
+        let preedit_attr = util::XSmartPointer::new(
+            xconn,
+            (xconn.xlib.XVaCreateNestedList)(
+                0,
+                ffi::XNPreeditStartCallback_0.as_ptr() as *const _,
+                &(preedit_callbacks.start_callback) as *const _,
+                ffi::XNPreeditDoneCallback_0.as_ptr() as *const _,
+                &(preedit_callbacks.done_callback) as *const _,
+                ffi::XNPreeditCaretCallback_0.as_ptr() as *const _,
+                &(preedit_callbacks.caret_callback) as *const _,
+                ffi::XNPreeditDrawCallback_0.as_ptr() as *const _,
+                &(preedit_callbacks.draw_callback) as *const _,
+                ptr::null_mut::<()>(),
+            ),
+        )
+        .expect("XVaCreateNestedList returned NULL");
 
-    unsafe fn create_ic_with_spot(
-        xconn: &Arc<XConnection>,
-        im: ffi::XIM,
-        window: ffi::Window,
-        ic_spot: ffi::XPoint,
-        preedit_callbacks: &PreeditCallbacks,
-    ) -> Option<ffi::XIC> {
-        let pre_edit_attr = create_pre_edit_attr_with_spot(xconn, &ic_spot, preedit_callbacks);
-        let ic = (xconn.xlib.XCreateIC)(
-            im,
-            ffi::XNInputStyle_0.as_ptr() as *const _,
-            ffi::XIMPreeditCallbacks | ffi::XIMStatusNothing,
-            ffi::XNClientWindow_0.as_ptr() as *const _,
-            window,
-            ffi::XNPreeditAttributes_0.as_ptr() as *const _,
-            pre_edit_attr.ptr,
-            ptr::null_mut::<()>(),
-        );
-        if ic.is_null() {
-            None
-        } else {
-            Some(ic)
-        }
+        let ic = {
+            let ic = (xconn.xlib.XCreateIC)(
+                im,
+                ffi::XNInputStyle_0.as_ptr() as *const _,
+                ffi::XIMPreeditCallbacks | ffi::XIMStatusNothing,
+                ffi::XNClientWindow_0.as_ptr() as *const _,
+                window,
+                ffi::XNPreeditAttributes_0.as_ptr() as *const _,
+                preedit_attr.ptr,
+                ptr::null_mut::<()>(),
+            );
+
+            // If we've failed to create IC with preedit callbacks fallback to normal one.
+            if ic.is_null() {
+                (xconn.xlib.XCreateIC)(
+                    im,
+                    ffi::XNInputStyle_0.as_ptr() as *const _,
+                    ffi::XIMPreeditNothing | ffi::XIMStatusNothing,
+                    ffi::XNClientWindow_0.as_ptr() as *const _,
+                    window,
+                    ptr::null_mut::<()>(),
+                )
+            } else {
+                ic
+            }
+        };
+
+        (!ic.is_null()).then(|| ic)
     }
 
     pub fn focus(&self, xconn: &Arc<XConnection>) -> Result<(), XError> {
@@ -317,19 +314,34 @@ impl ImeContext {
         xconn.check_errors()
     }
 
+    // Set the spot for preedit text. Setting spot isn't working with libX11 when preedit callbacks
+    // are being used. Certain IMEs do show selection window, but it's placed in bottom left of the
+    // window and couldn't be changed.
+    //
+    // For me see: https://bugs.freedesktop.org/show_bug.cgi?id=1580.
     pub fn set_spot(&mut self, xconn: &Arc<XConnection>, x: c_short, y: c_short) {
-        if self.ic_spot.x == x && self.ic_spot.y == y {
+        if !self.is_allowed || self.ic_spot.x == x && self.ic_spot.y == y {
             return;
         }
+
         self.ic_spot = ffi::XPoint { x, y };
 
         unsafe {
-            let pre_edit_attr =
-                create_pre_edit_attr_with_spot(xconn, &self.ic_spot, &self.preedit_callbacks);
+            let preedit_attr = util::XSmartPointer::new(
+                xconn,
+                (xconn.xlib.XVaCreateNestedList)(
+                    0,
+                    ffi::XNSpotLocation_0.as_ptr(),
+                    &self.ic_spot,
+                    ptr::null_mut::<()>(),
+                ),
+            )
+            .expect("XVaCreateNestedList returned NULL");
+
             (xconn.xlib.XSetICValues)(
                 self.ic,
                 ffi::XNPreeditAttributes_0.as_ptr() as *const _,
-                pre_edit_attr.ptr,
+                preedit_attr.ptr,
                 ptr::null_mut::<()>(),
             );
         }

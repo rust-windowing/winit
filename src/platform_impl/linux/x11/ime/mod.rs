@@ -26,12 +26,22 @@ pub enum ImeEvent {
     Start,
     Update(String, usize),
     End,
+    Disabled,
 }
 
-pub type ImeReceiver = Receiver<(ffi::Window, i16, i16)>;
-pub type ImeSender = Sender<(ffi::Window, i16, i16)>;
+pub type ImeReceiver = Receiver<ImeRequest>;
+pub type ImeSender = Sender<ImeRequest>;
 pub type ImeEventReceiver = Receiver<(ffi::Window, ImeEvent)>;
 pub type ImeEventSender = Sender<(ffi::Window, ImeEvent)>;
+
+/// Request to control XIM handler from the window.
+pub enum ImeRequest {
+    /// Set IME spot position for given `window_id`.
+    Position(ffi::Window, i16, i16),
+
+    /// Allow IME input for the given `window_id`.
+    AllowIME(ffi::Window, bool),
+}
 
 #[derive(Debug)]
 pub enum ImeCreationError {
@@ -101,21 +111,34 @@ impl Ime {
     // Ok(_) indicates that nothing went wrong internally
     // Ok(true) indicates that the action was actually performed
     // Ok(false) indicates that the action is not presently applicable
-    pub fn create_context(&mut self, window: ffi::Window) -> Result<bool, ImeContextCreationError> {
+    pub fn create_context(
+        &mut self,
+        window: ffi::Window,
+        with_preedit: bool,
+    ) -> Result<bool, ImeContextCreationError> {
         let context = if self.is_destroyed() {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
+            let event = if with_preedit {
+                ImeEvent::Enabled
+            } else {
+                // There's no IME without preedit.
+                ImeEvent::Disabled
+            };
+
             self.inner
                 .event_sender
-                .send((window, ImeEvent::Enabled))
+                .send((window, event))
                 .expect("Failed to send enabled event");
+
             Some(unsafe {
                 ImeContext::new(
                     &self.inner.xconn,
                     self.inner.im,
                     window,
                     None,
+                    with_preedit,
                     self.inner.event_sender.clone(),
                 )
             }?)
@@ -175,6 +198,24 @@ impl Ime {
         if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window) {
             context.set_spot(&self.xconn, x as _, y as _);
         }
+    }
+
+    pub fn set_ime_allowed(&mut self, window: ffi::Window, allowed: bool) {
+        if self.is_destroyed() {
+            return;
+        }
+
+        if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window) {
+            if allowed == context.is_allowed {
+                return;
+            }
+        }
+
+        // Remove context for that window.
+        let _ = self.remove_context(window);
+
+        // Create new context supporting IME input.
+        let _ = self.create_context(window, allowed);
     }
 }
 

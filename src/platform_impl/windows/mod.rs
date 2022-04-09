@@ -1,9 +1,14 @@
 #![cfg(target_os = "windows")]
 
-use winapi::{self, shared::windef::HMENU, shared::windef::HWND};
+use windows_sys::Win32::{
+    Foundation::{HANDLE, HWND},
+    UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX},
+};
 
-pub use self::{
-    event_loop::{EventLoop, EventLoopProxy, EventLoopWindowTarget},
+pub(crate) use self::{
+    event_loop::{
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+    },
     icon::WinIcon,
     monitor::{MonitorHandle, VideoMode},
     window::Window,
@@ -30,6 +35,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
     pub preferred_theme: Option<Theme>,
+    pub skip_taskbar: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -41,6 +47,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             no_redirection_bitmap: false,
             drag_and_drop: true,
             preferred_theme: None,
+            skip_taskbar: false,
         }
     }
 }
@@ -50,7 +57,7 @@ unsafe impl Sync for PlatformSpecificWindowBuilderAttributes {}
 
 // Cursor name in UTF-16. Used to set cursor in `WM_SETCURSOR`.
 #[derive(Debug, Clone, Copy)]
-pub struct Cursor(pub *const winapi::ctypes::wchar_t);
+pub struct Cursor(pub *const u16);
 unsafe impl Send for Cursor {}
 unsafe impl Sync for Cursor {}
 
@@ -66,7 +73,7 @@ impl DeviceId {
 impl DeviceId {
     pub fn persistent_identifier(&self) -> Option<String> {
         if self.0 != 0 {
-            raw_input::get_raw_input_device_name(self.0 as _)
+            raw_input::get_raw_input_device_name(self.0 as HANDLE)
         } else {
             None
         }
@@ -89,15 +96,59 @@ unsafe impl Sync for WindowId {}
 
 impl WindowId {
     pub const unsafe fn dummy() -> Self {
-        use std::ptr::null_mut;
-
-        WindowId(null_mut())
+        WindowId(0)
     }
+}
+
+#[inline(always)]
+const fn get_xbutton_wparam(x: u32) -> u16 {
+    loword(x)
+}
+
+#[inline(always)]
+const fn get_x_lparam(x: u32) -> u16 {
+    loword(x)
+}
+
+#[inline(always)]
+const fn get_y_lparam(x: u32) -> u16 {
+    hiword(x)
+}
+
+#[inline(always)]
+const fn loword(x: u32) -> u16 {
+    (x & 0xFFFF) as u16
+}
+
+#[inline(always)]
+const fn hiword(x: u32) -> u16 {
+    ((x >> 16) & 0xFFFF) as u16
+}
+
+#[inline(always)]
+unsafe fn get_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX) -> isize {
+    #[cfg(target_pointer_width = "64")]
+    return windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(hwnd, nindex);
+    #[cfg(target_pointer_width = "32")]
+    return windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongW(hwnd, nindex) as isize;
+}
+
+#[inline(always)]
+unsafe fn set_window_long(hwnd: HWND, nindex: WINDOW_LONG_PTR_INDEX, dwnewlong: isize) -> isize {
+    #[cfg(target_pointer_width = "64")]
+    return windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongPtrW(hwnd, nindex, dwnewlong);
+    #[cfg(target_pointer_width = "32")]
+    return windows_sys::Win32::UI::WindowsAndMessaging::SetWindowLongW(
+        hwnd,
+        nindex,
+        dwnewlong as i32,
+    ) as isize;
 }
 
 #[macro_use]
 mod util;
 mod dark_mode;
+mod definitions;
 mod dpi;
 mod drop_handler;
 mod event;
