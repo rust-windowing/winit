@@ -11,9 +11,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, implement IME support. please not create DOM element with `id='winit_input_agent'`
 - On Web, `Window::set_ime_position` now works. you need to use to support IME on web because we don't have good way to get ime enabled. 
 - On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
-- On Web, implement IME support. please not create DOM element with `id='winit_input_agent'`
 - On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
-- On Web, `Window::set_ime_position` now works. you need to use to support IME on web because we don't have good way to get ime enabled.
 - On Windows, remove internally unique DC per window.
 - macOS: Remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.

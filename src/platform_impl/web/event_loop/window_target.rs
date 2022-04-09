@@ -105,27 +105,27 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         #[allow(deprecated)]
-            {
-                let runner = self.runner.clone();
-                input.on_keydown(move |event: KeyboardEvent| {
-                    if !(&event.key() == "Process" || &event.key() == "Unidentified") {
-                        web_sys::console::log_1(&format!("KeyboardInput {}", event.key()).into());
-                        runner.send_event(crate::event::Event::WindowEvent {
-                            window_id: RootWindowId(id),
-                            event: WindowEvent::KeyboardInput {
-                                device_id: RootDeviceId(unsafe { super::device::DeviceId::dummy() }),
-                                input: KeyboardInput {
-                                    scancode: backend::scan_code(&event),
-                                    state: ElementState::Pressed,
-                                    virtual_keycode: backend::virtual_key_code_next(&event),
-                                    modifiers: backend::keyboard_modifiers(&event),
-                                },
-                                is_synthetic: false,
+        {
+            let runner = self.runner.clone();
+            input.on_keydown(move |event: KeyboardEvent| {
+                if !(&event.key() == "Process" || &event.key() == "Unidentified") {
+                    web_sys::console::log_1(&format!("KeyboardInput {}", event.key()).into());
+                    runner.send_event(crate::event::Event::WindowEvent {
+                        window_id: RootWindowId(id),
+                        event: WindowEvent::KeyboardInput {
+                            device_id: RootDeviceId(unsafe { super::device::DeviceId::dummy() }),
+                            input: KeyboardInput {
+                                scancode: backend::scan_code(&event),
+                                state: ElementState::Pressed,
+                                virtual_keycode: backend::virtual_key_code_next(&event),
+                                modifiers: backend::keyboard_modifiers(&event),
                             },
-                        });
-                    }
-                });
-            }
+                            is_synthetic: false,
+                        },
+                    });
+                }
+            });
+        }
     }
 
     pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: WindowId) {
