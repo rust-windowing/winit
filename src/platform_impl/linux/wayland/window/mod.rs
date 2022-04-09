@@ -159,8 +159,8 @@ impl Window {
         window.set_max_size(max_size);
 
         // Set Wayland specific window attributes.
-        if let Some(app_id) = platform_attributes.app_id {
-            window.set_app_id(app_id);
+        if let Some(name) = platform_attributes.name {
+            window.set_app_id(name.general);
         }
 
         // Set common window attributes.

@@ -310,11 +310,11 @@ impl UnownedWindow {
 
             // WM_CLASS must be set *before* mapping the window, as per ICCCM!
             {
-                let (class, instance) = if let Some((instance, class)) = pl_attribs.class {
-                    let instance = CString::new(instance.as_str())
+                let (class, instance) = if let Some(name) = pl_attribs.name {
+                    let instance = CString::new(name.instance.as_str())
                         .expect("`WM_CLASS` instance contained null byte");
-                    let class =
-                        CString::new(class.as_str()).expect("`WM_CLASS` class contained null byte");
+                    let class = CString::new(name.general.as_str())
+                        .expect("`WM_CLASS` class contained null byte");
                     (instance, class)
                 } else {
                     let class = env::args()
