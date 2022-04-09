@@ -220,6 +220,9 @@ impl Window {
             window_requests.clone(),
         );
 
+        // Set resizable state, so we can determine how to handle `Window::set_inner_size`.
+        window_handle.is_resizable.set(attributes.resizable);
+
         let mut winit_state = event_loop_window_target.state.borrow_mut();
 
         winit_state.window_map.insert(window_id, window_handle);

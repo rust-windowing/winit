@@ -154,6 +154,9 @@ pub struct WindowHandle {
     /// Current cursor icon.
     pub cursor_icon: Cell<CursorIcon>,
 
+    /// Whether the window is resizable.
+    pub is_resizable: Cell<bool>,
+
     /// Visible cursor or not.
     cursor_visible: Cell<bool>,
 
@@ -193,6 +196,7 @@ impl WindowHandle {
             size,
             pending_window_requests,
             cursor_icon: Cell::new(CursorIcon::Default),
+            is_resizable: Cell::new(true),
             confined: Cell::new(false),
             cursor_visible: Cell::new(true),
             pointers: Vec::new(),
@@ -443,7 +447,14 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_update.redraw_requested = true;
                 }
                 WindowRequest::FrameSize(size) => {
-                    // Set new size.
+                    if !window_handle.is_resizable.get() {
+                        // On Wayland non-resizable window is achieved by setting both min and max
+                        // size of the window to the same value.
+                        let size = Some((size.width, size.height));
+                        window_handle.window.set_max_size(size);
+                        window_handle.window.set_min_size(size);
+                    }
+
                     window_handle.window.resize(size.width, size.height);
 
                     // We should refresh the frame after resize.
