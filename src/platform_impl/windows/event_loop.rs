@@ -1190,7 +1190,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_IME_SETCONTEXT => {
-            // Hide composing text drwan by IME.
+            // Hide composing text drawn by IME.
             let wparam = wparam & (!ISC_SHOWUICOMPOSITIONWINDOW as usize);
 
             DefWindowProcW(window, msg, wparam, lparam)
