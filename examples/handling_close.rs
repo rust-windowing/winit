@@ -1,7 +1,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, KeyboardInput, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -21,7 +21,7 @@ fn main() {
             ElementState::Released,
             VirtualKeyCode::{N, Y},
         };
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, .. } => {
@@ -63,7 +63,7 @@ fn main() {
                                     // event loop (i.e. if it's a multi-window application), you need to
                                     // drop the window. That closes it, and results in `Destroyed` being
                                     // sent.
-                                    *control_flow = ControlFlow::Exit;
+                                    control_flow.set_exit();
                                 }
                             }
                             N => {

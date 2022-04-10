@@ -169,6 +169,41 @@ impl ControlFlow {
     /// [`ExitWithCode`]: ControlFlow::ExitWithCode
     #[allow(non_upper_case_globals)]
     pub const Exit: Self = Self::ExitWithCode(0);
+
+    /// Sets this to [`Poll`].
+    ///
+    /// [`Poll`]: ControlFlow::Poll
+    pub fn set_poll(&mut self) {
+        *self = Self::Poll;
+    }
+
+    /// Sets this to [`Wait`].
+    ///
+    /// [`Wait`]: ControlFlow::Wait
+    pub fn set_wait(&mut self) {
+        *self = Self::Wait;
+    }
+
+    /// Sets this to [`WaitUntil`]`(instant)`.
+    ///
+    /// [`WaitUntil`]: ControlFlow::WaitUntil
+    pub fn set_wait_until(&mut self, instant: Instant) {
+        *self = Self::WaitUntil(instant);
+    }
+
+    /// Sets this to [`ExitWithCode`]`(code)`.
+    ///
+    /// [`ExitWithCode`]: ControlFlow::ExitWithCode
+    pub fn set_exit_with_code(&mut self, code: i32) {
+        *self = Self::ExitWithCode(code);
+    }
+
+    /// Sets this to [`Exit`].
+    ///
+    /// [`Exit`]: ControlFlow::Exit
+    pub fn set_exit(&mut self) {
+        *self = Self::Exit;
+    }
 }
 
 impl Default for ControlFlow {
