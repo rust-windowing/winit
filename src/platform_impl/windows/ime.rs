@@ -35,41 +35,38 @@ impl ImeContext {
     pub unsafe fn get_composing_text_and_cursor(
         &self,
     ) -> Option<(String, Option<usize>, Option<usize>)> {
-        if let Some(text) = self.get_composition_string(GCS_COMPSTR) {
-            if let Some(attrs) = self.get_composition_data(GCS_COMPATTR) {
-                let mut first: Option<usize> = None;
-                let mut last: Option<usize> = None;
-                let mut boundary_before_char = 0;
+        let text = self.get_composition_string(GCS_COMPSTR)?;
+        let attrs = match self.get_composition_data(GCS_COMPATTR) {
+            Some(attrs) => attrs,
+            None => Vec::new(),
+        };
 
-                for (attr, chr) in attrs.into_iter().zip(text.chars()) {
-                    let char_is_targetted = attr as u32 == ATTR_TARGET_CONVERTED
-                        || attr as u32 == ATTR_TARGET_NOTCONVERTED;
+        let mut first = None;
+        let mut last = None;
+        let mut boundary_before_char = 0;
 
-                    if first == None && char_is_targetted {
-                        first = Some(boundary_before_char);
-                    } else if first != None && last == None && !char_is_targetted {
-                        last = Some(boundary_before_char);
-                    }
+        for (attr, chr) in attrs.into_iter().zip(text.chars()) {
+            let char_is_targetted =
+                attr as u32 == ATTR_TARGET_CONVERTED || attr as u32 == ATTR_TARGET_NOTCONVERTED;
 
-                    boundary_before_char += chr.len_utf8();
-                }
-                if first != None && last == None {
-                    last = Some(text.len());
-                } else if first == None {
-                    // IME haven't split words and select any clause yet, so trying to retrieve normal cursor.
-                    let cursor = self.get_composition_cursor(&text);
-                    first = cursor;
-                    last = cursor;
-                }
-
-                Some((text, first, last))
-            } else {
-                let cursor = self.get_composition_cursor(&text);
-                Some((text, cursor, cursor))
+            if first == None && char_is_targetted {
+                first = Some(boundary_before_char);
+            } else if first != None && last == None && !char_is_targetted {
+                last = Some(boundary_before_char);
             }
-        } else {
-            None
+
+            boundary_before_char += chr.len_utf8();
         }
+        if first != None && last == None {
+            last = Some(text.len());
+        } else if first == None {
+            // IME haven't split words and select any clause yet, so trying to retrieve normal cursor.
+            let cursor = self.get_composition_cursor(&text);
+            first = cursor;
+            last = cursor;
+        }
+
+        Some((text, first, last))
     }
 
     pub unsafe fn get_composed_text(&self) -> Option<String> {
@@ -86,13 +83,10 @@ impl ImeContext {
     }
 
     unsafe fn get_composition_string(&self, gcs_mode: u32) -> Option<String> {
-        if let Some(data) = self.get_composition_data(gcs_mode) {
-            let (prefix, shorts, suffix) = data.align_to::<u16>();
-            if prefix.is_empty() && suffix.is_empty() {
-                OsString::from_wide(&shorts).into_string().ok()
-            } else {
-                None
-            }
+        let data = self.get_composition_data(gcs_mode)?;
+        let (prefix, shorts, suffix) = data.align_to::<u16>();
+        if prefix.is_empty() && suffix.is_empty() {
+            OsString::from_wide(&shorts).into_string().ok()
         } else {
             None
         }
@@ -121,27 +115,29 @@ impl ImeContext {
     }
 
     pub unsafe fn set_ime_position(&self, spot: Position, scale_factor: f64) {
-        if ImeContext::system_has_ime() {
-            let (x, y) = spot.to_physical::<i32>(scale_factor).into();
-
-            let candidate_form = CANDIDATEFORM {
-                dwIndex: 0,
-                dwStyle: CFS_EXCLUDE,
-                ptCurrentPos: POINT { x, y },
-                rcArea: zeroed(),
-            };
-
-            ImmSetCandidateWindow(self.himc, &candidate_form);
+        if !ImeContext::system_has_ime() {
+            return;
         }
+        let (x, y) = spot.to_physical::<i32>(scale_factor).into();
+
+        let candidate_form = CANDIDATEFORM {
+            dwIndex: 0,
+            dwStyle: CFS_EXCLUDE,
+            ptCurrentPos: POINT { x, y },
+            rcArea: zeroed(),
+        };
+
+        ImmSetCandidateWindow(self.himc, &candidate_form);
     }
 
     pub unsafe fn set_ime_allowed(hwnd: HWND, allowed: bool) {
-        if ImeContext::system_has_ime() {
-            if allowed {
-                ImmAssociateContextEx(hwnd, 0, IACE_DEFAULT);
-            } else {
-                ImmAssociateContextEx(hwnd, 0, IACE_CHILDREN);
-            }
+        if !ImeContext::system_has_ime() {
+            return;
+        }
+        if allowed {
+            ImmAssociateContextEx(hwnd, 0, IACE_DEFAULT);
+        } else {
+            ImmAssociateContextEx(hwnd, 0, IACE_CHILDREN);
         }
     }
 
