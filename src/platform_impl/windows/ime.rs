@@ -49,17 +49,17 @@ impl ImeContext {
             let char_is_targetted =
                 attr as u32 == ATTR_TARGET_CONVERTED || attr as u32 == ATTR_TARGET_NOTCONVERTED;
 
-            if first == None && char_is_targetted {
+            if first.is_none() && char_is_targetted {
                 first = Some(boundary_before_char);
-            } else if first != None && last == None && !char_is_targetted {
+            } else if first.is_some() && last.is_none() && !char_is_targetted {
                 last = Some(boundary_before_char);
             }
 
             boundary_before_char += chr.len_utf8();
         }
-        if first != None && last == None {
+        if first.is_some() && last.is_none() {
             last = Some(text.len());
-        } else if first == None {
+        } else if first.is_none() {
             // IME haven't split words and select any clause yet, so trying to retrieve normal cursor.
             let cursor = self.get_composition_cursor(&text);
             first = cursor;
