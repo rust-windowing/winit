@@ -109,11 +109,13 @@ impl ImeContext {
             buf.as_mut_ptr() as *mut c_void,
             size as _,
         );
+        
         if size < 0 {
-            return None;
+            None
+        } else {
+            buf.set_len(size as _);
+            Some(buf)
         }
-        buf.set_len(size as _);
-        return Some(buf);
     }
 
     pub unsafe fn set_ime_position(&self, spot: Position, scale_factor: f64) {
