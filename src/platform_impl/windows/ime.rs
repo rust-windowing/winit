@@ -57,6 +57,7 @@ impl ImeContext {
 
             boundary_before_char += chr.len_utf8();
         }
+        
         if first.is_some() && last.is_none() {
             last = Some(text.len());
         } else if first.is_none() {
