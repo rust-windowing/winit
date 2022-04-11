@@ -6,7 +6,7 @@ fn main() {
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };
 
@@ -143,9 +143,9 @@ fn main() {
         });
     }
     event_loop.run(move |event, _event_loop, control_flow| {
-        *control_flow = match !window_senders.is_empty() {
-            true => ControlFlow::Wait,
-            false => ControlFlow::Exit,
+        match !window_senders.is_empty() {
+            true => control_flow.set_wait(),
+            false => control_flow.set_exit(),
         };
         match event {
             Event::WindowEvent { event, window_id } => match event {

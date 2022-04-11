@@ -32,6 +32,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix polling during consecutive `EventLoop::run_return` invocations.
 - On Windows, fix race issue creating fullscreen windows with `WindowBuilder::with_fullscreen`
 - On Android, `virtual_keycode` for `KeyboardInput` events is now filled in where a suitable match is found.
+- Added helper methods on `ControlFlow` to set its value.
+- On Wayland, fix `TouchPhase::Ended` always reporting the location of the first touch down, unless the compositor
+  sent a cancel or frame event.
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
 
 # 0.26.1 (2022-01-05)
