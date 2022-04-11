@@ -120,8 +120,8 @@ impl ImeContext {
         if !ImeContext::system_has_ime() {
             return;
         }
+        
         let (x, y) = spot.to_physical::<i32>(scale_factor).into();
-
         let candidate_form = CANDIDATEFORM {
             dwIndex: 0,
             dwStyle: CFS_EXCLUDE,
