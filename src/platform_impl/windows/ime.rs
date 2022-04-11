@@ -97,8 +97,7 @@ impl ImeContext {
         let size = ImmGetCompositionStringW(self.himc, gcs_mode, null_mut(), 0);
         if size < 0 {
             return None;
-        }
-        if size == 0 {
+        } else if size == 0 {
             return Some(Vec::new());
         }
         
