@@ -36,10 +36,7 @@ impl ImeContext {
         &self,
     ) -> Option<(String, Option<usize>, Option<usize>)> {
         let text = self.get_composition_string(GCS_COMPSTR)?;
-        let attrs = match self.get_composition_data(GCS_COMPATTR) {
-            Some(attrs) => attrs,
-            None => Vec::new(),
-        };
+        let attrs = self.get_composition_data(GCS_COMPATTR).unwrap_or_default();
 
         let mut first = None;
         let mut last = None;
@@ -76,11 +73,7 @@ impl ImeContext {
 
     unsafe fn get_composition_cursor(&self, text: &str) -> Option<usize> {
         let cursor = ImmGetCompositionStringW(self.himc, GCS_CURSORPOS, null_mut(), 0);
-        if cursor >= 0 {
-            Some(text.chars().take(cursor as _).map(|c| c.len_utf8()).sum())
-        } else {
-            None
-        }
+        (cursor >= 0).then(|| text.chars().take(cursor as _).map(|c| c.len_utf8()).sum())
     }
 
     unsafe fn get_composition_string(&self, gcs_mode: u32) -> Option<String> {
