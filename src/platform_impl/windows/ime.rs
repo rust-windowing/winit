@@ -54,7 +54,7 @@ impl ImeContext {
 
             boundary_before_char += chr.len_utf8();
         }
-        
+
         if first.is_some() && last.is_none() {
             last = Some(text.len());
         } else if first.is_none() {
@@ -93,7 +93,7 @@ impl ImeContext {
         } else if size == 0 {
             return Some(Vec::new());
         }
-        
+
         let mut buf = Vec::<u8>::with_capacity(size as _);
         let size = ImmGetCompositionStringW(
             self.himc,
@@ -101,7 +101,7 @@ impl ImeContext {
             buf.as_mut_ptr() as *mut c_void,
             size as _,
         );
-        
+
         if size < 0 {
             None
         } else {
@@ -114,7 +114,7 @@ impl ImeContext {
         if !ImeContext::system_has_ime() {
             return;
         }
-        
+
         let (x, y) = spot.to_physical::<i32>(scale_factor).into();
         let candidate_form = CANDIDATEFORM {
             dwIndex: 0,
@@ -130,7 +130,7 @@ impl ImeContext {
         if !ImeContext::system_has_ime() {
             return;
         }
-        
+
         if allowed {
             ImmAssociateContextEx(hwnd, 0, IACE_DEFAULT);
         } else {
