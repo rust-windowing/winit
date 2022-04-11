@@ -134,6 +134,7 @@ impl ImeContext {
         if !ImeContext::system_has_ime() {
             return;
         }
+        
         if allowed {
             ImmAssociateContextEx(hwnd, 0, IACE_DEFAULT);
         } else {
