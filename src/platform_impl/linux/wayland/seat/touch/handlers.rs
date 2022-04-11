@@ -44,9 +44,13 @@ pub(super) fn handle_touch(
                 window_id,
             );
 
-            inner
-                .touch_points
-                .push(TouchPoint::new(surface, position, id));
+            if let Some(i) = inner.touch_points.iter().position(|p| p.id == id) {
+                inner.touch_points[i].position = position;
+            } else {
+                inner
+                    .touch_points
+                    .push(TouchPoint::new(surface, position, id));
+            }
         }
         TouchEvent::Up { id, .. } => {
             let touch_point = match inner.touch_points.iter().find(|p| p.id == id) {
