@@ -100,6 +100,7 @@ impl ImeContext {
         if size == 0 {
             return Some(Vec::new());
         }
+        
         let mut buf = Vec::<u8>::with_capacity(size as _);
         let size = ImmGetCompositionStringW(
             self.himc,
