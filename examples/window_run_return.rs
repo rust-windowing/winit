@@ -14,7 +14,7 @@ fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         platform::run_return::EventLoopExtRunReturn,
         window::WindowBuilder,
     };
@@ -30,7 +30,7 @@ fn main() {
 
     while !quit {
         event_loop.run_return(|event, _, control_flow| {
-            *control_flow = ControlFlow::Wait;
+            control_flow.set_wait();
 
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
@@ -45,7 +45,7 @@ fn main() {
                     quit = true;
                 }
                 Event::MainEventsCleared => {
-                    *control_flow = ControlFlow::Exit;
+                    control_flow.set_exit();
                 }
                 _ => (),
             }

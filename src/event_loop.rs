@@ -50,7 +50,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 ///
 /// This is used to make specifying options that affect the whole application
 /// easier. But note that constructing multiple event loops is not supported.
-#[derive(Debug, Clone, Default)]
+#[derive(Default)]
 pub struct EventLoopBuilder<T: 'static> {
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
     _p: PhantomData<T>,
@@ -95,7 +95,7 @@ impl<T> EventLoopBuilder<T> {
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
         EventLoop {
-            event_loop: platform_impl::EventLoop::new(&self.platform_specific),
+            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
             _marker: PhantomData,
         }
     }
@@ -140,6 +140,10 @@ pub enum ControlFlow {
     Wait,
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
+    ///
+    /// Useful for implementing efficient timers. Applications which want to render at the display's
+    /// native refresh rate should instead use `Poll` and the VSync functionality of a graphics API
+    /// to reduce odds of missed frames.
     WaitUntil(Instant),
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
@@ -165,6 +169,41 @@ impl ControlFlow {
     /// [`ExitWithCode`]: ControlFlow::ExitWithCode
     #[allow(non_upper_case_globals)]
     pub const Exit: Self = Self::ExitWithCode(0);
+
+    /// Sets this to [`Poll`].
+    ///
+    /// [`Poll`]: ControlFlow::Poll
+    pub fn set_poll(&mut self) {
+        *self = Self::Poll;
+    }
+
+    /// Sets this to [`Wait`].
+    ///
+    /// [`Wait`]: ControlFlow::Wait
+    pub fn set_wait(&mut self) {
+        *self = Self::Wait;
+    }
+
+    /// Sets this to [`WaitUntil`]`(instant)`.
+    ///
+    /// [`WaitUntil`]: ControlFlow::WaitUntil
+    pub fn set_wait_until(&mut self, instant: Instant) {
+        *self = Self::WaitUntil(instant);
+    }
+
+    /// Sets this to [`ExitWithCode`]`(code)`.
+    ///
+    /// [`ExitWithCode`]: ControlFlow::ExitWithCode
+    pub fn set_exit_with_code(&mut self, code: i32) {
+        *self = Self::ExitWithCode(code);
+    }
+
+    /// Sets this to [`Exit`].
+    ///
+    /// [`Exit`]: ControlFlow::Exit
+    pub fn set_exit(&mut self) {
+        *self = Self::Exit;
+    }
 }
 
 impl Default for ControlFlow {

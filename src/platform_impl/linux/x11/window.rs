@@ -36,6 +36,8 @@ pub struct SharedState {
     pub position: Option<(i32, i32)>,
     pub inner_position: Option<(i32, i32)>,
     pub inner_position_rel_parent: Option<(i32, i32)>,
+    pub is_resizable: bool,
+    pub is_decorated: bool,
     pub last_monitor: X11MonitorHandle,
     pub dpi_adjusted: Option<(u32, u32)>,
     pub fullscreen: Option<Fullscreen>,
@@ -62,8 +64,8 @@ pub enum Visibility {
 }
 
 impl SharedState {
-    fn new(last_monitor: X11MonitorHandle, is_visible: bool) -> Mutex<Self> {
-        let visibility = if is_visible {
+    fn new(last_monitor: X11MonitorHandle, window_attributes: &WindowAttributes) -> Mutex<Self> {
+        let visibility = if window_attributes.visible {
             Visibility::YesWait
         } else {
             Visibility::No
@@ -73,6 +75,8 @@ impl SharedState {
             last_monitor,
             visibility,
 
+            is_resizable: window_attributes.resizable,
+            is_decorated: window_attributes.decorations,
             cursor_pos: None,
             size: None,
             position: None,
@@ -274,7 +278,7 @@ impl UnownedWindow {
             cursor_grabbed: Mutex::new(false),
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
-            shared_state: SharedState::new(guessed_monitor, window_attrs.visible),
+            shared_state: SharedState::new(guessed_monitor, &window_attrs),
             redraw_sender: WakeSender {
                 waker: event_loop.redraw_sender.waker.clone(),
                 sender: event_loop.redraw_sender.sender.clone(),
@@ -880,6 +884,7 @@ impl UnownedWindow {
     }
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
+        self.shared_state.lock().is_decorated = decorations;
         let mut hints = self.xconn.get_motif_hints(self.xwindow);
 
         hints.set_decorations(decorations);
@@ -897,7 +902,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        true
+        self.shared_state.lock().is_decorated
     }
 
     fn set_maximizable_inner(&self, maximizable: bool) -> util::Flusher<'_> {
@@ -986,7 +991,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        None
+        Some(self.shared_state.lock().visibility == Visibility::Yes)
     }
 
     fn update_cached_frame_extents(&self) {
@@ -1199,6 +1204,7 @@ impl UnownedWindow {
             let window_size = Some(Size::from(self.inner_size()));
             (window_size, window_size)
         };
+        self.shared_state.lock().is_resizable = resizable;
 
         self.set_maximizable_inner(resizable).queue();
 
@@ -1218,7 +1224,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        true
+        self.shared_state.lock().is_resizable
     }
 
     #[inline]

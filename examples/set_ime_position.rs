@@ -2,7 +2,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::PhysicalPosition,
     event::{ElementState, Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -18,7 +18,7 @@ fn main() {
 
     let mut cursor_position = PhysicalPosition::new(0.0, 0.0);
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent {
@@ -45,7 +45,7 @@ fn main() {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                *control_flow = ControlFlow::Exit;
+                control_flow.set_exit();
             }
             _ => (),
         }

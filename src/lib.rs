@@ -44,7 +44,7 @@
 //! ```no_run
 //! use winit::{
 //!     event::{Event, WindowEvent},
-//!     event_loop::{ControlFlow, EventLoop},
+//!     event_loop::EventLoop,
 //!     window::WindowBuilder,
 //! };
 //!
@@ -54,12 +54,12 @@
 //! event_loop.run(move |event, _, control_flow| {
 //!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
 //!     // dispatched any events. This is ideal for games and similar applications.
-//!     *control_flow = ControlFlow::Poll;
+//!     control_flow.set_poll();
 //!
 //!     // ControlFlow::Wait pauses the event loop if no events are available to process.
 //!     // This is ideal for non-game applications that only update in response to user
 //!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//!     *control_flow = ControlFlow::Wait;
+//!     control_flow.set_wait();
 //!
 //!     match event {
 //!         Event::WindowEvent {
@@ -67,7 +67,7 @@
 //!             ..
 //!         } => {
 //!             println!("The close button was pressed; stopping");
-//!             *control_flow = ControlFlow::Exit
+//!             control_flow.set_exit();
 //!         },
 //!         Event::MainEventsCleared => {
 //!             // Application update code.

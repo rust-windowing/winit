@@ -44,9 +44,15 @@ pub(super) fn handle_touch(
                 window_id,
             );
 
-            inner
-                .touch_points
-                .push(TouchPoint::new(surface, position, id));
+            // For `TouchEvent::Up` we don't receive a position, so we're tracking active
+            // touch points. Update either a known touch id or register a new one.
+            if let Some(i) = inner.touch_points.iter().position(|p| p.id == id) {
+                inner.touch_points[i].position = position;
+            } else {
+                inner
+                    .touch_points
+                    .push(TouchPoint::new(surface, position, id));
+            }
         }
         TouchEvent::Up { id, .. } => {
             let touch_point = match inner.touch_points.iter().find(|p| p.id == id) {
