@@ -949,6 +949,19 @@ impl Window {
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.drag_window()
     }
+
+    /// Modifies whether the window catches cursor events.
+    ///
+    /// If `true`, the window will catch the cursor events. If `false`, events are passed through
+    /// the window such that any other window behind it receives them. By default hittest is enabled.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / X11:** Always returns an [`ExternalError::NotSupported`].
+    #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.window.set_cursor_hittest(hittest)
+    }
 }
 
 /// Monitor info functions.

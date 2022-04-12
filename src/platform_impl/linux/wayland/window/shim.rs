@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
+use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Attached;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_token_v1;
@@ -74,6 +75,9 @@ pub enum WindowRequest {
     ///
     /// `None` unsets the attention request.
     Attention(Option<UserAttentionType>),
+
+    /// Passthrough mouse input to underlying windows.
+    PassthroughMouseInput(bool),
 
     /// Redraw was requested.
     Redraw,
@@ -167,6 +171,9 @@ pub struct WindowHandle {
 
     /// Indicator whether user attention is requested.
     attention_requested: Cell<bool>,
+
+    /// Compositor
+    compositor: Attached<WlCompositor>,
 }
 
 impl WindowHandle {
@@ -177,6 +184,9 @@ impl WindowHandle {
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
         let xdg_activation = env.get_global::<XdgActivationV1>();
+        // Unwrap is safe, since we can't create window without compositor anyway and won't be
+        // here.
+        let compositor = env.get_global::<WlCompositor>().unwrap();
 
         Self {
             window,
@@ -189,6 +199,7 @@ impl WindowHandle {
             text_inputs: Vec::new(),
             xdg_activation,
             attention_requested: Cell::new(false),
+            compositor,
         }
     }
 
@@ -301,6 +312,20 @@ impl WindowHandle {
         let (x, y) = (position.x as i32, position.y as i32);
         for text_input in self.text_inputs.iter() {
             text_input.set_ime_position(x, y);
+        }
+    }
+
+    pub fn passthrough_mouse_input(&self, passthrough_mouse_input: bool) {
+        if passthrough_mouse_input {
+            let region = self.compositor.create_region();
+            region.add(0, 0, 0, 0);
+            self.window
+                .surface()
+                .set_input_region(Some(&region.detach()));
+            region.destroy();
+        } else {
+            // Using `None` results in the entire window being clickable.
+            self.window.surface().set_input_region(None);
         }
     }
 
@@ -422,6 +447,12 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.resize(size.width, size.height);
 
                     // We should refresh the frame after resize.
+                    let window_update = window_updates.get_mut(window_id).unwrap();
+                    window_update.refresh_frame = true;
+                }
+                WindowRequest::PassthroughMouseInput(passthrough) => {
+                    window_handle.passthrough_mouse_input(passthrough);
+
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }

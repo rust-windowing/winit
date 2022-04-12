@@ -8,10 +8,11 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
 - On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
 - On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
 - On Windows, remove internally unique DC per window.
-- macOS: Remove the need to call `set_ime_position` after moving the window.
+- On macOS, remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.
 - Added `Window::is_decorated`.

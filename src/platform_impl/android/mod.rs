@@ -774,6 +774,12 @@ impl Window {
         ))
     }
 
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         let mut handle = AndroidNdkHandle::empty();
         if let Some(native_window) = ndk_glue::native_window().as_ref() {

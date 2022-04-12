@@ -483,6 +483,13 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.send_request(WindowRequest::PassthroughMouseInput(!hittest));
+
+        Ok(())
+    }
+
+    #[inline]
     pub fn set_ime_position(&self, position: Position) {
         let scale_factor = self.scale_factor() as f64;
         let position = position.to_logical(scale_factor);
