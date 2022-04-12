@@ -241,8 +241,16 @@ pub fn check_function_keys(string: &str) -> Option<VirtualKeyCode> {
     None
 }
 
+const NS_LEFT_ALTERNATE_KEY_MASK: u64 = 0x000020 | NSEventModifierFlags::NSAlternateKeyMask.bits();
+const NS_RIGHT_ALTERNATE_KEY_MASK: u64 = 0x000040 | NSEventModifierFlags::NSAlternateKeyMask.bits();
+
+fn contains_left_or_right(flags: NSEventModifierFlags, mask: u64) -> bool {
+    (mask & flags.bits()) == mask
+}
+
 pub fn event_mods(event: id) -> ModifiersState {
     let flags = unsafe { NSEvent::modifierFlags(event) };
+
     let mut m = ModifiersState::empty();
     m.set(
         ModifiersState::SHIFT,
@@ -253,13 +261,23 @@ pub fn event_mods(event: id) -> ModifiersState {
         flags.contains(NSEventModifierFlags::NSControlKeyMask),
     );
     m.set(
+        ModifiersState::LOGO,
+        flags.contains(NSEventModifierFlags::NSCommandKeyMask),
+    );
+
+    m.set(
         ModifiersState::ALT,
         flags.contains(NSEventModifierFlags::NSAlternateKeyMask),
     );
     m.set(
-        ModifiersState::LOGO,
-        flags.contains(NSEventModifierFlags::NSCommandKeyMask),
+        ModifiersState::LALT,
+        contains_left_or_right(flags, NS_LEFT_ALTERNATE_KEY_MASK),
     );
+    m.set(
+        ModifiersState::RALT,
+        contains_left_or_right(flags, NS_RIGHT_ALTERNATE_KEY_MASK),
+    );
+
     m
 }
 
