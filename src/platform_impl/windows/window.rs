@@ -164,7 +164,7 @@ impl Window {
         let rect = self.window_state.lock()
             .saved_inner_rect
             .unwrap_or_else( ||
-                util::get_client_rect(self.window.0).expect("Unexpected GetClientRct failure: please report this error to https://github.com/rust-windowing/winit")
+                util::get_client_rect(self.window.0).expect("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
             );
 
         PhysicalSize::new(
