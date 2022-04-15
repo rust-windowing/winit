@@ -8,12 +8,14 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+
 - On Web, implement IME support. please not create DOM element with `id='winit_input_agent'`
 - On Web, `Window::set_ime_position` now works. you need to use to support IME on web because we don't have good way to get ime enabled. 
+- On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
 - On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
 - On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
 - On Windows, remove internally unique DC per window.
-- macOS: Remove the need to call `set_ime_position` after moving the window.
+- On macOS, remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.
 - Added `Window::is_decorated`.
@@ -34,6 +36,11 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix polling during consecutive `EventLoop::run_return` invocations.
 - On Windows, fix race issue creating fullscreen windows with `WindowBuilder::with_fullscreen`
 - On Android, `virtual_keycode` for `KeyboardInput` events is now filled in where a suitable match is found.
+- Added helper methods on `ControlFlow` to set its value.
+- On Wayland, fix `TouchPhase::Ended` always reporting the location of the first touch down, unless the compositor
+  sent a cancel or frame event.
+- On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
+
 - **Breaking:** Added new `WindowEvent::IME` supported on desktop platforms.
 - Added `Window::set_ime_allowed` supported on desktop platforms.
 - **Breaking:** IME input on desktop platforms won't be received unless it's explicitly allowed via `Window::set_ime_allowed` and new `WindowEvent::IME` events are handled.

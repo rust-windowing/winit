@@ -102,6 +102,7 @@ If your PR makes notable changes to Winit's features, please update this section
 - **Mouse set location**: Forcibly changing the location of the pointer.
 - **Cursor grab**: Locking the cursor so it cannot exit the client area of a window.
 - **Cursor icon**: Changing the cursor icon, or hiding the cursor.
+- **Cursor hittest**: Handle or ignore mouse events for a window.
 - **Touch events**: Single-touch events.
 - **Touch pressure**: Touch events contain information about the amount of force being applied.
 - **Multitouch**: Multi-touch events, including cancellation of a gesture.
@@ -199,6 +200,7 @@ Legend:
 |Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
 |Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|✔️        |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
+|Cursor hittest          |✔️       |✔️      |❌       |✔️           |**N/A**|**N/A**|❌        |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |

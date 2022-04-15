@@ -18,7 +18,7 @@ pub use crate::icon::{BadIcon, Icon};
 /// ```no_run
 /// use winit::{
 ///     event::{Event, WindowEvent},
-///     event_loop::{ControlFlow, EventLoop},
+///     event_loop::EventLoop,
 ///     window::Window,
 /// };
 ///
@@ -26,13 +26,13 @@ pub use crate::icon::{BadIcon, Icon};
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
-///     *control_flow = ControlFlow::Wait;
+///     control_flow.set_wait();
 ///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
-///         } => *control_flow = ControlFlow::Exit,
+///         } => control_flow.set_exit(),
 ///         _ => (),
 ///     }
 /// });
@@ -686,7 +686,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
+    /// - **X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_resizable(&self) -> bool {
@@ -777,7 +777,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
+    /// - **X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_decorated(&self) -> bool {
@@ -853,6 +853,7 @@ impl Window {
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
     /// - **Windows / iOS / Android / Web :** Unsupported.
+    /// - ** iOS / Android / Web :** Unsupported.
     ///
     /// [`IME`]: crate::event::WindowEvent::IME
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
@@ -976,6 +977,19 @@ impl Window {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.drag_window()
+    }
+
+    /// Modifies whether the window catches cursor events.
+    ///
+    /// If `true`, the window will catch the cursor events. If `false`, events are passed through
+    /// the window such that any other window behind it receives them. By default hittest is enabled.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / X11:** Always returns an [`ExternalError::NotSupported`].
+    #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.window.set_cursor_hittest(hittest)
     }
 }
 

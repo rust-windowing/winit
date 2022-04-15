@@ -58,6 +58,12 @@ pub struct Window {
 
     /// Requests that SCTK window should perform.
     window_requests: Arc<Mutex<Vec<WindowRequest>>>,
+
+    /// Whether the window is resizeable.
+    resizeable: AtomicBool,
+
+    /// Whether the window is decorated.
+    decorated: AtomicBool,
 }
 
 impl Window {
@@ -139,12 +145,6 @@ impl Window {
         } else {
             window.set_decorate(Decorations::None);
         }
-        // Without this commit here at least on kwin 5.23.3 the initial configure
-        // will have a size (1,1), the second configure including the decoration
-        // mode will have the min_size as its size. With this commit the initial
-        // configure will have no size, the application will draw it's content
-        // with the initial size and everything works as expected afterwards.
-        window.surface().commit();
 
         // Min dimensions.
         let min_size = attributes
@@ -191,6 +191,16 @@ impl Window {
                 }
             }
         }
+
+        // Without this commit here at least on kwin 5.23.3 the initial configure
+        // will have a size (1,1), the second configure including the decoration
+        // mode will have the min_size as its size. With this commit the initial
+        // configure will have no size, the application will draw it's content
+        // with the initial size and everything works as expected afterwards.
+        //
+        // The window commit must be after setting on top level properties, but right before any
+        // buffer attachments commits.
+        window.surface().commit();
 
         let size = Arc::new(Mutex::new(LogicalSize::new(width, height)));
 
@@ -248,6 +258,8 @@ impl Window {
             fullscreen,
             maximized,
             windowing_features,
+            resizeable: AtomicBool::new(attributes.resizable),
+            decorated: AtomicBool::new(attributes.decorations),
         };
 
         Ok(window)
@@ -338,12 +350,13 @@ impl Window {
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
+        self.resizeable.store(resizable, Ordering::Relaxed);
         self.send_request(WindowRequest::Resizeable(resizable));
     }
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        true
+        self.resizeable.load(Ordering::Relaxed)
     }
 
     #[inline]
@@ -355,12 +368,13 @@ impl Window {
 
     #[inline]
     pub fn set_decorations(&self, decorate: bool) {
+        self.decorated.store(decorate, Ordering::Relaxed);
         self.send_request(WindowRequest::Decorate(decorate));
     }
 
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        true
+        self.decorated.load(Ordering::Relaxed)
     }
 
     #[inline]
@@ -464,6 +478,13 @@ impl Window {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.send_request(WindowRequest::DragWindow);
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.send_request(WindowRequest::PassthroughMouseInput(!hittest));
 
         Ok(())
     }

@@ -1,7 +1,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -30,11 +30,11 @@ In other words, the deltas indicate the direction in which to move the content (
     );
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::MouseWheel { delta, .. } => match delta {
                     winit::event::MouseScrollDelta::LineDelta(x, y) => {
                         println!("mouse wheel Line Delta: ({},{})", x, y);

@@ -678,6 +678,15 @@ impl UnownedWindow {
         Ok(())
     }
 
+    #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        unsafe {
+            util::set_ignore_mouse_events(*self.ns_window, !hittest);
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn is_zoomed(&self) -> bool {
         // because `isZoomed` doesn't work if the window's borderless,
         // we make it resizable temporalily.
