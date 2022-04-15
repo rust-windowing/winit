@@ -321,15 +321,15 @@ impl WindowHandle {
 
         for text_input in self.text_inputs.iter() {
             text_input.set_input_allowed(allowed);
-
-            let event = if allowed {
-                WindowEvent::IME(IME::Enabled)
-            } else {
-                WindowEvent::IME(IME::Disabled)
-            };
-
-            event_sink.push_window_event(event, window_id);
         }
+
+        let event = if allowed {
+            WindowEvent::IME(IME::Enabled)
+        } else {
+            WindowEvent::IME(IME::Disabled)
+        };
+
+        event_sink.push_window_event(event, window_id);
     }
 
     pub fn set_cursor_visible(&self, visible: bool) {
