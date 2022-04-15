@@ -154,6 +154,7 @@ mod drop_handler;
 mod event;
 mod event_loop;
 mod icon;
+mod ime;
 mod monitor;
 mod raw_input;
 mod window;

@@ -270,7 +270,10 @@ pub enum WindowEvent<'a> {
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
-    /// An event from IME
+    /// An event from input method.
+    ///
+    /// Platform-specific behavior:
+    /// - **iOS / Android / Web :** Unsupported.
     IME(IME),
 
     /// The cursor has moved on the window.
@@ -379,7 +382,7 @@ impl Clone for WindowEvent<'static> {
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
-            IME(preedit_state) => IME(preedit_state.clone()),
+
             ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
             #[allow(deprecated)]
             CursorMoved {
