@@ -626,11 +626,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_allowed(&self, _allowed: bool) {
-        error!("`Window::set_ime_allowed` is not yet implemented");
-    }
-
-    #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         let window = self.window.clone();
         let active_window_handle = unsafe { GetActiveWindow() };
