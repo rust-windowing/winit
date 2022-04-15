@@ -359,11 +359,6 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_ime_allowed(&self, _allowed: bool) {
-        // Currently not implemented
-    }
-
-    #[inline]
     pub fn focus_window(&self) {
         // Currently a no-op as it does not seem there is good support for this on web
     }

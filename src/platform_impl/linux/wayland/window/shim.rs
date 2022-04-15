@@ -322,7 +322,6 @@ impl WindowHandle {
         }
     }
 
-
     pub fn passthrough_mouse_input(&self, passthrough_mouse_input: bool) {
         if passthrough_mouse_input {
             let region = self.compositor.create_region();
