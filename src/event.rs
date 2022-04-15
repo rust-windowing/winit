@@ -382,7 +382,7 @@ impl Clone for WindowEvent<'static> {
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
-
+            IME(preedit_state) => IME(preedit_state.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
             #[allow(deprecated)]
             CursorMoved {
