@@ -36,6 +36,8 @@
 use instant::Instant;
 use std::path::PathBuf;
 
+#[cfg(doc)]
+use crate::window::Window;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
@@ -93,8 +95,7 @@ pub enum Event<'a, T: 'static> {
     /// This gets triggered in two scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
     ///   resizing the window).
-    /// - The application has explicitly requested a redraw via
-    ///   [`Window::request_redraw`](crate::window::Window::request_redraw).
+    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
     ///
     /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
     /// into a single event, to help avoid duplicating rendering work.
@@ -206,7 +207,7 @@ pub enum StartCause {
     Init,
 }
 
-/// Describes an event from a `Window`.
+/// Describes an event from a [`Window`].
 #[derive(Debug, PartialEq)]
 pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
@@ -240,6 +241,8 @@ pub enum WindowEvent<'a> {
     HoveredFileCancelled,
 
     /// The window received a unicode character.
+    ///
+    /// See also the [`Ime`](Self::Ime) event for more complex character sequences.
     ReceivedCharacter(char),
 
     /// The window gained or lost focus.
@@ -634,7 +637,42 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 }
 
-/// Describes an event from input method.
+/// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.
+///
+/// This is also called a "composition event".
+///
+/// Most keypresses using a latin-like keyboard layout simply generate an [`WindowEvent::ReceivedCharacter`].
+/// However, one couldn't possibly have a key for every single unicode character that the user might want to type
+/// - so the solution operating systems employ is to allow the user to type these using _a sequence of keypresses_ instead.
+///
+/// A prominent example of this is accents - many keyboard layouts allow you to first click the "accent key", and then
+/// the character you want to apply the accent to. This will generate the following event sequence:
+/// ```ignore
+/// // Press "`" key
+/// Ime::Preedit("`", Some(0), Some(0))
+/// // Press "E" key
+/// Ime::Commit("é")
+/// ```
+///
+/// Additionally, certain input devices are configured to display a candidate box that allow the user to select the
+/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_position`].)
+///
+/// An example of a keyboard layout which uses candiate boxes is pinyin. On a latin keybaord the following event
+/// sequence could be obtained:
+/// ```ignore
+/// // Press "A" key
+/// Ime::Preedit("a", Some(1), Some(1))
+/// // Press "B" key
+/// Ime::Preedit("a b", Some(3), Some(3))
+/// // Press left arrow key
+/// Ime::Preedit("a b", Some(1), Some(1))
+/// // Press space key
+/// Ime::Preedit("啊b", Some(3), Some(3))
+/// // Press space key
+/// Ime::Commit("啊不")
+/// ```
+///
+/// **Note: You have to explicitly enable this event using [`Window::set_ime_allowed`].**
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Ime {

@@ -13,8 +13,8 @@ fn main() {
         .init()
         .unwrap();
 
-    println!("Ime position will system default");
-    println!("Click to set ime position to cursor's");
+    println!("IME position will system default");
+    println!("Click to set IME position to cursor's");
     println!("Press F2 to toggle IME. See the documentation of `set_ime_allowed` for more info");
 
     let event_loop = EventLoop::new();
