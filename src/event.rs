@@ -641,7 +641,7 @@ pub struct KeyboardInput {
 ///
 /// This is also called a "composition event".
 ///
-/// Most keypresses using a latin-like keyboard layout simply generate an [`WindowEvent::ReceivedCharacter`].
+/// Most keypresses using a latin-like keyboard layout simply generate a [`WindowEvent::ReceivedCharacter`].
 /// However, one couldn't possibly have a key for every single unicode character that the user might want to type
 /// - so the solution operating systems employ is to allow the user to type these using _a sequence of keypresses_ instead.
 ///
