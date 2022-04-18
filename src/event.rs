@@ -657,7 +657,7 @@ pub struct KeyboardInput {
 /// Additionally, certain input devices are configured to display a candidate box that allow the user to select the
 /// desired character interactively. (To properly position this box, you must use [`Window::set_ime_position`].)
 ///
-/// An example of a keyboard layout which uses candiate boxes is pinyin. On a latin keybaord the following event
+/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keybaord the following event
 /// sequence could be obtained:
 /// ```ignore
 /// // Press "A" key
