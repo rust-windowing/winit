@@ -1018,10 +1018,10 @@ bitflags! {
         /// The "alt" key.
         const ALT = 0b100 << 6;
         /// the left "alt" key.
-        #[cfg(target_os = "macos")]
+        /// IMPORTANT: This flag will only be set on macos
         const LALT = 0b010 << 6;
         /// the right "alt" key.
-        #[cfg(target_os = "macos")]
+        /// IMPORTANT: This flag will only be set on macos
         const RALT = 0b001 << 6;
         /// This is the "windows" key on PC and "command" key on Mac.
         const LOGO = 0b100 << 9;
