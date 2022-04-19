@@ -72,8 +72,21 @@ impl Default for PlatformSpecificEventLoopAttributes {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct ApplicationName {
+    pub general: String,
+    pub instance: String,
+}
+
+impl ApplicationName {
+    pub fn new(general: String, instance: String) -> Self {
+        Self { general, instance }
+    }
+}
+
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
+    pub name: Option<ApplicationName>,
     #[cfg(feature = "x11")]
     pub visual_infos: Option<XVisualInfo>,
     #[cfg(feature = "x11")]
@@ -83,20 +96,17 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
     pub base_size: Option<Size>,
     #[cfg(feature = "x11")]
-    pub class: Option<(String, String)>,
-    #[cfg(feature = "x11")]
     pub override_redirect: bool,
     #[cfg(feature = "x11")]
     pub x11_window_types: Vec<XWindowType>,
     #[cfg(feature = "x11")]
     pub gtk_theme_variant: Option<String>,
-    #[cfg(feature = "wayland")]
-    pub app_id: Option<String>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
+            name: None,
             #[cfg(feature = "x11")]
             visual_infos: None,
             #[cfg(feature = "x11")]
@@ -106,15 +116,11 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             #[cfg(feature = "x11")]
             base_size: None,
             #[cfg(feature = "x11")]
-            class: None,
-            #[cfg(feature = "x11")]
             override_redirect: false,
             #[cfg(feature = "x11")]
             x11_window_types: vec![XWindowType::Normal],
             #[cfg(feature = "x11")]
             gtk_theme_variant: None,
-            #[cfg(feature = "wayland")]
-            app_id: None,
         }
     }
 }

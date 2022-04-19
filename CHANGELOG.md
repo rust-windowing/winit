@@ -37,6 +37,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fix `TouchPhase::Ended` always reporting the location of the first touch down, unless the compositor
   sent a cancel or frame event.
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
+- **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
 
 # 0.26.1 (2022-01-05)
 
