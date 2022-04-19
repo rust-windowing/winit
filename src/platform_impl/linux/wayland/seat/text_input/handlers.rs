@@ -94,7 +94,11 @@ pub(super) fn handle_text_input(
 
             // Push preedit string we've got after latest commit.
             if let Some(preedit) = inner.pending_preedit.take() {
-                let event = Ime::Preedit(preedit.text, preedit.cursor_begin, preedit.cursor_end);
+                let cursor_range = preedit
+                    .cursor_begin
+                    .map(|b| (b, preedit.cursor_end.unwrap_or(b)));
+
+                let event = Ime::Preedit(preedit.text, cursor_range);
                 event_sink.push_window_event(WindowEvent::Ime(event), window_id);
             }
         }

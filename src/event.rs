@@ -644,10 +644,10 @@ pub enum Ime {
     /// Notifies when a new composing text should be set at the cursor position.
     ///
     /// The value represents a pair of the preedit string and the cursor begin position and end
-    /// position. When both indices are `None`, the cursor should be hidden.
+    /// position. When it's `None`, the cursor should be hidden.
     ///
     /// The cursor position is byte-wise indexed.
-    Preedit(String, Option<usize>, Option<usize>),
+    Preedit(String, Option<(usize, usize)>),
 
     /// Notifies when text should be inserted into the editor widget.
     Commit(String),

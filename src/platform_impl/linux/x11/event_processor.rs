@@ -1258,18 +1258,14 @@ impl<T: 'static> EventProcessor<T> {
                     self.composed_text = None;
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None, None)),
+                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
                     });
                 }
                 ImeEvent::Update(text, position) => {
                     if self.is_composing {
                         callback(Event::WindowEvent {
                             window_id: mkwid(window),
-                            event: WindowEvent::Ime(Ime::Preedit(
-                                text,
-                                Some(position),
-                                Some(position),
-                            )),
+                            event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
                         });
                     }
                 }

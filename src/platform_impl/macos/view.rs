@@ -530,8 +530,7 @@ extern "C" fn set_marked_text(
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::Ime(Ime::Preedit(
                 preedit_string,
-                Some(cursor_start),
-                Some(cursor_end),
+                Some((cursor_start, cursor_end)),
             )),
         }));
     }
@@ -552,7 +551,7 @@ extern "C" fn unmark_text(this: &Object, _sel: Sel) {
         let state = &mut *(state_ptr as *mut ViewState);
         AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
-            event: WindowEvent::Ime(Ime::Preedit(String::new(), Some(0), Some(0))),
+            event: WindowEvent::Ime(Ime::Preedit(String::new(), Some((0, 0)))),
         }));
         if state.is_ime_enabled() {
             // Leave the Preedit state

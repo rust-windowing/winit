@@ -1125,7 +1125,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 if lparam == 0 {
                     userdata.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
-                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None, None)),
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                     });
                 }
 
@@ -1146,10 +1146,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 if (lparam as u32 & GCS_COMPSTR) != 0 {
                     if let Some((text, first, last)) = ime_context.get_composing_text_and_cursor() {
                         userdata.window_state.lock().ime_state = ImeState::Preedit;
+                        let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
-                            event: WindowEvent::Ime(Ime::Preedit(text, first, last)),
+                            event: WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
                         });
                     }
                 }
