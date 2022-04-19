@@ -275,6 +275,8 @@ pub enum WindowEvent<'a> {
 
     /// An event from input method.
     ///
+    /// **Note :** You have to explicitly enable this event using [`Window::set_ime_allowed`].
+    ///
     /// Platform-specific behavior:
     /// - **iOS / Android / Web :** Unsupported.
     Ime(Ime),
@@ -672,11 +674,14 @@ pub struct KeyboardInput {
 /// Ime::Commit("啊不")
 /// ```
 ///
-/// **Note: You have to explicitly enable this event using [`Window::set_ime_allowed`].**
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Ime {
     /// Notifies when the IME was enabled.
+    ///
+    /// After getting this event you could receive [`Preedit`](Self::Preedit) and
+    /// [`Commit`](Self::Commit) events. You should also start performing IME related requests
+    /// like [`Window::set_ime_position`].
     Enabled,
 
     /// Notifies when a new composing text should be set at the cursor position.
@@ -688,9 +693,16 @@ pub enum Ime {
     Preedit(String, Option<(usize, usize)>),
 
     /// Notifies when text should be inserted into the editor widget.
+    ///
+    /// Any pending [`Preedit`](Self::Preedit) must be cleared.
     Commit(String),
 
     /// Notifies when the IME was disabled.
+    ///
+    /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
+    /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You can
+    /// also stop issuing IME related requests like [`Window::set_ime_position`] and clear pending
+    /// preedit text.
     Disabled,
 }
 
