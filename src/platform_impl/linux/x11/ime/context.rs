@@ -47,14 +47,17 @@ extern "C" fn preedit_start_callback(
     -1
 }
 
-/// Done callback is called when the user finished preedit and the text is about to be inserted into
-/// underlying widget.
+/// Done callback is used when the preedit should be hidden.
 extern "C" fn preedit_done_callback(
     _xim: ffi::XIM,
     client_data: ffi::XPointer,
     _call_data: ffi::XPointer,
 ) {
     let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData) };
+
+    // Drop text buffer and reset cursor position on done.
+    client_data.text = Vec::new();
+    client_data.cursor_pos = 0;
 
     client_data
         .event_sender
@@ -129,16 +132,19 @@ extern "C" fn preedit_caret_callback(
 ) {
     let client_data = unsafe { &mut *(client_data as *mut ImeContextClientData) };
     let call_data = unsafe { &mut *(call_data as *mut XIMPreeditCaretCallbackStruct) };
-    client_data.cursor_pos = call_data.position as usize;
-    let cursor_byte_pos = calc_byte_position(&client_data.text, client_data.cursor_pos);
 
-    client_data
-        .event_sender
-        .send((
-            client_data.window,
-            ImeEvent::Update(client_data.text.iter().collect(), cursor_byte_pos),
-        ))
-        .expect("failed to send preedit update event");
+    if call_data.direction == ffi::XIMCaretDirection::XIMAbsolutePosition {
+        client_data.cursor_pos = call_data.position as usize;
+        let cursor_byte_pos = calc_byte_position(&client_data.text, client_data.cursor_pos);
+
+        client_data
+            .event_sender
+            .send((
+                client_data.window,
+                ImeEvent::Update(client_data.text.iter().collect(), cursor_byte_pos),
+            ))
+            .expect("failed to send preedit update event");
+    }
 }
 
 /// Struct to simplify callback creation and latter passing into Xlib XIM.

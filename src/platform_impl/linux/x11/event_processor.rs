@@ -41,7 +41,6 @@ pub(super) struct EventProcessor<T: 'static> {
     // Currently focused window belonging to this process
     pub(super) active_window: Option<ffi::Window>,
     pub(super) is_composing: bool,
-    pub(super) composed_text: Option<String>,
 }
 
 impl<T: 'static> EventProcessor<T> {
@@ -607,16 +606,24 @@ impl<T: 'static> EventProcessor<T> {
                         return;
                     };
 
-                    for chr in written.chars() {
+                    // If we're composing right now, send the string we've got from X11 via
+                    // Ime::Commit.
+                    if self.is_composing && keycode == 0 && !written.is_empty() {
                         let event = Event::WindowEvent {
                             window_id,
-                            event: WindowEvent::ReceivedCharacter(chr),
+                            event: WindowEvent::Ime(Ime::Commit(written)),
                         };
+
                         callback(event);
-                    }
-                    if self.is_composing && !written.is_empty() {
-                        self.composed_text = Some(written);
-                        self.is_composing = false;
+                    } else {
+                        for chr in written.chars() {
+                            let event = Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::ReceivedCharacter(chr),
+                            };
+
+                            callback(event);
+                        }
                     }
                 }
             }
@@ -1255,7 +1262,6 @@ impl<T: 'static> EventProcessor<T> {
                 }
                 ImeEvent::Start => {
                     self.is_composing = true;
-                    self.composed_text = None;
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
                         event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
@@ -1271,14 +1277,14 @@ impl<T: 'static> EventProcessor<T> {
                 }
                 ImeEvent::End => {
                     self.is_composing = false;
+                    // Issue empty preedit on `Done`.
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Commit(
-                            self.composed_text.take().unwrap_or("".to_owned()),
-                        )),
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
                     });
                 }
                 ImeEvent::Disabled => {
+                    self.is_composing = false;
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
                         event: WindowEvent::Ime(Ime::Disabled),

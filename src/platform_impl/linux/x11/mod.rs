@@ -261,7 +261,6 @@ impl<T: 'static> EventLoop<T> {
             first_touch: None,
             active_window: None,
             is_composing: false,
-            composed_text: None,
         };
 
         // Register for device hotplug events
