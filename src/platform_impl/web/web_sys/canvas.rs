@@ -18,6 +18,8 @@ use web_sys::{
 mod mouse_handler;
 mod pointer_handler;
 
+type EventListener = EventListenerHandle<dyn FnMut(Event)>;
+
 #[allow(dead_code)]
 pub struct Canvas {
     common: Common,
@@ -27,10 +29,10 @@ pub struct Canvas {
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
-    on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
+    on_fullscreen_change: Option<EventListener>,
     on_dark_mode: Option<MediaQueryListHandle>,
     mouse_state: MouseState,
-    disable_web_scroll: Option<[EventListenerHandle<dyn FnMut(Event)>; 5]>,
+    disable_web_scroll: Option<[EventListener; 5]>,
 }
 
 struct Common {
@@ -80,7 +82,7 @@ impl Canvas {
             wants_fullscreen: Rc::new(RefCell::new(false)),
         };
 
-        let disable_web_scroll = if !attr.enable_web_scroll {
+        let disable_web_scroll = if !attr.enable_web_page_scroll && attr.prevent_default {
             Some([
                 common.add_event("pointermove", move |event: Event| {
                     event.prevent_default();
@@ -298,7 +300,7 @@ impl Canvas {
         }
     }
 
-    pub fn on_mouse_wheel<F>(&mut self, mut handler: F, prevent_default: bool)
+    pub fn on_mouse_wheel<F>(&mut self, mut handler: F, _prevent_default: bool)
     where
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {

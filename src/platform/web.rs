@@ -26,7 +26,7 @@ pub trait WindowBuilderExtWebSys {
     ///
     /// So only call this method if you know that you will never need to handle mouse wheel inputs
     /// or click and dragging.
-    fn enable_web_scroll(self) -> Self;
+    fn enable_web_page_scroll(self) -> Self;
 
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
 
@@ -43,8 +43,8 @@ pub trait WindowBuilderExtWebSys {
 }
 
 impl WindowBuilderExtWebSys for WindowBuilder {
-    fn enable_web_scroll(mut self) -> Self {
-        self.platform_specific.enable_web_scroll = true;
+    fn enable_web_page_scroll(mut self) -> Self {
+        self.platform_specific.enable_web_page_scroll = true;
 
         self
     }

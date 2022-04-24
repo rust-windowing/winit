@@ -414,7 +414,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
     pub(crate) prevent_default: bool,
     pub(crate) focusable: bool,
-    pub(crate) enable_web_scroll: bool,
+    pub(crate) enable_web_page_scroll: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -423,7 +423,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             canvas: None,
             prevent_default: true,
             focusable: true,
-            enable_web_scroll: false,
+            enable_web_page_scroll: false,
         }
     }
 }

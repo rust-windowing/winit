@@ -18,6 +18,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
 - On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
 - **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
+- On web, by default, when the canvas is focused, scrolling of the webpage is disabled. It can however be enabled via the `WindowBuilderExtWebSys::enable_web_page_scroll` method.
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
@@ -60,7 +61,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Added `Window::is_decorated`.
 - On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
 - On X11, fix scale factor calculation when the only monitor is reconnected
-- On web, by default, when the canvas is focused, scrolling of the webpage is disabled. It can however be enabled via the `WindowBuilderExtWebSys::enable_web_scroll` method.
 - On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
 - On Web, a focused event is manually generated when a click occurs to emulate behaviour of other backends.
 - **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
