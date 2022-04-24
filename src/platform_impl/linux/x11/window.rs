@@ -1115,8 +1115,15 @@ impl UnownedWindow {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let scale_factor = self.scale_factor();
-        let (width, height) = size.to_physical::<u32>(scale_factor).into();
-        self.set_inner_size_physical(width, height);
+        let size = size.to_physical::<u32>(scale_factor).into();
+        if !self.shared_state.lock().is_resizable {
+            self.update_normal_hints(|normal_hints| {
+                normal_hints.set_min_size(Some(size));
+                normal_hints.set_max_size(Some(size));
+            })
+            .expect("Failed to call `XSetWMNormalHints`");
+        }
+        self.set_inner_size_physical(size.0, size.1);
     }
 
     fn update_normal_hints<F>(&self, callback: F) -> Result<(), XError>

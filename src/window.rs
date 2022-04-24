@@ -665,8 +665,9 @@ impl Window {
 
     /// Sets whether the window is resizable or not.
     ///
-    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
-    /// triggered by DPI scaling, entering fullscreen mode, etc.
+    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that
+    /// event can still be triggered by DPI scaling, entering fullscreen mode, etc. Also, the
+    /// window could still be resized by calling `[Window::set_inner_size]`.
     ///
     /// ## Platform-specific
     ///
