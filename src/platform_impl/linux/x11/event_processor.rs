@@ -571,7 +571,7 @@ impl<T: 'static> EventProcessor<T> {
 
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
-                if keycode != 0 {
+                if keycode != 0 && !self.is_composing {
                     let scancode = keycode - KEYCODE_OFFSET as u32;
                     let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
@@ -614,6 +614,7 @@ impl<T: 'static> EventProcessor<T> {
                             event: WindowEvent::Ime(Ime::Commit(written)),
                         };
 
+                        self.is_composing = false;
                         callback(event);
                     } else {
                         for chr in written.chars() {
