@@ -81,6 +81,11 @@ pub enum ActivationPolicy {
     Accessory,
     /// Corresponds to `NSApplicationActivationPolicyProhibited`.
     Prohibited,
+    /// Does not set an activation policy.
+    ///
+    /// This is useful for apps that wish to have a system tray but no
+    /// dock icon.
+    None,
 }
 
 impl Default for ActivationPolicy {

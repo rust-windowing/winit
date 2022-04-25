@@ -39,6 +39,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
 - **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
 - On Wayland and X11, fix window not resizing with `Window::set_inner_size` after calling `Window:set_resizable(false)`.
+- A new `ActivationPolicy::None` variant can be used to not set an activation policy. This variant may be useful for system tray only applications not wanting a dock icon.
+
 
 # 0.26.1 (2022-01-05)
 

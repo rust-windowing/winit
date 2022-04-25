@@ -488,10 +488,16 @@ fn apply_activation_policy(app_delegate: &Object) {
         // until `applicationDidFinishLaunching` has been called. Otherwise the
         // menu bar is initially unresponsive on macOS 10.15.
         let act_pol = get_aux_state_mut(app_delegate).activation_policy;
-        ns_app.setActivationPolicy_(match act_pol {
+
+        let policy = match act_pol {
+            ActivationPolicy::None => {
+                return;
+            }
             ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
             ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
             ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
-        });
+        };
+
+        ns_app.setActivationPolicy_(policy);
     }
 }
