@@ -1,10 +1,7 @@
 use std::{
     collections::{BTreeSet, VecDeque},
-    ffi::OsString,
     hash::Hash,
-    io, mem,
-    os::windows::prelude::OsStringExt,
-    ptr,
+    io, mem, ptr,
 };
 
 use windows_sys::Win32::{
@@ -17,6 +14,7 @@ use windows_sys::Win32::{
     },
 };
 
+use super::util::decode_wide;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
@@ -169,7 +167,7 @@ impl MonitorHandle {
     pub fn name(&self) -> Option<String> {
         let monitor_info = get_monitor_info(self.0).unwrap();
         Some(
-            OsString::from_wide(&monitor_info.szDevice)
+            decode_wide(&monitor_info.szDevice)
                 .to_string_lossy()
                 .to_string(),
         )
