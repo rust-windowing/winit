@@ -878,7 +878,10 @@ impl<T: 'static> EventLoop<T> {
             // to create a window in one of those callbacks.
             self.with_window_target(|window_target| {
                 let state = &mut window_target.event_sink.window_events;
-                std::mem::swap(&mut event_sink_back_buffer, state)
+                std::mem::swap::<Vec<crate::event::Event<'static, ()>>>(
+                    &mut event_sink_back_buffer,
+                    state,
+                );
             });
 
             // Handle pending window events.
