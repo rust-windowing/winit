@@ -1,5 +1,4 @@
 use std::{
-    cell::RefCell,
     collections::VecDeque,
     marker::PhantomData,
     os::unix::prelude::{AsRawFd, FromRawFd, IntoRawFd, OpenOptionsExt, RawFd},
