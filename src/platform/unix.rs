@@ -25,12 +25,73 @@ use crate::platform_impl::{
     Window as LinuxWindow,
 };
 
+#[cfg(feature = "kmsdrm")]
+use ::drm::{control::Device as ControlDevice, Device};
+
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
+
+#[cfg(feature = "kmsdrm")]
+#[derive(Debug)]
+/// A simple wrapper for a device node.
+pub struct Card(std::fs::File);
+
+#[cfg(feature = "kmsdrm")]
+/// Implementing `AsRawFd` is a prerequisite to implementing the traits found
+/// in this crate. Here, we are just calling `as_raw_fd()` on the inner File.
+impl std::os::unix::io::AsRawFd for Card {
+    fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
+        self.0.as_raw_fd()
+    }
+}
+
+#[cfg(feature = "kmsdrm")]
+/// With `AsRawFd` implemented, we can now implement `drm::Device`.
+impl Device for Card {}
+#[cfg(feature = "kmsdrm")]
+impl ControlDevice for Card {}
+
+#[cfg(feature = "kmsdrm")]
+/// Simple helper methods for opening a `Card`.
+impl Card {
+    pub fn open(path: &str) -> Result<Self, std::io::Error> {
+        let mut options = std::fs::OpenOptions::new();
+        options.read(true);
+        options.write(true);
+        Ok(Card(options.open(path)?))
+    }
+
+    pub fn open_global() -> Result<Self, std::io::Error> {
+        Self::open("/dev/dri/card0")
+    }
+}
+
+#[cfg(feature = "kmsdrm")]
+#[repr(transparent)]
+pub struct AssertSync<T>(pub T);
+
+#[cfg(feature = "kmsdrm")]
+unsafe impl<T> Sync for AssertSync<T> {}
+#[cfg(feature = "kmsdrm")]
+unsafe impl<T> Send for AssertSync<T> {}
+#[cfg(feature = "kmsdrm")]
+impl<T> std::ops::Deref for AssertSync<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[cfg(feature = "kmsdrm")]
+impl<T> std::ops::DerefMut for AssertSync<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
@@ -66,11 +127,8 @@ pub trait EventLoopWindowTargetExtUnix {
         &self,
     ) -> Option<
         &parking_lot::Mutex<
-            crate::platform_impl::AssertSync<
-                Result<
-                    std::sync::Arc<gbm::Device<crate::platform_impl::drm::Card>>,
-                    std::io::Error,
-                >,
+            AssertSync<
+                Result<std::sync::Arc<gbm::Device<crate::platform::unix::Card>>, std::io::Error>,
             >,
         >,
     >;
@@ -136,11 +194,8 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
         &self,
     ) -> Option<
         &parking_lot::Mutex<
-            crate::platform_impl::AssertSync<
-                Result<
-                    std::sync::Arc<gbm::Device<crate::platform_impl::drm::Card>>,
-                    std::io::Error,
-                >,
+            AssertSync<
+                Result<std::sync::Arc<gbm::Device<crate::platform::unix::Card>>, std::io::Error>,
             >,
         >,
     > {

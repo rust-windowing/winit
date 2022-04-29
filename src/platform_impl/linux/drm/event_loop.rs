@@ -25,6 +25,7 @@ use crate::{
     dpi::PhysicalPosition,
     event::{Force, KeyboardInput, ModifiersState, MouseScrollDelta, StartCause},
     event_loop::{ControlFlow, EventLoopClosed},
+    platform::unix::Card,
     platform_impl::{platform::sticky_exit_callback, GBM_DEVICE},
 };
 
@@ -616,7 +617,7 @@ pub struct EventLoop<T: 'static> {
 }
 
 pub(crate) fn find_prop_id<T: ResourceHandle>(
-    card: &std::sync::Arc<gbm::Device<super::Card>>,
+    card: &std::sync::Arc<gbm::Device<Card>>,
     handle: T,
     name: &'static str,
 ) -> Option<property::Handle> {

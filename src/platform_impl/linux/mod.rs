@@ -37,6 +37,9 @@ use crate::{
     window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 
+#[cfg(feature = "kmsdrm")]
+use crate::platform::unix::{AssertSync, Card};
+
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 
 #[cfg(feature = "kmsdrm")]
@@ -140,32 +143,9 @@ lazy_static! {
 }
 
 #[cfg(feature = "kmsdrm")]
-#[repr(transparent)]
-pub struct AssertSync<T>(pub T);
-
-#[cfg(feature = "kmsdrm")]
-unsafe impl<T> Sync for AssertSync<T> {}
-#[cfg(feature = "kmsdrm")]
-unsafe impl<T> Send for AssertSync<T> {}
-#[cfg(feature = "kmsdrm")]
-impl<T> std::ops::Deref for AssertSync<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[cfg(feature = "kmsdrm")]
-impl<T> std::ops::DerefMut for AssertSync<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-#[cfg(feature = "kmsdrm")]
 lazy_static! {
-    pub static ref GBM_DEVICE: Mutex<AssertSync<Result<Arc<gbm::Device<drm::Card>>, std::io::Error>>> =
-        match drm::Card::open_global() {
+    pub static ref GBM_DEVICE: Mutex<AssertSync<Result<Arc<gbm::Device<Card>>, std::io::Error>>> =
+        match Card::open_global() {
             Ok(card) => {
                 Mutex::new(AssertSync(gbm::Device::new(card).map(Arc::new)))
             }

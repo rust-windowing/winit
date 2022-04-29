@@ -1,6 +1,3 @@
-use drm::control::Device as ControlDevice;
-use drm::Device;
-
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 pub mod event_loop;
@@ -11,36 +8,6 @@ pub use event_loop::EventLoop;
 pub use event_loop::EventLoopProxy;
 pub use event_loop::EventLoopWindowTarget;
 pub use window::Window;
-
-#[derive(Debug)]
-/// A simple wrapper for a device node.
-pub struct Card(std::fs::File);
-
-/// Implementing `AsRawFd` is a prerequisite to implementing the traits found
-/// in this crate. Here, we are just calling `as_raw_fd()` on the inner File.
-impl std::os::unix::io::AsRawFd for Card {
-    fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
-        self.0.as_raw_fd()
-    }
-}
-
-/// With `AsRawFd` implemented, we can now implement `drm::Device`.
-impl Device for Card {}
-impl ControlDevice for Card {}
-
-/// Simple helper methods for opening a `Card`.
-impl Card {
-    pub fn open(path: &str) -> Result<Self, std::io::Error> {
-        let mut options = std::fs::OpenOptions::new();
-        options.read(true);
-        options.write(true);
-        Ok(Card(options.open(path)?))
-    }
-
-    pub fn open_global() -> Result<Self, std::io::Error> {
-        Self::open("/dev/dri/card0")
-    }
-}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
