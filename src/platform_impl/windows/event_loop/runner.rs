@@ -10,13 +10,14 @@ use std::{
 use windows_sys::Win32::{
     Foundation::HWND,
     Graphics::Gdi::{RedrawWindow, RDW_INTERNALPAINT},
+    UI::WindowsAndMessaging::GWL_USERDATA,
 };
 
 use crate::{
     dpi::PhysicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
-    platform_impl::platform::util,
+    platform_impl::platform::{get_window_long, util, window_state::WindowFlags},
     window::WindowId,
 };
 
@@ -429,11 +430,20 @@ impl<T> BufferedEvent<T> {
                         new_inner_size: &mut new_inner_size,
                     },
                 });
+                let is_decorated = unsafe {
+                    let userdata =
+                        get_window_long((window_id.0).0, GWL_USERDATA) as *mut super::WindowData<T>;
+                    (*userdata)
+                        .window_state
+                        .lock()
+                        .window_flags()
+                        .contains(WindowFlags::DECORATIONS)
+                };
                 util::set_inner_size_physical(
                     (window_id.0).0,
                     new_inner_size.width as _,
                     new_inner_size.height as _,
-                    true,
+                    is_decorated,
                 );
             }
         }

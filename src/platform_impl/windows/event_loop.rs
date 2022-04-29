@@ -64,9 +64,9 @@ use windows_sys::Win32::{
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
             WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
-            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
-            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
-            WS_VISIBLE,
+            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_CAPTION,
+            WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED,
+            WS_POPUP, WS_SIZEBOX, WS_VISIBLE,
         },
     },
 };
@@ -1795,7 +1795,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
             let old_scale_factor: f64;
 
-            let allow_resize = {
+            let (allow_resize, is_decorated) = {
                 let mut window_state = userdata.window_state.lock();
                 old_scale_factor = window_state.scale_factor;
                 window_state.scale_factor = new_scale_factor;
@@ -1804,12 +1804,23 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     return 0;
                 }
 
-                window_state.fullscreen.is_none()
-                    && !window_state.window_flags().contains(WindowFlags::MAXIMIZED)
+                (
+                    window_state.fullscreen.is_none()
+                        && !window_state.window_flags().contains(WindowFlags::MAXIMIZED),
+                    window_state
+                        .window_flags()
+                        .contains(WindowFlags::DECORATIONS),
+                )
             };
 
-            let style = GetWindowLongW(window, GWL_STYLE) as u32;
+            let mut style = GetWindowLongW(window, GWL_STYLE) as u32;
             let style_ex = GetWindowLongW(window, GWL_EXSTYLE) as u32;
+            // if the window isn't decorated, remove `WS_SIZEBOX` and `WS_CAPTION` so
+            // `AdjustWindowRect*` functions doesn't account for the hidden caption and borders and
+            // calculates a correct size for the client area.
+            if !is_decorated {
+                style &= !(WS_CAPTION | WS_SIZEBOX);
+            }
 
             // New size as suggested by Windows.
             let suggested_rect = *(lparam as *const RECT);

@@ -130,8 +130,7 @@ pub fn adjust_window_rect(hwnd: HWND, rect: RECT, is_decorated: bool) -> Option<
         // `AdjustWindowRect*` functions doesn't account for the hidden caption and borders and
         // calculates a correct size for the client area.
         if !is_decorated {
-            style &= !WS_CAPTION;
-            style &= !WS_SIZEBOX;
+            style &= !(WS_CAPTION | WS_SIZEBOX);
         }
         let style_ex = get_window_long(hwnd, GWL_EXSTYLE) as u32;
         adjust_window_rect_with_styles(hwnd, style, style_ex, rect)
