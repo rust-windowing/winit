@@ -30,14 +30,14 @@ impl ControlDevice for Card {}
 
 /// Simple helper methods for opening a `Card`.
 impl Card {
-    pub fn open(path: &str) -> Self {
+    pub fn open(path: &str) -> Result<Self, std::io::Error> {
         let mut options = std::fs::OpenOptions::new();
         options.read(true);
         options.write(true);
-        Card(options.open(path).unwrap())
+        Ok(Card(options.open(path)?))
     }
 
-    pub fn open_global() -> Self {
+    pub fn open_global() -> Result<Self, std::io::Error> {
         Self::open("/dev/dri/card0")
     }
 }

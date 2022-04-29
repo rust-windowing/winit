@@ -633,7 +633,7 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<EventLoop<T>, ()> {
+    pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
         match GBM_DEVICE.lock().as_ref() {
             Ok(gbm) => {
                 drm::Device::set_client_capability(
@@ -641,18 +641,32 @@ impl<T: 'static> EventLoop<T> {
                     drm::ClientCapability::UniversalPlanes,
                     true,
                 )
-                .expect("kmsdrm device does not support universal planes");
+                .or(Err(crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc(
+                        "kmsdrm device does not support universal planes",
+                    ),
+                )))?;
                 drm::Device::set_client_capability(
                     gbm.as_ref(),
                     drm::ClientCapability::Atomic,
                     true,
                 )
-                .expect("kmsdrm device does not support atomic modesetting");
+                .or(Err(crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc(
+                        "kmsdrm device does not support atomic modesetting",
+                    ),
+                )))?;
 
                 // Load the information.
-                let res = gbm
-                    .resource_handles()
-                    .expect("Could not load normal resource ids.");
+                let res = gbm.resource_handles().or(Err(crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("Could not load normal resource ids."),
+                )))?;
                 let coninfo: Vec<drm::control::connector::Info> = res
                     .connectors()
                     .iter()
@@ -664,16 +678,28 @@ impl<T: 'static> EventLoop<T> {
                     .flat_map(|crtc| gbm.get_crtc(*crtc))
                     .collect();
 
-                let crtc = crtcinfo.get(0).expect("No crtcs found");
+                let crtc = crtcinfo.get(0).ok_or(crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("No crtcs found"),
+                ))?;
 
                 // Filter each connector until we find one that's connected.
                 let con = coninfo
                     .iter()
                     .find(|&i| i.state() == drm::control::connector::State::Connected)
-                    .expect("No connected connectors");
+                    .ok_or(crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc("No connected connectors"),
+                    ))?;
 
                 // Get the first (usually best) mode
-                let &mode = con.modes().get(0).expect("No modes found on connector");
+                let &mode = con.modes().get(0).ok_or(crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
+                ))?;
 
                 let (disp_width, disp_height) = mode.size();
 
@@ -750,7 +776,11 @@ impl<T: 'static> EventLoop<T> {
                     window_target,
                 })
             }
-            Err(_) => Err(()),
+            Err(_) => Err(crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("gbm failed to initialize"),
+            )),
         }
     }
 

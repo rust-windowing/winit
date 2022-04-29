@@ -165,9 +165,14 @@ impl<T> std::ops::DerefMut for AssertSync<T> {
 #[cfg(feature = "kmsdrm")]
 lazy_static! {
     pub static ref GBM_DEVICE: Mutex<AssertSync<Result<Arc<gbm::Device<drm::Card>>, std::io::Error>>> =
-        Mutex::new(AssertSync(
-            gbm::Device::new(drm::Card::open_global()).map(Arc::new)
-        ));
+        match drm::Card::open_global() {
+            Ok(card) => {
+                Mutex::new(AssertSync(gbm::Device::new(card).map(Arc::new)))
+            }
+            Err(e) => {
+                Mutex::new(AssertSync(Err(e)))
+            }
+        };
 }
 
 #[derive(Debug, Clone)]
@@ -798,7 +803,7 @@ impl<T: 'static> EventLoop<T> {
         panic!(
             "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?} DRM status: {:?}",
             wayland_err, x11_err, drm_err
-        );
+            );
     }
 
     #[cfg(feature = "wayland")]
@@ -817,7 +822,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(feature = "kmsdrm")]
-    fn new_drm_any_thread() -> Result<EventLoop<T>, ()> {
+    fn new_drm_any_thread() -> Result<EventLoop<T>, RootOsError> {
         drm::EventLoop::new().map(EventLoop::Drm)
     }
 
