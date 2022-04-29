@@ -814,6 +814,14 @@ impl<T: 'static> EventLoop<T> {
             &mut control_flow,
         );
 
+        callback(
+            crate::event::Event::RedrawRequested(crate::window::WindowId(
+                crate::platform_impl::WindowId::Drm(super::WindowId),
+            )),
+            &self.window_target,
+            &mut control_flow,
+        );
+
         let exit_code = loop {
             match control_flow {
                 ControlFlow::ExitWithCode(code) => break code,
