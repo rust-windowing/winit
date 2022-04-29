@@ -74,6 +74,18 @@ pub trait EventLoopWindowTargetExtUnix {
             >,
         >,
     >;
+
+    /// Returns the current crtc of the gbm device
+    ///
+    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_crtc(&self) -> Option<&drm::control::crtc::Info>;
+
+    /// Returns the current connector of the gbm device
+    ///
+    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_connector(&self) -> Option<&drm::control::connector::Info>;
 }
 
 impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
@@ -136,6 +148,26 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(_) => Some(&*GBM_DEVICE),
+            #[cfg(any(feature = "x11", feature = "wayland"))]
+            _ => None,
+        }
+    }
+
+    #[inline]
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_crtc(&self) -> Option<&drm::control::crtc::Info> {
+        match self.p {
+            crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(&window.crtc),
+            #[cfg(any(feature = "x11", feature = "wayland"))]
+            _ => None,
+        }
+    }
+
+    #[inline]
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_connector(&self) -> Option<&drm::control::connector::Info> {
+        match self.p {
+            crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(&window.connector),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }

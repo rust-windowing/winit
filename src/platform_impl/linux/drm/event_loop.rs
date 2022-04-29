@@ -571,6 +571,9 @@ pub struct EventLoopWindowTarget<T> {
     /// gbm Connector
     pub connector: drm::control::connector::Info,
 
+    /// gbm crtc
+    pub crtc: drm::control::crtc::Info,
+
     /// Event loop handle.
     pub event_loop_handle: calloop::LoopHandle<'static, EventSink>,
 
@@ -664,6 +667,13 @@ impl<T: 'static> EventLoop<T> {
                     .iter()
                     .flat_map(|con| gbm.get_connector(*con))
                     .collect();
+                let crtcinfo: Vec<drm::control::crtc::Info> = res
+                    .crtcs()
+                    .iter()
+                    .flat_map(|crtc| gbm.get_crtc(*crtc))
+                    .collect();
+
+                let crtc = crtcinfo.get(0).expect("No crtcs found");
 
                 // Filter each connector until we find one that's connected.
                 let con = coninfo
@@ -734,6 +744,7 @@ impl<T: 'static> EventLoop<T> {
                 let window_target = crate::event_loop::EventLoopWindowTarget {
                     p: crate::platform_impl::EventLoopWindowTarget::Drm(EventLoopWindowTarget {
                         connector: con.clone(),
+                        crtc: crtc.clone(),
                         event_loop_handle: handle,
                         event_sink,
                         event_loop_awakener,

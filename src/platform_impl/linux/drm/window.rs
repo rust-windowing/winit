@@ -31,62 +31,31 @@ impl Window {
                 crate::platform_impl::OsError::DrmMisc("Failed to acquire gbm lock"),
             )
         })?;
-        let res = gbm.resource_handles().map_err(|_| {
-            crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("Could not get resource handles"),
-            )
-        })?;
-        let coninfo: Vec<drm::control::connector::Info> = res
-            .connectors()
-            .iter()
-            .flat_map(|con| gbm.get_connector(*con))
-            .collect();
-
-        // Filter each connector until we find one that's connected.
-        let con = coninfo
-            .iter()
-            .find(|&i| i.state() == drm::control::connector::State::Connected)
+        let &mode = event_loop_window_target
+            .connector
+            .modes()
+            .get(0)
             .ok_or_else(|| {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::DrmMisc("No connected connectors"),
+                    crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
                 )
             })?;
-        let crtcinfo: Vec<drm::control::crtc::Info> = res
-            .crtcs()
-            .iter()
-            .flat_map(|crtc| gbm.get_crtc(*crtc))
-            .collect();
-
-        let crtc = crtcinfo.get(0).ok_or_else(|| {
-            crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("No crtcs found"),
-            )
-        })?;
-        let &mode = con.modes().get(0).ok_or_else(|| {
-            crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
-            )
-        })?;
 
         let mut atomic_req = atomic::AtomicModeReq::new();
         atomic_req.add_property(
-            con.handle(),
-            find_prop_id(&gbm, con.handle(), "CRTC_ID").ok_or_else(|| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Could not get CRTC_ID"),
-                )
-            })?,
-            property::Value::CRTC(Some(crtc.handle())),
+            event_loop_window_target.connector.handle(),
+            find_prop_id(&gbm, event_loop_window_target.connector.handle(), "CRTC_ID").ok_or_else(
+                || {
+                    crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc("Could not get CRTC_ID"),
+                    )
+                },
+            )?,
+            property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
         let blob = gbm.create_property_blob(&mode).map_err(|_| {
             crate::error::OsError::new(
@@ -96,25 +65,29 @@ impl Window {
             )
         })?;
         atomic_req.add_property(
-            crtc.handle(),
-            find_prop_id(&gbm, crtc.handle(), "MODE_ID").ok_or_else(|| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Could not get MODE_ID"),
-                )
-            })?,
+            event_loop_window_target.crtc.handle(),
+            find_prop_id(&gbm, event_loop_window_target.crtc.handle(), "MODE_ID").ok_or_else(
+                || {
+                    crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc("Could not get MODE_ID"),
+                    )
+                },
+            )?,
             blob,
         );
         atomic_req.add_property(
-            crtc.handle(),
-            find_prop_id(&gbm, crtc.handle(), "ACTIVE").ok_or_else(|| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Could not get ACTIVE"),
-                )
-            })?,
+            event_loop_window_target.crtc.handle(),
+            find_prop_id(&gbm, event_loop_window_target.crtc.handle(), "ACTIVE").ok_or_else(
+                || {
+                    crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc("Could not get ACTIVE"),
+                    )
+                },
+            )?,
             property::Value::Boolean(true),
         );
 
@@ -129,7 +102,7 @@ impl Window {
 
         Ok(Self(
             mode,
-            con.clone(),
+            event_loop_window_target.connector.clone(),
             event_loop_window_target.event_loop_awakener.clone(),
         ))
     }
