@@ -10,8 +10,6 @@ use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::Display;
 
-use sctk::reexports::calloop;
-
 use sctk::environment::Environment;
 use sctk::seat::pointer::{ThemeManager, ThemeSpec};
 use sctk::WaylandSource;
@@ -250,7 +248,7 @@ impl<T: 'static> EventLoop<T> {
                     PlatformEventLoopWindowTarget::Wayland(window_target) => {
                         window_target.state.get_mut()
                     }
-                    #[cfg(feature = "x11")]
+                    #[cfg(any(feature = "x11", feature = "kmsdrm"))]
                     _ => unreachable!(),
                 };
 
@@ -539,7 +537,7 @@ impl<T: 'static> EventLoop<T> {
     fn with_window_target<U, F: FnOnce(&mut EventLoopWindowTarget<T>) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target,
-            #[cfg(feature = "x11")]
+            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
             _ => unreachable!(),
         };
 
@@ -549,7 +547,7 @@ impl<T: 'static> EventLoop<T> {
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
         let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(feature = "x11")]
+            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
             _ => unreachable!(),
         };
 

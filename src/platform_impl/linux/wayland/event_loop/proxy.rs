@@ -2,7 +2,7 @@
 
 use std::sync::mpsc::SendError;
 
-use sctk::reexports::calloop::channel::Sender;
+use calloop::channel::Sender;
 
 use crate::event_loop::EventLoopClosed;
 

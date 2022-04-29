@@ -5,8 +5,6 @@ use std::sync::{Arc, Mutex};
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Display;
 
-use sctk::reexports::calloop;
-
 use raw_window_handle::WaylandHandle;
 use sctk::window::{Decorations, FallbackFrame};
 
@@ -181,6 +179,8 @@ impl Window {
                         PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
                         #[cfg(feature = "x11")]
                         PlatformMonitorHandle::X(_) => None,
+                        #[cfg(feature = "kmsdrm")]
+                        PlatformMonitorHandle::Drm(_) => None,
                     });
 
                 window.set_fullscreen(monitor.as_ref());
@@ -426,6 +426,8 @@ impl Window {
                         PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
                         #[cfg(feature = "x11")]
                         PlatformMonitorHandle::X(_) => None,
+                        #[cfg(feature = "kmsdrm")]
+                        PlatformMonitorHandle::Drm(_) => None,
                     });
 
                 WindowRequest::Fullscreen(monitor)

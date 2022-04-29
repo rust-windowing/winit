@@ -6,8 +6,12 @@
     target_os = "openbsd"
 ))]
 
-#[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
-compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
+#[cfg(all(
+    not(feature = "x11"),
+    not(feature = "wayland"),
+    not(feature = "kmsdrm")
+))]
+compile_error!("Please select a feature to build for unix: `x11`, `wayland`, `kmsdrm`");
 
 #[cfg(feature = "wayland")]
 use std::error::Error;
@@ -35,6 +39,8 @@ use crate::{
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 
+#[cfg(feature = "kmsdrm")]
+pub mod drm;
 #[cfg(feature = "wayland")]
 pub mod wayland;
 #[cfg(feature = "x11")]
@@ -55,6 +61,8 @@ pub(crate) enum Backend {
     X,
     #[cfg(feature = "wayland")]
     Wayland,
+    #[cfg(feature = "kmsdrm")]
+    Drm,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Hash)]
@@ -131,6 +139,37 @@ lazy_static! {
         Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new));
 }
 
+#[cfg(feature = "kmsdrm")]
+#[repr(transparent)]
+pub struct AssertSync<T>(pub T);
+
+#[cfg(feature = "kmsdrm")]
+unsafe impl<T> Sync for AssertSync<T> {}
+#[cfg(feature = "kmsdrm")]
+unsafe impl<T> Send for AssertSync<T> {}
+#[cfg(feature = "kmsdrm")]
+impl<T> std::ops::Deref for AssertSync<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+#[cfg(feature = "kmsdrm")]
+impl<T> std::ops::DerefMut for AssertSync<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[cfg(feature = "kmsdrm")]
+lazy_static! {
+    pub static ref GBM_DEVICE: Mutex<AssertSync<Result<Arc<gbm::Device<drm::Card>>, std::io::Error>>> =
+        Mutex::new(AssertSync(
+            gbm::Device::new(drm::Card::open_global()).map(Arc::new)
+        ));
+}
+
 #[derive(Debug, Clone)]
 pub enum OsError {
     #[cfg(feature = "x11")]
@@ -139,6 +178,8 @@ pub enum OsError {
     XMisc(&'static str),
     #[cfg(feature = "wayland")]
     WaylandMisc(&'static str),
+    #[cfg(feature = "kmsdrm")]
+    DrmMisc(&'static str),
 }
 
 impl fmt::Display for OsError {
@@ -150,6 +191,8 @@ impl fmt::Display for OsError {
             OsError::XMisc(e) => _f.pad(e),
             #[cfg(feature = "wayland")]
             OsError::WaylandMisc(e) => _f.pad(e),
+            #[cfg(feature = "kmsdrm")]
+            OsError::DrmMisc(e) => _f.pad(e),
         }
     }
 }
@@ -159,6 +202,8 @@ pub enum Window {
     X(x11::Window),
     #[cfg(feature = "wayland")]
     Wayland(wayland::Window),
+    #[cfg(feature = "kmsdrm")]
+    Drm(drm::Window),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -167,14 +212,18 @@ pub enum WindowId {
     X(x11::WindowId),
     #[cfg(feature = "wayland")]
     Wayland(wayland::WindowId),
+    #[cfg(feature = "kmsdrm")]
+    Drm(drm::WindowId),
 }
 
 impl WindowId {
     pub const unsafe fn dummy() -> Self {
         #[cfg(feature = "wayland")]
         return WindowId::Wayland(wayland::WindowId::dummy());
-        #[cfg(all(not(feature = "wayland"), feature = "x11"))]
+        #[cfg(all(not(all(feature = "wayland", feature = "kmsdrm")), feature = "x11"))]
         return WindowId::X(x11::WindowId::dummy());
+        #[cfg(all(not(all(feature = "wayland", feature = "x11")), feature = "kmsdrm"))]
+        return WindowId::Drm(drm::WindowId::dummy());
     }
 }
 
@@ -184,6 +233,8 @@ pub enum DeviceId {
     X(x11::DeviceId),
     #[cfg(feature = "wayland")]
     Wayland(wayland::DeviceId),
+    #[cfg(feature = "kmsdrm")]
+    Drm(drm::DeviceId),
 }
 
 impl DeviceId {
@@ -192,6 +243,8 @@ impl DeviceId {
         return DeviceId::Wayland(wayland::DeviceId::dummy());
         #[cfg(all(not(feature = "wayland"), feature = "x11"))]
         return DeviceId::X(x11::DeviceId::dummy());
+        #[cfg(all(not(all(feature = "wayland", feature = "x11")), feature = "kmsdrm"))]
+        return DeviceId::Drm(drm::DeviceId::dummy());
     }
 }
 
@@ -201,6 +254,8 @@ pub enum MonitorHandle {
     X(x11::MonitorHandle),
     #[cfg(feature = "wayland")]
     Wayland(wayland::MonitorHandle),
+    #[cfg(feature = "kmsdrm")]
+    Drm(drm::MonitorHandle),
 }
 
 /// `x11_or_wayland!(match expr; Enum(foo) => foo.something())`
@@ -212,13 +267,15 @@ pub enum MonitorHandle {
 /// }
 /// ```
 /// The result can be converted to another enum by adding `; as AnotherEnum`
-macro_rules! x11_or_wayland {
+macro_rules! x11_or_wayland_or_drm {
     (match $what:expr; $enum:ident ( $($c1:tt)* ) => $x:expr; as $enum2:ident ) => {
         match $what {
             #[cfg(feature = "x11")]
             $enum::X($($c1)*) => $enum2::X($x),
             #[cfg(feature = "wayland")]
             $enum::Wayland($($c1)*) => $enum2::Wayland($x),
+            #[cfg(feature = "kmsdrm")]
+            $enum::Drm($($c1)*) => $enum2::Drm($x)
         }
     };
     (match $what:expr; $enum:ident ( $($c1:tt)* ) => $x:expr) => {
@@ -227,6 +284,8 @@ macro_rules! x11_or_wayland {
             $enum::X($($c1)*) => $x,
             #[cfg(feature = "wayland")]
             $enum::Wayland($($c1)*) => $x,
+            #[cfg(feature = "kmsdrm")]
+            $enum::Drm($($c1)*) => $x
         }
     };
 }
@@ -234,32 +293,32 @@ macro_rules! x11_or_wayland {
 impl MonitorHandle {
     #[inline]
     pub fn name(&self) -> Option<String> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.name())
+        x11_or_wayland_or_drm!(match self; MonitorHandle(m) => m.name())
     }
 
     #[inline]
     pub fn native_identifier(&self) -> u32 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.native_identifier())
+        x11_or_wayland_or_drm!(match self; MonitorHandle(m) => m.native_identifier())
     }
 
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.size())
+        x11_or_wayland_or_drm!(match self; MonitorHandle(m) => m.size())
     }
 
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.position())
+        x11_or_wayland_or_drm!(match self; MonitorHandle(m) => m.position())
     }
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as f64)
+        x11_or_wayland_or_drm!(match self; MonitorHandle(m) => m.scale_factor() as f64)
     }
 
     #[inline]
     pub fn video_modes(&self) -> Box<dyn Iterator<Item = RootVideoMode>> {
-        x11_or_wayland!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
+        x11_or_wayland_or_drm!(match self; MonitorHandle(m) => Box::new(m.video_modes()))
     }
 }
 
@@ -269,27 +328,29 @@ pub enum VideoMode {
     X(x11::VideoMode),
     #[cfg(feature = "wayland")]
     Wayland(wayland::VideoMode),
+    #[cfg(feature = "kmsdrm")]
+    Drm(drm::VideoMode),
 }
 
 impl VideoMode {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; VideoMode(m) => m.size())
+        x11_or_wayland_or_drm!(match self; VideoMode(m) => m.size())
     }
 
     #[inline]
     pub fn bit_depth(&self) -> u16 {
-        x11_or_wayland!(match self; VideoMode(m) => m.bit_depth())
+        x11_or_wayland_or_drm!(match self; VideoMode(m) => m.bit_depth())
     }
 
     #[inline]
     pub fn refresh_rate(&self) -> u16 {
-        x11_or_wayland!(match self; VideoMode(m) => m.refresh_rate())
+        x11_or_wayland_or_drm!(match self; VideoMode(m) => m.refresh_rate())
     }
 
     #[inline]
     pub fn monitor(&self) -> RootMonitorHandle {
-        x11_or_wayland!(match self; VideoMode(m) => m.monitor())
+        x11_or_wayland_or_drm!(match self; VideoMode(m) => m.monitor())
     }
 }
 
@@ -309,147 +370,151 @@ impl Window {
             EventLoopWindowTarget::X(ref window_target) => {
                 x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
             }
+            #[cfg(feature = "kmsdrm")]
+            EventLoopWindowTarget::Drm(ref window_target) => {
+                drm::Window::new(window_target, attribs, pl_attribs).map(Window::Drm)
+            }
         }
     }
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        x11_or_wayland!(match self; Window(w) => w.id(); as WindowId)
+        x11_or_wayland_or_drm!(match self; Window(w) => w.id(); as WindowId)
     }
 
     #[inline]
     pub fn set_title(&self, title: &str) {
-        x11_or_wayland!(match self; Window(w) => w.set_title(title));
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_title(title));
     }
 
     #[inline]
     pub fn set_visible(&self, visible: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_visible(visible))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_visible(visible))
     }
 
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
-        x11_or_wayland!(match self; Window(w) => w.is_visible())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.is_visible())
     }
 
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        x11_or_wayland!(match self; Window(w) => w.outer_position())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.outer_position())
     }
 
     #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        x11_or_wayland!(match self; Window(w) => w.inner_position())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.inner_position())
     }
 
     #[inline]
     pub fn set_outer_position(&self, position: Position) {
-        x11_or_wayland!(match self; Window(w) => w.set_outer_position(position))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_outer_position(position))
     }
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; Window(w) => w.inner_size())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.inner_size())
     }
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        x11_or_wayland!(match self; Window(w) => w.outer_size())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.outer_size())
     }
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        x11_or_wayland!(match self; Window(w) => w.set_inner_size(size))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_inner_size(size))
     }
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
-        x11_or_wayland!(match self; Window(w) => w.set_min_inner_size(dimensions))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_min_inner_size(dimensions))
     }
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
-        x11_or_wayland!(match self; Window(w) => w.set_max_inner_size(dimensions))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_max_inner_size(dimensions))
     }
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_resizable(resizable))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_resizable(resizable))
     }
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_resizable())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.is_resizable())
     }
 
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        x11_or_wayland!(match self; Window(w) => w.set_cursor_icon(cursor))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_cursor_icon(cursor))
     }
 
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.set_cursor_grab(grab))
+        x11_or_wayland_or_drm!(match self; Window(window) => window.set_cursor_grab(grab))
     }
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        x11_or_wayland!(match self; Window(window) => window.set_cursor_visible(visible))
+        x11_or_wayland_or_drm!(match self; Window(window) => window.set_cursor_visible(visible))
     }
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.drag_window())
+        x11_or_wayland_or_drm!(match self; Window(window) => window.drag_window())
     }
 
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(w) => w.set_cursor_hittest(hittest))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_cursor_hittest(hittest))
     }
 
     #[inline]
     pub fn scale_factor(&self) -> f64 {
-        x11_or_wayland!(match self; Window(w) => w.scale_factor() as f64)
+        x11_or_wayland_or_drm!(match self; Window(w) => w.scale_factor() as f64)
     }
 
     #[inline]
     pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(w) => w.set_cursor_position(position))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_cursor_position(position))
     }
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_maximized(maximized))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_maximized(maximized))
     }
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_maximized())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.is_maximized())
     }
 
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_minimized(minimized))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_minimized(minimized))
     }
 
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        x11_or_wayland!(match self; Window(w) => w.fullscreen())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.fullscreen())
     }
 
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
-        x11_or_wayland!(match self; Window(w) => w.set_fullscreen(monitor))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_fullscreen(monitor))
     }
 
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_decorations(decorations))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_decorations(decorations))
     }
 
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        x11_or_wayland!(match self; Window(w) => w.is_decorated())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.is_decorated())
     }
 
     #[inline]
@@ -459,6 +524,8 @@ impl Window {
             Window::X(ref w) => w.set_always_on_top(_always_on_top),
             #[cfg(feature = "wayland")]
             Window::Wayland(_) => (),
+            #[cfg(feature = "kmsdrm")]
+            Window::Drm(_) => (),
         }
     }
 
@@ -469,12 +536,14 @@ impl Window {
             Window::X(ref w) => w.set_window_icon(_window_icon),
             #[cfg(feature = "wayland")]
             Window::Wayland(_) => (),
+            #[cfg(feature = "kmsdrm")]
+            Window::Drm(_) => (),
         }
     }
 
     #[inline]
     pub fn set_ime_position(&self, position: Position) {
-        x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_ime_position(position))
     }
 
     #[inline]
@@ -484,6 +553,8 @@ impl Window {
             Window::X(ref w) => w.focus_window(),
             #[cfg(feature = "wayland")]
             Window::Wayland(_) => (),
+            #[cfg(feature = "kmsdrm")]
+            Window::Drm(_) => (),
         }
     }
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
@@ -492,12 +563,14 @@ impl Window {
             Window::X(ref w) => w.request_user_attention(request_type),
             #[cfg(feature = "wayland")]
             Window::Wayland(ref w) => w.request_user_attention(request_type),
+            #[cfg(feature = "kmsdrm")]
+            Window::Drm(_) => (),
         }
     }
 
     #[inline]
     pub fn request_redraw(&self) {
-        x11_or_wayland!(match self; Window(w) => w.request_redraw())
+        x11_or_wayland_or_drm!(match self; Window(w) => w.request_redraw())
     }
 
     #[inline]
@@ -513,6 +586,13 @@ impl Window {
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => {
                 let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
+                Some(RootMonitorHandle {
+                    inner: current_monitor,
+                })
+            }
+            #[cfg(feature = "kmsdrm")]
+            Window::Drm(ref window) => {
+                let current_monitor = MonitorHandle::Drm(window.current_monitor()?);
                 Some(RootMonitorHandle {
                     inner: current_monitor,
                 })
@@ -535,6 +615,12 @@ impl Window {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
+            #[cfg(feature = "kmsdrm")]
+            Window::Drm(ref window) => window
+                .available_monitors()
+                .into_iter()
+                .map(MonitorHandle::Drm)
+                .collect(),
         }
     }
 
@@ -550,6 +636,8 @@ impl Window {
             }
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => window.primary_monitor(),
+            #[cfg(feature = "kmsdrm")]
+            Window::Drm(ref window) => window.primary_monitor(),
         }
     }
 
@@ -559,6 +647,8 @@ impl Window {
             Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
+            #[cfg(feature = "kmsdrm")]
+            Window::Drm(_) => unimplemented!(),
         }
     }
 }
@@ -601,6 +691,8 @@ pub enum EventLoop<T: 'static> {
     Wayland(wayland::EventLoop<T>),
     #[cfg(feature = "x11")]
     X(x11::EventLoop<T>),
+    #[cfg(feature = "kmsdrm")]
+    Drm(drm::EventLoop<T>),
 }
 
 pub enum EventLoopProxy<T: 'static> {
@@ -608,11 +700,13 @@ pub enum EventLoopProxy<T: 'static> {
     X(x11::EventLoopProxy<T>),
     #[cfg(feature = "wayland")]
     Wayland(wayland::EventLoopProxy<T>),
+    #[cfg(feature = "kmsdrm")]
+    Drm(drm::EventLoopProxy<T>),
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.clone(); as EventLoopProxy)
+        x11_or_wayland_or_drm!(match self; EventLoopProxy(proxy) => proxy.clone(); as EventLoopProxy)
     }
 }
 
@@ -639,6 +733,12 @@ impl<T: 'static> EventLoop<T> {
             return EventLoop::new_wayland_any_thread().expect("failed to open Wayland connection");
         }
 
+        #[cfg(feature = "kmsdrm")]
+        if attributes.forced_backend == Some(Backend::Drm) {
+            // TODO: Propagate
+            return EventLoop::new_drm_any_thread().expect("failed to open drm connection");
+        }
+
         if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
             match env_var.as_str() {
                 "x11" => {
@@ -655,6 +755,13 @@ impl<T: 'static> EventLoop<T> {
                         .expect("Failed to initialize Wayland backend");
                     #[cfg(not(feature = "wayland"))]
                     panic!("wayland feature is not enabled");
+                }
+                "drm" | "kmsdrm" | "gbm" | "tty" => {
+                    #[cfg(feature = "kmsdrm")]
+                    return EventLoop::new_drm_any_thread()
+                        .expect("Failed to initialize drm backend");
+                    #[cfg(not(feature = "kmsdrm"))]
+                    panic!("kmsdrm feature is not enabled");
                 }
                 _ => panic!(
                     "Unknown environment variable value for {}, try one of `x11`,`wayland`",
@@ -675,14 +782,22 @@ impl<T: 'static> EventLoop<T> {
             Err(err) => err,
         };
 
+        #[cfg(feature = "kmsdrm")]
+        let drm_err = match EventLoop::new_drm_any_thread() {
+            Ok(event_loop) => return event_loop,
+            Err(err) => err,
+        };
+
         #[cfg(not(feature = "wayland"))]
         let wayland_err = "backend disabled";
         #[cfg(not(feature = "x11"))]
         let x11_err = "backend disabled";
+        #[cfg(not(feature = "kmsdrm"))]
+        let drm_err = "backend disabled";
 
         panic!(
-            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
-            wayland_err, x11_err,
+            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?} DRM status: {:?}",
+            wayland_err, x11_err, drm_err
         );
     }
 
@@ -701,32 +816,37 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))
     }
 
+    #[cfg(feature = "kmsdrm")]
+    fn new_drm_any_thread() -> Result<EventLoop<T>, ()> {
+        drm::EventLoop::new().map(EventLoop::Drm)
+    }
+
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
+        x11_or_wayland_or_drm!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
     pub fn run_return<F>(&mut self, callback: F) -> i32
     where
         F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_return(callback))
+        x11_or_wayland_or_drm!(match self; EventLoop(evlp) => evlp.run_return(callback))
     }
 
     pub fn run<F>(self, callback: F) -> !
     where
         F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run(callback))
+        x11_or_wayland_or_drm!(match self; EventLoop(evlp) => evlp.run(callback))
     }
 
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
-        x11_or_wayland!(match self; EventLoop(evl) => evl.window_target())
+        x11_or_wayland_or_drm!(match self; EventLoop(evl) => evl.window_target())
     }
 }
 
 impl<T: 'static> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.send_event(event))
+        x11_or_wayland_or_drm!(match self; EventLoopProxy(proxy) => proxy.send_event(event))
     }
 }
 
@@ -735,6 +855,8 @@ pub enum EventLoopWindowTarget<T> {
     Wayland(wayland::EventLoopWindowTarget<T>),
     #[cfg(feature = "x11")]
     X(x11::EventLoopWindowTarget<T>),
+    #[cfg(feature = "kmsdrm")]
+    Drm(drm::EventLoopWindowTarget<T>),
 }
 
 impl<T> EventLoopWindowTarget<T> {
@@ -743,7 +865,27 @@ impl<T> EventLoopWindowTarget<T> {
         match *self {
             #[cfg(feature = "wayland")]
             EventLoopWindowTarget::Wayland(_) => true,
+            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_x11(&self) -> bool {
+        match *self {
             #[cfg(feature = "x11")]
+            EventLoopWindowTarget::X(_) => true,
+            #[cfg(any(feature = "kmsdrm", feature = "wayland"))]
+            _ => false,
+        }
+    }
+
+    #[inline]
+    pub fn is_drm(&self) -> bool {
+        match *self {
+            #[cfg(feature = "kmsdrm")]
+            EventLoopWindowTarget::Drm(_) => true,
+            #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => false,
         }
     }
@@ -764,6 +906,12 @@ impl<T> EventLoopWindowTarget<T> {
                 .into_iter()
                 .map(MonitorHandle::X)
                 .collect(),
+            #[cfg(feature = "kmsdrm")]
+            EventLoopWindowTarget::Drm(ref evlp) => evlp
+                .available_monitors()
+                .into_iter()
+                .map(MonitorHandle::Drm)
+                .collect(),
         }
     }
 
@@ -779,6 +927,8 @@ impl<T> EventLoopWindowTarget<T> {
                     inner: primary_monitor,
                 })
             }
+            #[cfg(feature = "kmsdrm")]
+            EventLoopWindowTarget::Drm(ref evlp) => evlp.primary_monitor(),
         }
     }
 }

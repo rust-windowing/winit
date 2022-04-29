@@ -42,6 +42,9 @@ pub trait EventLoopWindowTargetExtUnix {
     #[cfg(feature = "x11")]
     fn is_x11(&self) -> bool;
 
+    #[cfg(feature = "kmsdrm")]
+    fn is_drm(&self) -> bool;
+
     #[doc(hidden)]
     #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
@@ -54,6 +57,23 @@ pub trait EventLoopWindowTargetExtUnix {
     /// The pointer will become invalid when the winit `EventLoop` is destroyed.
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
+
+    /// Returns the gbm device of the event loop's fd
+    ///
+    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_device(
+        &self,
+    ) -> Option<
+        &parking_lot::Mutex<
+            crate::platform_impl::AssertSync<
+                Result<
+                    std::sync::Arc<gbm::Device<crate::platform_impl::drm::Card>>,
+                    std::io::Error,
+                >,
+            >,
+        >,
+    >;
 }
 
 impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
@@ -66,7 +86,13 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[inline]
     #[cfg(feature = "x11")]
     fn is_x11(&self) -> bool {
-        !self.p.is_wayland()
+        self.p.is_x11()
+    }
+
+    #[inline]
+    #[cfg(feature = "kmsdrm")]
+    fn is_drm(&self) -> bool {
+        self.p.is_drm()
     }
 
     #[inline]
@@ -75,7 +101,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.p {
             LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
-            #[cfg(feature = "wayland")]
+            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
             _ => None,
         }
     }
@@ -87,7 +113,30 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
                 Some(p.display().get_display_ptr() as *mut _)
             }
-            #[cfg(feature = "x11")]
+            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            _ => None,
+        }
+    }
+
+    #[inline]
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_device(
+        &self,
+    ) -> Option<
+        &parking_lot::Mutex<
+            crate::platform_impl::AssertSync<
+                Result<
+                    std::sync::Arc<gbm::Device<crate::platform_impl::drm::Card>>,
+                    std::io::Error,
+                >,
+            >,
+        >,
+    > {
+        use crate::platform_impl::GBM_DEVICE;
+
+        match self.p {
+            crate::platform_impl::EventLoopWindowTarget::Drm(_) => Some(&*GBM_DEVICE),
+            #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
     }
@@ -102,6 +151,10 @@ pub trait EventLoopBuilderExtUnix {
     /// Force using Wayland.
     #[cfg(feature = "wayland")]
     fn with_wayland(&mut self) -> &mut Self;
+
+    /// Force using kmsdrm
+    #[cfg(feature = "kmsdrm")]
+    fn with_drm(&mut self) -> &mut Self;
 
     /// Whether to allow the event loop to be created off of the main thread.
     ///
@@ -122,6 +175,13 @@ impl<T> EventLoopBuilderExtUnix for EventLoopBuilder<T> {
     #[cfg(feature = "wayland")]
     fn with_wayland(&mut self) -> &mut Self {
         self.platform_specific.forced_backend = Some(Backend::Wayland);
+        self
+    }
+
+    #[inline]
+    #[cfg(feature = "kmsdrm")]
+    fn with_drm(&mut self) -> &mut Self {
+        self.platform_specific.forced_backend = Some(Backend::Drm);
         self
     }
 
@@ -179,6 +239,16 @@ pub trait WindowExtUnix {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
+    /*
+    /// Returns the gbm device that is used by this window.
+    ///
+    /// Returns `None` if the window doesn't use kmsdrm (if it uses wayland for example).
+    ///
+    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_device(&self) -> Option<&gbm::Device<crate::platform_impl::drm::Card>>;
+    */
+
     /// Check if the window is ready for drawing
     ///
     /// It is a remnant of a previous implementation detail for the
@@ -195,7 +265,7 @@ impl WindowExtUnix for Window {
     fn xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_window()),
-            #[cfg(feature = "wayland")]
+            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
             _ => None,
         }
     }
@@ -205,7 +275,7 @@ impl WindowExtUnix for Window {
     fn xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_display()),
-            #[cfg(feature = "wayland")]
+            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
             _ => None,
         }
     }
@@ -215,7 +285,7 @@ impl WindowExtUnix for Window {
     fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            #[cfg(feature = "wayland")]
+            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
             _ => None,
         }
     }
@@ -226,7 +296,7 @@ impl WindowExtUnix for Window {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
-            #[cfg(feature = "wayland")]
+            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
             _ => None,
         }
     }
@@ -236,7 +306,7 @@ impl WindowExtUnix for Window {
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xcb_connection()),
-            #[cfg(feature = "wayland")]
+            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
             _ => None,
         }
     }
@@ -246,7 +316,7 @@ impl WindowExtUnix for Window {
     fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
-            #[cfg(feature = "x11")]
+            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
             _ => None,
         }
     }
@@ -256,7 +326,7 @@ impl WindowExtUnix for Window {
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
-            #[cfg(feature = "x11")]
+            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
             _ => None,
         }
     }

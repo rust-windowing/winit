@@ -10,8 +10,8 @@ use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
 
+use calloop::LoopHandle;
 use sctk::environment::Environment;
-use sctk::reexports::calloop::LoopHandle;
 use sctk::seat::pointer::ThemeManager;
 use sctk::seat::{SeatData, SeatListener};
 
