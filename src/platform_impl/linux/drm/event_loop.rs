@@ -556,16 +556,7 @@ impl EventSource for LibinputInputBackend {
 
 /// An event loop's sink to deliver events from the Wayland event callbacks
 /// to the winit's user.
-#[derive(Default)]
-pub struct EventSink {
-    pub window_events: Vec<crate::event::Event<'static, ()>>,
-}
-
-impl EventSink {
-    pub fn new() -> Self {
-        Default::default()
-    }
-}
+type EventSink = Vec<crate::event::Event<'static, ()>>;
 
 pub struct EventLoopWindowTarget<T> {
     /// gbm Connector
@@ -718,12 +709,11 @@ impl<T: 'static> EventLoop<T> {
                     .insert_source(
                         event_loop_awakener_source,
                         move |_event, _metadata, data| {
-                            data.window_events
-                                .push(crate::event::Event::RedrawRequested(
-                                    crate::window::WindowId(crate::platform_impl::WindowId::Drm(
-                                        super::WindowId,
-                                    )),
-                                ));
+                            data.push(crate::event::Event::RedrawRequested(
+                                crate::window::WindowId(crate::platform_impl::WindowId::Drm(
+                                    super::WindowId,
+                                )),
+                            ));
                         },
                     )
                     .unwrap();
@@ -735,7 +725,7 @@ impl<T: 'static> EventLoop<T> {
                     calloop::Dispatcher::new(
                         input_backend,
                         move |event, _metadata, data: &mut EventSink| {
-                            data.window_events.push(event);
+                            data.push(event);
                         },
                     );
 
@@ -877,7 +867,7 @@ impl<T: 'static> EventLoop<T> {
             // we're doing callback to the user, since we can double borrow if the user decides
             // to create a window in one of those callbacks.
             self.with_window_target(|window_target| {
-                let state = &mut window_target.event_sink.window_events;
+                let state = &mut window_target.event_sink;
                 std::mem::swap::<Vec<crate::event::Event<'static, ()>>>(
                     &mut event_sink_back_buffer,
                     state,
