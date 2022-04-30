@@ -1,7 +1,5 @@
 use std::{
-    ffi::OsString,
     mem::{self, size_of},
-    os::windows::prelude::OsStringExt,
     ptr,
 };
 
@@ -129,7 +127,7 @@ pub fn get_raw_input_device_name(handle: HANDLE) -> Option<String> {
 
     unsafe { name.set_len(minimum_size as _) };
 
-    OsString::from_wide(&name).into_string().ok()
+    util::decode_wide(&name).into_string().ok()
 }
 
 pub fn register_raw_input_devices(devices: &[RAWINPUTDEVICE]) -> bool {
