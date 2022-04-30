@@ -56,17 +56,17 @@ use windows_sys::Win32::{
             GIDC_ARRIVAL, GIDC_REMOVAL, GWL_EXSTYLE, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT,
             MAPVK_VK_TO_VSC, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE, PM_NOREMOVE, PM_QS_PAINT,
             PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL,
-            SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER,
-            WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DESTROY,
-            WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
-            WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
-            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
-            WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
-            WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR,
-            WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN,
-            WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN,
-            WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-            WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+            SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+            SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE,
+            WM_DESTROY, WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
+            WM_GETMINMAXINFO, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS,
+            WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL,
+            WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT,
+            WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP,
+            WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND,
+            WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
+            WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+            WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
         },
     },
 };
@@ -980,35 +980,68 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     right: window_pos.x + window_pos.cx,
                     bottom: window_pos.y + window_pos.cy,
                 };
-                let new_monitor = MonitorFromRect(&new_rect, MONITOR_DEFAULTTONULL);
-                match fullscreen {
-                    Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        if new_monitor != 0
-                            && fullscreen_monitor
-                                .as_ref()
-                                .map(|monitor| new_monitor != monitor.inner.hmonitor())
-                                .unwrap_or(true)
-                        {
-                            if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
-                                let new_monitor_rect = new_monitor_info.monitorInfo.rcMonitor;
-                                window_pos.x = new_monitor_rect.left;
-                                window_pos.y = new_monitor_rect.top;
-                                window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
-                                window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
-                            }
-                            *fullscreen_monitor = Some(crate::monitor::MonitorHandle {
-                                inner: MonitorHandle::new(new_monitor),
-                            });
-                        }
+
+                const NOMOVE_OR_NOSIZE: u32 = SWP_NOMOVE | SWP_NOSIZE;
+
+                let new_rect = if window_pos.flags & NOMOVE_OR_NOSIZE != 0 {
+                    let cur_rect = util::get_window_rect(window)
+                        .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit");
+
+                    match window_pos.flags & NOMOVE_OR_NOSIZE {
+                        NOMOVE_OR_NOSIZE => None,
+
+                        SWP_NOMOVE => Some(RECT {
+                            left: cur_rect.left,
+                            top: cur_rect.top,
+                            right: cur_rect.left + window_pos.cx,
+                            bottom: cur_rect.top + window_pos.cy,
+                        }),
+
+                        SWP_NOSIZE => Some(RECT {
+                            left: window_pos.x,
+                            top: window_pos.y,
+                            right: window_pos.x - cur_rect.left + cur_rect.right,
+                            bottom: window_pos.y - cur_rect.top + cur_rect.bottom,
+                        }),
+
+                        _ => unreachable!(),
                     }
-                    Fullscreen::Exclusive(ref video_mode) => {
-                        let old_monitor = video_mode.video_mode.monitor.hmonitor();
-                        if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
-                            let old_monitor_rect = old_monitor_info.monitorInfo.rcMonitor;
-                            window_pos.x = old_monitor_rect.left;
-                            window_pos.y = old_monitor_rect.top;
-                            window_pos.cx = old_monitor_rect.right - old_monitor_rect.left;
-                            window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
+                } else {
+                    Some(new_rect)
+                };
+
+                if let Some(new_rect) = new_rect {
+                    let new_monitor = MonitorFromRect(&new_rect, MONITOR_DEFAULTTONULL);
+                    match fullscreen {
+                        Fullscreen::Borderless(ref mut fullscreen_monitor) => {
+                            if new_monitor != 0
+                                && fullscreen_monitor
+                                    .as_ref()
+                                    .map(|monitor| new_monitor != monitor.inner.hmonitor())
+                                    .unwrap_or(true)
+                            {
+                                if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor)
+                                {
+                                    let new_monitor_rect = new_monitor_info.monitorInfo.rcMonitor;
+                                    window_pos.x = new_monitor_rect.left;
+                                    window_pos.y = new_monitor_rect.top;
+                                    window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
+                                    window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
+                                }
+                                *fullscreen_monitor = Some(crate::monitor::MonitorHandle {
+                                    inner: MonitorHandle::new(new_monitor),
+                                });
+                            }
+                        }
+                        Fullscreen::Exclusive(ref video_mode) => {
+                            let old_monitor = video_mode.video_mode.monitor.hmonitor();
+                            if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
+                                let old_monitor_rect = old_monitor_info.monitorInfo.rcMonitor;
+                                window_pos.x = old_monitor_rect.left;
+                                window_pos.y = old_monitor_rect.top;
+                                window_pos.cx = old_monitor_rect.right - old_monitor_rect.left;
+                                window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
+                            }
                         }
                     }
                 }
