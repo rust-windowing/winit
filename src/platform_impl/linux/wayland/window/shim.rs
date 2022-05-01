@@ -20,7 +20,7 @@ use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
-use crate::window::{CursorIcon, UserAttentionType};
+use crate::window::{CursorIcon, Theme, UserAttentionType};
 
 /// A request to SCTK window from Winit window.
 #[derive(Debug, Clone)]
@@ -55,7 +55,7 @@ pub enum WindowRequest {
     Decorate(bool),
 
     /// Request decorations change.
-    CsdConfig(FrameConfig),
+    CsdThemeVariant(Theme),
 
     /// Make the window resizeable.
     Resizeable(bool),
@@ -422,7 +422,11 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
-                WindowRequest::CsdConfig(config) => {
+                WindowRequest::CsdThemeVariant(theme) => {
+                    let config = match theme {
+                        Theme::Light => FrameConfig::light(),
+                        Theme::Dark => FrameConfig::dark(),
+                    };
                     window_handle.window.set_frame_config(config);
 
                     let window_update = window_updates.get_mut(window_id).unwrap();

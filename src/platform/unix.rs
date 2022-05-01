@@ -33,7 +33,7 @@ pub use crate::platform_impl::x11;
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
 #[cfg(feature = "wayland")]
-pub use sctk_adwaita::FrameConfig;
+pub use crate::window::Theme;
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
@@ -182,11 +182,9 @@ pub trait WindowExtUnix {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
-    /// Updates FrameConfig of a window.
-    ///
-    /// Usually used to switch a theme.
+    /// Updates [`Theme`] of window decorations.
     #[cfg(feature = "wayland")]
-    fn wayland_set_csd_config(&self, config: FrameConfig);
+    fn wayland_set_csd_theme(&self, config: Theme);
 
     /// Check if the window is ready for drawing
     ///
@@ -272,9 +270,9 @@ impl WindowExtUnix for Window {
 
     #[inline]
     #[cfg(feature = "wayland")]
-    fn wayland_set_csd_config(&self, config: FrameConfig) {
+    fn wayland_set_csd_theme(&self, theme: Theme) {
         match self.window {
-            LinuxWindow::Wayland(ref w) => w.set_csd_config(config),
+            LinuxWindow::Wayland(ref w) => w.set_csd_theme(theme),
             #[cfg(feature = "x11")]
             _ => {}
         }
@@ -318,9 +316,9 @@ pub trait WindowBuilderExtUnix {
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(self, variant: String) -> Self;
 
-    /// Build window with certain FrameConfig (aka Theme)
+    /// Build window with certain decoration [`Theme`]
     #[cfg(feature = "wayland")]
-    fn with_wayland_csd_config(self, config: FrameConfig) -> Self;
+    fn with_wayland_csd_theme(self, theme: Theme) -> Self;
 
     /// Build window with resize increment hint. Only implemented on X11.
     ///
@@ -400,8 +398,8 @@ impl WindowBuilderExtUnix for WindowBuilder {
 
     #[inline]
     #[cfg(feature = "wayland")]
-    fn with_wayland_csd_config(mut self, config: FrameConfig) -> Self {
-        self.platform_specific.csd_config = Some(config);
+    fn with_wayland_csd_theme(mut self, theme: Theme) -> Self {
+        self.platform_specific.csd_theme = Some(theme);
         self
     }
 

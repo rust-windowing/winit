@@ -18,7 +18,7 @@ use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes};
+use crate::window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -141,7 +141,11 @@ impl Window {
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
 
         // Set CSD frame config
-        if let Some(config) = platform_attributes.csd_config {
+        if let Some(theme) = platform_attributes.csd_theme {
+            let config = match theme {
+                Theme::Light => FrameConfig::light(),
+                Theme::Dark => FrameConfig::dark(),
+            };
             window.set_frame_config(config);
         }
 
@@ -387,8 +391,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_csd_config(&self, config: FrameConfig) {
-        self.send_request(WindowRequest::CsdConfig(config));
+    pub fn set_csd_theme(&self, theme: Theme) {
+        self.send_request(WindowRequest::CsdThemeVariant(theme));
     }
 
     #[inline]
