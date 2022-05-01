@@ -42,6 +42,7 @@ pub(super) fn handle_pointer(
             ..
         } => {
             pointer_data.latest_serial.replace(serial);
+            pointer_data.latest_enter_serial.replace(serial);
 
             let window_id = wayland::make_wid(&surface);
             if !winit_state.window_map.contains_key(&window_id) {
@@ -61,6 +62,7 @@ pub(super) fn handle_pointer(
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
+                latest_enter_serial: pointer_data.latest_enter_serial.clone(),
                 seat,
             };
             window_handle.pointer_entered(winit_pointer);
@@ -104,6 +106,7 @@ pub(super) fn handle_pointer(
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
+                latest_enter_serial: pointer_data.latest_enter_serial.clone(),
                 seat,
             };
             window_handle.pointer_left(winit_pointer);
