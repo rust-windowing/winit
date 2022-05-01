@@ -13,7 +13,8 @@ use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_p
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
 
 use sctk::seat::pointer::{ThemeManager, ThemedPointer};
-use sctk::window::{FallbackFrame, Window};
+use sctk::window::Window;
+use sctk_adwaita::AdwaitaFrame;
 
 use crate::event::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;

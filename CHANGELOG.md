@@ -39,6 +39,7 @@ And please only add new entries to the top of this list, right below the `# Unre
   sent a cancel or frame event.
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
 - **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
+- On Wayland, fallback CSD was replaced with proper one.
 - On Wayland and X11, fix window not resizing with `Window::set_inner_size` after calling `Window:set_resizable(false)`.
 - On Windows, fix wrong fullscreen monitors being recognized when handling WM_WINDOWPOSCHANGING messages
 

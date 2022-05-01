@@ -8,7 +8,8 @@ use sctk::reexports::client::Display;
 use sctk::reexports::calloop;
 
 use raw_window_handle::WaylandHandle;
-use sctk::window::{Decorations, FallbackFrame};
+use sctk::window::Decorations;
+use sctk_adwaita::AdwaitaFrame;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -105,7 +106,7 @@ impl Window {
         let theme_manager = event_loop_window_target.theme_manager.clone();
         let mut window = event_loop_window_target
             .env
-            .create_window::<FallbackFrame, _>(
+            .create_window::<AdwaitaFrame, _>(
                 surface.clone(),
                 Some(theme_manager),
                 (width, height),

@@ -8,7 +8,8 @@ use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activat
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_v1::XdgActivationV1;
 
 use sctk::environment::Environment;
-use sctk::window::{Decorations, FallbackFrame, Window};
+use sctk::window::{Decorations, Window};
+use sctk_adwaita::AdwaitaFrame;
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
@@ -143,7 +144,7 @@ impl WindowUpdate {
 /// and react to events.
 pub struct WindowHandle {
     /// An actual window.
-    pub window: Window<FallbackFrame>,
+    pub window: Window<AdwaitaFrame>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -182,7 +183,7 @@ pub struct WindowHandle {
 impl WindowHandle {
     pub fn new(
         env: &Environment<WinitEnv>,
-        window: Window<FallbackFrame>,
+        window: Window<AdwaitaFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
