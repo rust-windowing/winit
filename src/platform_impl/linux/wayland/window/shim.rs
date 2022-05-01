@@ -9,7 +9,7 @@ use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activat
 
 use sctk::environment::Environment;
 use sctk::window::{Decorations, Window};
-use sctk_adwaita::AdwaitaFrame;
+use sctk_adwaita::{AdwaitaFrame, FrameConfig};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
@@ -53,6 +53,9 @@ pub enum WindowRequest {
 
     /// Request decorations change.
     Decorate(bool),
+
+    /// Request decorations change.
+    CsdConfig(FrameConfig),
 
     /// Make the window resizeable.
     Resizeable(bool),
@@ -416,6 +419,12 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.window.set_decorate(decorations);
 
                     // We should refresh the frame to apply decorations change.
+                    let window_update = window_updates.get_mut(window_id).unwrap();
+                    window_update.refresh_frame = true;
+                }
+                WindowRequest::CsdConfig(config) => {
+                    window_handle.window.set_frame_config(config);
+
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }

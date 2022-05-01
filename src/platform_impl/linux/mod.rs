@@ -10,7 +10,10 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 #[cfg(feature = "wayland")]
+use sctk_adwaita::FrameConfig;
+#[cfg(feature = "wayland")]
 use std::error::Error;
+
 use std::{collections::VecDeque, env, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
@@ -101,6 +104,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11_window_types: Vec<XWindowType>,
     #[cfg(feature = "x11")]
     pub gtk_theme_variant: Option<String>,
+    #[cfg(feature = "wayland")]
+    pub csd_config: Option<FrameConfig>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -121,6 +126,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             x11_window_types: vec![XWindowType::Normal],
             #[cfg(feature = "x11")]
             gtk_theme_variant: None,
+            #[cfg(feature = "wayland")]
+            csd_config: None,
         }
     }
 }

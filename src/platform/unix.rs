@@ -32,6 +32,9 @@ pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
+#[cfg(feature = "wayland")]
+pub use sctk_adwaita::FrameConfig;
+
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
     /// True if the `EventLoopWindowTarget` uses Wayland.
@@ -179,6 +182,12 @@ pub trait WindowExtUnix {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
+    /// Updates FrameConfig of a window.
+    ///
+    /// Usually used to switch a theme.
+    #[cfg(feature = "wayland")]
+    fn wayland_set_csd_config(&self, config: FrameConfig);
+
     /// Check if the window is ready for drawing
     ///
     /// It is a remnant of a previous implementation detail for the
@@ -262,6 +271,16 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
+    fn wayland_set_csd_config(&self, config: FrameConfig) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_csd_config(config),
+            #[cfg(feature = "x11")]
+            _ => {}
+        }
+    }
+
+    #[inline]
     fn is_ready(&self) -> bool {
         true
     }
@@ -298,6 +317,10 @@ pub trait WindowBuilderExtUnix {
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(self, variant: String) -> Self;
+
+    /// Build window with certain FrameConfig (aka Theme)
+    #[cfg(feature = "wayland")]
+    fn with_wayland_csd_config(self, config: FrameConfig) -> Self;
 
     /// Build window with resize increment hint. Only implemented on X11.
     ///
@@ -372,6 +395,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(mut self, variant: String) -> Self {
         self.platform_specific.gtk_theme_variant = Some(variant);
+        self
+    }
+
+    #[inline]
+    #[cfg(feature = "wayland")]
+    fn with_wayland_csd_config(mut self, config: FrameConfig) -> Self {
+        self.platform_specific.csd_config = Some(config);
         self
     }
 

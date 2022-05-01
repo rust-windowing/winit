@@ -9,7 +9,7 @@ use sctk::reexports::calloop;
 
 use raw_window_handle::WaylandHandle;
 use sctk::window::Decorations;
-use sctk_adwaita::AdwaitaFrame;
+use sctk_adwaita::{AdwaitaFrame, FrameConfig};
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -139,6 +139,11 @@ impl Window {
                 },
             )
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
+
+        // Set CSD frame config
+        if let Some(config) = platform_attributes.csd_config {
+            window.set_frame_config(config);
+        }
 
         // Set decorations.
         if attributes.decorations {
@@ -379,6 +384,11 @@ impl Window {
     #[inline]
     pub fn is_decorated(&self) -> bool {
         self.decorated.load(Ordering::Relaxed)
+    }
+
+    #[inline]
+    pub fn set_csd_config(&self, config: FrameConfig) {
+        self.send_request(WindowRequest::CsdConfig(config));
     }
 
     #[inline]
