@@ -9,7 +9,6 @@ use sctk::reexports::calloop;
 
 use raw_window_handle::WaylandHandle;
 use sctk::window::Decorations;
-use sctk_adwaita::{AdwaitaFrame, FrameConfig};
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -28,6 +27,11 @@ use super::{EventLoopWindowTarget, WindowId};
 pub mod shim;
 
 use shim::{WindowHandle, WindowRequest, WindowUpdate};
+
+#[cfg(feature = "sctk-adwaita")]
+pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
+#[cfg(not(feature = "sctk-adwaita"))]
+pub type WinitFrame = sctk::window::FallbackFrame;
 
 pub struct Window {
     /// Window id.
@@ -106,7 +110,7 @@ impl Window {
         let theme_manager = event_loop_window_target.theme_manager.clone();
         let mut window = event_loop_window_target
             .env
-            .create_window::<AdwaitaFrame, _>(
+            .create_window::<WinitFrame, _>(
                 surface.clone(),
                 Some(theme_manager),
                 (width, height),
@@ -141,7 +145,10 @@ impl Window {
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
 
         // Set CSD frame config
+        #[cfg(feature = "sctk-adwaita")]
         if let Some(theme) = platform_attributes.csd_theme {
+            use sctk_adwaita::FrameConfig;
+
             let config = match theme {
                 Theme::Light => FrameConfig::light(),
                 Theme::Dark => FrameConfig::dark(),

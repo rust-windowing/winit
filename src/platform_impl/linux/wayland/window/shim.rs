@@ -9,7 +9,6 @@ use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activat
 
 use sctk::environment::Environment;
 use sctk::window::{Decorations, Window};
-use sctk_adwaita::{AdwaitaFrame, FrameConfig};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
@@ -21,6 +20,8 @@ use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
 use crate::window::{CursorIcon, Theme, UserAttentionType};
+
+use super::WinitFrame;
 
 /// A request to SCTK window from Winit window.
 #[derive(Debug, Clone)]
@@ -147,7 +148,7 @@ impl WindowUpdate {
 /// and react to events.
 pub struct WindowHandle {
     /// An actual window.
-    pub window: Window<AdwaitaFrame>,
+    pub window: Window<WinitFrame>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -186,7 +187,7 @@ pub struct WindowHandle {
 impl WindowHandle {
     pub fn new(
         env: &Environment<WinitEnv>,
-        window: Window<AdwaitaFrame>,
+        window: Window<WinitFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
@@ -423,14 +424,21 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_update.refresh_frame = true;
                 }
                 WindowRequest::CsdThemeVariant(theme) => {
-                    let config = match theme {
-                        Theme::Light => FrameConfig::light(),
-                        Theme::Dark => FrameConfig::dark(),
-                    };
-                    window_handle.window.set_frame_config(config);
+                    #[cfg(feature = "sctk-adwaita")]
+                    {
+                        use sctk_adwaita::FrameConfig;
 
-                    let window_update = window_updates.get_mut(window_id).unwrap();
-                    window_update.refresh_frame = true;
+                        let config = match theme {
+                            Theme::Light => FrameConfig::light(),
+                            Theme::Dark => FrameConfig::dark(),
+                        };
+                        window_handle.window.set_frame_config(config);
+
+                        let window_update = window_updates.get_mut(window_id).unwrap();
+                        window_update.refresh_frame = true;
+                    }
+                    #[cfg(not(feature = "sctk-adwaita"))]
+                    let _ = theme;
                 }
                 WindowRequest::Resizeable(resizeable) => {
                     window_handle.window.set_resizable(resizeable);

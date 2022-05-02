@@ -17,10 +17,11 @@ default-target = "x86_64-unknown-linux-gnu"
 targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
 
 [features]
-default = ["x11", "wayland", "wayland-dlopen"]
+default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 x11 = ["x11-dl", "mio", "percent-encoding", "parking_lot"]
-wayland = ["wayland-client", "wayland-protocols", "sctk", "sctk-adwaita"]
+wayland = ["wayland-client", "wayland-protocols", "sctk"]
 wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
+wayland-csd-adwaita = ["sctk-adwaita"]
 
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
