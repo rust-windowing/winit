@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, os::unix::prelude::AsRawFd};
 
-use drm::control::{atomic, property, AtomicCommitFlags, Device, ModeTypeFlags};
+use drm::control::{atomic, property, AtomicCommitFlags, Device};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -85,12 +85,6 @@ impl Window {
                 },
             )?,
             property::Value::Boolean(true),
-        );
-        atomic_req.add_property(
-            event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "FB_ID")
-                .expect("Could not get FB_ID"),
-            property::Value::Framebuffer(Some(event_loop_window_target.cursor_buffer)),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,

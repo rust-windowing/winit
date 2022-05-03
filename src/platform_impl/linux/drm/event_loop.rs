@@ -58,8 +58,8 @@ pub struct LibinputInputBackend {
     screen_size: (u32, u32),
     modifiers: ModifiersState,
     cursor_positon: PhysicalPosition<f64>,
-    cursor_plane: drm::control::plane::Handle,
-    cursor_buffer: drm::control::framebuffer::Handle,
+    // cursor_plane: drm::control::plane::Handle,
+    // cursor_buffer: drm::control::framebuffer::Handle,
 }
 
 impl LibinputInputBackend {
@@ -68,8 +68,8 @@ impl LibinputInputBackend {
     pub fn new(
         context: input::Libinput,
         screen_size: (u32, u32),
-        cursor_plane: drm::control::plane::Handle,
-        cursor_buffer: drm::control::framebuffer::Handle,
+        // cursor_plane: drm::control::plane::Handle,
+        // cursor_buffer: drm::control::framebuffer::Handle,
     ) -> Self {
         LibinputInputBackend {
             context,
@@ -78,8 +78,8 @@ impl LibinputInputBackend {
             cursor_positon: PhysicalPosition::new(0.0, 0.0),
             modifiers: ModifiersState::empty(),
             screen_size,
-            cursor_buffer,
-            cursor_plane,
+            // cursor_buffer,
+            // cursor_plane,
         }
     }
 }
@@ -590,9 +590,8 @@ pub struct EventLoopWindowTarget<T> {
     /// drm plane
     pub plane: drm::control::plane::Handle,
 
-    /// drm dumbbuffer containing the cursor
-    pub cursor_buffer: drm::control::framebuffer::Handle,
-
+    // /// drm dumbbuffer containing the cursor
+    // pub cursor_buffer: drm::control::framebuffer::Handle,
     /// drm device
     pub device: Card,
 
@@ -732,6 +731,13 @@ impl<T: 'static> EventLoop<T> {
             crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
         ))?;
 
+        let planes = drm.plane_handles().or(Err(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("Could not list planes"),
+        )))?;
+
+        /*
         let mut db = drm
             .create_dumb_buffer((64, 64), drm::buffer::DrmFourcc::Xrgb8888, 32)
             .or(Err(crate::error::OsError::new(
@@ -757,12 +763,7 @@ impl<T: 'static> EventLoop<T> {
                 crate::platform_impl::OsError::DrmMisc("Could not create FB"),
             )))?;
 
-        let planes = drm.plane_handles().or(Err(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::DrmMisc("Could not list planes"),
-        )))?;
-        let (better_planes, compatible_planes): (
+                let (better_planes, compatible_planes): (
             Vec<drm::control::plane::Handle>,
             Vec<drm::control::plane::Handle>,
         ) = planes
@@ -790,10 +791,11 @@ impl<T: 'static> EventLoop<T> {
                 false
             });
         let plane = *better_planes.get(0).unwrap_or(&compatible_planes[0]);
+        */
         let (p_better_planes, p_compatible_planes): (
             Vec<drm::control::plane::Handle>,
             Vec<drm::control::plane::Handle>,
-        ) = compatible_planes.iter().partition(|&&plane| {
+        ) = planes.planes().iter().partition(|&&plane| {
             if let Ok(props) = drm.get_properties(plane) {
                 let (ids, vals) = props.as_props_and_values();
                 for (&id, &val) in ids.iter().zip(vals.iter()) {
@@ -860,8 +862,10 @@ impl<T: 'static> EventLoop<T> {
             )
             .unwrap();
 
-        let input_backend: LibinputInputBackend =
-            LibinputInputBackend::new(input, (disp_width.into(), disp_height.into()), plane, fb);
+        let input_backend: LibinputInputBackend = LibinputInputBackend::new(
+            input,
+            (disp_width.into(), disp_height.into()), // plane, fb
+        );
 
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
             calloop::Dispatcher::new(
@@ -879,7 +883,7 @@ impl<T: 'static> EventLoop<T> {
                 crtc: crtc.clone(),
                 device: drm,
                 plane: p_plane,
-                cursor_buffer: fb,
+                // cursor_buffer: fb,
                 mode,
                 event_loop_handle: handle,
                 event_sink,
