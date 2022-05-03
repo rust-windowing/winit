@@ -38,7 +38,7 @@ use crate::{
 };
 
 #[cfg(feature = "kmsdrm")]
-use crate::platform::unix::{AssertSync, Card};
+use crate::platform::unix::Card;
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 
@@ -144,8 +144,8 @@ lazy_static! {
 
 #[cfg(feature = "kmsdrm")]
 lazy_static! {
-    pub static ref DRM_DEVICE: AssertSync<Result<Card, std::io::Error>> =
-        AssertSync(Card::open_global());
+    pub static ref DRM_DEVICE: Mutex<Result<Arc<Card>, std::io::Error>> =
+        Mutex::new(Card::open_global().map(Arc::new));
 }
 
 #[derive(Debug, Clone)]

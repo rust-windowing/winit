@@ -5,6 +5,7 @@ use drm::control::{atomic, property, AtomicCommitFlags, Device, ModeTypeFlags};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError},
+    platform::unix::Card,
     platform_impl::DRM_DEVICE,
     window::{CursorIcon, Fullscreen},
 };
@@ -15,6 +16,7 @@ pub struct Window(
     drm::control::Mode,
     drm::control::connector::Info,
     calloop::ping::Ping,
+    std::sync::Arc<Card>,
 );
 
 impl Window {
@@ -23,13 +25,17 @@ impl Window {
         _attributes: crate::window::WindowAttributes,
         _platform_attributes: crate::platform_impl::PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, crate::error::OsError> {
-        let drm = DRM_DEVICE.as_ref().map_err(|_| {
-            crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("GBM is not initialized"),
-            )
-        })?;
+        let drm = DRM_DEVICE
+            .lock()
+            .as_ref()
+            .map_err(|_| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("GBM is not initialized"),
+                )
+            })?
+            .clone();
         let &mode = event_loop_window_target
             .connector
             .modes()
@@ -105,6 +111,7 @@ impl Window {
             mode,
             event_loop_window_target.connector.clone(),
             event_loop_window_target.event_loop_awakener.clone(),
+            drm,
         ))
     }
     #[inline]
@@ -276,22 +283,19 @@ impl Window {
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        if let Ok(drm) = DRM_DEVICE.as_ref() {
-            drm.resource_handles()
-                .unwrap()
-                .connectors()
-                .iter()
-                .map(|f| super::MonitorHandle(drm.get_connector(*f).unwrap()))
-                .collect()
-        } else {
-            VecDeque::new()
-        }
+        self.3
+            .resource_handles()
+            .unwrap()
+            .connectors()
+            .iter()
+            .map(|f| super::MonitorHandle(self.3.get_connector(*f).unwrap()))
+            .collect()
     }
 
     #[inline]
     pub fn raw_window_handle(&self) -> raw_window_handle::DrmHandle {
         let mut rwh = raw_window_handle::DrmHandle::empty();
-        rwh.fd = DRM_DEVICE.as_ref().unwrap().as_raw_fd();
+        rwh.fd = self.3.as_raw_fd();
         rwh
     }
 

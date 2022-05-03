@@ -569,6 +569,9 @@ pub struct EventLoopWindowTarget<T> {
     /// drm mode
     pub mode: drm::control::Mode,
 
+    /// drm device
+    pub device: std::sync::Arc<Card>,
+
     /// Event loop handle.
     pub event_loop_handle: calloop::LoopHandle<'static, EventSink>,
 
@@ -592,16 +595,13 @@ impl<T> EventLoopWindowTarget<T> {
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        if let Ok(drm) = DRM_DEVICE.as_ref() {
-            drm.resource_handles()
-                .unwrap()
-                .connectors()
-                .iter()
-                .map(|f| super::MonitorHandle(drm.get_connector(*f).unwrap()))
-                .collect()
-        } else {
-            VecDeque::new()
-        }
+        self.device
+            .resource_handles()
+            .unwrap()
+            .connectors()
+            .iter()
+            .map(|f| super::MonitorHandle(self.device.get_connector(*f).unwrap()))
+            .collect()
     }
 }
 
@@ -638,152 +638,154 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
-        match DRM_DEVICE.as_ref() {
-            Ok(drm) => {
-                drm::Device::set_client_capability(
-                    drm,
-                    drm::ClientCapability::UniversalPlanes,
-                    true,
+        let drm = DRM_DEVICE
+            .lock()
+            .as_ref()
+            .map_err(|_| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("KMS/DRM is not initialized"),
                 )
-                .or(Err(crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc(
-                        "kmsdrm device does not support universal planes",
-                    ),
-                )))?;
-                drm::Device::set_client_capability(drm, drm::ClientCapability::Atomic, true).or(
-                    Err(crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::DrmMisc(
-                            "kmsdrm device does not support atomic modesetting",
-                        ),
-                    )),
-                )?;
-
-                // Load the information.
-                let res = drm.resource_handles().or(Err(crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Could not load normal resource ids."),
-                )))?;
-                let coninfo: Vec<drm::control::connector::Info> = res
-                    .connectors()
-                    .iter()
-                    .flat_map(|con| drm.get_connector(*con))
-                    .collect();
-                let crtcinfo: Vec<drm::control::crtc::Info> = res
-                    .crtcs()
-                    .iter()
-                    .flat_map(|crtc| drm.get_crtc(*crtc))
-                    .collect();
-
-                let crtc = crtcinfo.get(0).ok_or(crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("No crtcs found"),
-                ))?;
-
-                // Filter each connector until we find one that's connected.
-                let con = coninfo
-                    .iter()
-                    .find(|&i| i.state() == drm::control::connector::State::Connected)
-                    .ok_or(crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::DrmMisc("No connected connectors"),
-                    ))?;
-
-                // Get the first (usually best) mode
-                let &mode = con.modes().get(0).ok_or(crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
-                ))?;
-
-                let (disp_width, disp_height) = mode.size();
-
-                let mut input = input::Libinput::new_with_udev(Interface);
-                input.udev_assign_seat("seat0").unwrap();
-                let event_loop: calloop::EventLoop<'static, EventSink> =
-                    calloop::EventLoop::try_new().unwrap();
-
-                let handle = event_loop.handle();
-
-                // A source of user events.
-                let pending_user_events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-                let pending_user_events_clone = pending_user_events.clone();
-                let (user_events_sender, user_events_channel) = calloop::channel::channel();
-
-                // User events channel.
-                handle
-                    .insert_source(user_events_channel, move |event, _, _| {
-                        if let calloop::channel::Event::Msg(msg) = event {
-                            pending_user_events_clone.borrow_mut().push(msg);
-                        }
-                    })
-                    .unwrap();
-
-                // An event's loop awakener to wake up for window events from winit's windows.
-                let (event_loop_awakener, event_loop_awakener_source) =
-                    calloop::ping::make_ping().unwrap();
-
-                let event_sink = EventSink::new();
-
-                // Handler of window requests.
-                handle
-                    .insert_source(
-                        event_loop_awakener_source,
-                        move |_event, _metadata, data| {
-                            data.push(crate::event::Event::RedrawRequested(
-                                crate::window::WindowId(crate::platform_impl::WindowId::Drm(
-                                    super::WindowId,
-                                )),
-                            ));
-                        },
-                    )
-                    .unwrap();
-
-                let input_backend: LibinputInputBackend =
-                    LibinputInputBackend::new(input, (disp_width.into(), disp_height.into()));
-
-                let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
-                    calloop::Dispatcher::new(
-                        input_backend,
-                        move |event, _metadata, data: &mut EventSink| {
-                            data.push(event);
-                        },
-                    );
-
-                handle.register_dispatcher(input_loop).unwrap();
-
-                let window_target = crate::event_loop::EventLoopWindowTarget {
-                    p: crate::platform_impl::EventLoopWindowTarget::Drm(EventLoopWindowTarget {
-                        connector: con.clone(),
-                        crtc: crtc.clone(),
-                        mode,
-                        event_loop_handle: handle,
-                        event_sink,
-                        event_loop_awakener,
-                        _marker: PhantomData,
-                    }),
-                    _marker: PhantomData,
-                };
-
-                Ok(EventLoop {
-                    event_loop,
-                    pending_user_events,
-                    user_events_sender,
-                    window_target,
-                })
-            }
-            Err(_) => Err(crate::error::OsError::new(
+            })?
+            .clone();
+        drm::Device::set_client_capability(
+            drm.as_ref(),
+            drm::ClientCapability::UniversalPlanes,
+            true,
+        )
+        .or(Err(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc(
+                "kmsdrm device does not support universal planes",
+            ),
+        )))?;
+        drm::Device::set_client_capability(drm.as_ref(), drm::ClientCapability::Atomic, true).or(
+            Err(crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::DrmMisc("drm failed to initialize"),
+                crate::platform_impl::OsError::DrmMisc(
+                    "kmsdrm device does not support atomic modesetting",
+                ),
             )),
-        }
+        )?;
+
+        // Load the information.
+        let res = drm.resource_handles().or(Err(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("Could not load normal resource ids."),
+        )))?;
+        let coninfo: Vec<drm::control::connector::Info> = res
+            .connectors()
+            .iter()
+            .flat_map(|con| drm.get_connector(*con))
+            .collect();
+        let crtcinfo: Vec<drm::control::crtc::Info> = res
+            .crtcs()
+            .iter()
+            .flat_map(|crtc| drm.get_crtc(*crtc))
+            .collect();
+
+        let crtc = crtcinfo.get(0).ok_or(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("No crtcs found"),
+        ))?;
+
+        // Filter each connector until we find one that's connected.
+        let con = coninfo
+            .iter()
+            .find(|&i| i.state() == drm::control::connector::State::Connected)
+            .ok_or(crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("No connected connectors"),
+            ))?;
+
+        // Get the first (usually best) mode
+        let &mode = con.modes().get(0).ok_or(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
+        ))?;
+
+        let (disp_width, disp_height) = mode.size();
+
+        let mut input = input::Libinput::new_with_udev(Interface);
+        input.udev_assign_seat("seat0").unwrap();
+        let event_loop: calloop::EventLoop<'static, EventSink> =
+            calloop::EventLoop::try_new().unwrap();
+
+        let handle = event_loop.handle();
+
+        // A source of user events.
+        let pending_user_events = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let pending_user_events_clone = pending_user_events.clone();
+        let (user_events_sender, user_events_channel) = calloop::channel::channel();
+
+        // User events channel.
+        handle
+            .insert_source(user_events_channel, move |event, _, _| {
+                if let calloop::channel::Event::Msg(msg) = event {
+                    pending_user_events_clone.borrow_mut().push(msg);
+                }
+            })
+            .unwrap();
+
+        // An event's loop awakener to wake up for window events from winit's windows.
+        let (event_loop_awakener, event_loop_awakener_source) = calloop::ping::make_ping().unwrap();
+
+        let event_sink = EventSink::new();
+
+        // Handler of window requests.
+        handle
+            .insert_source(
+                event_loop_awakener_source,
+                move |_event, _metadata, data| {
+                    data.push(crate::event::Event::RedrawRequested(
+                        crate::window::WindowId(crate::platform_impl::WindowId::Drm(
+                            super::WindowId,
+                        )),
+                    ));
+                },
+            )
+            .unwrap();
+
+        let input_backend: LibinputInputBackend =
+            LibinputInputBackend::new(input, (disp_width.into(), disp_height.into()));
+
+        let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
+            calloop::Dispatcher::new(
+                input_backend,
+                move |event, _metadata, data: &mut EventSink| {
+                    data.push(event);
+                },
+            );
+
+        handle.register_dispatcher(input_loop).unwrap();
+
+        let window_target = crate::event_loop::EventLoopWindowTarget {
+            p: crate::platform_impl::EventLoopWindowTarget::Drm(EventLoopWindowTarget {
+                connector: con.clone(),
+                crtc: crtc.clone(),
+                device: drm,
+                mode,
+                event_loop_handle: handle,
+                event_sink,
+                event_loop_awakener,
+                _marker: PhantomData,
+            }),
+            _marker: PhantomData,
+        };
+
+        Ok(EventLoop {
+            event_loop,
+            pending_user_events,
+            user_events_sender,
+            window_target,
+        })
     }
 
     pub fn run<F>(mut self, callback: F) -> !

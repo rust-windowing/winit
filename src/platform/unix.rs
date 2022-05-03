@@ -36,9 +36,9 @@ pub use crate::platform_impl::x11;
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
 #[cfg(feature = "kmsdrm")]
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 /// A simple wrapper for a device node.
-pub struct Card(Arc<std::fs::File>);
+pub struct Card(std::fs::File);
 
 #[cfg(feature = "kmsdrm")]
 /// Implementing `AsRawFd` is a prerequisite to implementing the traits found
@@ -62,42 +62,11 @@ impl Card {
         let mut options = std::fs::OpenOptions::new();
         options.read(true);
         options.write(true);
-        Ok(Card(Arc::new(options.open(path)?)))
+        Ok(Card(options.open(path)?))
     }
 
     pub fn open_global() -> Result<Self, std::io::Error> {
         Self::open("/dev/dri/card0")
-    }
-}
-
-#[cfg(feature = "kmsdrm")]
-#[derive(Debug)]
-#[repr(transparent)]
-pub struct AssertSync<T>(pub T);
-
-#[cfg(feature = "kmsdrm")]
-impl<T: Clone> Clone for AssertSync<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-#[cfg(feature = "kmsdrm")]
-unsafe impl<T> Sync for AssertSync<T> {}
-#[cfg(feature = "kmsdrm")]
-unsafe impl<T> Send for AssertSync<T> {}
-#[cfg(feature = "kmsdrm")]
-impl<T> std::ops::Deref for AssertSync<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-#[cfg(feature = "kmsdrm")]
-impl<T> std::ops::DerefMut for AssertSync<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
     }
 }
 
@@ -133,7 +102,7 @@ pub trait EventLoopWindowTargetExtUnix {
     #[cfg(feature = "kmsdrm")]
     fn drm_device(
         &self,
-    ) -> Option<&'static AssertSync<Result<crate::platform::unix::Card, std::io::Error>>>;
+    ) -> Option<&'static parking_lot::Mutex<Result<Arc<crate::platform::unix::Card>, std::io::Error>>>;
 
     /// Returns the current crtc of the drm device
     ///
@@ -200,7 +169,8 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[cfg(feature = "kmsdrm")]
     fn drm_device(
         &self,
-    ) -> Option<&'static AssertSync<Result<crate::platform::unix::Card, std::io::Error>>> {
+    ) -> Option<&'static parking_lot::Mutex<Result<Arc<crate::platform::unix::Card>, std::io::Error>>>
+    {
         use crate::platform_impl::DRM_DEVICE;
 
         match self.p {
