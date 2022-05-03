@@ -126,11 +126,7 @@ pub trait EventLoopWindowTargetExtUnix {
     #[cfg(feature = "kmsdrm")]
     fn gbm_device(
         &self,
-    ) -> Option<
-        &'static parking_lot::Mutex<
-            AssertSync<Result<gbm::Device<crate::platform::unix::Card>, std::io::Error>>,
-        >,
-    >;
+    ) -> Option<&'static AssertSync<Result<gbm::Device<crate::platform::unix::Card>, std::io::Error>>>;
 
     /// Returns the current crtc of the gbm device
     ///
@@ -197,11 +193,8 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[cfg(feature = "kmsdrm")]
     fn gbm_device(
         &self,
-    ) -> Option<
-        &'static parking_lot::Mutex<
-            AssertSync<Result<gbm::Device<crate::platform::unix::Card>, std::io::Error>>,
-        >,
-    > {
+    ) -> Option<&'static AssertSync<Result<gbm::Device<crate::platform::unix::Card>, std::io::Error>>>
+    {
         use crate::platform_impl::GBM_DEVICE;
 
         match self.p {

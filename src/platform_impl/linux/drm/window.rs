@@ -1,7 +1,6 @@
-use std::{collections::VecDeque, os::unix::prelude::AsRawFd};
+use std::collections::VecDeque;
 
 use drm::control::{atomic, property, AtomicCommitFlags, Device};
-use gbm::AsRaw;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -24,12 +23,11 @@ impl Window {
         _attributes: crate::window::WindowAttributes,
         _platform_attributes: crate::platform_impl::PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, crate::error::OsError> {
-        let gbm = GBM_DEVICE.lock();
-        let gbm = gbm.as_ref().map_err(|_| {
+        let gbm = GBM_DEVICE.as_ref().map_err(|_| {
             crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::DrmMisc("Failed to acquire gbm lock"),
+                crate::platform_impl::OsError::DrmMisc("GBM is not initialized"),
             )
         })?;
         let &mode = event_loop_window_target
@@ -276,7 +274,7 @@ impl Window {
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        if let Ok(gbm) = &**GBM_DEVICE.lock() {
+        if let Ok(gbm) = GBM_DEVICE.as_ref() {
             gbm.resource_handles()
                 .unwrap()
                 .connectors()

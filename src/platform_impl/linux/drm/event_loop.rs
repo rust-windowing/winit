@@ -592,7 +592,7 @@ impl<T> EventLoopWindowTarget<T> {
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        if let Ok(gbm) = &**GBM_DEVICE.lock() {
+        if let Ok(gbm) = GBM_DEVICE.as_ref() {
             gbm.resource_handles()
                 .unwrap()
                 .connectors()
@@ -638,7 +638,7 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
-        match GBM_DEVICE.lock().as_ref() {
+        match GBM_DEVICE.as_ref() {
             Ok(gbm) => {
                 drm::Device::set_client_capability(
                     gbm,
