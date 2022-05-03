@@ -517,8 +517,17 @@ impl EventSource for LibinputInputBackend {
                                         }
                                         callback(crate::event::Event::WindowEvent {
                                             window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                            event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                            event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
                                     }
+                                99 // SysRq
+                                   => {
+                                    if self.modifiers.is_empty() {
+                                        callback(crate::event::Event::WindowEvent {
+                                             window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                             event: crate::event::WindowEvent::CloseRequested
+                                        }, &mut ());
+                                    }
+                                   }
 
                                 k => {
                                     callback(crate::event::Event::WindowEvent {
