@@ -24,30 +24,30 @@ wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
 kmsdrm = ["drm", "gbm", "input", "calloop"]
 
 [dependencies]
-instant = { version = "0.1", features = ["wasm-bindgen"] }
-lazy_static = "1"
-log = "0.4"
-serde = { version = "1", optional = true, features = ["serde_derive"] }
-raw-window-handle = "0.4.2"
-bitflags = "1"
-mint = { version = "0.5.6", optional = true }
+instant = { version = "0.1.12", features = ["wasm-bindgen"] }
+lazy_static = "1.4.0"
+log = "0.4.17"
+serde = { version = "1.0.137", optional = true, features = ["serde_derive"] }
+raw-window-handle = "0.4.3"
+bitflags = "1.3.2"
+mint = { version = "0.5.9", optional = true }
 
 [dev-dependencies]
-image = { version = "0.24.0", default-features = false, features = ["png"] }
+image = { version = "0.24.2", default-features = false, features = ["png"] }
 simple_logger = "2.1.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ndk = "0.6"
-ndk-sys = "0.3"
-ndk-glue = "0.6"
+ndk = "0.6.0"
+ndk-sys = "0.3.0"
+ndk-glue = "0.6.2"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 objc = "0.2.7"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.24"
-core-foundation = "0.9"
-core-graphics = "0.22"
+cocoa = "0.24.0"
+core-foundation = "0.9.3"
+core-graphics = "0.22.3"
 dispatch = "0.2.0"
 
 [target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
@@ -56,10 +56,10 @@ default_features = false
 features = ["display_link"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
-parking_lot = "0.12"
+parking_lot = "0.12.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
-version = "0.36"
+version = "0.36.1"
 features = [
     "Win32_Devices_HumanInterfaceDevice",
     "Win32_Foundation",
@@ -88,22 +88,25 @@ features = [
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.29", default_features = false,  features = ["use_system_lib"], optional = true }
-wayland-protocols = { version = "0.29", features = [ "staging_protocols"], optional = true }
-sctk = { package = "smithay-client-toolkit", version = "0.15.4", default_features = false, features = ["calloop"],  optional = true }
+wayland-client = { version = "0.29.4", default_features = false, features = ["use_system_lib"], optional = true }
+wayland-protocols = { version = "0.29.4", features = [ "staging_protocols"], optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.15.4", default_features = false, features = ["calloop"], optional = true }
 calloop = { version = "0.9.3", optional = true }
-mio = { version = "0.8", features = ["os-ext"], optional = true }
-x11-dl = { version = "2.18.5", optional = true }
-percent-encoding = { version = "2.0", optional = true }
+mio = { version = "0.8.2", features = ["os-ext"], optional = true }
+x11-dl = { version = "2.19.1", optional = true }
+percent-encoding = { version = "2.1.0", optional = true }
 parking_lot = { version = "0.12.0", optional = true }
-libc = "0.2.64"
+libc = "0.2.125"
 drm = { version = "0.6.2", optional = true }
 gbm = { version = "0.8.0", optional = true }
 input = { version = "0.7.1", optional = true }
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen= "0.2.80"
+
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
 package = "web-sys"
-version = "0.3.22"
+version = "0.3.57"
 features = [
     'console',
     "AddEventListenerOptions",
@@ -127,11 +130,8 @@ features = [
     'WheelEvent'
 ]
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
-version = "0.2.45"
-
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
-console_log = "0.2"
+console_log = "0.2.0"
 
 [workspace]
 members = [
