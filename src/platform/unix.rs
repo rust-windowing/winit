@@ -36,9 +36,9 @@ pub use crate::platform_impl::x11;
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
 #[cfg(feature = "kmsdrm")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// A simple wrapper for a device node.
-pub struct Card(std::fs::File);
+pub struct Card(Arc<std::fs::File>);
 
 #[cfg(feature = "kmsdrm")]
 /// Implementing `AsRawFd` is a prerequisite to implementing the traits found
@@ -62,7 +62,7 @@ impl Card {
         let mut options = std::fs::OpenOptions::new();
         options.read(true);
         options.write(true);
-        Ok(Card(options.open(path)?))
+        Ok(Card(Arc::new(options.open(path)?)))
     }
 
     pub fn open_global() -> Result<Self, std::io::Error> {
