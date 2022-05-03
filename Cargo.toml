@@ -1,10 +1,7 @@
 [package]
 name = "winit"
 version = "0.26.1"
-authors = [
-  "The winit contributors",
-  "Pierre Krieger <pierre.krieger1708@gmail.com>",
-]
+authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
 keywords = ["windowing"]
@@ -17,29 +14,21 @@ categories = ["gui"]
 [package.metadata.docs.rs]
 features = ["serde"]
 default-target = "x86_64-unknown-linux-gnu"
-targets = [
-  "i686-pc-windows-msvc",
-  "x86_64-pc-windows-msvc",
-  "i686-unknown-linux-gnu",
-  "x86_64-unknown-linux-gnu",
-  "x86_64-apple-darwin",
-  "wasm32-unknown-unknown",
-]
+targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
 
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "kmsdrm"]
 x11 = ["x11-dl", "mio", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "wayland-protocols", "sctk", "calloop"]
-kmsdrm = ["drm", "gbm", "input", "calloop"]
 wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
+kmsdrm = ["drm", "gbm", "input", "calloop"]
 
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
 lazy_static = "1"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
-# raw-window-handle = "0.4.2"
-raw-window-handle = "0.4.3"
+raw-window-handle = "0.4.2"
 bitflags = "1"
 mint = { version = "0.5.6", optional = true }
 
@@ -70,45 +59,39 @@ features = ["display_link"]
 parking_lot = "0.12"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
-version = "0.33"
+version = "0.36"
 features = [
-  "Win32_Devices_HumanInterfaceDevice",
-  "Win32_Foundation",
-  "Win32_Globalization",
-  "Win32_Graphics_Dwm",
-  "Win32_Graphics_Gdi",
-  "Win32_Media",
-  "Win32_System_Com_StructuredStorage",
-  "Win32_System_Com",
-  "Win32_System_LibraryLoader",
-  "Win32_System_Ole",
-  "Win32_System_SystemInformation",
-  "Win32_System_SystemServices",
-  "Win32_System_Threading",
-  "Win32_System_WindowsProgramming",
-  "Win32_UI_Accessibility",
-  "Win32_UI_Controls",
-  "Win32_UI_HiDpi",
-  "Win32_UI_Input_Ime",
-  "Win32_UI_Input_KeyboardAndMouse",
-  "Win32_UI_Input_Pointer",
-  "Win32_UI_Input_Touch",
-  "Win32_UI_Shell",
-  "Win32_UI_TextServices",
-  "Win32_UI_WindowsAndMessaging",
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Media",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_Pointer",
+    "Win32_UI_Input_Touch",
+    "Win32_UI_Shell",
+    "Win32_UI_TextServices",
+    "Win32_UI_WindowsAndMessaging",
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.29", default_features = false, features = [
-  "use_system_lib",
-], optional = true }
-wayland-protocols = { version = "0.29", features = [
-  "staging_protocols",
-], optional = true }
+wayland-client = { version = "0.29", default_features = false,  features = ["use_system_lib"], optional = true }
+wayland-protocols = { version = "0.29", features = [ "staging_protocols"], optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.15.4", default_features = false, features = ["calloop"],  optional = true }
 calloop = { version = "0.9.3", optional = true }
-sctk = { package = "smithay-client-toolkit", version = "0.15.4", default_features = false, features = [
-  "calloop",
-], optional = true }
 mio = { version = "0.8", features = ["os-ext"], optional = true }
 x11-dl = { version = "2.18.5", optional = true }
 percent-encoding = { version = "2.0", optional = true }
@@ -122,26 +105,26 @@ input = { version = "0.7.1", optional = true }
 package = "web-sys"
 version = "0.3.22"
 features = [
-  'console',
-  "AddEventListenerOptions",
-  'CssStyleDeclaration',
-  'BeforeUnloadEvent',
-  'Document',
-  'DomRect',
-  'Element',
-  'Event',
-  'EventTarget',
-  'FocusEvent',
-  'HtmlCanvasElement',
-  'HtmlElement',
-  'KeyboardEvent',
-  'MediaQueryList',
-  'MediaQueryListEvent',
-  'MouseEvent',
-  'Node',
-  'PointerEvent',
-  'Window',
-  'WheelEvent',
+    'console',
+    "AddEventListenerOptions",
+    'CssStyleDeclaration',
+    'BeforeUnloadEvent',
+    'Document',
+    'DomRect',
+    'Element',
+    'Event',
+    'EventTarget',
+    'FocusEvent',
+    'HtmlCanvasElement',
+    'HtmlElement',
+    'KeyboardEvent',
+    'MediaQueryList',
+    'MediaQueryListEvent',
+    'MouseEvent',
+    'Node',
+    'PointerEvent',
+    'Window',
+    'WheelEvent'
 ]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
@@ -151,4 +134,6 @@ version = "0.2.45"
 console_log = "0.2"
 
 [workspace]
-members = ["run-wasm"]
+members = [
+    "run-wasm",
+]

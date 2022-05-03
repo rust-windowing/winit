@@ -633,7 +633,7 @@ impl Window {
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
             #[cfg(feature = "kmsdrm")]
-            Window::Drm(_) => unimplemented!(),
+            Window::Drm(_) => unimplemented!(), //RawWindowHandle::Gbm(window.raw_window_handle()),
         }
     }
 }

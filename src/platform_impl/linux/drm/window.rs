@@ -1,6 +1,7 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, os::unix::prelude::AsRawFd};
 
 use drm::control::{atomic, property, AtomicCommitFlags, Device};
+use gbm::AsRaw;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -286,6 +287,17 @@ impl Window {
             VecDeque::new()
         }
     }
+
+    /*
+    #[inline]
+    pub fn raw_window_handle(&self) -> raw_window_handle::GbmHandle {
+        let mut rwh = raw_window_handle::GbmHandle::empty();
+        let lock = GBM_DEVICE.lock();
+        rwh.fd = lock.as_ref().unwrap().as_raw_fd();
+        rwh.display = lock.as_ref().unwrap().as_raw() as *mut std::os::raw::c_void;
+        rwh
+    }
+    */
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
