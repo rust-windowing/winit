@@ -707,13 +707,6 @@ impl<T: 'static> EventLoop<T> {
             .iter()
             .flat_map(|crtc| drm.get_crtc(*crtc))
             .collect();
-
-        let crtc = crtcinfo.get(0).ok_or(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::DrmMisc("No crtcs found"),
-        ))?;
-
         // Filter each connector until we find one that's connected.
         let con = coninfo
             .iter()
@@ -723,6 +716,12 @@ impl<T: 'static> EventLoop<T> {
                 file!(),
                 crate::platform_impl::OsError::DrmMisc("No connected connectors"),
             ))?;
+
+        let crtc = crtcinfo.get(0).ok_or(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("No crtcs found"),
+        ))?;
 
         // Get the first (usually best) mode
         let &mode = con.modes().get(0).ok_or(crate::error::OsError::new(
@@ -795,19 +794,30 @@ impl<T: 'static> EventLoop<T> {
         let (p_better_planes, p_compatible_planes): (
             Vec<drm::control::plane::Handle>,
             Vec<drm::control::plane::Handle>,
-        ) = planes.planes().iter().partition(|&&plane| {
-            if let Ok(props) = drm.get_properties(plane) {
-                let (ids, vals) = props.as_props_and_values();
-                for (&id, &val) in ids.iter().zip(vals.iter()) {
-                    if let Ok(info) = drm.get_property(id) {
-                        if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
-                            return val == (drm::control::PlaneType::Primary as u32).into();
+        ) = planes
+            .planes()
+            .iter()
+            .filter(|&&plane| {
+                drm.get_plane(plane)
+                    .map(|plane_info| {
+                        let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
+                        compatible_crtcs.contains(&crtc.handle())
+                    })
+                    .unwrap_or(false)
+            })
+            .partition(|&&plane| {
+                if let Ok(props) = drm.get_properties(plane) {
+                    let (ids, vals) = props.as_props_and_values();
+                    for (&id, &val) in ids.iter().zip(vals.iter()) {
+                        if let Ok(info) = drm.get_property(id) {
+                            if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
+                                return val == (drm::control::PlaneType::Primary as u32).into();
+                            }
                         }
                     }
                 }
-            }
-            false
-        });
+                false
+            });
 
         let p_plane = *p_better_planes.get(0).unwrap_or(&p_compatible_planes[0]);
 
