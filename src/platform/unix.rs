@@ -121,6 +121,12 @@ pub trait EventLoopWindowTargetExtUnix {
     /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
     #[cfg(feature = "kmsdrm")]
     fn drm_mode(&self) -> Option<drm::control::Mode>;
+
+    /// Returns the primary plane of the drm device
+    ///
+    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
+    #[cfg(feature = "kmsdrm")]
+    fn drm_plane(&self) -> Option<drm::control::plane::Handle>;
 }
 
 impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
@@ -205,6 +211,16 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     fn drm_mode(&self) -> Option<drm::control::Mode> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(window.mode),
+            #[cfg(any(feature = "x11", feature = "wayland"))]
+            _ => None,
+        }
+    }
+
+    #[inline]
+    #[cfg(feature = "kmsdrm")]
+    fn drm_plane(&self) -> Option<drm::control::plane::Handle> {
+        match self.p {
+            crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(window.plane),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
@@ -316,12 +332,6 @@ pub trait WindowExtUnix {
     /// Always return true.
     #[deprecated]
     fn is_ready(&self) -> bool;
-
-    /// Return a handle to the `drm::control::plane::Handle` the is used by the window
-    ///
-    /// Returns `None` if the window doesn't use kmsdrm (if it uses xlib for example).
-    #[cfg(feature = "kmsdrm")]
-    fn drm_plane(&self) -> Option<drm::control::plane::Handle>;
 }
 
 impl WindowExtUnix for Window {
@@ -392,16 +402,6 @@ impl WindowExtUnix for Window {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
             #[cfg(any(feature = "x11", feature = "kmsdrm"))]
-            _ => None,
-        }
-    }
-
-    #[inline]
-    #[cfg(feature = "kmsdrm")]
-    fn drm_plane(&self) -> Option<drm::control::plane::Handle> {
-        match self.window {
-            LinuxWindow::Drm(ref w) => Some(w.drm_plane()),
-            #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
     }

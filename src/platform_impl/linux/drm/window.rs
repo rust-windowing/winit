@@ -17,8 +17,6 @@ pub struct Window(
     drm::control::connector::Info,
     calloop::ping::Ping,
     Card,
-    drm::control::dumbbuffer::DumbBuffer,
-    drm::control::plane::Handle,
 );
 
 impl Window {
@@ -51,99 +49,6 @@ impl Window {
                     crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
                 )
             })?;
-
-        let res = drm.resource_handles().or(Err(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::DrmMisc("Could not load normal resource ids."),
-        )))?;
-
-        let mut db = drm
-            .create_dumb_buffer((64, 64), drm::buffer::DrmFourcc::Xrgb8888, 32)
-            .or(Err(crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("Could not create dumb buffer"),
-            )))?;
-
-        {
-            let mut map = drm
-                .map_dumb_buffer(&mut db)
-                .expect("Could not map dumbbuffer");
-            for b in map.as_mut() {
-                *b = 128;
-            }
-        }
-
-        let fb = drm
-            .add_framebuffer(&db, 24, 32)
-            .or(Err(crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("Could not create FB"),
-            )))?;
-
-        let planes = drm.plane_handles().or(Err(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::DrmMisc("Could not list planes"),
-        )))?;
-        let (better_planes, compatible_planes): (
-            Vec<drm::control::plane::Handle>,
-            Vec<drm::control::plane::Handle>,
-        ) = planes
-            .planes()
-            .iter()
-            .filter(|&&plane| {
-                drm.get_plane(plane)
-                    .map(|plane_info| {
-                        let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
-                        compatible_crtcs.contains(&event_loop_window_target.crtc.handle())
-                    })
-                    .unwrap_or(false)
-            })
-            .partition(|&&plane| {
-                if let Ok(props) = drm.get_properties(plane) {
-                    let (ids, vals) = props.as_props_and_values();
-                    for (&id, &val) in ids.iter().zip(vals.iter()) {
-                        if let Ok(info) = drm.get_property(id) {
-                            if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
-                                return val == (drm::control::PlaneType::Cursor as u32).into();
-                            }
-                        }
-                    }
-                }
-                false
-            });
-        let plane = *better_planes.get(0).unwrap_or(&compatible_planes[0]);
-        let (p_better_planes, p_compatible_planes): (
-            Vec<drm::control::plane::Handle>,
-            Vec<drm::control::plane::Handle>,
-        ) = compatible_planes
-            .iter()
-            .filter(|&&plane| {
-                drm.get_plane(plane)
-                    .map(|plane_info| {
-                        let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
-                        compatible_crtcs.contains(&event_loop_window_target.crtc.handle())
-                    })
-                    .unwrap_or(false)
-            })
-            .partition(|&&plane| {
-                if let Ok(props) = drm.get_properties(plane) {
-                    let (ids, vals) = props.as_props_and_values();
-                    for (&id, &val) in ids.iter().zip(vals.iter()) {
-                        if let Ok(info) = drm.get_property(id) {
-                            if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
-                                return val == (drm::control::PlaneType::Primary as u32).into();
-                            }
-                        }
-                    }
-                }
-                false
-            });
-
-        let p_plane = *better_planes.get(0).unwrap_or(&compatible_planes[0]);
 
         let mut atomic_req = atomic::AtomicModeReq::new();
         atomic_req.add_property(
@@ -193,53 +98,63 @@ impl Window {
             property::Value::Boolean(true),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "FB_ID").expect("Could not get FB_ID"),
-            property::Value::Framebuffer(Some(fb)),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "FB_ID")
+                .expect("Could not get FB_ID"),
+            property::Value::Framebuffer(Some(event_loop_window_target.cursor_buffer)),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "CRTC_ID").expect("Could not get CRTC_ID"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_ID")
+                .expect("Could not get CRTC_ID"),
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "SRC_X").expect("Could not get SRC_X"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "SRC_X")
+                .expect("Could not get SRC_X"),
             property::Value::UnsignedRange(0),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "SRC_Y").expect("Could not get SRC_Y"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "SRC_Y")
+                .expect("Could not get SRC_Y"),
             property::Value::UnsignedRange(0),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "SRC_W").expect("Could not get SRC_W"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "SRC_W")
+                .expect("Could not get SRC_W"),
             property::Value::UnsignedRange(64 << 16),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "SRC_H").expect("Could not get SRC_H"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "SRC_H")
+                .expect("Could not get SRC_H"),
             property::Value::UnsignedRange(64 << 16),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "CRTC_X").expect("Could not get CRTC_X"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_X")
+                .expect("Could not get CRTC_X"),
             property::Value::SignedRange(0),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "CRTC_Y").expect("Could not get CRTC_Y"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_Y")
+                .expect("Could not get CRTC_Y"),
             property::Value::SignedRange(0),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "CRTC_W").expect("Could not get CRTC_W"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_W")
+                .expect("Could not get CRTC_W"),
             property::Value::UnsignedRange(mode.size().0 as u64),
         );
         atomic_req.add_property(
-            plane,
-            find_prop_id(&drm, plane, "CRTC_H").expect("Could not get CRTC_H"),
+            event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_H")
+                .expect("Could not get CRTC_H"),
             property::Value::UnsignedRange(mode.size().1 as u64),
         );
 
@@ -257,8 +172,6 @@ impl Window {
             event_loop_window_target.connector.clone(),
             event_loop_window_target.event_loop_awakener.clone(),
             drm,
-            db,
-            plane,
         ))
     }
     #[inline]
@@ -412,11 +325,6 @@ impl Window {
         let mut rwh = raw_window_handle::DrmHandle::empty();
         rwh.fd = self.3.as_raw_fd();
         rwh
-    }
-
-    #[inline]
-    pub fn drm_plane(&self) -> drm::control::plane::Handle {
-        self.5
     }
 
     #[inline]

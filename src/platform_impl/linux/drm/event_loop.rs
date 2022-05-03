@@ -58,12 +58,19 @@ pub struct LibinputInputBackend {
     screen_size: (u32, u32),
     modifiers: ModifiersState,
     cursor_positon: PhysicalPosition<f64>,
+    cursor_plane: drm::control::plane::Handle,
+    cursor_buffer: drm::control::framebuffer::Handle,
 }
 
 impl LibinputInputBackend {
     /// Initialize a new [`LibinputInputBackend`] from a given already initialized
     /// [libinput context](libinput::Libinput).
-    pub fn new(context: input::Libinput, screen_size: (u32, u32)) -> Self {
+    pub fn new(
+        context: input::Libinput,
+        screen_size: (u32, u32),
+        cursor_plane: drm::control::plane::Handle,
+        cursor_buffer: drm::control::framebuffer::Handle,
+    ) -> Self {
         LibinputInputBackend {
             context,
             token: Token::invalid(),
@@ -71,6 +78,8 @@ impl LibinputInputBackend {
             cursor_positon: PhysicalPosition::new(0.0, 0.0),
             modifiers: ModifiersState::empty(),
             screen_size,
+            cursor_buffer,
+            cursor_plane,
         }
     }
 }
@@ -578,6 +587,12 @@ pub struct EventLoopWindowTarget<T> {
     /// drm mode
     pub mode: drm::control::Mode,
 
+    /// drm plane
+    pub plane: drm::control::plane::Handle,
+
+    /// drm dumbbuffer containing the cursor
+    pub cursor_buffer: drm::control::framebuffer::Handle,
+
     /// drm device
     pub device: Card,
 
@@ -717,6 +732,83 @@ impl<T: 'static> EventLoop<T> {
             crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
         ))?;
 
+        let mut db = drm
+            .create_dumb_buffer((64, 64), drm::buffer::DrmFourcc::Xrgb8888, 32)
+            .or(Err(crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Could not create dumb buffer"),
+            )))?;
+
+        {
+            let mut map = drm
+                .map_dumb_buffer(&mut db)
+                .expect("Could not map dumbbuffer");
+            for b in map.as_mut() {
+                *b = 128;
+            }
+        }
+
+        let fb = drm
+            .add_framebuffer(&db, 24, 32)
+            .or(Err(crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Could not create FB"),
+            )))?;
+
+        let planes = drm.plane_handles().or(Err(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("Could not list planes"),
+        )))?;
+        let (better_planes, compatible_planes): (
+            Vec<drm::control::plane::Handle>,
+            Vec<drm::control::plane::Handle>,
+        ) = planes
+            .planes()
+            .iter()
+            .filter(|&&plane| {
+                drm.get_plane(plane)
+                    .map(|plane_info| {
+                        let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
+                        compatible_crtcs.contains(&crtc.handle())
+                    })
+                    .unwrap_or(false)
+            })
+            .partition(|&&plane| {
+                if let Ok(props) = drm.get_properties(plane) {
+                    let (ids, vals) = props.as_props_and_values();
+                    for (&id, &val) in ids.iter().zip(vals.iter()) {
+                        if let Ok(info) = drm.get_property(id) {
+                            if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
+                                return val == (drm::control::PlaneType::Cursor as u32).into();
+                            }
+                        }
+                    }
+                }
+                false
+            });
+        let plane = *better_planes.get(0).unwrap_or(&compatible_planes[0]);
+        let (p_better_planes, p_compatible_planes): (
+            Vec<drm::control::plane::Handle>,
+            Vec<drm::control::plane::Handle>,
+        ) = compatible_planes.iter().partition(|&&plane| {
+            if let Ok(props) = drm.get_properties(plane) {
+                let (ids, vals) = props.as_props_and_values();
+                for (&id, &val) in ids.iter().zip(vals.iter()) {
+                    if let Ok(info) = drm.get_property(id) {
+                        if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
+                            return val == (drm::control::PlaneType::Primary as u32).into();
+                        }
+                    }
+                }
+            }
+            false
+        });
+
+        let p_plane = *p_better_planes.get(0).unwrap_or(&p_compatible_planes[0]);
+
         let (disp_width, disp_height) = mode.size();
 
         let mut input = input::Libinput::new_with_udev(Interface(
@@ -769,7 +861,7 @@ impl<T: 'static> EventLoop<T> {
             .unwrap();
 
         let input_backend: LibinputInputBackend =
-            LibinputInputBackend::new(input, (disp_width.into(), disp_height.into()));
+            LibinputInputBackend::new(input, (disp_width.into(), disp_height.into()), plane, fb);
 
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
             calloop::Dispatcher::new(
@@ -786,6 +878,8 @@ impl<T: 'static> EventLoop<T> {
                 connector: con.clone(),
                 crtc: crtc.clone(),
                 device: drm,
+                plane: p_plane,
+                cursor_buffer: fb,
                 mode,
                 event_loop_handle: handle,
                 event_sink,
