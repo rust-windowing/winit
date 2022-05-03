@@ -36,19 +36,6 @@ impl Window {
                 )
             })?
             .clone();
-        let &mode = event_loop_window_target
-            .connector
-            .modes()
-            .iter()
-            .find(|&&f| f.mode_type().contains(ModeTypeFlags::PREFERRED))
-            .or(event_loop_window_target.connector.modes().get(0))
-            .ok_or_else(|| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
-                )
-            })?;
 
         let mut atomic_req = atomic::AtomicModeReq::new();
         atomic_req.add_property(
@@ -64,13 +51,15 @@ impl Window {
             )?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
-        let blob = drm.create_property_blob(&mode).map_err(|_| {
-            crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("Failed to create blob"),
-            )
-        })?;
+        let blob = drm
+            .create_property_blob(&event_loop_window_target.mode)
+            .map_err(|_| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("Failed to create blob"),
+                )
+            })?;
         atomic_req.add_property(
             event_loop_window_target.crtc.handle(),
             find_prop_id(&drm, event_loop_window_target.crtc.handle(), "MODE_ID").ok_or_else(
@@ -149,13 +138,13 @@ impl Window {
             event_loop_window_target.plane,
             find_prop_id(&drm, event_loop_window_target.plane, "CRTC_W")
                 .expect("Could not get CRTC_W"),
-            property::Value::UnsignedRange(mode.size().0 as u64),
+            property::Value::UnsignedRange(event_loop_window_target.mode.size().0 as u64),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(&drm, event_loop_window_target.plane, "CRTC_H")
                 .expect("Could not get CRTC_H"),
-            property::Value::UnsignedRange(mode.size().1 as u64),
+            property::Value::UnsignedRange(event_loop_window_target.mode.size().1 as u64),
         );
 
         drm.atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
@@ -168,7 +157,7 @@ impl Window {
             })?;
 
         Ok(Self(
-            mode,
+            event_loop_window_target.mode.clone(),
             event_loop_window_target.connector.clone(),
             event_loop_window_target.event_loop_awakener.clone(),
             drm,
