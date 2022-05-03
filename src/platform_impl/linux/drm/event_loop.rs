@@ -26,7 +26,7 @@ use crate::{
     event::{Force, KeyboardInput, ModifiersState, MouseScrollDelta, StartCause},
     event_loop::{ControlFlow, EventLoopClosed},
     platform::unix::Card,
-    platform_impl::{platform::sticky_exit_callback, GBM_DEVICE},
+    platform_impl::{platform::sticky_exit_callback, DRM_DEVICE},
 };
 
 use super::input_to_vk::CHAR_MAPPINGS;
@@ -560,13 +560,13 @@ impl EventSource for LibinputInputBackend {
 type EventSink = Vec<crate::event::Event<'static, ()>>;
 
 pub struct EventLoopWindowTarget<T> {
-    /// gbm Connector
+    /// drm Connector
     pub connector: drm::control::connector::Info,
 
-    /// gbm crtc
+    /// drm crtc
     pub crtc: drm::control::crtc::Info,
 
-    /// gbm mode
+    /// drm mode
     pub mode: drm::control::Mode,
 
     /// Event loop handle.
@@ -592,12 +592,12 @@ impl<T> EventLoopWindowTarget<T> {
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        if let Ok(gbm) = GBM_DEVICE.as_ref() {
-            gbm.resource_handles()
+        if let Ok(drm) = DRM_DEVICE.as_ref() {
+            drm.resource_handles()
                 .unwrap()
                 .connectors()
                 .iter()
-                .map(|f| super::MonitorHandle(gbm.get_connector(*f).unwrap()))
+                .map(|f| super::MonitorHandle(drm.get_connector(*f).unwrap()))
                 .collect()
         } else {
             VecDeque::new()
@@ -620,7 +620,7 @@ pub struct EventLoop<T: 'static> {
 }
 
 pub(crate) fn find_prop_id<T: ResourceHandle>(
-    card: &gbm::Device<Card>,
+    card: &Card,
     handle: T,
     name: &'static str,
 ) -> Option<property::Handle> {
@@ -638,10 +638,10 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
-        match GBM_DEVICE.as_ref() {
-            Ok(gbm) => {
+        match DRM_DEVICE.as_ref() {
+            Ok(drm) => {
                 drm::Device::set_client_capability(
-                    gbm,
+                    drm,
                     drm::ClientCapability::UniversalPlanes,
                     true,
                 )
@@ -652,7 +652,7 @@ impl<T: 'static> EventLoop<T> {
                         "kmsdrm device does not support universal planes",
                     ),
                 )))?;
-                drm::Device::set_client_capability(gbm, drm::ClientCapability::Atomic, true).or(
+                drm::Device::set_client_capability(drm, drm::ClientCapability::Atomic, true).or(
                     Err(crate::error::OsError::new(
                         line!(),
                         file!(),
@@ -663,7 +663,7 @@ impl<T: 'static> EventLoop<T> {
                 )?;
 
                 // Load the information.
-                let res = gbm.resource_handles().or(Err(crate::error::OsError::new(
+                let res = drm.resource_handles().or(Err(crate::error::OsError::new(
                     line!(),
                     file!(),
                     crate::platform_impl::OsError::DrmMisc("Could not load normal resource ids."),
@@ -671,12 +671,12 @@ impl<T: 'static> EventLoop<T> {
                 let coninfo: Vec<drm::control::connector::Info> = res
                     .connectors()
                     .iter()
-                    .flat_map(|con| gbm.get_connector(*con))
+                    .flat_map(|con| drm.get_connector(*con))
                     .collect();
                 let crtcinfo: Vec<drm::control::crtc::Info> = res
                     .crtcs()
                     .iter()
-                    .flat_map(|crtc| gbm.get_crtc(*crtc))
+                    .flat_map(|crtc| drm.get_crtc(*crtc))
                     .collect();
 
                 let crtc = crtcinfo.get(0).ok_or(crate::error::OsError::new(
@@ -781,7 +781,7 @@ impl<T: 'static> EventLoop<T> {
             Err(_) => Err(crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::DrmMisc("gbm failed to initialize"),
+                crate::platform_impl::OsError::DrmMisc("drm failed to initialize"),
             )),
         }
     }

@@ -1,12 +1,11 @@
 use std::{collections::VecDeque, os::unix::prelude::AsRawFd};
 
 use drm::control::{atomic, property, AtomicCommitFlags, Device};
-use gbm::AsRaw;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError},
-    platform_impl::GBM_DEVICE,
+    platform_impl::DRM_DEVICE,
     window::{CursorIcon, Fullscreen},
 };
 
@@ -24,7 +23,7 @@ impl Window {
         _attributes: crate::window::WindowAttributes,
         _platform_attributes: crate::platform_impl::PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, crate::error::OsError> {
-        let gbm = GBM_DEVICE.as_ref().map_err(|_| {
+        let drm = DRM_DEVICE.as_ref().map_err(|_| {
             crate::error::OsError::new(
                 line!(),
                 file!(),
@@ -46,7 +45,7 @@ impl Window {
         let mut atomic_req = atomic::AtomicModeReq::new();
         atomic_req.add_property(
             event_loop_window_target.connector.handle(),
-            find_prop_id(&gbm, event_loop_window_target.connector.handle(), "CRTC_ID").ok_or_else(
+            find_prop_id(&drm, event_loop_window_target.connector.handle(), "CRTC_ID").ok_or_else(
                 || {
                     crate::error::OsError::new(
                         line!(),
@@ -57,7 +56,7 @@ impl Window {
             )?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
-        let blob = gbm.create_property_blob(&mode).map_err(|_| {
+        let blob = drm.create_property_blob(&mode).map_err(|_| {
             crate::error::OsError::new(
                 line!(),
                 file!(),
@@ -66,7 +65,7 @@ impl Window {
         })?;
         atomic_req.add_property(
             event_loop_window_target.crtc.handle(),
-            find_prop_id(&gbm, event_loop_window_target.crtc.handle(), "MODE_ID").ok_or_else(
+            find_prop_id(&drm, event_loop_window_target.crtc.handle(), "MODE_ID").ok_or_else(
                 || {
                     crate::error::OsError::new(
                         line!(),
@@ -79,7 +78,7 @@ impl Window {
         );
         atomic_req.add_property(
             event_loop_window_target.crtc.handle(),
-            find_prop_id(&gbm, event_loop_window_target.crtc.handle(), "ACTIVE").ok_or_else(
+            find_prop_id(&drm, event_loop_window_target.crtc.handle(), "ACTIVE").ok_or_else(
                 || {
                     crate::error::OsError::new(
                         line!(),
@@ -91,7 +90,7 @@ impl Window {
             property::Value::Boolean(true),
         );
 
-        gbm.atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
+        drm.atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
             .map_err(|_| {
                 crate::error::OsError::new(
                     line!(),
@@ -275,12 +274,12 @@ impl Window {
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        if let Ok(gbm) = GBM_DEVICE.as_ref() {
-            gbm.resource_handles()
+        if let Ok(drm) = DRM_DEVICE.as_ref() {
+            drm.resource_handles()
                 .unwrap()
                 .connectors()
                 .iter()
-                .map(|f| super::MonitorHandle(gbm.get_connector(*f).unwrap()))
+                .map(|f| super::MonitorHandle(drm.get_connector(*f).unwrap()))
                 .collect()
         } else {
             VecDeque::new()
@@ -290,8 +289,7 @@ impl Window {
     #[inline]
     pub fn raw_window_handle(&self) -> raw_window_handle::GbmHandle {
         let mut rwh = raw_window_handle::GbmHandle::empty();
-        rwh.fd = GBM_DEVICE.as_ref().unwrap().as_raw_fd();
-        rwh.display = GBM_DEVICE.as_ref().unwrap().as_raw() as *mut std::os::raw::c_void;
+        rwh.fd = DRM_DEVICE.as_ref().unwrap().as_raw_fd();
         rwh
     }
 

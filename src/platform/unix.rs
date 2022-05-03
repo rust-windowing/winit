@@ -120,31 +120,31 @@ pub trait EventLoopWindowTargetExtUnix {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
-    /// Returns the gbm device of the event loop's fd
+    /// Returns the drm device of the event loop's fd
     ///
     /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
     #[cfg(feature = "kmsdrm")]
-    fn gbm_device(
+    fn drm_device(
         &self,
-    ) -> Option<&'static AssertSync<Result<gbm::Device<crate::platform::unix::Card>, std::io::Error>>>;
+    ) -> Option<&'static AssertSync<Result<crate::platform::unix::Card, std::io::Error>>>;
 
-    /// Returns the current crtc of the gbm device
+    /// Returns the current crtc of the drm device
     ///
     /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
     #[cfg(feature = "kmsdrm")]
-    fn gbm_crtc(&self) -> Option<&drm::control::crtc::Info>;
+    fn drm_crtc(&self) -> Option<&drm::control::crtc::Info>;
 
-    /// Returns the current connector of the gbm device
+    /// Returns the current connector of the drm device
     ///
     /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
     #[cfg(feature = "kmsdrm")]
-    fn gbm_connector(&self) -> Option<&drm::control::connector::Info>;
+    fn drm_connector(&self) -> Option<&drm::control::connector::Info>;
 
-    /// Returns the current mode of the gbm device
+    /// Returns the current mode of the drm device
     ///
     /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
     #[cfg(feature = "kmsdrm")]
-    fn gbm_mode(&self) -> Option<drm::control::Mode>;
+    fn drm_mode(&self) -> Option<drm::control::Mode>;
 }
 
 impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
@@ -191,14 +191,13 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
     #[inline]
     #[cfg(feature = "kmsdrm")]
-    fn gbm_device(
+    fn drm_device(
         &self,
-    ) -> Option<&'static AssertSync<Result<gbm::Device<crate::platform::unix::Card>, std::io::Error>>>
-    {
-        use crate::platform_impl::GBM_DEVICE;
+    ) -> Option<&'static AssertSync<Result<crate::platform::unix::Card, std::io::Error>>> {
+        use crate::platform_impl::DRM_DEVICE;
 
         match self.p {
-            crate::platform_impl::EventLoopWindowTarget::Drm(_) => Some(&*GBM_DEVICE),
+            crate::platform_impl::EventLoopWindowTarget::Drm(_) => Some(&*DRM_DEVICE),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
@@ -206,7 +205,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
     #[inline]
     #[cfg(feature = "kmsdrm")]
-    fn gbm_crtc(&self) -> Option<&drm::control::crtc::Info> {
+    fn drm_crtc(&self) -> Option<&drm::control::crtc::Info> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(&window.crtc),
             #[cfg(any(feature = "x11", feature = "wayland"))]
@@ -216,7 +215,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
     #[inline]
     #[cfg(feature = "kmsdrm")]
-    fn gbm_connector(&self) -> Option<&drm::control::connector::Info> {
+    fn drm_connector(&self) -> Option<&drm::control::connector::Info> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(&window.connector),
             #[cfg(any(feature = "x11", feature = "wayland"))]
@@ -226,7 +225,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
     #[inline]
     #[cfg(feature = "kmsdrm")]
-    fn gbm_mode(&self) -> Option<drm::control::Mode> {
+    fn drm_mode(&self) -> Option<drm::control::Mode> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(window.mode),
             #[cfg(any(feature = "x11", feature = "wayland"))]
@@ -331,16 +330,6 @@ pub trait WindowExtUnix {
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
-
-    /*
-    /// Returns the gbm device that is used by this window.
-    ///
-    /// Returns `None` if the window doesn't use kmsdrm (if it uses wayland for example).
-    ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
-    #[cfg(feature = "kmsdrm")]
-    fn gbm_device(&self) -> Option<&gbm::Device<crate::platform_impl::drm::Card>>;
-    */
 
     /// Check if the window is ready for drawing
     ///

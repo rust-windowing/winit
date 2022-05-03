@@ -144,15 +144,8 @@ lazy_static! {
 
 #[cfg(feature = "kmsdrm")]
 lazy_static! {
-    pub static ref GBM_DEVICE: AssertSync<Result<gbm::Device<Card>, std::io::Error>> =
-        match Card::open_global() {
-            Ok(card) => {
-                AssertSync(gbm::Device::new(card))
-            }
-            Err(e) => {
-                AssertSync(Err(e))
-            }
-        };
+    pub static ref DRM_DEVICE: AssertSync<Result<Card, std::io::Error>> =
+        AssertSync(Card::open_global());
 }
 
 #[derive(Debug, Clone)]
