@@ -34,7 +34,7 @@ impl Window {
             .connector
             .modes()
             .iter()
-            .find(|&&f| f.mode_type() == ModeTypeFlags::PREFERRED)
+            .find(|&&f| f.mode_type().contains(ModeTypeFlags::PREFERRED))
             .or(event_loop_window_target.connector.modes().get(0))
             .ok_or_else(|| {
                 crate::error::OsError::new(
