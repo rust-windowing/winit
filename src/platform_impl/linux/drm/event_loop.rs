@@ -710,16 +710,17 @@ impl<T: 'static> EventLoop<T> {
 
         let (disp_width, disp_height) = mode.size();
 
-        let mut seat = libseat::Seat::open(|_, _| {}, None).map_err(|_| {
-            crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
-            )
-        })?;
-        seat.dispatch(0).unwrap();
-
-        let input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
+        let mut input = input::Libinput::new_with_udev(Interface(
+            libseat::Seat::open(|_, _| {}, None).map_err(|_| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
+                )
+            })?,
+            HashMap::new(),
+        ));
+        input.udev_assign_seat("seat0").unwrap();
         let event_loop: calloop::EventLoop<'static, EventSink> =
             calloop::EventLoop::try_new().unwrap();
 
