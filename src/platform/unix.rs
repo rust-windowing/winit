@@ -76,6 +76,13 @@ impl Card {
 pub struct AssertSync<T>(pub T);
 
 #[cfg(feature = "kmsdrm")]
+impl<T: Clone> Clone for AssertSync<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+#[cfg(feature = "kmsdrm")]
 unsafe impl<T> Sync for AssertSync<T> {}
 #[cfg(feature = "kmsdrm")]
 unsafe impl<T> Send for AssertSync<T> {}
