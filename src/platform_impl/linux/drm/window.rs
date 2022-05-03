@@ -289,8 +289,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> raw_window_handle::GbmHandle {
-        let mut rwh = raw_window_handle::GbmHandle::empty();
+    pub fn raw_window_handle(&self) -> raw_window_handle::DrmHandle {
+        let mut rwh = raw_window_handle::DrmHandle::empty();
         rwh.fd = DRM_DEVICE.as_ref().unwrap().as_raw_fd();
         rwh
     }

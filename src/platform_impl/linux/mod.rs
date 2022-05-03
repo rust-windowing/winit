@@ -626,7 +626,7 @@ impl Window {
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
             #[cfg(feature = "kmsdrm")]
-            Window::Drm(ref window) => RawWindowHandle::Gbm(window.raw_window_handle()),
+            Window::Drm(ref window) => RawWindowHandle::Drm(window.raw_window_handle()),
         }
     }
 }
