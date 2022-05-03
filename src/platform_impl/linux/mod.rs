@@ -144,10 +144,10 @@ lazy_static! {
 
 #[cfg(feature = "kmsdrm")]
 lazy_static! {
-    pub static ref GBM_DEVICE: Mutex<AssertSync<Result<Arc<gbm::Device<Card>>, std::io::Error>>> =
+    pub static ref GBM_DEVICE: Mutex<AssertSync<Result<gbm::Device<Card>, std::io::Error>>> =
         match Card::open_global() {
             Ok(card) => {
-                Mutex::new(AssertSync(gbm::Device::new(card).map(Arc::new)))
+                Mutex::new(AssertSync(gbm::Device::new(card)))
             }
             Err(e) => {
                 Mutex::new(AssertSync(Err(e)))

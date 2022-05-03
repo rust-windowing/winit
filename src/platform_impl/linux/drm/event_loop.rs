@@ -566,6 +566,9 @@ pub struct EventLoopWindowTarget<T> {
     /// gbm crtc
     pub crtc: drm::control::crtc::Info,
 
+    /// gbm mode
+    pub mode: drm::control::Mode,
+
     /// Event loop handle.
     pub event_loop_handle: calloop::LoopHandle<'static, EventSink>,
 
@@ -617,7 +620,7 @@ pub struct EventLoop<T: 'static> {
 }
 
 pub(crate) fn find_prop_id<T: ResourceHandle>(
-    card: &std::sync::Arc<gbm::Device<Card>>,
+    card: &gbm::Device<Card>,
     handle: T,
     name: &'static str,
 ) -> Option<property::Handle> {
@@ -638,7 +641,7 @@ impl<T: 'static> EventLoop<T> {
         match GBM_DEVICE.lock().as_ref() {
             Ok(gbm) => {
                 drm::Device::set_client_capability(
-                    gbm.as_ref(),
+                    gbm,
                     drm::ClientCapability::UniversalPlanes,
                     true,
                 )
@@ -649,18 +652,15 @@ impl<T: 'static> EventLoop<T> {
                         "kmsdrm device does not support universal planes",
                     ),
                 )))?;
-                drm::Device::set_client_capability(
-                    gbm.as_ref(),
-                    drm::ClientCapability::Atomic,
-                    true,
-                )
-                .or(Err(crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc(
-                        "kmsdrm device does not support atomic modesetting",
-                    ),
-                )))?;
+                drm::Device::set_client_capability(gbm, drm::ClientCapability::Atomic, true).or(
+                    Err(crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc(
+                            "kmsdrm device does not support atomic modesetting",
+                        ),
+                    )),
+                )?;
 
                 // Load the information.
                 let res = gbm.resource_handles().or(Err(crate::error::OsError::new(
@@ -762,6 +762,7 @@ impl<T: 'static> EventLoop<T> {
                     p: crate::platform_impl::EventLoopWindowTarget::Drm(EventLoopWindowTarget {
                         connector: con.clone(),
                         crtc: crtc.clone(),
+                        mode,
                         event_loop_handle: handle,
                         event_sink,
                         event_loop_awakener,

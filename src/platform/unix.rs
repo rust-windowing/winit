@@ -71,6 +71,7 @@ impl Card {
 }
 
 #[cfg(feature = "kmsdrm")]
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct AssertSync<T>(pub T);
 
@@ -126,10 +127,8 @@ pub trait EventLoopWindowTargetExtUnix {
     fn gbm_device(
         &self,
     ) -> Option<
-        &parking_lot::Mutex<
-            AssertSync<
-                Result<std::sync::Arc<gbm::Device<crate::platform::unix::Card>>, std::io::Error>,
-            >,
+        &'static parking_lot::Mutex<
+            AssertSync<Result<gbm::Device<crate::platform::unix::Card>, std::io::Error>>,
         >,
     >;
 
@@ -144,6 +143,12 @@ pub trait EventLoopWindowTargetExtUnix {
     /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
     #[cfg(feature = "kmsdrm")]
     fn gbm_connector(&self) -> Option<&drm::control::connector::Info>;
+
+    /// Returns the current mode of the gbm device
+    ///
+    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_mode(&self) -> Option<drm::control::Mode>;
 }
 
 impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
@@ -193,10 +198,8 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     fn gbm_device(
         &self,
     ) -> Option<
-        &parking_lot::Mutex<
-            AssertSync<
-                Result<std::sync::Arc<gbm::Device<crate::platform::unix::Card>>, std::io::Error>,
-            >,
+        &'static parking_lot::Mutex<
+            AssertSync<Result<gbm::Device<crate::platform::unix::Card>, std::io::Error>>,
         >,
     > {
         use crate::platform_impl::GBM_DEVICE;
@@ -223,6 +226,16 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     fn gbm_connector(&self) -> Option<&drm::control::connector::Info> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(&window.connector),
+            #[cfg(any(feature = "x11", feature = "wayland"))]
+            _ => None,
+        }
+    }
+
+    #[inline]
+    #[cfg(feature = "kmsdrm")]
+    fn gbm_mode(&self) -> Option<drm::control::Mode> {
+        match self.p {
+            crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(window.mode),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
