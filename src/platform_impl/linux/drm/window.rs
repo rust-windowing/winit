@@ -108,13 +108,13 @@ impl Window {
             event_loop_window_target.plane,
             find_prop_id(&drm, event_loop_window_target.plane, "SRC_W")
                 .expect("Could not get SRC_W"),
-            property::Value::UnsignedRange(64 << 16),
+            property::Value::UnsignedRange((event_loop_window_target.mode.size().0 as u64) << 16),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(&drm, event_loop_window_target.plane, "SRC_H")
                 .expect("Could not get SRC_H"),
-            property::Value::UnsignedRange(64 << 16),
+            property::Value::UnsignedRange((event_loop_window_target.mode.size().1 as u64) << 16),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
