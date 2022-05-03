@@ -316,6 +316,12 @@ pub trait WindowExtUnix {
     /// Always return true.
     #[deprecated]
     fn is_ready(&self) -> bool;
+
+    /// Return a handle to the `drm::control::plane::Handle` the is used by the window
+    ///
+    /// Returns `None` if the window doesn't use kmsdrm (if it uses xlib for example).
+    #[cfg(feature = "kmsdrm")]
+    fn drm_plane(&self) -> Option<drm::control::plane::Handle>;
 }
 
 impl WindowExtUnix for Window {
@@ -386,6 +392,16 @@ impl WindowExtUnix for Window {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
             #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            _ => None,
+        }
+    }
+
+    #[inline]
+    #[cfg(feature = "kmsdrm")]
+    fn drm_plane(&self) -> Option<drm::control::plane::Handle> {
+        match self.window {
+            LinuxWindow::Drm(ref w) => Some(w.drm_plane()),
+            #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
     }
