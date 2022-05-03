@@ -16,7 +16,7 @@ pub struct Window(
     drm::control::Mode,
     drm::control::connector::Info,
     calloop::ping::Ping,
-    std::sync::Arc<Card>,
+    Card,
 );
 
 impl Window {

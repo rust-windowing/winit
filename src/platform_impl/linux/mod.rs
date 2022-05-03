@@ -144,8 +144,8 @@ lazy_static! {
 
 #[cfg(feature = "kmsdrm")]
 lazy_static! {
-    pub static ref DRM_DEVICE: Mutex<Result<Arc<Card>, std::io::Error>> =
-        Mutex::new(Card::open_global().map(Arc::new));
+    pub static ref DRM_DEVICE: Mutex<Result<Card, std::io::Error>> =
+        Mutex::new(Card::open_global());
 }
 
 #[derive(Debug, Clone)]

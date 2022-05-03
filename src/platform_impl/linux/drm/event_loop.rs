@@ -570,7 +570,7 @@ pub struct EventLoopWindowTarget<T> {
     pub mode: drm::control::Mode,
 
     /// drm device
-    pub device: std::sync::Arc<Card>,
+    pub device: Card,
 
     /// Event loop handle.
     pub event_loop_handle: calloop::LoopHandle<'static, EventSink>,
@@ -649,27 +649,24 @@ impl<T: 'static> EventLoop<T> {
                 )
             })?
             .clone();
-        drm::Device::set_client_capability(
-            drm.as_ref(),
-            drm::ClientCapability::UniversalPlanes,
-            true,
-        )
-        .or(Err(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::DrmMisc(
-                "kmsdrm device does not support universal planes",
-            ),
-        )))?;
-        drm::Device::set_client_capability(drm.as_ref(), drm::ClientCapability::Atomic, true).or(
+        drm::Device::set_client_capability(&drm, drm::ClientCapability::UniversalPlanes, true).or(
             Err(crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc(
+                    "kmsdrm device does not support universal planes",
+                ),
+            )),
+        )?;
+        drm::Device::set_client_capability(&drm, drm::ClientCapability::Atomic, true).or(Err(
+            crate::error::OsError::new(
                 line!(),
                 file!(),
                 crate::platform_impl::OsError::DrmMisc(
                     "kmsdrm device does not support atomic modesetting",
                 ),
-            )),
-        )?;
+            ),
+        ))?;
 
         // Load the information.
         let res = drm.resource_handles().or(Err(crate::error::OsError::new(
