@@ -21,7 +21,7 @@ default = ["x11", "wayland", "wayland-dlopen", "kmsdrm"]
 x11 = ["x11-dl", "mio", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "wayland-protocols", "sctk", "calloop"]
 wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
-kmsdrm = ["drm", "input", "calloop"]
+kmsdrm = ["drm", "input", "calloop", "libseat"]
 
 [dependencies]
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
@@ -100,6 +100,7 @@ parking_lot = { version = "0.12.0", optional = true }
 libc = "0.2.125"
 drm = { version = "0.6.2", optional = true }
 input = { version = "0.7.1", optional = true }
+libseat = { version = "0.1.4", optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen= "0.2.80"

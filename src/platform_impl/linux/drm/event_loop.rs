@@ -1,7 +1,7 @@
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     marker::PhantomData,
-    os::unix::prelude::{AsRawFd, FromRawFd, IntoRawFd, OpenOptionsExt, RawFd},
+    os::unix::prelude::{AsRawFd, FromRawFd, RawFd},
     path::Path,
     sync::mpsc::SendError,
 };
@@ -19,7 +19,6 @@ use input::{
     LibinputInterface,
 };
 use instant::{Duration, Instant};
-use libc::{O_RDONLY, O_RDWR, O_WRONLY};
 
 use crate::{
     dpi::PhysicalPosition,
@@ -31,22 +30,23 @@ use crate::{
 
 use super::input_to_vk::CHAR_MAPPINGS;
 
-struct Interface;
+struct Interface(libseat::Seat, HashMap<RawFd, i32>);
 
 impl LibinputInterface for Interface {
-    fn open_restricted(&mut self, path: &Path, flags: i32) -> Result<RawFd, i32> {
-        std::fs::OpenOptions::new()
-            .custom_flags(flags)
-            .read((flags & O_RDONLY != 0) | (flags & O_RDWR != 0))
-            .write((flags & O_WRONLY != 0) | (flags & O_RDWR != 0))
-            .open(path)
-            .map(|file| file.into_raw_fd())
-            .map_err(|err| err.raw_os_error().unwrap())
+    fn open_restricted(&mut self, path: &Path, _flags: i32) -> Result<RawFd, i32> {
+        self.0
+            .open_device(&path)
+            .map(|(id, file)| {
+                self.1.insert(file, id);
+                file
+            })
+            .map_err(|err| err.into())
     }
     fn close_restricted(&mut self, fd: RawFd) {
-        unsafe {
-            std::fs::File::from_raw_fd(fd);
+        if let Some(dev) = self.1.get(&fd).copied() {
+            self.0.close_device(dev).unwrap();
         }
+        unsafe { std::fs::File::from_raw_fd(fd) };
     }
 }
 
@@ -710,8 +710,16 @@ impl<T: 'static> EventLoop<T> {
 
         let (disp_width, disp_height) = mode.size();
 
-        let mut input = input::Libinput::new_with_udev(Interface);
-        input.udev_assign_seat("seat0").unwrap();
+        let mut seat = libseat::Seat::open(|_, _| {}, None).map_err(|_| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
+            )
+        })?;
+        seat.dispatch(0).unwrap();
+
+        let input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
         let event_loop: calloop::EventLoop<'static, EventSink> =
             calloop::EventLoop::try_new().unwrap();
 
