@@ -88,6 +88,12 @@ impl Window {
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
+            find_prop_id(&drm, event_loop_window_target.plane, "FB_ID")
+                .expect("Could not get FB_ID"),
+            property::Value::Framebuffer(None),
+        );
+        atomic_req.add_property(
+            event_loop_window_target.plane,
             find_prop_id(&drm, event_loop_window_target.plane, "CRTC_ID")
                 .expect("Could not get CRTC_ID"),
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
