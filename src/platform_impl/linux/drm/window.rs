@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, os::unix::prelude::AsRawFd};
 
-use drm::control::{atomic, property, AtomicCommitFlags, Device};
+use drm::control::{atomic, property, AtomicCommitFlags, Device, ModeTypeFlags};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -33,7 +33,9 @@ impl Window {
         let &mode = event_loop_window_target
             .connector
             .modes()
-            .get(0)
+            .iter()
+            .find(|&&f| f.mode_type() == ModeTypeFlags::PREFERRED)
+            .or(event_loop_window_target.connector.modes().get(0))
             .ok_or_else(|| {
                 crate::error::OsError::new(
                     line!(),
