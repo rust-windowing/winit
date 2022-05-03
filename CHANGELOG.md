@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Linux, initial support has been added for a kmsdrm backend
+- On Wayland, fix bug where the cursor wouldn't hide in GNOME.
 - On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
 - On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
 - On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
@@ -40,6 +41,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
 - **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
 - On Wayland and X11, fix window not resizing with `Window::set_inner_size` after calling `Window:set_resizable(false)`.
+- On Windows, fix wrong fullscreen monitors being recognized when handling WM_WINDOWPOSCHANGING messages
 
 # 0.26.1 (2022-01-05)
 

@@ -35,7 +35,11 @@ pub struct WinitPointer {
     confined_pointer: Weak<RefCell<Option<ZwpConfinedPointerV1>>>,
 
     /// Latest observed serial in pointer events.
+    /// used by Window::start_interactive_move()
     latest_serial: Rc<Cell<u32>>,
+    /// Latest observed serial in pointer enter events.
+    /// used by Window::set_cursor()
+    latest_enter_serial: Rc<Cell<u32>>,
 
     /// Seat.
     seat: WlSeat,
@@ -58,7 +62,9 @@ impl WinitPointer {
             Some(cursor_icon) => cursor_icon,
             None => {
                 // Hide the cursor.
-                (*self.pointer).set_cursor(self.latest_serial.get(), None, 0, 0);
+                // WlPointer::set_cursor() expects the serial of the last *enter*
+                // event (compare to to start_interactive_move()).
+                (*self.pointer).set_cursor(self.latest_enter_serial.get(), None, 0, 0);
                 return;
             }
         };
@@ -106,7 +112,7 @@ impl WinitPointer {
             CursorIcon::ZoomOut => &["zoom-out"],
         };
 
-        let serial = Some(self.latest_serial.get());
+        let serial = Some(self.latest_enter_serial.get());
         for cursor in cursors {
             if self.pointer.set_cursor(cursor, serial).is_ok() {
                 return;
@@ -151,6 +157,8 @@ impl WinitPointer {
     }
 
     pub fn drag_window(&self, window: &Window<FallbackFrame>) {
+        // WlPointer::setart_interactive_move() expects the last serial of *any*
+        // pointer event (compare to set_cursor()).
         window.start_interactive_move(&self.seat, self.latest_serial.get());
     }
 }
