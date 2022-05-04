@@ -7,7 +7,7 @@ use std::{
 };
 
 use calloop::{EventSource, Interest, Mode, Poll, PostAction, Readiness, Token, TokenFactory};
-use drm::control::{property, Device, ResourceHandle};
+use drm::control::{property, Device, ModeTypeFlags, ResourceHandle};
 use input::{
     event::{
         keyboard::KeyboardEventTrait,
@@ -754,11 +754,16 @@ impl<T: 'static> EventLoop<T> {
         ))?;
 
         // Get the first (usually best) mode
-        let &mode = con.modes().get(0).ok_or(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
-        ))?;
+        let &mode = con
+            .modes()
+            .iter()
+            .find(|f| f.mode_type().contains(ModeTypeFlags::PREFERRED))
+            .or(con.modes().get(0))
+            .ok_or(crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
+            ))?;
 
         let planes = drm.plane_handles().or(Err(crate::error::OsError::new(
             line!(),
