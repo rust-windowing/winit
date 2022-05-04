@@ -3,7 +3,7 @@ use std::{
     marker::PhantomData,
     os::unix::prelude::{AsRawFd, FromRawFd, RawFd},
     path::Path,
-    sync::mpsc::SendError,
+    sync::{atomic::AtomicBool, mpsc::SendError, Arc},
 };
 
 use calloop::{EventSource, Interest, Mode, Poll, PostAction, Readiness, Token, TokenFactory};
@@ -19,7 +19,6 @@ use input::{
     LibinputInterface,
 };
 use instant::{Duration, Instant};
-use parking_lot::{Condvar, Mutex};
 
 use crate::{
     dpi::PhysicalPosition,
@@ -662,13 +661,36 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
-        let mut seat = libseat::Seat::open(move |_, _| {}, None).map_err(|_| {
-            crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
+        let mut seat = {
+            let active = Arc::new(AtomicBool::new(false));
+            let t_active = active.clone();
+            let mut s = libseat::Seat::open(
+                move |_, event| {
+                    if let libseat::SeatEvent::Enable = event {
+                        t_active.store(true, std::sync::atomic::Ordering::SeqCst);
+                    }
+                },
+                None,
             )
-        })?;
+            .map_err(|_| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
+                )
+            })?;
+
+            while !active.load(std::sync::atomic::Ordering::SeqCst) {
+                if let Err(_) = s.dispatch(-1) {
+                    return Err(crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc("Failed to dispatch seat"),
+                    ));
+                }
+            }
+            s
+        };
         let dev = seat.open_device(&"/dev/dri/card0").map_err(|_| {
             crate::error::OsError::new(
                 line!(),
