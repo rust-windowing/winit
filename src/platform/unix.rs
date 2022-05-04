@@ -6,7 +6,7 @@
     target_os = "openbsd"
 ))]
 
-use std::os::raw;
+use std::os::{raw, unix::prelude::FromRawFd};
 #[cfg(feature = "x11")]
 use std::{ptr, sync::Arc};
 
@@ -38,14 +38,21 @@ pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupport
 #[cfg(feature = "kmsdrm")]
 #[derive(Debug, Clone)]
 /// A simple wrapper for a device node.
-pub struct Card(Arc<std::fs::File>);
+pub struct Card(pub(crate) Arc<i32>);
 
 #[cfg(feature = "kmsdrm")]
 /// Implementing `AsRawFd` is a prerequisite to implementing the traits found
 /// in this crate. Here, we are just calling `as_raw_fd()` on the inner File.
 impl std::os::unix::io::AsRawFd for Card {
     fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
-        self.0.as_raw_fd()
+        *self.0
+    }
+}
+
+#[cfg(feature = "kmsdrm")]
+impl Drop for Card {
+    fn drop(&mut self) {
+        unsafe { std::fs::File::from_raw_fd(*self.0) };
     }
 }
 
@@ -54,21 +61,6 @@ impl std::os::unix::io::AsRawFd for Card {
 impl Device for Card {}
 #[cfg(feature = "kmsdrm")]
 impl ControlDevice for Card {}
-
-#[cfg(feature = "kmsdrm")]
-/// Simple helper methods for opening a `Card`.
-impl Card {
-    pub fn open(path: &str) -> Result<Self, std::io::Error> {
-        let mut options = std::fs::OpenOptions::new();
-        options.read(true);
-        options.write(true);
-        Ok(Card(Arc::new(options.open(path)?)))
-    }
-
-    pub fn open_global() -> Result<Self, std::io::Error> {
-        Self::open("/dev/dri/card0")
-    }
-}
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
@@ -100,9 +92,7 @@ pub trait EventLoopWindowTargetExtUnix {
     ///
     /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
     #[cfg(feature = "kmsdrm")]
-    fn drm_device(
-        &self,
-    ) -> Option<&'static parking_lot::Mutex<Result<crate::platform::unix::Card, std::io::Error>>>;
+    fn drm_device(&self) -> Option<&crate::platform::unix::Card>;
 
     /// Returns the current crtc of the drm device
     ///
@@ -173,14 +163,9 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
     #[inline]
     #[cfg(feature = "kmsdrm")]
-    fn drm_device(
-        &self,
-    ) -> Option<&'static parking_lot::Mutex<Result<crate::platform::unix::Card, std::io::Error>>>
-    {
-        use crate::platform_impl::DRM_DEVICE;
-
+    fn drm_device(&self) -> Option<&crate::platform::unix::Card> {
         match self.p {
-            crate::platform_impl::EventLoopWindowTarget::Drm(_) => Some(&*DRM_DEVICE),
+            crate::platform_impl::EventLoopWindowTarget::Drm(ref evlp) => Some(&evlp.device),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }

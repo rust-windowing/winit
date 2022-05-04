@@ -6,7 +6,6 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError},
     platform::unix::Card,
-    platform_impl::DRM_DEVICE,
     window::{CursorIcon, Fullscreen},
 };
 
@@ -25,33 +24,25 @@ impl Window {
         _attributes: crate::window::WindowAttributes,
         _platform_attributes: crate::platform_impl::PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, crate::error::OsError> {
-        let drm = DRM_DEVICE
-            .lock()
-            .as_ref()
-            .map_err(|_| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("GBM is not initialized"),
-                )
-            })?
-            .clone();
-
         let mut atomic_req = atomic::AtomicModeReq::new();
         atomic_req.add_property(
             event_loop_window_target.connector.handle(),
-            find_prop_id(&drm, event_loop_window_target.connector.handle(), "CRTC_ID").ok_or_else(
-                || {
-                    crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::DrmMisc("Could not get CRTC_ID"),
-                    )
-                },
-            )?,
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.connector.handle(),
+                "CRTC_ID",
+            )
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("Could not get CRTC_ID"),
+                )
+            })?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
-        let blob = drm
+        let blob = event_loop_window_target
+            .device
             .create_property_blob(&event_loop_window_target.mode)
             .map_err(|_| {
                 crate::error::OsError::new(
@@ -62,86 +53,130 @@ impl Window {
             })?;
         atomic_req.add_property(
             event_loop_window_target.crtc.handle(),
-            find_prop_id(&drm, event_loop_window_target.crtc.handle(), "MODE_ID").ok_or_else(
-                || {
-                    crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::DrmMisc("Could not get MODE_ID"),
-                    )
-                },
-            )?,
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.crtc.handle(),
+                "MODE_ID",
+            )
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("Could not get MODE_ID"),
+                )
+            })?,
             blob,
         );
         atomic_req.add_property(
             event_loop_window_target.crtc.handle(),
-            find_prop_id(&drm, event_loop_window_target.crtc.handle(), "ACTIVE").ok_or_else(
-                || {
-                    crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::DrmMisc("Could not get ACTIVE"),
-                    )
-                },
-            )?,
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.crtc.handle(),
+                "ACTIVE",
+            )
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("Could not get ACTIVE"),
+                )
+            })?,
             property::Value::Boolean(true),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_ID")
-                .expect("Could not get CRTC_ID"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "CRTC_ID",
+            )
+            .expect("Could not get CRTC_ID"),
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "SRC_X")
-                .expect("Could not get SRC_X"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "SRC_X",
+            )
+            .expect("Could not get SRC_X"),
             property::Value::UnsignedRange(0),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "SRC_Y")
-                .expect("Could not get SRC_Y"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "SRC_Y",
+            )
+            .expect("Could not get SRC_Y"),
             property::Value::UnsignedRange(0),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "SRC_W")
-                .expect("Could not get SRC_W"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "SRC_W",
+            )
+            .expect("Could not get SRC_W"),
             property::Value::UnsignedRange((event_loop_window_target.mode.size().0 as u64) << 16),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "SRC_H")
-                .expect("Could not get SRC_H"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "SRC_H",
+            )
+            .expect("Could not get SRC_H"),
             property::Value::UnsignedRange((event_loop_window_target.mode.size().1 as u64) << 16),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_X")
-                .expect("Could not get CRTC_X"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "CRTC_X",
+            )
+            .expect("Could not get CRTC_X"),
             property::Value::SignedRange(0),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_Y")
-                .expect("Could not get CRTC_Y"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "CRTC_Y",
+            )
+            .expect("Could not get CRTC_Y"),
             property::Value::SignedRange(0),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_W")
-                .expect("Could not get CRTC_W"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "CRTC_W",
+            )
+            .expect("Could not get CRTC_W"),
             property::Value::UnsignedRange(event_loop_window_target.mode.size().0 as u64),
         );
         atomic_req.add_property(
             event_loop_window_target.plane,
-            find_prop_id(&drm, event_loop_window_target.plane, "CRTC_H")
-                .expect("Could not get CRTC_H"),
+            find_prop_id(
+                &event_loop_window_target.device,
+                event_loop_window_target.plane,
+                "CRTC_H",
+            )
+            .expect("Could not get CRTC_H"),
             property::Value::UnsignedRange(event_loop_window_target.mode.size().1 as u64),
         );
 
-        drm.atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
+        event_loop_window_target
+            .device
+            .atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
             .map_err(|_| {
                 crate::error::OsError::new(
                     line!(),
@@ -154,7 +189,7 @@ impl Window {
             event_loop_window_target.mode.clone(),
             event_loop_window_target.connector.clone(),
             event_loop_window_target.event_loop_awakener.clone(),
-            drm,
+            event_loop_window_target.device.clone(),
         ))
     }
     #[inline]

@@ -19,13 +19,14 @@ use input::{
     LibinputInterface,
 };
 use instant::{Duration, Instant};
+use parking_lot::{Condvar, Mutex};
 
 use crate::{
     dpi::PhysicalPosition,
     event::{Force, KeyboardInput, ModifiersState, MouseScrollDelta, StartCause},
     event_loop::{ControlFlow, EventLoopClosed},
     platform::unix::Card,
-    platform_impl::{platform::sticky_exit_callback, DRM_DEVICE},
+    platform_impl::platform::sticky_exit_callback,
 };
 
 use super::input_to_vk::CHAR_MAPPINGS;
@@ -661,17 +662,45 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
-        let drm = DRM_DEVICE
-            .lock()
-            .as_ref()
+        let mut seat = {
+            let seat_active = std::sync::Arc::new((Mutex::new(false), Condvar::new()));
+            let callback_seat_active = std::sync::Arc::clone(&seat_active);
+            let s = libseat::Seat::open(
+                move |_, event| {
+                    let (lock, cvar) = &*callback_seat_active;
+                    let mut started = lock.lock();
+                    if let libseat::SeatEvent::Enable = event {
+                        *started = true;
+                        cvar.notify_one();
+                    }
+                },
+                None,
+            )
             .map_err(|_| {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::DrmMisc("KMS/DRM is not initialized"),
+                    crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
                 )
-            })?
-            .clone();
+            })?;
+            let (lock, cvar) = &*seat_active;
+            let mut started = lock.lock();
+            while !*started {
+                cvar.wait(&mut started);
+            }
+            s
+        };
+        let dev = seat.open_device(&"/dev/dri/card0").map_err(|_| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Failed to initialize DRM"),
+            )
+        })?;
+        let drm = Card(std::sync::Arc::new(dev.1));
+        let mut input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
+        input.udev_assign_seat("seat0").unwrap();
+
         drm::Device::set_client_capability(&drm, drm::ClientCapability::UniversalPlanes, true).or(
             Err(crate::error::OsError::new(
                 line!(),
@@ -823,17 +852,6 @@ impl<T: 'static> EventLoop<T> {
 
         let (disp_width, disp_height) = mode.size();
 
-        let mut input = input::Libinput::new_with_udev(Interface(
-            libseat::Seat::open(|_, _| {}, None).map_err(|_| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
-                )
-            })?,
-            HashMap::new(),
-        ));
-        input.udev_assign_seat("seat0").unwrap();
         let event_loop: calloop::EventLoop<'static, EventSink> =
             calloop::EventLoop::try_new().unwrap();
 
