@@ -662,34 +662,13 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
-        let mut seat = {
-            let seat_active = std::sync::Arc::new((Mutex::new(false), Condvar::new()));
-            let callback_seat_active = std::sync::Arc::clone(&seat_active);
-            let s = libseat::Seat::open(
-                move |_, event| {
-                    let (lock, cvar) = &*callback_seat_active;
-                    let mut started = lock.lock();
-                    if let libseat::SeatEvent::Enable = event {
-                        *started = true;
-                        cvar.notify_one();
-                    }
-                },
-                None,
+        let mut seat = libseat::Seat::open(move |_, _| {}, None).map_err(|_| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
             )
-            .map_err(|_| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
-                )
-            })?;
-            let (lock, cvar) = &*seat_active;
-            let mut started = lock.lock();
-            while !*started {
-                cvar.wait(&mut started);
-            }
-            s
-        };
+        })?;
         let dev = seat.open_device(&"/dev/dri/card0").map_err(|_| {
             crate::error::OsError::new(
                 line!(),
