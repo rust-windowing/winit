@@ -4,6 +4,7 @@ use std::{
     os::unix::prelude::{AsRawFd, FromRawFd, RawFd},
     path::Path,
     sync::{atomic::AtomicBool, mpsc::SendError, Arc},
+    time::{Duration, Instant},
 };
 
 use calloop::{EventSource, Interest, Mode, Poll, PostAction, Readiness, Token, TokenFactory};
@@ -18,7 +19,6 @@ use input::{
     },
     LibinputInterface,
 };
-use instant::{Duration, Instant};
 
 use crate::{
     dpi::PhysicalPosition,
@@ -58,6 +58,7 @@ pub struct LibinputInputBackend {
     screen_size: (u32, u32),
     modifiers: ModifiersState,
     cursor_positon: PhysicalPosition<f64>,
+    timer_handle: calloop::timer::TimerHandle<KeyboardInput>,
     // cursor_plane: drm::control::plane::Handle,
     // cursor_buffer: drm::control::framebuffer::Handle,
 }
@@ -68,8 +69,8 @@ impl LibinputInputBackend {
     pub fn new(
         context: input::Libinput,
         screen_size: (u32, u32),
-        // cursor_plane: drm::control::plane::Handle,
-        // cursor_buffer: drm::control::framebuffer::Handle,
+        timer_handle: calloop::timer::TimerHandle<KeyboardInput>, // cursor_plane: drm::control::plane::Handle,
+                                                                  // cursor_buffer: drm::control::framebuffer::Handle
     ) -> Self {
         LibinputInputBackend {
             context,
@@ -77,7 +78,7 @@ impl LibinputInputBackend {
             touch_location: PhysicalPosition::new(0.0, 0.0),
             cursor_positon: PhysicalPosition::new(0.0, 0.0),
             modifiers: ModifiersState::empty(),
-            screen_size,
+            screen_size,timer_handle
             // cursor_buffer,
             // cursor_plane,
         }
@@ -539,13 +540,19 @@ impl EventSource for LibinputInputBackend {
                                    }
 
                                 k => {
+                                    let state = match ev.key_state() {
+                                            KeyState::Pressed => crate::event::ElementState::Pressed,
+                                            KeyState::Released => crate::event::ElementState::Released
+                                        };
+                                    let input = KeyboardInput { scancode: k, state: state.clone(), virtual_keycode: CHAR_MAPPINGS[k as usize], modifiers: self.modifiers };
+                                    self.timer_handle.cancel_all_timeouts();
+                                    if let crate::event::ElementState::Pressed = state {
+                                        self.timer_handle.add_timeout(Duration::from_millis(500), input);
+                                    }
                                     callback(crate::event::Event::WindowEvent {
                                         window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
                                         event: crate::event::WindowEvent::KeyboardInput { device_id: crate::event::DeviceId(crate::  platform_impl::DeviceId::Drm( super::DeviceId)),
-                                        input: KeyboardInput { scancode: k, state: match ev.key_state() {
-                                            KeyState::Pressed => crate::event::ElementState::Pressed,
-                                            KeyState::Released => crate::event::ElementState::Released
-                                        }, virtual_keycode: CHAR_MAPPINGS[k as usize], modifiers: self.modifiers } , is_synthetic: false }}, &mut ());
+                                        input, is_synthetic: false }}, &mut ());
                                 }
                             },
                         _ => {}
@@ -896,9 +903,37 @@ impl<T: 'static> EventLoop<T> {
             )
             .unwrap();
 
+        let repeat_handler = calloop::timer::Timer::new().unwrap();
+
+        let repeat_handle = repeat_handler.handle();
+
+        let repeat_loop: calloop::Dispatcher<
+            'static,
+            calloop::timer::Timer<KeyboardInput>,
+            EventSink,
+        > = calloop::Dispatcher::new(
+            repeat_handler,
+            move |event, metadata, data: &mut EventSink| {
+                data.push(crate::event::Event::WindowEvent {
+                    window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(
+                        super::WindowId,
+                    )),
+                    event: crate::event::WindowEvent::KeyboardInput {
+                        device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Drm(
+                            super::DeviceId,
+                        )),
+                        input: event,
+                        is_synthetic: false,
+                    },
+                });
+                metadata.add_timeout(Duration::from_millis(100), event);
+            },
+        );
+
         let input_backend: LibinputInputBackend = LibinputInputBackend::new(
             input,
             (disp_width.into(), disp_height.into()), // plane, fb
+            repeat_handle,
         );
 
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
@@ -910,6 +945,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
         handle.register_dispatcher(input_loop).unwrap();
+        handle.register_dispatcher(repeat_loop).unwrap();
 
         let window_target = crate::event_loop::EventLoopWindowTarget {
             p: crate::platform_impl::EventLoopWindowTarget::Drm(EventLoopWindowTarget {
