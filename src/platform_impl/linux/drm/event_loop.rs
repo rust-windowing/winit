@@ -553,9 +553,8 @@ impl EventSource for LibinputInputBackend {
                                         event: crate::event::WindowEvent::KeyboardInput { device_id: crate::event::DeviceId(crate::  platform_impl::DeviceId::Drm( super::DeviceId)),
                                         input, is_synthetic: false }}, &mut ());
                                     if let crate::event::ElementState::Pressed = state {
-                                        if self.modifiers == ModifiersState::SHIFT || self.modifiers == ModifiersState::empty() {
                                             if let Some(vk) = virtual_keycode {
-                                                let ch = vk.into_char(self.modifiers.shift());
+                                                let ch = vk.into_char(self.modifiers.shift(), self.modifiers.ctrl());
                                                 if let Some(c) = ch {
                                                     callback(crate::event::Event::WindowEvent {
                                                         window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
@@ -563,7 +562,6 @@ impl EventSource for LibinputInputBackend {
                                                 }
                                                 self.timer_handle.add_timeout(Duration::from_millis(600), (input, ch));
                                             }
-                                        }
                                     }
                                 }
                             },
