@@ -921,7 +921,7 @@ impl<T: 'static> EventLoop<T> {
 
         let repeat_loop: calloop::Dispatcher<
             'static,
-            calloop::timer::Timer<KeyboardInput>,
+            calloop::timer::Timer<(KeyboardInput, Option<char>)>,
             EventSink,
         > = calloop::Dispatcher::new(
             repeat_handler,
@@ -934,10 +934,18 @@ impl<T: 'static> EventLoop<T> {
                         device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Drm(
                             super::DeviceId,
                         )),
-                        input: event,
+                        input: event.0,
                         is_synthetic: false,
                     },
                 });
+                if let Some(c) = event.1 {
+                    data.push(crate::event::Event::WindowEvent {
+                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(
+                            super::WindowId,
+                        )),
+                        event: crate::event::WindowEvent::ReceivedCharacter(c),
+                    });
+                }
                 metadata.add_timeout(Duration::from_millis(25), event);
             },
         );
