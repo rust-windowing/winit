@@ -58,7 +58,7 @@ pub struct LibinputInputBackend {
     screen_size: (u32, u32),
     modifiers: ModifiersState,
     cursor_positon: PhysicalPosition<f64>,
-    timer_handle: calloop::timer::TimerHandle<KeyboardInput>,
+    timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>,
     // cursor_plane: drm::control::plane::Handle,
     // cursor_buffer: drm::control::framebuffer::Handle,
 }
@@ -69,8 +69,8 @@ impl LibinputInputBackend {
     pub fn new(
         context: input::Libinput,
         screen_size: (u32, u32),
-        timer_handle: calloop::timer::TimerHandle<KeyboardInput>, // cursor_plane: drm::control::plane::Handle,
-                                                                  // cursor_buffer: drm::control::framebuffer::Handle
+        timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>, // cursor_plane: drm::control::plane::Handle,
+                                                                                  // cursor_buffer: drm::control::framebuffer::Handle
     ) -> Self {
         LibinputInputBackend {
             context,
@@ -548,21 +548,21 @@ impl EventSource for LibinputInputBackend {
                                     let virtual_keycode = CHAR_MAPPINGS[k as usize];
                                     let input = KeyboardInput { scancode: k, state: state.clone(), virtual_keycode, modifiers: self.modifiers };
                                     self.timer_handle.cancel_all_timeouts();
-                                    if let crate::event::ElementState::Pressed = state {
-                                        self.timer_handle.add_timeout(Duration::from_millis(600), input);
-                                    }
                                     callback(crate::event::Event::WindowEvent {
                                         window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
                                         event: crate::event::WindowEvent::KeyboardInput { device_id: crate::event::DeviceId(crate::  platform_impl::DeviceId::Drm( super::DeviceId)),
                                         input, is_synthetic: false }}, &mut ());
                                     if let crate::event::ElementState::Pressed = state {
-                                        if let Some(vk) =virtual_keycode {
-                                            if let Some(c) = vk.into_char(self.modifiers.shift()) {
-                                                callback(crate::event::Event::WindowEvent {
-                                                    window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                                    event: crate::event::WindowEvent::ReceivedCharacter(c)}, &mut ());
+                                        if self.modifiers == ModifiersState::SHIFT || self.modifiers == ModifiersState::empty() {
+                                            if let Some(vk) = virtual_keycode {
+                                                let ch = vk.into_char(self.modifiers.shift());
+                                                if let Some(c) = ch {
+                                                    callback(crate::event::Event::WindowEvent {
+                                                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                                        event: crate::event::WindowEvent::ReceivedCharacter(c)}, &mut ());
+                                                }
+                                                self.timer_handle.add_timeout(Duration::from_millis(600), (input, ch));
                                             }
-
                                         }
                                     }
                                 }
