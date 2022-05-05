@@ -532,6 +532,7 @@ impl EventSource for LibinputInputBackend {
                                 99 // SysRq
                                    => {
                                     if self.modifiers.is_empty() {
+                                        self.timer_handle.cancel_all_timeouts();
                                         callback(crate::event::Event::WindowEvent {
                                              window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
                                              event: crate::event::WindowEvent::CloseRequested
@@ -544,7 +545,8 @@ impl EventSource for LibinputInputBackend {
                                             KeyState::Pressed => crate::event::ElementState::Pressed,
                                             KeyState::Released => crate::event::ElementState::Released
                                         };
-                                    let input = KeyboardInput { scancode: k, state: state.clone(), virtual_keycode: CHAR_MAPPINGS[k as usize], modifiers: self.modifiers };
+                                    let virtual_keycode = CHAR_MAPPINGS[k as usize];
+                                    let input = KeyboardInput { scancode: k, state: state.clone(), virtual_keycode, modifiers: self.modifiers };
                                     self.timer_handle.cancel_all_timeouts();
                                     if let crate::event::ElementState::Pressed = state {
                                         self.timer_handle.add_timeout(Duration::from_millis(600), input);
@@ -553,6 +555,14 @@ impl EventSource for LibinputInputBackend {
                                         window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
                                         event: crate::event::WindowEvent::KeyboardInput { device_id: crate::event::DeviceId(crate::  platform_impl::DeviceId::Drm( super::DeviceId)),
                                         input, is_synthetic: false }}, &mut ());
+                                    if let Some(vk) =virtual_keycode {
+                                        if let Ok(c) = vk.try_into() {
+                                        callback(crate::event::Event::WindowEvent {
+                                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                        event: crate::event::WindowEvent::ReceivedCharacter(c)}, &mut ());
+                                    }
+
+                                    }
                                 }
                             },
                         _ => {}
