@@ -496,12 +496,13 @@ impl EventSource for LibinputInputBackend {
                         } else {
                             unreachable!()
                         };
-                        let keysym = self.xkb_ctx.key_get_one_sym(k + 8);
+                        let key_offset = k + 8;
+                        let keysym = self.xkb_ctx.key_get_one_sym(key_offset);
                         let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
-                        let should_repeat = self.xkb_keymap.key_repeats(keysym);
-                        let ch = self.xkb_ctx.key_get_utf8(keysym).chars().next();
+                        let should_repeat = self.xkb_keymap.key_repeats(key_offset);
+                        let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
                         self.xkb_ctx.update_key(
-                            k + 8,
+                            key_offset,
                             match state {
                                 ElementState::Pressed => xkb::KeyDirection::Down,
                                 ElementState::Released => xkb::KeyDirection::Up,
@@ -593,7 +594,7 @@ impl EventSource for LibinputInputBackend {
                                                 window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
                                                 event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
                                         }
-                                    xkb_keymap::XKB_KEY_Sys_Req // SysRq
+                                    xkb_keymap::XKB_KEY_Sys_Req | xkb_keymap::XKB_KEY_Print
                                         => {
                                             if self.modifiers.is_empty() {
                                                 callback(crate::event::Event::WindowEvent {
