@@ -8,7 +8,10 @@
 
 use std::os::{raw, unix::prelude::FromRawFd};
 #[cfg(feature = "x11")]
-use std::{ptr, sync::Arc};
+use std::ptr;
+
+#[cfg(any(feature = "x11", feature = "kmsdrm"))]
+use std::sync::Arc;
 
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
