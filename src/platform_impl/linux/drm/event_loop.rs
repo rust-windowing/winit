@@ -494,7 +494,7 @@ impl EventSource for LibinputInputBackend {
                         let k = if let input::event::KeyboardEvent::Key(key) = ev {
                             key.key()
                         } else {
-                            unsafe { core::hint::unreachable_unchecked() }
+                            unreachable!()
                         };
                         let keysym = self.xkb_ctx.key_get_one_sym(k + 8);
                         let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
@@ -504,7 +504,7 @@ impl EventSource for LibinputInputBackend {
                             k + 8,
                             match state {
                                 ElementState::Pressed => xkb::KeyDirection::Down,
-                                ElementState::Released => xkb::KeyDirection::Down,
+                                ElementState::Released => xkb::KeyDirection::Up,
                             },
                         );
                         let input = KeyboardInput {
@@ -720,9 +720,9 @@ impl<T: 'static> EventLoop<T> {
         let keymap = xkb::Keymap::new_from_names(
             &xkb_ctx,
             "",
-            "pc105",
-            "us",
-            "qwerty",
+            "",
+            "",
+            "",
             None,
             xkb::KEYMAP_COMPILE_NO_FLAGS,
         )
