@@ -556,7 +556,7 @@ impl EventSource for LibinputInputBackend {
                                         event: crate::event::WindowEvent::KeyboardInput { device_id: crate::event::DeviceId(crate::  platform_impl::DeviceId::Drm( super::DeviceId)),
                                         input, is_synthetic: false }}, &mut ());
                                     if let Some(vk) =virtual_keycode {
-                                        if let Ok(c) = vk.try_into() {
+                                        if let Some(c) = vk.into_char(self.modifiers.shift()) {
                                         callback(crate::event::Event::WindowEvent {
                                         window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
                                         event: crate::event::WindowEvent::ReceivedCharacter(c)}, &mut ());
