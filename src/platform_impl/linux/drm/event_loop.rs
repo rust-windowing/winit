@@ -547,7 +547,7 @@ impl EventSource for LibinputInputBackend {
                                     let input = KeyboardInput { scancode: k, state: state.clone(), virtual_keycode: CHAR_MAPPINGS[k as usize], modifiers: self.modifiers };
                                     self.timer_handle.cancel_all_timeouts();
                                     if let crate::event::ElementState::Pressed = state {
-                                        self.timer_handle.add_timeout(Duration::from_millis(500), input);
+                                        self.timer_handle.add_timeout(Duration::from_millis(600), input);
                                     }
                                     callback(crate::event::Event::WindowEvent {
                                         window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
@@ -926,7 +926,7 @@ impl<T: 'static> EventLoop<T> {
                         is_synthetic: false,
                     },
                 });
-                metadata.add_timeout(Duration::from_millis(100), event);
+                metadata.add_timeout(Duration::from_millis(25), event);
             },
         );
 
