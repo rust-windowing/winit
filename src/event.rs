@@ -1144,6 +1144,7 @@ impl VirtualKeyCode {
             (VirtualKeyCode::Slash, true, false) => Some('?'),
             (VirtualKeyCode::Slash, _, true) => Some('\u{1f}'),
             (VirtualKeyCode::Tab, _, _) => Some('\t'),
+            (VirtualKeyCode::Back, _, true) => Some('\u{8}'),
             _ => None,
         }
     }
