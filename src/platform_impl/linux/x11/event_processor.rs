@@ -23,7 +23,20 @@ use crate::{
 };
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range [8,255]".
-const KEYCODE_OFFSET: u8 = 8;
+const KEYCODE_OFFSET: u16 = 8;
+
+fn keycode_to_scancode(keycode: u32) -> Option<u32> {
+    if (keycode as u16) < KEYCODE_OFFSET {
+        return None;
+    }
+
+    let evdev_key = KeyMapping::Evdev(keycode as u16 - KEYCODE_OFFSET);
+    if let Ok(keymap) = KeyMap::from_key_mapping(evdev_key) {
+        Some(keymap.win.into())
+    } else {
+        None
+    }
+}
 
 pub(super) struct EventProcessor<T: 'static> {
     pub(super) dnd: Dnd,
@@ -568,11 +581,11 @@ impl<T: 'static> EventProcessor<T> {
                 let device = util::VIRTUAL_CORE_KEYBOARD;
                 let device_id = mkdid(device);
                 let keycode = xkev.keycode;
+                let scancode = keycode_to_scancode(keycode);
 
                 // When a compose sequence or IME pre-edit is finished, it ends in a KeyPress with
                 // a keycode of 0.
-                if keycode != 0 && !self.is_composing {
-                    let scancode = keycode - KEYCODE_OFFSET as u32;
+                if let Some(scancode) = scancode {
                     let keysym = wt.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
@@ -1107,10 +1120,16 @@ impl<T: 'static> EventProcessor<T> {
 
                         let device_id = mkdid(xev.sourceid);
                         let keycode = xev.detail;
-                        let scancode = keycode - KEYCODE_OFFSET as i32;
-                        if scancode < 0 {
+                        if keycode < 0 {
                             return;
                         }
+
+                        let scancode = if let Some(scancode) = keycode_to_scancode(keycode as u32) {
+                            scancode
+                        } else {
+                            return;
+                        };
+
                         let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
@@ -1119,7 +1138,7 @@ impl<T: 'static> EventProcessor<T> {
                         callback(Event::DeviceEvent {
                             device_id,
                             event: DeviceEvent::Key(KeyboardInput {
-                                scancode: scancode as u32,
+                                scancode,
                                 virtual_keycode,
                                 state,
                                 modifiers,
@@ -1314,9 +1333,14 @@ impl<T: 'static> EventProcessor<T> {
             .xconn
             .query_keymap()
             .into_iter()
-            .filter(|k| *k >= KEYCODE_OFFSET)
+            .filter(|k| *k >= KEYCODE_OFFSET as u8)
         {
-            let scancode = (keycode - KEYCODE_OFFSET) as u32;
+            let scancode = if let Some(scancode) = keycode_to_scancode(keycode.into()) {
+                scancode
+            } else {
+                continue
+            };
+
             let keysym = wt.xconn.keycode_to_keysym(keycode);
             let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
