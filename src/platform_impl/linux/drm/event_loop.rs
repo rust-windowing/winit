@@ -720,9 +720,9 @@ impl<T: 'static> EventLoop<T> {
         let keymap = xkb::Keymap::new_from_names(
             &xkb_ctx,
             "",
-            "",
-            "",
-            "",
+            "pc101",
+            "us",
+            "qwerty",
             None,
             xkb::KEYMAP_COMPILE_NO_FLAGS,
         )
