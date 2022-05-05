@@ -79,8 +79,8 @@ impl LibinputInputBackend {
             cursor_positon: PhysicalPosition::new(0.0, 0.0),
             modifiers: ModifiersState::empty(),
             screen_size,timer_handle
-            // cursor_buffer,
-            // cursor_plane,
+                // cursor_buffer,
+                // cursor_plane,
         }
     }
 }
@@ -530,21 +530,21 @@ impl EventSource for LibinputInputBackend {
                                             event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
                                     }
                                 99 // SysRq
-                                   => {
-                                    if self.modifiers.is_empty() {
-                                        self.timer_handle.cancel_all_timeouts();
-                                        callback(crate::event::Event::WindowEvent {
-                                             window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                             event: crate::event::WindowEvent::CloseRequested
-                                        }, &mut ());
+                                    => {
+                                        if self.modifiers.is_empty() {
+                                            self.timer_handle.cancel_all_timeouts();
+                                            callback(crate::event::Event::WindowEvent {
+                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                                event: crate::event::WindowEvent::CloseRequested
+                                            }, &mut ());
+                                        }
                                     }
-                                   }
 
                                 k => {
                                     let state = match ev.key_state() {
-                                            KeyState::Pressed => crate::event::ElementState::Pressed,
-                                            KeyState::Released => crate::event::ElementState::Released
-                                        };
+                                        KeyState::Pressed => crate::event::ElementState::Pressed,
+                                        KeyState::Released => crate::event::ElementState::Released
+                                    };
                                     let virtual_keycode = CHAR_MAPPINGS[k as usize];
                                     let input = KeyboardInput { scancode: k, state: state.clone(), virtual_keycode, modifiers: self.modifiers };
                                     self.timer_handle.cancel_all_timeouts();
@@ -555,13 +555,15 @@ impl EventSource for LibinputInputBackend {
                                         window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
                                         event: crate::event::WindowEvent::KeyboardInput { device_id: crate::event::DeviceId(crate::  platform_impl::DeviceId::Drm( super::DeviceId)),
                                         input, is_synthetic: false }}, &mut ());
-                                    if let Some(vk) =virtual_keycode {
-                                        if let Some(c) = vk.into_char(self.modifiers.shift()) {
-                                        callback(crate::event::Event::WindowEvent {
-                                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                        event: crate::event::WindowEvent::ReceivedCharacter(c)}, &mut ());
-                                    }
+                                    if let crate::event::ElementState::Pressed = state {
+                                        if let Some(vk) =virtual_keycode {
+                                            if let Some(c) = vk.into_char(self.modifiers.shift()) {
+                                                callback(crate::event::Event::WindowEvent {
+                                                    window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                                    event: crate::event::WindowEvent::ReceivedCharacter(c)}, &mut ());
+                                            }
 
+                                        }
                                     }
                                 }
                             },
@@ -789,58 +791,58 @@ impl<T: 'static> EventLoop<T> {
         )))?;
 
         /*
-        let mut db = drm
-            .create_dumb_buffer((64, 64), drm::buffer::DrmFourcc::Xrgb8888, 32)
-            .or(Err(crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("Could not create dumb buffer"),
-            )))?;
+          let mut db = drm
+          .create_dumb_buffer((64, 64), drm::buffer::DrmFourcc::Xrgb8888, 32)
+          .or(Err(crate::error::OsError::new(
+          line!(),
+          file!(),
+          crate::platform_impl::OsError::DrmMisc("Could not create dumb buffer"),
+          )))?;
 
-        {
-            let mut map = drm
-                .map_dumb_buffer(&mut db)
-                .expect("Could not map dumbbuffer");
-            for b in map.as_mut() {
-                *b = 128;
-            }
+          {
+          let mut map = drm
+          .map_dumb_buffer(&mut db)
+          .expect("Could not map dumbbuffer");
+          for b in map.as_mut() {
+        *b = 128;
+        }
         }
 
         let fb = drm
-            .add_framebuffer(&db, 24, 32)
-            .or(Err(crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::DrmMisc("Could not create FB"),
-            )))?;
+        .add_framebuffer(&db, 24, 32)
+        .or(Err(crate::error::OsError::new(
+        line!(),
+        file!(),
+        crate::platform_impl::OsError::DrmMisc("Could not create FB"),
+        )))?;
 
-                let (better_planes, compatible_planes): (
-            Vec<drm::control::plane::Handle>,
-            Vec<drm::control::plane::Handle>,
+        let (better_planes, compatible_planes): (
+        Vec<drm::control::plane::Handle>,
+        Vec<drm::control::plane::Handle>,
         ) = planes
-            .planes()
-            .iter()
-            .filter(|&&plane| {
-                drm.get_plane(plane)
-                    .map(|plane_info| {
-                        let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
-                        compatible_crtcs.contains(&crtc.handle())
-                    })
-                    .unwrap_or(false)
-            })
-            .partition(|&&plane| {
-                if let Ok(props) = drm.get_properties(plane) {
-                    let (ids, vals) = props.as_props_and_values();
-                    for (&id, &val) in ids.iter().zip(vals.iter()) {
-                        if let Ok(info) = drm.get_property(id) {
-                            if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
-                                return val == (drm::control::PlaneType::Cursor as u32).into();
-                            }
-                        }
-                    }
-                }
-                false
-            });
+        .planes()
+        .iter()
+        .filter(|&&plane| {
+        drm.get_plane(plane)
+        .map(|plane_info| {
+        let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
+        compatible_crtcs.contains(&crtc.handle())
+        })
+        .unwrap_or(false)
+        })
+        .partition(|&&plane| {
+        if let Ok(props) = drm.get_properties(plane) {
+        let (ids, vals) = props.as_props_and_values();
+        for (&id, &val) in ids.iter().zip(vals.iter()) {
+        if let Ok(info) = drm.get_property(id) {
+        if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
+        return val == (drm::control::PlaneType::Cursor as u32).into();
+        }
+        }
+        }
+        }
+        false
+        });
         let plane = *better_planes.get(0).unwrap_or(&compatible_planes[0]);
         */
         let (p_better_planes, p_compatible_planes): (
