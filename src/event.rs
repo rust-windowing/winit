@@ -1068,7 +1068,6 @@ impl VirtualKeyCode {
             (VirtualKeyCode::R, _, true) => Some('\u{12}'),
             (VirtualKeyCode::S, false, false) => Some('s'),
             (VirtualKeyCode::S, true, false) => Some('S'),
-            (VirtualKeyCode::Key8, true, false) => Some('*'),
             (VirtualKeyCode::S, _, true) => Some('\u{13}'),
             (VirtualKeyCode::T, false, false) => Some('t'),
             (VirtualKeyCode::T, true, false) => Some('T'),
