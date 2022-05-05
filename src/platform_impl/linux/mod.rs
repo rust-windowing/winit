@@ -45,6 +45,8 @@ pub mod drm;
 pub mod wayland;
 #[cfg(feature = "x11")]
 pub mod x11;
+#[cfg(any(feature = "kmsdrm", feature = "wayland"))]
+pub mod xkb_keymap;
 
 /// Environment variable specifying which backend should be used on unix platform.
 ///

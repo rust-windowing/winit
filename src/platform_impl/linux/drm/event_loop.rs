@@ -6,6 +6,7 @@ use std::{
     sync::{atomic::AtomicBool, mpsc::SendError, Arc},
     time::{Duration, Instant},
 };
+use xkbcommon::xkb;
 
 use calloop::{EventSource, Interest, Mode, Poll, PostAction, Readiness, Token, TokenFactory};
 use drm::control::{property, Device, ModeTypeFlags, ResourceHandle};
@@ -22,13 +23,11 @@ use input::{
 
 use crate::{
     dpi::PhysicalPosition,
-    event::{Force, KeyboardInput, ModifiersState, MouseScrollDelta, StartCause},
+    event::{ElementState, Force, KeyboardInput, ModifiersState, MouseScrollDelta, StartCause},
     event_loop::{ControlFlow, EventLoopClosed},
     platform::unix::Card,
-    platform_impl::platform::sticky_exit_callback,
+    platform_impl::{platform::sticky_exit_callback, xkb_keymap},
 };
-
-use super::input_to_vk::CHAR_MAPPINGS;
 
 struct Interface(libseat::Seat, HashMap<RawFd, i32>);
 
@@ -50,9 +49,10 @@ impl LibinputInterface for Interface {
     }
 }
 
-#[derive(Debug)]
 pub struct LibinputInputBackend {
     context: input::Libinput,
+    xkb_ctx: xkb::State,
+    xkb_keymap: xkb::Keymap,
     token: Token,
     touch_location: PhysicalPosition<f64>,
     screen_size: (u32, u32),
@@ -69,8 +69,10 @@ impl LibinputInputBackend {
     pub fn new(
         context: input::Libinput,
         screen_size: (u32, u32),
-        timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>, // cursor_plane: drm::control::plane::Handle,
-                                                                                  // cursor_buffer: drm::control::framebuffer::Handle
+        timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>,
+        xkb_ctx: xkb::State,
+        xkb_keymap: xkb::Keymap, // cursor_plane: drm::control::plane::Handle,
+                                 // cursor_buffer: drm::control::framebuffer::Handle
     ) -> Self {
         LibinputInputBackend {
             context,
@@ -78,9 +80,12 @@ impl LibinputInputBackend {
             touch_location: PhysicalPosition::new(0.0, 0.0),
             cursor_positon: PhysicalPosition::new(0.0, 0.0),
             modifiers: ModifiersState::empty(),
-            screen_size,timer_handle
-                // cursor_buffer,
-                // cursor_plane,
+            screen_size,
+            timer_handle,
+            xkb_ctx,
+            xkb_keymap,
+            // cursor_buffer,
+            // cursor_plane,
         }
     }
 }
@@ -481,92 +486,125 @@ impl EventSource for LibinputInputBackend {
                         }
                         _ => {}
                     },
-                    input::Event::Keyboard(ev) => match &ev {
-                        input::event::KeyboardEvent::Key(key) => match key.key() {
-                                56 // LAlt
-                                    | 100 // RAlt
-                                    => {
-                                        match key.key_state() {
-                                            KeyState::Pressed => self.modifiers |= ModifiersState::ALT,
-                                            KeyState::Released => self.modifiers.remove(ModifiersState::ALT)
-                                        }
-                                        callback(crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                            event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
-                                    }
-                                | 42 // LShift
-                                    | 54 // RShift
-                                    => {
-                                        match key.key_state() {
-                                            KeyState::Pressed => self.modifiers |= ModifiersState::SHIFT,
-                                            KeyState::Released => self.modifiers.remove(ModifiersState::SHIFT)
-                                        }
-                                        callback(crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                            event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
-                                    }
-
-                                | 29 // LCtrl
-                                    | 97 // RCtrl
-                                    => {
-                                        match key.key_state() {
-                                            KeyState::Pressed => self.modifiers |= ModifiersState::CTRL,
-                                            KeyState::Released => self.modifiers.remove(ModifiersState::CTRL)
-                                        }
-                                        callback(crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                            event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
-                                    }
-
-                                | 125 // LMeta
-                                    | 126 // RMeta
-                                    => {
-                                        match key.key_state() {
-                                            KeyState::Pressed => self.modifiers |= ModifiersState::LOGO,
-                                            KeyState::Released => self.modifiers.remove(ModifiersState::LOGO)
-                                        }
-                                        callback(crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                            event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
-                                    }
-                                99 // SysRq
-                                    => {
-                                        if self.modifiers.is_empty() {
-                                            self.timer_handle.cancel_all_timeouts();
+                    input::Event::Keyboard(ev) => {
+                        let state = match ev.key_state() {
+                            KeyState::Pressed => crate::event::ElementState::Pressed,
+                            KeyState::Released => crate::event::ElementState::Released,
+                        };
+                        let k = if let input::event::KeyboardEvent::Key(key) = ev {
+                            key.key()
+                        } else {
+                            unsafe { core::hint::unreachable_unchecked() }
+                        };
+                        let keysym = self.xkb_ctx.key_get_one_sym(k + 8);
+                        let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
+                        let should_repeat = self.xkb_keymap.key_repeats(keysym);
+                        let ch = self.xkb_ctx.key_get_utf8(keysym).chars().next();
+                        self.xkb_ctx.update_key(
+                            k + 8,
+                            match state {
+                                ElementState::Pressed => xkb::KeyDirection::Down,
+                                ElementState::Released => xkb::KeyDirection::Down,
+                            },
+                        );
+                        let input = KeyboardInput {
+                            scancode: k,
+                            state: state.clone(),
+                            virtual_keycode,
+                            modifiers: self.modifiers,
+                        };
+                        self.timer_handle.cancel_all_timeouts();
+                        callback(
+                            crate::event::Event::WindowEvent {
+                                window_id: crate::window::WindowId(
+                                    crate::platform_impl::WindowId::Drm(super::WindowId),
+                                ),
+                                event: crate::event::WindowEvent::KeyboardInput {
+                                    device_id: crate::event::DeviceId(
+                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                    ),
+                                    input,
+                                    is_synthetic: false,
+                                },
+                            },
+                            &mut (),
+                        );
+                        if let crate::event::ElementState::Pressed = state {
+                            if should_repeat {
+                                self.timer_handle
+                                    .add_timeout(Duration::from_millis(600), (input, ch));
+                            }
+                            if let Some(c) = ch {
+                                callback(
+                                    crate::event::Event::WindowEvent {
+                                        window_id: crate::window::WindowId(
+                                            crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        ),
+                                        event: crate::event::WindowEvent::ReceivedCharacter(c),
+                                    },
+                                    &mut (),
+                                );
+                            }
+                        }
+                        match keysym {
+                                    xkb_keymap::XKB_KEY_Alt_L
+                                        | xkb_keymap::XKB_KEY_Alt_R
+                                        => {
+                                            match state {
+                                                ElementState::Pressed => self.modifiers |= ModifiersState::ALT,
+                                                ElementState::Released => self.modifiers.remove(ModifiersState::ALT)
+                                            }
                                             callback(crate::event::Event::WindowEvent {
                                                 window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                                event: crate::event::WindowEvent::CloseRequested
-                                            }, &mut ());
+                                                event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
                                         }
-                                    }
-
-                                k => {
-                                    let state = match ev.key_state() {
-                                        KeyState::Pressed => crate::event::ElementState::Pressed,
-                                        KeyState::Released => crate::event::ElementState::Released
-                                    };
-                                    let virtual_keycode = CHAR_MAPPINGS[k as usize];
-                                    let input = KeyboardInput { scancode: k, state: state.clone(), virtual_keycode, modifiers: self.modifiers };
-                                    self.timer_handle.cancel_all_timeouts();
-                                    callback(crate::event::Event::WindowEvent {
-                                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                        event: crate::event::WindowEvent::KeyboardInput { device_id: crate::event::DeviceId(crate::  platform_impl::DeviceId::Drm( super::DeviceId)),
-                                        input, is_synthetic: false }}, &mut ());
-                                    if let crate::event::ElementState::Pressed = state {
-                                            if let Some(vk) = virtual_keycode {
-                                                let ch = vk.into_char(self.modifiers.shift(), self.modifiers.ctrl());
-                                                if let Some(c) = ch {
-                                                    callback(crate::event::Event::WindowEvent {
-                                                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                                        event: crate::event::WindowEvent::ReceivedCharacter(c)}, &mut ());
-                                                }
-                                                self.timer_handle.add_timeout(Duration::from_millis(600), (input, ch));
+                                    | xkb_keymap::XKB_KEY_Shift_L // LShift
+                                        | xkb_keymap::XKB_KEY_Shift_R // RShift
+                                        => {
+                                            match state {
+                                                ElementState::Pressed => self.modifiers |= ModifiersState::SHIFT,
+                                                ElementState::Released => self.modifiers.remove(ModifiersState::SHIFT)
                                             }
-                                    }
-                                }
-                            },
-                        _ => {}
-                    },
+                                            callback(crate::event::Event::WindowEvent {
+                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                                event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                        }
+
+                                    | xkb_keymap::XKB_KEY_Control_L // LCtrl
+                                        | xkb_keymap::XKB_KEY_Control_R // RCtrl
+                                        => {
+                                            match state {
+                                                ElementState::Pressed => self.modifiers |= ModifiersState::CTRL,
+                                                ElementState::Released => self.modifiers.remove(ModifiersState::CTRL)
+                                            }
+                                            callback(crate::event::Event::WindowEvent {
+                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                                event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                        }
+
+                                    | xkb_keymap::XKB_KEY_Meta_L // LMeta
+                                        | xkb_keymap::XKB_KEY_Meta_R // RMeta
+                                        => {
+                                            match state {
+                                                ElementState::Pressed => self.modifiers |= ModifiersState::LOGO,
+                                                ElementState::Released => self.modifiers.remove(ModifiersState::LOGO)
+                                            }
+                                            callback(crate::event::Event::WindowEvent {
+                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                                event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                        }
+                                    xkb_keymap::XKB_KEY_Sys_Req // SysRq
+                                        => {
+                                            if self.modifiers.is_empty() {
+                                                callback(crate::event::Event::WindowEvent {
+                                                    window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                                    event: crate::event::WindowEvent::CloseRequested
+                                                }, &mut ());
+                                            }
+                                        }
+                                    _ => {}
+                            }
+                    }
                     _ => {}
                 }
             }
@@ -678,6 +716,22 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
+        let xkb_ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
+        let keymap = xkb::Keymap::new_from_names(
+            &xkb_ctx,
+            "",
+            "",
+            "",
+            "",
+            None,
+            xkb::KEYMAP_COMPILE_NO_FLAGS,
+        )
+        .ok_or(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("Failed to compile XKB keymap"),
+        ))?;
+        let state = xkb::State::new(&keymap);
         let mut seat = {
             let active = Arc::new(AtomicBool::new(false));
             let t_active = active.clone();
@@ -952,6 +1006,8 @@ impl<T: 'static> EventLoop<T> {
             input,
             (disp_width.into(), disp_height.into()), // plane, fb
             repeat_handle,
+            state,
+            keymap,
         );
 
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =

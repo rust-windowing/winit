@@ -8,8 +8,8 @@ use crate::event::{ElementState, KeyboardInput, ModifiersState, WindowEvent};
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
 
-use super::keymap;
 use super::KeyboardInner;
+use crate::platform_impl::xkb_keymap;
 
 #[inline]
 pub(super) fn handle_keyboard(
@@ -68,7 +68,7 @@ pub(super) fn handle_keyboard(
                 _ => unreachable!(),
             };
 
-            let virtual_keycode = keymap::keysym_to_vkey(keysym);
+            let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
 
             event_sink.push_window_event(
                 #[allow(deprecated)]
@@ -109,7 +109,7 @@ pub(super) fn handle_keyboard(
                 None => return,
             };
 
-            let virtual_keycode = keymap::keysym_to_vkey(keysym);
+            let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
 
             event_sink.push_window_event(
                 #[allow(deprecated)]

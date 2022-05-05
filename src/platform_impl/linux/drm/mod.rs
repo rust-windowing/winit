@@ -1,7 +1,6 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 pub mod event_loop;
-mod input_to_vk;
 pub mod window;
 pub use drm::SystemError;
 pub use event_loop::EventLoop;
