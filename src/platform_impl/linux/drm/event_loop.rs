@@ -54,7 +54,6 @@ pub struct LibinputInputBackend {
     xkb_ctx: xkb::State,
     xkb_keymap: xkb::Keymap,
     xkb_compose: xkb::compose::State,
-    compose_state: bool,
     token: Token,
     touch_location: PhysicalPosition<f64>,
     screen_size: (u32, u32),
@@ -88,7 +87,6 @@ impl LibinputInputBackend {
             xkb_ctx,
             xkb_keymap,
             xkb_compose,
-            compose_state: false
             // cursor_buffer,
             // cursor_plane,
         }
@@ -534,7 +532,7 @@ impl EventSource for LibinputInputBackend {
                             &mut (),
                         );
                         if let crate::event::ElementState::Pressed = state {
-                            if !self.compose_state {
+                            if self.xkb_compose.feed(keysym) == xkb::compose::FeedResult::Ignored {
                                 let should_repeat = self.xkb_keymap.key_repeats(key_offset);
                                 let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
                                 if should_repeat {
@@ -555,8 +553,7 @@ impl EventSource for LibinputInputBackend {
                                     );
                                 }
                             } else {
-                                self.xkb_compose.feed(keysym);
-                                match self.xkb_compose.status() {
+                                match dbg!(self.xkb_compose.status()) {
                                     xkb::compose::Status::Composed => {
                                         if let Some(c) =
                                             self.xkb_compose.utf8().and_then(|f| f.chars().next())
@@ -668,10 +665,7 @@ impl EventSource for LibinputInputBackend {
                                                 }, &mut ());
                                             }
                                         }
-                                    xkb_keymap::XKB_KEY_Multi_key => {
-                                        self.compose_state = true;
-                                    }
-                                    _ => {}
+                                        _ => {}
                             }
                     }
                     _ => {}
