@@ -270,7 +270,7 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        unimplemented!()
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
@@ -280,7 +280,7 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        unimplemented!()
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
