@@ -572,8 +572,6 @@ impl EventSource for LibinputInputBackend {
                                                 },
                                                 &mut (),
                                             );
-                                            self.compose_state = false;
-                                            self.xkb_compose.reset();
                                         }
                                     }
                                     xkb::compose::Status::Cancelled => {
@@ -602,8 +600,6 @@ impl EventSource for LibinputInputBackend {
                                                 &mut (),
                                             );
                                         }
-                                        self.compose_state = false;
-                                        self.xkb_compose.reset();
                                     }
                                     _ => {}
                                 }
