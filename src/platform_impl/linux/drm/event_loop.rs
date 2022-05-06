@@ -807,7 +807,7 @@ impl<T: 'static> EventLoop<T> {
         // Safety
         //
         // This string value has the same lifetime as the seat in question, and will not be dropped
-        // until the seat is, which is after `udev_assign_seat` is run.
+        // until the seat is, which is not before `udev_assign_seat` is run.
         let seat_name = unsafe { std::mem::transmute::<&str, &'static str>(seat.name()) };
         let mut enumerator = Enumerator::new().map_err(|_| {
             crate::error::OsError::new(
