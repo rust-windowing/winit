@@ -717,22 +717,6 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
-        let xkb_ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
-        let keymap = xkb::Keymap::new_from_names(
-            &xkb_ctx,
-            "",
-            "",
-            "",
-            "",
-            std::env::var("WINIT_XKB_OPTIONS").ok(),
-            xkb::KEYMAP_COMPILE_NO_FLAGS,
-        )
-        .ok_or(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::DrmMisc("Failed to compile XKB keymap"),
-        ))?;
-        let state = xkb::State::new(&keymap);
         let mut seat = {
             let active = Arc::new(AtomicBool::new(false));
             let t_active = active.clone();
@@ -773,6 +757,22 @@ impl<T: 'static> EventLoop<T> {
         let drm = Card(std::sync::Arc::new(dev.1));
         let mut input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
         input.udev_assign_seat("seat0").unwrap();
+        let xkb_ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
+        let keymap = xkb::Keymap::new_from_names(
+            &xkb_ctx,
+            "",
+            "",
+            "",
+            "",
+            std::env::var("WINIT_XKB_OPTIONS").ok(),
+            xkb::KEYMAP_COMPILE_NO_FLAGS,
+        )
+        .ok_or(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("Failed to compile XKB keymap"),
+        ))?;
+        let state = xkb::State::new(&keymap);
 
         drm::Device::set_client_capability(&drm, drm::ClientCapability::UniversalPlanes, true).or(
             Err(crate::error::OsError::new(
