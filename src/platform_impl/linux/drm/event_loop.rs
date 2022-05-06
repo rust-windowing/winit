@@ -605,6 +605,8 @@ impl EventSource for LibinputInputBackend {
                                                 &mut (),
                                             );
                                         }
+                                        self.compose_state = false;
+                                        self.xkb_compose.reset();
                                     }
                                     _ => {}
                                 }
@@ -666,6 +668,9 @@ impl EventSource for LibinputInputBackend {
                                                 }, &mut ());
                                             }
                                         }
+                                    xkb_keymap::XKB_KEY_Multi_key => {
+                                        self.compose_state = true;
+                                    }
                                     _ => {}
                             }
                     }
