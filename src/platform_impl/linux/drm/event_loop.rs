@@ -532,77 +532,74 @@ impl EventSource for LibinputInputBackend {
                             &mut (),
                         );
                         if let crate::event::ElementState::Pressed = state {
-                            if self.xkb_compose.feed(keysym) == xkb::compose::FeedResult::Ignored {
-                                let should_repeat = self.xkb_keymap.key_repeats(key_offset);
-                                let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
-                                if should_repeat {
-                                    self.timer_handle
-                                        .add_timeout(Duration::from_millis(600), (input, ch));
-                                }
-                                if let Some(c) = ch {
-                                    callback(
-                                        crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(
-                                                crate::platform_impl::WindowId::Drm(
-                                                    super::WindowId,
+                            self.xkb_compose.feed(keysym);
+                            match self.xkb_compose.status() {
+                                xkb::compose::Status::Composed => {
+                                    if let Some(c) =
+                                        self.xkb_compose.utf8().and_then(|f| f.chars().next())
+                                    {
+                                        callback(
+                                            crate::event::Event::WindowEvent {
+                                                window_id: crate::window::WindowId(
+                                                    crate::platform_impl::WindowId::Drm(
+                                                        super::WindowId,
+                                                    ),
                                                 ),
-                                            ),
-                                            event: crate::event::WindowEvent::ReceivedCharacter(c),
-                                        },
-                                        &mut (),
-                                    );
-                                }
-                            } else {
-                                match dbg!(self.xkb_compose.status()) {
-                                    xkb::compose::Status::Composed => {
-                                        if let Some(c) =
-                                            self.xkb_compose.utf8().and_then(|f| f.chars().next())
-                                        {
-                                            callback(
-                                                crate::event::Event::WindowEvent {
-                                                    window_id: crate::window::WindowId(
-                                                        crate::platform_impl::WindowId::Drm(
-                                                            super::WindowId,
-                                                        ),
-                                                    ),
-                                                    event:
-                                                        crate::event::WindowEvent::ReceivedCharacter(
-                                                            c,
-                                                        ),
-                                                },
-                                                &mut (),
-                                            );
-                                        }
+                                                event: crate::event::WindowEvent::ReceivedCharacter(
+                                                    c,
+                                                ),
+                                            },
+                                            &mut (),
+                                        );
                                     }
-                                    xkb::compose::Status::Cancelled => {
-                                        let should_repeat = self.xkb_keymap.key_repeats(key_offset);
-                                        let ch =
-                                            self.xkb_ctx.key_get_utf8(key_offset).chars().next();
-                                        if should_repeat {
-                                            self.timer_handle.add_timeout(
-                                                Duration::from_millis(600),
-                                                (input, ch),
-                                            );
-                                        }
-                                        if let Some(c) = ch {
-                                            callback(
-                                                crate::event::Event::WindowEvent {
-                                                    window_id: crate::window::WindowId(
-                                                        crate::platform_impl::WindowId::Drm(
-                                                            super::WindowId,
-                                                        ),
-                                                    ),
-                                                    event:
-                                                        crate::event::WindowEvent::ReceivedCharacter(
-                                                            c,
-                                                        ),
-                                                },
-                                                &mut (),
-                                            );
-                                        }
-                                    }
-                                    _ => {}
                                 }
+                                xkb::compose::Status::Cancelled => {
+                                    let should_repeat = self.xkb_keymap.key_repeats(key_offset);
+                                    let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
+                                    if should_repeat {
+                                        self.timer_handle
+                                            .add_timeout(Duration::from_millis(600), (input, ch));
+                                    }
+                                    if let Some(c) = ch {
+                                        callback(
+                                            crate::event::Event::WindowEvent {
+                                                window_id: crate::window::WindowId(
+                                                    crate::platform_impl::WindowId::Drm(
+                                                        super::WindowId,
+                                                    ),
+                                                ),
+                                                event: crate::event::WindowEvent::ReceivedCharacter(
+                                                    c,
+                                                ),
+                                            },
+                                            &mut (),
+                                        );
+                                    }
+                                }
+                                xkb::compose::Status::Nothing => {
+                                    let should_repeat = self.xkb_keymap.key_repeats(key_offset);
+                                    let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
+                                    if should_repeat {
+                                        self.timer_handle
+                                            .add_timeout(Duration::from_millis(600), (input, ch));
+                                    }
+                                    if let Some(c) = ch {
+                                        callback(
+                                            crate::event::Event::WindowEvent {
+                                                window_id: crate::window::WindowId(
+                                                    crate::platform_impl::WindowId::Drm(
+                                                        super::WindowId,
+                                                    ),
+                                                ),
+                                                event: crate::event::WindowEvent::ReceivedCharacter(
+                                                    c,
+                                                ),
+                                            },
+                                            &mut (),
+                                        );
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                         match keysym {
