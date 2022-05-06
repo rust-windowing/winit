@@ -17,7 +17,6 @@ pub const XKB_KEY_Scroll_Lock: u32 = 0xff14;
 pub const XKB_KEY_Sys_Req: u32 = 0xff15;
 pub const XKB_KEY_Escape: u32 = 0xff1b;
 pub const XKB_KEY_Delete: u32 = 0xffff; /* Delete, rubout */
-pub const XKB_KEY_Multi_key: u32 = 0xff20; /* Multi-key character compose */
 
 /* International & multi-key character composition */
 
