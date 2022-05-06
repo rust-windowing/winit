@@ -724,7 +724,7 @@ impl<T: 'static> EventLoop<T> {
             "",
             "",
             "",
-            None,
+            std::env::var("WINIT_XKB_OPTIONS").ok(),
             xkb::KEYMAP_COMPILE_NO_FLAGS,
         )
         .ok_or(crate::error::OsError::new(
