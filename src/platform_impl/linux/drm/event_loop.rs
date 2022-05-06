@@ -6,6 +6,7 @@ use std::{
     sync::{atomic::AtomicBool, mpsc::SendError, Arc},
     time::{Duration, Instant},
 };
+use udev::Enumerator;
 use xkbcommon::xkb;
 
 use calloop::{EventSource, Interest, Mode, Poll, PostAction, Readiness, Token, TokenFactory};
@@ -803,7 +804,77 @@ impl<T: 'static> EventLoop<T> {
             }
             s
         };
-        let dev = seat.open_device(&"/dev/dri/card0").map_err(|_| {
+        // Safety
+        //
+        // This string value has the same lifetime as the seat in question, and will not be dropped
+        // until the seat is, which is after `udev_assign_seat` is run.
+        let seat_name = unsafe { std::mem::transmute::<&str, &'static str>(seat.name()) };
+        let mut enumerator = Enumerator::new().map_err(|_| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Failed to open udev enumerator"),
+            )
+        })?;
+        enumerator.match_subsystem("drm").map_err(|_| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Failed to enumerate drm subsystem"),
+            )
+        })?;
+        enumerator.match_sysname("card[0-9]*").map_err(|_| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Failed to find a valid card"),
+            )
+        })?;
+        let card_path = enumerator
+            .scan_devices()
+            .map_err(|_| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::DrmMisc("Failed to scan devices"),
+                )
+            })?
+            .filter(|device| {
+                let dev_seat_name = device
+                    .property_value("ID_SEAT")
+                    .map(|x| x.to_os_string())
+                    .unwrap_or_else(|| std::ffi::OsString::from("seat0"));
+                if dev_seat_name == seat_name {
+                    if let Ok(Some(pci)) = device.parent_with_subsystem(Path::new("pci")) {
+                        if let Some(id) = pci.attribute_value("boot_vga") {
+                            return id == "1";
+                        }
+                    }
+                }
+                false
+            })
+            .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
+            .next()
+            .or_else(|| {
+                enumerator
+                    .scan_devices()
+                    .ok()?
+                    .filter(|device| {
+                        device
+                            .property_value("ID_SEAT")
+                            .map(|x| x.to_os_string())
+                            .unwrap_or_else(|| std::ffi::OsString::from("seat0"))
+                            == seat_name
+                    })
+                    .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
+                    .next()
+            })
+            .ok_or(crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::DrmMisc("Failed to find suitable GPU"),
+            ))?;
+        let dev = seat.open_device(&card_path).map_err(|_| {
             crate::error::OsError::new(
                 line!(),
                 file!(),
@@ -811,9 +882,8 @@ impl<T: 'static> EventLoop<T> {
             )
         })?;
         let drm = Card(std::sync::Arc::new(dev.1));
-        let seat_name = seat.name().to_owned();
         let mut input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
-        input.udev_assign_seat(&seat_name).unwrap();
+        input.udev_assign_seat(seat_name).unwrap();
         let xkb_ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
         let keymap = xkb::Keymap::new_from_names(
             &xkb_ctx,
