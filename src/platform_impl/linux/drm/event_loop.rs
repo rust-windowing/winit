@@ -605,62 +605,62 @@ impl EventSource for LibinputInputBackend {
                             }
                         }
                         match keysym {
-                                    xkb_keymap::XKB_KEY_Alt_L
-                                        | xkb_keymap::XKB_KEY_Alt_R
-                                        => {
-                                            match state {
-                                                ElementState::Pressed => self.modifiers |= ModifiersState::ALT,
-                                                ElementState::Released => self.modifiers.remove(ModifiersState::ALT)
-                                            }
-                                            callback(crate::event::Event::WindowEvent {
-                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                                event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                xkb_keymap::XKB_KEY_Alt_L
+                                    | xkb_keymap::XKB_KEY_Alt_R
+                                    => {
+                                        match state {
+                                            ElementState::Pressed => self.modifiers |= ModifiersState::ALT,
+                                            ElementState::Released => self.modifiers.remove(ModifiersState::ALT)
                                         }
-                                    | xkb_keymap::XKB_KEY_Shift_L // LShift
-                                        | xkb_keymap::XKB_KEY_Shift_R // RShift
-                                        => {
-                                            match state {
-                                                ElementState::Pressed => self.modifiers |= ModifiersState::SHIFT,
-                                                ElementState::Released => self.modifiers.remove(ModifiersState::SHIFT)
-                                            }
-                                            callback(crate::event::Event::WindowEvent {
-                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                                event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                        callback(crate::event::Event::WindowEvent {
+                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                            event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                    }
+                                | xkb_keymap::XKB_KEY_Shift_L // LShift
+                                    | xkb_keymap::XKB_KEY_Shift_R // RShift
+                                    => {
+                                        match state {
+                                            ElementState::Pressed => self.modifiers |= ModifiersState::SHIFT,
+                                            ElementState::Released => self.modifiers.remove(ModifiersState::SHIFT)
                                         }
+                                        callback(crate::event::Event::WindowEvent {
+                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                            event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                    }
 
-                                    | xkb_keymap::XKB_KEY_Control_L // LCtrl
-                                        | xkb_keymap::XKB_KEY_Control_R // RCtrl
-                                        => {
-                                            match state {
-                                                ElementState::Pressed => self.modifiers |= ModifiersState::CTRL,
-                                                ElementState::Released => self.modifiers.remove(ModifiersState::CTRL)
-                                            }
-                                            callback(crate::event::Event::WindowEvent {
-                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                                event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                | xkb_keymap::XKB_KEY_Control_L // LCtrl
+                                    | xkb_keymap::XKB_KEY_Control_R // RCtrl
+                                    => {
+                                        match state {
+                                            ElementState::Pressed => self.modifiers |= ModifiersState::CTRL,
+                                            ElementState::Released => self.modifiers.remove(ModifiersState::CTRL)
                                         }
+                                        callback(crate::event::Event::WindowEvent {
+                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                            event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                    }
 
-                                    | xkb_keymap::XKB_KEY_Meta_L // LMeta
-                                        | xkb_keymap::XKB_KEY_Meta_R // RMeta
-                                        => {
-                                            match state {
-                                                ElementState::Pressed => self.modifiers |= ModifiersState::LOGO,
-                                                ElementState::Released => self.modifiers.remove(ModifiersState::LOGO)
-                                            }
+                                | xkb_keymap::XKB_KEY_Meta_L // LMeta
+                                    | xkb_keymap::XKB_KEY_Meta_R // RMeta
+                                    => {
+                                        match state {
+                                            ElementState::Pressed => self.modifiers |= ModifiersState::LOGO,
+                                            ElementState::Released => self.modifiers.remove(ModifiersState::LOGO)
+                                        }
+                                        callback(crate::event::Event::WindowEvent {
+                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                            event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                    }
+                                xkb_keymap::XKB_KEY_Sys_Req | xkb_keymap::XKB_KEY_Print
+                                    => {
+                                        if self.modifiers.is_empty() {
                                             callback(crate::event::Event::WindowEvent {
                                                 window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                                event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
+                                                event: crate::event::WindowEvent::CloseRequested
+                                            }, &mut ());
                                         }
-                                    xkb_keymap::XKB_KEY_Sys_Req | xkb_keymap::XKB_KEY_Print
-                                        => {
-                                            if self.modifiers.is_empty() {
-                                                callback(crate::event::Event::WindowEvent {
-                                                    window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
-                                                    event: crate::event::WindowEvent::CloseRequested
-                                                }, &mut ());
-                                            }
-                                        }
-                                        _ => {}
+                                    }
+                                _ => {}
                             }
                     }
                     _ => {}
@@ -809,75 +809,76 @@ impl<T: 'static> EventLoop<T> {
         // This string value has the same lifetime as the seat in question, and will not be dropped
         // until the seat is, which is not before `udev_assign_seat` is run.
         let seat_name = unsafe { std::mem::transmute::<&str, &'static str>(seat.name()) };
-        let card_path = if let Some(p) = std::env::var("WINIT_DRM_CARD").ok() {
-            p.into()
-        } else {
-            let mut enumerator = Enumerator::new().map_err(|_| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to open udev enumerator"),
-                )
-            })?;
-            enumerator.match_subsystem("drm").map_err(|_| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to enumerate drm subsystem"),
-                )
-            })?;
-            enumerator.match_sysname("card[0-9]*").map_err(|_| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to find a valid card"),
-                )
-            })?;
-            enumerator
-                .scan_devices()
-                .map_err(|_| {
+        let card_path = std::env::var("WINIT_DRM_CARD").ok().map_or_else(
+            || {
+                let mut enumerator = Enumerator::new().map_err(|_| {
                     crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::DrmMisc("Failed to scan devices"),
+                        crate::platform_impl::OsError::DrmMisc("Failed to open udev enumerator"),
                     )
-                })?
-                .filter(|device| {
-                    let dev_seat_name = device
-                        .property_value("ID_SEAT")
-                        .map(|x| x.to_os_string())
-                        .unwrap_or_else(|| std::ffi::OsString::from("seat0"));
-                    if dev_seat_name == seat_name {
-                        if let Ok(Some(pci)) = device.parent_with_subsystem(Path::new("pci")) {
-                            if let Some(id) = pci.attribute_value("boot_vga") {
-                                return id == "1";
+                })?;
+                enumerator.match_subsystem("drm").map_err(|_| {
+                    crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc("Failed to enumerate drm subsystem"),
+                    )
+                })?;
+                enumerator.match_sysname("card[0-9]*").map_err(|_| {
+                    crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc("Failed to find a valid card"),
+                    )
+                })?;
+                enumerator
+                    .scan_devices()
+                    .map_err(|_| {
+                        crate::error::OsError::new(
+                            line!(),
+                            file!(),
+                            crate::platform_impl::OsError::DrmMisc("Failed to scan devices"),
+                        )
+                    })?
+                    .filter(|device| {
+                        let dev_seat_name = device
+                            .property_value("ID_SEAT")
+                            .map(|x| x.to_os_string())
+                            .unwrap_or_else(|| std::ffi::OsString::from("seat0"));
+                        if dev_seat_name == seat_name {
+                            if let Ok(Some(pci)) = device.parent_with_subsystem(Path::new("pci")) {
+                                if let Some(id) = pci.attribute_value("boot_vga") {
+                                    return id == "1";
+                                }
                             }
                         }
-                    }
-                    false
-                })
-                .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
-                .next()
-                .or_else(|| {
-                    enumerator
-                        .scan_devices()
-                        .ok()?
-                        .filter(|device| {
-                            device
-                                .property_value("ID_SEAT")
-                                .map(|x| x.to_os_string())
-                                .unwrap_or_else(|| std::ffi::OsString::from("seat0"))
-                                == seat_name
-                        })
-                        .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
-                        .next()
-                })
-                .ok_or(crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to find suitable GPU"),
-                ))?
-        };
+                        false
+                    })
+                    .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
+                    .next()
+                    .or_else(|| {
+                        enumerator
+                            .scan_devices()
+                            .ok()?
+                            .filter(|device| {
+                                device
+                                    .property_value("ID_SEAT")
+                                    .map(|x| x.to_os_string())
+                                    .unwrap_or_else(|| std::ffi::OsString::from("seat0"))
+                                    == seat_name
+                            })
+                            .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
+                            .next()
+                    })
+                    .ok_or(crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::DrmMisc("Failed to find suitable GPU"),
+                    ))
+            },
+            |p| Ok(Into::into(p)),
+        )?;
         let dev = seat.open_device(&card_path).map_err(|_| {
             crate::error::OsError::new(
                 line!(),
