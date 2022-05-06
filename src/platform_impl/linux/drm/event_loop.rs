@@ -53,6 +53,8 @@ pub struct LibinputInputBackend {
     context: input::Libinput,
     xkb_ctx: xkb::State,
     xkb_keymap: xkb::Keymap,
+    xkb_compose: xkb::compose::State,
+    compose_state: bool,
     token: Token,
     touch_location: PhysicalPosition<f64>,
     screen_size: (u32, u32),
@@ -71,8 +73,9 @@ impl LibinputInputBackend {
         screen_size: (u32, u32),
         timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>,
         xkb_ctx: xkb::State,
-        xkb_keymap: xkb::Keymap, // cursor_plane: drm::control::plane::Handle,
-                                 // cursor_buffer: drm::control::framebuffer::Handle
+        xkb_keymap: xkb::Keymap,
+        xkb_compose: xkb::compose::State, // cursor_plane: drm::control::plane::Handle,
+                                          // cursor_buffer: drm::control::framebuffer::Handle
     ) -> Self {
         LibinputInputBackend {
             context,
@@ -84,6 +87,8 @@ impl LibinputInputBackend {
             timer_handle,
             xkb_ctx,
             xkb_keymap,
+            xkb_compose,
+            compose_state: false
             // cursor_buffer,
             // cursor_plane,
         }
@@ -499,8 +504,6 @@ impl EventSource for LibinputInputBackend {
                         let key_offset = k + 8;
                         let keysym = self.xkb_ctx.key_get_one_sym(key_offset);
                         let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
-                        let should_repeat = self.xkb_keymap.key_repeats(key_offset);
-                        let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
                         self.xkb_ctx.update_key(
                             key_offset,
                             match state {
@@ -531,20 +534,80 @@ impl EventSource for LibinputInputBackend {
                             &mut (),
                         );
                         if let crate::event::ElementState::Pressed = state {
-                            if should_repeat {
-                                self.timer_handle
-                                    .add_timeout(Duration::from_millis(600), (input, ch));
-                            }
-                            if let Some(c) = ch {
-                                callback(
-                                    crate::event::Event::WindowEvent {
-                                        window_id: crate::window::WindowId(
-                                            crate::platform_impl::WindowId::Drm(super::WindowId),
-                                        ),
-                                        event: crate::event::WindowEvent::ReceivedCharacter(c),
-                                    },
-                                    &mut (),
-                                );
+                            if !self.compose_state {
+                                let should_repeat = self.xkb_keymap.key_repeats(key_offset);
+                                let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
+                                if should_repeat {
+                                    self.timer_handle
+                                        .add_timeout(Duration::from_millis(600), (input, ch));
+                                }
+                                if let Some(c) = ch {
+                                    callback(
+                                        crate::event::Event::WindowEvent {
+                                            window_id: crate::window::WindowId(
+                                                crate::platform_impl::WindowId::Drm(
+                                                    super::WindowId,
+                                                ),
+                                            ),
+                                            event: crate::event::WindowEvent::ReceivedCharacter(c),
+                                        },
+                                        &mut (),
+                                    );
+                                }
+                            } else {
+                                self.xkb_compose.feed(keysym);
+                                match self.xkb_compose.status() {
+                                    xkb::compose::Status::Composed => {
+                                        if let Some(c) =
+                                            self.xkb_compose.utf8().and_then(|f| f.chars().next())
+                                        {
+                                            callback(
+                                                crate::event::Event::WindowEvent {
+                                                    window_id: crate::window::WindowId(
+                                                        crate::platform_impl::WindowId::Drm(
+                                                            super::WindowId,
+                                                        ),
+                                                    ),
+                                                    event:
+                                                        crate::event::WindowEvent::ReceivedCharacter(
+                                                            c,
+                                                        ),
+                                                },
+                                                &mut (),
+                                            );
+                                            self.compose_state = false;
+                                            self.xkb_compose.reset();
+                                        }
+                                    }
+                                    xkb::compose::Status::Cancelled => {
+                                        let should_repeat = self.xkb_keymap.key_repeats(key_offset);
+                                        let ch =
+                                            self.xkb_ctx.key_get_utf8(key_offset).chars().next();
+                                        if should_repeat {
+                                            self.timer_handle.add_timeout(
+                                                Duration::from_millis(600),
+                                                (input, ch),
+                                            );
+                                        }
+                                        if let Some(c) = ch {
+                                            callback(
+                                                crate::event::Event::WindowEvent {
+                                                    window_id: crate::window::WindowId(
+                                                        crate::platform_impl::WindowId::Drm(
+                                                            super::WindowId,
+                                                        ),
+                                                    ),
+                                                    event:
+                                                        crate::event::WindowEvent::ReceivedCharacter(
+                                                            c,
+                                                        ),
+                                                },
+                                                &mut (),
+                                            );
+                                        }
+                                    }
+                                    _ => {}
+                                }
                             }
                         }
                         match keysym {
@@ -773,6 +836,23 @@ impl<T: 'static> EventLoop<T> {
             crate::platform_impl::OsError::DrmMisc("Failed to compile XKB keymap"),
         ))?;
         let state = xkb::State::new(&keymap);
+        let compose_table = xkb::compose::Table::new_from_locale(
+            &xkb_ctx,
+            std::env::var_os("LC_ALL")
+                .unwrap_or_else(|| {
+                    std::env::var_os("LC_CTYPE").unwrap_or_else(|| {
+                        std::env::var_os("LANG").unwrap_or_else(|| std::ffi::OsString::from("C"))
+                    })
+                })
+                .as_os_str(),
+            xkb::compose::COMPILE_NO_FLAGS,
+        )
+        .or(Err(crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::DrmMisc("Failed to compile XKB compose table"),
+        )))?;
+        let xkb_compose = xkb::compose::State::new(&compose_table, xkb::compose::STATE_NO_FLAGS);
 
         drm::Device::set_client_capability(&drm, drm::ClientCapability::UniversalPlanes, true).or(
             Err(crate::error::OsError::new(
@@ -1009,6 +1089,7 @@ impl<T: 'static> EventLoop<T> {
             repeat_handle,
             state,
             keymap,
+            xkb_compose,
         );
 
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
