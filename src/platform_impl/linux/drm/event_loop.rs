@@ -811,8 +811,9 @@ impl<T: 'static> EventLoop<T> {
             )
         })?;
         let drm = Card(std::sync::Arc::new(dev.1));
+        let seat_name = seat.name().to_owned();
         let mut input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
-        input.udev_assign_seat("seat0").unwrap();
+        input.udev_assign_seat(&seat_name).unwrap();
         let xkb_ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
         let keymap = xkb::Keymap::new_from_names(
             &xkb_ctx,
