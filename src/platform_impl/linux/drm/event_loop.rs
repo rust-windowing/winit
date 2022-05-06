@@ -59,6 +59,7 @@ pub struct LibinputInputBackend {
     screen_size: (u32, u32),
     modifiers: ModifiersState,
     cursor_positon: PhysicalPosition<f64>,
+    cursor_sender: std::sync::mpsc::Sender<PhysicalPosition<f64>>,
     timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>,
     // cursor_plane: drm::control::plane::Handle,
     // cursor_buffer: drm::control::framebuffer::Handle,
@@ -73,8 +74,10 @@ impl LibinputInputBackend {
         timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>,
         xkb_ctx: xkb::State,
         xkb_keymap: xkb::Keymap,
-        xkb_compose: xkb::compose::State, // cursor_plane: drm::control::plane::Handle,
-                                          // cursor_buffer: drm::control::framebuffer::Handle
+        xkb_compose: xkb::compose::State,
+        cursor_sender: std::sync::mpsc::Sender<PhysicalPosition<f64>>,
+        // cursor_plane: drm::control::plane::Handle,
+        // cursor_buffer: drm::control::framebuffer::Handle
     ) -> Self {
         LibinputInputBackend {
             context,
@@ -87,6 +90,7 @@ impl LibinputInputBackend {
             xkb_ctx,
             xkb_keymap,
             xkb_compose,
+            cursor_sender
             // cursor_buffer,
             // cursor_plane,
         }
@@ -325,6 +329,7 @@ impl EventSource for LibinputInputBackend {
                             self.cursor_positon.y += e.dy();
                             self.cursor_positon.y =
                                 self.cursor_positon.y.clamp(0.0, self.screen_size.1 as f64);
+                            self.cursor_sender.send(self.cursor_positon).unwrap();
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
@@ -471,6 +476,7 @@ impl EventSource for LibinputInputBackend {
                         input::event::PointerEvent::MotionAbsolute(e) => {
                             self.cursor_positon.x = e.absolute_x_transformed(self.screen_size.0);
                             self.cursor_positon.y = e.absolute_y_transformed(self.screen_size.1);
+                            self.cursor_sender.send(self.cursor_positon).unwrap();
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
@@ -700,6 +706,9 @@ pub struct EventLoopWindowTarget<T> {
 
     /// drm plane
     pub plane: drm::control::plane::Handle,
+
+    /// recieves the cursor position when the mouse moves
+    pub cursor_reciever: std::sync::mpsc::Receiver<PhysicalPosition<f64>>,
 
     // /// drm dumbbuffer containing the cursor
     // pub cursor_buffer: drm::control::framebuffer::Handle,
@@ -1075,6 +1084,8 @@ impl<T: 'static> EventLoop<T> {
             },
         );
 
+        let (cursor_sender, cursor_reciever) = std::sync::mpsc::channel();
+
         let input_backend: LibinputInputBackend = LibinputInputBackend::new(
             input,
             (disp_width.into(), disp_height.into()), // plane, fb
@@ -1082,6 +1093,7 @@ impl<T: 'static> EventLoop<T> {
             state,
             keymap,
             xkb_compose,
+            cursor_sender,
         );
 
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
@@ -1105,6 +1117,7 @@ impl<T: 'static> EventLoop<T> {
                 mode,
                 event_loop_handle: handle,
                 event_sink,
+                cursor_reciever,
                 event_loop_awakener,
                 _marker: PhantomData,
             }),
