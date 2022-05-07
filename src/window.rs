@@ -814,6 +814,13 @@ impl Window {
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
     ///
+    /// This is the window / popup / overlay that allows you to select the desired characters.
+    /// The look of this box may differ between input devices, even on the same platform.
+    ///
+    /// (Apple's official term is "candidate window", see their [chinese] and [japanese] guides).
+    ///
+    /// ## Example
+    ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
     /// # use winit::event_loop::EventLoop;
@@ -830,9 +837,39 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web:** Unsupported.
+    ///
+    /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
+    /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
     #[inline]
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
+    }
+
+    /// Sets whether the window should get IME events
+    ///
+    /// When IME is allowed, the window will receive [`Ime`] events, and during the
+    /// preedit phase the window will NOT get [`KeyboardInput`] or
+    /// [`ReceivedCharacter`] events. The window should allow IME while it is
+    /// expecting text input.
+    ///
+    /// When IME is not allowed, the window won't receive [`Ime`] events, and will
+    /// receive [`KeyboardInput`] events for every keypress instead. Without
+    /// allowing IME, the window will also get [`ReceivedCharacter`] events for
+    /// certain keyboard input. Not allowing IME is useful for games for example.
+    ///
+    /// IME is **not** allowed by default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
+    /// - ** iOS / Android / Web :** Unsupported.
+    ///
+    /// [`Ime`]: crate::event::WindowEvent::Ime
+    /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
+    /// [`ReceivedCharacter`]: crate::event::WindowEvent::ReceivedCharacter
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.window.set_ime_allowed(allowed);
     }
 
     /// Brings the window to the front and sets input focus. Has no effect if the window is

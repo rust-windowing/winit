@@ -42,6 +42,9 @@ pub struct WindowState {
     pub preferred_theme: Option<Theme>,
     pub high_surrogate: Option<u16>,
     pub window_flags: WindowFlags,
+
+    pub ime_state: ImeState,
+    pub ime_allowed: bool,
 }
 
 #[derive(Clone)]
@@ -101,6 +104,13 @@ bitflags! {
     }
 }
 
+#[derive(Eq, PartialEq)]
+pub enum ImeState {
+    Disabled,
+    Enabled,
+    Preedit,
+}
+
 impl WindowState {
     pub fn new(
         attributes: &WindowAttributes,
@@ -132,6 +142,9 @@ impl WindowState {
             preferred_theme,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
+
+            ime_state: ImeState::Disabled,
+            ime_allowed: false,
         }
     }
 

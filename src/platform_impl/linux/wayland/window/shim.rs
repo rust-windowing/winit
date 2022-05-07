@@ -12,10 +12,10 @@ use sctk::window::{Decorations, FallbackFrame, Window};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
-use crate::event::WindowEvent;
+use crate::event::{Ime, WindowEvent};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::env::WinitEnv;
-use crate::platform_impl::wayland::event_loop::WinitState;
+use crate::platform_impl::wayland::event_loop::{EventSink, WinitState};
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
@@ -69,7 +69,10 @@ pub enum WindowRequest {
     FrameSize(LogicalSize<u32>),
 
     /// Set IME window position.
-    IMEPosition(LogicalPosition<u32>),
+    ImePosition(LogicalPosition<u32>),
+
+    /// Enable IME on the given window.
+    AllowIme(bool),
 
     /// Request Attention.
     ///
@@ -157,6 +160,9 @@ pub struct WindowHandle {
     /// Whether the window is resizable.
     pub is_resizable: Cell<bool>,
 
+    /// Allow IME events for that window.
+    pub ime_allowed: Cell<bool>,
+
     /// Visible cursor or not.
     cursor_visible: Cell<bool>,
 
@@ -204,6 +210,7 @@ impl WindowHandle {
             xdg_activation,
             attention_requested: Cell::new(false),
             compositor,
+            ime_allowed: Cell::new(false),
         }
     }
 
@@ -333,6 +340,27 @@ impl WindowHandle {
         }
     }
 
+    pub fn set_ime_allowed(&self, allowed: bool, event_sink: &mut EventSink) {
+        if self.ime_allowed.get() == allowed {
+            return;
+        }
+
+        self.ime_allowed.replace(allowed);
+        let window_id = wayland::make_wid(self.window.surface());
+
+        for text_input in self.text_inputs.iter() {
+            text_input.set_input_allowed(allowed);
+        }
+
+        let event = if allowed {
+            WindowEvent::Ime(Ime::Enabled)
+        } else {
+            WindowEvent::Ime(Ime::Disabled)
+        };
+
+        event_sink.push_window_event(event, window_id);
+    }
+
     pub fn set_cursor_visible(&self, visible: bool) {
         self.cursor_visible.replace(visible);
         let cursor_icon = match visible {
@@ -387,8 +415,12 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 WindowRequest::NewCursorIcon(cursor_icon) => {
                     window_handle.set_cursor_icon(cursor_icon);
                 }
-                WindowRequest::IMEPosition(position) => {
+                WindowRequest::ImePosition(position) => {
                     window_handle.set_ime_position(position);
+                }
+                WindowRequest::AllowIme(allow) => {
+                    let event_sink = &mut winit_state.event_sink;
+                    window_handle.set_ime_allowed(allow, event_sink);
                 }
                 WindowRequest::GrabCursor(grab) => {
                     window_handle.set_cursor_grab(grab);
