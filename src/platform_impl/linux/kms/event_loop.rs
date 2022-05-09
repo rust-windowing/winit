@@ -16,7 +16,7 @@ use udev::Enumerator;
 use xkbcommon::xkb;
 
 use calloop::{EventSource, Interest, Mode, Poll, PostAction, Readiness, Token, TokenFactory};
-use drm::control::{property, Device, ModeTypeFlags, ResourceHandle};
+use drm::control::{Device, ModeTypeFlags};
 use input::{
     event::{
         keyboard::KeyboardEventTrait,
@@ -795,22 +795,28 @@ impl<T: 'static> EventLoop<T> {
                 },
                 None,
             )
-            .map_err(|_| {
+            .map_err(|e| {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("failed to open libseat"),
+                    crate::platform_impl::OsError::KmsError(format!(
+                        "failed to open libseat: {}",
+                        e
+                    )),
                 )
             })?;
 
             while !active.load(std::sync::atomic::Ordering::SeqCst) {
-                if let Err(_) = s.dispatch(-1) {
-                    return Err(crate::error::OsError::new(
+                s.dispatch(-1).map_err(|e| {
+                    crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::KmsMisc("failed to dispatch seat"),
-                    ));
-                }
+                        crate::platform_impl::OsError::KmsError(format!(
+                            "failed to dispatch seat: {}",
+                            e
+                        )),
+                    )
+                })?;
             }
             s
         };
@@ -824,34 +830,46 @@ impl<T: 'static> EventLoop<T> {
         let seat_name = "seat0";
         let card_path = std::env::var("WINIT_DRM_CARD").ok().map_or_else(
             || {
-                let mut enumerator = Enumerator::new().map_err(|_| {
+                let mut enumerator = Enumerator::new().map_err(|e| {
                     crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::KmsMisc("failed to open udev enumerator"),
+                        crate::platform_impl::OsError::KmsError(format!(
+                            "failed to open udev enumerator: {}",
+                            e
+                        )),
                     )
                 })?;
-                enumerator.match_subsystem("drm").map_err(|_| {
+                enumerator.match_subsystem("drm").map_err(|e| {
                     crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::KmsMisc("failed to enumerate drm subsystem"),
+                        crate::platform_impl::OsError::KmsError(format!(
+                            "failed to enumerate drm subsystem: {}",
+                            e
+                        )),
                     )
                 })?;
-                enumerator.match_sysname("card[0-9]*").map_err(|_| {
+                enumerator.match_sysname("card[0-9]*").map_err(|e| {
                     crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::KmsMisc("failed to find a valid card"),
+                        crate::platform_impl::OsError::KmsError(format!(
+                            "failed to find a valid card: {}",
+                            e
+                        )),
                     )
                 })?;
                 enumerator
                     .scan_devices()
-                    .map_err(|_| {
+                    .map_err(|e| {
                         crate::error::OsError::new(
                             line!(),
                             file!(),
-                            crate::platform_impl::OsError::KmsMisc("failed to scan devices"),
+                            crate::platform_impl::OsError::KmsError(format!(
+                                "failed to scan devices: {}",
+                                e
+                            )),
                         )
                     })?
                     .filter(|device| {
@@ -884,22 +902,27 @@ impl<T: 'static> EventLoop<T> {
                             .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
                             .next()
                     })
-                    .ok_or(crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::KmsMisc("failed to find suitable GPU"),
-                    ))
+                    .ok_or_else(|| {
+                        crate::error::OsError::new(
+                            line!(),
+                            file!(),
+                            crate::platform_impl::OsError::KmsMisc("failed to find suitable GPU"),
+                        )
+                    })
             },
             |p| Ok(Into::into(p)),
         )?;
         #[cfg(feature = "kms-ext")]
         let dev = seat
             .open_device(&card_path)
-            .map_err(|_| {
+            .map_err(|e| {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("failed to initialize DRM"),
+                    crate::platform_impl::OsError::KmsError(format!(
+                        "failed to initialize DRM: {}",
+                        e
+                    )),
                 )
             })?
             .1;
@@ -909,11 +932,14 @@ impl<T: 'static> EventLoop<T> {
                 .read(true)
                 .write(true)
                 .open(&card_path)
-                .map_err(|_| {
+                .map_err(|e| {
                     crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::KmsMisc("failed to initialize DRM"),
+                        crate::platform_impl::OsError::KmsError(format!(
+                            "failed to initialize DRM: {}",
+                            e
+                        )),
                     )
                 })?,
         );
@@ -933,11 +959,13 @@ impl<T: 'static> EventLoop<T> {
             std::env::var("WINIT_XKB_OPTIONS").ok(),
             xkb::KEYMAP_COMPILE_NO_FLAGS,
         )
-        .ok_or(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::KmsMisc("failed to compile XKB keymap"),
-        ))?;
+        .ok_or_else(|| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::KmsMisc("failed to compile XKB keymap"),
+            )
+        })?;
         let state = xkb::State::new(&keymap);
         let compose_table = xkb::compose::Table::new_from_locale(
             &xkb_ctx,
@@ -950,38 +978,51 @@ impl<T: 'static> EventLoop<T> {
                 .as_os_str(),
             xkb::compose::COMPILE_NO_FLAGS,
         )
-        .or(Err(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::KmsMisc("failed to compile XKB compose table"),
-        )))?;
-        let xkb_compose = xkb::compose::State::new(&compose_table, xkb::compose::STATE_NO_FLAGS);
-
-        drm::Device::set_client_capability(&drm, drm::ClientCapability::UniversalPlanes, true).or(
-            Err(crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::KmsMisc(
-                    "drm device does not support universal planes",
-                ),
-            )),
-        )?;
-        drm::Device::set_client_capability(&drm, drm::ClientCapability::Atomic, true).or(Err(
+        .map_err(|_| {
+            // e ^^^ would return ()
             crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::KmsMisc(
-                    "drm device does not support atomic modesetting",
-                ),
-            ),
-        ))?;
+                crate::platform_impl::OsError::KmsMisc("failed to compile XKB compose table"),
+            )
+        })?;
+        let xkb_compose = xkb::compose::State::new(&compose_table, xkb::compose::STATE_NO_FLAGS);
+
+        drm::Device::set_client_capability(&drm, drm::ClientCapability::UniversalPlanes, true)
+            .map_err(|e| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsError(format!(
+                        "drm device does not support universal planes :{}",
+                        e
+                    )),
+                )
+            })?;
+        drm::Device::set_client_capability(&drm, drm::ClientCapability::Atomic, true).map_err(
+            |e| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsError(format!(
+                        "drm device does not support atomic modesetting :{}",
+                        e
+                    )),
+                )
+            },
+        )?;
 
         // Load the information.
-        let res = drm.resource_handles().or(Err(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::KmsMisc("could not load normal resource ids."),
-        )))?;
+        let res = drm.resource_handles().map_err(|e| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::KmsError(format!(
+                    "could not load normal resource ids: {}",
+                    e
+                )),
+            )
+        })?;
         let coninfo: Vec<drm::control::connector::Info> = res
             .connectors()
             .iter()
@@ -996,17 +1037,21 @@ impl<T: 'static> EventLoop<T> {
         let con = coninfo
             .iter()
             .find(|&i| i.state() == drm::control::connector::State::Connected)
-            .ok_or(crate::error::OsError::new(
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("no connected connectors"),
+                )
+            })?;
+
+        let crtc = crtcinfo.get(0).ok_or_else(|| {
+            crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::KmsMisc("no connected connectors"),
-            ))?;
-
-        let crtc = crtcinfo.get(0).ok_or(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::KmsMisc("no crtcs found"),
-        ))?;
+                crate::platform_impl::OsError::KmsMisc("no crtcs found"),
+            )
+        })?;
 
         // Get the first (usually best) mode
         let &mode = con
@@ -1014,17 +1059,21 @@ impl<T: 'static> EventLoop<T> {
             .iter()
             .find(|f| f.mode_type().contains(ModeTypeFlags::PREFERRED))
             .or(con.modes().get(0))
-            .ok_or(crate::error::OsError::new(
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("no modes found on connector"),
+                )
+            })?;
+
+        let planes = drm.plane_handles().map_err(|e| {
+            crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::KmsMisc("no modes found on connector"),
-            ))?;
-
-        let planes = drm.plane_handles().or(Err(crate::error::OsError::new(
-            line!(),
-            file!(),
-            crate::platform_impl::OsError::KmsMisc("could not list planes"),
-        )))?;
+                crate::platform_impl::OsError::KmsError(format!("could not list planes: {}", e)),
+            )
+        })?;
 
         let (p_better_planes, p_compatible_planes): (
             Vec<drm::control::plane::Handle>,

@@ -247,11 +247,11 @@ impl Window {
         event_loop_window_target
             .device
             .atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
-            .map_err(|_| {
+            .map_err(|e| {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("failed to set mode"),
+                    crate::platform_impl::OsError::KmsError(format!("failed to set mode: {}", e)),
                 )
             })?;
 

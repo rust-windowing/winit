@@ -146,6 +146,8 @@ pub enum OsError {
     #[cfg(feature = "wayland")]
     WaylandMisc(&'static str),
     #[cfg(feature = "kms")]
+    KmsError(String),
+    #[cfg(feature = "kms")]
     KmsMisc(&'static str),
 }
 
@@ -158,6 +160,8 @@ impl fmt::Display for OsError {
             OsError::XMisc(e) => _f.pad(e),
             #[cfg(feature = "wayland")]
             OsError::WaylandMisc(e) => _f.pad(e),
+            #[cfg(feature = "kms")]
+            OsError::KmsError(ref e) => _f.pad(e),
             #[cfg(feature = "kms")]
             OsError::KmsMisc(e) => _f.pad(e),
         }
