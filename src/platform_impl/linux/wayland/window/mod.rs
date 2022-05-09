@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use sctk::reexports::calloop;
 use sctk::reexports::client::protocol::wl_surface::WlSurface;
 use sctk::reexports::client::Display;
 

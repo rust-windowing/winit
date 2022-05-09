@@ -21,11 +21,12 @@ use crate::{
 
 #[cfg(feature = "x11")]
 use crate::dpi::Size;
+#[cfg(feature = "kms")]
+use crate::platform_impl::kms::MODE;
 #[cfg(feature = "x11")]
 use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
 use crate::platform_impl::{
-    kms::MODE, ApplicationName, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
-    Window as LinuxWindow,
+    ApplicationName, EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow,
 };
 
 #[cfg(any(feature = "x11", feature = "wayland", feature = "kms"))]
@@ -95,8 +96,11 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[inline]
     fn unix_backend(&self) -> Backend {
         match self.p {
+            #[cfg(feature = "x11")]
             LinuxEventLoopWindowTarget::X(_) => Backend::X,
+            #[cfg(feature = "wayland")]
             LinuxEventLoopWindowTarget::Wayland(_) => Backend::Wayland,
+            #[cfg(feature = "kms")]
             LinuxEventLoopWindowTarget::Kms(_) => Backend::Kms,
         }
     }

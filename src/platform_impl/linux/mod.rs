@@ -191,7 +191,7 @@ impl WindowId {
     pub const unsafe fn dummy() -> Self {
         #[cfg(feature = "wayland")]
         return WindowId::Wayland(wayland::WindowId::dummy());
-        #[cfg(all(not(all(feature = "wayland", feature = "kms")), feature = "x11"))]
+        #[cfg(all(not(all(feature = "wayland")), feature = "x11"))]
         return WindowId::X(x11::WindowId::dummy());
         #[cfg(all(not(all(feature = "wayland", feature = "x11")), feature = "kms"))]
         return WindowId::Kms(kms::WindowId::dummy());

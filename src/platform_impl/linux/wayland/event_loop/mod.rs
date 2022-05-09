@@ -6,6 +6,7 @@ use std::process;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use sctk::reexports::calloop;
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::Display;

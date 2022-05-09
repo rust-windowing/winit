@@ -7,7 +7,7 @@ use sctk::reexports::client::protocol::wl_keyboard::WlKeyboard;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
 
-use calloop::{LoopHandle, RegistrationToken};
+use sctk::reexports::calloop::{LoopHandle, RegistrationToken};
 
 use sctk::seat::keyboard;
 

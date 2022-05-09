@@ -6,11 +6,11 @@ use std::rc::Rc;
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1;
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::ZwpPointerConstraintsV1;
 use sctk::reexports::protocols::unstable::text_input::v3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
+use sctk::reexports::calloop::LoopHandle;
 
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
 
-use calloop::LoopHandle;
 use sctk::environment::Environment;
 use sctk::seat::pointer::ThemeManager;
 use sctk::seat::{SeatData, SeatListener};
