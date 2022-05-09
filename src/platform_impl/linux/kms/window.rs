@@ -1,6 +1,6 @@
 use std::{collections::VecDeque, os::unix::prelude::AsRawFd, sync::Arc};
 
-use drm::control::{atomic, property, AtomicCommitFlags, Device};
+use drm::control::{atomic, property, AtomicCommitFlags, Device, ResourceHandle};
 use parking_lot::Mutex;
 
 use crate::{
@@ -10,8 +10,6 @@ use crate::{
     window::{CursorIcon, Fullscreen},
 };
 
-use super::event_loop::find_prop_id;
-
 pub struct Window {
     mode: drm::control::Mode,
     connector: drm::control::connector::Info,
@@ -19,6 +17,21 @@ pub struct Window {
     plane: drm::control::plane::Handle,
     cursor: Arc<Mutex<PhysicalPosition<f64>>>,
     card: Card,
+}
+
+fn find_prop_id<T: ResourceHandle>(
+    card: &Card,
+    handle: T,
+    name: &'static str,
+) -> Option<property::Handle> {
+    let props = card.get_properties(handle).ok()?;
+    let (ids, _vals) = props.as_props_and_values();
+    ids.iter()
+        .find(|&id| {
+            let info = card.get_property(*id).unwrap();
+            info.name().to_str().map(|x| x == name).unwrap_or(false)
+        })
+        .cloned()
 }
 
 impl Window {
@@ -39,7 +52,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("Could not get CRTC_ID"),
+                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_ID"),
                 )
             })?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
@@ -51,7 +64,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("Failed to create blob"),
+                    crate::platform_impl::OsError::KmsMisc("failed to create blob"),
                 )
             })?;
         atomic_req.add_property(
@@ -65,7 +78,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("Could not get MODE_ID"),
+                    crate::platform_impl::OsError::KmsMisc("could not get MODE_ID"),
                 )
             })?,
             blob,
@@ -81,7 +94,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("Could not get ACTIVE"),
+                    crate::platform_impl::OsError::KmsMisc("could not get ACTIVE"),
                 )
             })?,
             property::Value::Boolean(true),
@@ -93,7 +106,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "CRTC_ID",
             )
-            .expect("Could not get CRTC_ID"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_ID"),
+                )
+            })?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
         atomic_req.add_property(
@@ -103,7 +122,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "SRC_X",
             )
-            .expect("Could not get SRC_X"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get SRC_X"),
+                )
+            })?,
             property::Value::UnsignedRange(0),
         );
         atomic_req.add_property(
@@ -113,7 +138,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "SRC_Y",
             )
-            .expect("Could not get SRC_Y"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get SRC_Y"),
+                )
+            })?,
             property::Value::UnsignedRange(0),
         );
         atomic_req.add_property(
@@ -123,7 +154,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "SRC_W",
             )
-            .expect("Could not get SRC_W"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get SRC_W"),
+                )
+            })?,
             property::Value::UnsignedRange((event_loop_window_target.mode.size().0 as u64) << 16),
         );
         atomic_req.add_property(
@@ -133,7 +170,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "SRC_H",
             )
-            .expect("Could not get SRC_H"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get SRC_H"),
+                )
+            })?,
             property::Value::UnsignedRange((event_loop_window_target.mode.size().1 as u64) << 16),
         );
         atomic_req.add_property(
@@ -143,7 +186,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "CRTC_X",
             )
-            .expect("Could not get CRTC_X"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_X"),
+                )
+            })?,
             property::Value::SignedRange(0),
         );
         atomic_req.add_property(
@@ -153,7 +202,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "CRTC_Y",
             )
-            .expect("Could not get CRTC_Y"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_Y"),
+                )
+            })?,
             property::Value::SignedRange(0),
         );
         atomic_req.add_property(
@@ -163,7 +218,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "CRTC_W",
             )
-            .expect("Could not get CRTC_W"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_W"),
+                )
+            })?,
             property::Value::UnsignedRange(event_loop_window_target.mode.size().0 as u64),
         );
         atomic_req.add_property(
@@ -173,7 +234,13 @@ impl Window {
                 event_loop_window_target.plane,
                 "CRTC_H",
             )
-            .expect("Could not get CRTC_H"),
+            .ok_or_else(|| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_H"),
+                )
+            })?,
             property::Value::UnsignedRange(event_loop_window_target.mode.size().1 as u64),
         );
 
@@ -184,7 +251,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("Failed to set mode"),
+                    crate::platform_impl::OsError::KmsMisc("failed to set mode"),
                 )
             })?;
 
