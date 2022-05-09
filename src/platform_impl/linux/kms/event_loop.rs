@@ -8,7 +8,7 @@ use std::{
     collections::VecDeque,
     marker::PhantomData,
     os::unix::prelude::{AsRawFd, FromRawFd, RawFd},
-    path::Path,
+    path::{Path, PathBuf},
     sync::{mpsc::SendError, Arc},
     time::{Duration, Instant},
 };
@@ -30,6 +30,7 @@ use input::{
 
 use crate::{
     dpi::PhysicalPosition,
+    error::OsError,
     event::{ElementState, Force, KeyboardInput, ModifiersState, MouseScrollDelta, StartCause},
     event_loop::{ControlFlow, EventLoopClosed},
     platform::unix::Card,
@@ -767,6 +768,82 @@ impl<T> EventLoopWindowTarget<T> {
     }
 }
 
+fn find_card_path(seat_name: &str) -> Result<PathBuf, OsError> {
+    let mut enumerator = Enumerator::new().map_err(|e| {
+        crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::KmsError(format!(
+                "failed to open udev enumerator: {}",
+                e
+            )),
+        )
+    })?;
+    enumerator.match_subsystem("drm").map_err(|e| {
+        crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::KmsError(format!(
+                "failed to enumerate drm subsystem: {}",
+                e
+            )),
+        )
+    })?;
+    enumerator.match_sysname("card[0-9]*").map_err(|e| {
+        crate::error::OsError::new(
+            line!(),
+            file!(),
+            crate::platform_impl::OsError::KmsError(format!("failed to find a valid card: {}", e)),
+        )
+    })?;
+    enumerator
+        .scan_devices()
+        .map_err(|e| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::KmsError(format!("failed to scan devices: {}", e)),
+            )
+        })?
+        .filter(|device| {
+            let dev_seat_name = device
+                .property_value("ID_SEAT")
+                .map(|x| x.to_os_string())
+                .unwrap_or_else(|| std::ffi::OsString::from("seat0"));
+            if dev_seat_name == seat_name {
+                if let Ok(Some(pci)) = device.parent_with_subsystem(Path::new("pci")) {
+                    if let Some(id) = pci.attribute_value("boot_vga") {
+                        return id == "1";
+                    }
+                }
+            }
+            false
+        })
+        .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
+        .next()
+        .or_else(|| {
+            enumerator
+                .scan_devices()
+                .ok()?
+                .filter(|device| {
+                    device
+                        .property_value("ID_SEAT")
+                        .map(|x| x.to_os_string())
+                        .unwrap_or_else(|| std::ffi::OsString::from("seat0"))
+                        == seat_name
+                })
+                .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
+                .next()
+        })
+        .ok_or_else(|| {
+            crate::error::OsError::new(
+                line!(),
+                file!(),
+                crate::platform_impl::OsError::KmsMisc("failed to find suitable GPU"),
+            )
+        })
+}
+
 pub struct EventLoop<T: 'static> {
     /// Event loop.
     event_loop: calloop::EventLoop<'static, EventSink>,
@@ -820,98 +897,17 @@ impl<T: 'static> EventLoop<T> {
             }
             s
         };
+        #[cfg(feature = "kms-ext")]
         // Safety
         //
         // This string value has the same lifetime as the seat in question, and will not be dropped
         // until the seat is, which is not before `udev_assign_seat` is run.
-        #[cfg(feature = "kms-ext")]
         let seat_name = unsafe { std::mem::transmute::<&str, &'static str>(seat.name()) };
         #[cfg(not(feature = "kms-ext"))]
         let seat_name = "seat0";
-        let card_path = std::env::var("WINIT_DRM_CARD").ok().map_or_else(
-            || {
-                let mut enumerator = Enumerator::new().map_err(|e| {
-                    crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::KmsError(format!(
-                            "failed to open udev enumerator: {}",
-                            e
-                        )),
-                    )
-                })?;
-                enumerator.match_subsystem("drm").map_err(|e| {
-                    crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::KmsError(format!(
-                            "failed to enumerate drm subsystem: {}",
-                            e
-                        )),
-                    )
-                })?;
-                enumerator.match_sysname("card[0-9]*").map_err(|e| {
-                    crate::error::OsError::new(
-                        line!(),
-                        file!(),
-                        crate::platform_impl::OsError::KmsError(format!(
-                            "failed to find a valid card: {}",
-                            e
-                        )),
-                    )
-                })?;
-                enumerator
-                    .scan_devices()
-                    .map_err(|e| {
-                        crate::error::OsError::new(
-                            line!(),
-                            file!(),
-                            crate::platform_impl::OsError::KmsError(format!(
-                                "failed to scan devices: {}",
-                                e
-                            )),
-                        )
-                    })?
-                    .filter(|device| {
-                        let dev_seat_name = device
-                            .property_value("ID_SEAT")
-                            .map(|x| x.to_os_string())
-                            .unwrap_or_else(|| std::ffi::OsString::from("seat0"));
-                        if dev_seat_name == seat_name {
-                            if let Ok(Some(pci)) = device.parent_with_subsystem(Path::new("pci")) {
-                                if let Some(id) = pci.attribute_value("boot_vga") {
-                                    return id == "1";
-                                }
-                            }
-                        }
-                        false
-                    })
-                    .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
-                    .next()
-                    .or_else(|| {
-                        enumerator
-                            .scan_devices()
-                            .ok()?
-                            .filter(|device| {
-                                device
-                                    .property_value("ID_SEAT")
-                                    .map(|x| x.to_os_string())
-                                    .unwrap_or_else(|| std::ffi::OsString::from("seat0"))
-                                    == seat_name
-                            })
-                            .flat_map(|device| device.devnode().map(std::path::PathBuf::from))
-                            .next()
-                    })
-                    .ok_or_else(|| {
-                        crate::error::OsError::new(
-                            line!(),
-                            file!(),
-                            crate::platform_impl::OsError::KmsMisc("failed to find suitable GPU"),
-                        )
-                    })
-            },
-            |p| Ok(Into::into(p)),
-        )?;
+        let card_path = std::env::var("WINIT_DRM_CARD")
+            .ok()
+            .map_or_else(|| find_card_path(seat_name), |p| Ok(Into::into(p)))?;
         #[cfg(feature = "kms-ext")]
         let dev = seat
             .open_device(&card_path)
