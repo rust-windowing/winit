@@ -36,7 +36,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::DrmMisc("Could not get CRTC_ID"),
+                    crate::platform_impl::OsError::KmsMisc("Could not get CRTC_ID"),
                 )
             })?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
@@ -48,7 +48,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to create blob"),
+                    crate::platform_impl::OsError::KmsMisc("Failed to create blob"),
                 )
             })?;
         atomic_req.add_property(
@@ -62,7 +62,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::DrmMisc("Could not get MODE_ID"),
+                    crate::platform_impl::OsError::KmsMisc("Could not get MODE_ID"),
                 )
             })?,
             blob,
@@ -78,7 +78,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::DrmMisc("Could not get ACTIVE"),
+                    crate::platform_impl::OsError::KmsMisc("Could not get ACTIVE"),
                 )
             })?,
             property::Value::Boolean(true),
@@ -181,7 +181,7 @@ impl Window {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to set mode"),
+                    crate::platform_impl::OsError::KmsMisc("Failed to set mode"),
                 )
             })?;
 
@@ -297,7 +297,7 @@ impl Window {
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         Some(Fullscreen::Exclusive(crate::monitor::VideoMode {
-            video_mode: crate::platform_impl::VideoMode::Drm(super::VideoMode(
+            video_mode: crate::platform_impl::VideoMode::Kms(super::VideoMode(
                 self.0,
                 self.1.clone(),
             )),
@@ -348,7 +348,7 @@ impl Window {
     #[inline]
     pub fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
         Some(crate::monitor::MonitorHandle {
-            inner: crate::platform_impl::MonitorHandle::Drm(super::MonitorHandle(self.1.clone())),
+            inner: crate::platform_impl::MonitorHandle::Kms(super::MonitorHandle(self.1.clone())),
         })
     }
 }

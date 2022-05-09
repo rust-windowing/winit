@@ -64,7 +64,7 @@ impl MonitorHandle {
         let modes = self.0.modes().to_vec();
         let monitor = self.0.clone();
         modes.into_iter().map(move |f| crate::monitor::VideoMode {
-            video_mode: crate::platform_impl::VideoMode::Drm(VideoMode(f, monitor.clone())),
+            video_mode: crate::platform_impl::VideoMode::Kms(VideoMode(f, monitor.clone())),
         })
     }
 }
@@ -92,7 +92,7 @@ impl VideoMode {
     #[inline]
     pub fn monitor(&self) -> crate::monitor::MonitorHandle {
         crate::monitor::MonitorHandle {
-            inner: crate::platform_impl::MonitorHandle::Drm(MonitorHandle(self.1.clone())),
+            inner: crate::platform_impl::MonitorHandle::Kms(MonitorHandle(self.1.clone())),
         }
     }
 }

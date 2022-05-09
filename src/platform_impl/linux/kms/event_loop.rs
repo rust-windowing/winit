@@ -125,7 +125,7 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::DeviceEvent {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     event: crate::event::DeviceEvent::Added,
                                 },
@@ -136,7 +136,7 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::DeviceEvent {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     event: crate::event::DeviceEvent::Removed,
                                 },
@@ -149,11 +149,11 @@ impl EventSource for LibinputInputBackend {
                         input::event::TouchEvent::Up(e) => callback(
                             crate::event::Event::WindowEvent {
                                 window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Drm(super::WindowId),
+                                    crate::platform_impl::WindowId::Kms(super::WindowId),
                                 ),
                                 event: crate::event::WindowEvent::Touch(crate::event::Touch {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     phase: crate::event::TouchPhase::Ended,
                                     location: self.touch_location,
@@ -169,11 +169,11 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
-                                        crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        crate::platform_impl::WindowId::Kms(super::WindowId),
                                     ),
                                     event: crate::event::WindowEvent::Touch(crate::event::Touch {
                                         device_id: crate::event::DeviceId(
-                                            crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                            crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
                                         phase: crate::event::TouchPhase::Started,
                                         location: self.touch_location,
@@ -190,11 +190,11 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
-                                        crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        crate::platform_impl::WindowId::Kms(super::WindowId),
                                     ),
                                     event: crate::event::WindowEvent::Touch(crate::event::Touch {
                                         device_id: crate::event::DeviceId(
-                                            crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                            crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
                                         phase: crate::event::TouchPhase::Moved,
                                         location: self.touch_location,
@@ -208,11 +208,11 @@ impl EventSource for LibinputInputBackend {
                         input::event::TouchEvent::Cancel(e) => callback(
                             crate::event::Event::WindowEvent {
                                 window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Drm(super::WindowId),
+                                    crate::platform_impl::WindowId::Kms(super::WindowId),
                                 ),
                                 event: crate::event::WindowEvent::Touch(crate::event::Touch {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     phase: crate::event::TouchPhase::Cancelled,
                                     location: self.touch_location,
@@ -225,11 +225,11 @@ impl EventSource for LibinputInputBackend {
                         input::event::TouchEvent::Frame(_) => callback(
                             crate::event::Event::WindowEvent {
                                 window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Drm(super::WindowId),
+                                    crate::platform_impl::WindowId::Kms(super::WindowId),
                                 ),
                                 event: crate::event::WindowEvent::Touch(crate::event::Touch {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     phase: crate::event::TouchPhase::Ended,
                                     location: self.touch_location,
@@ -245,11 +245,11 @@ impl EventSource for LibinputInputBackend {
                         input::event::TabletToolEvent::Tip(e) => callback(
                             crate::event::Event::WindowEvent {
                                 window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Drm(super::WindowId),
+                                    crate::platform_impl::WindowId::Kms(super::WindowId),
                                 ),
                                 event: crate::event::WindowEvent::Touch(crate::event::Touch {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     phase: match e.tip_state() {
                                         TipState::Down => crate::event::TouchPhase::Started,
@@ -273,11 +273,11 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
-                                        crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        crate::platform_impl::WindowId::Kms(super::WindowId),
                                     ),
                                     event: crate::event::WindowEvent::MouseInput {
                                         device_id: crate::event::DeviceId(
-                                            crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                            crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
                                         state: match e.button_state() {
                                             ButtonState::Pressed => {
@@ -300,7 +300,7 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::DeviceEvent {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     event: crate::event::DeviceEvent::Button {
                                         button: e.button(),
@@ -330,11 +330,11 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
-                                        crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        crate::platform_impl::WindowId::Kms(super::WindowId),
                                     ),
                                     event: crate::event::WindowEvent::CursorMoved {
                                         device_id: crate::event::DeviceId(
-                                            crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                            crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
                                         position: self.cursor_positon,
                                         modifiers: self.modifiers,
@@ -345,7 +345,7 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::DeviceEvent {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     event: crate::event::DeviceEvent::MouseMotion {
                                         delta: (e.dx(), e.dy()),
@@ -358,11 +358,11 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
-                                        crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        crate::platform_impl::WindowId::Kms(super::WindowId),
                                     ),
                                     event: crate::event::WindowEvent::MouseInput {
                                         device_id: crate::event::DeviceId(
-                                            crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                            crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
                                         state: match e.button_state() {
                                             ButtonState::Pressed => {
@@ -385,7 +385,7 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::DeviceEvent {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     event: crate::event::DeviceEvent::Button {
                                         button: e.button(),
@@ -406,11 +406,11 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
-                                        crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        crate::platform_impl::WindowId::Kms(super::WindowId),
                                     ),
                                     event: crate::event::WindowEvent::MouseWheel {
                                         device_id: crate::event::DeviceId(
-                                            crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                            crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
                                         delta: MouseScrollDelta::LineDelta(
                                             if e.has_axis(input::event::pointer::Axis::Horizontal) {
@@ -441,11 +441,11 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
-                                        crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        crate::platform_impl::WindowId::Kms(super::WindowId),
                                     ),
                                     event: crate::event::WindowEvent::MouseWheel {
                                         device_id: crate::event::DeviceId(
-                                            crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                            crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
                                         delta: MouseScrollDelta::PixelDelta(PhysicalPosition::new(
                                             if e.has_axis(input::event::pointer::Axis::Horizontal) {
@@ -476,11 +476,11 @@ impl EventSource for LibinputInputBackend {
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
-                                        crate::platform_impl::WindowId::Drm(super::WindowId),
+                                        crate::platform_impl::WindowId::Kms(super::WindowId),
                                     ),
                                     event: crate::event::WindowEvent::CursorMoved {
                                         device_id: crate::event::DeviceId(
-                                            crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                            crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
                                         position: self.cursor_positon,
                                         modifiers: self.modifiers,
@@ -521,11 +521,11 @@ impl EventSource for LibinputInputBackend {
                         callback(
                             crate::event::Event::WindowEvent {
                                 window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Drm(super::WindowId),
+                                    crate::platform_impl::WindowId::Kms(super::WindowId),
                                 ),
                                 event: crate::event::WindowEvent::KeyboardInput {
                                     device_id: crate::event::DeviceId(
-                                        crate::platform_impl::DeviceId::Drm(super::DeviceId),
+                                        crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                     ),
                                     input,
                                     is_synthetic: false,
@@ -543,7 +543,7 @@ impl EventSource for LibinputInputBackend {
                                         callback(
                                             crate::event::Event::WindowEvent {
                                                 window_id: crate::window::WindowId(
-                                                    crate::platform_impl::WindowId::Drm(
+                                                    crate::platform_impl::WindowId::Kms(
                                                         super::WindowId,
                                                     ),
                                                 ),
@@ -566,7 +566,7 @@ impl EventSource for LibinputInputBackend {
                                         callback(
                                             crate::event::Event::WindowEvent {
                                                 window_id: crate::window::WindowId(
-                                                    crate::platform_impl::WindowId::Drm(
+                                                    crate::platform_impl::WindowId::Kms(
                                                         super::WindowId,
                                                     ),
                                                 ),
@@ -589,7 +589,7 @@ impl EventSource for LibinputInputBackend {
                                         callback(
                                             crate::event::Event::WindowEvent {
                                                 window_id: crate::window::WindowId(
-                                                    crate::platform_impl::WindowId::Drm(
+                                                    crate::platform_impl::WindowId::Kms(
                                                         super::WindowId,
                                                     ),
                                                 ),
@@ -613,7 +613,7 @@ impl EventSource for LibinputInputBackend {
                                             ElementState::Released => self.modifiers.remove(ModifiersState::ALT)
                                         }
                                         callback(crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                             event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
                                     }
                                 | xkb_keymap::XKB_KEY_Shift_L // LShift
@@ -624,7 +624,7 @@ impl EventSource for LibinputInputBackend {
                                             ElementState::Released => self.modifiers.remove(ModifiersState::SHIFT)
                                         }
                                         callback(crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                             event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
                                     }
 
@@ -636,7 +636,7 @@ impl EventSource for LibinputInputBackend {
                                             ElementState::Released => self.modifiers.remove(ModifiersState::CTRL)
                                         }
                                         callback(crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                             event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
                                     }
 
@@ -648,14 +648,14 @@ impl EventSource for LibinputInputBackend {
                                             ElementState::Released => self.modifiers.remove(ModifiersState::LOGO)
                                         }
                                         callback(crate::event::Event::WindowEvent {
-                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                            window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                             event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
                                     }
                                 xkb_keymap::XKB_KEY_Sys_Req | xkb_keymap::XKB_KEY_Print
                                     => {
                                         if self.modifiers.is_empty() {
                                             callback(crate::event::Event::WindowEvent {
-                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(super::WindowId)),
+                                                window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                                 event: crate::event::WindowEvent::CloseRequested
                                             }, &mut ());
                                         }
@@ -723,7 +723,7 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
         Some(crate::monitor::MonitorHandle {
-            inner: crate::platform_impl::MonitorHandle::Drm(super::MonitorHandle(
+            inner: crate::platform_impl::MonitorHandle::Kms(super::MonitorHandle(
                 self.connector.clone(),
             )),
         })
@@ -789,7 +789,7 @@ impl<T: 'static> EventLoop<T> {
                 crate::error::OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::DrmMisc("Failed to open libseat"),
+                    crate::platform_impl::OsError::KmsMisc("Failed to open libseat"),
                 )
             })?;
 
@@ -798,7 +798,7 @@ impl<T: 'static> EventLoop<T> {
                     return Err(crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::DrmMisc("Failed to dispatch seat"),
+                        crate::platform_impl::OsError::KmsMisc("Failed to dispatch seat"),
                     ));
                 }
             }
@@ -815,21 +815,21 @@ impl<T: 'static> EventLoop<T> {
                     crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::DrmMisc("Failed to open udev enumerator"),
+                        crate::platform_impl::OsError::KmsMisc("Failed to open udev enumerator"),
                     )
                 })?;
                 enumerator.match_subsystem("drm").map_err(|_| {
                     crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::DrmMisc("Failed to enumerate drm subsystem"),
+                        crate::platform_impl::OsError::KmsMisc("Failed to enumerate drm subsystem"),
                     )
                 })?;
                 enumerator.match_sysname("card[0-9]*").map_err(|_| {
                     crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::DrmMisc("Failed to find a valid card"),
+                        crate::platform_impl::OsError::KmsMisc("Failed to find a valid card"),
                     )
                 })?;
                 enumerator
@@ -838,7 +838,7 @@ impl<T: 'static> EventLoop<T> {
                         crate::error::OsError::new(
                             line!(),
                             file!(),
-                            crate::platform_impl::OsError::DrmMisc("Failed to scan devices"),
+                            crate::platform_impl::OsError::KmsMisc("Failed to scan devices"),
                         )
                     })?
                     .filter(|device| {
@@ -874,7 +874,7 @@ impl<T: 'static> EventLoop<T> {
                     .ok_or(crate::error::OsError::new(
                         line!(),
                         file!(),
-                        crate::platform_impl::OsError::DrmMisc("Failed to find suitable GPU"),
+                        crate::platform_impl::OsError::KmsMisc("Failed to find suitable GPU"),
                     ))
             },
             |p| Ok(Into::into(p)),
@@ -883,7 +883,7 @@ impl<T: 'static> EventLoop<T> {
             crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::DrmMisc("Failed to initialize DRM"),
+                crate::platform_impl::OsError::KmsMisc("Failed to initialize DRM"),
             )
         })?;
         let drm = Card(std::sync::Arc::new(dev.1));
@@ -902,7 +902,7 @@ impl<T: 'static> EventLoop<T> {
         .ok_or(crate::error::OsError::new(
             line!(),
             file!(),
-            crate::platform_impl::OsError::DrmMisc("Failed to compile XKB keymap"),
+            crate::platform_impl::OsError::KmsMisc("Failed to compile XKB keymap"),
         ))?;
         let state = xkb::State::new(&keymap);
         let compose_table = xkb::compose::Table::new_from_locale(
@@ -919,7 +919,7 @@ impl<T: 'static> EventLoop<T> {
         .or(Err(crate::error::OsError::new(
             line!(),
             file!(),
-            crate::platform_impl::OsError::DrmMisc("Failed to compile XKB compose table"),
+            crate::platform_impl::OsError::KmsMisc("Failed to compile XKB compose table"),
         )))?;
         let xkb_compose = xkb::compose::State::new(&compose_table, xkb::compose::STATE_NO_FLAGS);
 
@@ -927,7 +927,7 @@ impl<T: 'static> EventLoop<T> {
             Err(crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::DrmMisc(
+                crate::platform_impl::OsError::KmsMisc(
                     "kms device does not support universal planes",
                 ),
             )),
@@ -936,7 +936,7 @@ impl<T: 'static> EventLoop<T> {
             crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::DrmMisc(
+                crate::platform_impl::OsError::KmsMisc(
                     "kms device does not support atomic modesetting",
                 ),
             ),
@@ -946,7 +946,7 @@ impl<T: 'static> EventLoop<T> {
         let res = drm.resource_handles().or(Err(crate::error::OsError::new(
             line!(),
             file!(),
-            crate::platform_impl::OsError::DrmMisc("Could not load normal resource ids."),
+            crate::platform_impl::OsError::KmsMisc("Could not load normal resource ids."),
         )))?;
         let coninfo: Vec<drm::control::connector::Info> = res
             .connectors()
@@ -965,13 +965,13 @@ impl<T: 'static> EventLoop<T> {
             .ok_or(crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::DrmMisc("No connected connectors"),
+                crate::platform_impl::OsError::KmsMisc("No connected connectors"),
             ))?;
 
         let crtc = crtcinfo.get(0).ok_or(crate::error::OsError::new(
             line!(),
             file!(),
-            crate::platform_impl::OsError::DrmMisc("No crtcs found"),
+            crate::platform_impl::OsError::KmsMisc("No crtcs found"),
         ))?;
 
         // Get the first (usually best) mode
@@ -983,22 +983,22 @@ impl<T: 'static> EventLoop<T> {
             .ok_or(crate::error::OsError::new(
                 line!(),
                 file!(),
-                crate::platform_impl::OsError::DrmMisc("No modes found on connector"),
+                crate::platform_impl::OsError::KmsMisc("No modes found on connector"),
             ))?;
 
         let planes = drm.plane_handles().or(Err(crate::error::OsError::new(
             line!(),
             file!(),
-            crate::platform_impl::OsError::DrmMisc("Could not list planes"),
+            crate::platform_impl::OsError::KmsMisc("Could not list planes"),
         )))?;
 
         /*
           let mut db = drm
-          .create_dumb_buffer((64, 64), drm::buffer::DrmFourcc::Xrgb8888, 32)
+          .create_dumb_buffer((64, 64), drm::buffer::KmsFourcc::Xrgb8888, 32)
           .or(Err(crate::error::OsError::new(
           line!(),
           file!(),
-          crate::platform_impl::OsError::DrmMisc("Could not create dumb buffer"),
+          crate::platform_impl::OsError::KmsMisc("Could not create dumb buffer"),
           )))?;
 
           {
@@ -1015,7 +1015,7 @@ impl<T: 'static> EventLoop<T> {
         .or(Err(crate::error::OsError::new(
         line!(),
         file!(),
-        crate::platform_impl::OsError::DrmMisc("Could not create FB"),
+        crate::platform_impl::OsError::KmsMisc("Could not create FB"),
         )))?;
 
         let (better_planes, compatible_planes): (
@@ -1109,7 +1109,7 @@ impl<T: 'static> EventLoop<T> {
                 event_loop_awakener_source,
                 move |_event, _metadata, data| {
                     data.push(crate::event::Event::RedrawRequested(
-                        crate::window::WindowId(crate::platform_impl::WindowId::Drm(
+                        crate::window::WindowId(crate::platform_impl::WindowId::Kms(
                             super::WindowId,
                         )),
                     ));
@@ -1129,11 +1129,11 @@ impl<T: 'static> EventLoop<T> {
             repeat_handler,
             move |event, metadata, data: &mut EventSink| {
                 data.push(crate::event::Event::WindowEvent {
-                    window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(
+                    window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(
                         super::WindowId,
                     )),
                     event: crate::event::WindowEvent::KeyboardInput {
-                        device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Drm(
+                        device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Kms(
                             super::DeviceId,
                         )),
                         input: event.0,
@@ -1142,7 +1142,7 @@ impl<T: 'static> EventLoop<T> {
                 });
                 if let Some(c) = event.1 {
                     data.push(crate::event::Event::WindowEvent {
-                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Drm(
+                        window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(
                             super::WindowId,
                         )),
                         event: crate::event::WindowEvent::ReceivedCharacter(c),
@@ -1173,7 +1173,7 @@ impl<T: 'static> EventLoop<T> {
         handle.register_dispatcher(repeat_loop).unwrap();
 
         let window_target = crate::event_loop::EventLoopWindowTarget {
-            p: crate::platform_impl::EventLoopWindowTarget::Drm(EventLoopWindowTarget {
+            p: crate::platform_impl::EventLoopWindowTarget::Kms(EventLoopWindowTarget {
                 connector: con.clone(),
                 crtc: crtc.clone(),
                 device: drm,
@@ -1228,7 +1228,7 @@ impl<T: 'static> EventLoop<T> {
 
         callback(
             crate::event::Event::RedrawRequested(crate::window::WindowId(
-                crate::platform_impl::WindowId::Drm(super::WindowId),
+                crate::platform_impl::WindowId::Kms(super::WindowId),
             )),
             &self.window_target,
             &mut control_flow,
@@ -1367,7 +1367,7 @@ impl<T: 'static> EventLoop<T> {
 
     fn with_window_target<U, F: FnOnce(&mut EventLoopWindowTarget<T>) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
-            crate::platform_impl::EventLoopWindowTarget::Drm(window_target) => window_target,
+            crate::platform_impl::EventLoopWindowTarget::Kms(window_target) => window_target,
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => unreachable!(),
         };
@@ -1380,7 +1380,7 @@ impl<T: 'static> EventLoop<T> {
         timeout: D,
     ) -> std::io::Result<()> {
         let mut state = match &mut self.window_target.p {
-            crate::platform_impl::EventLoopWindowTarget::Drm(window_target) => {
+            crate::platform_impl::EventLoopWindowTarget::Kms(window_target) => {
                 &mut window_target.event_sink
             }
             #[cfg(any(feature = "x11", feature = "kms"))]

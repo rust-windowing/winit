@@ -180,7 +180,7 @@ impl Window {
                         #[cfg(feature = "x11")]
                         PlatformMonitorHandle::X(_) => None,
                         #[cfg(feature = "kms")]
-                        PlatformMonitorHandle::Drm(_) => None,
+                        PlatformMonitorHandle::Kms(_) => None,
                     });
 
                 window.set_fullscreen(monitor.as_ref());
@@ -427,7 +427,7 @@ impl Window {
                         #[cfg(feature = "x11")]
                         PlatformMonitorHandle::X(_) => None,
                         #[cfg(feature = "kms")]
-                        PlatformMonitorHandle::Drm(_) => None,
+                        PlatformMonitorHandle::Kms(_) => None,
                     });
 
                 WindowRequest::Fullscreen(monitor)
