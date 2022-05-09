@@ -1156,7 +1156,7 @@ impl<T: 'static> EventLoop<T> {
             state,
             keymap,
             xkb_compose,
-            cursor_arc,
+            cursor_arc.clone(),
         );
 
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
