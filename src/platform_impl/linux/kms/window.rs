@@ -4,6 +4,9 @@ use super::MODE;
 use drm::control::*;
 use parking_lot::Mutex;
 
+#[cfg(feature = "wayland")]
+use sctk::reexports::calloop;
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},

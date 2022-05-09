@@ -26,6 +26,8 @@ use input::{
     },
     LibinputInterface,
 };
+#[cfg(feature = "wayland")]
+use sctk::reexports::calloop;
 
 use crate::{
     dpi::PhysicalPosition,
