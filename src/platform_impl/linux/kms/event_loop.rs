@@ -1,9 +1,14 @@
+#[cfg(feature = "kms-ext")]
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::HashMap,
+    sync::{atomic::AtomicBool, Arc},
+};
+use std::{
+    collections::VecDeque,
     marker::PhantomData,
     os::unix::prelude::{AsRawFd, FromRawFd, RawFd},
     path::Path,
-    sync::{atomic::AtomicBool, mpsc::SendError, Arc},
+    sync::mpsc::SendError,
     time::{Duration, Instant},
 };
 use udev::Enumerator;
@@ -30,8 +35,12 @@ use crate::{
     platform_impl::{platform::sticky_exit_callback, xkb_keymap},
 };
 
+#[cfg(feature = "kms-ext")]
 struct Interface(libseat::Seat, HashMap<RawFd, i32>);
+#[cfg(not(feature = "kms-ext"))]
+struct Interface;
 
+#[cfg(feature = "kms-ext")]
 impl LibinputInterface for Interface {
     fn open_restricted(&mut self, path: &Path, _flags: i32) -> Result<RawFd, i32> {
         self.0
@@ -47,6 +56,26 @@ impl LibinputInterface for Interface {
             self.0.close_device(dev).unwrap();
         }
         unsafe { std::fs::File::from_raw_fd(fd) };
+    }
+}
+
+#[cfg(not(feature = "kms-ext"))]
+impl LibinputInterface for Interface {
+    fn open_restricted(&mut self, path: &Path, flags: i32) -> Result<RawFd, i32> {
+        use std::os::unix::prelude::*;
+
+        std::fs::OpenOptions::new()
+            .custom_flags(flags)
+            .read((flags & libc::O_RDONLY != 0) | (flags & libc::O_RDWR != 0))
+            .write((flags & libc::O_WRONLY != 0) | (flags & libc::O_RDWR != 0))
+            .open(path)
+            .map(|file| file.into_raw_fd())
+            .map_err(|err| err.raw_os_error().unwrap())
+    }
+    fn close_restricted(&mut self, fd: RawFd) {
+        unsafe {
+            std::fs::File::from_raw_fd(fd);
+        }
     }
 }
 
@@ -774,6 +803,7 @@ pub(crate) fn find_prop_id<T: ResourceHandle>(
 
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
+        #[cfg(feature = "kms-ext")]
         let mut seat = {
             let active = Arc::new(AtomicBool::new(false));
             let t_active = active.clone();
@@ -808,7 +838,10 @@ impl<T: 'static> EventLoop<T> {
         //
         // This string value has the same lifetime as the seat in question, and will not be dropped
         // until the seat is, which is not before `udev_assign_seat` is run.
+        #[cfg(feature = "kms-ext")]
         let seat_name = unsafe { std::mem::transmute::<&str, &'static str>(seat.name()) };
+        #[cfg(not(feature = "kms-ext"))]
+        let seat_name = "seat0";
         let card_path = std::env::var("WINIT_DRM_CARD").ok().map_or_else(
             || {
                 let mut enumerator = Enumerator::new().map_err(|_| {
@@ -879,15 +912,36 @@ impl<T: 'static> EventLoop<T> {
             },
             |p| Ok(Into::into(p)),
         )?;
-        let dev = seat.open_device(&card_path).map_err(|_| {
-            crate::error::OsError::new(
-                line!(),
-                file!(),
-                crate::platform_impl::OsError::KmsMisc("Failed to initialize DRM"),
-            )
-        })?;
-        let drm = Card(std::sync::Arc::new(dev.1));
+        #[cfg(feature = "kms-ext")]
+        let dev = seat
+            .open_device(&card_path)
+            .map_err(|_| {
+                crate::error::OsError::new(
+                    line!(),
+                    file!(),
+                    crate::platform_impl::OsError::KmsMisc("Failed to initialize DRM"),
+                )
+            })?
+            .1;
+        #[cfg(not(feature = "kms-ext"))]
+        let dev = std::os::unix::prelude::IntoRawFd::into_raw_fd(
+            std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(&card_path)
+                .map_err(|_| {
+                    crate::error::OsError::new(
+                        line!(),
+                        file!(),
+                        crate::platform_impl::OsError::KmsMisc("Failed to initialize DRM"),
+                    )
+                })?,
+        );
+        let drm = Card(std::sync::Arc::new(dev));
+        #[cfg(feature = "kms-ext")]
         let mut input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
+        #[cfg(not(feature = "kms-ext"))]
+        let mut input = input::Libinput::new_with_udev(Interface);
         input.udev_assign_seat(seat_name).unwrap();
         let xkb_ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
         let keymap = xkb::Keymap::new_from_names(
