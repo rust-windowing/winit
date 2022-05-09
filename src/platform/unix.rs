@@ -24,9 +24,11 @@ use crate::dpi::Size;
 #[cfg(feature = "x11")]
 use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
 use crate::platform_impl::{
-    ApplicationName, Backend, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
-    Window as LinuxWindow,
+    ApplicationName, EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow,
 };
+
+#[cfg(any(feature = "x11", feature = "wayland", feature = "kms"))]
+pub use crate::platform_impl::Backend;
 
 // TODO: stupid hack so that glutin can do its work
 #[cfg(feature = "kms")]
@@ -39,16 +41,8 @@ pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupport
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
-    /// True if the `EventLoopWindowTarget` uses Wayland.
-    #[cfg(feature = "wayland")]
-    fn is_wayland(&self) -> bool;
-
-    /// True if the `EventLoopWindowTarget` uses X11.
-    #[cfg(feature = "x11")]
-    fn is_x11(&self) -> bool;
-
-    #[cfg(feature = "kms")]
-    fn is_drm(&self) -> bool;
+    /// Find out what backend winit is currently using.
+    fn unix_backend(&self) -> Backend;
 
     #[doc(hidden)]
     #[cfg(feature = "x11")]
@@ -96,21 +90,12 @@ pub trait EventLoopWindowTargetExtUnix {
 
 impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[inline]
-    #[cfg(feature = "wayland")]
-    fn is_wayland(&self) -> bool {
-        self.p.is_wayland()
-    }
-
-    #[inline]
-    #[cfg(feature = "x11")]
-    fn is_x11(&self) -> bool {
-        self.p.is_x11()
-    }
-
-    #[inline]
-    #[cfg(feature = "kms")]
-    fn is_drm(&self) -> bool {
-        self.p.is_drm()
+    fn unix_backend(&self) -> Backend {
+        match self.p {
+            LinuxEventLoopWindowTarget::X(_) => Backend::X,
+            LinuxEventLoopWindowTarget::Wayland(_) => Backend::Wayland,
+            LinuxEventLoopWindowTarget::Kms(_) => Backend::Kms,
+        }
     }
 
     #[inline]

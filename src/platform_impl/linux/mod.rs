@@ -54,7 +54,7 @@ pub mod xkb_keymap;
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
 #[derive(Debug, Copy, Clone, PartialEq, Hash)]
-pub(crate) enum Backend {
+pub enum Backend {
     #[cfg(feature = "x11")]
     X,
     #[cfg(feature = "wayland")]
@@ -831,36 +831,6 @@ pub enum EventLoopWindowTarget<T> {
 }
 
 impl<T> EventLoopWindowTarget<T> {
-    #[inline]
-    pub fn is_wayland(&self) -> bool {
-        match *self {
-            #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(_) => true,
-            #[cfg(any(feature = "x11", feature = "kms"))]
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_x11(&self) -> bool {
-        match *self {
-            #[cfg(feature = "x11")]
-            EventLoopWindowTarget::X(_) => true,
-            #[cfg(any(feature = "kms", feature = "wayland"))]
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn is_drm(&self) -> bool {
-        match *self {
-            #[cfg(feature = "kms")]
-            EventLoopWindowTarget::Kms(_) => true,
-            #[cfg(any(feature = "x11", feature = "wayland"))]
-            _ => false,
-        }
-    }
-
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match *self {
