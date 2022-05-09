@@ -20,7 +20,6 @@ use crate::{
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
-        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
@@ -907,8 +906,6 @@ impl UnownedWindow {
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         shared_state_lock.fullscreen = fullscreen.clone();
 
-        INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
-
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
                 util::toggle_full_screen_async(
@@ -978,7 +975,7 @@ impl UnownedWindow {
                     setLevel: ffi::NSWindowLevel::NSNormalWindowLevel
                 ];
             },
-            _ => INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst),
+            _ => {}
         };
     }
 
