@@ -108,8 +108,19 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     let mut new_contexts = HashMap::new();
     for (window, old_context) in (*inner).contexts.iter() {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
+        let is_allowed = old_context
+            .as_ref()
+            .map(|old_context| old_context.is_allowed)
+            .unwrap_or_default();
         let new_context = {
-            let result = ImeContext::new(xconn, new_im.im, *window, spot);
+            let result = ImeContext::new(
+                xconn,
+                new_im.im,
+                *window,
+                spot,
+                is_allowed,
+                (*inner).event_sender.clone(),
+            );
             if result.is_err() {
                 let _ = close_im(xconn, new_im.im);
             }

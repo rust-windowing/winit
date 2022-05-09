@@ -34,6 +34,7 @@ use windows_sys::Win32::{
     UI::{
         Controls::{HOVER_DEFAULT, WM_MOUSELEAVE},
         Input::{
+            Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
                 MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
                 TRACKMOUSEEVENT, VK_F4,
@@ -59,21 +60,23 @@ use windows_sys::Win32::{
             SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
             SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE,
             WM_DESTROY, WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
-            WM_GETMINMAXINFO, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS,
-            WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL,
-            WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT,
-            WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP,
-            WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCHAR, WM_SYSCOMMAND,
-            WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING,
-            WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-            WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
+            WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
+            WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP,
+            WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
+            WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY,
+            WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
+            WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
+            WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
+            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
+            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
+            WS_VISIBLE,
         },
     },
 };
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
+    event::{DeviceEvent, Event, Force, Ime, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
@@ -81,10 +84,11 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+        ime::ImeContext,
         monitor::{self, MonitorHandle},
         raw_input, util,
         window::InitData,
-        window_state::{CursorFlags, WindowFlags, WindowState},
+        window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
     window::{Fullscreen, WindowId as RootWindowId},
@@ -1126,6 +1130,104 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 }
             }
             0
+        }
+
+        WM_IME_STARTCOMPOSITION => {
+            let ime_allowed = userdata.window_state.lock().ime_allowed;
+            if ime_allowed {
+                userdata.window_state.lock().ime_state = ImeState::Enabled;
+
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::Ime(Ime::Enabled),
+                });
+            }
+
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
+
+        WM_IME_COMPOSITION => {
+            let ime_allowed_and_composing = {
+                let w = userdata.window_state.lock();
+                w.ime_allowed && w.ime_state != ImeState::Disabled
+            };
+            // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
+            // check whether composing.
+            if ime_allowed_and_composing {
+                let ime_context = ImeContext::current(window);
+
+                if lparam == 0 {
+                    userdata.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    });
+                }
+
+                // Google Japanese Input and ATOK have both flags, so
+                // first, receive composing result if exist.
+                if (lparam as u32 & GCS_RESULTSTR) != 0 {
+                    if let Some(text) = ime_context.get_composed_text() {
+                        userdata.window_state.lock().ime_state = ImeState::Enabled;
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Commit(text)),
+                        });
+                    }
+                }
+
+                // Next, receive preedit range for next composing if exist.
+                if (lparam as u32 & GCS_COMPSTR) != 0 {
+                    if let Some((text, first, last)) = ime_context.get_composing_text_and_cursor() {
+                        userdata.window_state.lock().ime_state = ImeState::Preedit;
+                        let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
+                        });
+                    }
+                }
+            }
+
+            // Not calling DefWindowProc to hide composing text drawn by IME.
+            0
+        }
+
+        WM_IME_ENDCOMPOSITION => {
+            let ime_allowed_or_composing = {
+                let w = userdata.window_state.lock();
+                w.ime_allowed || w.ime_state != ImeState::Disabled
+            };
+            if ime_allowed_or_composing {
+                if userdata.window_state.lock().ime_state == ImeState::Preedit {
+                    // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
+                    // trying receiving composing result and commit if exists.
+                    let ime_context = ImeContext::current(window);
+                    if let Some(text) = ime_context.get_composed_text() {
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Commit(text)),
+                        });
+                    }
+                }
+
+                userdata.window_state.lock().ime_state = ImeState::Disabled;
+
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::Ime(Ime::Disabled),
+                });
+            }
+
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
+
+        WM_IME_SETCONTEXT => {
+            // Hide composing text drawn by IME.
+            let wparam = wparam & (!ISC_SHOWUICOMPOSITIONWINDOW as usize);
+
+            DefWindowProcW(window, msg, wparam, lparam)
         }
 
         // this is necessary for us to maintain minimize/restore state
