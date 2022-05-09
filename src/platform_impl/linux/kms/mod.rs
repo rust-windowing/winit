@@ -2,8 +2,12 @@ use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 pub mod event_loop;
 pub mod window;
+use crate::{monitor, platform_impl};
 pub use drm::SystemError;
-use drm::{control::Device as ControlDevice, Device};
+use drm::{
+    control::{Device as ControlDevice, *},
+    Device,
+};
 pub use event_loop::EventLoop;
 pub use event_loop::EventLoopProxy;
 pub use event_loop::EventLoopWindowTarget;
@@ -43,7 +47,7 @@ impl DeviceId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MonitorHandle(drm::control::connector::Info);
+pub struct MonitorHandle(connector::Info);
 
 impl PartialOrd for MonitorHandle {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -85,17 +89,17 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = crate::monitor::VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
         let modes = self.0.modes().to_vec();
         let monitor = self.0.clone();
-        modes.into_iter().map(move |f| crate::monitor::VideoMode {
-            video_mode: crate::platform_impl::VideoMode::Kms(VideoMode(f, monitor.clone())),
+        modes.into_iter().map(move |f| monitor::VideoMode {
+            video_mode: platform_impl::VideoMode::Kms(VideoMode(f, monitor.clone())),
         })
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VideoMode(drm::control::Mode, drm::control::connector::Info);
+pub struct VideoMode(Mode, connector::Info);
 
 impl VideoMode {
     #[inline]
@@ -115,9 +119,9 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn monitor(&self) -> crate::monitor::MonitorHandle {
-        crate::monitor::MonitorHandle {
-            inner: crate::platform_impl::MonitorHandle::Kms(MonitorHandle(self.1.clone())),
+    pub fn monitor(&self) -> monitor::MonitorHandle {
+        monitor::MonitorHandle {
+            inner: platform_impl::MonitorHandle::Kms(MonitorHandle(self.1.clone())),
         }
     }
 }

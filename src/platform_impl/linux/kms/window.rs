@@ -5,9 +5,11 @@ use parking_lot::Mutex;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError},
+    error::{ExternalError, NotSupportedError, OsError},
+    monitor::{MonitorHandle, VideoMode},
     platform::unix::Card,
-    window::{CursorIcon, Fullscreen},
+    platform_impl,
+    window::{CursorIcon, Fullscreen, WindowAttributes},
 };
 
 pub struct Window {
@@ -37,9 +39,9 @@ fn find_prop_id<T: ResourceHandle>(
 impl Window {
     pub fn new<T>(
         event_loop_window_target: &super::event_loop::EventLoopWindowTarget<T>,
-        _attributes: crate::window::WindowAttributes,
-        _platform_attributes: crate::platform_impl::PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, crate::error::OsError> {
+        _attributes: WindowAttributes,
+        _platform_attributes: platform_impl::PlatformSpecificWindowBuilderAttributes,
+    ) -> Result<Self, OsError> {
         let mut atomic_req = atomic::AtomicModeReq::new();
 
         atomic_req.add_property(
@@ -50,10 +52,10 @@ impl Window {
                 "CRTC_ID",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_ID"),
+                    platform_impl::OsError::KmsMisc("could not get CRTC_ID"),
                 )
             })?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
@@ -63,10 +65,10 @@ impl Window {
             .device
             .create_property_blob(&event_loop_window_target.mode)
             .map_err(|_| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("failed to create blob"),
+                    platform_impl::OsError::KmsMisc("failed to create blob"),
                 )
             })?;
 
@@ -78,10 +80,10 @@ impl Window {
                 "MODE_ID",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get MODE_ID"),
+                    platform_impl::OsError::KmsMisc("could not get MODE_ID"),
                 )
             })?,
             blob,
@@ -95,10 +97,10 @@ impl Window {
                 "ACTIVE",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get ACTIVE"),
+                    platform_impl::OsError::KmsMisc("could not get ACTIVE"),
                 )
             })?,
             property::Value::Boolean(true),
@@ -112,10 +114,10 @@ impl Window {
                 "CRTC_ID",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_ID"),
+                    platform_impl::OsError::KmsMisc("could not get CRTC_ID"),
                 )
             })?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
@@ -129,10 +131,10 @@ impl Window {
                 "SRC_X",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get SRC_X"),
+                    platform_impl::OsError::KmsMisc("could not get SRC_X"),
                 )
             })?,
             property::Value::UnsignedRange(0),
@@ -146,10 +148,10 @@ impl Window {
                 "SRC_Y",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get SRC_Y"),
+                    platform_impl::OsError::KmsMisc("could not get SRC_Y"),
                 )
             })?,
             property::Value::UnsignedRange(0),
@@ -163,10 +165,10 @@ impl Window {
                 "SRC_W",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get SRC_W"),
+                    platform_impl::OsError::KmsMisc("could not get SRC_W"),
                 )
             })?,
             property::Value::UnsignedRange((event_loop_window_target.mode.size().0 as u64) << 16),
@@ -180,10 +182,10 @@ impl Window {
                 "SRC_H",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get SRC_H"),
+                    platform_impl::OsError::KmsMisc("could not get SRC_H"),
                 )
             })?,
             property::Value::UnsignedRange((event_loop_window_target.mode.size().1 as u64) << 16),
@@ -197,10 +199,10 @@ impl Window {
                 "CRTC_X",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_X"),
+                    platform_impl::OsError::KmsMisc("could not get CRTC_X"),
                 )
             })?,
             property::Value::SignedRange(0),
@@ -214,10 +216,10 @@ impl Window {
                 "CRTC_Y",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_Y"),
+                    platform_impl::OsError::KmsMisc("could not get CRTC_Y"),
                 )
             })?,
             property::Value::SignedRange(0),
@@ -231,10 +233,10 @@ impl Window {
                 "CRTC_W",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_W"),
+                    platform_impl::OsError::KmsMisc("could not get CRTC_W"),
                 )
             })?,
             property::Value::UnsignedRange(event_loop_window_target.mode.size().0 as u64),
@@ -248,10 +250,10 @@ impl Window {
                 "CRTC_H",
             )
             .ok_or_else(|| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsMisc("could not get CRTC_H"),
+                    platform_impl::OsError::KmsMisc("could not get CRTC_H"),
                 )
             })?,
             property::Value::UnsignedRange(event_loop_window_target.mode.size().1 as u64),
@@ -261,10 +263,10 @@ impl Window {
             .device
             .atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
             .map_err(|e| {
-                crate::error::OsError::new(
+                OsError::new(
                     line!(),
                     file!(),
-                    crate::platform_impl::OsError::KmsError(format!("failed to set mode: {}", e)),
+                    platform_impl::OsError::KmsError(format!("failed to set mode: {}", e)),
                 )
             })?;
 
@@ -382,8 +384,8 @@ impl Window {
 
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        Some(Fullscreen::Exclusive(crate::monitor::VideoMode {
-            video_mode: crate::platform_impl::VideoMode::Kms(super::VideoMode(
+        Some(Fullscreen::Exclusive(VideoMode {
+            video_mode: platform_impl::VideoMode::Kms(super::VideoMode(
                 self.mode,
                 self.connector.clone(),
             )),
@@ -436,11 +438,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
-        Some(crate::monitor::MonitorHandle {
-            inner: crate::platform_impl::MonitorHandle::Kms(super::MonitorHandle(
-                self.connector.clone(),
-            )),
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle {
+            inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle(self.connector.clone())),
         })
     }
 }
