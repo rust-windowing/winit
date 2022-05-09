@@ -632,7 +632,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android:** Unsupported.
+    /// - **iOS / Android / DRM:** Unsupported.
     #[inline]
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title)
@@ -643,7 +643,7 @@ impl Window {
     /// If `false`, this will hide the window. If `true`, this will show the window.
     /// ## Platform-specific
     ///
-    /// - **Android / Wayland / Web:** Unsupported.
+    /// - **Android / Wayland / Web / DRM:** Unsupported.
     /// - **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn set_visible(&self, visible: bool) {
@@ -657,7 +657,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **X11:** Not implemented.
-    /// - **Wayland / iOS / Android / Web:** Unsupported.
+    /// - **Wayland / DRM / iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_visible(&self) -> Option<bool> {
         self.window.is_visible()
@@ -677,7 +677,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **iOS / Android / Web / DRM:** Unsupported.
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
@@ -698,7 +698,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **DRM / iOS / Android / Web:** Unsupported.
     /// - **Wayland:** Un-minimize is unsupported.
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
@@ -709,7 +709,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **DRM / iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
         self.window.set_maximized(maximized)
@@ -744,6 +744,8 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
+    /// - **DRM:** Fullscreen mode must be a valid exclusive fullscreen containing a video mode
+    /// from [`EventLoopWindowTarget::video_modes`] (will not panic if this condition is not met)
     /// - **Android:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
@@ -757,6 +759,7 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread.
     /// - **Android:** Will always return `None`.
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
+    /// - **DRM:** Always returns the current video mode containing the current [`VideoMode`]
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         self.window.fullscreen()
@@ -766,7 +769,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **DRM / iOS / Android / Web:** Unsupported.
     ///
     /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
@@ -779,7 +782,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **X11:** Not implemented.
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **DRM / iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_decorated(&self) -> bool {
         self.window.is_decorated()
@@ -789,7 +792,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    /// - **DRM / iOS / Android / Web / Wayland:** Unsupported.
     #[inline]
     pub fn set_always_on_top(&self, always_on_top: bool) {
         self.window.set_always_on_top(always_on_top)
@@ -800,7 +803,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland / macOS:** Unsupported.
+    /// - **iOS / Android / Web / Wayland / DRM / macOS:** Unsupported.
     ///
     /// On Windows, this sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
     /// recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
@@ -836,7 +839,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web:** Unsupported.
+    /// - **DRM / iOS / Android / Web:** Unsupported.
     ///
     /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
     /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
@@ -862,7 +865,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
-    /// - ** iOS / Android / Web :** Unsupported.
+    /// - **DRM / iOS / Android / Web :** Unsupported.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
@@ -881,7 +884,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / Wayland:** Unsupported.
+    /// - **DRM / iOS / Android / Web / Wayland:** Unsupported.
     #[inline]
     pub fn focus_window(&self) {
         self.window.focus_window()
@@ -896,7 +899,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web :** Unsupported.
+    /// - **DRM / iOS / Android / Web :** Unsupported.
     /// - **macOS:** `None` has no effect.
     /// - **X11:** Requests for user attention must be manually cleared.
     /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
@@ -912,7 +915,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android:** Unsupported.
+    /// - **DRM / iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_icon(&self, cursor: CursorIcon) {
         self.window.set_cursor_icon(cursor);
@@ -949,6 +952,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
+    /// - **DRM:** Has no effect
     /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
@@ -966,7 +970,7 @@ impl Window {
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
     /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
     ///   outside of the window.
-    /// - **iOS / Android:** Unsupported.
+    /// - **DRM / iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
         self.window.set_cursor_visible(visible)
@@ -982,7 +986,7 @@ impl Window {
     /// - **X11:** Un-grabs the cursor.
     /// - **Wayland:** Requires the cursor to be inside the window to be dragged.
     /// - **macOS:** May prevent the button release event to be triggered.
-    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    /// - **DRM / iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.drag_window()
@@ -995,7 +999,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web / X11:** Always returns an [`ExternalError::NotSupported`].
+    /// - **DRM / iOS / Android / Web / X11:** Always returns an [`ExternalError::NotSupported`].
     #[inline]
     pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
         self.window.set_cursor_hittest(hittest)

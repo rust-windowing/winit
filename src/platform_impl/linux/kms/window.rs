@@ -275,12 +275,12 @@ impl Window {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        Ok(())
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Ok(())
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
     #[inline]
