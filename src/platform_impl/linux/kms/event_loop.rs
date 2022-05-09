@@ -716,22 +716,22 @@ impl EventSource for LibinputInputBackend {
 type EventSink = Vec<crate::event::Event<'static, ()>>;
 
 pub struct EventLoopWindowTarget<T> {
-    /// drm Connector
+    /// Drm Connector
     pub connector: drm::control::connector::Info,
 
-    /// drm crtc
+    /// Drm crtc
     pub crtc: drm::control::crtc::Info,
 
-    /// drm mode
+    /// Drm mode
     pub mode: drm::control::Mode,
 
-    /// drm plane
+    /// Drm plane
     pub plane: drm::control::plane::Handle,
 
     /// Allows window to edit cursor position
     pub(crate) cursor_arc: Arc<Mutex<PhysicalPosition<f64>>>,
 
-    /// drm device
+    /// Drm device
     pub device: Card,
 
     /// Event loop handle.
