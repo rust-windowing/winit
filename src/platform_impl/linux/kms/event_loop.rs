@@ -41,6 +41,12 @@ use crate::{
     window::WindowId,
 };
 
+macro_rules! window_id {
+    () => {
+        WindowId(platform_impl::WindowId::Kms(super::WindowId))
+    };
+}
+
 const REPEAT_RATE: u64 = 25;
 const REPEAT_DELAY: u64 = 600;
 
@@ -183,7 +189,7 @@ impl EventSource for LibinputInputBackend {
                     input::Event::Touch(ev) => match ev {
                         input::event::TouchEvent::Up(e) => callback(
                             Event::WindowEvent {
-                                window_id: WindowId(platform_impl::WindowId::Kms(super::WindowId)),
+                                window_id: window_id!(),
                                 event: WindowEvent::Touch(Touch {
                                     device_id: DeviceId(platform_impl::DeviceId::Kms(
                                         super::DeviceId,
@@ -202,9 +208,7 @@ impl EventSource for LibinputInputBackend {
 
                             callback(
                                 Event::WindowEvent {
-                                    window_id: WindowId(platform_impl::WindowId::Kms(
-                                        super::WindowId,
-                                    )),
+                                    window_id: window_id!(),
                                     event: WindowEvent::Touch(Touch {
                                         device_id: DeviceId(platform_impl::DeviceId::Kms(
                                             super::DeviceId,
@@ -224,9 +228,7 @@ impl EventSource for LibinputInputBackend {
 
                             callback(
                                 Event::WindowEvent {
-                                    window_id: WindowId(platform_impl::WindowId::Kms(
-                                        super::WindowId,
-                                    )),
+                                    window_id: window_id!(),
                                     event: WindowEvent::Touch(Touch {
                                         device_id: DeviceId(platform_impl::DeviceId::Kms(
                                             super::DeviceId,
@@ -242,7 +244,7 @@ impl EventSource for LibinputInputBackend {
                         }
                         input::event::TouchEvent::Cancel(e) => callback(
                             Event::WindowEvent {
-                                window_id: WindowId(platform_impl::WindowId::Kms(super::WindowId)),
+                                window_id: window_id!(),
                                 event: WindowEvent::Touch(Touch {
                                     device_id: DeviceId(platform_impl::DeviceId::Kms(
                                         super::DeviceId,
@@ -257,7 +259,7 @@ impl EventSource for LibinputInputBackend {
                         ),
                         input::event::TouchEvent::Frame(_) => callback(
                             Event::WindowEvent {
-                                window_id: WindowId(platform_impl::WindowId::Kms(super::WindowId)),
+                                window_id: window_id!(),
                                 event: WindowEvent::Touch(Touch {
                                     device_id: DeviceId(platform_impl::DeviceId::Kms(
                                         super::DeviceId,
@@ -275,7 +277,7 @@ impl EventSource for LibinputInputBackend {
                     input::Event::Tablet(ev) => match ev {
                         input::event::TabletToolEvent::Tip(e) => callback(
                             Event::WindowEvent {
-                                window_id: WindowId(platform_impl::WindowId::Kms(super::WindowId)),
+                                window_id: window_id!(),
                                 event: WindowEvent::Touch(Touch {
                                     device_id: DeviceId(platform_impl::DeviceId::Kms(
                                         super::DeviceId,
@@ -301,9 +303,7 @@ impl EventSource for LibinputInputBackend {
                         input::event::TabletToolEvent::Button(e) => {
                             callback(
                                 Event::WindowEvent {
-                                    window_id: WindowId(platform_impl::WindowId::Kms(
-                                        super::WindowId,
-                                    )),
+                                    window_id: window_id!(),
                                     event: WindowEvent::MouseInput {
                                         device_id: DeviceId(platform_impl::DeviceId::Kms(
                                             super::DeviceId,
@@ -353,9 +353,7 @@ impl EventSource for LibinputInputBackend {
 
                             callback(
                                 Event::WindowEvent {
-                                    window_id: WindowId(platform_impl::WindowId::Kms(
-                                        super::WindowId,
-                                    )),
+                                    window_id: window_id!(),
                                     event: WindowEvent::CursorMoved {
                                         device_id: DeviceId(platform_impl::DeviceId::Kms(
                                             super::DeviceId,
@@ -382,9 +380,7 @@ impl EventSource for LibinputInputBackend {
                         input::event::PointerEvent::Button(e) => {
                             callback(
                                 Event::WindowEvent {
-                                    window_id: WindowId(platform_impl::WindowId::Kms(
-                                        super::WindowId,
-                                    )),
+                                    window_id: window_id!(),
                                     event: WindowEvent::MouseInput {
                                         device_id: DeviceId(platform_impl::DeviceId::Kms(
                                             super::DeviceId,
@@ -425,9 +421,7 @@ impl EventSource for LibinputInputBackend {
 
                             callback(
                                 Event::WindowEvent {
-                                    window_id: WindowId(platform_impl::WindowId::Kms(
-                                        super::WindowId,
-                                    )),
+                                    window_id: window_id!(),
                                     event: WindowEvent::MouseWheel {
                                         device_id: DeviceId(platform_impl::DeviceId::Kms(
                                             super::DeviceId,
@@ -456,9 +450,7 @@ impl EventSource for LibinputInputBackend {
 
                             callback(
                                 Event::WindowEvent {
-                                    window_id: WindowId(platform_impl::WindowId::Kms(
-                                        super::WindowId,
-                                    )),
+                                    window_id: window_id!(),
                                     event: WindowEvent::MouseWheel {
                                         device_id: DeviceId(platform_impl::DeviceId::Kms(
                                             super::DeviceId,
@@ -491,9 +483,7 @@ impl EventSource for LibinputInputBackend {
 
                             callback(
                                 Event::WindowEvent {
-                                    window_id: WindowId(platform_impl::WindowId::Kms(
-                                        super::WindowId,
-                                    )),
+                                    window_id: window_id!(),
                                     event: WindowEvent::CursorMoved {
                                         device_id: DeviceId(platform_impl::DeviceId::Kms(
                                             super::DeviceId,
@@ -542,7 +532,7 @@ impl EventSource for LibinputInputBackend {
 
                         callback(
                             Event::WindowEvent {
-                                window_id: WindowId(platform_impl::WindowId::Kms(super::WindowId)),
+                                window_id: window_id!(),
                                 event: WindowEvent::KeyboardInput {
                                     device_id: DeviceId(platform_impl::DeviceId::Kms(
                                         super::DeviceId,
@@ -564,9 +554,7 @@ impl EventSource for LibinputInputBackend {
                                     {
                                         callback(
                                             Event::WindowEvent {
-                                                window_id: WindowId(platform_impl::WindowId::Kms(
-                                                    super::WindowId,
-                                                )),
+                                                window_id: window_id!(),
                                                 event: WindowEvent::ReceivedCharacter(c),
                                             },
                                             &mut (),
@@ -587,9 +575,7 @@ impl EventSource for LibinputInputBackend {
                                     if let Some(c) = ch {
                                         callback(
                                             Event::WindowEvent {
-                                                window_id: WindowId(platform_impl::WindowId::Kms(
-                                                    super::WindowId,
-                                                )),
+                                                window_id: window_id!(),
                                                 event: WindowEvent::ReceivedCharacter(c),
                                             },
                                             &mut (),
@@ -608,9 +594,7 @@ impl EventSource for LibinputInputBackend {
                                     if let Some(c) = ch {
                                         callback(
                                             Event::WindowEvent {
-                                                window_id: WindowId(platform_impl::WindowId::Kms(
-                                                    super::WindowId,
-                                                )),
+                                                window_id: window_id!(),
                                                 event: WindowEvent::ReceivedCharacter(c),
                                             },
                                             &mut (),
@@ -631,9 +615,7 @@ impl EventSource for LibinputInputBackend {
 
                                 callback(
                                     Event::WindowEvent {
-                                        window_id: WindowId(platform_impl::WindowId::Kms(
-                                            super::WindowId,
-                                        )),
+                                        window_id: window_id!(),
                                         event: WindowEvent::ModifiersChanged(self.modifiers),
                                     },
                                     &mut (),
@@ -651,9 +633,7 @@ impl EventSource for LibinputInputBackend {
 
                                 callback(
                                     Event::WindowEvent {
-                                        window_id: WindowId(platform_impl::WindowId::Kms(
-                                            super::WindowId,
-                                        )),
+                                        window_id: window_id!(),
                                         event: WindowEvent::ModifiersChanged(self.modifiers),
                                     },
                                     &mut (),
@@ -670,9 +650,7 @@ impl EventSource for LibinputInputBackend {
 
                                 callback(
                                     Event::WindowEvent {
-                                        window_id: WindowId(platform_impl::WindowId::Kms(
-                                            super::WindowId,
-                                        )),
+                                        window_id: window_id!(),
                                         event: WindowEvent::ModifiersChanged(self.modifiers),
                                     },
                                     &mut (),
@@ -689,9 +667,7 @@ impl EventSource for LibinputInputBackend {
 
                                 callback(
                                     Event::WindowEvent {
-                                        window_id: WindowId(platform_impl::WindowId::Kms(
-                                            super::WindowId,
-                                        )),
+                                        window_id: window_id!(),
                                         event: WindowEvent::ModifiersChanged(self.modifiers),
                                     },
                                     &mut (),
@@ -701,9 +677,7 @@ impl EventSource for LibinputInputBackend {
                                 if self.modifiers.is_empty() {
                                     callback(
                                         Event::WindowEvent {
-                                            window_id: WindowId(platform_impl::WindowId::Kms(
-                                                super::WindowId,
-                                            )),
+                                            window_id: window_id!(),
                                             event: WindowEvent::CloseRequested,
                                         },
                                         &mut (),
@@ -1186,9 +1160,7 @@ impl<T: 'static> EventLoop<T> {
             .insert_source(
                 event_loop_awakener_source,
                 move |_event, _metadata, data| {
-                    data.push(Event::RedrawRequested(WindowId(
-                        platform_impl::WindowId::Kms(super::WindowId),
-                    )));
+                    data.push(Event::RedrawRequested(window_id!()));
                 },
             )
             .unwrap();
@@ -1207,7 +1179,7 @@ impl<T: 'static> EventLoop<T> {
             repeat_handler,
             move |event, metadata, data: &mut EventSink| {
                 data.push(Event::WindowEvent {
-                    window_id: WindowId(platform_impl::WindowId::Kms(super::WindowId)),
+                    window_id: window_id!(),
                     event: WindowEvent::KeyboardInput {
                         device_id: DeviceId(platform_impl::DeviceId::Kms(super::DeviceId)),
                         input: event.0,
@@ -1217,7 +1189,7 @@ impl<T: 'static> EventLoop<T> {
 
                 if let Some(c) = event.1 {
                     data.push(Event::WindowEvent {
-                        window_id: WindowId(platform_impl::WindowId::Kms(super::WindowId)),
+                        window_id: window_id!(),
                         event: WindowEvent::ReceivedCharacter(c),
                     });
                 }
@@ -1300,7 +1272,7 @@ impl<T: 'static> EventLoop<T> {
         );
 
         callback(
-            Event::RedrawRequested(WindowId(platform_impl::WindowId::Kms(super::WindowId))),
+            Event::RedrawRequested(window_id!()),
             &self.window_target,
             &mut control_flow,
         );
