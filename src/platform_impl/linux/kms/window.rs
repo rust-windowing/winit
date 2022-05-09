@@ -1,6 +1,7 @@
-use std::{collections::VecDeque, os::unix::prelude::AsRawFd};
+use std::{collections::VecDeque, os::unix::prelude::AsRawFd, sync::Arc};
 
 use drm::control::{atomic, property, AtomicCommitFlags, Device};
+use parking_lot::Mutex;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -16,6 +17,7 @@ pub struct Window {
     connector: drm::control::connector::Info,
     ping: calloop::ping::Ping,
     plane: drm::control::plane::Handle,
+    cursor: Arc<Mutex<PhysicalPosition<f64>>>,
     card: Card,
 }
 
@@ -190,6 +192,7 @@ impl Window {
             mode: event_loop_window_target.mode.clone(),
             connector: event_loop_window_target.connector.clone(),
             plane: event_loop_window_target.plane.clone(),
+            cursor: event_loop_window_target.cursor_arc.clone(),
             ping: event_loop_window_target.event_loop_awakener.clone(),
             card: event_loop_window_target.device.clone(),
         })
@@ -212,12 +215,12 @@ impl Window {
 
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Err(NotSupportedError::new())
+        Ok(PhysicalPosition::new(0, 0))
     }
 
     #[inline]
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Err(NotSupportedError::new())
+        Ok(PhysicalPosition::new(0, 0))
     }
 
     #[inline]
@@ -259,7 +262,7 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+        Ok(())
     }
 
     #[inline]
@@ -267,12 +270,12 @@ impl Window {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+        Ok(())
     }
 
     #[inline]
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+        Ok(())
     }
 
     #[inline]
@@ -281,8 +284,9 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _position: Position) -> Result<(), ExternalError> {
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        *self.cursor.lock() = position.to_physical(1.0);
+        Ok(())
     }
 
     #[inline]

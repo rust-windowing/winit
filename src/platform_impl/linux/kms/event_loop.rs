@@ -1,3 +1,4 @@
+use parking_lot::Mutex;
 #[cfg(feature = "kms-ext")]
 use std::{
     collections::HashMap,
@@ -8,7 +9,7 @@ use std::{
     marker::PhantomData,
     os::unix::prelude::{AsRawFd, FromRawFd, RawFd},
     path::Path,
-    sync::mpsc::SendError,
+    sync::{mpsc::SendError, Arc},
     time::{Duration, Instant},
 };
 use udev::Enumerator;
@@ -88,10 +89,8 @@ pub struct LibinputInputBackend {
     touch_location: PhysicalPosition<f64>,
     screen_size: (u32, u32),
     modifiers: ModifiersState,
-    cursor_positon: PhysicalPosition<f64>,
+    cursor_positon: Arc<Mutex<PhysicalPosition<f64>>>,
     timer_handle: calloop::timer::TimerHandle<(KeyboardInput, Option<char>)>,
-    // cursor_plane: drm::control::plane::Handle,
-    // cursor_buffer: drm::control::framebuffer::Handle,
 }
 
 impl LibinputInputBackend {
@@ -104,22 +103,19 @@ impl LibinputInputBackend {
         xkb_ctx: xkb::State,
         xkb_keymap: xkb::Keymap,
         xkb_compose: xkb::compose::State,
-        // cursor_plane: drm::control::plane::Handle,
-        // cursor_buffer: drm::control::framebuffer::Handle
+        cursor_positon: Arc<Mutex<PhysicalPosition<f64>>>,
     ) -> Self {
         LibinputInputBackend {
             context,
             token: Token::invalid(),
             touch_location: PhysicalPosition::new(0.0, 0.0),
-            cursor_positon: PhysicalPosition::new(0.0, 0.0),
             modifiers: ModifiersState::empty(),
+            cursor_positon,
             screen_size,
             timer_handle,
             xkb_ctx,
             xkb_keymap,
             xkb_compose,
-            // cursor_buffer,
-            // cursor_plane,
         }
     }
 }
@@ -350,12 +346,11 @@ impl EventSource for LibinputInputBackend {
                     },
                     input::Event::Pointer(e) => match e {
                         input::event::PointerEvent::Motion(e) => {
-                            self.cursor_positon.x += e.dx();
-                            self.cursor_positon.x =
-                                self.cursor_positon.x.clamp(0.0, self.screen_size.0 as f64);
-                            self.cursor_positon.y += e.dy();
-                            self.cursor_positon.y =
-                                self.cursor_positon.y.clamp(0.0, self.screen_size.1 as f64);
+                            let mut lock = self.cursor_positon.lock();
+                            lock.x += e.dx();
+                            lock.x = lock.x.clamp(0.0, self.screen_size.0 as f64);
+                            lock.y += e.dy();
+                            lock.y = lock.y.clamp(0.0, self.screen_size.1 as f64);
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
@@ -365,7 +360,7 @@ impl EventSource for LibinputInputBackend {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
-                                        position: self.cursor_positon,
+                                        position: *lock,
                                         modifiers: self.modifiers,
                                     },
                                 },
@@ -500,8 +495,9 @@ impl EventSource for LibinputInputBackend {
                             );
                         }
                         input::event::PointerEvent::MotionAbsolute(e) => {
-                            self.cursor_positon.x = e.absolute_x_transformed(self.screen_size.0);
-                            self.cursor_positon.y = e.absolute_y_transformed(self.screen_size.1);
+                            let mut lock = self.cursor_positon.lock();
+                            lock.x = e.absolute_x_transformed(self.screen_size.0);
+                            lock.y = e.absolute_y_transformed(self.screen_size.1);
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
@@ -511,7 +507,7 @@ impl EventSource for LibinputInputBackend {
                                         device_id: crate::event::DeviceId(
                                             crate::platform_impl::DeviceId::Kms(super::DeviceId),
                                         ),
-                                        position: self.cursor_positon,
+                                        position: *lock,
                                         modifiers: self.modifiers,
                                     },
                                 },
@@ -732,8 +728,9 @@ pub struct EventLoopWindowTarget<T> {
     /// drm plane
     pub plane: drm::control::plane::Handle,
 
-    // /// drm dumbbuffer containing the cursor
-    // pub cursor_buffer: drm::control::framebuffer::Handle,
+    /// Allows window to edit cursor position
+    pub(crate) cursor_arc: Arc<Mutex<PhysicalPosition<f64>>>,
+
     /// drm device
     pub device: Card,
 
@@ -1046,61 +1043,6 @@ impl<T: 'static> EventLoop<T> {
             crate::platform_impl::OsError::KmsMisc("Could not list planes"),
         )))?;
 
-        /*
-          let mut db = drm
-          .create_dumb_buffer((64, 64), drm::buffer::KmsFourcc::Xrgb8888, 32)
-          .or(Err(crate::error::OsError::new(
-          line!(),
-          file!(),
-          crate::platform_impl::OsError::KmsMisc("Could not create dumb buffer"),
-          )))?;
-
-          {
-          let mut map = drm
-          .map_dumb_buffer(&mut db)
-          .expect("Could not map dumbbuffer");
-          for b in map.as_mut() {
-        *b = 128;
-        }
-        }
-
-        let fb = drm
-        .add_framebuffer(&db, 24, 32)
-        .or(Err(crate::error::OsError::new(
-        line!(),
-        file!(),
-        crate::platform_impl::OsError::KmsMisc("Could not create FB"),
-        )))?;
-
-        let (better_planes, compatible_planes): (
-        Vec<drm::control::plane::Handle>,
-        Vec<drm::control::plane::Handle>,
-        ) = planes
-        .planes()
-        .iter()
-        .filter(|&&plane| {
-        drm.get_plane(plane)
-        .map(|plane_info| {
-        let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
-        compatible_crtcs.contains(&crtc.handle())
-        })
-        .unwrap_or(false)
-        })
-        .partition(|&&plane| {
-        if let Ok(props) = drm.get_properties(plane) {
-        let (ids, vals) = props.as_props_and_values();
-        for (&id, &val) in ids.iter().zip(vals.iter()) {
-        if let Ok(info) = drm.get_property(id) {
-        if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
-        return val == (drm::control::PlaneType::Cursor as u32).into();
-        }
-        }
-        }
-        }
-        false
-        });
-        let plane = *better_planes.get(0).unwrap_or(&compatible_planes[0]);
-        */
         let (p_better_planes, p_compatible_planes): (
             Vec<drm::control::plane::Handle>,
             Vec<drm::control::plane::Handle>,
@@ -1206,6 +1148,7 @@ impl<T: 'static> EventLoop<T> {
             },
         );
 
+        let cursor_arc = Arc::new(Mutex::new(PhysicalPosition::new(0.0, 0.0)));
         let input_backend: LibinputInputBackend = LibinputInputBackend::new(
             input,
             (disp_width.into(), disp_height.into()), // plane, fb
@@ -1213,6 +1156,7 @@ impl<T: 'static> EventLoop<T> {
             state,
             keymap,
             xkb_compose,
+            cursor_arc,
         );
 
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
@@ -1232,7 +1176,7 @@ impl<T: 'static> EventLoop<T> {
                 crtc: crtc.clone(),
                 device: drm,
                 plane: p_plane,
-                // cursor_buffer: fb,
+                cursor_arc,
                 mode,
                 event_loop_handle: handle,
                 event_sink,
