@@ -1,9 +1,6 @@
 use parking_lot::Mutex;
 #[cfg(feature = "kms-ext")]
-use std::{
-    collections::HashMap,
-    sync::{atomic::AtomicBool, Arc},
-};
+use std::{collections::HashMap, sync::atomic::AtomicBool};
 use std::{
     collections::VecDeque,
     marker::PhantomData,
@@ -898,7 +895,10 @@ pub struct EventLoop<T: 'static> {
 impl<T: 'static> EventLoop<T> {
     pub fn new() -> Result<EventLoop<T>, crate::error::OsError> {
         #[cfg(feature = "kms-ext")]
+        // When we create the seat here, we should probably wait for it to become active before we
+        // use it.
         let mut seat = {
+            // Allows us to know when the seat becomes active
             let active = Arc::new(AtomicBool::new(false));
             let t_active = active.clone();
             let mut s = libseat::Seat::open(
@@ -920,6 +920,7 @@ impl<T: 'static> EventLoop<T> {
                 )
             })?;
 
+            // While our seat is not active dispatch it so that the seat will activate
             while !active.load(std::sync::atomic::Ordering::SeqCst) {
                 s.dispatch(-1).map_err(|e| {
                     crate::error::OsError::new(
@@ -944,10 +945,14 @@ impl<T: 'static> EventLoop<T> {
         #[cfg(not(feature = "kms-ext"))]
         let seat_name = "seat0";
 
+        // find_card_path uses `udev` to enumerate the cards that are currently available, and then
+        // choose the first (usually perferred) one
         let card_path = std::env::var("WINIT_DRM_CARD")
             .ok()
             .map_or_else(|| find_card_path(seat_name), |p| Ok(Into::into(p)))?;
+
         #[cfg(feature = "kms-ext")]
+        // Opening the card using our seat allows us to do so unprivallaged
         let dev = seat
             .open_device(&card_path)
             .map_err(|e| {
@@ -963,6 +968,8 @@ impl<T: 'static> EventLoop<T> {
             .1;
 
         #[cfg(not(feature = "kms-ext"))]
+        // Opening this card with no seat present means that we must have root
+        // (or be part of the `video` user group)
         let dev = std::os::unix::prelude::IntoRawFd::into_raw_fd(
             std::fs::OpenOptions::new()
                 .read(true)
@@ -979,15 +986,22 @@ impl<T: 'static> EventLoop<T> {
                     )
                 })?,
         );
-
         let drm = Card(std::sync::Arc::new(dev));
+
         #[cfg(feature = "kms-ext")]
+        // Using our seat to open our input manager allows us to do so unprivallaged
         let mut input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
         #[cfg(not(feature = "kms-ext"))]
+        // Opening our input manager with no seat means we must do so as root
+        // (or be part of the `input` user group)
         let mut input = input::Libinput::new_with_udev(Interface);
+
         input.udev_assign_seat(seat_name).unwrap();
 
+        // XKB allows us to keep track of the state of the keyboard and produce keyboard events
+        // very similarly to how a Wayland Compositor would.
         let xkb_ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
+        // Empty strings translates to "default" for XKB (in this context)
         let keymap = xkb::Keymap::new_from_names(
             &xkb_ctx,
             "",
@@ -1006,8 +1020,17 @@ impl<T: 'static> EventLoop<T> {
         })?;
 
         let state = xkb::State::new(&keymap);
+
+        // It's not a strict requirement that we use a compose table, but it's ***sooo*** useful
+        // when using an english keyboard to write in other languages. Or even just speacial
+        // charecters
+        //
+        // For example, to type è, you would use <Compose> + <e> + <Grave>
+        // Or to type •, you would use <Compose> + <.> + <=>
         let compose_table = xkb::compose::Table::new_from_locale(
             &xkb_ctx,
+            // These env variables in Linux are the most likely to contain your locale,
+            // "en_US.UTF-8" for example
             std::env::var_os("LC_ALL")
                 .unwrap_or_else(|| {
                     std::env::var_os("LC_CTYPE").unwrap_or_else(|| {
@@ -1027,18 +1050,7 @@ impl<T: 'static> EventLoop<T> {
         })?;
         let xkb_compose = xkb::compose::State::new(&compose_table, xkb::compose::STATE_NO_FLAGS);
 
-        drm::Device::set_client_capability(&drm, drm::ClientCapability::UniversalPlanes, true)
-            .map_err(|e| {
-                crate::error::OsError::new(
-                    line!(),
-                    file!(),
-                    crate::platform_impl::OsError::KmsError(format!(
-                        "drm device does not support universal planes :{}",
-                        e
-                    )),
-                )
-            })?;
-
+        // Allows use to use the non-legacy atomic system
         drm::Device::set_client_capability(&drm, drm::ClientCapability::Atomic, true).map_err(
             |e| {
                 crate::error::OsError::new(
@@ -1064,12 +1076,14 @@ impl<T: 'static> EventLoop<T> {
             )
         })?;
 
+        // Enumerate available connectors
         let coninfo: Vec<drm::control::connector::Info> = res
             .connectors()
             .iter()
             .flat_map(|con| drm.get_connector(*con))
             .collect();
 
+        // Enumerate available CRTCs
         let crtcinfo: Vec<drm::control::crtc::Info> = res
             .crtcs()
             .iter()
@@ -1088,6 +1102,7 @@ impl<T: 'static> EventLoop<T> {
                 )
             })?;
 
+        // Get the first (usually perferred) CRTC
         let crtc = crtcinfo.get(0).ok_or_else(|| {
             crate::error::OsError::new(
                 line!(),
@@ -1096,7 +1111,7 @@ impl<T: 'static> EventLoop<T> {
             )
         })?;
 
-        // Get the first (usually best) mode
+        // Get the perferred (or first) mode
         let &mode = con
             .modes()
             .iter()
@@ -1110,6 +1125,7 @@ impl<T: 'static> EventLoop<T> {
                 )
             })?;
 
+        // Enumerate available planes
         let planes = drm.plane_handles().map_err(|e| {
             crate::error::OsError::new(
                 line!(),
@@ -1119,24 +1135,31 @@ impl<T: 'static> EventLoop<T> {
         })?;
 
         let (p_better_planes, p_compatible_planes): (
+            // The primary planes available to us
             Vec<drm::control::plane::Handle>,
+            // Other, not-ideal planes that are however useable
             Vec<drm::control::plane::Handle>,
         ) = planes
             .planes()
             .iter()
             .filter(|&&plane| {
+                // Get the plane info from a handle
                 drm.get_plane(plane)
                     .map(|plane_info| {
                         let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
+                        // Makes sure that the plane can be used with the CRTC we selected earlier
                         compatible_crtcs.contains(&crtc.handle())
                     })
                     .unwrap_or(false)
             })
             .partition(|&&plane| {
+                // Get the plane properties from a handle
                 if let Ok(props) = drm.get_properties(plane) {
                     let (ids, vals) = props.as_props_and_values();
                     for (&id, &val) in ids.iter().zip(vals.iter()) {
                         if let Ok(info) = drm.get_property(id) {
+                            // Checks if the plane is a primary plane, and returns true if it is,
+                            // if not it returns false
                             if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
                                 return val == (drm::control::PlaneType::Primary as u32).into();
                             }
@@ -1146,6 +1169,7 @@ impl<T: 'static> EventLoop<T> {
                 false
             });
 
+        // Get the first (best) plane we find, or the first compatibile plane
         let p_plane = *p_better_planes.get(0).unwrap_or(&p_compatible_planes[0]);
 
         let (disp_width, disp_height) = mode.size();
@@ -1169,12 +1193,12 @@ impl<T: 'static> EventLoop<T> {
             })
             .unwrap();
 
-        // An event's loop awakener to wake up for window events from winit's windows.
+        // An event's loop awakener to wake up for redraw events from winit's windows.
         let (event_loop_awakener, event_loop_awakener_source) = calloop::ping::make_ping().unwrap();
 
         let event_sink = EventSink::new();
 
-        // Handler of window requests.
+        // Handler of redraw requests.
         handle
             .insert_source(
                 event_loop_awakener_source,
@@ -1188,6 +1212,8 @@ impl<T: 'static> EventLoop<T> {
             )
             .unwrap();
 
+        // This is used so that when you hold down a key, the same `KeyboardInput` event will be
+        // repeated until the key is released or another key is pressed down
         let repeat_handler = calloop::timer::Timer::new().unwrap();
 
         let repeat_handle = repeat_handler.handle();
@@ -1221,12 +1247,15 @@ impl<T: 'static> EventLoop<T> {
                     });
                 }
 
+                // Repeat the key with the same key event as was input from the LibinputInterface
                 metadata.add_timeout(Duration::from_millis(REPEAT_RATE), event);
             },
         );
 
+        // It is an Arc<Mutex<>> so that windows can change the cursor position
         let cursor_arc = Arc::new(Mutex::new(PhysicalPosition::new(0.0, 0.0)));
 
+        // Our input handler
         let input_backend: LibinputInputBackend = LibinputInputBackend::new(
             input,
             (disp_width.into(), disp_height.into()), // plane, fb
@@ -1237,6 +1266,7 @@ impl<T: 'static> EventLoop<T> {
             cursor_arc.clone(),
         );
 
+        // When an input is received, add it to our EventSink
         let input_loop: calloop::Dispatcher<'static, LibinputInputBackend, EventSink> =
             calloop::Dispatcher::new(
                 input_backend,
