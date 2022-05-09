@@ -1,6 +1,7 @@
 use std::{collections::VecDeque, os::unix::prelude::AsRawFd, sync::Arc};
 
-use drm::control::{atomic, property, AtomicCommitFlags, Device, ResourceHandle};
+use super::MODE;
+use drm::control::*;
 use parking_lot::Mutex;
 
 use crate::{
@@ -13,10 +14,10 @@ use crate::{
 };
 
 pub struct Window {
-    mode: drm::control::Mode,
-    connector: drm::control::connector::Info,
+    connector: connector::Info,
+    crtc: crtc::Info,
     ping: calloop::ping::Ping,
-    plane: drm::control::plane::Handle,
+    plane: plane::Handle,
     cursor: Arc<Mutex<PhysicalPosition<f64>>>,
     card: Card,
 }
@@ -36,17 +37,23 @@ fn find_prop_id<T: ResourceHandle>(
         .cloned()
 }
 
+macro_rules! find_prop_id {
+    ($id_handle_1:expr,$handle:expr,$prop_name:literal) => {
+        find_prop_id(&$id_handle_1, $handle, $prop_name).ok_or_else(|| {
+            OsError::new(
+                line!(),
+                file!(),
+                platform_impl::OsError::KmsMisc(concat!("could not get ", $prop_name)),
+            )
+        })
+    };
+}
+
 macro_rules! add_property {
     ($atomic_req:expr,$handle:expr,$id_handle_1:expr,$prop_name:literal,$property:expr,) => {
         $atomic_req.add_property(
             $handle,
-            find_prop_id(&$id_handle_1, $handle, $prop_name).ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc(concat!("could not get ", $prop_name)),
-                )
-            })?,
+            find_prop_id!(&$id_handle_1, $handle, $prop_name)?,
             $property,
         );
     };
@@ -68,9 +75,17 @@ impl Window {
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
 
+        let ref mode = MODE.lock().as_ref().ok_or_else(|| {
+            OsError::new(
+                line!(),
+                file!(),
+                platform_impl::OsError::KmsMisc("mode is not initialized"),
+            )
+        })?;
+
         let blob = event_loop_window_target
             .device
-            .create_property_blob(&event_loop_window_target.mode)
+            .create_property_blob(mode)
             .map_err(|_| {
                 OsError::new(
                     line!(),
@@ -124,7 +139,7 @@ impl Window {
             event_loop_window_target.plane,
             event_loop_window_target.device,
             "SRC_W",
-            property::Value::UnsignedRange((event_loop_window_target.mode.size().0 as u64) << 16),
+            property::Value::UnsignedRange((mode.size().0 as u64) << 16),
         );
 
         add_property!(
@@ -132,7 +147,7 @@ impl Window {
             event_loop_window_target.plane,
             event_loop_window_target.device,
             "SRC_H",
-            property::Value::UnsignedRange((event_loop_window_target.mode.size().1 as u64) << 16),
+            property::Value::UnsignedRange((mode.size().1 as u64) << 16),
         );
 
         add_property!(
@@ -156,7 +171,7 @@ impl Window {
             event_loop_window_target.plane,
             event_loop_window_target.device,
             "CRTC_W",
-            property::Value::UnsignedRange(event_loop_window_target.mode.size().0 as u64),
+            property::Value::UnsignedRange(mode.size().0 as u64),
         );
 
         add_property!(
@@ -164,7 +179,7 @@ impl Window {
             event_loop_window_target.plane,
             event_loop_window_target.device,
             "CRTC_H",
-            property::Value::UnsignedRange(event_loop_window_target.mode.size().1 as u64),
+            property::Value::UnsignedRange(mode.size().1 as u64),
         );
 
         event_loop_window_target
@@ -179,8 +194,8 @@ impl Window {
             })?;
 
         Ok(Self {
-            mode: event_loop_window_target.mode.clone(),
             connector: event_loop_window_target.connector.clone(),
+            crtc: event_loop_window_target.crtc.clone(),
             plane: event_loop_window_target.plane.clone(),
             cursor: event_loop_window_target.cursor_arc.clone(),
             ping: event_loop_window_target.event_loop_awakener.clone(),
@@ -218,7 +233,7 @@ impl Window {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let size = self.mode.size();
+        let size = MODE.lock().expect("mode is not initialized").size();
         PhysicalSize::new(size.0 as u32, size.1 as u32)
     }
 
@@ -291,14 +306,67 @@ impl Window {
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         Some(Fullscreen::Exclusive(VideoMode {
             video_mode: platform_impl::VideoMode::Kms(super::VideoMode {
-                mode: self.mode,
+                mode: MODE.lock().expect("mode is not initialized"),
                 connector: self.connector.clone(),
             }),
         }))
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {}
+    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+        match monitor {
+            Some(Fullscreen::Exclusive(fullscreen)) => {
+                let modes = self.connector.modes().to_vec();
+                let connector = self.connector.clone();
+                if let Some(mo) = modes.into_iter().find(move |&f| {
+                    VideoMode {
+                        video_mode: platform_impl::VideoMode::Kms(super::VideoMode {
+                            mode: f,
+                            connector: connector.clone(),
+                        }),
+                    } == fullscreen
+                }) {
+                    let mut atomic_req = atomic::AtomicModeReq::new();
+                    let blob = self.card.create_property_blob(&mo).unwrap();
+
+                    atomic_req.add_property(
+                        self.crtc.handle(),
+                        find_prop_id!(&self.card, self.crtc.handle(), "MODE_ID").unwrap(),
+                        blob,
+                    );
+
+                    atomic_req.add_property(
+                        self.plane,
+                        find_prop_id!(&self.card, self.plane, "SRC_W").unwrap(),
+                        property::Value::UnsignedRange((mo.size().0 as u64) << 16),
+                    );
+
+                    atomic_req.add_property(
+                        self.plane,
+                        find_prop_id!(&self.card, self.plane, "SRC_H").unwrap(),
+                        property::Value::UnsignedRange((mo.size().1 as u64) << 16),
+                    );
+
+                    atomic_req.add_property(
+                        self.plane,
+                        find_prop_id!(&self.card, self.plane, "CRTC_W").unwrap(),
+                        property::Value::UnsignedRange(mo.size().0 as u64),
+                    );
+
+                    atomic_req.add_property(
+                        self.plane,
+                        find_prop_id!(&self.card, self.plane, "CRTC_H").unwrap(),
+                        property::Value::UnsignedRange(mo.size().1 as u64),
+                    );
+
+                    self.card
+                        .atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
+                        .unwrap();
+                }
+            }
+            _ => {}
+        }
+    }
 
     #[inline]
     pub fn set_decorations(&self, _decorations: bool) {}
@@ -322,22 +390,26 @@ impl Window {
     pub fn current_monitor(&self) -> Option<super::MonitorHandle> {
         Some(super::MonitorHandle {
             connector: self.connector.clone(),
-            name: self.mode.name().to_string_lossy().into_owned(),
+            name: (*MODE.lock())?.name().to_string_lossy().into_owned(),
         })
     }
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        self.card
-            .resource_handles()
-            .unwrap()
-            .connectors()
-            .iter()
-            .map(|f| super::MonitorHandle {
-                connector: self.card.get_connector(*f).unwrap(),
-                name: self.mode.name().to_string_lossy().into_owned(),
-            })
-            .collect()
+        if let Some(mode) = *MODE.lock() {
+            self.card
+                .resource_handles()
+                .unwrap()
+                .connectors()
+                .iter()
+                .map(|f| super::MonitorHandle {
+                    connector: self.card.get_connector(*f).unwrap(),
+                    name: mode.name().to_string_lossy().into_owned(),
+                })
+                .collect()
+        } else {
+            VecDeque::new()
+        }
     }
 
     #[inline]
@@ -353,7 +425,7 @@ impl Window {
         Some(MonitorHandle {
             inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle {
                 connector: self.connector.clone(),
-                name: self.mode.name().to_string_lossy().into_owned(),
+                name: (*MODE.lock())?.name().to_string_lossy().into_owned(),
             }),
         })
     }

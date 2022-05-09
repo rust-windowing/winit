@@ -155,7 +155,9 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[cfg(feature = "kms")]
     fn drm_mode(&self) -> Option<drm::control::Mode> {
         match self.p {
-            crate::platform_impl::EventLoopWindowTarget::Kms(ref window) => Some(window.mode),
+            crate::platform_impl::EventLoopWindowTarget::Kms(_) => {
+                crate::platform_impl::kms::MODE.lock().clone()
+            }
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }

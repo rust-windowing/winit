@@ -41,6 +41,8 @@ use crate::{
     window::WindowId,
 };
 
+use super::MODE;
+
 macro_rules! to_platform_impl {
     ($p:ident, $params:expr) => {
         $p(platform_impl::$p::Kms($params))
@@ -713,9 +715,6 @@ pub struct EventLoopWindowTarget<T> {
     /// Drm crtc
     pub crtc: crtc::Info,
 
-    /// Drm mode
-    pub mode: drm::control::Mode,
-
     /// Drm plane
     pub plane: plane::Handle,
 
@@ -742,23 +741,27 @@ impl<T> EventLoopWindowTarget<T> {
         Some(MonitorHandle {
             inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle {
                 connector: self.connector.clone(),
-                name: self.mode.name().to_string_lossy().into_owned(),
+                name: (*MODE.lock())?.name().to_string_lossy().into_owned(),
             }),
         })
     }
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        self.device
-            .resource_handles()
-            .unwrap()
-            .connectors()
-            .iter()
-            .map(|f| super::MonitorHandle {
-                connector: self.device.get_connector(*f).unwrap(),
-                name: self.mode.name().to_string_lossy().into_owned(),
-            })
-            .collect()
+        if let Some(mode) = *MODE.lock() {
+            self.device
+                .resource_handles()
+                .unwrap()
+                .connectors()
+                .iter()
+                .map(|f| super::MonitorHandle {
+                    connector: self.device.get_connector(*f).unwrap(),
+                    name: mode.name().to_string_lossy().into_owned(),
+                })
+                .collect()
+        } else {
+            VecDeque::new()
+        }
     }
 }
 
@@ -1224,7 +1227,6 @@ impl<T: 'static> EventLoop<T> {
                 device: drm,
                 plane: p_plane,
                 cursor_arc,
-                mode,
                 event_loop_handle: handle,
                 event_sink,
                 event_loop_awakener,

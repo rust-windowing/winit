@@ -11,10 +11,13 @@ use drm::{
 pub use event_loop::EventLoop;
 pub use event_loop::EventLoopProxy;
 pub use event_loop::EventLoopWindowTarget;
+use parking_lot::Mutex;
 use std::os::unix;
 use std::os::unix::prelude::FromRawFd;
 use std::sync::Arc;
 pub use window::Window;
+
+pub static MODE: Mutex<Option<Mode>> = parking_lot::const_mutex(None);
 
 #[derive(Debug, Clone)]
 /// A simple wrapper for a device node.
