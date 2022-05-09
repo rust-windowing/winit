@@ -766,6 +766,51 @@ impl<T> EventLoopWindowTarget<T> {
     }
 }
 
+fn find_plane(
+    planes: PlaneResourceHandles,
+    res: ResourceHandles,
+    crtc: &crtc::Info,
+    drm: &Card,
+) -> plane::Handle {
+    let (p_better_planes, p_compatible_planes): (
+        // The primary planes available to us
+        Vec<plane::Handle>,
+        // Other, not-ideal planes that are however useable
+        Vec<plane::Handle>,
+    ) = planes
+        .planes()
+        .iter()
+        .filter(|&&plane| {
+            // Get the plane info from a handle
+            drm.get_plane(plane)
+                .map(|plane_info| {
+                    let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
+                    // Makes sure that the plane can be used with the CRTC we selected earlier
+                    compatible_crtcs.contains(&crtc.handle())
+                })
+                .unwrap_or(false)
+        })
+        .partition(|&&plane| {
+            // Get the plane properties from a handle
+            if let Ok(props) = drm.get_properties(plane) {
+                let (ids, vals) = props.as_props_and_values();
+                for (&id, &val) in ids.iter().zip(vals.iter()) {
+                    if let Ok(info) = drm.get_property(id) {
+                        // Checks if the plane is a primary plane, and returns true if it is,
+                        // if not it returns false
+                        if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
+                            return val == (PlaneType::Primary as u32).into();
+                        }
+                    }
+                }
+            }
+            false
+        });
+
+    // Get the first (best) plane we find, or the first compatibile plane
+    *p_better_planes.get(0).unwrap_or(&p_compatible_planes[0])
+}
+
 fn find_card_path(seat_name: &str) -> Result<PathBuf, OsError> {
     let mut enumerator = Enumerator::new().map_err(|e| {
         OsError::new(
@@ -1087,43 +1132,7 @@ impl<T: 'static> EventLoop<T> {
             )
         })?;
 
-        let (p_better_planes, p_compatible_planes): (
-            // The primary planes available to us
-            Vec<plane::Handle>,
-            // Other, not-ideal planes that are however useable
-            Vec<plane::Handle>,
-        ) = planes
-            .planes()
-            .iter()
-            .filter(|&&plane| {
-                // Get the plane info from a handle
-                drm.get_plane(plane)
-                    .map(|plane_info| {
-                        let compatible_crtcs = res.filter_crtcs(plane_info.possible_crtcs());
-                        // Makes sure that the plane can be used with the CRTC we selected earlier
-                        compatible_crtcs.contains(&crtc.handle())
-                    })
-                    .unwrap_or(false)
-            })
-            .partition(|&&plane| {
-                // Get the plane properties from a handle
-                if let Ok(props) = drm.get_properties(plane) {
-                    let (ids, vals) = props.as_props_and_values();
-                    for (&id, &val) in ids.iter().zip(vals.iter()) {
-                        if let Ok(info) = drm.get_property(id) {
-                            // Checks if the plane is a primary plane, and returns true if it is,
-                            // if not it returns false
-                            if info.name().to_str().map(|x| x == "type").unwrap_or(false) {
-                                return val == (PlaneType::Primary as u32).into();
-                            }
-                        }
-                    }
-                }
-                false
-            });
-
-        // Get the first (best) plane we find, or the first compatibile plane
-        let p_plane = *p_better_planes.get(0).unwrap_or(&p_compatible_planes[0]);
+        let p_plane = find_plane(planes, res, crtc, &drm);
 
         let (disp_width, disp_height) = mode.size();
 
