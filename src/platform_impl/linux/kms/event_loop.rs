@@ -41,9 +41,21 @@ use crate::{
     window::WindowId,
 };
 
+macro_rules! to_platform_impl {
+    ($p:ident, $params:expr) => {
+        $p(platform_impl::$p::Kms($params))
+    };
+}
+
 macro_rules! window_id {
     () => {
-        WindowId(platform_impl::WindowId::Kms(super::WindowId))
+        to_platform_impl!(WindowId, super::WindowId)
+    };
+}
+
+macro_rules! device_id {
+    () => {
+        to_platform_impl!(DeviceId, super::DeviceId)
     };
 }
 
@@ -142,6 +154,507 @@ impl AsRawFd for LibinputInputBackend {
     }
 }
 
+macro_rules! handle_device_event {
+    ($ev:expr,$callback:expr) => {
+        match $ev {
+            input::event::DeviceEvent::Added(_) => {
+                $callback(
+                    Event::DeviceEvent {
+                        device_id: device_id!(),
+                        event: DeviceEvent::Added,
+                    },
+                    &mut (),
+                );
+            }
+            input::event::DeviceEvent::Removed(_) => {
+                $callback(
+                    Event::DeviceEvent {
+                        device_id: device_id!(),
+                        event: DeviceEvent::Removed,
+                    },
+                    &mut (),
+                );
+            }
+            _ => {}
+        }
+    };
+}
+
+macro_rules! handle_touch_event {
+    ($self:expr,$ev:expr,$callback:expr) => {
+        match $ev {
+            input::event::TouchEvent::Up(e) => $callback(
+                Event::WindowEvent {
+                    window_id: window_id!(),
+                    event: WindowEvent::Touch(Touch {
+                        device_id: device_id!(),
+                        phase: TouchPhase::Ended,
+                        location: $self.touch_location,
+                        force: None,
+                        id: e.slot().unwrap() as u64,
+                    }),
+                },
+                &mut (),
+            ),
+            input::event::TouchEvent::Down(e) => {
+                $self.touch_location.x = e.x_transformed($self.screen_size.0);
+                $self.touch_location.y = e.y_transformed($self.screen_size.1);
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::Touch(Touch {
+                            device_id: device_id!(),
+                            phase: TouchPhase::Started,
+                            location: $self.touch_location,
+                            force: None,
+                            id: e.slot().unwrap() as u64,
+                        }),
+                    },
+                    &mut (),
+                )
+            }
+            input::event::TouchEvent::Motion(e) => {
+                $self.touch_location.x = e.x_transformed($self.screen_size.0);
+                $self.touch_location.y = e.y_transformed($self.screen_size.1);
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::Touch(Touch {
+                            device_id: device_id!(),
+                            phase: TouchPhase::Moved,
+                            location: $self.touch_location,
+                            force: None,
+                            id: e.slot().unwrap() as u64,
+                        }),
+                    },
+                    &mut (),
+                );
+            }
+            input::event::TouchEvent::Cancel(e) => $callback(
+                Event::WindowEvent {
+                    window_id: window_id!(),
+                    event: WindowEvent::Touch(Touch {
+                        device_id: device_id!(),
+                        phase: TouchPhase::Cancelled,
+                        location: $self.touch_location,
+                        force: None,
+                        id: e.slot().unwrap() as u64,
+                    }),
+                },
+                &mut (),
+            ),
+            input::event::TouchEvent::Frame(_) => $callback(
+                Event::WindowEvent {
+                    window_id: window_id!(),
+                    event: WindowEvent::Touch(Touch {
+                        device_id: device_id!(),
+                        phase: TouchPhase::Ended,
+                        location: $self.touch_location,
+                        force: None,
+                        id: 0, // e.slot().unwrap() as u64,
+                    }),
+                },
+                &mut (),
+            ),
+            _ => {}
+        }
+    };
+}
+
+macro_rules! handle_tablet_tool_event {
+    ($self:expr,$ev:expr,$callback:expr) => {
+        match $ev {
+            input::event::TabletToolEvent::Tip(e) => $callback(
+                Event::WindowEvent {
+                    window_id: window_id!(),
+                    event: WindowEvent::Touch(Touch {
+                        device_id: device_id!(),
+                        phase: match e.tip_state() {
+                            TipState::Down => TouchPhase::Started,
+                            TipState::Up => TouchPhase::Ended,
+                        },
+                        location: PhysicalPosition::new(
+                            e.x_transformed($self.screen_size.0),
+                            e.y_transformed($self.screen_size.1),
+                        ),
+                        force: Some(Force::Calibrated {
+                            force: e.pressure(),
+                            max_possible_force: 1.0,
+                            altitude_angle: None,
+                        }),
+                        id: 0,
+                    }),
+                },
+                &mut (),
+            ),
+            input::event::TabletToolEvent::Button(e) => {
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::MouseInput {
+                            device_id: device_id!(),
+                            state: match e.button_state() {
+                                ButtonState::Pressed => ElementState::Pressed,
+                                ButtonState::Released => ElementState::Released,
+                            },
+                            button: match e.button() {
+                                1 => MouseButton::Right,
+                                2 => MouseButton::Middle,
+                                _ => MouseButton::Left,
+                            },
+                            modifiers: $self.modifiers,
+                        },
+                    },
+                    &mut (),
+                );
+
+                $callback(
+                    Event::DeviceEvent {
+                        device_id: device_id!(),
+                        event: DeviceEvent::Button {
+                            button: e.button(),
+                            state: match e.button_state() {
+                                ButtonState::Pressed => ElementState::Pressed,
+                                ButtonState::Released => ElementState::Released,
+                            },
+                        },
+                    },
+                    &mut (),
+                );
+            }
+            _ => {}
+        }
+    };
+}
+
+macro_rules! handle_pointer_event {
+    ($self:expr,$ev:expr,$callback:expr) => {
+        match $ev {
+            input::event::PointerEvent::Motion(e) => {
+                let mut lock = $self.cursor_positon.lock();
+
+                lock.x += e.dx();
+                lock.x = lock.x.clamp(0.0, $self.screen_size.0 as f64);
+
+                lock.y += e.dy();
+                lock.y = lock.y.clamp(0.0, $self.screen_size.1 as f64);
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::CursorMoved {
+                            device_id: device_id!(),
+                            position: *lock,
+                            modifiers: $self.modifiers,
+                        },
+                    },
+                    &mut (),
+                );
+
+                $callback(
+                    Event::DeviceEvent {
+                        device_id: device_id!(),
+                        event: DeviceEvent::MouseMotion {
+                            delta: (e.dx(), e.dy()),
+                        },
+                    },
+                    &mut (),
+                );
+            }
+            input::event::PointerEvent::Button(e) => {
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::MouseInput {
+                            device_id: device_id!(),
+                            state: match e.button_state() {
+                                ButtonState::Pressed => ElementState::Pressed,
+                                ButtonState::Released => ElementState::Released,
+                            },
+                            button: match e.button() {
+                                1 => MouseButton::Right,
+                                2 => MouseButton::Middle,
+                                _ => MouseButton::Left,
+                            },
+                            modifiers: $self.modifiers,
+                        },
+                    },
+                    &mut (),
+                );
+
+                $callback(
+                    Event::DeviceEvent {
+                        device_id: device_id!(),
+                        event: DeviceEvent::Button {
+                            button: e.button(),
+                            state: match e.button_state() {
+                                ButtonState::Pressed => ElementState::Pressed,
+                                ButtonState::Released => ElementState::Released,
+                            },
+                        },
+                    },
+                    &mut (),
+                );
+            }
+            input::event::PointerEvent::ScrollWheel(e) => {
+                use input::event::pointer::Axis;
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::MouseWheel {
+                            device_id: device_id!(),
+                            delta: MouseScrollDelta::LineDelta(
+                                if e.has_axis(Axis::Horizontal) {
+                                    e.scroll_value(Axis::Horizontal) as f32
+                                } else {
+                                    0.0
+                                },
+                                if e.has_axis(Axis::Vertical) {
+                                    e.scroll_value(Axis::Vertical) as f32
+                                } else {
+                                    0.0
+                                },
+                            ),
+                            phase: TouchPhase::Moved,
+                            modifiers: $self.modifiers,
+                        },
+                    },
+                    &mut (),
+                );
+            }
+            input::event::PointerEvent::ScrollFinger(e) => {
+                use input::event::pointer::Axis;
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::MouseWheel {
+                            device_id: device_id!(),
+                            delta: MouseScrollDelta::PixelDelta(PhysicalPosition::new(
+                                if e.has_axis(Axis::Horizontal) {
+                                    e.scroll_value(Axis::Horizontal)
+                                } else {
+                                    0.0
+                                },
+                                if e.has_axis(Axis::Vertical) {
+                                    e.scroll_value(Axis::Vertical)
+                                } else {
+                                    0.0
+                                },
+                            )),
+                            phase: TouchPhase::Moved,
+                            modifiers: $self.modifiers,
+                        },
+                    },
+                    &mut (),
+                );
+            }
+            input::event::PointerEvent::MotionAbsolute(e) => {
+                let mut lock = $self.cursor_positon.lock();
+
+                lock.x = e.absolute_x_transformed($self.screen_size.0);
+
+                lock.y = e.absolute_y_transformed($self.screen_size.1);
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::CursorMoved {
+                            device_id: device_id!(),
+                            position: *lock,
+                            modifiers: $self.modifiers,
+                        },
+                    },
+                    &mut (),
+                );
+            }
+            _ => {}
+        }
+    };
+}
+
+macro_rules! handle_keyboard_event {
+    ($self:expr,$ev:expr,$callback:expr) => {{
+        let state = match $ev.key_state() {
+            KeyState::Pressed => ElementState::Pressed,
+            KeyState::Released => ElementState::Released,
+        };
+
+        let k = if let input::event::KeyboardEvent::Key(key) = $ev {
+            key.key()
+        } else {
+            unreachable!()
+        };
+
+        let key_offset = k + 8;
+        let keysym = $self.xkb_ctx.key_get_one_sym(key_offset);
+        let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
+
+        $self.xkb_ctx.update_key(
+            key_offset,
+            match state {
+                ElementState::Pressed => xkb::KeyDirection::Down,
+                ElementState::Released => xkb::KeyDirection::Up,
+            },
+        );
+
+        let input = KeyboardInput {
+            scancode: k,
+            state: state.clone(),
+            virtual_keycode,
+            modifiers: $self.modifiers,
+        };
+
+        $self.timer_handle.cancel_all_timeouts();
+
+        $callback(
+            Event::WindowEvent {
+                window_id: window_id!(),
+                event: WindowEvent::KeyboardInput {
+                    device_id: device_id!(),
+                    input,
+                    is_synthetic: false,
+                },
+            },
+            &mut (),
+        );
+
+        if let ElementState::Pressed = state {
+            $self.xkb_compose.feed(keysym);
+
+            match $self.xkb_compose.status() {
+                xkb::compose::Status::Composed => {
+                    if let Some(c) = $self.xkb_compose.utf8().and_then(|f| f.chars().next()) {
+                        $callback(
+                            Event::WindowEvent {
+                                window_id: window_id!(),
+                                event: WindowEvent::ReceivedCharacter(c),
+                            },
+                            &mut (),
+                        );
+                    }
+                }
+                xkb::compose::Status::Cancelled => {
+                    let should_repeat = $self.xkb_keymap.key_repeats(key_offset);
+                    let ch = $self.xkb_ctx.key_get_utf8(key_offset).chars().next();
+
+                    if should_repeat {
+                        $self
+                            .timer_handle
+                            .add_timeout(Duration::from_millis(REPEAT_DELAY), (input, ch));
+                    }
+
+                    if let Some(c) = ch {
+                        $callback(
+                            Event::WindowEvent {
+                                window_id: window_id!(),
+                                event: WindowEvent::ReceivedCharacter(c),
+                            },
+                            &mut (),
+                        );
+                    }
+                }
+                xkb::compose::Status::Nothing => {
+                    let should_repeat = $self.xkb_keymap.key_repeats(key_offset);
+                    let ch = $self.xkb_ctx.key_get_utf8(key_offset).chars().next();
+
+                    if should_repeat {
+                        $self
+                            .timer_handle
+                            .add_timeout(Duration::from_millis(600), (input, ch));
+                    }
+
+                    if let Some(c) = ch {
+                        $callback(
+                            Event::WindowEvent {
+                                window_id: window_id!(),
+                                event: WindowEvent::ReceivedCharacter(c),
+                            },
+                            &mut (),
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+        match keysym {
+            xkb_keymap::XKB_KEY_Alt_L | xkb_keymap::XKB_KEY_Alt_R => {
+                match state {
+                    ElementState::Pressed => $self.modifiers |= ModifiersState::ALT,
+                    ElementState::Released => $self.modifiers.remove(ModifiersState::ALT),
+                }
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::ModifiersChanged($self.modifiers),
+                    },
+                    &mut (),
+                );
+            }
+            xkb_keymap::XKB_KEY_Shift_L | xkb_keymap::XKB_KEY_Shift_R => {
+                match state {
+                    ElementState::Pressed => $self.modifiers |= ModifiersState::SHIFT,
+                    ElementState::Released => $self.modifiers.remove(ModifiersState::SHIFT),
+                }
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::ModifiersChanged($self.modifiers),
+                    },
+                    &mut (),
+                );
+            }
+
+            xkb_keymap::XKB_KEY_Control_L | xkb_keymap::XKB_KEY_Control_R => {
+                match state {
+                    ElementState::Pressed => $self.modifiers |= ModifiersState::CTRL,
+                    ElementState::Released => $self.modifiers.remove(ModifiersState::CTRL),
+                }
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::ModifiersChanged($self.modifiers),
+                    },
+                    &mut (),
+                );
+            }
+
+            xkb_keymap::XKB_KEY_Meta_L | xkb_keymap::XKB_KEY_Meta_R => {
+                match state {
+                    ElementState::Pressed => $self.modifiers |= ModifiersState::LOGO,
+                    ElementState::Released => $self.modifiers.remove(ModifiersState::LOGO),
+                }
+
+                $callback(
+                    Event::WindowEvent {
+                        window_id: window_id!(),
+                        event: WindowEvent::ModifiersChanged($self.modifiers),
+                    },
+                    &mut (),
+                );
+            }
+            xkb_keymap::XKB_KEY_Sys_Req | xkb_keymap::XKB_KEY_Print => {
+                if $self.modifiers.is_empty() {
+                    $callback(
+                        Event::WindowEvent {
+                            window_id: window_id!(),
+                            event: WindowEvent::CloseRequested,
+                        },
+                        &mut (),
+                    );
+                }
+            }
+            _ => {}
+        }
+    }};
+}
+
 impl EventSource for LibinputInputBackend {
     type Event = Event<'static, ()>;
     type Metadata = ();
@@ -161,532 +674,11 @@ impl EventSource for LibinputInputBackend {
 
             for event in &mut self.context {
                 match event {
-                    input::Event::Device(ev) => match ev {
-                        input::event::DeviceEvent::Added(_) => {
-                            callback(
-                                Event::DeviceEvent {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    event: DeviceEvent::Added,
-                                },
-                                &mut (),
-                            );
-                        }
-                        input::event::DeviceEvent::Removed(_) => {
-                            callback(
-                                Event::DeviceEvent {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    event: DeviceEvent::Removed,
-                                },
-                                &mut (),
-                            );
-                        }
-                        _ => {}
-                    },
-                    input::Event::Touch(ev) => match ev {
-                        input::event::TouchEvent::Up(e) => callback(
-                            Event::WindowEvent {
-                                window_id: window_id!(),
-                                event: WindowEvent::Touch(Touch {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    phase: TouchPhase::Ended,
-                                    location: self.touch_location,
-                                    force: None,
-                                    id: e.slot().unwrap() as u64,
-                                }),
-                            },
-                            &mut (),
-                        ),
-                        input::event::TouchEvent::Down(e) => {
-                            self.touch_location.x = e.x_transformed(self.screen_size.0);
-                            self.touch_location.y = e.y_transformed(self.screen_size.1);
-
-                            callback(
-                                Event::WindowEvent {
-                                    window_id: window_id!(),
-                                    event: WindowEvent::Touch(Touch {
-                                        device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                            super::DeviceId,
-                                        )),
-                                        phase: TouchPhase::Started,
-                                        location: self.touch_location,
-                                        force: None,
-                                        id: e.slot().unwrap() as u64,
-                                    }),
-                                },
-                                &mut (),
-                            )
-                        }
-                        input::event::TouchEvent::Motion(e) => {
-                            self.touch_location.x = e.x_transformed(self.screen_size.0);
-                            self.touch_location.y = e.y_transformed(self.screen_size.1);
-
-                            callback(
-                                Event::WindowEvent {
-                                    window_id: window_id!(),
-                                    event: WindowEvent::Touch(Touch {
-                                        device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                            super::DeviceId,
-                                        )),
-                                        phase: TouchPhase::Moved,
-                                        location: self.touch_location,
-                                        force: None,
-                                        id: e.slot().unwrap() as u64,
-                                    }),
-                                },
-                                &mut (),
-                            );
-                        }
-                        input::event::TouchEvent::Cancel(e) => callback(
-                            Event::WindowEvent {
-                                window_id: window_id!(),
-                                event: WindowEvent::Touch(Touch {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    phase: TouchPhase::Cancelled,
-                                    location: self.touch_location,
-                                    force: None,
-                                    id: e.slot().unwrap() as u64,
-                                }),
-                            },
-                            &mut (),
-                        ),
-                        input::event::TouchEvent::Frame(_) => callback(
-                            Event::WindowEvent {
-                                window_id: window_id!(),
-                                event: WindowEvent::Touch(Touch {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    phase: TouchPhase::Ended,
-                                    location: self.touch_location,
-                                    force: None,
-                                    id: 0, // e.slot().unwrap() as u64,
-                                }),
-                            },
-                            &mut (),
-                        ),
-                        _ => {}
-                    },
-                    input::Event::Tablet(ev) => match ev {
-                        input::event::TabletToolEvent::Tip(e) => callback(
-                            Event::WindowEvent {
-                                window_id: window_id!(),
-                                event: WindowEvent::Touch(Touch {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    phase: match e.tip_state() {
-                                        TipState::Down => TouchPhase::Started,
-                                        TipState::Up => TouchPhase::Ended,
-                                    },
-                                    location: PhysicalPosition::new(
-                                        e.x_transformed(self.screen_size.0),
-                                        e.y_transformed(self.screen_size.1),
-                                    ),
-                                    force: Some(Force::Calibrated {
-                                        force: e.pressure(),
-                                        max_possible_force: 1.0,
-                                        altitude_angle: None,
-                                    }),
-                                    id: 0,
-                                }),
-                            },
-                            &mut (),
-                        ),
-                        input::event::TabletToolEvent::Button(e) => {
-                            callback(
-                                Event::WindowEvent {
-                                    window_id: window_id!(),
-                                    event: WindowEvent::MouseInput {
-                                        device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                            super::DeviceId,
-                                        )),
-                                        state: match e.button_state() {
-                                            ButtonState::Pressed => ElementState::Pressed,
-                                            ButtonState::Released => ElementState::Released,
-                                        },
-                                        button: match e.button() {
-                                            1 => MouseButton::Right,
-                                            2 => MouseButton::Middle,
-                                            _ => MouseButton::Left,
-                                        },
-                                        modifiers: self.modifiers,
-                                    },
-                                },
-                                &mut (),
-                            );
-
-                            callback(
-                                Event::DeviceEvent {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    event: DeviceEvent::Button {
-                                        button: e.button(),
-                                        state: match e.button_state() {
-                                            ButtonState::Pressed => ElementState::Pressed,
-                                            ButtonState::Released => ElementState::Released,
-                                        },
-                                    },
-                                },
-                                &mut (),
-                            );
-                        }
-                        _ => {}
-                    },
-                    input::Event::Pointer(e) => match e {
-                        input::event::PointerEvent::Motion(e) => {
-                            let mut lock = self.cursor_positon.lock();
-
-                            lock.x += e.dx();
-                            lock.x = lock.x.clamp(0.0, self.screen_size.0 as f64);
-
-                            lock.y += e.dy();
-                            lock.y = lock.y.clamp(0.0, self.screen_size.1 as f64);
-
-                            callback(
-                                Event::WindowEvent {
-                                    window_id: window_id!(),
-                                    event: WindowEvent::CursorMoved {
-                                        device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                            super::DeviceId,
-                                        )),
-                                        position: *lock,
-                                        modifiers: self.modifiers,
-                                    },
-                                },
-                                &mut (),
-                            );
-
-                            callback(
-                                Event::DeviceEvent {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    event: DeviceEvent::MouseMotion {
-                                        delta: (e.dx(), e.dy()),
-                                    },
-                                },
-                                &mut (),
-                            );
-                        }
-                        input::event::PointerEvent::Button(e) => {
-                            callback(
-                                Event::WindowEvent {
-                                    window_id: window_id!(),
-                                    event: WindowEvent::MouseInput {
-                                        device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                            super::DeviceId,
-                                        )),
-                                        state: match e.button_state() {
-                                            ButtonState::Pressed => ElementState::Pressed,
-                                            ButtonState::Released => ElementState::Released,
-                                        },
-                                        button: match e.button() {
-                                            1 => MouseButton::Right,
-                                            2 => MouseButton::Middle,
-                                            _ => MouseButton::Left,
-                                        },
-                                        modifiers: self.modifiers,
-                                    },
-                                },
-                                &mut (),
-                            );
-
-                            callback(
-                                Event::DeviceEvent {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    event: DeviceEvent::Button {
-                                        button: e.button(),
-                                        state: match e.button_state() {
-                                            ButtonState::Pressed => ElementState::Pressed,
-                                            ButtonState::Released => ElementState::Released,
-                                        },
-                                    },
-                                },
-                                &mut (),
-                            );
-                        }
-                        input::event::PointerEvent::ScrollWheel(e) => {
-                            use input::event::pointer::Axis;
-
-                            callback(
-                                Event::WindowEvent {
-                                    window_id: window_id!(),
-                                    event: WindowEvent::MouseWheel {
-                                        device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                            super::DeviceId,
-                                        )),
-                                        delta: MouseScrollDelta::LineDelta(
-                                            if e.has_axis(Axis::Horizontal) {
-                                                e.scroll_value(Axis::Horizontal) as f32
-                                            } else {
-                                                0.0
-                                            },
-                                            if e.has_axis(Axis::Vertical) {
-                                                e.scroll_value(Axis::Vertical) as f32
-                                            } else {
-                                                0.0
-                                            },
-                                        ),
-                                        phase: TouchPhase::Moved,
-                                        modifiers: self.modifiers,
-                                    },
-                                },
-                                &mut (),
-                            );
-                        }
-                        input::event::PointerEvent::ScrollFinger(e) => {
-                            use input::event::pointer::Axis;
-
-                            callback(
-                                Event::WindowEvent {
-                                    window_id: window_id!(),
-                                    event: WindowEvent::MouseWheel {
-                                        device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                            super::DeviceId,
-                                        )),
-                                        delta: MouseScrollDelta::PixelDelta(PhysicalPosition::new(
-                                            if e.has_axis(Axis::Horizontal) {
-                                                e.scroll_value(Axis::Horizontal)
-                                            } else {
-                                                0.0
-                                            },
-                                            if e.has_axis(Axis::Vertical) {
-                                                e.scroll_value(Axis::Vertical)
-                                            } else {
-                                                0.0
-                                            },
-                                        )),
-                                        phase: TouchPhase::Moved,
-                                        modifiers: self.modifiers,
-                                    },
-                                },
-                                &mut (),
-                            );
-                        }
-                        input::event::PointerEvent::MotionAbsolute(e) => {
-                            let mut lock = self.cursor_positon.lock();
-
-                            lock.x = e.absolute_x_transformed(self.screen_size.0);
-
-                            lock.y = e.absolute_y_transformed(self.screen_size.1);
-
-                            callback(
-                                Event::WindowEvent {
-                                    window_id: window_id!(),
-                                    event: WindowEvent::CursorMoved {
-                                        device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                            super::DeviceId,
-                                        )),
-                                        position: *lock,
-                                        modifiers: self.modifiers,
-                                    },
-                                },
-                                &mut (),
-                            );
-                        }
-                        _ => {}
-                    },
-                    input::Event::Keyboard(ev) => {
-                        let state = match ev.key_state() {
-                            KeyState::Pressed => ElementState::Pressed,
-                            KeyState::Released => ElementState::Released,
-                        };
-
-                        let k = if let input::event::KeyboardEvent::Key(key) = ev {
-                            key.key()
-                        } else {
-                            unreachable!()
-                        };
-
-                        let key_offset = k + 8;
-                        let keysym = self.xkb_ctx.key_get_one_sym(key_offset);
-                        let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
-
-                        self.xkb_ctx.update_key(
-                            key_offset,
-                            match state {
-                                ElementState::Pressed => xkb::KeyDirection::Down,
-                                ElementState::Released => xkb::KeyDirection::Up,
-                            },
-                        );
-
-                        let input = KeyboardInput {
-                            scancode: k,
-                            state: state.clone(),
-                            virtual_keycode,
-                            modifiers: self.modifiers,
-                        };
-
-                        self.timer_handle.cancel_all_timeouts();
-
-                        callback(
-                            Event::WindowEvent {
-                                window_id: window_id!(),
-                                event: WindowEvent::KeyboardInput {
-                                    device_id: DeviceId(platform_impl::DeviceId::Kms(
-                                        super::DeviceId,
-                                    )),
-                                    input,
-                                    is_synthetic: false,
-                                },
-                            },
-                            &mut (),
-                        );
-
-                        if let ElementState::Pressed = state {
-                            self.xkb_compose.feed(keysym);
-
-                            match self.xkb_compose.status() {
-                                xkb::compose::Status::Composed => {
-                                    if let Some(c) =
-                                        self.xkb_compose.utf8().and_then(|f| f.chars().next())
-                                    {
-                                        callback(
-                                            Event::WindowEvent {
-                                                window_id: window_id!(),
-                                                event: WindowEvent::ReceivedCharacter(c),
-                                            },
-                                            &mut (),
-                                        );
-                                    }
-                                }
-                                xkb::compose::Status::Cancelled => {
-                                    let should_repeat = self.xkb_keymap.key_repeats(key_offset);
-                                    let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
-
-                                    if should_repeat {
-                                        self.timer_handle.add_timeout(
-                                            Duration::from_millis(REPEAT_DELAY),
-                                            (input, ch),
-                                        );
-                                    }
-
-                                    if let Some(c) = ch {
-                                        callback(
-                                            Event::WindowEvent {
-                                                window_id: window_id!(),
-                                                event: WindowEvent::ReceivedCharacter(c),
-                                            },
-                                            &mut (),
-                                        );
-                                    }
-                                }
-                                xkb::compose::Status::Nothing => {
-                                    let should_repeat = self.xkb_keymap.key_repeats(key_offset);
-                                    let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
-
-                                    if should_repeat {
-                                        self.timer_handle
-                                            .add_timeout(Duration::from_millis(600), (input, ch));
-                                    }
-
-                                    if let Some(c) = ch {
-                                        callback(
-                                            Event::WindowEvent {
-                                                window_id: window_id!(),
-                                                event: WindowEvent::ReceivedCharacter(c),
-                                            },
-                                            &mut (),
-                                        );
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-                        match keysym {
-                            xkb_keymap::XKB_KEY_Alt_L | xkb_keymap::XKB_KEY_Alt_R => {
-                                match state {
-                                    ElementState::Pressed => self.modifiers |= ModifiersState::ALT,
-                                    ElementState::Released => {
-                                        self.modifiers.remove(ModifiersState::ALT)
-                                    }
-                                }
-
-                                callback(
-                                    Event::WindowEvent {
-                                        window_id: window_id!(),
-                                        event: WindowEvent::ModifiersChanged(self.modifiers),
-                                    },
-                                    &mut (),
-                                );
-                            }
-                            xkb_keymap::XKB_KEY_Shift_L | xkb_keymap::XKB_KEY_Shift_R => {
-                                match state {
-                                    ElementState::Pressed => {
-                                        self.modifiers |= ModifiersState::SHIFT
-                                    }
-                                    ElementState::Released => {
-                                        self.modifiers.remove(ModifiersState::SHIFT)
-                                    }
-                                }
-
-                                callback(
-                                    Event::WindowEvent {
-                                        window_id: window_id!(),
-                                        event: WindowEvent::ModifiersChanged(self.modifiers),
-                                    },
-                                    &mut (),
-                                );
-                            }
-
-                            xkb_keymap::XKB_KEY_Control_L | xkb_keymap::XKB_KEY_Control_R => {
-                                match state {
-                                    ElementState::Pressed => self.modifiers |= ModifiersState::CTRL,
-                                    ElementState::Released => {
-                                        self.modifiers.remove(ModifiersState::CTRL)
-                                    }
-                                }
-
-                                callback(
-                                    Event::WindowEvent {
-                                        window_id: window_id!(),
-                                        event: WindowEvent::ModifiersChanged(self.modifiers),
-                                    },
-                                    &mut (),
-                                );
-                            }
-
-                            xkb_keymap::XKB_KEY_Meta_L | xkb_keymap::XKB_KEY_Meta_R => {
-                                match state {
-                                    ElementState::Pressed => self.modifiers |= ModifiersState::LOGO,
-                                    ElementState::Released => {
-                                        self.modifiers.remove(ModifiersState::LOGO)
-                                    }
-                                }
-
-                                callback(
-                                    Event::WindowEvent {
-                                        window_id: window_id!(),
-                                        event: WindowEvent::ModifiersChanged(self.modifiers),
-                                    },
-                                    &mut (),
-                                );
-                            }
-                            xkb_keymap::XKB_KEY_Sys_Req | xkb_keymap::XKB_KEY_Print => {
-                                if self.modifiers.is_empty() {
-                                    callback(
-                                        Event::WindowEvent {
-                                            window_id: window_id!(),
-                                            event: WindowEvent::CloseRequested,
-                                        },
-                                        &mut (),
-                                    );
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
+                    input::Event::Device(ev) => handle_device_event!(ev, callback),
+                    input::Event::Touch(ev) => handle_touch_event!(self, ev, callback),
+                    input::Event::Tablet(ev) => handle_tablet_tool_event!(self, ev, callback),
+                    input::Event::Pointer(ev) => handle_pointer_event!(self, ev, callback),
+                    input::Event::Keyboard(ev) => handle_keyboard_event!(self, ev, callback),
                     _ => {}
                 }
             }

@@ -228,10 +228,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_inner_size(&self, _size: Size) {
-        // It's technically possible to do this by changing video modes but that seems a little
-        // restrictive
-    }
+    pub fn set_inner_size(&self, _size: Size) {}
 
     #[inline]
     pub fn set_min_inner_size(&self, _dimensions: Option<Size>) {}
