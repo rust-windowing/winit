@@ -3,49 +3,47 @@
 
 use crate::event::VirtualKeyCode;
 
-/*
- * TTY function keys, cleverly chosen to map to ASCII, for convenience of
- * programming, but could have been arbitrary (at the cost of lookup
- * tables in client code).
- */
+// TTY function keys, cleverly chosen to map to ASCII, for convenience of
+// programming, but could have been arbitrary (at the cost of lookup
+// tables in client code).
 
-pub const XKB_KEY_BackSpace: u32 = 0xff08; /* Back space, back char */
+pub const XKB_KEY_BackSpace: u32 = 0xff08; // Back space, back char
 pub const XKB_KEY_Tab: u32 = 0xff09;
-pub const XKB_KEY_Return: u32 = 0xff0d; /* Return, enter */
-pub const XKB_KEY_Pause: u32 = 0xff13; /* Pause, hold */
+pub const XKB_KEY_Return: u32 = 0xff0d; // Return, enter
+pub const XKB_KEY_Pause: u32 = 0xff13; // Pause, hold
 pub const XKB_KEY_Scroll_Lock: u32 = 0xff14;
 pub const XKB_KEY_Sys_Req: u32 = 0xff15;
 pub const XKB_KEY_Escape: u32 = 0xff1b;
-pub const XKB_KEY_Delete: u32 = 0xffff; /* Delete, rubout */
+pub const XKB_KEY_Delete: u32 = 0xffff; // Delete, rubout
 
-/* International & multi-key character composition */
+// International & multi-key character composition
 
-pub const XKB_KEY_Multi_key: u32 = 0xff20; /* Multi-key character compose */
-/* Japanese keyboard support */
+pub const XKB_KEY_Multi_key: u32 = 0xff20; // Multi-key character compose
 
-pub const XKB_KEY_Kanji: u32 = 0xff21; /* Kanji, Kanji convert */
-/* :u32 = 0xff31; thru :u32 = 0xff3f; are under XK_KOREAN */
+// Japanese keyboard support
 
-/* Cursor control & motion */
+pub const XKB_KEY_Kanji: u32 = 0xff21; // Kanji, Kanji convert
+
+// Cursor control & motion
 
 pub const XKB_KEY_Home: u32 = 0xff50;
-pub const XKB_KEY_Left: u32 = 0xff51; /* Move left, left arrow */
-pub const XKB_KEY_Up: u32 = 0xff52; /* Move up, up arrow */
-pub const XKB_KEY_Right: u32 = 0xff53; /* Move right, right arrow */
-pub const XKB_KEY_Down: u32 = 0xff54; /* Move down, down arrow */
+pub const XKB_KEY_Left: u32 = 0xff51; // Move left, left arrow
+pub const XKB_KEY_Up: u32 = 0xff52; // Move up, up arrow
+pub const XKB_KEY_Right: u32 = 0xff53; // Move right, right arrow
+pub const XKB_KEY_Down: u32 = 0xff54; // Move down, down arrow
 pub const XKB_KEY_Page_Up: u32 = 0xff55;
 pub const XKB_KEY_Page_Down: u32 = 0xff56;
-pub const XKB_KEY_End: u32 = 0xff57; /* EOL */
+pub const XKB_KEY_End: u32 = 0xff57; // EOL
 
-/* Misc functions */
+// Misc functions
 
 pub const XKB_KEY_Print: u32 = 0xff61;
-pub const XKB_KEY_Insert: u32 = 0xff63; /* Insert, insert here */
+pub const XKB_KEY_Insert: u32 = 0xff63; // Insert, insert here
 pub const XKB_KEY_Num_Lock: u32 = 0xff7f;
 
-/* Keypad functions, keypad numbers cleverly chosen to map to ASCII */
+// Keypad functions, keypad numbers cleverly chosen to map to ASCII
 
-pub const XKB_KEY_KP_Enter: u32 = 0xff8d; /* Enter */
+pub const XKB_KEY_KP_Enter: u32 = 0xff8d; // Enter
 pub const XKB_KEY_KP_Home: u32 = 0xff95;
 pub const XKB_KEY_KP_Left: u32 = 0xff96;
 pub const XKB_KEY_KP_Up: u32 = 0xff97;
@@ -54,10 +52,10 @@ pub const XKB_KEY_KP_Down: u32 = 0xff99;
 pub const XKB_KEY_KP_Page_Up: u32 = 0xff9a;
 pub const XKB_KEY_KP_Page_Down: u32 = 0xff9b;
 pub const XKB_KEY_KP_End: u32 = 0xff9c;
-pub const XKB_KEY_KP_Equal: u32 = 0xffbd; /* Equals */
+pub const XKB_KEY_KP_Equal: u32 = 0xffbd; // Equals
 pub const XKB_KEY_KP_Multiply: u32 = 0xffaa;
 pub const XKB_KEY_KP_Add: u32 = 0xffab;
-pub const XKB_KEY_KP_Separator: u32 = 0xffac; /* Separator, often comma */
+pub const XKB_KEY_KP_Separator: u32 = 0xffac; // Separator, often comma
 pub const XKB_KEY_KP_Subtract: u32 = 0xffad;
 pub const XKB_KEY_KP_Decimal: u32 = 0xffae;
 pub const XKB_KEY_KP_Divide: u32 = 0xffaf;
@@ -73,12 +71,10 @@ pub const XKB_KEY_KP_7: u32 = 0xffb7;
 pub const XKB_KEY_KP_8: u32 = 0xffb8;
 pub const XKB_KEY_KP_9: u32 = 0xffb9;
 
-/*
- * Auxiliary functions; note the duplicate definitions for left and right
- * function keys;  Sun keyboards and a few other manufacturers have such
- * function key groups on the left and/or right sides of the keyboard.
- * We've not found a keyboard with more than 35 function keys total.
- */
+// Auxiliary functions; note the duplicate definitions for left and right
+// function keys;  Sun keyboards and a few other manufacturers have such
+// function key groups on the left and/or right sides of the keyboard.
+// We've not found a keyboard with more than 35 function keys total.
 
 pub const XKB_KEY_F1: u32 = 0xffbe;
 pub const XKB_KEY_F2: u32 = 0xffbf;
@@ -105,126 +101,124 @@ pub const XKB_KEY_F22: u32 = 0xffd3;
 pub const XKB_KEY_F23: u32 = 0xffd4;
 pub const XKB_KEY_F24: u32 = 0xffd5;
 
-/* Modifiers */
+// Modifiers
 
-pub const XKB_KEY_Shift_L: u32 = 0xffe1; /* Left shift */
-pub const XKB_KEY_Shift_R: u32 = 0xffe2; /* Right shift */
-pub const XKB_KEY_Control_L: u32 = 0xffe3; /* Left control */
-pub const XKB_KEY_Control_R: u32 = 0xffe4; /* Right control */
+pub const XKB_KEY_Shift_L: u32 = 0xffe1; // Left shift
+pub const XKB_KEY_Shift_R: u32 = 0xffe2; // Right shift
+pub const XKB_KEY_Control_L: u32 = 0xffe3; // Left control
+pub const XKB_KEY_Control_R: u32 = 0xffe4; // Right control
 
-pub const XKB_KEY_Meta_L: u32 = 0xffe7; /* Left meta */
-pub const XKB_KEY_Meta_R: u32 = 0xffe8; /* Right meta */
-pub const XKB_KEY_Alt_L: u32 = 0xffe9; /* Left alt */
-pub const XKB_KEY_Alt_R: u32 = 0xffea; /* Right alt */
-pub const XKB_KEY_Super_L: u32 = 0xffeb; /* Left super */
-pub const XKB_KEY_Super_R: u32 = 0xffec; /* Right super */
+pub const XKB_KEY_Meta_L: u32 = 0xffe7; // Left meta
+pub const XKB_KEY_Meta_R: u32 = 0xffe8; // Right meta
+pub const XKB_KEY_Alt_L: u32 = 0xffe9; // Left alt
+pub const XKB_KEY_Alt_R: u32 = 0xffea; // Right alt
+pub const XKB_KEY_Super_L: u32 = 0xffeb; // Left super
+pub const XKB_KEY_Super_R: u32 = 0xffec; // Right super
 
 pub const XKB_KEY_ISO_Left_Tab: u32 = 0xfe20;
 
-/*
- * Latin 1
- * (ISO/IEC 8859-1 = Unicode U+0020..U+00FF)
- * Byte 3 = 0
- */
-pub const XKB_KEY_space: u32 = 0x0020; /* U+0020 SPACE */
-pub const XKB_KEY_apostrophe: u32 = 0x0027; /* U+0027 APOSTROPHE */
-pub const XKB_KEY_asterisk: u32 = 0x002a; /* U+002A ASTERISK */
-pub const XKB_KEY_plus: u32 = 0x002b; /* U+002B PLUS SIGN */
-pub const XKB_KEY_comma: u32 = 0x002c; /* U+002C COMMA */
-pub const XKB_KEY_minus: u32 = 0x002d; /* U+002D HYPHEN-MINUS */
-pub const XKB_KEY_period: u32 = 0x002e; /* U+002E FULL STOP */
-pub const XKB_KEY_slash: u32 = 0x002f; /* U+002F SOLIDUS */
-pub const XKB_KEY_0: u32 = 0x0030; /* U+0030 DIGIT ZERO */
-pub const XKB_KEY_1: u32 = 0x0031; /* U+0031 DIGIT ONE */
-pub const XKB_KEY_2: u32 = 0x0032; /* U+0032 DIGIT TWO */
-pub const XKB_KEY_3: u32 = 0x0033; /* U+0033 DIGIT THREE */
-pub const XKB_KEY_4: u32 = 0x0034; /* U+0034 DIGIT FOUR */
-pub const XKB_KEY_5: u32 = 0x0035; /* U+0035 DIGIT FIVE */
-pub const XKB_KEY_6: u32 = 0x0036; /* U+0036 DIGIT SIX */
-pub const XKB_KEY_7: u32 = 0x0037; /* U+0037 DIGIT SEVEN */
-pub const XKB_KEY_8: u32 = 0x0038; /* U+0038 DIGIT EIGHT */
-pub const XKB_KEY_9: u32 = 0x0039; /* U+0039 DIGIT NINE */
-pub const XKB_KEY_colon: u32 = 0x003a; /* U+003A COLON */
-pub const XKB_KEY_semicolon: u32 = 0x003b; /* U+003B SEMICOLON */
-pub const XKB_KEY_equal: u32 = 0x003d; /* U+003D EQUALS SIGN */
-pub const XKB_KEY_at: u32 = 0x0040; /* U+0040 COMMERCIAL AT */
-pub const XKB_KEY_A: u32 = 0x0041; /* U+0041 LATIN CAPITAL LETTER A */
-pub const XKB_KEY_B: u32 = 0x0042; /* U+0042 LATIN CAPITAL LETTER B */
-pub const XKB_KEY_C: u32 = 0x0043; /* U+0043 LATIN CAPITAL LETTER C */
-pub const XKB_KEY_D: u32 = 0x0044; /* U+0044 LATIN CAPITAL LETTER D */
-pub const XKB_KEY_E: u32 = 0x0045; /* U+0045 LATIN CAPITAL LETTER E */
-pub const XKB_KEY_F: u32 = 0x0046; /* U+0046 LATIN CAPITAL LETTER F */
-pub const XKB_KEY_G: u32 = 0x0047; /* U+0047 LATIN CAPITAL LETTER G */
-pub const XKB_KEY_H: u32 = 0x0048; /* U+0048 LATIN CAPITAL LETTER H */
-pub const XKB_KEY_I: u32 = 0x0049; /* U+0049 LATIN CAPITAL LETTER I */
-pub const XKB_KEY_J: u32 = 0x004a; /* U+004A LATIN CAPITAL LETTER J */
-pub const XKB_KEY_K: u32 = 0x004b; /* U+004B LATIN CAPITAL LETTER K */
-pub const XKB_KEY_L: u32 = 0x004c; /* U+004C LATIN CAPITAL LETTER L */
-pub const XKB_KEY_M: u32 = 0x004d; /* U+004D LATIN CAPITAL LETTER M */
-pub const XKB_KEY_N: u32 = 0x004e; /* U+004E LATIN CAPITAL LETTER N */
-pub const XKB_KEY_O: u32 = 0x004f; /* U+004F LATIN CAPITAL LETTER O */
-pub const XKB_KEY_P: u32 = 0x0050; /* U+0050 LATIN CAPITAL LETTER P */
-pub const XKB_KEY_Q: u32 = 0x0051; /* U+0051 LATIN CAPITAL LETTER Q */
-pub const XKB_KEY_R: u32 = 0x0052; /* U+0052 LATIN CAPITAL LETTER R */
-pub const XKB_KEY_S: u32 = 0x0053; /* U+0053 LATIN CAPITAL LETTER S */
-pub const XKB_KEY_T: u32 = 0x0054; /* U+0054 LATIN CAPITAL LETTER T */
-pub const XKB_KEY_U: u32 = 0x0055; /* U+0055 LATIN CAPITAL LETTER U */
-pub const XKB_KEY_V: u32 = 0x0056; /* U+0056 LATIN CAPITAL LETTER V */
-pub const XKB_KEY_W: u32 = 0x0057; /* U+0057 LATIN CAPITAL LETTER W */
-pub const XKB_KEY_X: u32 = 0x0058; /* U+0058 LATIN CAPITAL LETTER X */
-pub const XKB_KEY_Y: u32 = 0x0059; /* U+0059 LATIN CAPITAL LETTER Y */
-pub const XKB_KEY_Z: u32 = 0x005a; /* U+005A LATIN CAPITAL LETTER Z */
-pub const XKB_KEY_bracketleft: u32 = 0x005b; /* U+005B LEFT SQUARE BRACKET */
-pub const XKB_KEY_backslash: u32 = 0x005c; /* U+005C REVERSE SOLIDUS */
-pub const XKB_KEY_bracketright: u32 = 0x005d; /* U+005D RIGHT SQUARE BRACKET */
-pub const XKB_KEY_underscore: u32 = 0x005f; /* U+005F LOW LINE */
-pub const XKB_KEY_grave: u32 = 0x0060; /* U+0060 GRAVE ACCENT */
-pub const XKB_KEY_a: u32 = 0x0061; /* U+0061 LATIN SMALL LETTER A */
-pub const XKB_KEY_b: u32 = 0x0062; /* U+0062 LATIN SMALL LETTER B */
-pub const XKB_KEY_c: u32 = 0x0063; /* U+0063 LATIN SMALL LETTER C */
-pub const XKB_KEY_d: u32 = 0x0064; /* U+0064 LATIN SMALL LETTER D */
-pub const XKB_KEY_e: u32 = 0x0065; /* U+0065 LATIN SMALL LETTER E */
-pub const XKB_KEY_f: u32 = 0x0066; /* U+0066 LATIN SMALL LETTER F */
-pub const XKB_KEY_g: u32 = 0x0067; /* U+0067 LATIN SMALL LETTER G */
-pub const XKB_KEY_h: u32 = 0x0068; /* U+0068 LATIN SMALL LETTER H */
-pub const XKB_KEY_i: u32 = 0x0069; /* U+0069 LATIN SMALL LETTER I */
-pub const XKB_KEY_j: u32 = 0x006a; /* U+006A LATIN SMALL LETTER J */
-pub const XKB_KEY_k: u32 = 0x006b; /* U+006B LATIN SMALL LETTER K */
-pub const XKB_KEY_l: u32 = 0x006c; /* U+006C LATIN SMALL LETTER L */
-pub const XKB_KEY_m: u32 = 0x006d; /* U+006D LATIN SMALL LETTER M */
-pub const XKB_KEY_n: u32 = 0x006e; /* U+006E LATIN SMALL LETTER N */
-pub const XKB_KEY_o: u32 = 0x006f; /* U+006F LATIN SMALL LETTER O */
-pub const XKB_KEY_p: u32 = 0x0070; /* U+0070 LATIN SMALL LETTER P */
-pub const XKB_KEY_q: u32 = 0x0071; /* U+0071 LATIN SMALL LETTER Q */
-pub const XKB_KEY_r: u32 = 0x0072; /* U+0072 LATIN SMALL LETTER R */
-pub const XKB_KEY_s: u32 = 0x0073; /* U+0073 LATIN SMALL LETTER S */
-pub const XKB_KEY_t: u32 = 0x0074; /* U+0074 LATIN SMALL LETTER T */
-pub const XKB_KEY_u: u32 = 0x0075; /* U+0075 LATIN SMALL LETTER U */
-pub const XKB_KEY_v: u32 = 0x0076; /* U+0076 LATIN SMALL LETTER V */
-pub const XKB_KEY_w: u32 = 0x0077; /* U+0077 LATIN SMALL LETTER W */
-pub const XKB_KEY_x: u32 = 0x0078; /* U+0078 LATIN SMALL LETTER X */
-pub const XKB_KEY_y: u32 = 0x0079; /* U+0079 LATIN SMALL LETTER Y */
-pub const XKB_KEY_z: u32 = 0x007a; /* U+007A LATIN SMALL LETTER Z */
-pub const XKB_KEY_yen: u32 = 0x00a5; /* U+00A5 YEN SIGN */
-pub const XKB_KEY_caret: u32 = 0x0afc; /* U+2038 CARET */
+// Latin 1
+// (ISO/IEC 8859-1 = Unicode U+0020..U+00FF)
+// Byte 3 = 0
 
-/*
- * Keys found on some "Internet" keyboards.
- */
-pub const XKB_KEY_XF86AudioLowerVolume: u32 = 0x1008FF11; /* Volume control down        */
-pub const XKB_KEY_XF86AudioMute: u32 = 0x1008FF12; /* Mute sound from the system */
-pub const XKB_KEY_XF86AudioRaiseVolume: u32 = 0x1008FF13; /* Volume control up          */
-pub const XKB_KEY_XF86AudioPrev: u32 = 0x1008FF16; /* Previous track             */
-pub const XKB_KEY_XF86AudioNext: u32 = 0x1008FF17; /* Next track                 */
-pub const XKB_KEY_XF86Mail: u32 = 0x1008FF19; /* Invoke user's mail program */
+pub const XKB_KEY_space: u32 = 0x0020; // U+0020 SPACE
+pub const XKB_KEY_apostrophe: u32 = 0x0027; // U+0027 APOSTROPHE
+pub const XKB_KEY_asterisk: u32 = 0x002a; // U+002A ASTERISK
+pub const XKB_KEY_plus: u32 = 0x002b; // U+002B PLUS SIGN
+pub const XKB_KEY_comma: u32 = 0x002c; // U+002C COMMA
+pub const XKB_KEY_minus: u32 = 0x002d; // U+002D HYPHEN-MINUS
+pub const XKB_KEY_period: u32 = 0x002e; // U+002E FULL STOP
+pub const XKB_KEY_slash: u32 = 0x002f; // U+002F SOLIDUS
+pub const XKB_KEY_0: u32 = 0x0030; // U+0030 DIGIT ZERO
+pub const XKB_KEY_1: u32 = 0x0031; // U+0031 DIGIT ONE
+pub const XKB_KEY_2: u32 = 0x0032; // U+0032 DIGIT TWO
+pub const XKB_KEY_3: u32 = 0x0033; // U+0033 DIGIT THREE
+pub const XKB_KEY_4: u32 = 0x0034; // U+0034 DIGIT FOUR
+pub const XKB_KEY_5: u32 = 0x0035; // U+0035 DIGIT FIVE
+pub const XKB_KEY_6: u32 = 0x0036; // U+0036 DIGIT SIX
+pub const XKB_KEY_7: u32 = 0x0037; // U+0037 DIGIT SEVEN
+pub const XKB_KEY_8: u32 = 0x0038; // U+0038 DIGIT EIGHT
+pub const XKB_KEY_9: u32 = 0x0039; // U+0039 DIGIT NINE
+pub const XKB_KEY_colon: u32 = 0x003a; // U+003A COLON
+pub const XKB_KEY_semicolon: u32 = 0x003b; // U+003B SEMICOLON
+pub const XKB_KEY_equal: u32 = 0x003d; // U+003D EQUALS SIGN
+pub const XKB_KEY_at: u32 = 0x0040; // U+0040 COMMERCIAL AT
+pub const XKB_KEY_A: u32 = 0x0041; // U+0041 LATIN CAPITAL LETTER A
+pub const XKB_KEY_B: u32 = 0x0042; // U+0042 LATIN CAPITAL LETTER B
+pub const XKB_KEY_C: u32 = 0x0043; // U+0043 LATIN CAPITAL LETTER C
+pub const XKB_KEY_D: u32 = 0x0044; // U+0044 LATIN CAPITAL LETTER D
+pub const XKB_KEY_E: u32 = 0x0045; // U+0045 LATIN CAPITAL LETTER E
+pub const XKB_KEY_F: u32 = 0x0046; // U+0046 LATIN CAPITAL LETTER F
+pub const XKB_KEY_G: u32 = 0x0047; // U+0047 LATIN CAPITAL LETTER G
+pub const XKB_KEY_H: u32 = 0x0048; // U+0048 LATIN CAPITAL LETTER H
+pub const XKB_KEY_I: u32 = 0x0049; // U+0049 LATIN CAPITAL LETTER I
+pub const XKB_KEY_J: u32 = 0x004a; // U+004A LATIN CAPITAL LETTER J
+pub const XKB_KEY_K: u32 = 0x004b; // U+004B LATIN CAPITAL LETTER K
+pub const XKB_KEY_L: u32 = 0x004c; // U+004C LATIN CAPITAL LETTER L
+pub const XKB_KEY_M: u32 = 0x004d; // U+004D LATIN CAPITAL LETTER M
+pub const XKB_KEY_N: u32 = 0x004e; // U+004E LATIN CAPITAL LETTER N
+pub const XKB_KEY_O: u32 = 0x004f; // U+004F LATIN CAPITAL LETTER O
+pub const XKB_KEY_P: u32 = 0x0050; // U+0050 LATIN CAPITAL LETTER P
+pub const XKB_KEY_Q: u32 = 0x0051; // U+0051 LATIN CAPITAL LETTER Q
+pub const XKB_KEY_R: u32 = 0x0052; // U+0052 LATIN CAPITAL LETTER R
+pub const XKB_KEY_S: u32 = 0x0053; // U+0053 LATIN CAPITAL LETTER S
+pub const XKB_KEY_T: u32 = 0x0054; // U+0054 LATIN CAPITAL LETTER T
+pub const XKB_KEY_U: u32 = 0x0055; // U+0055 LATIN CAPITAL LETTER U
+pub const XKB_KEY_V: u32 = 0x0056; // U+0056 LATIN CAPITAL LETTER V
+pub const XKB_KEY_W: u32 = 0x0057; // U+0057 LATIN CAPITAL LETTER W
+pub const XKB_KEY_X: u32 = 0x0058; // U+0058 LATIN CAPITAL LETTER X
+pub const XKB_KEY_Y: u32 = 0x0059; // U+0059 LATIN CAPITAL LETTER Y
+pub const XKB_KEY_Z: u32 = 0x005a; // U+005A LATIN CAPITAL LETTER Z
+pub const XKB_KEY_bracketleft: u32 = 0x005b; // U+005B LEFT SQUARE BRACKET
+pub const XKB_KEY_backslash: u32 = 0x005c; // U+005C REVERSE SOLIDUS
+pub const XKB_KEY_bracketright: u32 = 0x005d; // U+005D RIGHT SQUARE BRACKET
+pub const XKB_KEY_underscore: u32 = 0x005f; // U+005F LOW LINE
+pub const XKB_KEY_grave: u32 = 0x0060; // U+0060 GRAVE ACCENT
+pub const XKB_KEY_a: u32 = 0x0061; // U+0061 LATIN SMALL LETTER A
+pub const XKB_KEY_b: u32 = 0x0062; // U+0062 LATIN SMALL LETTER B
+pub const XKB_KEY_c: u32 = 0x0063; // U+0063 LATIN SMALL LETTER C
+pub const XKB_KEY_d: u32 = 0x0064; // U+0064 LATIN SMALL LETTER D
+pub const XKB_KEY_e: u32 = 0x0065; // U+0065 LATIN SMALL LETTER E
+pub const XKB_KEY_f: u32 = 0x0066; // U+0066 LATIN SMALL LETTER F
+pub const XKB_KEY_g: u32 = 0x0067; // U+0067 LATIN SMALL LETTER G
+pub const XKB_KEY_h: u32 = 0x0068; // U+0068 LATIN SMALL LETTER H
+pub const XKB_KEY_i: u32 = 0x0069; // U+0069 LATIN SMALL LETTER I
+pub const XKB_KEY_j: u32 = 0x006a; // U+006A LATIN SMALL LETTER J
+pub const XKB_KEY_k: u32 = 0x006b; // U+006B LATIN SMALL LETTER K
+pub const XKB_KEY_l: u32 = 0x006c; // U+006C LATIN SMALL LETTER L
+pub const XKB_KEY_m: u32 = 0x006d; // U+006D LATIN SMALL LETTER M
+pub const XKB_KEY_n: u32 = 0x006e; // U+006E LATIN SMALL LETTER N
+pub const XKB_KEY_o: u32 = 0x006f; // U+006F LATIN SMALL LETTER O
+pub const XKB_KEY_p: u32 = 0x0070; // U+0070 LATIN SMALL LETTER P
+pub const XKB_KEY_q: u32 = 0x0071; // U+0071 LATIN SMALL LETTER Q
+pub const XKB_KEY_r: u32 = 0x0072; // U+0072 LATIN SMALL LETTER R
+pub const XKB_KEY_s: u32 = 0x0073; // U+0073 LATIN SMALL LETTER S
+pub const XKB_KEY_t: u32 = 0x0074; // U+0074 LATIN SMALL LETTER T
+pub const XKB_KEY_u: u32 = 0x0075; // U+0075 LATIN SMALL LETTER U
+pub const XKB_KEY_v: u32 = 0x0076; // U+0076 LATIN SMALL LETTER V
+pub const XKB_KEY_w: u32 = 0x0077; // U+0077 LATIN SMALL LETTER W
+pub const XKB_KEY_x: u32 = 0x0078; // U+0078 LATIN SMALL LETTER X
+pub const XKB_KEY_y: u32 = 0x0079; // U+0079 LATIN SMALL LETTER Y
+pub const XKB_KEY_z: u32 = 0x007a; // U+007A LATIN SMALL LETTER Z
+pub const XKB_KEY_yen: u32 = 0x00a5; // U+00A5 YEN SIGN
+pub const XKB_KEY_caret: u32 = 0x0afc; // U+2038 CARET
 
-/* These are sometimes found on PDA's (e.g. Palm, PocketPC or elsewhere)   */
-pub const XKB_KEY_XF86Calculator: u32 = 0x1008FF1D; /* Invoke calculator program  */
-pub const XKB_KEY_XF86PowerOff: u32 = 0x1008FF2A; /* Power off system entirely  */
-pub const XKB_KEY_XF86Sleep: u32 = 0x1008FF2F; /* Put system to sleep        */
-pub const XKB_KEY_XF86Copy: u32 = 0x1008FF57; /* Copy selection              */
-pub const XKB_KEY_XF86Cut: u32 = 0x1008FF58; /* Cut selection               */
-pub const XKB_KEY_XF86Paste: u32 = 0x1008FF6D; /* Paste                       */
+// Keys found on some "Internet" keyboards.
+
+pub const XKB_KEY_XF86AudioLowerVolume: u32 = 0x1008FF11; // Volume control down
+pub const XKB_KEY_XF86AudioMute: u32 = 0x1008FF12; // Mute sound from the system
+pub const XKB_KEY_XF86AudioRaiseVolume: u32 = 0x1008FF13; // Volume control up
+pub const XKB_KEY_XF86AudioPrev: u32 = 0x1008FF16; // Previous track
+pub const XKB_KEY_XF86AudioNext: u32 = 0x1008FF17; // Next track
+pub const XKB_KEY_XF86Mail: u32 = 0x1008FF19; // Invoke user's mail program
+
+// These are sometimes found on PDA's (e.g. Palm, PocketPC or elsewhere)
+pub const XKB_KEY_XF86Calculator: u32 = 0x1008FF1D; // Invoke calculator program
+pub const XKB_KEY_XF86PowerOff: u32 = 0x1008FF2A; // Power off system entirely
+pub const XKB_KEY_XF86Sleep: u32 = 0x1008FF2F; // Put system to sleep
+pub const XKB_KEY_XF86Copy: u32 = 0x1008FF57; // Copy selection
+pub const XKB_KEY_XF86Cut: u32 = 0x1008FF58; // Cut selection
+pub const XKB_KEY_XF86Paste: u32 = 0x1008FF6D; // Paste
 
 pub fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
     match keysym {
