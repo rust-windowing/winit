@@ -774,7 +774,10 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle {
-            inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle(self.connector.clone())),
+            inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle {
+                connector: self.connector.clone(),
+                name: self.mode.name().to_string_lossy().into_owned(),
+            }),
         })
     }
 
@@ -785,7 +788,10 @@ impl<T> EventLoopWindowTarget<T> {
             .unwrap()
             .connectors()
             .iter()
-            .map(|f| super::MonitorHandle(self.device.get_connector(*f).unwrap()))
+            .map(|f| super::MonitorHandle {
+                connector: self.device.get_connector(*f).unwrap(),
+                name: self.mode.name().to_string_lossy().into_owned(),
+            })
             .collect()
     }
 }

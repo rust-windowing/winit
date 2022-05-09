@@ -11,6 +11,7 @@ use drm::{
 pub use event_loop::EventLoop;
 pub use event_loop::EventLoopProxy;
 pub use event_loop::EventLoopWindowTarget;
+use std::os::unix;
 use std::os::unix::prelude::FromRawFd;
 use std::sync::Arc;
 pub use window::Window;
@@ -21,8 +22,8 @@ pub struct Card(pub(crate) Arc<i32>);
 
 /// Implementing `AsRawFd` is a prerequisite to implementing the traits found
 /// in this crate. Here, we are just calling `as_raw_fd()` on the inner File.
-impl std::os::unix::io::AsRawFd for Card {
-    fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
+impl unix::io::AsRawFd for Card {
+    fn as_raw_fd(&self) -> unix::io::RawFd {
         *self.0
     }
 }
@@ -47,34 +48,43 @@ impl DeviceId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MonitorHandle(connector::Info);
+pub struct MonitorHandle {
+    connector: connector::Info,
+    name: String,
+}
 
 impl PartialOrd for MonitorHandle {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.0.interface_id().cmp(&other.0.interface_id()))
+        Some(
+            self.connector
+                .interface_id()
+                .cmp(&other.connector.interface_id()),
+        )
     }
 }
 
 impl Ord for MonitorHandle {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.interface_id().cmp(&other.0.interface_id())
+        self.connector
+            .interface_id()
+            .cmp(&other.connector.interface_id())
     }
 }
 
 impl MonitorHandle {
     #[inline]
     pub fn name(&self) -> Option<String> {
-        Some(String::from("card0"))
+        Some(self.name.to_string())
     }
 
     #[inline]
     pub fn native_identifier(&self) -> u32 {
-        self.0.interface_id()
+        self.connector.interface_id()
     }
 
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
-        let size = self.0.modes()[0].size();
+        let size = self.connector.modes()[0].size();
         PhysicalSize::new(size.0 as u32, size.1 as u32)
     }
 
@@ -90,21 +100,27 @@ impl MonitorHandle {
 
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
-        let modes = self.0.modes().to_vec();
-        let monitor = self.0.clone();
+        let modes = self.connector.modes().to_vec();
+        let monitor = self.connector.clone();
         modes.into_iter().map(move |f| monitor::VideoMode {
-            video_mode: platform_impl::VideoMode::Kms(VideoMode(f, monitor.clone())),
+            video_mode: platform_impl::VideoMode::Kms(VideoMode {
+                mode: f,
+                connector: monitor.clone(),
+            }),
         })
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VideoMode(Mode, connector::Info);
+pub struct VideoMode {
+    mode: Mode,
+    connector: connector::Info,
+}
 
 impl VideoMode {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
-        let size = self.0.size();
+        let size = self.mode.size();
         PhysicalSize::new(size.0 as u32, size.1 as u32)
     }
 
@@ -115,13 +131,16 @@ impl VideoMode {
 
     #[inline]
     pub fn refresh_rate(&self) -> u16 {
-        self.0.vrefresh() as u16
+        self.mode.vrefresh() as u16
     }
 
     #[inline]
     pub fn monitor(&self) -> monitor::MonitorHandle {
         monitor::MonitorHandle {
-            inner: platform_impl::MonitorHandle::Kms(MonitorHandle(self.1.clone())),
+            inner: platform_impl::MonitorHandle::Kms(MonitorHandle {
+                connector: self.connector.clone(),
+                name: self.mode.name().to_string_lossy().into_owned(),
+            }),
         }
     }
 }

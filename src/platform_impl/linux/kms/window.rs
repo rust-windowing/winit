@@ -385,10 +385,10 @@ impl Window {
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         Some(Fullscreen::Exclusive(VideoMode {
-            video_mode: platform_impl::VideoMode::Kms(super::VideoMode(
-                self.mode,
-                self.connector.clone(),
-            )),
+            video_mode: platform_impl::VideoMode::Kms(super::VideoMode {
+                mode: self.mode,
+                connector: self.connector.clone(),
+            }),
         }))
     }
 
@@ -415,7 +415,10 @@ impl Window {
 
     #[inline]
     pub fn current_monitor(&self) -> Option<super::MonitorHandle> {
-        Some(super::MonitorHandle(self.connector.clone()))
+        Some(super::MonitorHandle {
+            connector: self.connector.clone(),
+            name: self.mode.name().to_string_lossy().into_owned(),
+        })
     }
 
     #[inline]
@@ -425,7 +428,10 @@ impl Window {
             .unwrap()
             .connectors()
             .iter()
-            .map(|f| super::MonitorHandle(self.card.get_connector(*f).unwrap()))
+            .map(|f| super::MonitorHandle {
+                connector: self.card.get_connector(*f).unwrap(),
+                name: self.mode.name().to_string_lossy().into_owned(),
+            })
             .collect()
     }
 
@@ -440,7 +446,10 @@ impl Window {
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         Some(MonitorHandle {
-            inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle(self.connector.clone())),
+            inner: platform_impl::MonitorHandle::Kms(super::MonitorHandle {
+                connector: self.connector.clone(),
+                name: self.mode.name().to_string_lossy().into_owned(),
+            }),
         })
     }
 }
