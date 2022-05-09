@@ -11,12 +11,13 @@ use crate::{
 
 use super::event_loop::find_prop_id;
 
-pub struct Window(
-    drm::control::Mode,
-    drm::control::connector::Info,
-    calloop::ping::Ping,
-    Card,
-);
+pub struct Window {
+    mode: drm::control::Mode,
+    connector: drm::control::connector::Info,
+    ping: calloop::ping::Ping,
+    plane: drm::control::plane::Handle,
+    card: Card,
+}
 
 impl Window {
     pub fn new<T>(
@@ -185,12 +186,13 @@ impl Window {
                 )
             })?;
 
-        Ok(Self(
-            event_loop_window_target.mode.clone(),
-            event_loop_window_target.connector.clone(),
-            event_loop_window_target.event_loop_awakener.clone(),
-            event_loop_window_target.device.clone(),
-        ))
+        Ok(Self {
+            mode: event_loop_window_target.mode.clone(),
+            connector: event_loop_window_target.connector.clone(),
+            plane: event_loop_window_target.plane.clone(),
+            ping: event_loop_window_target.event_loop_awakener.clone(),
+            card: event_loop_window_target.device.clone(),
+        })
     }
     #[inline]
     pub fn id(&self) -> super::WindowId {
@@ -223,7 +225,7 @@ impl Window {
 
     #[inline]
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        let size = self.0.size();
+        let size = self.mode.size();
         PhysicalSize::new(size.0 as u32, size.1 as u32)
     }
 
@@ -298,8 +300,8 @@ impl Window {
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         Some(Fullscreen::Exclusive(crate::monitor::VideoMode {
             video_mode: crate::platform_impl::VideoMode::Kms(super::VideoMode(
-                self.0,
-                self.1.clone(),
+                self.mode,
+                self.connector.clone(),
             )),
         }))
     }
@@ -322,36 +324,39 @@ impl Window {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.2.ping();
+        self.ping.ping();
     }
 
     #[inline]
     pub fn current_monitor(&self) -> Option<super::MonitorHandle> {
-        Some(super::MonitorHandle(self.1.clone()))
+        Some(super::MonitorHandle(self.connector.clone()))
     }
 
     #[inline]
     pub fn available_monitors(&self) -> VecDeque<super::MonitorHandle> {
-        self.3
+        self.card
             .resource_handles()
             .unwrap()
             .connectors()
             .iter()
-            .map(|f| super::MonitorHandle(self.3.get_connector(*f).unwrap()))
+            .map(|f| super::MonitorHandle(self.card.get_connector(*f).unwrap()))
             .collect()
     }
 
     #[inline]
     pub fn raw_window_handle(&self) -> raw_window_handle::DrmHandle {
         let mut rwh = raw_window_handle::DrmHandle::empty();
-        rwh.fd = self.3.as_raw_fd();
+        rwh.fd = self.card.as_raw_fd();
+        rwh.plane = self.plane.into();
         rwh
     }
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<crate::monitor::MonitorHandle> {
         Some(crate::monitor::MonitorHandle {
-            inner: crate::platform_impl::MonitorHandle::Kms(super::MonitorHandle(self.1.clone())),
+            inner: crate::platform_impl::MonitorHandle::Kms(super::MonitorHandle(
+                self.connector.clone(),
+            )),
         })
     }
 }
