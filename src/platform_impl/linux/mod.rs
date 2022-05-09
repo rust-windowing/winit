@@ -514,7 +514,7 @@ impl Window {
 
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
-        x11_or_wayland!(match self; Window(w) => w.set_ime_allowed(allowed))
+        x11_or_wayland_or_drm!(match self; Window(w) => w.set_ime_allowed(allowed))
     }
 
     #[inline]

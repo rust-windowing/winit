@@ -318,6 +318,9 @@ impl Window {
     pub fn set_ime_position(&self, _position: Position) {}
 
     #[inline]
+    pub fn set_ime_allowed(&self, _allowed: bool) {}
+
+    #[inline]
     pub fn request_redraw(&self) {
         self.2.ping();
     }
