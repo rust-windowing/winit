@@ -36,6 +36,22 @@ fn find_prop_id<T: ResourceHandle>(
         .cloned()
 }
 
+macro_rules! add_property {
+    ($atomic_req:expr,$handle:expr,$id_handle_1:expr,$prop_name:literal,$property:expr,) => {
+        $atomic_req.add_property(
+            $handle,
+            find_prop_id(&$id_handle_1, $handle, $prop_name).ok_or_else(|| {
+                OsError::new(
+                    line!(),
+                    file!(),
+                    platform_impl::OsError::KmsMisc(concat!("could not get ", $prop_name)),
+                )
+            })?,
+            $property,
+        );
+    };
+}
+
 impl Window {
     pub fn new<T>(
         event_loop_window_target: &super::event_loop::EventLoopWindowTarget<T>,
@@ -44,20 +60,11 @@ impl Window {
     ) -> Result<Self, OsError> {
         let mut atomic_req = atomic::AtomicModeReq::new();
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.connector.handle(),
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.connector.handle(),
-                "CRTC_ID",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get CRTC_ID"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "CRTC_ID",
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
 
@@ -72,190 +79,91 @@ impl Window {
                 )
             })?;
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.crtc.handle(),
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.crtc.handle(),
-                "MODE_ID",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get MODE_ID"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "MODE_ID",
             blob,
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.crtc.handle(),
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.crtc.handle(),
-                "ACTIVE",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get ACTIVE"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "ACTIVE",
             property::Value::Boolean(true),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "CRTC_ID",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get CRTC_ID"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "CRTC_ID",
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "SRC_X",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get SRC_X"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "SRC_X",
             property::Value::UnsignedRange(0),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "SRC_Y",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get SRC_Y"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "SRC_Y",
             property::Value::UnsignedRange(0),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "SRC_W",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get SRC_W"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "SRC_W",
             property::Value::UnsignedRange((event_loop_window_target.mode.size().0 as u64) << 16),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "SRC_H",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get SRC_H"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "SRC_H",
             property::Value::UnsignedRange((event_loop_window_target.mode.size().1 as u64) << 16),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "CRTC_X",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get CRTC_X"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "CRTC_X",
             property::Value::SignedRange(0),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "CRTC_Y",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get CRTC_Y"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "CRTC_Y",
             property::Value::SignedRange(0),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "CRTC_W",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get CRTC_W"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "CRTC_W",
             property::Value::UnsignedRange(event_loop_window_target.mode.size().0 as u64),
         );
 
-        atomic_req.add_property(
+        add_property!(
+            atomic_req,
             event_loop_window_target.plane,
-            find_prop_id(
-                &event_loop_window_target.device,
-                event_loop_window_target.plane,
-                "CRTC_H",
-            )
-            .ok_or_else(|| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("could not get CRTC_H"),
-                )
-            })?,
+            event_loop_window_target.device,
+            "CRTC_H",
             property::Value::UnsignedRange(event_loop_window_target.mode.size().1 as u64),
         );
 
