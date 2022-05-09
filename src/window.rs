@@ -745,7 +745,7 @@ impl Window {
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
     /// - **DRM:** Fullscreen mode must be a valid exclusive fullscreen containing a video mode
-    /// from [`EventLoopWindowTarget::video_modes`] (will not panic if this condition is not met)
+    /// from [`MonitorHandle::video_modes`] (will not panic if this condition is not met)
     /// - **Android:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
