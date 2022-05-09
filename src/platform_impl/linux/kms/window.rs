@@ -41,6 +41,7 @@ impl Window {
         _platform_attributes: crate::platform_impl::PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, crate::error::OsError> {
         let mut atomic_req = atomic::AtomicModeReq::new();
+
         atomic_req.add_property(
             event_loop_window_target.connector.handle(),
             find_prop_id(
@@ -57,6 +58,7 @@ impl Window {
             })?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
+
         let blob = event_loop_window_target
             .device
             .create_property_blob(&event_loop_window_target.mode)
@@ -67,6 +69,7 @@ impl Window {
                     crate::platform_impl::OsError::KmsMisc("failed to create blob"),
                 )
             })?;
+
         atomic_req.add_property(
             event_loop_window_target.crtc.handle(),
             find_prop_id(
@@ -83,6 +86,7 @@ impl Window {
             })?,
             blob,
         );
+
         atomic_req.add_property(
             event_loop_window_target.crtc.handle(),
             find_prop_id(
@@ -99,6 +103,7 @@ impl Window {
             })?,
             property::Value::Boolean(true),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(
@@ -115,6 +120,7 @@ impl Window {
             })?,
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(
@@ -131,6 +137,7 @@ impl Window {
             })?,
             property::Value::UnsignedRange(0),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(
@@ -147,6 +154,7 @@ impl Window {
             })?,
             property::Value::UnsignedRange(0),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(
@@ -163,6 +171,7 @@ impl Window {
             })?,
             property::Value::UnsignedRange((event_loop_window_target.mode.size().0 as u64) << 16),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(
@@ -179,6 +188,7 @@ impl Window {
             })?,
             property::Value::UnsignedRange((event_loop_window_target.mode.size().1 as u64) << 16),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(
@@ -195,6 +205,7 @@ impl Window {
             })?,
             property::Value::SignedRange(0),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(
@@ -211,6 +222,7 @@ impl Window {
             })?,
             property::Value::SignedRange(0),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(
@@ -227,6 +239,7 @@ impl Window {
             })?,
             property::Value::UnsignedRange(event_loop_window_target.mode.size().0 as u64),
         );
+
         atomic_req.add_property(
             event_loop_window_target.plane,
             find_prop_id(

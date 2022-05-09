@@ -37,6 +37,9 @@ use crate::{
     platform_impl::{platform::sticky_exit_callback, xkb_keymap},
 };
 
+const REPEAT_RATE: u64 = 25;
+const REPEAT_DELAY: u64 = 600;
+
 #[cfg(feature = "kms-ext")]
 struct Interface(libseat::Seat, HashMap<RawFd, i32>);
 #[cfg(not(feature = "kms-ext"))]
@@ -53,10 +56,12 @@ impl LibinputInterface for Interface {
             })
             .map_err(|err| err.into())
     }
+
     fn close_restricted(&mut self, fd: RawFd) {
         if let Some(dev) = self.1.get(&fd).copied() {
             self.0.close_device(dev).unwrap();
         }
+
         unsafe { std::fs::File::from_raw_fd(fd) };
     }
 }
@@ -192,6 +197,7 @@ impl EventSource for LibinputInputBackend {
                         input::event::TouchEvent::Down(e) => {
                             self.touch_location.x = e.x_transformed(self.screen_size.0);
                             self.touch_location.y = e.y_transformed(self.screen_size.1);
+
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
@@ -213,6 +219,7 @@ impl EventSource for LibinputInputBackend {
                         input::event::TouchEvent::Motion(e) => {
                             self.touch_location.x = e.x_transformed(self.screen_size.0);
                             self.touch_location.y = e.y_transformed(self.screen_size.1);
+
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
@@ -323,6 +330,7 @@ impl EventSource for LibinputInputBackend {
                                 },
                                 &mut (),
                             );
+
                             callback(
                                 crate::event::Event::DeviceEvent {
                                     device_id: crate::event::DeviceId(
@@ -348,10 +356,13 @@ impl EventSource for LibinputInputBackend {
                     input::Event::Pointer(e) => match e {
                         input::event::PointerEvent::Motion(e) => {
                             let mut lock = self.cursor_positon.lock();
+
                             lock.x += e.dx();
                             lock.x = lock.x.clamp(0.0, self.screen_size.0 as f64);
+
                             lock.y += e.dy();
                             lock.y = lock.y.clamp(0.0, self.screen_size.1 as f64);
+
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
@@ -367,6 +378,7 @@ impl EventSource for LibinputInputBackend {
                                 },
                                 &mut (),
                             );
+
                             callback(
                                 crate::event::Event::DeviceEvent {
                                     device_id: crate::event::DeviceId(
@@ -407,6 +419,7 @@ impl EventSource for LibinputInputBackend {
                                 },
                                 &mut (),
                             );
+
                             callback(
                                 crate::event::Event::DeviceEvent {
                                     device_id: crate::event::DeviceId(
@@ -497,8 +510,11 @@ impl EventSource for LibinputInputBackend {
                         }
                         input::event::PointerEvent::MotionAbsolute(e) => {
                             let mut lock = self.cursor_positon.lock();
+
                             lock.x = e.absolute_x_transformed(self.screen_size.0);
+
                             lock.y = e.absolute_y_transformed(self.screen_size.1);
+
                             callback(
                                 crate::event::Event::WindowEvent {
                                     window_id: crate::window::WindowId(
@@ -522,14 +538,17 @@ impl EventSource for LibinputInputBackend {
                             KeyState::Pressed => crate::event::ElementState::Pressed,
                             KeyState::Released => crate::event::ElementState::Released,
                         };
+
                         let k = if let input::event::KeyboardEvent::Key(key) = ev {
                             key.key()
                         } else {
                             unreachable!()
                         };
+
                         let key_offset = k + 8;
                         let keysym = self.xkb_ctx.key_get_one_sym(key_offset);
                         let virtual_keycode = xkb_keymap::keysym_to_vkey(keysym);
+
                         self.xkb_ctx.update_key(
                             key_offset,
                             match state {
@@ -537,13 +556,16 @@ impl EventSource for LibinputInputBackend {
                                 ElementState::Released => xkb::KeyDirection::Up,
                             },
                         );
+
                         let input = KeyboardInput {
                             scancode: k,
                             state: state.clone(),
                             virtual_keycode,
                             modifiers: self.modifiers,
                         };
+
                         self.timer_handle.cancel_all_timeouts();
+
                         callback(
                             crate::event::Event::WindowEvent {
                                 window_id: crate::window::WindowId(
@@ -559,8 +581,10 @@ impl EventSource for LibinputInputBackend {
                             },
                             &mut (),
                         );
+
                         if let crate::event::ElementState::Pressed = state {
                             self.xkb_compose.feed(keysym);
+
                             match self.xkb_compose.status() {
                                 xkb::compose::Status::Composed => {
                                     if let Some(c) =
@@ -584,10 +608,14 @@ impl EventSource for LibinputInputBackend {
                                 xkb::compose::Status::Cancelled => {
                                     let should_repeat = self.xkb_keymap.key_repeats(key_offset);
                                     let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
+
                                     if should_repeat {
-                                        self.timer_handle
-                                            .add_timeout(Duration::from_millis(600), (input, ch));
+                                        self.timer_handle.add_timeout(
+                                            Duration::from_millis(REPEAT_DELAY),
+                                            (input, ch),
+                                        );
                                     }
+
                                     if let Some(c) = ch {
                                         callback(
                                             crate::event::Event::WindowEvent {
@@ -607,10 +635,12 @@ impl EventSource for LibinputInputBackend {
                                 xkb::compose::Status::Nothing => {
                                     let should_repeat = self.xkb_keymap.key_repeats(key_offset);
                                     let ch = self.xkb_ctx.key_get_utf8(key_offset).chars().next();
+
                                     if should_repeat {
                                         self.timer_handle
                                             .add_timeout(Duration::from_millis(600), (input, ch));
                                     }
+
                                     if let Some(c) = ch {
                                         callback(
                                             crate::event::Event::WindowEvent {
@@ -638,6 +668,7 @@ impl EventSource for LibinputInputBackend {
                                             ElementState::Pressed => self.modifiers |= ModifiersState::ALT,
                                             ElementState::Released => self.modifiers.remove(ModifiersState::ALT)
                                         }
+
                                         callback(crate::event::Event::WindowEvent {
                                             window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                             event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
@@ -649,6 +680,7 @@ impl EventSource for LibinputInputBackend {
                                             ElementState::Pressed => self.modifiers |= ModifiersState::SHIFT,
                                             ElementState::Released => self.modifiers.remove(ModifiersState::SHIFT)
                                         }
+
                                         callback(crate::event::Event::WindowEvent {
                                             window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                             event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
@@ -661,6 +693,7 @@ impl EventSource for LibinputInputBackend {
                                             ElementState::Pressed => self.modifiers |= ModifiersState::CTRL,
                                             ElementState::Released => self.modifiers.remove(ModifiersState::CTRL)
                                         }
+
                                         callback(crate::event::Event::WindowEvent {
                                             window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                             event:crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
@@ -673,6 +706,7 @@ impl EventSource for LibinputInputBackend {
                                             ElementState::Pressed => self.modifiers |= ModifiersState::LOGO,
                                             ElementState::Released => self.modifiers.remove(ModifiersState::LOGO)
                                         }
+
                                         callback(crate::event::Event::WindowEvent {
                                             window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(super::WindowId)),
                                             event: crate::event::WindowEvent::ModifiersChanged(self.modifiers)}, &mut ());
@@ -779,6 +813,7 @@ fn find_card_path(seat_name: &str) -> Result<PathBuf, OsError> {
             )),
         )
     })?;
+
     enumerator.match_subsystem("drm").map_err(|e| {
         crate::error::OsError::new(
             line!(),
@@ -789,6 +824,7 @@ fn find_card_path(seat_name: &str) -> Result<PathBuf, OsError> {
             )),
         )
     })?;
+
     enumerator.match_sysname("card[0-9]*").map_err(|e| {
         crate::error::OsError::new(
             line!(),
@@ -796,6 +832,7 @@ fn find_card_path(seat_name: &str) -> Result<PathBuf, OsError> {
             crate::platform_impl::OsError::KmsError(format!("failed to find a valid card: {}", e)),
         )
     })?;
+
     enumerator
         .scan_devices()
         .map_err(|e| {
@@ -897,6 +934,7 @@ impl<T: 'static> EventLoop<T> {
             }
             s
         };
+
         #[cfg(feature = "kms-ext")]
         // Safety
         //
@@ -905,6 +943,7 @@ impl<T: 'static> EventLoop<T> {
         let seat_name = unsafe { std::mem::transmute::<&str, &'static str>(seat.name()) };
         #[cfg(not(feature = "kms-ext"))]
         let seat_name = "seat0";
+
         let card_path = std::env::var("WINIT_DRM_CARD")
             .ok()
             .map_or_else(|| find_card_path(seat_name), |p| Ok(Into::into(p)))?;
@@ -922,6 +961,7 @@ impl<T: 'static> EventLoop<T> {
                 )
             })?
             .1;
+
         #[cfg(not(feature = "kms-ext"))]
         let dev = std::os::unix::prelude::IntoRawFd::into_raw_fd(
             std::fs::OpenOptions::new()
@@ -939,12 +979,14 @@ impl<T: 'static> EventLoop<T> {
                     )
                 })?,
         );
+
         let drm = Card(std::sync::Arc::new(dev));
         #[cfg(feature = "kms-ext")]
         let mut input = input::Libinput::new_with_udev(Interface(seat, HashMap::new()));
         #[cfg(not(feature = "kms-ext"))]
         let mut input = input::Libinput::new_with_udev(Interface);
         input.udev_assign_seat(seat_name).unwrap();
+
         let xkb_ctx = xkb::Context::new(xkb::CONTEXT_NO_FLAGS);
         let keymap = xkb::Keymap::new_from_names(
             &xkb_ctx,
@@ -962,6 +1004,7 @@ impl<T: 'static> EventLoop<T> {
                 crate::platform_impl::OsError::KmsMisc("failed to compile XKB keymap"),
             )
         })?;
+
         let state = xkb::State::new(&keymap);
         let compose_table = xkb::compose::Table::new_from_locale(
             &xkb_ctx,
@@ -995,6 +1038,7 @@ impl<T: 'static> EventLoop<T> {
                     )),
                 )
             })?;
+
         drm::Device::set_client_capability(&drm, drm::ClientCapability::Atomic, true).map_err(
             |e| {
                 crate::error::OsError::new(
@@ -1019,16 +1063,19 @@ impl<T: 'static> EventLoop<T> {
                 )),
             )
         })?;
+
         let coninfo: Vec<drm::control::connector::Info> = res
             .connectors()
             .iter()
             .flat_map(|con| drm.get_connector(*con))
             .collect();
+
         let crtcinfo: Vec<drm::control::crtc::Info> = res
             .crtcs()
             .iter()
             .flat_map(|crtc| drm.get_crtc(*crtc))
             .collect();
+
         // Filter each connector until we find one that's connected.
         let con = coninfo
             .iter()
@@ -1164,6 +1211,7 @@ impl<T: 'static> EventLoop<T> {
                         is_synthetic: false,
                     },
                 });
+
                 if let Some(c) = event.1 {
                     data.push(crate::event::Event::WindowEvent {
                         window_id: crate::window::WindowId(crate::platform_impl::WindowId::Kms(
@@ -1172,11 +1220,13 @@ impl<T: 'static> EventLoop<T> {
                         event: crate::event::WindowEvent::ReceivedCharacter(c),
                     });
                 }
-                metadata.add_timeout(Duration::from_millis(25), event);
+
+                metadata.add_timeout(Duration::from_millis(REPEAT_RATE), event);
             },
         );
 
         let cursor_arc = Arc::new(Mutex::new(PhysicalPosition::new(0.0, 0.0)));
+
         let input_backend: LibinputInputBackend = LibinputInputBackend::new(
             input,
             (disp_width.into(), disp_height.into()), // plane, fb
