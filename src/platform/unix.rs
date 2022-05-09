@@ -6,11 +6,11 @@
     target_os = "openbsd"
 ))]
 
-use std::os::{raw, unix::prelude::FromRawFd};
+use std::os::raw;
 #[cfg(feature = "x11")]
 use std::ptr;
 
-#[cfg(any(feature = "x11", feature = "kms"))]
+#[cfg(feature = "x11")]
 use std::sync::Arc;
 
 use crate::{
@@ -28,42 +28,14 @@ use crate::platform_impl::{
     Window as LinuxWindow,
 };
 
-#[cfg(feature = "kms")]
-use ::drm::{control::Device as ControlDevice, Device};
-
 // TODO: stupid hack so that glutin can do its work
+#[cfg(feature = "kms")]
+pub use crate::platform_impl::kms::Card;
 #[doc(hidden)]
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
-
-#[cfg(feature = "kms")]
-#[derive(Debug, Clone)]
-/// A simple wrapper for a device node.
-pub struct Card(pub(crate) Arc<i32>);
-
-#[cfg(feature = "kms")]
-/// Implementing `AsRawFd` is a prerequisite to implementing the traits found
-/// in this crate. Here, we are just calling `as_raw_fd()` on the inner File.
-impl std::os::unix::io::AsRawFd for Card {
-    fn as_raw_fd(&self) -> std::os::unix::io::RawFd {
-        *self.0
-    }
-}
-
-#[cfg(feature = "kms")]
-impl Drop for Card {
-    fn drop(&mut self) {
-        unsafe { std::fs::File::from_raw_fd(*self.0) };
-    }
-}
-
-#[cfg(feature = "kms")]
-/// With `AsRawFd` implemented, we can now implement `drm::Device`.
-impl Device for Card {}
-#[cfg(feature = "kms")]
-impl ControlDevice for Card {}
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
