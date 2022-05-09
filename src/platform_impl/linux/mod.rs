@@ -9,9 +9,9 @@
 #[cfg(all(
     not(feature = "x11"),
     not(feature = "wayland"),
-    not(feature = "kmsdrm")
+    not(feature = "kms")
 ))]
-compile_error!("Please select a feature to build for unix: `x11`, `wayland`, `kmsdrm`");
+compile_error!("Please select a feature to build for unix: `x11`, `wayland`, `kms`");
 
 #[cfg(feature = "wayland")]
 use std::error::Error;
@@ -39,13 +39,13 @@ use crate::{
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 
-#[cfg(feature = "kmsdrm")]
+#[cfg(feature = "kms")]
 pub mod drm;
 #[cfg(feature = "wayland")]
 pub mod wayland;
 #[cfg(feature = "x11")]
 pub mod x11;
-#[cfg(any(feature = "kmsdrm", feature = "wayland"))]
+#[cfg(any(feature = "kms", feature = "wayland"))]
 pub mod xkb_keymap;
 
 /// Environment variable specifying which backend should be used on unix platform.
@@ -63,7 +63,7 @@ pub(crate) enum Backend {
     X,
     #[cfg(feature = "wayland")]
     Wayland,
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm,
 }
 
@@ -149,7 +149,7 @@ pub enum OsError {
     XMisc(&'static str),
     #[cfg(feature = "wayland")]
     WaylandMisc(&'static str),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     DrmMisc(&'static str),
 }
 
@@ -162,7 +162,7 @@ impl fmt::Display for OsError {
             OsError::XMisc(e) => _f.pad(e),
             #[cfg(feature = "wayland")]
             OsError::WaylandMisc(e) => _f.pad(e),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             OsError::DrmMisc(e) => _f.pad(e),
         }
     }
@@ -173,7 +173,7 @@ pub enum Window {
     X(x11::Window),
     #[cfg(feature = "wayland")]
     Wayland(wayland::Window),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm(drm::Window),
 }
 
@@ -183,7 +183,7 @@ pub enum WindowId {
     X(x11::WindowId),
     #[cfg(feature = "wayland")]
     Wayland(wayland::WindowId),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm(drm::WindowId),
 }
 
@@ -191,9 +191,9 @@ impl WindowId {
     pub const unsafe fn dummy() -> Self {
         #[cfg(feature = "wayland")]
         return WindowId::Wayland(wayland::WindowId::dummy());
-        #[cfg(all(not(all(feature = "wayland", feature = "kmsdrm")), feature = "x11"))]
+        #[cfg(all(not(all(feature = "wayland", feature = "kms")), feature = "x11"))]
         return WindowId::X(x11::WindowId::dummy());
-        #[cfg(all(not(all(feature = "wayland", feature = "x11")), feature = "kmsdrm"))]
+        #[cfg(all(not(all(feature = "wayland", feature = "x11")), feature = "kms"))]
         return WindowId::Drm(drm::WindowId::dummy());
     }
 }
@@ -204,7 +204,7 @@ pub enum DeviceId {
     X(x11::DeviceId),
     #[cfg(feature = "wayland")]
     Wayland(wayland::DeviceId),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm(drm::DeviceId),
 }
 
@@ -214,7 +214,7 @@ impl DeviceId {
         return DeviceId::Wayland(wayland::DeviceId::dummy());
         #[cfg(all(not(feature = "wayland"), feature = "x11"))]
         return DeviceId::X(x11::DeviceId::dummy());
-        #[cfg(all(not(all(feature = "wayland", feature = "x11")), feature = "kmsdrm"))]
+        #[cfg(all(not(all(feature = "wayland", feature = "x11")), feature = "kms"))]
         return DeviceId::Drm(drm::DeviceId::dummy());
     }
 }
@@ -225,7 +225,7 @@ pub enum MonitorHandle {
     X(x11::MonitorHandle),
     #[cfg(feature = "wayland")]
     Wayland(wayland::MonitorHandle),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm(drm::MonitorHandle),
 }
 
@@ -245,7 +245,7 @@ macro_rules! x11_or_wayland_or_drm {
             $enum::X($($c1)*) => $enum2::X($x),
             #[cfg(feature = "wayland")]
             $enum::Wayland($($c1)*) => $enum2::Wayland($x),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             $enum::Drm($($c1)*) => $enum2::Drm($x)
         }
     };
@@ -255,7 +255,7 @@ macro_rules! x11_or_wayland_or_drm {
             $enum::X($($c1)*) => $x,
             #[cfg(feature = "wayland")]
             $enum::Wayland($($c1)*) => $x,
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             $enum::Drm($($c1)*) => $x
         }
     };
@@ -299,7 +299,7 @@ pub enum VideoMode {
     X(x11::VideoMode),
     #[cfg(feature = "wayland")]
     Wayland(wayland::VideoMode),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm(drm::VideoMode),
 }
 
@@ -341,7 +341,7 @@ impl Window {
             EventLoopWindowTarget::X(ref window_target) => {
                 x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
             }
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             EventLoopWindowTarget::Drm(ref window_target) => {
                 drm::Window::new(window_target, attribs, pl_attribs).map(Window::Drm)
             }
@@ -495,7 +495,7 @@ impl Window {
             Window::X(ref w) => w.set_always_on_top(_always_on_top),
             #[cfg(feature = "wayland")]
             Window::Wayland(_) => (),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             Window::Drm(_) => (),
         }
     }
@@ -507,7 +507,7 @@ impl Window {
             Window::X(ref w) => w.set_window_icon(_window_icon),
             #[cfg(feature = "wayland")]
             Window::Wayland(_) => (),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             Window::Drm(_) => (),
         }
     }
@@ -524,7 +524,7 @@ impl Window {
             Window::X(ref w) => w.focus_window(),
             #[cfg(feature = "wayland")]
             Window::Wayland(_) => (),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             Window::Drm(_) => (),
         }
     }
@@ -534,7 +534,7 @@ impl Window {
             Window::X(ref w) => w.request_user_attention(request_type),
             #[cfg(feature = "wayland")]
             Window::Wayland(ref w) => w.request_user_attention(request_type),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             Window::Drm(_) => (),
         }
     }
@@ -561,7 +561,7 @@ impl Window {
                     inner: current_monitor,
                 })
             }
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             Window::Drm(ref window) => {
                 let current_monitor = MonitorHandle::Drm(window.current_monitor()?);
                 Some(RootMonitorHandle {
@@ -586,7 +586,7 @@ impl Window {
                 .into_iter()
                 .map(MonitorHandle::Wayland)
                 .collect(),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             Window::Drm(ref window) => window
                 .available_monitors()
                 .into_iter()
@@ -607,7 +607,7 @@ impl Window {
             }
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => window.primary_monitor(),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             Window::Drm(ref window) => window.primary_monitor(),
         }
     }
@@ -618,7 +618,7 @@ impl Window {
             Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             Window::Drm(ref window) => RawWindowHandle::Drm(window.raw_window_handle()),
         }
     }
@@ -662,7 +662,7 @@ pub enum EventLoop<T: 'static> {
     Wayland(wayland::EventLoop<T>),
     #[cfg(feature = "x11")]
     X(x11::EventLoop<T>),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm(drm::EventLoop<T>),
 }
 
@@ -671,7 +671,7 @@ pub enum EventLoopProxy<T: 'static> {
     X(x11::EventLoopProxy<T>),
     #[cfg(feature = "wayland")]
     Wayland(wayland::EventLoopProxy<T>),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm(drm::EventLoopProxy<T>),
 }
 
@@ -704,7 +704,7 @@ impl<T: 'static> EventLoop<T> {
             return EventLoop::new_wayland_any_thread().expect("failed to open Wayland connection");
         }
 
-        #[cfg(feature = "kmsdrm")]
+        #[cfg(feature = "kms")]
         if attributes.forced_backend == Some(Backend::Drm) {
             // TODO: Propagate
             return EventLoop::new_drm_any_thread().expect("failed to open drm connection");
@@ -727,12 +727,12 @@ impl<T: 'static> EventLoop<T> {
                     #[cfg(not(feature = "wayland"))]
                     panic!("wayland feature is not enabled");
                 }
-                "drm" | "kmsdrm" | "gbm" | "tty" => {
-                    #[cfg(feature = "kmsdrm")]
+                "drm" | "kms" | "gbm" | "tty" => {
+                    #[cfg(feature = "kms")]
                     return EventLoop::new_drm_any_thread()
                         .expect("Failed to initialize drm backend");
-                    #[cfg(not(feature = "kmsdrm"))]
-                    panic!("kmsdrm feature is not enabled");
+                    #[cfg(not(feature = "kms"))]
+                    panic!("kms feature is not enabled");
                 }
                 _ => panic!(
                     "Unknown environment variable value for {}, try one of `x11`,`wayland`",
@@ -753,7 +753,7 @@ impl<T: 'static> EventLoop<T> {
             Err(err) => err,
         };
 
-        #[cfg(feature = "kmsdrm")]
+        #[cfg(feature = "kms")]
         let drm_err = match EventLoop::new_drm_any_thread() {
             Ok(event_loop) => return event_loop,
             Err(err) => err,
@@ -763,7 +763,7 @@ impl<T: 'static> EventLoop<T> {
         let wayland_err = "backend disabled";
         #[cfg(not(feature = "x11"))]
         let x11_err = "backend disabled";
-        #[cfg(not(feature = "kmsdrm"))]
+        #[cfg(not(feature = "kms"))]
         let drm_err = "backend disabled";
 
         panic!(
@@ -787,7 +787,7 @@ impl<T: 'static> EventLoop<T> {
         Ok(EventLoop::X(x11::EventLoop::new(xconn)))
     }
 
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn new_drm_any_thread() -> Result<EventLoop<T>, RootOsError> {
         drm::EventLoop::new().map(EventLoop::Drm)
     }
@@ -826,7 +826,7 @@ pub enum EventLoopWindowTarget<T> {
     Wayland(wayland::EventLoopWindowTarget<T>),
     #[cfg(feature = "x11")]
     X(x11::EventLoopWindowTarget<T>),
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     Drm(drm::EventLoopWindowTarget<T>),
 }
 
@@ -836,7 +836,7 @@ impl<T> EventLoopWindowTarget<T> {
         match *self {
             #[cfg(feature = "wayland")]
             EventLoopWindowTarget::Wayland(_) => true,
-            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            #[cfg(any(feature = "x11", feature = "kms"))]
             _ => false,
         }
     }
@@ -846,7 +846,7 @@ impl<T> EventLoopWindowTarget<T> {
         match *self {
             #[cfg(feature = "x11")]
             EventLoopWindowTarget::X(_) => true,
-            #[cfg(any(feature = "kmsdrm", feature = "wayland"))]
+            #[cfg(any(feature = "kms", feature = "wayland"))]
             _ => false,
         }
     }
@@ -854,7 +854,7 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn is_drm(&self) -> bool {
         match *self {
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             EventLoopWindowTarget::Drm(_) => true,
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => false,
@@ -877,7 +877,7 @@ impl<T> EventLoopWindowTarget<T> {
                 .into_iter()
                 .map(MonitorHandle::X)
                 .collect(),
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             EventLoopWindowTarget::Drm(ref evlp) => evlp
                 .available_monitors()
                 .into_iter()
@@ -898,7 +898,7 @@ impl<T> EventLoopWindowTarget<T> {
                     inner: primary_monitor,
                 })
             }
-            #[cfg(feature = "kmsdrm")]
+            #[cfg(feature = "kms")]
             EventLoopWindowTarget::Drm(ref evlp) => evlp.primary_monitor(),
         }
     }

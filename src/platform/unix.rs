@@ -10,7 +10,7 @@ use std::os::{raw, unix::prelude::FromRawFd};
 #[cfg(feature = "x11")]
 use std::ptr;
 
-#[cfg(any(feature = "x11", feature = "kmsdrm"))]
+#[cfg(any(feature = "x11", feature = "kms"))]
 use std::sync::Arc;
 
 use crate::{
@@ -28,7 +28,7 @@ use crate::platform_impl::{
     Window as LinuxWindow,
 };
 
-#[cfg(feature = "kmsdrm")]
+#[cfg(feature = "kms")]
 use ::drm::{control::Device as ControlDevice, Device};
 
 // TODO: stupid hack so that glutin can do its work
@@ -38,12 +38,12 @@ pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
-#[cfg(feature = "kmsdrm")]
+#[cfg(feature = "kms")]
 #[derive(Debug, Clone)]
 /// A simple wrapper for a device node.
 pub struct Card(pub(crate) Arc<i32>);
 
-#[cfg(feature = "kmsdrm")]
+#[cfg(feature = "kms")]
 /// Implementing `AsRawFd` is a prerequisite to implementing the traits found
 /// in this crate. Here, we are just calling `as_raw_fd()` on the inner File.
 impl std::os::unix::io::AsRawFd for Card {
@@ -52,17 +52,17 @@ impl std::os::unix::io::AsRawFd for Card {
     }
 }
 
-#[cfg(feature = "kmsdrm")]
+#[cfg(feature = "kms")]
 impl Drop for Card {
     fn drop(&mut self) {
         unsafe { std::fs::File::from_raw_fd(*self.0) };
     }
 }
 
-#[cfg(feature = "kmsdrm")]
+#[cfg(feature = "kms")]
 /// With `AsRawFd` implemented, we can now implement `drm::Device`.
 impl Device for Card {}
-#[cfg(feature = "kmsdrm")]
+#[cfg(feature = "kms")]
 impl ControlDevice for Card {}
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
@@ -75,7 +75,7 @@ pub trait EventLoopWindowTargetExtUnix {
     #[cfg(feature = "x11")]
     fn is_x11(&self) -> bool;
 
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn is_drm(&self) -> bool;
 
     #[doc(hidden)]
@@ -93,32 +93,32 @@ pub trait EventLoopWindowTargetExtUnix {
 
     /// Returns the drm device of the event loop's fd
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
-    #[cfg(feature = "kmsdrm")]
+    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    #[cfg(feature = "kms")]
     fn drm_device(&self) -> Option<&crate::platform::unix::Card>;
 
     /// Returns the current crtc of the drm device
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
-    #[cfg(feature = "kmsdrm")]
+    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    #[cfg(feature = "kms")]
     fn drm_crtc(&self) -> Option<&drm::control::crtc::Info>;
 
     /// Returns the current connector of the drm device
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
-    #[cfg(feature = "kmsdrm")]
+    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    #[cfg(feature = "kms")]
     fn drm_connector(&self) -> Option<&drm::control::connector::Info>;
 
     /// Returns the current mode of the drm device
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
-    #[cfg(feature = "kmsdrm")]
+    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    #[cfg(feature = "kms")]
     fn drm_mode(&self) -> Option<drm::control::Mode>;
 
     /// Returns the primary plane of the drm device
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kmsdrm (if it uses wayland for example).
-    #[cfg(feature = "kmsdrm")]
+    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    #[cfg(feature = "kms")]
     fn drm_plane(&self) -> Option<drm::control::plane::Handle>;
 }
 
@@ -136,7 +136,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn is_drm(&self) -> bool {
         self.p.is_drm()
     }
@@ -147,7 +147,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.p {
             LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
-            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
+            #[cfg(any(feature = "wayland", feature = "kms"))]
             _ => None,
         }
     }
@@ -159,13 +159,13 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
                 Some(p.display().get_display_ptr() as *mut _)
             }
-            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            #[cfg(any(feature = "x11", feature = "kms"))]
             _ => None,
         }
     }
 
     #[inline]
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn drm_device(&self) -> Option<&crate::platform::unix::Card> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref evlp) => Some(&evlp.device),
@@ -175,7 +175,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn drm_crtc(&self) -> Option<&drm::control::crtc::Info> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(&window.crtc),
@@ -185,7 +185,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn drm_connector(&self) -> Option<&drm::control::connector::Info> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(&window.connector),
@@ -195,7 +195,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn drm_mode(&self) -> Option<drm::control::Mode> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(window.mode),
@@ -205,7 +205,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn drm_plane(&self) -> Option<drm::control::plane::Handle> {
         match self.p {
             crate::platform_impl::EventLoopWindowTarget::Drm(ref window) => Some(window.plane),
@@ -225,8 +225,8 @@ pub trait EventLoopBuilderExtUnix {
     #[cfg(feature = "wayland")]
     fn with_wayland(&mut self) -> &mut Self;
 
-    /// Force using kmsdrm
-    #[cfg(feature = "kmsdrm")]
+    /// Force using kms
+    #[cfg(feature = "kms")]
     fn with_drm(&mut self) -> &mut Self;
 
     /// Whether to allow the event loop to be created off of the main thread.
@@ -252,7 +252,7 @@ impl<T> EventLoopBuilderExtUnix for EventLoopBuilder<T> {
     }
 
     #[inline]
-    #[cfg(feature = "kmsdrm")]
+    #[cfg(feature = "kms")]
     fn with_drm(&mut self) -> &mut Self {
         self.platform_specific.forced_backend = Some(Backend::Drm);
         self
@@ -328,7 +328,7 @@ impl WindowExtUnix for Window {
     fn xlib_window(&self) -> Option<raw::c_ulong> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_window()),
-            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
+            #[cfg(any(feature = "wayland", feature = "kms"))]
             _ => None,
         }
     }
@@ -338,7 +338,7 @@ impl WindowExtUnix for Window {
     fn xlib_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_display()),
-            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
+            #[cfg(any(feature = "wayland", feature = "kms"))]
             _ => None,
         }
     }
@@ -348,7 +348,7 @@ impl WindowExtUnix for Window {
     fn xlib_screen_id(&self) -> Option<raw::c_int> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_screen_id()),
-            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
+            #[cfg(any(feature = "wayland", feature = "kms"))]
             _ => None,
         }
     }
@@ -359,7 +359,7 @@ impl WindowExtUnix for Window {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
-            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
+            #[cfg(any(feature = "wayland", feature = "kms"))]
             _ => None,
         }
     }
@@ -369,7 +369,7 @@ impl WindowExtUnix for Window {
     fn xcb_connection(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xcb_connection()),
-            #[cfg(any(feature = "wayland", feature = "kmsdrm"))]
+            #[cfg(any(feature = "wayland", feature = "kms"))]
             _ => None,
         }
     }
@@ -379,7 +379,7 @@ impl WindowExtUnix for Window {
     fn wayland_surface(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.surface().as_ref().c_ptr() as *mut _),
-            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            #[cfg(any(feature = "x11", feature = "kms"))]
             _ => None,
         }
     }
@@ -389,7 +389,7 @@ impl WindowExtUnix for Window {
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
         match self.window {
             LinuxWindow::Wayland(ref w) => Some(w.display().get_display_ptr() as *mut _),
-            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            #[cfg(any(feature = "x11", feature = "kms"))]
             _ => None,
         }
     }

@@ -179,7 +179,7 @@ impl Window {
                         PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
                         #[cfg(feature = "x11")]
                         PlatformMonitorHandle::X(_) => None,
-                        #[cfg(feature = "kmsdrm")]
+                        #[cfg(feature = "kms")]
                         PlatformMonitorHandle::Drm(_) => None,
                     });
 
@@ -426,7 +426,7 @@ impl Window {
                         PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
                         #[cfg(feature = "x11")]
                         PlatformMonitorHandle::X(_) => None,
-                        #[cfg(feature = "kmsdrm")]
+                        #[cfg(feature = "kms")]
                         PlatformMonitorHandle::Drm(_) => None,
                     });
 

@@ -928,7 +928,7 @@ impl<T: 'static> EventLoop<T> {
                 line!(),
                 file!(),
                 crate::platform_impl::OsError::DrmMisc(
-                    "kmsdrm device does not support universal planes",
+                    "kms device does not support universal planes",
                 ),
             )),
         )?;
@@ -937,7 +937,7 @@ impl<T: 'static> EventLoop<T> {
                 line!(),
                 file!(),
                 crate::platform_impl::OsError::DrmMisc(
-                    "kmsdrm device does not support atomic modesetting",
+                    "kms device does not support atomic modesetting",
                 ),
             ),
         ))?;
@@ -1383,7 +1383,7 @@ impl<T: 'static> EventLoop<T> {
             crate::platform_impl::EventLoopWindowTarget::Drm(window_target) => {
                 &mut window_target.event_sink
             }
-            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            #[cfg(any(feature = "x11", feature = "kms"))]
             _ => unreachable!(),
         };
 

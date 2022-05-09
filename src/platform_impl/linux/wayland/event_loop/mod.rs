@@ -248,7 +248,7 @@ impl<T: 'static> EventLoop<T> {
                     PlatformEventLoopWindowTarget::Wayland(window_target) => {
                         window_target.state.get_mut()
                     }
-                    #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+                    #[cfg(any(feature = "x11", feature = "kms"))]
                     _ => unreachable!(),
                 };
 
@@ -537,7 +537,7 @@ impl<T: 'static> EventLoop<T> {
     fn with_window_target<U, F: FnOnce(&mut EventLoopWindowTarget<T>) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target,
-            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            #[cfg(any(feature = "x11", feature = "kms"))]
             _ => unreachable!(),
         };
 
@@ -547,7 +547,7 @@ impl<T: 'static> EventLoop<T> {
     fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
         let state = match &mut self.window_target.p {
             PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(any(feature = "x11", feature = "kmsdrm"))]
+            #[cfg(any(feature = "x11", feature = "kms"))]
             _ => unreachable!(),
         };
 
