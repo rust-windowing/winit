@@ -802,19 +802,19 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run_return<F>(&mut self, callback: F) -> i32
     where
-        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         x11_or_wayland_or_drm!(match self; EventLoop(evlp) => evlp.run_return(callback))
     }
 
     pub fn run<F>(self, callback: F) -> !
     where
-        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
     {
         x11_or_wayland_or_drm!(match self; EventLoop(evlp) => evlp.run(callback))
     }
 
-    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
+    pub fn window_target(&self) -> &RootELW<T> {
         x11_or_wayland_or_drm!(match self; EventLoop(evl) => evl.window_target())
     }
 }

@@ -75,7 +75,7 @@ impl Window {
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
 
-        let ref mode = MODE.lock().as_ref().ok_or_else(|| {
+        let ref mode = MODE.lock().ok_or_else(|| {
             OsError::new(
                 line!(),
                 file!(),

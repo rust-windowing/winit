@@ -24,7 +24,8 @@ use crate::dpi::Size;
 #[cfg(feature = "x11")]
 use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
 use crate::platform_impl::{
-    ApplicationName, EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow,
+    kms::MODE, ApplicationName, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
+    Window as LinuxWindow,
 };
 
 #[cfg(any(feature = "x11", feature = "wayland", feature = "kms"))]
@@ -38,6 +39,8 @@ pub use crate::platform_impl::kms::Card;
 pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
+#[cfg(feature = "kms")]
+use drm::control::*;
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
@@ -61,31 +64,31 @@ pub trait EventLoopWindowTargetExtUnix {
     ///
     /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
-    fn drm_device(&self) -> Option<&crate::platform::unix::Card>;
+    fn drm_device(&self) -> Option<&Card>;
 
     /// Returns the current crtc of the drm device
     ///
     /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
-    fn drm_crtc(&self) -> Option<&drm::control::crtc::Info>;
+    fn drm_crtc(&self) -> Option<&crtc::Info>;
 
     /// Returns the current connector of the drm device
     ///
     /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
-    fn drm_connector(&self) -> Option<&drm::control::connector::Info>;
+    fn drm_connector(&self) -> Option<&connector::Info>;
 
     /// Returns the current mode of the drm device
     ///
     /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
-    fn drm_mode(&self) -> Option<drm::control::Mode>;
+    fn drm_mode(&self) -> Option<Mode>;
 
     /// Returns the primary plane of the drm device
     ///
     /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
-    fn drm_plane(&self) -> Option<drm::control::plane::Handle>;
+    fn drm_plane(&self) -> Option<plane::Handle>;
 }
 
 impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
@@ -123,9 +126,9 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
     #[inline]
     #[cfg(feature = "kms")]
-    fn drm_device(&self) -> Option<&crate::platform::unix::Card> {
+    fn drm_device(&self) -> Option<&Card> {
         match self.p {
-            crate::platform_impl::EventLoopWindowTarget::Kms(ref evlp) => Some(&evlp.device),
+            LinuxEventLoopWindowTarget::Kms(ref evlp) => Some(&evlp.device),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
@@ -133,9 +136,9 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
     #[inline]
     #[cfg(feature = "kms")]
-    fn drm_crtc(&self) -> Option<&drm::control::crtc::Info> {
+    fn drm_crtc(&self) -> Option<&crtc::Info> {
         match self.p {
-            crate::platform_impl::EventLoopWindowTarget::Kms(ref window) => Some(&window.crtc),
+            LinuxEventLoopWindowTarget::Kms(ref window) => Some(&window.crtc),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
@@ -143,9 +146,9 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
 
     #[inline]
     #[cfg(feature = "kms")]
-    fn drm_connector(&self) -> Option<&drm::control::connector::Info> {
+    fn drm_connector(&self) -> Option<&connector::Info> {
         match self.p {
-            crate::platform_impl::EventLoopWindowTarget::Kms(ref window) => Some(&window.connector),
+            LinuxEventLoopWindowTarget::Kms(ref window) => Some(&window.connector),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
@@ -155,9 +158,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[cfg(feature = "kms")]
     fn drm_mode(&self) -> Option<drm::control::Mode> {
         match self.p {
-            crate::platform_impl::EventLoopWindowTarget::Kms(_) => {
-                crate::platform_impl::kms::MODE.lock().clone()
-            }
+            LinuxEventLoopWindowTarget::Kms(_) => MODE.lock().clone(),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }
@@ -167,7 +168,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[cfg(feature = "kms")]
     fn drm_plane(&self) -> Option<drm::control::plane::Handle> {
         match self.p {
-            crate::platform_impl::EventLoopWindowTarget::Kms(ref window) => Some(window.plane),
+            LinuxEventLoopWindowTarget::Kms(ref window) => Some(window.plane),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }

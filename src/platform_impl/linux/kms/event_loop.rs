@@ -503,6 +503,7 @@ macro_rules! handle_keyboard_event {
             },
         );
 
+        #[allow(deprecated)]
         let input = KeyboardInput {
             scancode: k,
             state: state.clone(),
