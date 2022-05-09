@@ -51,7 +51,7 @@ pub trait EventLoopWindowTargetExtUnix {
     /// Returns a pointer to the `wl_display` object of wayland that is used by this
     /// `EventLoopWindowTarget`.
     ///
-    /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
+    /// Returns `None` if the `EventLoop` doesn't use wayland.
     ///
     /// The pointer will become invalid when the winit `EventLoop` is destroyed.
     #[cfg(feature = "wayland")]
@@ -59,31 +59,31 @@ pub trait EventLoopWindowTargetExtUnix {
 
     /// Returns the drm device of the event loop's fd
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
     fn drm_device(&self) -> Option<&crate::platform::unix::Card>;
 
     /// Returns the current crtc of the drm device
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
     fn drm_crtc(&self) -> Option<&drm::control::crtc::Info>;
 
     /// Returns the current connector of the drm device
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
     fn drm_connector(&self) -> Option<&drm::control::connector::Info>;
 
     /// Returns the current mode of the drm device
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
     fn drm_mode(&self) -> Option<drm::control::Mode>;
 
     /// Returns the primary plane of the drm device
     ///
-    /// Returns `None` if the `EventLoop` doesn't use kms (if it uses wayland for example).
+    /// Returns `None` if the `EventLoop` doesn't use drm.
     #[cfg(feature = "kms")]
     fn drm_plane(&self) -> Option<drm::control::plane::Handle>;
 }
@@ -226,13 +226,13 @@ impl<T> EventLoopBuilderExtUnix for EventLoopBuilder<T> {
 pub trait WindowExtUnix {
     /// Returns the ID of the `Window` xlib object that is used by this window.
     ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
+    /// Returns `None` if the window doesn't use xlib.
     #[cfg(feature = "x11")]
     fn xlib_window(&self) -> Option<raw::c_ulong>;
 
     /// Returns a pointer to the `Display` object of xlib that is used by this window.
     ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
+    /// Returns `None` if the window doesn't use xlib.
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     #[cfg(feature = "x11")]
@@ -247,7 +247,7 @@ pub trait WindowExtUnix {
 
     /// This function returns the underlying `xcb_connection_t` of an xlib `Display`.
     ///
-    /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
+    /// Returns `None` if the window doesn't use xlib.
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     #[cfg(feature = "x11")]
@@ -255,7 +255,7 @@ pub trait WindowExtUnix {
 
     /// Returns a pointer to the `wl_surface` object of wayland that is used by this window.
     ///
-    /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
+    /// Returns `None` if the window doesn't use wayland.
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     #[cfg(feature = "wayland")]
@@ -263,7 +263,7 @@ pub trait WindowExtUnix {
 
     /// Returns a pointer to the `wl_display` object of wayland that is used by this window.
     ///
-    /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
+    /// Returns `None` if the window doesn't use wayland.
     ///
     /// The pointer will become invalid when the glutin `Window` is destroyed.
     #[cfg(feature = "wayland")]
