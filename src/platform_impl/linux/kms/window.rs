@@ -78,13 +78,13 @@ impl Window {
             property::Value::CRTC(Some(event_loop_window_target.crtc.handle())),
         );
 
-        let ref mode = MODE.lock().ok_or_else(|| {
+        let mode = &(MODE.lock().ok_or_else(|| {
             OsError::new(
                 line!(),
                 file!(),
                 platform_impl::OsError::KmsMisc("mode is not initialized"),
             )
-        })?;
+        })?);
 
         let blob = event_loop_window_target
             .device
@@ -198,8 +198,8 @@ impl Window {
 
         Ok(Self {
             connector: event_loop_window_target.connector.clone(),
-            crtc: event_loop_window_target.crtc.clone(),
-            plane: event_loop_window_target.plane.clone(),
+            crtc: event_loop_window_target.crtc,
+            plane: event_loop_window_target.plane,
             cursor: event_loop_window_target.cursor_arc.clone(),
             ping: event_loop_window_target.event_loop_awakener.clone(),
             card: event_loop_window_target.device.clone(),
@@ -317,57 +317,54 @@ impl Window {
 
     #[inline]
     pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
-        match monitor {
-            Some(Fullscreen::Exclusive(fullscreen)) => {
-                let modes = self.connector.modes().to_vec();
-                let connector = self.connector.clone();
-                if let Some(mo) = modes.into_iter().find(move |&f| {
-                    VideoMode {
-                        video_mode: platform_impl::VideoMode::Kms(super::VideoMode {
-                            mode: f,
-                            connector: connector.clone(),
-                        }),
-                    } == fullscreen
-                }) {
-                    let mut atomic_req = atomic::AtomicModeReq::new();
-                    let blob = self.card.create_property_blob(&mo).unwrap();
+        if let Some(Fullscreen::Exclusive(fullscreen)) = monitor {
+            let modes = self.connector.modes().to_vec();
+            let connector = self.connector.clone();
+            if let Some(mo) = modes.into_iter().find(move |&f| {
+                VideoMode {
+                    video_mode: platform_impl::VideoMode::Kms(super::VideoMode {
+                        mode: f,
+                        connector: connector.clone(),
+                    }),
+                } == fullscreen
+            }) {
+                let mut atomic_req = atomic::AtomicModeReq::new();
+                let blob = self.card.create_property_blob(&mo).unwrap();
 
-                    atomic_req.add_property(
-                        self.crtc.handle(),
-                        find_prop_id!(&self.card, self.crtc.handle(), "MODE_ID").unwrap(),
-                        blob,
-                    );
+                atomic_req.add_property(
+                    self.crtc.handle(),
+                    find_prop_id!(&self.card, self.crtc.handle(), "MODE_ID").unwrap(),
+                    blob,
+                );
 
-                    atomic_req.add_property(
-                        self.plane,
-                        find_prop_id!(&self.card, self.plane, "SRC_W").unwrap(),
-                        property::Value::UnsignedRange((mo.size().0 as u64) << 16),
-                    );
+                atomic_req.add_property(
+                    self.plane,
+                    find_prop_id!(&self.card, self.plane, "SRC_W").unwrap(),
+                    property::Value::UnsignedRange((mo.size().0 as u64) << 16),
+                );
 
-                    atomic_req.add_property(
-                        self.plane,
-                        find_prop_id!(&self.card, self.plane, "SRC_H").unwrap(),
-                        property::Value::UnsignedRange((mo.size().1 as u64) << 16),
-                    );
+                atomic_req.add_property(
+                    self.plane,
+                    find_prop_id!(&self.card, self.plane, "SRC_H").unwrap(),
+                    property::Value::UnsignedRange((mo.size().1 as u64) << 16),
+                );
 
-                    atomic_req.add_property(
-                        self.plane,
-                        find_prop_id!(&self.card, self.plane, "CRTC_W").unwrap(),
-                        property::Value::UnsignedRange(mo.size().0 as u64),
-                    );
+                atomic_req.add_property(
+                    self.plane,
+                    find_prop_id!(&self.card, self.plane, "CRTC_W").unwrap(),
+                    property::Value::UnsignedRange(mo.size().0 as u64),
+                );
 
-                    atomic_req.add_property(
-                        self.plane,
-                        find_prop_id!(&self.card, self.plane, "CRTC_H").unwrap(),
-                        property::Value::UnsignedRange(mo.size().1 as u64),
-                    );
+                atomic_req.add_property(
+                    self.plane,
+                    find_prop_id!(&self.card, self.plane, "CRTC_H").unwrap(),
+                    property::Value::UnsignedRange(mo.size().1 as u64),
+                );
 
-                    self.card
-                        .atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
-                        .unwrap();
-                }
+                self.card
+                    .atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
+                    .unwrap();
             }
-            _ => {}
         }
     }
 

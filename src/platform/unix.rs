@@ -162,7 +162,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     #[cfg(feature = "kms")]
     fn drm_mode(&self) -> Option<drm::control::Mode> {
         match self.p {
-            LinuxEventLoopWindowTarget::Kms(_) => MODE.lock().clone(),
+            LinuxEventLoopWindowTarget::Kms(_) => *MODE.lock(),
             #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => None,
         }

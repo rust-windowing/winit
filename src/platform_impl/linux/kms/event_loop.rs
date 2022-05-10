@@ -99,7 +99,7 @@ impl LibinputInterface for Interface {
 
         std::fs::OpenOptions::new()
             .custom_flags(flags)
-            .read((flags & libc::O_RDONLY != 0) | (flags & libc::O_RDWR != 0))
+            .read(flags & libc::O_RDWR != 0)
             .write((flags & libc::O_WRONLY != 0) | (flags & libc::O_RDWR != 0))
             .open(path)
             .map(|file| file.into_raw_fd())
@@ -1116,7 +1116,7 @@ impl<T: 'static> EventLoop<T> {
             .modes()
             .iter()
             .find(|f| f.mode_type().contains(ModeTypeFlags::PREFERRED))
-            .or(con.modes().get(0))
+            .or_else(|| con.modes().get(0))
             .ok_or_else(|| {
                 OsError::new(
                     line!(),
@@ -1237,7 +1237,7 @@ impl<T: 'static> EventLoop<T> {
         let window_target = event_loop::EventLoopWindowTarget {
             p: platform_impl::EventLoopWindowTarget::Kms(EventLoopWindowTarget {
                 connector: con.clone(),
-                crtc: crtc.clone(),
+                crtc: *crtc,
                 device: drm,
                 plane: p_plane,
                 cursor_arc,
@@ -1423,7 +1423,7 @@ impl<T: 'static> EventLoop<T> {
         &mut self,
         timeout: D,
     ) -> std::io::Result<()> {
-        let mut state = match &mut self.window_target.p {
+        let state = match &mut self.window_target.p {
             platform_impl::EventLoopWindowTarget::Kms(window_target) => {
                 &mut window_target.event_sink
             }
@@ -1431,7 +1431,7 @@ impl<T: 'static> EventLoop<T> {
             _ => unreachable!(),
         };
 
-        self.event_loop.dispatch(timeout, &mut state)
+        self.event_loop.dispatch(timeout, state)
     }
 }
 
