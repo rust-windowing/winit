@@ -6,6 +6,7 @@
     target_os = "openbsd"
 ))]
 
+#[cfg(any(feature = "x11", feature = "wayland"))]
 use std::os::raw;
 #[cfg(feature = "x11")]
 use std::ptr;
@@ -25,9 +26,9 @@ use crate::dpi::Size;
 use crate::platform_impl::kms::MODE;
 #[cfg(feature = "x11")]
 use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
-use crate::platform_impl::{
-    ApplicationName, EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow,
-};
+#[cfg(any(feature = "x11", feature = "wayland"))]
+use crate::platform_impl::Window as LinuxWindow;
+use crate::platform_impl::{ApplicationName, EventLoopWindowTarget as LinuxEventLoopWindowTarget};
 
 #[cfg(any(feature = "x11", feature = "wayland", feature = "kms"))]
 pub use crate::platform_impl::Backend;

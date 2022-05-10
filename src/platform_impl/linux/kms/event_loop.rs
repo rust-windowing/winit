@@ -699,7 +699,7 @@ impl<T: 'static> EventLoop<T> {
             platform_impl::EventLoopWindowTarget::Kms(window_target) => {
                 &mut window_target.event_sink
             }
-            #[cfg(any(feature = "x11", feature = "kms"))]
+            #[cfg(any(feature = "x11", feature = "wayland"))]
             _ => unreachable!(),
         };
 
