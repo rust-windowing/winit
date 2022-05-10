@@ -15,6 +15,7 @@ pub const XKB_KEY_Scroll_Lock: u32 = 0xff14;
 pub const XKB_KEY_Sys_Req: u32 = 0xff15;
 pub const XKB_KEY_Escape: u32 = 0xff1b;
 pub const XKB_KEY_Delete: u32 = 0xffff; // Delete, rubout
+pub const XKB_KEY_Caps_Lock: u32 = 0xffe5;
 
 // International & multi-key character composition
 
@@ -219,6 +220,13 @@ pub const XKB_KEY_XF86Sleep: u32 = 0x1008FF2F; // Put system to sleep
 pub const XKB_KEY_XF86Copy: u32 = 0x1008FF57; // Copy selection
 pub const XKB_KEY_XF86Cut: u32 = 0x1008FF58; // Cut selection
 pub const XKB_KEY_XF86Paste: u32 = 0x1008FF6D; // Paste
+pub const XKB_KEY_XF86AudioStop: u32 = 0x1008FF15;
+pub const XKB_KEY_XF86MyComputer: u32 = 0x1008FF33;
+pub const XKB_KEY_XF86Stop: u32 = 0x1008FF28;
+pub const XKB_KEY_XF86WakeUp: u32 = 0x1008FF2B;
+pub const XKB_KEY_XF86Favorites: u32 = 0x1008FF30;
+pub const XKB_KEY_XF86HomePage: u32 = 0x1008FF18;
+pub const XKB_KEY_XF86Refresh: u32 = 0x1008FF29;
 
 pub fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
     match keysym {
@@ -333,7 +341,7 @@ pub fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         // => Some(VirtualKeyCode::Ax),
         XKB_KEY_backslash => Some(VirtualKeyCode::Backslash),
         XKB_KEY_XF86Calculator => Some(VirtualKeyCode::Calculator),
-        // => Some(VirtualKeyCode::Capital),
+        XKB_KEY_Caps_Lock => Some(VirtualKeyCode::Capital),
         XKB_KEY_colon => Some(VirtualKeyCode::Colon),
         XKB_KEY_comma => Some(VirtualKeyCode::Comma),
         // => Some(VirtualKeyCode::Convert),
@@ -348,12 +356,12 @@ pub fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         XKB_KEY_Shift_L => Some(VirtualKeyCode::LShift),
         XKB_KEY_Super_L => Some(VirtualKeyCode::LWin),
         XKB_KEY_XF86Mail => Some(VirtualKeyCode::Mail),
+        XKB_KEY_XF86AudioStop => Some(VirtualKeyCode::MediaStop),
         // => Some(VirtualKeyCode::MediaSelect),
-        // => Some(VirtualKeyCode::MediaStop),
         XKB_KEY_minus => Some(VirtualKeyCode::Minus),
         XKB_KEY_asterisk => Some(VirtualKeyCode::Asterisk),
         XKB_KEY_XF86AudioMute => Some(VirtualKeyCode::Mute),
-        // => Some(VirtualKeyCode::MyComputer),
+        XKB_KEY_XF86MyComputer => Some(VirtualKeyCode::MyComputer),
         XKB_KEY_XF86AudioNext => Some(VirtualKeyCode::NextTrack),
         // => Some(VirtualKeyCode::NoConvert),
         XKB_KEY_KP_Separator => Some(VirtualKeyCode::NumpadComma),
@@ -386,19 +394,19 @@ pub fn keysym_to_vkey(keysym: u32) -> Option<VirtualKeyCode> {
         XKB_KEY_semicolon => Some(VirtualKeyCode::Semicolon),
         XKB_KEY_slash => Some(VirtualKeyCode::Slash),
         XKB_KEY_XF86Sleep => Some(VirtualKeyCode::Sleep),
-        // => Some(VirtualKeyCode::Stop),
+        XKB_KEY_XF86Stop => Some(VirtualKeyCode::Stop),
         XKB_KEY_Tab => Some(VirtualKeyCode::Tab),
         XKB_KEY_ISO_Left_Tab => Some(VirtualKeyCode::Tab),
         XKB_KEY_underscore => Some(VirtualKeyCode::Underline),
         // => Some(VirtualKeyCode::Unlabeled),
         XKB_KEY_XF86AudioLowerVolume => Some(VirtualKeyCode::VolumeDown),
         XKB_KEY_XF86AudioRaiseVolume => Some(VirtualKeyCode::VolumeUp),
-        // => Some(VirtualKeyCode::Wake),
+        XKB_KEY_XF86WakeUp => Some(VirtualKeyCode::Wake),
         // => Some(VirtualKeyCode::Webback),
-        // => Some(VirtualKeyCode::WebFavorites),
+        XKB_KEY_XF86Favorites => Some(VirtualKeyCode::WebFavorites),
         // => Some(VirtualKeyCode::WebForward),
-        // => Some(VirtualKeyCode::WebHome),
-        // => Some(VirtualKeyCode::WebRefresh),
+        XKB_KEY_XF86HomePage => Some(VirtualKeyCode::WebHome),
+        XKB_KEY_XF86Refresh => Some(VirtualKeyCode::WebRefresh),
         // => Some(VirtualKeyCode::WebSearch),
         // => Some(VirtualKeyCode::WebStop),
         XKB_KEY_yen => Some(VirtualKeyCode::Yen),
