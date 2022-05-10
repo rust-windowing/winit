@@ -73,16 +73,16 @@ jobs:
     - name: Setup cross linux toolchain
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: |
-        case "${{ matrix.target }}" in
+        case "${{ matrix.platform.target }}" in
           i686-*) SYSTEM_ARCH=i386 ;;
           arm*) SYSTEM_ARCH=armhf ;;
           aarch64*) SYSTEM_ARCH=arm64 ;;
         esac
-        GCC_TARGET=$(printf "${{ matrix.target }}" | sed 's/-unknown-/-/' | sed 's/arm[^-]*/arm/g')
-        ENV_TARGET=$(printf "${{ matrix.target }}" | tr '-' '_')
+        GCC_TARGET=$(printf "${{ matrix.platform.target }}" | sed 's/-unknown-/-/' | sed 's/arm[^-]*/arm/g')
+        ENV_TARGET=$(printf "${{ matrix.platform.target }}" | tr '-' '_')
         ENV_TARGET_UC=$(printf "${ENV_TARGET}" | tr '[[:lower:]]' '[[:upper:]]')
         sudo rm -f /etc/apt/sources.list.d/*.list
-        case "${{ matrix.target }}" in
+        case "${{ matrix.platform.target }}" in
           arm* | aarch64*)
         sudo tee /etc/apt/sources.list << EOF
         deb [arch=i386,amd64] http://archive.ubuntu.com/ubuntu/ focal main universe
