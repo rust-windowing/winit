@@ -62,8 +62,16 @@ jobs:
       with:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
+    - name: Install C Dependencies
+      if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'x86_64')
+      run: |
+        TZ=Etc/UTC
+        ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime
+        echo ${TZ} > /etc/timezone
+        sudo apt-get update -qqy
+        sudo apt-get install -qqy libudev-dev libinput-dev libxkbcommon-dev meson ninja-build
     - name: Setup cross linux toolchain
-      if: contains(matrix.target, '-linux-') && !startsWith(matrix.target, 'x86_64-')
+      if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: |
         case "${{ matrix.target }}" in
           i686-*) SYSTEM_ARCH=i386 ;;
@@ -100,9 +108,6 @@ jobs:
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get install -qqy gcc-multilib
-    - name: Install C Dependencies
-      if: (matrix.platform.os == 'ubuntu-latest')
-      run: sudo apt-get install -qqy libudev-dev libinput-dev libxkbcommon-dev meson ninja-build
     - name: Build libseat
       if: (matrix.platform.os == 'ubuntu-latest')
       run: |
