@@ -62,11 +62,8 @@ jobs:
       with:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
-    - name: Update TZ
+    - name: Install Build Deps
       run: |
-        TZ=Etc/UTC
-        ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime
-        echo ${TZ} > /etc/timezone
         sudo apt-get update -qqy
         sudo apt-get install -qqy curl gcc pkg-config libclang-dev dpkg-dev
     - name: Update TZ
