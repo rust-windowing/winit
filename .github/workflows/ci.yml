@@ -63,6 +63,7 @@ jobs:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
     - name: Install Build Deps
+      if: (matrix.platform.os == 'ubuntu-latest')
       run: |
         sudo apt-get update -qqy
         sudo apt-get install -qqy curl gcc pkg-config libclang-dev dpkg-dev
