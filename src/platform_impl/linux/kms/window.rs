@@ -7,9 +7,11 @@ use parking_lot::Mutex;
 #[cfg(feature = "wayland")]
 use sctk::reexports::calloop;
 
+use crate::error;
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError},
+    error::{ExternalError, NotSupportedError},
     monitor::{MonitorHandle, VideoMode},
     platform::unix::Card,
     platform_impl,
@@ -43,11 +45,10 @@ fn find_prop_id<T: ResourceHandle>(
 macro_rules! find_prop_id {
     ($id_handle_1:expr,$handle:expr,$prop_name:literal) => {
         find_prop_id(&$id_handle_1, $handle, $prop_name).ok_or_else(|| {
-            OsError::new(
-                line!(),
-                file!(),
-                platform_impl::OsError::KmsMisc(concat!("could not get ", $prop_name)),
-            )
+            os_error!(platform_impl::OsError::KmsMisc(concat!(
+                "could not get ",
+                $prop_name
+            )))
         })
     };
 }
@@ -67,7 +68,7 @@ impl Window {
         event_loop_window_target: &super::event_loop::EventLoopWindowTarget<T>,
         _attributes: WindowAttributes,
         _platform_attributes: platform_impl::PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<Self, OsError> {
+    ) -> Result<Self, error::OsError> {
         let mut atomic_req = atomic::AtomicModeReq::new();
 
         add_property!(
@@ -79,23 +80,13 @@ impl Window {
         );
 
         let mode = &(MODE.lock().ok_or_else(|| {
-            OsError::new(
-                line!(),
-                file!(),
-                platform_impl::OsError::KmsMisc("mode is not initialized"),
-            )
+            os_error!(platform_impl::OsError::KmsMisc("mode is not initialized"))
         })?);
 
         let blob = event_loop_window_target
             .device
             .create_property_blob(mode)
-            .map_err(|_| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsMisc("failed to create blob"),
-                )
-            })?;
+            .map_err(|_| os_error!(platform_impl::OsError::KmsMisc("failed to create blob")))?;
 
         add_property!(
             atomic_req,
@@ -189,11 +180,10 @@ impl Window {
             .device
             .atomic_commit(AtomicCommitFlags::ALLOW_MODESET, atomic_req)
             .map_err(|e| {
-                OsError::new(
-                    line!(),
-                    file!(),
-                    platform_impl::OsError::KmsError(format!("failed to set mode: {}", e)),
-                )
+                os_error!(platform_impl::OsError::KmsError(format!(
+                    "failed to set mode: {}",
+                    e
+                )))
             })?;
 
         Ok(Self {

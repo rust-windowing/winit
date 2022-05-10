@@ -1,6 +1,7 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 pub mod event_loop;
+pub mod input;
 pub mod window;
 use crate::{monitor, platform_impl};
 pub use drm::SystemError;
@@ -44,6 +45,7 @@ impl ControlDevice for Card {}
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;
 
+#[allow(dead_code)]
 impl DeviceId {
     pub const unsafe fn dummy() -> Self {
         DeviceId
@@ -151,6 +153,7 @@ impl VideoMode {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId;
 
+#[allow(dead_code)]
 impl WindowId {
     pub const unsafe fn dummy() -> Self {
         Self
