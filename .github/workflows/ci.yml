@@ -65,6 +65,9 @@ jobs:
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
+    - name: Install C Dependencies
+      if: (matrix.platform.os == 'ubuntu-latest')
+      run: sudo apt-get update && sudo apt-get install libudev-dev libinput-dev
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android')
       run: cargo install cargo-apk
