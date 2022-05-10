@@ -1125,6 +1125,8 @@ impl<T: 'static> EventLoop<T> {
                 )
             })?;
 
+        *MODE.lock() = Some(mode);
+
         // Enumerate available planes
         let planes = drm.plane_handles().map_err(|e| {
             OsError::new(
