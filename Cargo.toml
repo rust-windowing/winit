@@ -21,7 +21,7 @@ default = ["x11", "wayland", "wayland-dlopen", "kms"]
 x11 = ["x11-dl", "mio", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "wayland-protocols", "sctk"]
 wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
-kms = ["drm", "input", "calloop", "xkbcommon", "udev"]
+kms = ["drm", "input", "calloop", "xkbcommon", "udev", "parking_lot"]
 kms-ext = ["libseat"]
 
 [dependencies]
