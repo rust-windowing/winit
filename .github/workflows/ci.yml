@@ -62,14 +62,16 @@ jobs:
       with:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
-    - name: Install C Dependencies
-      if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'x86_64')
+    - name: Update TZ
       run: |
         TZ=Etc/UTC
         ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime
         echo ${TZ} > /etc/timezone
         sudo apt-get update -qqy
-        sudo apt-get install -qqy libudev-dev libinput-dev libxkbcommon-dev meson ninja-build
+        sudo apt-get install -qqy curl gcc pkg-config libclang-dev dpkg-dev
+    - name: Update TZ
+      if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'x86_64')
+      run: sudo apt-get install -qqy libudev-dev libinput-dev libxkbcommon-dev meson ninja-build
     - name: Setup cross linux toolchain
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: |
