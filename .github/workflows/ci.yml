@@ -68,7 +68,7 @@ jobs:
       run: sudo apt-get update && sudo apt-get install gcc-multilib
     - name: Install C Dependencies
       if: (matrix.platform.os == 'ubuntu-latest')
-      run: sudo apt-get update && sudo apt-get install libudev-dev libinput-dev
+      run: sudo apt-get update && sudo apt-get install libudev-dev libinput-dev libxkbcommon-dev
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android')
       run: cargo install cargo-apk
