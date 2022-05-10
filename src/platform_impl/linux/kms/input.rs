@@ -53,7 +53,7 @@ macro_rules! device_id {
 }
 
 #[cfg(feature = "kms-ext")]
-pub struct Interface(libseat::Seat, HashMap<RawFd, i32>);
+pub struct Interface(pub libseat::Seat, pub HashMap<RawFd, i32>);
 #[cfg(not(feature = "kms-ext"))]
 pub struct Interface;
 
