@@ -68,7 +68,18 @@ jobs:
       run: sudo apt-get update && sudo apt-get install gcc-multilib
     - name: Install C Dependencies
       if: (matrix.platform.os == 'ubuntu-latest')
-      run: sudo apt-get update && sudo apt-get install libudev-dev libinput-dev libxkbcommon-dev libseat-dev
+      run: sudo apt-get update && sudo apt-get install libudev-dev libinput-dev libxkbcommon-dev meson ninja-build
+    - name: Build libseat
+      if: (matrix.platform.os == 'ubuntu-latest')
+      run: |
+        sudo apt-get install meson ninja-build
+        wget https://git.sr.ht/~kennylevinsen/seatd/archive/0.5.0.tar.gz -O libseat-source.tar.gz
+        tar xf libseat-source.tar.gz
+        cd seatd-0.5.0
+        meson -Dbuiltin=enabled -Dserver=disabled -Dexamples=disabled -Dman-pages=disabled build .
+        ninja -C build
+        sudo meson install -C build
+
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android')
       run: cargo install cargo-apk
