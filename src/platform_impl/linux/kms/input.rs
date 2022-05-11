@@ -531,8 +531,9 @@ macro_rules! handle_keyboard_event {
                             &mut (),
                         );
                     }
+                    $self.xkb_compose.reset();
                 }
-                xkb::compose::Status::Cancelled => {
+                xkb::compose::Status::Cancelled | xkb::compose::Status::Nothing => {
                     let should_repeat = $self.xkb_keymap.key_repeats(key_offset);
                     let ch = $self.xkb_ctx.key_get_utf8(key_offset).chars().next();
 
@@ -540,26 +541,6 @@ macro_rules! handle_keyboard_event {
                         $self
                             .timer_handle
                             .add_timeout(Duration::from_millis(REPEAT_DELAY), (input, ch));
-                    }
-
-                    if let Some(c) = ch {
-                        $callback(
-                            Event::WindowEvent {
-                                window_id: window_id!(),
-                                event: WindowEvent::ReceivedCharacter(c),
-                            },
-                            &mut (),
-                        );
-                    }
-                }
-                xkb::compose::Status::Nothing => {
-                    let should_repeat = $self.xkb_keymap.key_repeats(key_offset);
-                    let ch = $self.xkb_ctx.key_get_utf8(key_offset).chars().next();
-
-                    if should_repeat {
-                        $self
-                            .timer_handle
-                            .add_timeout(Duration::from_millis(600), (input, ch));
                     }
 
                     if let Some(c) = ch {
