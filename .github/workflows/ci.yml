@@ -109,7 +109,7 @@ jobs:
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get install -qqy gcc-multilib
     - name: Build libseat
-      if: (matrix.platform.os == 'ubuntu-latest')
+      if: (matrix.platform.os == 'ubuntu-latest') && !contains(matrix.platform.target, 'android')
       run: |
         wget https://git.sr.ht/~kennylevinsen/seatd/archive/0.5.0.tar.gz -O libseat-source.tar.gz
         tar xf libseat-source.tar.gz
