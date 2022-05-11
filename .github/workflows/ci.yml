@@ -98,20 +98,16 @@ jobs:
         dpkg --print-foreign-architectures
         sudo apt-get update -qqy
         sudo apt-get dist-upgrade -qqy --fix-broken
-        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes libinput-dev gcc-${GCC_TARGET} pkg-config-${GCC_TARGET}
+        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes libinput-dev libudev-dev gcc-${GCC_TARGET} gcc-multilib libudev-dev libinput-dev libxkbcommon-dev meson ninja-build pkg-config-${GCC_TARGET}
         echo "CARGO_TARGET_${ENV_TARGET_UC}_LINKER=${GCC_TARGET}-gcc" >> $GITHUB_ENV
         echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
         echo "PKG_CONFIG_${ENV_TARGET}=${GCC_TARGET}-pkg-config" >> $GITHUB_ENV
         echo "PKG_CONFIG=${GCC_TARGET}-pkg-config" >> $GITHUB_ENV
         echo "BINDGEN_EXTRA_CLANG_ARGS=\"-L/usr/lib/${GCC_TARGET} -L/lib/${GCC_TARGET}\"" >> $GITHUB_ENV
 
-    - name: Install GCC Multilib
-      if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
-      run: sudo apt-get install -qqy gcc-multilib
     - name: Build libseat
       if: (matrix.platform.os == 'ubuntu-latest') && !contains(matrix.platform.target, 'android')
       run: |
-        sudo apt-get install meson ninja-build
         wget https://git.sr.ht/~kennylevinsen/seatd/archive/0.5.0.tar.gz -O libseat-source.tar.gz
         tar xf libseat-source.tar.gz
         cd seatd-0.5.0
