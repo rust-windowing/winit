@@ -106,9 +106,9 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
         }
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     #[doc(hidden)]
-    #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.p {
             LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
@@ -318,9 +318,9 @@ impl WindowExtUnix for Window {
         }
     }
 
+    #[cfg(feature = "x11")]
     #[inline]
     #[doc(hidden)]
-    #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
             LinuxWindow::X(ref w) => Some(w.xlib_xconnection()),
