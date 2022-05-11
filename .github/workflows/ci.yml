@@ -93,7 +93,8 @@ jobs:
         dpkg --print-foreign-architectures
         sudo apt-get update -qqy
         sudo apt-get dist-upgrade -qqy --fix-broken
-        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes gcc-${GCC_TARGET} pkg-config-${GCC_TARGET}
+        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes gcc-${GCC_TARGET} pkg-config-${GCC_TARGET} meson ninja-build
+        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes libinput-dev:${SYSTEM_ARCH} libudev-dev:${SYSTEM_ARCH} libxkbcommon-dev:${SYSTEM_ARCH} gcc-multilib
         echo "CARGO_TARGET_${ENV_TARGET_UC}_LINKER=${GCC_TARGET}-gcc" >> $GITHUB_ENV
         echo "PKG_CONFIG_ALLOW_CROSS=1" >> $GITHUB_ENV
         echo "PKG_CONFIG_${ENV_TARGET}=${GCC_TARGET}-pkg-config" >> $GITHUB_ENV
@@ -104,7 +105,7 @@ jobs:
       if: (matrix.platform.os == 'ubuntu-latest')
       run: |
         sudo apt-get update -qqy
-        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes curl gcc pkg-config libclang-dev dpkg-dev libinput-dev libudev-dev libxkbcommon-dev gcc-multilib meson ninja-build
+        sudo apt-get install -qqy --fix-broken -o Debug::pkgProblemResolver=yes curl gcc pkg-config libclang-dev dpkg-dev
     - name: Build libseat
       if: (matrix.platform.os == 'ubuntu-latest') && !contains(matrix.platform.target, 'android')
       run: |
