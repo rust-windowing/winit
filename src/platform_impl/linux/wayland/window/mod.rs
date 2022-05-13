@@ -147,11 +147,9 @@ impl Window {
         // Set CSD frame config
         #[cfg(feature = "sctk-adwaita")]
         if let Some(theme) = platform_attributes.csd_theme {
-            use sctk_adwaita::FrameConfig;
-
             let config = match theme {
-                Theme::Light => FrameConfig::light(),
-                Theme::Dark => FrameConfig::dark(),
+                Theme::Light => sctk_adwaita::FrameConfig::light(),
+                Theme::Dark => sctk_adwaita::FrameConfig::dark(),
             };
             window.set_frame_config(config);
         }

@@ -423,23 +423,19 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
+                #[cfg(feature = "sctk-adwaita")]
                 WindowRequest::CsdThemeVariant(theme) => {
-                    #[cfg(feature = "sctk-adwaita")]
-                    {
-                        use sctk_adwaita::FrameConfig;
+                    let config = match theme {
+                        Theme::Light => sctk_adwaita::FrameConfig::light(),
+                        Theme::Dark => sctk_adwaita::FrameConfig::dark(),
+                    };
+                    window_handle.window.set_frame_config(config);
 
-                        let config = match theme {
-                            Theme::Light => FrameConfig::light(),
-                            Theme::Dark => FrameConfig::dark(),
-                        };
-                        window_handle.window.set_frame_config(config);
-
-                        let window_update = window_updates.get_mut(window_id).unwrap();
-                        window_update.refresh_frame = true;
-                    }
-                    #[cfg(not(feature = "sctk-adwaita"))]
-                    let _ = theme;
+                    let window_update = window_updates.get_mut(window_id).unwrap();
+                    window_update.refresh_frame = true;
                 }
+                #[cfg(not(feature = "sctk-adwaita"))]
+                WindowRequest::CsdThemeVariant(_) => {}
                 WindowRequest::Resizeable(resizeable) => {
                     window_handle.window.set_resizable(resizeable);
 

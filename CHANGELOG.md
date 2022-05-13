@@ -40,6 +40,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
 - **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
 - On Wayland, fallback CSD was replaced with proper one.
+  - `WindowBuilderExtUnix::with_wayland_csd_theme` used to set color theme in builder.
+  - `WindowExtUnix::wayland_set_csd_theme` used to change color theme on the fly.
+  - `wayland-csd-adwaita` feature that enables proper CSD.
+  - `wayland-csd-title` feature that enables title rendering, uses FreeType system library.
 - On Wayland and X11, fix window not resizing with `Window::set_inner_size` after calling `Window:set_resizable(false)`.
 - On Windows, fix wrong fullscreen monitors being recognized when handling WM_WINDOWPOSCHANGING messages
 
