@@ -13,7 +13,7 @@ use ndk::{
 };
 use ndk_glue::{Event, Rect};
 use once_cell::sync::Lazy;
-use raw_window_handle::{AndroidNdkHandle, RawWindowHandle};
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -786,13 +786,11 @@ impl Window {
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = AndroidNdkHandle::empty();
         if let Some(native_window) = ndk_glue::native_window().as_ref() {
-            handle.a_native_window = unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
+            native_window.raw_window_handle()
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
-        };
-        RawWindowHandle::AndroidNdk(handle)
+        }
     }
 
     pub fn config(&self) -> Configuration {
