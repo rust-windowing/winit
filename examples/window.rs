@@ -1,6 +1,7 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
+use softbuffer::GraphicsContext;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -17,17 +18,28 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
+    let mut graphics_context = unsafe { GraphicsContext::new(window) }.unwrap();
+
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();
         println!("{:?}", event);
 
         match event {
+            Event::RedrawRequested(window_id) if window_id == graphics_context.window().id() => {
+                let (width, height) = {
+                    let size = graphics_context.window().inner_size();
+                    (size.width, size.height)
+                };
+                let colour = 0xffee36;
+                let buffer = vec![colour; width as usize * height as usize];
+                graphics_context.set_buffer(&buffer, width as u16, height as u16);
+            }
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
+            } if window_id == graphics_context.window().id() => control_flow.set_exit(),
             Event::MainEventsCleared => {
-                window.request_redraw();
+                graphics_context.window().request_redraw();
             }
             _ => (),
         }
