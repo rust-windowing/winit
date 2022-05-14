@@ -26,16 +26,13 @@ mod window;
 #[path = "web_sys/mod.rs"]
 mod backend;
 
-pub use self::device::Id as DeviceId;
+pub use self::device::DeviceId;
 pub use self::error::OsError;
-pub use self::event_loop::{
-    EventLoop, Proxy as EventLoopProxy, WindowTarget as EventLoopWindowTarget,
+pub(crate) use self::event_loop::{
+    EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
 };
-pub use self::monitor::{Handle as MonitorHandle, Mode as VideoMode};
-pub use self::window::{
-    Id as WindowId, PlatformSpecificBuilderAttributes as PlatformSpecificWindowBuilderAttributes,
-    Window,
-};
+pub use self::monitor::{MonitorHandle, VideoMode};
+pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 

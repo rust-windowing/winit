@@ -171,16 +171,7 @@ pub type CGDisplayModeRef = *mut c_void;
 // directly. Fortunately, it has always been available as a subframework of
 // `ApplicationServices`, see:
 // https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/SystemFrameworks/SystemFrameworks.html#//apple_ref/doc/uid/TP40001067-CH210-BBCFFIEG
-//
-// TODO: Remove the WINIT_LINK_COLORSYNC hack, it is probably not needed.
-#[cfg_attr(
-    not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
-    link(name = "ApplicationServices", kind = "framework")
-)]
-#[cfg_attr(
-    use_colorsync_cgdisplaycreateuuidfromdisplayid,
-    link(name = "ColorSync", kind = "framework")
-)]
+#[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
 }

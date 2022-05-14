@@ -1,5 +1,8 @@
 #![cfg(target_os = "macos")]
 
+#[macro_use]
+mod util;
+
 mod app;
 mod app_delegate;
 mod app_state;
@@ -9,18 +12,19 @@ mod ffi;
 mod menu;
 mod monitor;
 mod observer;
-mod util;
 mod view;
 mod window;
 mod window_delegate;
 
 use std::{fmt, ops::Deref, sync::Arc};
 
-pub use self::{
-    app_delegate::{get_aux_state_mut, AuxDelegateState},
-    event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
+pub(crate) use self::{
+    app_delegate::get_aux_state_mut,
+    event_loop::{
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+    },
     monitor::{MonitorHandle, VideoMode},
-    window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
+    window::{PlatformSpecificWindowBuilderAttributes, UnownedWindow, WindowId},
 };
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,

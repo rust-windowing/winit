@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
+use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Attached;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_token_v1;
@@ -11,10 +12,10 @@ use sctk::window::{Decorations, FallbackFrame, Window};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
-use crate::event::WindowEvent;
+use crate::event::{Ime, WindowEvent};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::env::WinitEnv;
-use crate::platform_impl::wayland::event_loop::WinitState;
+use crate::platform_impl::wayland::event_loop::{EventSink, WinitState};
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
@@ -68,12 +69,18 @@ pub enum WindowRequest {
     FrameSize(LogicalSize<u32>),
 
     /// Set IME window position.
-    IMEPosition(LogicalPosition<u32>),
+    ImePosition(LogicalPosition<u32>),
+
+    /// Enable IME on the given window.
+    AllowIme(bool),
 
     /// Request Attention.
     ///
     /// `None` unsets the attention request.
     Attention(Option<UserAttentionType>),
+
+    /// Passthrough mouse input to underlying windows.
+    PassthroughMouseInput(bool),
 
     /// Redraw was requested.
     Redraw,
@@ -150,6 +157,12 @@ pub struct WindowHandle {
     /// Current cursor icon.
     pub cursor_icon: Cell<CursorIcon>,
 
+    /// Whether the window is resizable.
+    pub is_resizable: Cell<bool>,
+
+    /// Allow IME events for that window.
+    pub ime_allowed: Cell<bool>,
+
     /// Visible cursor or not.
     cursor_visible: Cell<bool>,
 
@@ -167,6 +180,9 @@ pub struct WindowHandle {
 
     /// Indicator whether user attention is requested.
     attention_requested: Cell<bool>,
+
+    /// Compositor
+    compositor: Attached<WlCompositor>,
 }
 
 impl WindowHandle {
@@ -177,18 +193,24 @@ impl WindowHandle {
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
         let xdg_activation = env.get_global::<XdgActivationV1>();
+        // Unwrap is safe, since we can't create window without compositor anyway and won't be
+        // here.
+        let compositor = env.get_global::<WlCompositor>().unwrap();
 
         Self {
             window,
             size,
             pending_window_requests,
             cursor_icon: Cell::new(CursorIcon::Default),
+            is_resizable: Cell::new(true),
             confined: Cell::new(false),
             cursor_visible: Cell::new(true),
             pointers: Vec::new(),
             text_inputs: Vec::new(),
             xdg_activation,
             attention_requested: Cell::new(false),
+            compositor,
+            ime_allowed: Cell::new(false),
         }
     }
 
@@ -304,6 +326,41 @@ impl WindowHandle {
         }
     }
 
+    pub fn passthrough_mouse_input(&self, passthrough_mouse_input: bool) {
+        if passthrough_mouse_input {
+            let region = self.compositor.create_region();
+            region.add(0, 0, 0, 0);
+            self.window
+                .surface()
+                .set_input_region(Some(&region.detach()));
+            region.destroy();
+        } else {
+            // Using `None` results in the entire window being clickable.
+            self.window.surface().set_input_region(None);
+        }
+    }
+
+    pub fn set_ime_allowed(&self, allowed: bool, event_sink: &mut EventSink) {
+        if self.ime_allowed.get() == allowed {
+            return;
+        }
+
+        self.ime_allowed.replace(allowed);
+        let window_id = wayland::make_wid(self.window.surface());
+
+        for text_input in self.text_inputs.iter() {
+            text_input.set_input_allowed(allowed);
+        }
+
+        let event = if allowed {
+            WindowEvent::Ime(Ime::Enabled)
+        } else {
+            WindowEvent::Ime(Ime::Disabled)
+        };
+
+        event_sink.push_window_event(event, window_id);
+    }
+
     pub fn set_cursor_visible(&self, visible: bool) {
         self.cursor_visible.replace(visible);
         let cursor_icon = match visible {
@@ -358,8 +415,12 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 WindowRequest::NewCursorIcon(cursor_icon) => {
                     window_handle.set_cursor_icon(cursor_icon);
                 }
-                WindowRequest::IMEPosition(position) => {
+                WindowRequest::ImePosition(position) => {
                     window_handle.set_ime_position(position);
+                }
+                WindowRequest::AllowIme(allow) => {
+                    let event_sink = &mut winit_state.event_sink;
+                    window_handle.set_ime_allowed(allow, event_sink);
                 }
                 WindowRequest::GrabCursor(grab) => {
                     window_handle.set_cursor_grab(grab);
@@ -418,10 +479,23 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_update.redraw_requested = true;
                 }
                 WindowRequest::FrameSize(size) => {
-                    // Set new size.
+                    if !window_handle.is_resizable.get() {
+                        // On Wayland non-resizable window is achieved by setting both min and max
+                        // size of the window to the same value.
+                        let size = Some((size.width, size.height));
+                        window_handle.window.set_max_size(size);
+                        window_handle.window.set_min_size(size);
+                    }
+
                     window_handle.window.resize(size.width, size.height);
 
                     // We should refresh the frame after resize.
+                    let window_update = window_updates.get_mut(window_id).unwrap();
+                    window_update.refresh_frame = true;
+                }
+                WindowRequest::PassthroughMouseInput(passthrough) => {
+                    window_handle.passthrough_mouse_input(passthrough);
+
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
