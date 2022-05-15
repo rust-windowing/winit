@@ -39,11 +39,11 @@ pub trait EventLoopExtRunReturn {
     ///
     /// - **Unix-alikes** (**X11** or **Wayland**): This function returns `1` upon disconnection from
     ///   the display server.
-    fn run_return<F>(&mut self, event_handler: F) -> i32
+    fn run_return<'a, F>(&'a mut self, event_handler: F) -> i32
     where
         F: FnMut(
             Event<'_, Self::UserEvent>,
-            &EventLoopWindowTarget<Self::UserEvent>,
+            &'a EventLoopWindowTarget<Self::UserEvent>,
             &mut ControlFlow,
         );
 }
@@ -51,11 +51,11 @@ pub trait EventLoopExtRunReturn {
 impl<T> EventLoopExtRunReturn for EventLoop<T> {
     type UserEvent = T;
 
-    fn run_return<F>(&mut self, event_handler: F) -> i32
+    fn run_return<'a, F>(&'a mut self, event_handler: F) -> i32
     where
         F: FnMut(
             Event<'_, Self::UserEvent>,
-            &EventLoopWindowTarget<Self::UserEvent>,
+            &'a EventLoopWindowTarget<Self::UserEvent>,
             &mut ControlFlow,
         ),
     {
