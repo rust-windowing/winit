@@ -223,9 +223,9 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
+    pub fn run_return<'a, F>(&'a mut self, mut event_handler: F) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &'a RootELW<T>, &mut ControlFlow),
     {
         let event_loop_windows_ref = &self.window_target;
 
