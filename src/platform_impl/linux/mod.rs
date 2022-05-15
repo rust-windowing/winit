@@ -710,9 +710,9 @@ impl<T: 'static> EventLoop<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
+    pub fn run_return<'a, F>(&'a mut self, callback: F) -> i32
     where
-        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(crate::event::Event<'_, T>, &'a RootELW<T>, &mut ControlFlow),
     {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_return(callback))
     }
@@ -791,13 +791,13 @@ impl<T> EventLoopWindowTarget<T> {
     }
 }
 
-fn sticky_exit_callback<T, F>(
+fn sticky_exit_callback<'a, T, F>(
     evt: Event<'_, T>,
-    target: &RootELW<T>,
+    target: &'a RootELW<T>,
     control_flow: &mut ControlFlow,
     callback: &mut F,
 ) where
-    F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    F: FnMut(Event<'_, T>, &'a RootELW<T>, &mut ControlFlow),
 {
     // make ControlFlow::ExitWithCode sticky by providing a dummy
     // control flow reference if it is already ExitWithCode.

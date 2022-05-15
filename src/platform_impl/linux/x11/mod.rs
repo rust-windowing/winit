@@ -304,40 +304,44 @@ impl<T: 'static> EventLoop<T> {
         &self.target
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F) -> i32
+    pub fn run_return<'a, F>(&'a mut self, mut callback: F) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &'a RootELW<T>, &mut ControlFlow),
     {
         struct IterationResult {
             deadline: Option<Instant>,
             timeout: Option<Duration>,
             wait_start: Instant,
         }
-        fn single_iteration<T, F>(
-            this: &mut EventLoop<T>,
+        // We can't just take an `&mut EventLoop` because that results in having to have an immutable reference to `self.target` and a mutable reference to `self` at the same time, due to `target`'s extended lifetime.
+        fn single_iteration<'a, T, F>(
+            target: &'a RootELW<T>,
+            event_processor: &mut EventProcessor<T>,
+            user_receiver: &mut PeekableReceiver<T>,
+            redraw_receiver: &mut PeekableReceiver<WindowId>,
             control_flow: &mut ControlFlow,
             cause: &mut StartCause,
             callback: &mut F,
         ) -> IterationResult
         where
-            F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+            F: FnMut(Event<'_, T>, &'a RootELW<T>, &mut ControlFlow),
         {
             sticky_exit_callback(
                 crate::event::Event::NewEvents(*cause),
-                &this.target,
+                target,
                 control_flow,
                 callback,
             );
 
             // Process all pending events
-            this.drain_events(callback, control_flow);
+            EventLoop::<T>::drain_events(target, event_processor, callback, control_flow);
 
             // Empty the user event buffer
             {
-                while let Ok(event) = this.user_receiver.try_recv() {
+                while let Ok(event) = user_receiver.try_recv() {
                     sticky_exit_callback(
                         crate::event::Event::UserEvent(event),
-                        &this.target,
+                        target,
                         control_flow,
                         callback,
                     );
@@ -347,7 +351,7 @@ impl<T: 'static> EventLoop<T> {
             {
                 sticky_exit_callback(
                     crate::event::Event::MainEventsCleared,
-                    &this.target,
+                    target,
                     control_flow,
                     callback,
                 );
@@ -356,7 +360,7 @@ impl<T: 'static> EventLoop<T> {
             {
                 let mut windows = HashSet::new();
 
-                while let Ok(window_id) = this.redraw_receiver.try_recv() {
+                while let Ok(window_id) = redraw_receiver.try_recv() {
                     windows.insert(window_id);
                 }
 
@@ -364,7 +368,7 @@ impl<T: 'static> EventLoop<T> {
                     let window_id = crate::window::WindowId(super::WindowId::X(window_id));
                     sticky_exit_callback(
                         Event::RedrawRequested(window_id),
-                        &this.target,
+                        target,
                         control_flow,
                         callback,
                     );
@@ -374,7 +378,7 @@ impl<T: 'static> EventLoop<T> {
             {
                 sticky_exit_callback(
                     crate::event::Event::RedrawEventsCleared,
-                    &this.target,
+                    target,
                     control_flow,
                     callback,
                 );
@@ -430,7 +434,15 @@ impl<T: 'static> EventLoop<T> {
         let mut cause = StartCause::Init;
 
         // run the initial loop iteration
-        let mut iter_result = single_iteration(self, &mut control_flow, &mut cause, &mut callback);
+        let mut iter_result = single_iteration(
+            &self.target,
+            &mut self.event_processor,
+            &mut self.user_receiver,
+            &mut self.redraw_receiver,
+            &mut control_flow,
+            &mut cause,
+            &mut callback,
+        );
 
         let exit_code = loop {
             if let ControlFlow::ExitWithCode(code) = control_flow {
@@ -470,7 +482,15 @@ impl<T: 'static> EventLoop<T> {
                 };
             }
 
-            iter_result = single_iteration(self, &mut control_flow, &mut cause, &mut callback);
+            iter_result = single_iteration(
+                &self.target,
+                &mut self.event_processor,
+                &mut self.user_receiver,
+                &mut self.redraw_receiver,
+                &mut control_flow,
+                &mut cause,
+                &mut callback,
+            );
         };
 
         callback(
@@ -481,25 +501,21 @@ impl<T: 'static> EventLoop<T> {
         exit_code
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
-    where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    // We can't just take `self` because that results in having to have an immutable reference to `self.target` and a mutable reference to `self` at the same time.
+    fn drain_events<'a, F>(
+        target: &'a RootELW<T>,
+        event_processor: &mut EventProcessor<T>,
+        callback: &mut F,
+        control_flow: &mut ControlFlow,
+    ) where
+        F: FnMut(Event<'_, T>, &'a RootELW<T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(callback);
-        ::std::process::exit(exit_code);
-    }
-
-    fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)
-    where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
-    {
-        let target = &self.target;
         let mut xev = MaybeUninit::uninit();
-        let wt = get_xtarget(&self.target);
+        let wt = get_xtarget(target);
 
-        while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
+        while unsafe { event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
-            self.event_processor.process_event(&mut xev, |event| {
+            event_processor.process_event(&mut xev, |event| {
                 sticky_exit_callback(
                     event,
                     target,

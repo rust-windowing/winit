@@ -1,8 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
-use std::io::Result as IOResult;
-use std::process;
+use std::io;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -201,17 +200,9 @@ impl<T: 'static> EventLoop<T> {
         Ok(event_loop)
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
+    pub fn run_return<'a, F>(&'a mut self, mut callback: F) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
-    {
-        let exit_code = self.run_return(callback);
-        process::exit(exit_code);
-    }
-
-    pub fn run_return<F>(&mut self, mut callback: F) -> i32
-    where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &'a RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::Poll;
         let pending_user_events = self.pending_user_events.clone();
@@ -235,6 +226,14 @@ impl<T: 'static> EventLoop<T> {
             // Send pending events to the server.
             let _ = self.display.flush();
 
+            let mut state = match &self.window_target.p {
+                PlatformEventLoopWindowTarget::Wayland(window_target) => {
+                    window_target.state.borrow_mut()
+                }
+                #[cfg(feature = "x11")]
+                _ => unreachable!(),
+            };
+
             // During the run of the user callback, some other code monitoring and reading the
             // Wayland socket may have been run (mesa for example does this with vsync), if that
             // is the case, some events may have been enqueued in our event queue.
@@ -245,15 +244,8 @@ impl<T: 'static> EventLoop<T> {
             let instant_wakeup = {
                 let mut wayland_source = self.wayland_dispatcher.as_source_mut();
                 let queue = wayland_source.queue();
-                let state = match &mut self.window_target.p {
-                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
-                        window_target.state.get_mut()
-                    }
-                    #[cfg(feature = "x11")]
-                    _ => unreachable!(),
-                };
 
-                match queue.dispatch_pending(state, |_, _, _| unimplemented!()) {
+                match queue.dispatch_pending(&mut *state, |_, _, _| unimplemented!()) {
                     Ok(dispatched) => dispatched > 0,
                     Err(error) => break error.raw_os_error().unwrap_or(1),
                 }
@@ -264,9 +256,11 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Poll => {
                     // Non-blocking dispatch.
                     let timeout = Duration::from_millis(0);
-                    if let Err(error) = self.loop_dispatch(Some(timeout)) {
-                        break error.raw_os_error().unwrap_or(1);
+                    if let Err(error) = self.event_loop.dispatch(timeout, &mut state) {
+                        break io::Error::from(error).raw_os_error().unwrap_or(1);
                     }
+
+                    drop(state);
 
                     callback(
                         Event::NewEvents(StartCause::Poll),
@@ -281,9 +275,11 @@ impl<T: 'static> EventLoop<T> {
                         None
                     };
 
-                    if let Err(error) = self.loop_dispatch(timeout) {
-                        break error.raw_os_error().unwrap_or(1);
+                    if let Err(error) = self.event_loop.dispatch(timeout, &mut state) {
+                        break io::Error::from(error).raw_os_error().unwrap_or(1);
                     }
+
+                    drop(state);
 
                     callback(
                         Event::NewEvents(StartCause::WaitCancelled {
@@ -304,11 +300,13 @@ impl<T: 'static> EventLoop<T> {
                         Duration::from_millis(0)
                     };
 
-                    if let Err(error) = self.loop_dispatch(Some(duration)) {
-                        break error.raw_os_error().unwrap_or(1);
+                    if let Err(error) = self.event_loop.dispatch(duration, &mut state) {
+                        break io::Error::from(error).raw_os_error().unwrap_or(1);
                     }
 
                     let now = Instant::now();
+
+                    drop(state);
 
                     if now < deadline {
                         callback(
@@ -521,25 +519,13 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&mut self, f: F) -> U {
-        let state = match &mut self.window_target.p {
-            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
+    fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&self, f: F) -> U {
+        match &self.window_target.p {
+            PlatformEventLoopWindowTarget::Wayland(window_target) => {
+                f(&mut window_target.state.borrow_mut())
+            }
             #[cfg(feature = "x11")]
             _ => unreachable!(),
-        };
-
-        f(state)
-    }
-
-    fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
-        let state = match &mut self.window_target.p {
-            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(feature = "x11")]
-            _ => unreachable!(),
-        };
-
-        self.event_loop
-            .dispatch(timeout, state)
-            .map_err(|error| error.into())
+        }
     }
 }
