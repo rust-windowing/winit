@@ -271,16 +271,16 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
+    pub fn run_return<'a, F>(&'a mut self, mut event_handler: F) -> i32
     where
-        F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(event::Event<'_, T>, &'a event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::default();
 
         'event_loop: loop {
             call_event_handler!(
                 event_handler,
-                self.window_target(),
+                &self.window_target,
                 control_flow,
                 event::Event::NewEvents(self.start_cause)
             );
@@ -293,7 +293,7 @@ impl<T: 'static> EventLoop<T> {
                     Event::WindowCreated => {
                         call_event_handler!(
                             event_handler,
-                            self.window_target(),
+                            &self.window_target,
                             control_flow,
                             event::Event::Resumed
                         );
@@ -303,7 +303,7 @@ impl<T: 'static> EventLoop<T> {
                     Event::WindowDestroyed => {
                         call_event_handler!(
                             event_handler,
-                            self.window_target(),
+                            &self.window_target,
                             control_flow,
                             event::Event::Suspended
                         );
@@ -328,7 +328,7 @@ impl<T: 'static> EventLoop<T> {
                             };
                             call_event_handler!(
                                 event_handler,
-                                self.window_target(),
+                                &self.window_target,
                                 control_flow,
                                 event
                             );
@@ -337,7 +337,7 @@ impl<T: 'static> EventLoop<T> {
                     Event::WindowHasFocus => {
                         call_event_handler!(
                             event_handler,
-                            self.window_target(),
+                            &self.window_target,
                             control_flow,
                             event::Event::WindowEvent {
                                 window_id: window::WindowId(WindowId),
@@ -348,7 +348,7 @@ impl<T: 'static> EventLoop<T> {
                     Event::WindowLostFocus => {
                         call_event_handler!(
                             event_handler,
-                            self.window_target(),
+                            &self.window_target,
                             control_flow,
                             event::Event::WindowEvent {
                                 window_id: window::WindowId(WindowId),
@@ -418,7 +418,7 @@ impl<T: 'static> EventLoop<T> {
                                                 };
                                                 call_event_handler!(
                                                     event_handler,
-                                                    self.window_target(),
+                                                    &self.window_target,
                                                     control_flow,
                                                     event
                                                 );
@@ -449,7 +449,7 @@ impl<T: 'static> EventLoop<T> {
                                         };
                                         call_event_handler!(
                                             event_handler,
-                                            self.window_target(),
+                                            &self.window_target,
                                             control_flow,
                                             event
                                         );
@@ -465,7 +465,7 @@ impl<T: 'static> EventLoop<T> {
                     while let Some(event) = user_queue.pop_front() {
                         call_event_handler!(
                             event_handler,
-                            self.window_target(),
+                            &self.window_target,
                             control_flow,
                             event::Event::UserEvent(event)
                         );
@@ -479,7 +479,7 @@ impl<T: 'static> EventLoop<T> {
 
             call_event_handler!(
                 event_handler,
-                self.window_target(),
+                &self.window_target,
                 control_flow,
                 event::Event::MainEventsCleared
             );
@@ -490,17 +490,17 @@ impl<T: 'static> EventLoop<T> {
                     window_id: window::WindowId(WindowId),
                     event: event::WindowEvent::Resized(size),
                 };
-                call_event_handler!(event_handler, self.window_target(), control_flow, event);
+                call_event_handler!(event_handler, &self.window_target, control_flow, event);
             }
 
             if redraw && self.running {
                 let event = event::Event::RedrawRequested(window::WindowId(WindowId));
-                call_event_handler!(event_handler, self.window_target(), control_flow, event);
+                call_event_handler!(event_handler, &self.window_target, control_flow, event);
             }
 
             call_event_handler!(
                 event_handler,
-                self.window_target(),
+                &self.window_target,
                 control_flow,
                 event::Event::RedrawEventsCleared
             );
