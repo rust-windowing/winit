@@ -5,7 +5,7 @@ use std::{
     marker::PhantomData,
     mem,
     os::raw::c_void,
-    panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
+    panic::{catch_unwind, resume_unwind, AssertUnwindSafe, RefUnwindSafe, UnwindSafe},
     process, ptr,
     rc::{Rc, Weak},
     sync::mpsc,
@@ -180,15 +180,30 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(mut self, callback: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &'static RootWindowTarget<T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(callback);
+        // SAFETY: `process::exit` will terminate the entire program before `self` is
+        // dropped, and `catch_unwind` prevents control from from exiting this function
+        // by panicking, therefore it will live for the rest of the program ('static).
+        //
+        // I believe this pointer casting is the correct way to do it because that's how
+        // `Box::leak` is implemented (https://doc.rust-lang.org/1.60.0/src/alloc/boxed.rs.html#1147-1152)
+        let this: &'static mut Self = unsafe { &mut *(&mut self as *mut Self) };
+        // Note: we don't touch `callback` again if this unwinds, so it doesn't matter
+        // if it's unwind safe.
+        let exit_code = match catch_unwind(AssertUnwindSafe(|| this.run_return(callback))) {
+            Ok(code) => code,
+            // 101 seems to be the status code Rust uses for panics.
+            // Note: the panic message gets printed before unwinding, so we don't have to print it
+            // ourselves.
+            Err(_) => 101,
+        };
         process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
+    pub fn run_return<'a, F>(&'a mut self, callback: F) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &'a RootWindowTarget<T>, &mut ControlFlow),
     {
         // This transmute is always safe, in case it was reached through `run`, since our
         // lifetime will be already 'static. In other cases caller should ensure that all data
@@ -196,7 +211,7 @@ impl<T> EventLoop<T> {
         // everything to event loop, so this is something that they should care about.
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<'_, T>, &'a RootWindowTarget<T>, &mut ControlFlow)>>,
                 Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
             >(Rc::new(RefCell::new(callback)))
         };
