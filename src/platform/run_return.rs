@@ -9,6 +9,8 @@
     target_os = "openbsd"
 ))]
 
+use std::{process, panic::{AssertUnwindSafe, catch_unwind}};
+
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -60,5 +62,30 @@ impl<T> EventLoopExtRunReturn for EventLoop<T> {
         ),
     {
         self.event_loop.run_return(event_handler)
+    }
+}
+
+impl<T> crate::platform_impl::EventLoop<T> {
+    pub fn run<F>(mut self, callback: F) -> !
+    where
+        F: 'static + FnMut(Event<'_, T>, &'static EventLoopWindowTarget<T>, &mut ControlFlow),
+    {
+        // SAFETY: `process::exit` will terminate the entire program before `self` is
+        // dropped, and `catch_unwind` prevents control from from exiting this function
+        // by panicking, therefore it will live for the rest of the program ('static).
+        //
+        // I believe this pointer casting is the correct way to do it because that's how
+        // `Box::leak` is implemented (https://doc.rust-lang.org/1.60.0/src/alloc/boxed.rs.html#1147-1152)
+        let this: &'static mut Self = unsafe { &mut *(&mut self as *mut Self) };
+        // Note: we don't touch `callback` again if this unwinds, so it doesn't matter
+        // if it's unwind safe.
+        let exit_code = match catch_unwind(AssertUnwindSafe(|| this.run_return(callback))) {
+            Ok(code) => code,
+            // 101 seems to be the status code Rust uses for panics.
+            // Note: the panic message gets printed before unwinding, so we don't have to print it
+            // ourselves.
+            Err(_) => 101,
+        };
+        process::exit(exit_code);
     }
 }
