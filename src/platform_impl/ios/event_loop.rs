@@ -104,7 +104,7 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn run<F>(self, event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &'static RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
             let application: *mut c_void = msg_send![class!(UIApplication), sharedApplication];
@@ -115,9 +115,16 @@ impl<T: 'static> EventLoop<T> {
                  `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
                  Note: `EventLoop::run` calls `UIApplicationMain` on iOS"
             );
+            // SAFETY: `UIApplicationMain` will never return, meaning that this function
+            // will never return, and so `self.window_target` will never be dropped and live
+            // for `'static`.
+            //
+            // I believe this pointer casting is the correct way to do it because that's how
+            // `Box::leak` is implemented (https://doc.rust-lang.org/1.60.0/src/alloc/boxed.rs.html#1147-1152)
+            let window_target: &'static _ = &*(&self.window_target as *const _);
             app_state::will_launch(Box::new(EventLoopHandler {
                 f: event_handler,
-                event_loop: self.window_target,
+                event_loop: window_target,
             }));
 
             UIApplicationMain(
@@ -308,7 +315,7 @@ pub trait EventHandler: Debug {
 
 struct EventLoopHandler<F, T: 'static> {
     f: F,
-    event_loop: RootEventLoopWindowTarget<T>,
+    event_loop: &'static RootEventLoopWindowTarget<T>,
 }
 
 impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
@@ -321,20 +328,20 @@ impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
 
 impl<F, T> EventHandler for EventLoopHandler<F, T>
 where
-    F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+    F: 'static + FnMut(Event<'_, T>, &'static RootEventLoopWindowTarget<T>, &mut ControlFlow),
     T: 'static,
 {
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
         (self.f)(
             event.map_nonuser_event().unwrap(),
-            &self.event_loop,
+            self.event_loop,
             control_flow,
         );
     }
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
         for event in self.event_loop.p.receiver.try_iter() {
-            (self.f)(Event::UserEvent(event), &self.event_loop, control_flow);
+            (self.f)(Event::UserEvent(event), self.event_loop, control_flow);
         }
     }
 }
