@@ -182,6 +182,9 @@ pub trait WindowExtUnix {
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
     /// Updates [`Theme`] of window decorations.
+    ///
+    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light"
     #[cfg(feature = "wayland")]
     fn wayland_set_csd_theme(&self, config: Theme);
 
@@ -315,6 +318,9 @@ pub trait WindowBuilderExtUnix {
     fn with_gtk_theme_variant(self, variant: String) -> Self;
 
     /// Build window with certain decoration [`Theme`]
+    ///
+    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light"
     #[cfg(feature = "wayland")]
     fn with_wayland_csd_theme(self, theme: Theme) -> Self;
 

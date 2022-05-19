@@ -42,6 +42,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, fallback CSD was replaced with proper one.
   - `WindowBuilderExtUnix::with_wayland_csd_theme` used to set color theme in builder.
   - `WindowExtUnix::wayland_set_csd_theme` used to change color theme on the fly.
+  - `WINIT_WAYLAND_CSD_THEME` env variable was added, it can be used to set "dark"/"light" theme in apps that don't expose theme setting.
   - `wayland-csd-adwaita` feature that enables proper CSD.
   - `wayland-csd-title` feature that enables title rendering, uses FreeType system library.
 - On Wayland and X11, fix window not resizing with `Window::set_inner_size` after calling `Window:set_resizable(false)`.
