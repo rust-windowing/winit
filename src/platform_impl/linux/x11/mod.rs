@@ -32,7 +32,7 @@ use std::{
     ptr,
     rc::Rc,
     slice,
-    sync::mpsc::{Receiver, Sender, TryRecvError, SyncSender},
+    sync::mpsc::{Receiver, Sender, SyncSender, TryRecvError},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
