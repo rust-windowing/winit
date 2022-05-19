@@ -65,13 +65,13 @@ impl PanicInfo {
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub sender: mpsc::Sender<T>, // this is only here to be cloned elsewhere
+    pub sender: mpsc::SyncSender<T>, // this is only here to be cloned elsewhere
     pub receiver: mpsc::Receiver<T>,
 }
 
 impl<T> Default for EventLoopWindowTarget<T> {
     fn default() -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (sender, receiver) = mpsc::sync_channel(10);
         EventLoopWindowTarget { sender, receiver }
     }
 }
@@ -282,11 +282,17 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
 }
 
 pub struct EventLoopProxy<T> {
-    sender: mpsc::Sender<T>,
+    sender: mpsc::SyncSender<T>,
     source: CFRunLoopSourceRef,
 }
 
 unsafe impl<T: Send> Send for EventLoopProxy<T> {}
+// Looking at the source code for `CFRunLoopSourceSignal` (https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFRunLoop.c#L3418-L3425),
+// it locks the source before doing anything, so I think it should be fine to
+// use from behind a reference.
+//
+// `SyncSender` is already `Sync`, so that's not an issue.
+unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
 
 impl<T> Drop for EventLoopProxy<T> {
     fn drop(&mut self) {
@@ -303,7 +309,7 @@ impl<T> Clone for EventLoopProxy<T> {
 }
 
 impl<T> EventLoopProxy<T> {
-    fn new(sender: mpsc::Sender<T>) -> Self {
+    fn new(sender: mpsc::SyncSender<T>) -> Self {
         unsafe {
             // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}

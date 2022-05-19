@@ -154,7 +154,8 @@ pub struct EventLoopProxy<T> {
 
 unsafe impl<T: Send> Send for EventLoopProxy<T> {}
 // Looking at the source code for `CFRunLoopSourceSignal` (https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFRunLoop.c#L3418-L3425),
-// it locks the source before doing anything, so I think it should be fine to use from behind a reference.
+// it locks the source before doing anything, so I think it should be fine to
+// use from behind a reference.
 //
 // `SyncSender` is already `Sync`, so that's not an issue.
 unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
