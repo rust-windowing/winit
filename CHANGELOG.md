@@ -39,7 +39,7 @@ And please only add new entries to the top of this list, right below the `# Unre
   sent a cancel or frame event.
 - On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
 - **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
-- On Wayland, fallback CSD was replaced with proper one;
+- On Wayland, fallback CSD was replaced with proper one:
   - `WindowBuilderExtUnix::with_wayland_csd_theme` to set color theme in builder.
   - `WindowExtUnix::wayland_set_csd_theme` to set color theme when creating a window.
   - `WINIT_WAYLAND_CSD_THEME` env variable was added, it can be used to set "dark"/"light" theme in apps that don't expose theme setting.

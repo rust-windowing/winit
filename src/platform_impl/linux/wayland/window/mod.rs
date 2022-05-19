@@ -158,12 +158,7 @@ impl Window {
                 }
             });
 
-            let config = match theme {
-                Theme::Light => sctk_adwaita::FrameConfig::light(),
-                Theme::Dark => sctk_adwaita::FrameConfig::dark(),
-            };
-
-            window.set_frame_config(config);
+            window.set_frame_config(theme.into());
         }
 
         // Set decorations.
@@ -575,5 +570,15 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         self.send_request(WindowRequest::Close);
+    }
+}
+
+#[cfg(feature = "sctk-adwaita")]
+impl From<Theme> for sctk_adwaita::FrameConfig {
+    fn from(theme: Theme) -> Self {
+        match theme {
+            Theme::Light => sctk_adwaita::FrameConfig::light(),
+            Theme::Dark => sctk_adwaita::FrameConfig::dark(),
+        }
     }
 }

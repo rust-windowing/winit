@@ -425,11 +425,7 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 }
                 #[cfg(feature = "sctk-adwaita")]
                 WindowRequest::CsdThemeVariant(theme) => {
-                    let config = match theme {
-                        Theme::Light => sctk_adwaita::FrameConfig::light(),
-                        Theme::Dark => sctk_adwaita::FrameConfig::dark(),
-                    };
-                    window_handle.window.set_frame_config(config);
+                    window_handle.window.set_frame_config(theme.into());
 
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
