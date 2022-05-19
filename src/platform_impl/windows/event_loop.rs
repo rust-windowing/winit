@@ -12,7 +12,7 @@ use std::{
     mem, panic, ptr,
     rc::Rc,
     sync::{
-        mpsc::{self, Receiver, Sender},
+        mpsc::{self, Receiver, SyncSender},
         Arc,
     },
     thread,
@@ -150,7 +150,7 @@ impl<T> ThreadMsgTargetData<T> {
 }
 
 pub struct EventLoop<T: 'static> {
-    thread_msg_sender: Sender<T>,
+    thread_msg_sender: SyncSender<T>,
     window_target: RootELW<T>,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
@@ -552,7 +552,7 @@ type ThreadExecFn = Box<Box<dyn FnMut()>>;
 
 pub struct EventLoopProxy<T: 'static> {
     target_window: HWND,
-    event_send: Sender<T>,
+    event_send: SyncSender<T>,
 }
 unsafe impl<T: Send + 'static> Send for EventLoopProxy<T> {}
 
@@ -672,8 +672,8 @@ fn create_event_target_window<T: 'static>() -> HWND {
 fn insert_event_target_window_data<T>(
     thread_msg_target: HWND,
     event_loop_runner: EventLoopRunnerShared<T>,
-) -> Sender<T> {
-    let (tx, rx) = mpsc::channel();
+) -> SyncSender<T> {
+    let (tx, rx) = mpsc::sync_channel(10);
 
     let userdata = ThreadMsgTargetData {
         event_loop_runner,
