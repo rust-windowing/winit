@@ -82,7 +82,7 @@ pub struct EventLoop<T: 'static> {
     pending_user_events: Rc<RefCell<Vec<T>>>,
 
     /// Sender of user events.
-    user_events_sender: calloop::channel::Sender<T>,
+    user_events_sender: calloop::channel::SyncSender<T>,
 
     /// Dispatcher of Wayland events.
     pub wayland_dispatcher: WinitDispatcher,
@@ -139,7 +139,7 @@ impl<T: 'static> EventLoop<T> {
         // A source of user events.
         let pending_user_events = Rc::new(RefCell::new(Vec::new()));
         let pending_user_events_clone = pending_user_events.clone();
-        let (user_events_sender, user_events_channel) = calloop::channel::channel();
+        let (user_events_sender, user_events_channel) = calloop::channel::sync_channel(10);
 
         // User events channel.
         event_loop

@@ -2,13 +2,13 @@
 
 use std::sync::mpsc::SendError;
 
-use sctk::reexports::calloop::channel::Sender;
+use sctk::reexports::calloop::channel::SyncSender;
 
 use crate::event_loop::EventLoopClosed;
 
 /// A handle that can be sent across the threads and used to wake up the `EventLoop`.
 pub struct EventLoopProxy<T: 'static> {
-    user_events_sender: Sender<T>,
+    user_events_sender: SyncSender<T>,
 }
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
@@ -20,7 +20,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    pub fn new(user_events_sender: Sender<T>) -> Self {
+    pub fn new(user_events_sender: SyncSender<T>) -> Self {
         Self { user_events_sender }
     }
 

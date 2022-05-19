@@ -32,7 +32,7 @@ use std::{
     ptr,
     rc::Rc,
     slice,
-    sync::mpsc::{Receiver, Sender, TryRecvError},
+    sync::mpsc::{Receiver, Sender, TryRecvError, SyncSender},
     sync::{mpsc, Arc, Weak},
     time::{Duration, Instant},
 };
@@ -118,12 +118,12 @@ pub struct EventLoop<T: 'static> {
     event_processor: EventProcessor<T>,
     redraw_receiver: PeekableReceiver<WindowId>,
     user_receiver: PeekableReceiver<T>, //waker.wake needs to be called whenever something gets sent
-    user_sender: Sender<T>,
+    user_sender: SyncSender<T>,
     target: Rc<RootELW<T>>,
 }
 
 pub struct EventLoopProxy<T: 'static> {
-    user_sender: Sender<T>,
+    user_sender: SyncSender<T>,
     waker: Arc<Waker>,
 }
 
@@ -230,7 +230,7 @@ impl<T: 'static> EventLoop<T> {
             .register(&mut SourceFd(&xconn.x11_fd), X_TOKEN, Interest::READABLE)
             .unwrap();
 
-        let (user_sender, user_channel) = std::sync::mpsc::channel();
+        let (user_sender, user_channel) = std::sync::mpsc::sync_channel(10);
         let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
 
         let window_target = EventLoopWindowTarget {
