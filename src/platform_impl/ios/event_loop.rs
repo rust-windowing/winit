@@ -4,7 +4,7 @@ use std::{
     fmt::{self, Debug},
     marker::PhantomData,
     mem, ptr,
-    sync::mpsc::{self, Receiver, Sender},
+    sync::mpsc::{self, Receiver, SyncSender},
 };
 
 use crate::{
@@ -48,7 +48,7 @@ pub enum EventProxy {
 
 pub struct EventLoopWindowTarget<T: 'static> {
     receiver: Receiver<T>,
-    sender_to_clone: Sender<T>,
+    sender_to_clone: SyncSender<T>,
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
@@ -86,7 +86,7 @@ impl<T: 'static> EventLoop<T> {
             view::create_delegate_class();
         }
 
-        let (sender_to_clone, receiver) = mpsc::channel();
+        let (sender_to_clone, receiver) = mpsc::sync_channel(10);
 
         // this line sets up the main run loop before `UIApplicationMain`
         setup_control_flow_observers();
@@ -148,11 +148,16 @@ impl<T: 'static> EventLoop<T> {
 }
 
 pub struct EventLoopProxy<T> {
-    sender: Sender<T>,
+    sender: SyncSender<T>,
     source: CFRunLoopSourceRef,
 }
 
 unsafe impl<T: Send> Send for EventLoopProxy<T> {}
+// Looking at the source code for `CFRunLoopSourceSignal` (https://github.com/opensource-apple/CF/blob/3cc41a76b1491f50813e28a4ec09954ffa359e6f/CFRunLoop.c#L3418-L3425),
+// it locks the source before doing anything, so I think it should be fine to use from behind a reference.
+//
+// `SyncSender` is already `Sync`, so that's not an issue.
+unsafe impl<T: Send> Sync for EventLoopProxy<T> {}
 
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> EventLoopProxy<T> {
@@ -170,7 +175,7 @@ impl<T> Drop for EventLoopProxy<T> {
 }
 
 impl<T> EventLoopProxy<T> {
-    fn new(sender: Sender<T>) -> EventLoopProxy<T> {
+    fn new(sender: SyncSender<T>) -> EventLoopProxy<T> {
         unsafe {
             // just wake up the eventloop
             extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}
