@@ -33,6 +33,7 @@ pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
 #[cfg(not(feature = "sctk-adwaita"))]
 pub type WinitFrame = sctk::window::FallbackFrame;
 
+#[cfg(feature = "sctk-adwaita")]
 const WAYLAND_CSD_THEME_ENV_VAR: &str = "WINIT_WAYLAND_CSD_THEME";
 
 pub struct Window {
@@ -148,24 +149,21 @@ impl Window {
 
         // Set CSD frame config
         #[cfg(feature = "sctk-adwaita")]
-        if let Some(theme) = platform_attributes.csd_theme {
+        {
+            let theme = platform_attributes.csd_theme.unwrap_or_else(|| {
+                let env = std::env::var(WAYLAND_CSD_THEME_ENV_VAR).unwrap_or_default();
+                match env.to_lowercase().as_str() {
+                    "dark" => Theme::Dark,
+                    _ => Theme::Light,
+                }
+            });
+
             let config = match theme {
                 Theme::Light => sctk_adwaita::FrameConfig::light(),
                 Theme::Dark => sctk_adwaita::FrameConfig::dark(),
             };
+
             window.set_frame_config(config);
-        } else {
-            if let Ok(env) = std::env::var(WAYLAND_CSD_THEME_ENV_VAR) {
-                match env.to_lowercase().as_str() {
-                    "dark" => {
-                        window.set_frame_config(sctk_adwaita::FrameConfig::dark());
-                    }
-                    "light" => {
-                        window.set_frame_config(sctk_adwaita::FrameConfig::light());
-                    }
-                    _ => {}
-                }
-            }
         }
 
         // Set decorations.

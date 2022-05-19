@@ -21,8 +21,8 @@ default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 x11 = ["x11-dl", "mio", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "wayland-protocols", "sctk"]
 wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
-wayland-csd-adwaita = ["sctk-adwaita"]
-wayland-csd-title = ["sctk-adwaita/title"]
+wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/title"]
+wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
