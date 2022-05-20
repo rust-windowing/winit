@@ -32,6 +32,9 @@ pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
 
+#[cfg(feature = "wayland")]
+pub use crate::window::Theme;
+
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
     /// True if the `EventLoopWindowTarget` uses Wayland.
@@ -70,7 +73,6 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[doc(hidden)]
     #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.p {
@@ -179,6 +181,13 @@ pub trait WindowExtUnix {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
+    /// Updates [`Theme`] of window decorations.
+    ///
+    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light"
+    #[cfg(feature = "wayland")]
+    fn wayland_set_csd_theme(&self, config: Theme);
+
     /// Check if the window is ready for drawing
     ///
     /// It is a remnant of a previous implementation detail for the
@@ -221,7 +230,6 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
-    #[doc(hidden)]
     #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
@@ -262,6 +270,16 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
+    fn wayland_set_csd_theme(&self, theme: Theme) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_csd_theme(theme),
+            #[cfg(feature = "x11")]
+            _ => {}
+        }
+    }
+
+    #[inline]
     fn is_ready(&self) -> bool {
         true
     }
@@ -298,6 +316,13 @@ pub trait WindowBuilderExtUnix {
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(self, variant: String) -> Self;
+
+    /// Build window with certain decoration [`Theme`]
+    ///
+    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light"
+    #[cfg(feature = "wayland")]
+    fn with_wayland_csd_theme(self, theme: Theme) -> Self;
 
     /// Build window with resize increment hint. Only implemented on X11.
     ///
@@ -372,6 +397,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(mut self, variant: String) -> Self {
         self.platform_specific.gtk_theme_variant = Some(variant);
+        self
+    }
+
+    #[inline]
+    #[cfg(feature = "wayland")]
+    fn with_wayland_csd_theme(mut self, theme: Theme) -> Self {
+        self.platform_specific.csd_theme = Some(theme);
         self
     }
 

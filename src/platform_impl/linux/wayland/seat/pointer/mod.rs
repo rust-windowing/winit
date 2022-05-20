@@ -13,10 +13,11 @@ use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_p
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
 
 use sctk::seat::pointer::{ThemeManager, ThemedPointer};
-use sctk::window::{FallbackFrame, Window};
+use sctk::window::Window;
 
 use crate::event::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;
+use crate::platform_impl::wayland::window::WinitFrame;
 use crate::window::CursorIcon;
 
 mod data;
@@ -156,7 +157,7 @@ impl WinitPointer {
         }
     }
 
-    pub fn drag_window(&self, window: &Window<FallbackFrame>) {
+    pub fn drag_window(&self, window: &Window<WinitFrame>) {
         // WlPointer::setart_interactive_move() expects the last serial of *any*
         // pointer event (compare to set_cursor()).
         window.start_interactive_move(&self.seat, self.latest_serial.get());
