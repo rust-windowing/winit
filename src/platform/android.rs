@@ -13,7 +13,9 @@ pub trait EventLoopExtAndroid {}
 impl<T> EventLoopExtAndroid for EventLoop<T> {}
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Android.
-pub trait EventLoopWindowTargetExtAndroid {}
+pub trait EventLoopWindowTargetExtAndroid {
+    fn set_suspend_callback(&self, _cb: Option<Box<dyn Fn(bool) -> ()>>) {}
+}
 
 /// Additional methods on `Window` that are specific to Android.
 pub trait WindowExtAndroid {
