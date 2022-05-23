@@ -20,7 +20,7 @@ use objc::{
 };
 
 use crate::{
-    dpi::LogicalPosition,
+    dpi::{LogicalPosition, LogicalSize},
     event::{
         DeviceEvent, ElementState, Event, Ime, KeyboardInput, ModifiersState, MouseButton,
         MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
@@ -400,8 +400,17 @@ extern "C" fn frame_did_change(this: &Object, _sel: Sel, _event: id) {
             userData:ptr::null_mut::<c_void>()
             assumeInside:NO
         ];
-
         state.tracking_rect = Some(tracking_rect);
+
+        // Emit resize event here rather than from windowDidResize because:
+        // 1. When a new window is created as a tab, the frame size may change without a window resize occurring.
+        // 2. Even when a window resize does occur on a new tabbed window, it contains the wrong size (includes tab height).
+        let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
+        let size = logical_size.to_physical::<u32>(state.get_scale_factor());
+        AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::Resized(size),
+        }));
     }
 }
 
