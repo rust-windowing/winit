@@ -8,7 +8,7 @@ use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activat
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_v1::XdgActivationV1;
 
 use sctk::environment::Environment;
-use sctk::window::{Decorations, FallbackFrame, Window};
+use sctk::window::{Decorations, Window};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
@@ -19,7 +19,9 @@ use crate::platform_impl::wayland::event_loop::{EventSink, WinitState};
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
-use crate::window::{CursorIcon, UserAttentionType};
+use crate::window::{CursorIcon, Theme, UserAttentionType};
+
+use super::WinitFrame;
 
 /// A request to SCTK window from Winit window.
 #[derive(Debug, Clone)]
@@ -52,6 +54,9 @@ pub enum WindowRequest {
 
     /// Request decorations change.
     Decorate(bool),
+
+    /// Request decorations change.
+    CsdThemeVariant(Theme),
 
     /// Make the window resizeable.
     Resizeable(bool),
@@ -146,7 +151,7 @@ impl WindowUpdate {
 /// and react to events.
 pub struct WindowHandle {
     /// An actual window.
-    pub window: Window<FallbackFrame>,
+    pub window: Window<WinitFrame>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -188,7 +193,7 @@ pub struct WindowHandle {
 impl WindowHandle {
     pub fn new(
         env: &Environment<WinitEnv>,
-        window: Window<FallbackFrame>,
+        window: Window<WinitFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
@@ -450,6 +455,15 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
+                #[cfg(feature = "sctk-adwaita")]
+                WindowRequest::CsdThemeVariant(theme) => {
+                    window_handle.window.set_frame_config(theme.into());
+
+                    let window_update = window_updates.get_mut(window_id).unwrap();
+                    window_update.refresh_frame = true;
+                }
+                #[cfg(not(feature = "sctk-adwaita"))]
+                WindowRequest::CsdThemeVariant(_) => {}
                 WindowRequest::Resizeable(resizeable) => {
                     window_handle.window.set_resizable(resizeable);
 

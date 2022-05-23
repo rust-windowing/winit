@@ -8,7 +8,7 @@ use sctk::reexports::client::Display;
 use sctk::reexports::calloop;
 
 use raw_window_handle::WaylandHandle;
-use sctk::window::{Decorations, FallbackFrame};
+use sctk::window::Decorations;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -17,7 +17,7 @@ use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes};
+use crate::window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -27,6 +27,14 @@ use super::{EventLoopWindowTarget, WindowId};
 pub mod shim;
 
 use shim::{WindowHandle, WindowRequest, WindowUpdate};
+
+#[cfg(feature = "sctk-adwaita")]
+pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
+#[cfg(not(feature = "sctk-adwaita"))]
+pub type WinitFrame = sctk::window::FallbackFrame;
+
+#[cfg(feature = "sctk-adwaita")]
+const WAYLAND_CSD_THEME_ENV_VAR: &str = "WINIT_WAYLAND_CSD_THEME";
 
 pub struct Window {
     /// Window id.
@@ -105,7 +113,7 @@ impl Window {
         let theme_manager = event_loop_window_target.theme_manager.clone();
         let mut window = event_loop_window_target
             .env
-            .create_window::<FallbackFrame, _>(
+            .create_window::<WinitFrame, _>(
                 surface.clone(),
                 Some(theme_manager),
                 (width, height),
@@ -138,6 +146,20 @@ impl Window {
                 },
             )
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
+
+        // Set CSD frame config
+        #[cfg(feature = "sctk-adwaita")]
+        {
+            let theme = platform_attributes.csd_theme.unwrap_or_else(|| {
+                let env = std::env::var(WAYLAND_CSD_THEME_ENV_VAR).unwrap_or_default();
+                match env.to_lowercase().as_str() {
+                    "dark" => Theme::Dark,
+                    _ => Theme::Light,
+                }
+            });
+
+            window.set_frame_config(theme.into());
+        }
 
         // Set decorations.
         if attributes.decorations {
@@ -381,6 +403,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_csd_theme(&self, theme: Theme) {
+        self.send_request(WindowRequest::CsdThemeVariant(theme));
+    }
+
+    #[inline]
     pub fn set_minimized(&self, minimized: bool) {
         // You can't unminimize the window on Wayland.
         if !minimized {
@@ -548,5 +575,15 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         self.send_request(WindowRequest::Close);
+    }
+}
+
+#[cfg(feature = "sctk-adwaita")]
+impl From<Theme> for sctk_adwaita::FrameConfig {
+    fn from(theme: Theme) -> Self {
+        match theme {
+            Theme::Light => sctk_adwaita::FrameConfig::light(),
+            Theme::Dark => sctk_adwaita::FrameConfig::dark(),
+        }
     }
 }
