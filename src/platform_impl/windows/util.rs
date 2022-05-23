@@ -12,11 +12,11 @@ use std::{
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HWND, RECT, HINSTANCE},
+        Foundation::{BOOL, HINSTANCE, HWND, RECT},
         Graphics::Gdi::{ClientToScreen, InvalidateRgn, HMONITOR},
         System::{
             LibraryLoader::{GetProcAddress, LoadLibraryA},
-            SystemServices::IMAGE_DOS_HEADER
+            SystemServices::IMAGE_DOS_HEADER,
         },
         UI::{
             HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
