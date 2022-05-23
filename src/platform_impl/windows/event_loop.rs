@@ -27,10 +27,7 @@ use windows_sys::Win32::{
         RDW_INTERNALPAINT, SC_SCREENSAVE,
     },
     Media::{timeBeginPeriod, timeEndPeriod, timeGetDevCaps, TIMECAPS, TIMERR_NOERROR},
-    System::{
-        LibraryLoader::GetModuleHandleW, Ole::RevokeDragDrop, Threading::GetCurrentThreadId,
-        WindowsProgramming::INFINITE,
-    },
+    System::{Ole::RevokeDragDrop, Threading::GetCurrentThreadId, WindowsProgramming::INFINITE},
     UI::{
         Controls::{HOVER_DEFAULT, WM_MOUSELEAVE},
         Input::{
@@ -647,7 +644,7 @@ fn create_event_target_window<T: 'static>() -> HWND {
             lpfnWndProc: Some(thread_event_target_callback::<T>),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: GetModuleHandleW(ptr::null()),
+            hInstance: util::get_instance_handle(),
             hIcon: 0,
             hCursor: 0, // must be null in order for cursor state to work properly
             hbrBackground: 0,
@@ -681,7 +678,7 @@ fn create_event_target_window<T: 'static>() -> HWND {
             0,
             0,
             0,
-            GetModuleHandleW(ptr::null()),
+            util::get_instance_handle(),
             ptr::null(),
         );
 
