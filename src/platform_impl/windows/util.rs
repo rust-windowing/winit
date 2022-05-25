@@ -220,7 +220,7 @@ pub fn get_instance_handle() -> HINSTANCE {
         static __ImageBase: IMAGE_DOS_HEADER;
     }
 
-    unsafe { &__ImageBase as *const IMAGE_DOS_HEADER as _ }
+    unsafe { &__ImageBase as *const _ as _ }
 }
 
 impl CursorIcon {
