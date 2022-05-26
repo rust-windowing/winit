@@ -182,7 +182,7 @@ fn touch_physical_position(
     event: &PointerEvent,
     canvas: &HtmlCanvasElement,
 ) -> PhysicalPosition<f64> {
-    // calculate the scale factor everytime because we can resize the actual canvas on html.
+    // Calculate the scale factor every time, since it's possible for the canvas's width and height attributes to get out of sync with its actual HTML size.
     let dpi_width = canvas.width() as f64 / canvas.offset_width() as f64;
     let dpi_height = canvas.height() as f64 / canvas.offset_height() as f64;
     PhysicalPosition {
