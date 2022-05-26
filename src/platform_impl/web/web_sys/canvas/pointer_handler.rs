@@ -115,88 +115,36 @@ impl PointerHandler {
         ));
     }
 
-    pub fn on_touch_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    pub fn on_touch_move<F>(&mut self, canvas_common: &super::Common, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        let canvas = canvas_common.raw.clone();
-        self.on_touch_move = Some(canvas_common.add_event(
-            "pointermove",
-            move |event: PointerEvent| {
-                if event.pointer_type() != "touch" {
-                    return;
-                }
-
-                handler(
-                    event.pointer_id(),
-                    touch_physical_position(&event, &canvas),
-                    Force::Normalized(event.pressure() as f64),
-                );
-            },
-        ));
+        self.on_touch_move =
+            Some(canvas_common.add_event("pointermove", touch_handler(handler, canvas_common)));
     }
 
-    pub fn on_touch_down<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    pub fn on_touch_down<F>(&mut self, canvas_common: &super::Common, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        let canvas = canvas_common.raw.clone();
-        self.on_touch_down = Some(canvas_common.add_event(
-            "pointerdown",
-            move |event: PointerEvent| {
-                if event.pointer_type() != "touch" {
-                    return;
-                }
-
-                handler(
-                    event.pointer_id(),
-                    touch_physical_position(&event, &canvas),
-                    Force::Normalized(event.pressure() as f64),
-                );
-            },
-        ));
+        self.on_touch_down =
+            Some(canvas_common.add_event("pointerdown", touch_handler(handler, canvas_common)));
     }
 
-    pub fn on_touch_up<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    pub fn on_touch_up<F>(&mut self, canvas_common: &super::Common, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        let canvas = canvas_common.raw.clone();
-        self.on_touch_up = Some(canvas_common.add_event(
-            "pointerup",
-            move |event: PointerEvent| {
-                if event.pointer_type() != "touch" {
-                    return;
-                }
-
-                handler(
-                    event.pointer_id(),
-                    touch_physical_position(&event, &canvas),
-                    Force::Normalized(event.pressure() as f64),
-                );
-            },
-        ));
+        self.on_touch_up =
+            Some(canvas_common.add_event("pointerup", touch_handler(handler, canvas_common)));
     }
 
-    pub fn on_touch_cancel<F>(&mut self, canvas_common: &super::Common, mut handler: F)
+    pub fn on_touch_cancel<F>(&mut self, canvas_common: &super::Common, handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        let canvas = canvas_common.raw.clone();
-        self.on_touch_cancel = Some(canvas_common.add_event(
-            "pointercancel",
-            move |event: PointerEvent| {
-                if event.pointer_type() != "touch" {
-                    return;
-                }
-
-                handler(
-                    event.pointer_id(),
-                    touch_physical_position(&event, &canvas),
-                    Force::Normalized(event.pressure() as f64),
-                );
-            },
-        ));
+        self.on_touch_cancel =
+            Some(canvas_common.add_event("pointercancel", touch_handler(handler, canvas_common)));
     }
 
     pub fn remove_listeners(&mut self) {
@@ -209,6 +157,24 @@ impl PointerHandler {
         self.on_touch_down = None;
         self.on_touch_up = None;
         self.on_touch_cancel = None;
+    }
+}
+
+fn touch_handler<F>(mut handler: F, canvas_common: &super::Common) -> impl FnMut(PointerEvent)
+where
+    F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
+{
+    let canvas = canvas_common.raw.clone();
+    move |event: PointerEvent| {
+        if event.pointer_type() != "touch" {
+            return;
+        }
+
+        handler(
+            event.pointer_id(),
+            touch_physical_position(&event, &canvas),
+            Force::Normalized(event.pressure() as f64),
+        );
     }
 }
 
