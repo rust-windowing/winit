@@ -84,14 +84,14 @@ impl<T> EventLoopBuilder<T> {
     /// in the relevant `platform` module if the target platform supports creating an event loop on
     /// any thread.
     ///
-    /// Usage will result in display backend initialisation, this can be controlled on linux
-    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
-    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
-    /// fallback on x11. If this variable is set with any other value, winit will panic.
+    /// Calling this function will result in display backend initialisation.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread.
+    /// - **Linux:** Backend type can be controlled using an environment variable
+    ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
+    ///   If it is not set, winit will try to connect to a Wayland connection, and if that fails,
+    ///   will fall back on X11. If this variable is set with any other value, winit will panic.
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
         EventLoop {
