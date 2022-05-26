@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On Web, add support touch events.
+- On Web, add support for touch events.
 - On Wayland, fix bug where the cursor wouldn't hide in GNOME.
 - On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
 - On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
