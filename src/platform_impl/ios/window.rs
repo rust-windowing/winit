@@ -60,6 +60,11 @@ impl Inner {
         }
     }
 
+    pub fn is_visible(&self) -> Option<bool> {
+        warn!("`Window::is_visible` is ignored on iOS");
+        None
+    }
+
     pub fn request_redraw(&self) {
         unsafe {
             if self.gl_or_metal_backed {
@@ -159,6 +164,11 @@ impl Inner {
         warn!("`Window::set_resizable` is ignored on iOS")
     }
 
+    pub fn is_resizable(&self) -> bool {
+        warn!("`Window::is_resizable` is ignored on iOS");
+        false
+    }
+
     pub fn scale_factor(&self) -> f64 {
         unsafe {
             let hidpi: CGFloat = msg_send![self.view, contentScaleFactor];
@@ -183,6 +193,10 @@ impl Inner {
     }
 
     pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -260,6 +274,11 @@ impl Inner {
         warn!("`Window::set_decorations` is ignored on iOS")
     }
 
+    pub fn is_decorated(&self) -> bool {
+        warn!("`Window::is_decorated` is ignored on iOS");
+        true
+    }
+
     pub fn set_always_on_top(&self, _always_on_top: bool) {
         warn!("`Window::set_always_on_top` is ignored on iOS")
     }
@@ -270,6 +289,10 @@ impl Inner {
 
     pub fn set_ime_position(&self, _position: Position) {
         warn!("`Window::set_ime_position` is ignored on iOS")
+    }
+
+    pub fn set_ime_allowed(&self, _allowed: bool) {
+        warn!("`Window::set_ime_allowed` is ignored on iOS")
     }
 
     pub fn focus_window(&self) {

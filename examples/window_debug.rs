@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::{Fullscreen, WindowBuilder},
 };
 
@@ -31,7 +31,7 @@ fn main() {
     let mut visible = true;
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::DeviceEvent {
@@ -101,7 +101,7 @@ fn main() {
                         window.set_minimized(minimized);
                     }
                     VirtualKeyCode::Q => {
-                        *control_flow = ControlFlow::Exit;
+                        control_flow.set_exit();
                     }
                     VirtualKeyCode::V => {
                         visible = !visible;
@@ -118,7 +118,7 @@ fn main() {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            } if window_id == window.id() => control_flow.set_exit(),
             _ => (),
         }
     });

@@ -42,6 +42,7 @@ jobs:
     env:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
+      PKG_CONFIG_ALLOW_CROSS: 1
       RUSTFLAGS: "-C debuginfo=0 --deny warnings"
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
@@ -62,9 +63,12 @@ jobs:
         rust-version: ${{ matrix.rust_version }}${{ matrix.platform.host }}
         targets: ${{ matrix.platform.target }}
 
+    - name: Install Linux dependencies
+      if: (matrix.platform.os == 'ubuntu-latest')
+      run: sudo apt-get update && sudo apt-get install pkg-config cmake libfreetype6-dev libfontconfig1-dev
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
-      run: sudo apt-get update && sudo apt-get install gcc-multilib
+      run: sudo dpkg --add-architecture i386 && sudo apt-get update && sudo apt-get install g++-multilib gcc-multilib libfreetype6-dev:i386 libfontconfig1-dev:i386
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android')
       run: cargo install cargo-apk

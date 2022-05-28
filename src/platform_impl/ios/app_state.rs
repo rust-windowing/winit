@@ -811,9 +811,7 @@ pub unsafe fn handle_main_events_cleared() {
         })
         .collect();
 
-    if !redraw_events.is_empty() {
-        redraw_events.push(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
-    }
+    redraw_events.push(EventWrapper::StaticEvent(Event::RedrawEventsCleared));
     drop(this);
 
     handle_nonuser_events(redraw_events);
