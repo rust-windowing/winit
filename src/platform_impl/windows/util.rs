@@ -12,9 +12,12 @@ use std::{
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HWND, RECT},
+        Foundation::{BOOL, HINSTANCE, HWND, RECT},
         Graphics::Gdi::{ClientToScreen, InvalidateRgn, HMONITOR},
-        System::LibraryLoader::{GetProcAddress, LoadLibraryA},
+        System::{
+            LibraryLoader::{GetProcAddress, LoadLibraryA},
+            SystemServices::IMAGE_DOS_HEADER,
+        },
         UI::{
             HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
             Input::KeyboardAndMouse::GetActiveWindow,
@@ -203,6 +206,21 @@ pub fn get_desktop_rect() -> RECT {
 
 pub fn is_focused(window: HWND) -> bool {
     window == unsafe { GetActiveWindow() }
+}
+
+pub fn get_instance_handle() -> HINSTANCE {
+    // Gets the instance handle by taking the address of the
+    // pseudo-variable created by the microsoft linker:
+    // https://devblogs.microsoft.com/oldnewthing/20041025-00/?p=37483
+
+    // This is preferred over GetModuleHandle(NULL) because it also works in DLLs:
+    // https://stackoverflow.com/questions/21718027/getmodulehandlenull-vs-hinstance
+
+    extern "C" {
+        static __ImageBase: IMAGE_DOS_HEADER;
+    }
+
+    unsafe { &__ImageBase as *const _ as _ }
 }
 
 impl CursorIcon {
