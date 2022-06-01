@@ -106,13 +106,13 @@ const fn get_xbutton_wparam(x: u32) -> u16 {
 }
 
 #[inline(always)]
-const fn get_x_lparam(x: u32) -> u16 {
-    loword(x)
+const fn get_x_lparam(x: u32) -> i16 {
+    loword(x) as _
 }
 
 #[inline(always)]
-const fn get_y_lparam(x: u32) -> u16 {
-    hiword(x)
+const fn get_y_lparam(x: u32) -> i16 {
+    hiword(x) as _
 }
 
 #[inline(always)]
