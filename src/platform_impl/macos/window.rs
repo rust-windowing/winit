@@ -1,15 +1,3 @@
-use raw_window_handle::{AppKitHandle, RawWindowHandle};
-use std::{
-    collections::VecDeque,
-    convert::TryInto,
-    f64, ops,
-    os::raw::c_void,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard, Weak,
-    },
-};
-
 use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
@@ -46,6 +34,18 @@ use objc::{
     declare::ClassDecl,
     rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
+};
+use once_cell::sync::Lazy;
+use raw_window_handle::{AppKitHandle, RawWindowHandle};
+use std::{
+    collections::VecDeque,
+    convert::TryInto,
+    f64, ops,
+    os::raw::c_void,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, MutexGuard, Weak,
+    },
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -247,32 +247,30 @@ struct WindowClass(*const Class);
 unsafe impl Send for WindowClass {}
 unsafe impl Sync for WindowClass {}
 
-lazy_static! {
-    static ref WINDOW_CLASS: WindowClass = unsafe {
-        let window_superclass = class!(NSWindow);
-        let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
+static WINDOW_CLASS: Lazy<WindowClass> = Lazy::new(|| unsafe {
+    let window_superclass = class!(NSWindow);
+    let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
 
-        pub extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
-            trace_scope!("canBecomeMainWindow");
-            YES
-        }
+    pub extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
+        trace_scope!("canBecomeMainWindow");
+        YES
+    }
 
-        pub extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
-            trace_scope!("canBecomeKeyWindow");
-            YES
-        }
+    pub extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
+        trace_scope!("canBecomeKeyWindow");
+        YES
+    }
 
-        decl.add_method(
-            sel!(canBecomeMainWindow),
-            can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        decl.add_method(
-            sel!(canBecomeKeyWindow),
-            can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        WindowClass(decl.register())
-    };
-}
+    decl.add_method(
+        sel!(canBecomeMainWindow),
+        can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
+    );
+    decl.add_method(
+        sel!(canBecomeKeyWindow),
+        can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
+    );
+    WindowClass(decl.register())
+});
 
 #[derive(Default)]
 pub struct SharedState {

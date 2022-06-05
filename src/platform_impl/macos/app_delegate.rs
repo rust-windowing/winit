@@ -5,6 +5,7 @@ use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel},
 };
+use once_cell::sync::Lazy;
 use std::{
     cell::{RefCell, RefMut},
     os::raw::c_void,
@@ -21,23 +22,21 @@ pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
 unsafe impl Sync for AppDelegateClass {}
 
-lazy_static! {
-    pub static ref APP_DELEGATE_CLASS: AppDelegateClass = unsafe {
-        let superclass = class!(NSResponder);
-        let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
+pub static APP_DELEGATE_CLASS: Lazy<AppDelegateClass> = Lazy::new(|| unsafe {
+    let superclass = class!(NSResponder);
+    let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
 
-        decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
-        decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
+    decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
+    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
 
-        decl.add_method(
-            sel!(applicationDidFinishLaunching:),
-            did_finish_launching as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
+    decl.add_method(
+        sel!(applicationDidFinishLaunching:),
+        did_finish_launching as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
 
-        AppDelegateClass(decl.register())
-    };
-}
+    AppDelegateClass(decl.register())
+});
 
 /// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
 pub unsafe fn get_aux_state_mut(this: &Object) -> RefMut<'_, AuxDelegateState> {

@@ -12,16 +12,6 @@ use std::{
     time::Instant,
 };
 
-use cocoa::{
-    appkit::{NSApp, NSApplication, NSWindow},
-    base::{id, nil},
-    foundation::NSSize,
-};
-use objc::{
-    rc::autoreleasepool,
-    runtime::{Object, BOOL, NO, YES},
-};
-
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
@@ -40,10 +30,18 @@ use crate::{
     },
     window::WindowId,
 };
+use cocoa::{
+    appkit::{NSApp, NSApplication, NSWindow},
+    base::{id, nil},
+    foundation::NSSize,
+};
+use objc::{
+    rc::autoreleasepool,
+    runtime::{Object, BOOL, NO, YES},
+};
+use once_cell::sync::Lazy;
 
-lazy_static! {
-    static ref HANDLER: Handler = Default::default();
-}
+static HANDLER: Lazy<Handler> = Lazy::new(Default::default);
 
 impl<'a, Never> Event<'a, Never> {
     fn userify<T: 'static>(self) -> Event<'a, T> {
