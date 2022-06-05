@@ -74,6 +74,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub background_color: Option<(u8, u8, u8, u8)>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -89,6 +90,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
+            background_color: None,
         }
     }
 }
@@ -238,6 +240,18 @@ fn create_window(
             if attrs.position.is_none() {
                 ns_window.center();
             }
+
+            if let Some((r, g, b, a)) = pl_attrs.background_color {
+                let color = NSColor::colorWithSRGBRed_green_blue_alpha_(
+                    nil,
+                    r as f64 / 255f64,
+                    g as f64 / 255f64,
+                    b as f64 / 255f64,
+                    a as f64 / 255f64,
+                );
+                ns_window.setBackgroundColor_(color);
+            }
+
             ns_window
         })
     })
@@ -1240,6 +1254,20 @@ impl WindowExtMacOS for UnownedWindow {
             self.ns_window
                 .setHasShadow_(if has_shadow { YES } else { NO })
         }
+    }
+
+    #[inline]
+    fn set_background_color(&self, red: u8, green: u8, blue: u8, alpha: u8) {
+        autoreleasepool(|| unsafe {
+            let ns_background = NSColor::colorWithSRGBRed_green_blue_alpha_(
+                nil,
+                red as f64 / 255f64,
+                green as f64 / 255f64,
+                blue as f64 / 255f64,
+                alpha as f64 / 255f64,
+            );
+            self.ns_window.setBackgroundColor_(ns_background);
+        })
     }
 }
 

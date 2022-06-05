@@ -38,6 +38,13 @@ pub trait WindowExtMacOS {
 
     /// Sets whether or not the window has shadow.
     fn set_has_shadow(&self, has_shadow: bool);
+
+    /// Sets the background color of the window and the title bar
+    /// using sRGB colors.
+    ///
+    /// If the title bar is not transparent,
+    /// it will appear darker than this color.
+    fn set_background_color(&self, red: u8, green: u8, blue: u8, alpha: u8);
 }
 
 impl WindowExtMacOS for Window {
@@ -69,6 +76,11 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_has_shadow(&self, has_shadow: bool) {
         self.window.set_has_shadow(has_shadow)
+    }
+
+    #[inline]
+    fn set_background_color(&self, red: u8, green: u8, blue: u8, alpha: u8) {
+        self.window.set_background_color(red, green, blue, alpha)
     }
 }
 
@@ -117,6 +129,12 @@ pub trait WindowBuilderExtMacOS {
     fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    /// Sets the background color of the window and the title bar,
+    /// using sRGB colors.
+    ///
+    /// If the title bar is not transparent,
+    /// it will appear darker than this color.
+    fn with_background_color(self, red: u8, green: u8, blue: u8, alpha: u8) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -174,6 +192,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
+        self
+    }
+
+    #[inline]
+    fn with_background_color(mut self, red: u8, green: u8, blue: u8, alpha: u8) -> WindowBuilder {
+        self.platform_specific.background_color = Some((red, green, blue, alpha));
         self
     }
 }
