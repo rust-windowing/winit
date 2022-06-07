@@ -30,7 +30,9 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
+    },
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
@@ -732,7 +734,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
-        x11_or_wayland!(match self; EventLoop(evl) => evl.window_target())
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
     }
 }
 
@@ -791,6 +793,16 @@ impl<T> EventLoopWindowTarget<T> {
                     inner: primary_monitor,
                 })
             }
+        }
+    }
+
+    #[inline]
+    pub fn set_device_event_filter(&mut self, _filter: DeviceEventFilter) {
+        match *self {
+            #[cfg(feature = "wayland")]
+            EventLoopWindowTarget::Wayland(_) => (),
+            #[cfg(feature = "x11")]
+            EventLoopWindowTarget::X(ref mut evlp) => evlp.set_device_event_filter(_filter),
         }
     }
 }
