@@ -60,7 +60,7 @@ impl XConnection {
         let root_window_wm_check = {
             let result = self.get_property(root, check_atom, ffi::XA_WINDOW);
 
-            let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
+            let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
             wm_check?
         };
@@ -70,7 +70,7 @@ impl XConnection {
         let child_window_wm_check = {
             let result = self.get_property(root_window_wm_check, check_atom, ffi::XA_WINDOW);
 
-            let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
+            let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
             wm_check?
         };

@@ -84,11 +84,9 @@ impl ViewState {
     fn get_scale_factor(&self) -> f64 {
         (unsafe { NSWindow::backingScaleFactor(self.ns_window) }) as f64
     }
+
     fn is_ime_enabled(&self) -> bool {
-        match self.ime_state {
-            ImeState::Disabled => false,
-            _ => true,
-        }
+        !matches!(self.ime_state, ImeState::Disabled)
     }
 }
 
@@ -422,7 +420,7 @@ extern "C" fn draw_rect(this: &Object, _sel: Sel, rect: NSRect) {
         AppState::handle_redraw(WindowId(get_window_id(state.ns_window)));
 
         let superclass = util::superclass(this);
-        let () = msg_send![super(this, superclass), drawRect: rect];
+        let _: () = msg_send![super(this, superclass), drawRect: rect];
     }
 }
 
@@ -648,11 +646,9 @@ extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, _command: Sel) {
         state.forward_key_to_app = true;
 
         let has_marked_text: BOOL = msg_send![this, hasMarkedText];
-        if has_marked_text == NO {
-            if state.ime_state == ImeState::Preedit {
-                // Leave preedit so that we also report the keyup for this key
-                state.ime_state = ImeState::Enabled;
-            }
+        if has_marked_text == NO && state.ime_state == ImeState::Preedit {
+            // Leave preedit so that we also report the keyup for this key
+            state.ime_state = ImeState::Enabled;
         }
     }
 }
@@ -900,7 +896,7 @@ extern "C" fn insert_tab(this: &Object, _sel: Sel, _sender: id) {
         let first_responder: id = msg_send![window, firstResponder];
         let this_ptr = this as *const _ as *mut _;
         if first_responder == this_ptr {
-            let (): _ = msg_send![window, selectNextKeyView: this];
+            let _: () = msg_send![window, selectNextKeyView: this];
         }
     }
 }
@@ -912,7 +908,7 @@ extern "C" fn insert_back_tab(this: &Object, _sel: Sel, _sender: id) {
         let first_responder: id = msg_send![window, firstResponder];
         let this_ptr = this as *const _ as *mut _;
         if first_responder == this_ptr {
-            let (): _ = msg_send![window, selectPreviousKeyView: this];
+            let _: () = msg_send![window, selectPreviousKeyView: this];
         }
     }
 }

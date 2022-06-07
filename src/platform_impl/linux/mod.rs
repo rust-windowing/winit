@@ -56,7 +56,7 @@ pub mod x11;
 /// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Backend {
     #[cfg(feature = "x11")]
     X,
@@ -64,22 +64,13 @@ pub(crate) enum Backend {
     Wayland,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) forced_backend: Option<Backend>,
     pub(crate) any_thread: bool,
 }
 
-impl Default for PlatformSpecificEventLoopAttributes {
-    fn default() -> Self {
-        Self {
-            forced_backend: None,
-            any_thread: false,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationName {
     pub general: String,
     pub instance: String,

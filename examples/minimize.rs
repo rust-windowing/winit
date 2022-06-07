@@ -1,4 +1,4 @@
-extern crate winit;
+#![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
 use winit::event::{Event, VirtualKeyCode, WindowEvent};

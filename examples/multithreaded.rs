@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};

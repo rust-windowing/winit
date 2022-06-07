@@ -247,7 +247,7 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
         if this != nil {
             (*this).set_ivar("winitState", state);
             with_state(&*this, |state| {
-                let () = msg_send![*state.ns_window, setDelegate: this];
+                let _: () = msg_send![*state.ns_window, setDelegate: this];
             });
         }
         this
@@ -267,7 +267,7 @@ extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
         autoreleasepool(|| {
             // Since El Capitan, we need to be careful that delegate methods can't
             // be called after the window closes.
-            let () = msg_send![*state.ns_window, setDelegate: nil];
+            let _: () = msg_send![*state.ns_window, setDelegate: nil];
         });
         state.emit_event(WindowEvent::Destroyed);
     });
@@ -416,7 +416,8 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
         state.with_window(|window| {
             let mut shared_state = window.lock_shared_state("window_will_enter_fullscreen");
             shared_state.maximized = window.is_zoomed();
-            match shared_state.fullscreen {
+            let fullscreen = shared_state.fullscreen.as_ref();
+            match fullscreen {
                 // Exclusive mode sets the state in `set_fullscreen` as the user
                 // can't enter exclusive mode by other means (like the
                 // fullscreen button on the window decorations)
@@ -541,12 +542,12 @@ extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) 
             shared_state.target_fullscreen = None;
         });
         if state.initial_fullscreen {
-            let _: () = unsafe {
-                msg_send![*state.ns_window,
+            unsafe {
+                let _: () = msg_send![*state.ns_window,
                     performSelector:sel!(toggleFullScreen:)
                     withObject:nil
                     afterDelay: 0.5
-                ]
+                ];
             };
         } else {
             state.with_window(|window| window.restore_state_from_fullscreen());

@@ -8,6 +8,8 @@ use std::rc::Rc;
 
 use web_sys::{EventTarget, MouseEvent};
 
+type MouseLeaveHandler = Rc<RefCell<Option<Box<dyn FnMut(i32)>>>>;
+
 #[allow(dead_code)]
 pub(super) struct MouseHandler {
     on_mouse_leave: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
@@ -15,7 +17,7 @@ pub(super) struct MouseHandler {
     on_mouse_move: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_mouse_press: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
     on_mouse_release: Option<EventListenerHandle<dyn FnMut(MouseEvent)>>,
-    on_mouse_leave_handler: Rc<RefCell<Option<Box<dyn FnMut(i32)>>>>,
+    on_mouse_leave_handler: MouseLeaveHandler,
     mouse_capture_state: Rc<RefCell<MouseCaptureState>>,
 }
 
@@ -175,8 +177,8 @@ impl MouseHandler {
                     .map_or(false, |target| target == EventTarget::from(canvas.clone()));
                 match &*mouse_capture_state {
                     // Don't handle hover events outside of canvas.
-                    MouseCaptureState::NotCaptured if !is_over_canvas => return,
-                    MouseCaptureState::OtherElement if !is_over_canvas => return,
+                    MouseCaptureState::NotCaptured | MouseCaptureState::OtherElement
+                        if !is_over_canvas => {}
                     // If hovering over the canvas, just send the cursor move event.
                     MouseCaptureState::NotCaptured
                     | MouseCaptureState::OtherElement

@@ -78,15 +78,16 @@ impl<T> PeekableReceiver<T> {
         if self.first.is_some() {
             return true;
         }
+
         match self.recv.try_recv() {
             Ok(v) => {
                 self.first = Some(v);
-                return true;
+                true
             }
-            Err(TryRecvError::Empty) => return false,
+            Err(TryRecvError::Empty) => false,
             Err(TryRecvError::Disconnected) => {
                 warn!("Channel was disconnected when checking incoming");
-                return false;
+                false
             }
         }
     }
@@ -416,11 +417,12 @@ impl<T: 'static> EventLoop<T> {
                     deadline = Some(*wait_deadline);
                 }
             }
-            return IterationResult {
+
+            IterationResult {
                 wait_start: start,
                 deadline,
                 timeout,
-            };
+            }
         }
 
         let mut control_flow = ControlFlow::default();
@@ -670,10 +672,7 @@ struct GenericEventCookie<'a> {
 }
 
 impl<'a> GenericEventCookie<'a> {
-    fn from_event<'b>(
-        xconn: &'b XConnection,
-        event: ffi::XEvent,
-    ) -> Option<GenericEventCookie<'b>> {
+    fn from_event(xconn: &XConnection, event: ffi::XEvent) -> Option<GenericEventCookie<'_>> {
         unsafe {
             let mut cookie: ffi::XGenericEventCookie = From::from(event);
             if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {

@@ -16,7 +16,7 @@ pub struct EventLoop<T: 'static> {
     elw: RootEventLoopWindowTarget<T>,
 }
 
-#[derive(Default, Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T> EventLoop<T> {

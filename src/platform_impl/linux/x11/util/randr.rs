@@ -164,7 +164,9 @@ impl XConnection {
         (self.xrandr.XRRFreeOutputInfo)(output_info);
         Some((name, scale_factor, modes))
     }
-    pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Result<(), ()> {
+
+    #[must_use]
+    pub fn set_crtc_config(&self, crtc_id: RRCrtc, mode_id: RRMode) -> Option<()> {
         unsafe {
             let mut major = 0;
             let mut minor = 0;
@@ -195,12 +197,13 @@ impl XConnection {
             (self.xrandr.XRRFreeScreenResources)(resources);
 
             if status == Success as i32 {
-                Ok(())
+                Some(())
             } else {
-                Err(())
+                None
             }
         }
     }
+
     pub fn get_crtc_mode(&self, crtc_id: RRCrtc) -> RRMode {
         unsafe {
             let mut major = 0;

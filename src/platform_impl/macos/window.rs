@@ -414,7 +414,7 @@ impl UnownedWindow {
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
-            let () = msg_send![
+            let _: () = msg_send![
                 *ns_window,
                 registerForDraggedTypes:
                     NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)
@@ -951,7 +951,7 @@ impl UnownedWindow {
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions_(presentation_options);
 
-                let () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
+                let _: () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
             },
             (
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
@@ -969,7 +969,7 @@ impl UnownedWindow {
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.
-                let () = msg_send![
+                let _: () = msg_send![
                     *self.ns_window,
                     setLevel: ffi::NSWindowLevel::NSNormalWindowLevel
                 ];

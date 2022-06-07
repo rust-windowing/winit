@@ -112,14 +112,14 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     ))),
                 );
                 let superclass: &'static Class = msg_send![object, superclass];
-                let () = msg_send![super(object, superclass), drawRect: rect];
+                let _: () = msg_send![super(object, superclass), drawRect: rect];
             }
         }
 
         extern "C" fn layout_subviews(object: &Object, _: Sel) {
             unsafe {
                 let superclass: &'static Class = msg_send![object, superclass];
-                let () = msg_send![super(object, superclass), layoutSubviews];
+                let _: () = msg_send![super(object, superclass), layoutSubviews];
 
                 let window: id = msg_send![object, window];
                 assert!(!window.is_null());
@@ -133,14 +133,14 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     width: screen_frame.size.width as f64,
                     height: screen_frame.size.height as f64,
                 }
-                .to_physical(scale_factor.into());
+                .to_physical(scale_factor as f64);
 
                 // If the app is started in landscape, the view frame and window bounds can be mismatched.
                 // The view frame will be in portrait and the window bounds in landscape. So apply the
                 // window bounds to the view frame to make it consistent.
                 let view_frame: CGRect = msg_send![object, frame];
                 if view_frame != window_bounds {
-                    let () = msg_send![object, setFrame: window_bounds];
+                    let _: () = msg_send![object, setFrame: window_bounds];
                 }
 
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
@@ -157,7 +157,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         ) {
             unsafe {
                 let superclass: &'static Class = msg_send![object, superclass];
-                let () = msg_send![
+                let _: () = msg_send![
                     super(object, superclass),
                     setContentScaleFactor: untrusted_scale_factor
                 ];
@@ -180,7 +180,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                         && scale_factor > 0.0,
                     "invalid scale_factor set on UIView",
                 );
-                let scale_factor: f64 = scale_factor.into();
+                let scale_factor = scale_factor as f64;
                 let bounds: CGRect = msg_send![object, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
@@ -340,7 +340,7 @@ unsafe fn get_view_controller_class() -> &'static Class {
             prefers_status_bar_hidden: BOOL,
             setPrefersStatusBarHidden: |object| {
                 unsafe {
-                    let () = msg_send![object, setNeedsStatusBarAppearanceUpdate];
+                    let _: () = msg_send![object, setNeedsStatusBarAppearanceUpdate];
                 }
             },
             prefersStatusBarHidden,
@@ -353,7 +353,7 @@ unsafe fn get_view_controller_class() -> &'static Class {
                 OSCapabilities::home_indicator_hidden_err_msg;
                 |object| {
                     unsafe {
-                        let () = msg_send![object, setNeedsUpdateOfHomeIndicatorAutoHidden];
+                        let _: () = msg_send![object, setNeedsUpdateOfHomeIndicatorAutoHidden];
                     }
                 },
             prefersHomeIndicatorAutoHidden,
@@ -363,7 +363,7 @@ unsafe fn get_view_controller_class() -> &'static Class {
             supported_orientations: UIInterfaceOrientationMask,
             setSupportedInterfaceOrientations: |object| {
                 unsafe {
-                    let () = msg_send![class!(UIViewController), attemptRotationToDeviceOrientation];
+                    let _: () = msg_send![class!(UIViewController), attemptRotationToDeviceOrientation];
                 }
             },
             supportedInterfaceOrientations,
@@ -376,7 +376,7 @@ unsafe fn get_view_controller_class() -> &'static Class {
                 OSCapabilities::defer_system_gestures_err_msg;
                 |object| {
                     unsafe {
-                        let () = msg_send![object, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+                        let _: () = msg_send![object, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
                     }
                 },
             preferredScreenEdgesDeferringSystemGestures,
@@ -398,7 +398,7 @@ unsafe fn get_window_class() -> &'static Class {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(true),
                 }));
-                let () = msg_send![super(object, class!(UIWindow)), becomeKeyWindow];
+                let _: () = msg_send![super(object, class!(UIWindow)), becomeKeyWindow];
             }
         }
 
@@ -408,7 +408,7 @@ unsafe fn get_window_class() -> &'static Class {
                     window_id: RootWindowId(object.into()),
                     event: WindowEvent::Focused(false),
                 }));
-                let () = msg_send![super(object, class!(UIWindow)), resignKeyWindow];
+                let _: () = msg_send![super(object, class!(UIWindow)), resignKeyWindow];
             }
         }
 
@@ -440,9 +440,9 @@ pub unsafe fn create_view(
     assert!(!view.is_null(), "Failed to create `UIView` instance");
     let view: id = msg_send![view, initWithFrame: frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
-    let () = msg_send![view, setMultipleTouchEnabled: YES];
+    let _: () = msg_send![view, setMultipleTouchEnabled: YES];
     if let Some(scale_factor) = platform_attributes.scale_factor {
-        let () = msg_send![view, setContentScaleFactor: scale_factor as CGFloat];
+        let _: () = msg_send![view, setContentScaleFactor: scale_factor as CGFloat];
     }
 
     view
@@ -484,23 +484,23 @@ pub unsafe fn create_view_controller(
     let edges: UIRectEdge = platform_attributes
         .preferred_screen_edges_deferring_system_gestures
         .into();
-    let () = msg_send![
+    let _: () = msg_send![
         view_controller,
         setPrefersStatusBarHidden: status_bar_hidden
     ];
-    let () = msg_send![
+    let _: () = msg_send![
         view_controller,
         setSupportedInterfaceOrientations: supported_orientations
     ];
-    let () = msg_send![
+    let _: () = msg_send![
         view_controller,
         setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
     ];
-    let () = msg_send![
+    let _: () = msg_send![
         view_controller,
         setPreferredScreenEdgesDeferringSystemGestures: edges
     ];
-    let () = msg_send![view_controller, setView: view];
+    let _: () = msg_send![view_controller, setView: view];
     view_controller
 }
 
@@ -520,11 +520,11 @@ pub unsafe fn create_window(
         !window.is_null(),
         "Failed to initialize `UIWindow` instance"
     );
-    let () = msg_send![window, setRootViewController: view_controller];
+    let _: () = msg_send![window, setRootViewController: view_controller];
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             let uiscreen = video_mode.monitor().ui_screen() as id;
-            let () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
+            let _: () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
         Some(Fullscreen::Borderless(ref monitor)) => {

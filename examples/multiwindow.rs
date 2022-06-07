@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
