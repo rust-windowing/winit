@@ -21,6 +21,7 @@ use objc::{
     rc::autoreleasepool,
     runtime::{Object, BOOL, NO, YES},
 };
+use once_cell::sync::Lazy;
 
 use crate::{
     dpi::LogicalSize,
@@ -40,7 +41,6 @@ use crate::{
     },
     window::WindowId,
 };
-use once_cell::sync::Lazy;
 
 static HANDLER: Lazy<Handler> = Lazy::new(Default::default);
 

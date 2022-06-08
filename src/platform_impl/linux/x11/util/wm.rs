@@ -1,5 +1,5 @@
-use parking_lot::Mutex;
 use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 
 use super::*;
 

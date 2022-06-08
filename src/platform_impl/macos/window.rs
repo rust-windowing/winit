@@ -1,3 +1,15 @@
+use raw_window_handle::{AppKitHandle, RawWindowHandle};
+use std::{
+    collections::VecDeque,
+    convert::TryInto,
+    f64, ops,
+    os::raw::c_void,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, MutexGuard, Weak,
+    },
+};
+
 use crate::{
     dpi::{
         LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
@@ -36,17 +48,6 @@ use objc::{
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 use once_cell::sync::Lazy;
-use raw_window_handle::{AppKitHandle, RawWindowHandle};
-use std::{
-    collections::VecDeque,
-    convert::TryInto,
-    f64, ops,
-    os::raw::c_void,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard, Weak,
-    },
-};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(pub usize);
