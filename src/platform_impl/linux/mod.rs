@@ -19,10 +19,10 @@ use std::{collections::VecDeque, env, fmt};
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
 #[cfg(feature = "x11")]
+use once_cell::sync::Lazy;
+#[cfg(feature = "x11")]
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
-#[cfg(feature = "x11")]
-use once_cell::sync::Lazy;
 
 #[cfg(feature = "x11")]
 pub use self::x11::XNotSupported;
