@@ -2,6 +2,7 @@
 
 mod runner;
 
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::{
     cell::Cell,
@@ -112,18 +113,17 @@ type GetPointerTouchInfo =
 type GetPointerPenInfo =
     unsafe extern "system" fn(pointId: u32, penInfo: *mut POINTER_PEN_INFO) -> BOOL;
 
-lazy_static! {
-    static ref GET_POINTER_FRAME_INFO_HISTORY: Option<GetPointerFrameInfoHistory> =
-        get_function!("user32.dll", GetPointerFrameInfoHistory);
-    static ref SKIP_POINTER_FRAME_MESSAGES: Option<SkipPointerFrameMessages> =
-        get_function!("user32.dll", SkipPointerFrameMessages);
-    static ref GET_POINTER_DEVICE_RECTS: Option<GetPointerDeviceRects> =
-        get_function!("user32.dll", GetPointerDeviceRects);
-    static ref GET_POINTER_TOUCH_INFO: Option<GetPointerTouchInfo> =
-        get_function!("user32.dll", GetPointerTouchInfo);
-    static ref GET_POINTER_PEN_INFO: Option<GetPointerPenInfo> =
-        get_function!("user32.dll", GetPointerPenInfo);
-}
+static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
+static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
+    Lazy::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
+static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
+static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
+static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
+
 pub(crate) struct WindowData<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
@@ -375,19 +375,17 @@ fn get_wait_thread_id() -> u32 {
     }
 }
 
-lazy_static! {
-    static ref WAIT_PERIOD_MIN: Option<u32> = unsafe {
-        let mut caps = TIMECAPS {
-            wPeriodMin: 0,
-            wPeriodMax: 0,
-        };
-        if timeGetDevCaps(&mut caps, mem::size_of::<TIMECAPS>() as u32) == TIMERR_NOERROR {
-            Some(caps.wPeriodMin)
-        } else {
-            None
-        }
+static WAIT_PERIOD_MIN: Lazy<Option<u32>> = Lazy::new(|| unsafe {
+    let mut caps = TIMECAPS {
+        wPeriodMin: 0,
+        wPeriodMax: 0,
     };
-}
+    if timeGetDevCaps(&mut caps, mem::size_of::<TIMECAPS>() as u32) == TIMERR_NOERROR {
+        Some(caps.wPeriodMin)
+    } else {
+        None
+    }
+});
 
 fn wait_thread(parent_thread_id: u32, msg_window_id: HWND) {
     unsafe {
@@ -582,59 +580,36 @@ impl<T: 'static> EventLoopProxy<T> {
 
 type WaitUntilInstantBox = Box<Instant>;
 
-lazy_static! {
-    // Message sent by the `EventLoopProxy` when we want to wake up the thread.
-    // WPARAM and LPARAM are unused.
-    static ref USER_EVENT_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr())
-        }
-    };
-    // Message sent when we want to execute a closure in the thread.
-    // WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
-    // and LPARAM is unused.
-    static ref EXEC_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr())
-        }
-    };
-    static ref PROCESS_NEW_EVENTS_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::ProcessNewEvents\0".as_ptr())
-        }
-    };
-    /// lparam is the wait thread's message id.
-    static ref SEND_WAIT_THREAD_ID_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::SendWaitThreadId\0".as_ptr())
-        }
-    };
-    /// lparam points to a `Box<Instant>` signifying the time `PROCESS_NEW_EVENTS_MSG_ID` should
-    /// be sent.
-    static ref WAIT_UNTIL_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::WaitUntil\0".as_ptr())
-        }
-    };
-    static ref CANCEL_WAIT_UNTIL_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::CancelWaitUntil\0".as_ptr())
-        }
-    };
-    // Message sent by a `Window` when it wants to be destroyed by the main thread.
-    // WPARAM and LPARAM are unused.
-    pub static ref DESTROY_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr())
-        }
-    };
-    // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
-    // documentation in the `window_state` module for more information.
-    pub static ref SET_RETAIN_STATE_ON_SIZE_MSG_ID: u32 = unsafe {
-        RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr())
-    };
-    static ref THREAD_EVENT_TARGET_WINDOW_CLASS: Vec<u16> = util::encode_wide("Winit Thread Event Target");
-}
+// Message sent by the `EventLoopProxy` when we want to wake up the thread.
+// WPARAM and LPARAM are unused.
+static USER_EVENT_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr()) });
+// Message sent when we want to execute a closure in the thread.
+// WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
+// and LPARAM is unused.
+static EXEC_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr()) });
+static PROCESS_NEW_EVENTS_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::ProcessNewEvents\0".as_ptr()) });
+/// lparam is the wait thread's message id.
+static SEND_WAIT_THREAD_ID_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SendWaitThreadId\0".as_ptr()) });
+/// lparam points to a `Box<Instant>` signifying the time `PROCESS_NEW_EVENTS_MSG_ID` should
+/// be sent.
+static WAIT_UNTIL_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::WaitUntil\0".as_ptr()) });
+static CANCEL_WAIT_UNTIL_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::CancelWaitUntil\0".as_ptr()) });
+// Message sent by a `Window` when it wants to be destroyed by the main thread.
+// WPARAM and LPARAM are unused.
+pub static DESTROY_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr()) });
+// WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
+// documentation in the `window_state` module for more information.
+pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr()) });
+static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
+    Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
 
 fn create_event_target_window<T: 'static>() -> HWND {
     unsafe {

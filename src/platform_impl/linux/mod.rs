@@ -19,6 +19,8 @@ use std::{collections::VecDeque, env, fmt};
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
 #[cfg(feature = "x11")]
+use once_cell::sync::Lazy;
+#[cfg(feature = "x11")]
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
 
@@ -135,10 +137,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 }
 
 #[cfg(feature = "x11")]
-lazy_static! {
-    pub static ref X11_BACKEND: Mutex<Result<Arc<XConnection>, XNotSupported>> =
-        Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new));
-}
+pub static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
+    Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Clone)]
 pub enum OsError {

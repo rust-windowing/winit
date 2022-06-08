@@ -1,5 +1,20 @@
 #![cfg(target_os = "android")]
 
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, RwLock},
+    time::{Duration, Instant},
+};
+
+use ndk::{
+    configuration::Configuration,
+    event::{InputEvent, KeyAction, Keycode, MotionAction},
+    looper::{ForeignLooper, Poll, ThreadLooper},
+};
+use ndk_glue::{Event, Rect};
+use once_cell::sync::Lazy;
+use raw_window_handle::{AndroidNdkHandle, RawWindowHandle};
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
@@ -7,32 +22,20 @@ use crate::{
     event_loop::{self, ControlFlow},
     monitor, window,
 };
-use ndk::{
-    configuration::Configuration,
-    event::{InputEvent, KeyAction, Keycode, MotionAction},
-    looper::{ForeignLooper, Poll, ThreadLooper},
-};
-use ndk_glue::{Event, Rect};
-use raw_window_handle::{AndroidNdkHandle, RawWindowHandle};
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
-    time::{Duration, Instant},
-};
 
-lazy_static! {
-    static ref CONFIG: RwLock<Configuration> = RwLock::new(Configuration::from_asset_manager(
+static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {
+    RwLock::new(Configuration::from_asset_manager(
         #[allow(deprecated)] // TODO: rust-windowing/winit#2196
-        &ndk_glue::native_activity().asset_manager()
-    ));
-    // If this is `Some()` a `Poll::Wake` is considered an `EventSource::Internal` with the event
-    // contained in the `Option`. The event is moved outside of the `Option` replacing it with a
-    // `None`.
-    //
-    // This allows us to inject event into the event loop without going through `ndk-glue` and
-    // calling unsafe function that should only be called by Android.
-    static ref INTERNAL_EVENT: RwLock<Option<InternalEvent>> = RwLock::new(None);
-}
+        &ndk_glue::native_activity().asset_manager(),
+    ))
+});
+// If this is `Some()` a `Poll::Wake` is considered an `EventSource::Internal` with the event
+// contained in the `Option`. The event is moved outside of the `Option` replacing it with a
+// `None`.
+//
+// This allows us to inject event into the event loop without going through `ndk-glue` and
+// calling unsafe function that should only be called by Android.
+static INTERNAL_EVENT: Lazy<RwLock<Option<InternalEvent>>> = Lazy::new(|| RwLock::new(None));
 
 enum InternalEvent {
     RedrawRequested,

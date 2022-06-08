@@ -21,6 +21,7 @@ use objc::{
     rc::autoreleasepool,
     runtime::{Object, BOOL, NO, YES},
 };
+use once_cell::sync::Lazy;
 
 use crate::{
     dpi::LogicalSize,
@@ -41,9 +42,7 @@ use crate::{
     window::WindowId,
 };
 
-lazy_static! {
-    static ref HANDLER: Handler = Default::default();
-}
+static HANDLER: Lazy<Handler> = Lazy::new(Default::default);
 
 impl<'a, Never> Event<'a, Never> {
     fn userify<T: 'static>(self) -> Event<'a, T> {

@@ -10,6 +10,7 @@ use std::{
 };
 
 use objc::runtime::{BOOL, YES};
+use once_cell::sync::Lazy;
 
 use crate::{
     dpi::LogicalSize,
@@ -1016,29 +1017,27 @@ impl NSOperatingSystemVersion {
 }
 
 pub fn os_capabilities() -> OSCapabilities {
-    lazy_static! {
-        static ref OS_CAPABILITIES: OSCapabilities = {
-            let version: NSOperatingSystemVersion = unsafe {
-                let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
-                let atleast_ios_8: BOOL = msg_send![
-                    process_info,
-                    respondsToSelector: sel!(operatingSystemVersion)
-                ];
-                // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
-                // Older iOS versions are increasingly difficult to test. For example, Xcode 11 does not support
-                // debugging on devices with an iOS version of less than 8. Another example, in order to use an iOS
-                // simulator older than iOS 8, you must download an older version of Xcode (<9), and at least Xcode 7
-                // has been tested to not even run on macOS 10.15 - Xcode 8 might?
-                //
-                // The minimum required iOS version is likely to grow in the future.
-                assert!(
-                    atleast_ios_8 == YES,
-                    "`winit` requires iOS version 8 or greater"
-                );
-                msg_send![process_info, operatingSystemVersion]
-            };
-            version.into()
+    static OS_CAPABILITIES: Lazy<OSCapabilities> = Lazy::new(|| {
+        let version: NSOperatingSystemVersion = unsafe {
+            let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
+            let atleast_ios_8: BOOL = msg_send![
+                process_info,
+                respondsToSelector: sel!(operatingSystemVersion)
+            ];
+            // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
+            // Older iOS versions are increasingly difficult to test. For example, Xcode 11 does not support
+            // debugging on devices with an iOS version of less than 8. Another example, in order to use an iOS
+            // simulator older than iOS 8, you must download an older version of Xcode (<9), and at least Xcode 7
+            // has been tested to not even run on macOS 10.15 - Xcode 8 might?
+            //
+            // The minimum required iOS version is likely to grow in the future.
+            assert!(
+                atleast_ios_8 == YES,
+                "`winit` requires iOS version 8 or greater"
+            );
+            msg_send![process_info, operatingSystemVersion]
         };
-    }
+        version.into()
+    });
     OS_CAPABILITIES.clone()
 }

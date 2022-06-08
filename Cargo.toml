@@ -26,7 +26,7 @@ wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
-lazy_static = "1"
+once_cell = "1.12"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 raw-window-handle = "0.4.2"
