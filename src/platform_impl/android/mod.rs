@@ -1,12 +1,11 @@
 #![cfg(target_os = "android")]
 
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error,
-    event::{self, VirtualKeyCode},
-    event_loop::{self, ControlFlow},
-    monitor, window,
+use std::{
+    collections::VecDeque,
+    sync::{Arc, Mutex, RwLock},
+    time::{Duration, Instant},
 };
+
 use ndk::{
     configuration::Configuration,
     event::{InputEvent, KeyAction, Keycode, MotionAction},
@@ -15,10 +14,13 @@ use ndk::{
 use ndk_glue::{Event, Rect};
 use once_cell::sync::Lazy;
 use raw_window_handle::{AndroidNdkHandle, RawWindowHandle};
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
-    time::{Duration, Instant},
+
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
+    error,
+    event::{self, VirtualKeyCode},
+    event_loop::{self, ControlFlow},
+    monitor, window,
 };
 
 static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {

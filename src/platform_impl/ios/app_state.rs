@@ -1,6 +1,5 @@
 #![deny(unused_results)]
 
-use once_cell::sync::Lazy;
 use std::{
     cell::{RefCell, RefMut},
     collections::HashSet,
@@ -11,6 +10,7 @@ use std::{
 };
 
 use objc::runtime::{BOOL, YES};
+use once_cell::sync::Lazy;
 
 use crate::{
     dpi::LogicalSize,
