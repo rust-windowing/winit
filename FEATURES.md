@@ -173,7 +173,7 @@ Legend:
 |Window initialization            |✔️     |✔️     |▢[#5]      |✔️             |▢[#33]|▢[#33] |✔️        |
 |Providing pointer to init OpenGL |✔️     |✔️     |✔️         |✔️             |✔️     |✔️    |**N/A**|
 |Providing pointer to init Vulkan |✔️     |✔️     |✔️         |✔️             |✔️     |❓     |**N/A**|
-|Window decorations               |✔️     |✔️     |✔️         |▢[#306]        |**N/A**|**N/A**|**N/A**|
+|Window decorations               |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|✔️        |
 |Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|

@@ -10,7 +10,10 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 #[cfg(feature = "wayland")]
+use crate::window::Theme;
+#[cfg(feature = "wayland")]
 use std::error::Error;
+
 use std::{collections::VecDeque, env, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
@@ -27,7 +30,9 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
+    },
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
@@ -101,6 +106,8 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11_window_types: Vec<XWindowType>,
     #[cfg(feature = "x11")]
     pub gtk_theme_variant: Option<String>,
+    #[cfg(feature = "wayland")]
+    pub csd_theme: Option<Theme>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -121,6 +128,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             x11_window_types: vec![XWindowType::Normal],
             #[cfg(feature = "x11")]
             gtk_theme_variant: None,
+            #[cfg(feature = "wayland")]
+            csd_theme: None,
         }
     }
 }
@@ -725,7 +734,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
-        x11_or_wayland!(match self; EventLoop(evl) => evl.window_target())
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
     }
 }
 
@@ -784,6 +793,16 @@ impl<T> EventLoopWindowTarget<T> {
                     inner: primary_monitor,
                 })
             }
+        }
+    }
+
+    #[inline]
+    pub fn set_device_event_filter(&mut self, _filter: DeviceEventFilter) {
+        match *self {
+            #[cfg(feature = "wayland")]
+            EventLoopWindowTarget::Wayland(_) => (),
+            #[cfg(feature = "x11")]
+            EventLoopWindowTarget::X(ref mut evlp) => evlp.set_device_event_filter(_filter),
         }
     }
 }

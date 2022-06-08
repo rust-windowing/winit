@@ -97,14 +97,6 @@ impl WindowDelegateState {
         AppState::queue_event(wrapper);
     }
 
-    pub fn emit_resize_event(&mut self) {
-        let rect = unsafe { NSView::frame(*self.ns_view) };
-        let scale_factor = self.get_scale_factor();
-        let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
-        let size = logical_size.to_physical(scale_factor);
-        self.emit_event(WindowEvent::Resized(size));
-    }
-
     fn emit_move_event(&mut self) {
         let rect = unsafe { NSWindow::frame(*self.ns_window) };
         let x = rect.origin.x as f64;
@@ -285,7 +277,7 @@ extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_resize(this: &Object, _: Sel, _: id) {
     trace_scope!("windowDidResize:");
     with_state(this, |state| {
-        state.emit_resize_event();
+        // NOTE: WindowEvent::Resized is reported in frameDidChange.
         state.emit_move_event();
     });
 }

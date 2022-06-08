@@ -49,7 +49,7 @@ impl<T: 'static> EventProcessor<T> {
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid), Device::new(self, info));
+                devices.insert(DeviceId(info.deviceid), Device::new(info));
             }
         }
     }
@@ -907,6 +907,8 @@ impl<T: 'static> EventProcessor<T> {
                         if self.active_window != Some(xev.event) {
                             self.active_window = Some(xev.event);
 
+                            wt.update_device_event_filter(true);
+
                             let window_id = mkwid(xev.event);
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
@@ -956,6 +958,7 @@ impl<T: 'static> EventProcessor<T> {
                         if !self.window_exists(xev.event) {
                             return;
                         }
+
                         wt.ime
                             .borrow_mut()
                             .unfocus(xev.event)
@@ -963,6 +966,8 @@ impl<T: 'static> EventProcessor<T> {
 
                         if self.active_window.take() == Some(xev.event) {
                             let window_id = mkwid(xev.event);
+
+                            wt.update_device_event_filter(false);
 
                             // Issue key release events for all pressed keys
                             Self::handle_pressed_keys(

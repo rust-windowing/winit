@@ -84,14 +84,14 @@ impl<T> EventLoopBuilder<T> {
     /// in the relevant `platform` module if the target platform supports creating an event loop on
     /// any thread.
     ///
-    /// Usage will result in display backend initialisation, this can be controlled on linux
-    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
-    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
-    /// fallback on x11. If this variable is set with any other value, winit will panic.
+    /// Calling this function will result in display backend initialisation.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread.
+    /// - **Linux:** Backend type can be controlled using an environment variable
+    ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
+    ///   If it is not set, winit will try to connect to a Wayland connection, and if that fails,
+    ///   will fall back on X11. If this variable is set with any other value, winit will panic.
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
         EventLoop {
@@ -286,6 +286,28 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.p.primary_monitor()
     }
+
+    /// Change [`DeviceEvent`] filter mode.
+    ///
+    /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows, winit
+    /// will ignore them by default for unfocused windows on Linux/BSD. This method allows changing
+    /// this filter at runtime to explicitly capture them again.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / Windows / macOS / iOS / Android / Web**: Unsupported.
+    ///
+    /// [`DeviceEvent`]: crate::event::DeviceEvent
+    pub fn set_device_event_filter(&mut self, _filter: DeviceEventFilter) {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        ))]
+        self.p.set_device_event_filter(_filter);
+    }
 }
 
 /// Used to send custom events to `EventLoop`.
@@ -330,3 +352,20 @@ impl<T> fmt::Display for EventLoopClosed<T> {
 }
 
 impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
+
+/// Fiter controlling the propagation of device events.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum DeviceEventFilter {
+    /// Always filter out device events.
+    Always,
+    /// Filter out device events while the window is not focused.
+    Unfocused,
+    /// Report all device events regardless of window focus.
+    Never,
+}
+
+impl Default for DeviceEventFilter {
+    fn default() -> Self {
+        Self::Unfocused
+    }
+}

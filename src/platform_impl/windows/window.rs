@@ -26,7 +26,6 @@ use windows_sys::Win32::{
         Com::{
             CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
         },
-        LibraryLoader::GetModuleHandleW,
         Ole::{OleInitialize, RegisterDragDrop},
     },
     UI::{
@@ -974,7 +973,7 @@ where
         CW_USEDEFAULT,
         parent.unwrap_or(0),
         pl_attribs.menu.unwrap_or(0),
-        GetModuleHandleW(ptr::null()),
+        util::get_instance_handle(),
         &mut initdata as *mut _ as *mut _,
     );
 
@@ -1013,7 +1012,7 @@ unsafe fn register_window_class<T: 'static>(
         lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
         cbClsExtra: 0,
         cbWndExtra: 0,
-        hInstance: GetModuleHandleW(ptr::null()),
+        hInstance: util::get_instance_handle(),
         hIcon: h_icon,
         hCursor: 0, // must be null in order for cursor state to work properly
         hbrBackground: 0,
