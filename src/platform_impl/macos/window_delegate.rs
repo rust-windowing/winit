@@ -1,7 +1,7 @@
 use std::{
     f64,
     os::raw::c_void,
-    sync::{atomic::Ordering, Arc, Weak},
+    sync::{Arc, Weak},
 };
 
 use cocoa::{
@@ -20,7 +20,6 @@ use crate::{
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
-        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
@@ -414,8 +413,6 @@ extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
 extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace_scope!("windowWillEnterFullscreen:");
 
-    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
-
     with_state(this, |state| {
         state.with_window(|window| {
             let mut shared_state = window.lock_shared_state("window_will_enter_fullscreen");
@@ -444,8 +441,6 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
 /// Invoked when before exit fullscreen
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace_scope!("windowWillExitFullScreen:");
-
-    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
 
     with_state(this, |state| {
         state.with_window(|window| {
@@ -490,8 +485,6 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace_scope!("windowDidEnterFullscreen:");
-    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
-
     with_state(this, |state| {
         state.initial_fullscreen = false;
         state.with_window(|window| {
@@ -509,7 +502,6 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace_scope!("windowDidExitFullscreen:");
-    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
 
     with_state(this, |state| {
         state.with_window(|window| {
