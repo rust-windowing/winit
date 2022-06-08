@@ -1,3 +1,9 @@
+use std::{
+    f64,
+    os::raw::c_void,
+    sync::{atomic::Ordering, Arc, Weak},
+};
+
 use cocoa::{
     appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
     base::{id, nil},
@@ -9,11 +15,6 @@ use objc::{
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 use once_cell::sync::Lazy;
-use std::{
-    f64,
-    os::raw::c_void,
-    sync::{atomic::Ordering, Arc, Weak},
-};
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
