@@ -1,6 +1,7 @@
 use std::os::raw::*;
 
 use parking_lot::Mutex;
+use once_cell::sync::Lazy;
 
 use super::{
     ffi::{
@@ -14,7 +15,6 @@ use crate::{
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
-use once_cell::sync::Lazy;
 
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;

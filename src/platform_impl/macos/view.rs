@@ -1,13 +1,3 @@
-use cocoa::{
-    appkit::{NSApp, NSEvent, NSEventModifierFlags, NSEventPhase, NSView, NSWindow},
-    base::{id, nil},
-    foundation::{NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger},
-};
-use objc::{
-    declare::ClassDecl,
-    runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
-};
-use once_cell::sync::Lazy;
 use std::{
     boxed::Box,
     collections::VecDeque,
@@ -18,6 +8,17 @@ use std::{
         Arc, Mutex, Weak,
     },
 };
+
+use cocoa::{
+    appkit::{NSApp, NSEvent, NSEventModifierFlags, NSEventPhase, NSView, NSWindow},
+    base::{id, nil},
+    foundation::{NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger},
+};
+use objc::{
+    declare::ClassDecl,
+    runtime::{Class, Object, Protocol, Sel, BOOL, NO, YES},
+};
+use once_cell::sync::Lazy;
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},

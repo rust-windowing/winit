@@ -1,5 +1,3 @@
-use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 use std::{
     env,
     ffi::{CStr, CString, IntoStringError},
@@ -8,6 +6,9 @@ use std::{
     ptr,
     sync::Arc,
 };
+
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 
 use super::{ffi, util, XConnection, XError};
 

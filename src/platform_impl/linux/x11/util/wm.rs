@@ -1,7 +1,7 @@
 use parking_lot::Mutex;
+use once_cell::sync::Lazy;
 
 use super::*;
-use once_cell::sync::Lazy;
 
 // This info is global to the window manager.
 static SUPPORTED_HINTS: Lazy<Mutex<Vec<ffi::Atom>>> =
