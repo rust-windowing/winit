@@ -83,6 +83,7 @@ extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
 
 extern "C" fn will_terminate(_this: &Object, _: Sel, _: id) {
     trace!("Triggered `applicationWillTerminate`");
+    // TODO: Notify every window that it will be destroyed, like done in iOS?
     AppState::exit();
     trace!("Completed `applicationWillTerminate`");
 }
