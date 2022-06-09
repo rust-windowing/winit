@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On macOS, Fix emitting `Event::LoopDestroyed` on CMD+Q.
 - On macOS, fixed an issue where having multiple windows would prevent run_return from ever returning.
 - On Wayland, fix bug where the cursor wouldn't hide in GNOME.
 - On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
