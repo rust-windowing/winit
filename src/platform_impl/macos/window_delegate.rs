@@ -1,7 +1,7 @@
 use std::{
     f64,
     os::raw::c_void,
-    sync::{atomic::Ordering, Arc, Weak},
+    sync::{Arc, Weak},
 };
 
 use cocoa::{
@@ -14,13 +14,13 @@ use objc::{
     rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
+use once_cell::sync::Lazy;
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
-        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
@@ -98,14 +98,6 @@ impl WindowDelegateState {
         AppState::queue_event(wrapper);
     }
 
-    pub fn emit_resize_event(&mut self) {
-        let rect = unsafe { NSView::frame(*self.ns_view) };
-        let scale_factor = self.get_scale_factor();
-        let logical_size = LogicalSize::new(rect.size.width as f64, rect.size.height as f64);
-        let size = logical_size.to_physical(scale_factor);
-        self.emit_event(WindowEvent::Resized(size));
-    }
-
     fn emit_move_event(&mut self) {
         let rect = unsafe { NSWindow::frame(*self.ns_window) };
         let x = rect.origin.x as f64;
@@ -143,97 +135,95 @@ struct WindowDelegateClass(*const Class);
 unsafe impl Send for WindowDelegateClass {}
 unsafe impl Sync for WindowDelegateClass {}
 
-lazy_static! {
-    static ref WINDOW_DELEGATE_CLASS: WindowDelegateClass = unsafe {
-        let superclass = class!(NSResponder);
-        let mut decl = ClassDecl::new("WinitWindowDelegate", superclass).unwrap();
+static WINDOW_DELEGATE_CLASS: Lazy<WindowDelegateClass> = Lazy::new(|| unsafe {
+    let superclass = class!(NSResponder);
+    let mut decl = ClassDecl::new("WinitWindowDelegate", superclass).unwrap();
 
-        decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
-        decl.add_method(
-            sel!(initWithWinit:),
-            init_with_winit as extern "C" fn(&Object, Sel, *mut c_void) -> id,
-        );
+    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
+    decl.add_method(
+        sel!(initWithWinit:),
+        init_with_winit as extern "C" fn(&Object, Sel, *mut c_void) -> id,
+    );
 
-        decl.add_method(
-            sel!(windowShouldClose:),
-            window_should_close as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(windowWillClose:),
-            window_will_close as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidResize:),
-            window_did_resize as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidMove:),
-            window_did_move as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidChangeBackingProperties:),
-            window_did_change_backing_properties as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidBecomeKey:),
-            window_did_become_key as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidResignKey:),
-            window_did_resign_key as extern "C" fn(&Object, Sel, id),
-        );
+    decl.add_method(
+        sel!(windowShouldClose:),
+        window_should_close as extern "C" fn(&Object, Sel, id) -> BOOL,
+    );
+    decl.add_method(
+        sel!(windowWillClose:),
+        window_will_close as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowDidResize:),
+        window_did_resize as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowDidMove:),
+        window_did_move as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowDidChangeBackingProperties:),
+        window_did_change_backing_properties as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowDidBecomeKey:),
+        window_did_become_key as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowDidResignKey:),
+        window_did_resign_key as extern "C" fn(&Object, Sel, id),
+    );
 
-        decl.add_method(
-            sel!(draggingEntered:),
-            dragging_entered as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(prepareForDragOperation:),
-            prepare_for_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(performDragOperation:),
-            perform_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(concludeDragOperation:),
-            conclude_drag_operation as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(draggingExited:),
-            dragging_exited as extern "C" fn(&Object, Sel, id),
-        );
+    decl.add_method(
+        sel!(draggingEntered:),
+        dragging_entered as extern "C" fn(&Object, Sel, id) -> BOOL,
+    );
+    decl.add_method(
+        sel!(prepareForDragOperation:),
+        prepare_for_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
+    );
+    decl.add_method(
+        sel!(performDragOperation:),
+        perform_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
+    );
+    decl.add_method(
+        sel!(concludeDragOperation:),
+        conclude_drag_operation as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(draggingExited:),
+        dragging_exited as extern "C" fn(&Object, Sel, id),
+    );
 
-        decl.add_method(
-            sel!(window:willUseFullScreenPresentationOptions:),
-            window_will_use_fullscreen_presentation_options
-                as extern "C" fn(&Object, Sel, id, NSUInteger) -> NSUInteger,
-        );
-        decl.add_method(
-            sel!(windowDidEnterFullScreen:),
-            window_did_enter_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowWillEnterFullScreen:),
-            window_will_enter_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidExitFullScreen:),
-            window_did_exit_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowWillExitFullScreen:),
-            window_will_exit_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidFailToEnterFullScreen:),
-            window_did_fail_to_enter_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
+    decl.add_method(
+        sel!(window:willUseFullScreenPresentationOptions:),
+        window_will_use_fullscreen_presentation_options
+            as extern "C" fn(&Object, Sel, id, NSUInteger) -> NSUInteger,
+    );
+    decl.add_method(
+        sel!(windowDidEnterFullScreen:),
+        window_did_enter_fullscreen as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowWillEnterFullScreen:),
+        window_will_enter_fullscreen as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowDidExitFullScreen:),
+        window_did_exit_fullscreen as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowWillExitFullScreen:),
+        window_will_exit_fullscreen as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowDidFailToEnterFullScreen:),
+        window_did_fail_to_enter_fullscreen as extern "C" fn(&Object, Sel, id),
+    );
 
-        decl.add_ivar::<*mut c_void>("winitState");
-        WindowDelegateClass(decl.register())
-    };
-}
+    decl.add_ivar::<*mut c_void>("winitState");
+    WindowDelegateClass(decl.register())
+});
 
 // This function is definitely unsafe, but labeling that would increase
 // boilerplate and wouldn't really clarify anything...
@@ -286,7 +276,7 @@ extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
 extern "C" fn window_did_resize(this: &Object, _: Sel, _: id) {
     trace_scope!("windowDidResize:");
     with_state(this, |state| {
-        state.emit_resize_event();
+        // NOTE: WindowEvent::Resized is reported in frameDidChange.
         state.emit_move_event();
     });
 }
@@ -422,8 +412,6 @@ extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
 extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace_scope!("windowWillEnterFullscreen:");
 
-    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
-
     with_state(this, |state| {
         state.with_window(|window| {
             let mut shared_state = window.lock_shared_state("window_will_enter_fullscreen");
@@ -452,8 +440,6 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
 /// Invoked when before exit fullscreen
 extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace_scope!("windowWillExitFullScreen:");
-
-    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
 
     with_state(this, |state| {
         state.with_window(|window| {
@@ -498,8 +484,6 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
 /// Invoked when entered fullscreen
 extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
     trace_scope!("windowDidEnterFullscreen:");
-    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
-
     with_state(this, |state| {
         state.initial_fullscreen = false;
         state.with_window(|window| {
@@ -517,7 +501,6 @@ extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
 /// Invoked when exited fullscreen
 extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
     trace_scope!("windowDidExitFullscreen:");
-    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
 
     with_state(this, |state| {
         state.with_window(|window| {

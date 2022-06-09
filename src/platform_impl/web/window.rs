@@ -240,6 +240,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
     pub fn set_minimized(&self, _minimized: bool) {
         // Intentionally a no-op, as canvases cannot be 'minimized'
     }
@@ -295,6 +300,11 @@ impl Window {
     #[inline]
     pub fn set_ime_position(&self, _position: Position) {
         // Currently a no-op as it does not seem there is good support for this on web
+    }
+
+    #[inline]
+    pub fn set_ime_allowed(&self, _allowed: bool) {
+        // Currently not implemented
     }
 
     #[inline]

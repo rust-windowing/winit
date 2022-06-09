@@ -21,7 +21,8 @@ use crate::dpi::Size;
 #[cfg(feature = "x11")]
 use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
 use crate::platform_impl::{
-    Backend, EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow,
+    ApplicationName, Backend, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
+    Window as LinuxWindow,
 };
 
 // TODO: stupid hack so that glutin can do its work
@@ -30,6 +31,9 @@ use crate::platform_impl::{
 pub use crate::platform_impl::x11;
 #[cfg(feature = "x11")]
 pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
+
+#[cfg(feature = "wayland")]
+pub use crate::window::Theme;
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
@@ -69,7 +73,6 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    #[doc(hidden)]
     #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.p {
@@ -178,6 +181,13 @@ pub trait WindowExtUnix {
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
+    /// Updates [`Theme`] of window decorations.
+    ///
+    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light"
+    #[cfg(feature = "wayland")]
+    fn wayland_set_csd_theme(&self, config: Theme);
+
     /// Check if the window is ready for drawing
     ///
     /// It is a remnant of a previous implementation detail for the
@@ -220,7 +230,6 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
-    #[doc(hidden)]
     #[cfg(feature = "x11")]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
         match self.window {
@@ -261,6 +270,16 @@ impl WindowExtUnix for Window {
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
+    fn wayland_set_csd_theme(&self, theme: Theme) {
+        match self.window {
+            LinuxWindow::Wayland(ref w) => w.set_csd_theme(theme),
+            #[cfg(feature = "x11")]
+            _ => {}
+        }
+    }
+
+    #[inline]
     fn is_ready(&self) -> bool {
         true
     }
@@ -270,21 +289,41 @@ impl WindowExtUnix for Window {
 pub trait WindowBuilderExtUnix {
     #[cfg(feature = "x11")]
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
+
     #[cfg(feature = "x11")]
     fn with_x11_screen(self, screen_id: i32) -> Self;
 
-    /// Build window with `WM_CLASS` hint; defaults to the name of the binary. Only relevant on X11.
-    #[cfg(feature = "x11")]
-    fn with_class(self, class: String, instance: String) -> Self;
+    /// Build window with the given `general` and `instance` names.
+    ///
+    /// On Wayland, the `general` name sets an application ID, which should match the `.desktop`
+    /// file destributed with your program. The `instance` is a `no-op`.
+    ///
+    /// On X11, the `general` sets general class of `WM_CLASS(STRING)`, while `instance` set the
+    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "general", "instance"`.
+    ///
+    /// For details about application ID conventions, see the
+    /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
+    fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
+
     /// Build window with override-redirect flag; defaults to false. Only relevant on X11.
     #[cfg(feature = "x11")]
     fn with_override_redirect(self, override_redirect: bool) -> Self;
+
     /// Build window with `_NET_WM_WINDOW_TYPE` hints; defaults to `Normal`. Only relevant on X11.
     #[cfg(feature = "x11")]
     fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
+
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(self, variant: String) -> Self;
+
+    /// Build window with certain decoration [`Theme`]
+    ///
+    /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    /// Possible values for env variable are: "dark" and light"
+    #[cfg(feature = "wayland")]
+    fn with_wayland_csd_theme(self, theme: Theme) -> Self;
+
     /// Build window with resize increment hint. Only implemented on X11.
     ///
     /// ```
@@ -299,6 +338,7 @@ pub trait WindowBuilderExtUnix {
     /// ```
     #[cfg(feature = "x11")]
     fn with_resize_increments<S: Into<Size>>(self, increments: S) -> Self;
+
     /// Build window with base size hint. Only implemented on X11.
     ///
     /// ```
@@ -313,14 +353,6 @@ pub trait WindowBuilderExtUnix {
     /// ```
     #[cfg(feature = "x11")]
     fn with_base_size<S: Into<Size>>(self, base_size: S) -> Self;
-
-    /// Build window with a given application ID. It should match the `.desktop` file distributed with
-    /// your program. Only relevant on Wayland.
-    ///
-    /// For details about application ID conventions, see the
-    /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
-    #[cfg(feature = "wayland")]
-    fn with_app_id<T: Into<String>>(self, app_id: T) -> Self;
 }
 
 impl WindowBuilderExtUnix for WindowBuilder {
@@ -342,9 +374,8 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
-    #[cfg(feature = "x11")]
-    fn with_class(mut self, instance: String, class: String) -> Self {
-        self.platform_specific.class = Some((instance, class));
+    fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
+        self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
         self
     }
 
@@ -370,6 +401,13 @@ impl WindowBuilderExtUnix for WindowBuilder {
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
+    fn with_wayland_csd_theme(mut self, theme: Theme) -> Self {
+        self.platform_specific.csd_theme = Some(theme);
+        self
+    }
+
+    #[inline]
     #[cfg(feature = "x11")]
     fn with_resize_increments<S: Into<Size>>(mut self, increments: S) -> Self {
         self.platform_specific.resize_increments = Some(increments.into());
@@ -380,13 +418,6 @@ impl WindowBuilderExtUnix for WindowBuilder {
     #[cfg(feature = "x11")]
     fn with_base_size<S: Into<Size>>(mut self, base_size: S) -> Self {
         self.platform_specific.base_size = Some(base_size.into());
-        self
-    }
-
-    #[inline]
-    #[cfg(feature = "wayland")]
-    fn with_app_id<T: Into<String>>(mut self, app_id: T) -> Self {
-        self.platform_specific.app_id = Some(app_id.into());
         self
     }
 }

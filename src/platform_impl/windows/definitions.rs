@@ -10,7 +10,6 @@ use windows_sys::{
         System::Com::{
             IAdviseSink, IDataObject, IEnumFORMATETC, IEnumSTATDATA, FORMATETC, STGMEDIUM,
         },
-        UI::Shell::ITaskbarList,
     },
 };
 
@@ -112,6 +111,11 @@ pub struct ITaskbarListVtbl {
 }
 
 #[repr(C)]
+pub struct ITaskbarList {
+    pub lpVtbl: *const ITaskbarListVtbl,
+}
+
+#[repr(C)]
 pub struct ITaskbarList2Vtbl {
     pub parent: ITaskbarListVtbl,
     pub MarkFullscreenWindow: unsafe extern "system" fn(
@@ -120,6 +124,7 @@ pub struct ITaskbarList2Vtbl {
         fFullscreen: BOOL,
     ) -> HRESULT,
 }
+
 #[repr(C)]
 pub struct ITaskbarList2 {
     pub lpVtbl: *const ITaskbarList2Vtbl,
@@ -130,6 +135,13 @@ pub const CLSID_TaskbarList: GUID = GUID {
     data2: 0xfd6d,
     data3: 0x11d0,
     data4: [0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90],
+};
+
+pub const IID_ITaskbarList: GUID = GUID {
+    data1: 0x56FDF342,
+    data2: 0xFD6D,
+    data3: 0x11D0,
+    data4: [0x95, 0x8A, 0x00, 0x60, 0x97, 0xC9, 0xA0, 0x90],
 };
 
 pub const IID_ITaskbarList2: GUID = GUID {

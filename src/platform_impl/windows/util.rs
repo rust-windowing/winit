@@ -1,20 +1,24 @@
 use std::{
-    ffi::{c_void, OsStr},
+    ffi::{c_void, OsStr, OsString},
     io,
     iter::once,
     mem,
     ops::BitAnd,
-    os::windows::prelude::OsStrExt,
+    os::windows::prelude::{OsStrExt, OsStringExt},
     ptr,
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use once_cell::sync::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
-        Foundation::{BOOL, HWND, RECT},
+        Foundation::{BOOL, HINSTANCE, HWND, RECT},
         Graphics::Gdi::{ClientToScreen, InvalidateRgn, HMONITOR},
-        System::LibraryLoader::{GetProcAddress, LoadLibraryA},
+        System::{
+            LibraryLoader::{GetProcAddress, LoadLibraryA},
+            SystemServices::IMAGE_DOS_HEADER,
+        },
         UI::{
             HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
             Input::KeyboardAndMouse::GetActiveWindow,
@@ -35,6 +39,14 @@ use crate::{dpi::PhysicalSize, window::CursorIcon};
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
+}
+
+pub fn decode_wide(mut wide_c_string: &[u16]) -> OsString {
+    if let Some(null_pos) = wide_c_string.iter().position(|c| *c == 0) {
+        wide_c_string = &wide_c_string[..null_pos];
+    }
+
+    OsString::from_wide(wide_c_string)
 }
 
 pub fn has_flag<T>(bitset: T, flag: T) -> bool
@@ -197,6 +209,21 @@ pub fn is_focused(window: HWND) -> bool {
     window == unsafe { GetActiveWindow() }
 }
 
+pub fn get_instance_handle() -> HINSTANCE {
+    // Gets the instance handle by taking the address of the
+    // pseudo-variable created by the microsoft linker:
+    // https://devblogs.microsoft.com/oldnewthing/20041025-00/?p=37483
+
+    // This is preferred over GetModuleHandle(NULL) because it also works in DLLs:
+    // https://stackoverflow.com/questions/21718027/getmodulehandlenull-vs-hinstance
+
+    extern "C" {
+        static __ImageBase: IMAGE_DOS_HEADER;
+    }
+
+    unsafe { &__ImageBase as *const _ as _ }
+}
+
 impl CursorIcon {
     pub(crate) fn to_windows_cursor(self) -> PCWSTR {
         match self {
@@ -272,19 +299,17 @@ pub type AdjustWindowRectExForDpi = unsafe extern "system" fn(
     dpi: u32,
 ) -> BOOL;
 
-lazy_static! {
-    pub static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> =
-        get_function!("user32.dll", GetDpiForWindow);
-    pub static ref ADJUST_WINDOW_RECT_EX_FOR_DPI: Option<AdjustWindowRectExForDpi> =
-        get_function!("user32.dll", AdjustWindowRectExForDpi);
-    pub static ref GET_DPI_FOR_MONITOR: Option<GetDpiForMonitor> =
-        get_function!("shcore.dll", GetDpiForMonitor);
-    pub static ref ENABLE_NON_CLIENT_DPI_SCALING: Option<EnableNonClientDpiScaling> =
-        get_function!("user32.dll", EnableNonClientDpiScaling);
-    pub static ref SET_PROCESS_DPI_AWARENESS_CONTEXT: Option<SetProcessDpiAwarenessContext> =
-        get_function!("user32.dll", SetProcessDpiAwarenessContext);
-    pub static ref SET_PROCESS_DPI_AWARENESS: Option<SetProcessDpiAwareness> =
-        get_function!("shcore.dll", SetProcessDpiAwareness);
-    pub static ref SET_PROCESS_DPI_AWARE: Option<SetProcessDPIAware> =
-        get_function!("user32.dll", SetProcessDPIAware);
-}
+pub static GET_DPI_FOR_WINDOW: Lazy<Option<GetDpiForWindow>> =
+    Lazy::new(|| get_function!("user32.dll", GetDpiForWindow));
+pub static ADJUST_WINDOW_RECT_EX_FOR_DPI: Lazy<Option<AdjustWindowRectExForDpi>> =
+    Lazy::new(|| get_function!("user32.dll", AdjustWindowRectExForDpi));
+pub static GET_DPI_FOR_MONITOR: Lazy<Option<GetDpiForMonitor>> =
+    Lazy::new(|| get_function!("shcore.dll", GetDpiForMonitor));
+pub static ENABLE_NON_CLIENT_DPI_SCALING: Lazy<Option<EnableNonClientDpiScaling>> =
+    Lazy::new(|| get_function!("user32.dll", EnableNonClientDpiScaling));
+pub static SET_PROCESS_DPI_AWARENESS_CONTEXT: Lazy<Option<SetProcessDpiAwarenessContext>> =
+    Lazy::new(|| get_function!("user32.dll", SetProcessDpiAwarenessContext));
+pub static SET_PROCESS_DPI_AWARENESS: Lazy<Option<SetProcessDpiAwareness>> =
+    Lazy::new(|| get_function!("shcore.dll", SetProcessDpiAwareness));
+pub static SET_PROCESS_DPI_AWARE: Lazy<Option<SetProcessDPIAware>> =
+    Lazy::new(|| get_function!("user32.dll", SetProcessDPIAware));

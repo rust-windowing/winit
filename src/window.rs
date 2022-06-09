@@ -18,7 +18,7 @@ pub use crate::icon::{BadIcon, Icon};
 /// ```no_run
 /// use winit::{
 ///     event::{Event, WindowEvent},
-///     event_loop::{ControlFlow, EventLoop},
+///     event_loop::EventLoop,
 ///     window::Window,
 /// };
 ///
@@ -26,13 +26,13 @@ pub use crate::icon::{BadIcon, Icon};
 /// let window = Window::new(&event_loop).unwrap();
 ///
 /// event_loop.run(move |event, _, control_flow| {
-///     *control_flow = ControlFlow::Wait;
+///     control_flow.set_wait();
 ///
 ///     match event {
 ///         Event::WindowEvent {
 ///             event: WindowEvent::CloseRequested,
 ///             ..
-///         } => *control_flow = ControlFlow::Exit,
+///         } => control_flow.set_exit(),
 ///         _ => (),
 ///     }
 /// });
@@ -85,6 +85,7 @@ impl WindowId {
 
 /// Object that allows building windows.
 #[derive(Clone, Default)]
+#[must_use]
 pub struct WindowBuilder {
     /// The attributes to use to create the window.
     pub window: WindowAttributes,
@@ -665,8 +666,9 @@ impl Window {
 
     /// Sets whether the window is resizable or not.
     ///
-    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that event can still be
-    /// triggered by DPI scaling, entering fullscreen mode, etc.
+    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that
+    /// event can still be triggered by DPI scaling, entering fullscreen mode, etc. Also, the
+    /// window could still be resized by calling `[Window::set_inner_size]`.
     ///
     /// ## Platform-specific
     ///
@@ -686,7 +688,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
+    /// - **X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_resizable(&self) -> bool {
@@ -777,7 +779,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / X11:** Not implemented.
+    /// - **X11:** Not implemented.
     /// - **iOS / Android / Web:** Unsupported.
     #[inline]
     pub fn is_decorated(&self) -> bool {
@@ -813,6 +815,13 @@ impl Window {
 
     /// Sets location of IME candidate box in client area coordinates relative to the top left.
     ///
+    /// This is the window / popup / overlay that allows you to select the desired characters.
+    /// The look of this box may differ between input devices, even on the same platform.
+    ///
+    /// (Apple's official term is "candidate window", see their [chinese] and [japanese] guides).
+    ///
+    /// ## Example
+    ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
     /// # use winit::event_loop::EventLoop;
@@ -829,9 +838,39 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web:** Unsupported.
+    ///
+    /// [chinese]: https://support.apple.com/guide/chinese-input-method/use-the-candidate-window-cim12992/104/mac/12.0
+    /// [japanese]: https://support.apple.com/guide/japanese-input-method/use-the-candidate-window-jpim10262/6.3/mac/12.0
     #[inline]
     pub fn set_ime_position<P: Into<Position>>(&self, position: P) {
         self.window.set_ime_position(position.into())
+    }
+
+    /// Sets whether the window should get IME events
+    ///
+    /// When IME is allowed, the window will receive [`Ime`] events, and during the
+    /// preedit phase the window will NOT get [`KeyboardInput`] or
+    /// [`ReceivedCharacter`] events. The window should allow IME while it is
+    /// expecting text input.
+    ///
+    /// When IME is not allowed, the window won't receive [`Ime`] events, and will
+    /// receive [`KeyboardInput`] events for every keypress instead. Without
+    /// allowing IME, the window will also get [`ReceivedCharacter`] events for
+    /// certain keyboard input. Not allowing IME is useful for games for example.
+    ///
+    /// IME is **not** allowed by default.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
+    /// - ** iOS / Android / Web :** Unsupported.
+    ///
+    /// [`Ime`]: crate::event::WindowEvent::Ime
+    /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
+    /// [`ReceivedCharacter`]: crate::event::WindowEvent::ReceivedCharacter
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.window.set_ime_allowed(allowed);
     }
 
     /// Brings the window to the front and sets input focus. Has no effect if the window is
@@ -948,6 +987,19 @@ impl Window {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         self.window.drag_window()
+    }
+
+    /// Modifies whether the window catches cursor events.
+    ///
+    /// If `true`, the window will catch the cursor events. If `false`, events are passed through
+    /// the window such that any other window behind it receives them. By default hittest is enabled.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / X11:** Always returns an [`ExternalError::NotSupported`].
+    #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.window.set_cursor_hittest(hittest)
     }
 }
 

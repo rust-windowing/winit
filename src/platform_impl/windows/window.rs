@@ -26,15 +26,10 @@ use windows_sys::Win32::{
         Com::{
             CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
         },
-        LibraryLoader::GetModuleHandleW,
         Ole::{OleInitialize, RegisterDragDrop},
     },
     UI::{
         Input::{
-            Ime::{
-                ImmGetContext, ImmReleaseContext, ImmSetCompositionWindow, CFS_POINT,
-                COMPOSITIONFORM,
-            },
             KeyboardAndMouse::{
                 EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT,
                 INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
@@ -46,11 +41,11 @@ use windows_sys::Win32::{
             CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
             GetSystemMetrics, GetWindowPlacement, IsWindowVisible, LoadCursorW, PeekMessageW,
             PostMessageW, RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow,
-            SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_OWNDC, CS_VREDRAW,
+            SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW,
             CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
             GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER,
-            SM_IMMENABLED, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER,
-            WM_NCLBUTTONDOWN, WNDCLASSEXW,
+            SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WM_NCLBUTTONDOWN,
+            WNDCLASSEXW,
         },
     },
 };
@@ -62,12 +57,14 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
-        definitions::ITaskbarList2,
-        definitions::{CLSID_TaskbarList, IID_ITaskbarList2},
+        definitions::{
+            CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
+        },
         dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
+        ime::ImeContext,
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
@@ -361,6 +358,19 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+        self.thread_executor.execute_in_thread(move || {
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::IGNORE_CURSOR_EVENT, !hittest)
+            });
+        });
+
+        Ok(())
+    }
+
+    #[inline]
     pub fn id(&self) -> WindowId {
         WindowId(self.hwnd())
     }
@@ -421,22 +431,14 @@ impl Window {
             // Change video mode if we're transitioning to or from exclusive
             // fullscreen
             match (&old_fullscreen, &fullscreen) {
-                (&None, &Some(Fullscreen::Exclusive(ref video_mode)))
-                | (
-                    &Some(Fullscreen::Borderless(_)),
-                    &Some(Fullscreen::Exclusive(ref video_mode)),
-                )
-                | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Exclusive(ref video_mode))) =>
-                {
+                (_, Some(Fullscreen::Exclusive(video_mode))) => {
                     let monitor = video_mode.monitor();
                     let monitor_info = monitor::get_monitor_info(monitor.inner.hmonitor()).unwrap();
-
-                    let native_video_mode = video_mode.video_mode.native_video_mode;
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             monitor_info.szDevice.as_ptr(),
-                            &native_video_mode,
+                            &*video_mode.video_mode.native_video_mode,
                             0,
                             CDS_FULLSCREEN,
                             ptr::null(),
@@ -449,8 +451,7 @@ impl Window {
                     debug_assert!(res != DISP_CHANGE_FAILED);
                     assert_eq!(res, DISP_CHANGE_SUCCESSFUL);
                 }
-                (&Some(Fullscreen::Exclusive(_)), &None)
-                | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
+                (Some(Fullscreen::Exclusive(_)), _) => {
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             ptr::null(),
@@ -494,6 +495,14 @@ impl Window {
                     matches!(fullscreen, Some(Fullscreen::Borderless(_))),
                 );
             });
+
+            // Mark as fullscreen window wrt to z-order
+            //
+            // this needs to be called before the below fullscreen SetWindowPos as this itself
+            // will generate WM_SIZE messages of the old window size that can race with what we set below
+            unsafe {
+                taskbar_mark_fullscreen(window.0, fullscreen.is_some());
+            }
 
             // Update window bounds
             match &fullscreen {
@@ -541,10 +550,6 @@ impl Window {
                         }
                     }
                 }
-            }
-
-            unsafe {
-                taskbar_mark_fullscreen(window.0, fullscreen.is_some());
             }
         });
     }
@@ -617,25 +622,19 @@ impl Window {
         self.window_state.lock().taskbar_icon = taskbar_icon;
     }
 
-    pub(crate) fn set_ime_position_physical(&self, x: i32, y: i32) {
-        if unsafe { GetSystemMetrics(SM_IMMENABLED) } != 0 {
-            let composition_form = COMPOSITIONFORM {
-                dwStyle: CFS_POINT,
-                ptCurrentPos: POINT { x, y },
-                rcArea: unsafe { mem::zeroed() },
-            };
-            unsafe {
-                let himc = ImmGetContext(self.hwnd());
-                ImmSetCompositionWindow(himc, &composition_form);
-                ImmReleaseContext(self.hwnd(), himc);
-            }
+    #[inline]
+    pub fn set_ime_position(&self, spot: Position) {
+        unsafe {
+            ImeContext::current(self.hwnd()).set_ime_position(spot, self.scale_factor());
         }
     }
 
     #[inline]
-    pub fn set_ime_position(&self, spot: Position) {
-        let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
-        self.set_ime_position_physical(x, y);
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.window_state.lock().ime_allowed = allowed;
+        unsafe {
+            ImeContext::set_ime_allowed(self.hwnd(), allowed);
+        }
     }
 
     #[inline]
@@ -669,6 +668,43 @@ impl Window {
     #[inline]
     pub fn theme(&self) -> Theme {
         self.window_state.lock().current_theme
+    }
+
+    #[inline]
+    pub fn set_skip_taskbar(&self, skip: bool) {
+        com_initialized();
+        unsafe {
+            TASKBAR_LIST.with(|task_bar_list_ptr| {
+                let mut task_bar_list = task_bar_list_ptr.get();
+
+                if task_bar_list.is_null() {
+                    let hr = CoCreateInstance(
+                        &CLSID_TaskbarList,
+                        ptr::null_mut(),
+                        CLSCTX_ALL,
+                        &IID_ITaskbarList,
+                        &mut task_bar_list as *mut _ as *mut _,
+                    );
+
+                    let hr_init = (*(*task_bar_list).lpVtbl).HrInit;
+
+                    if hr != S_OK || hr_init(task_bar_list.cast()) != S_OK {
+                        // In some old windows, the taskbar object could not be created, we just ignore it
+                        return;
+                    }
+                    task_bar_list_ptr.set(task_bar_list)
+                }
+
+                task_bar_list = task_bar_list_ptr.get();
+                if skip {
+                    let delete_tab = (*(*task_bar_list).lpVtbl).DeleteTab;
+                    delete_tab(task_bar_list, self.window.0);
+                } else {
+                    let add_tab = (*(*task_bar_list).lpVtbl).AddTab;
+                    add_tab(task_bar_list, self.window.0);
+                }
+            });
+        }
     }
 
     #[inline]
@@ -752,6 +788,8 @@ impl<'a, T: 'static> InitData<'a, T> {
 
         enable_non_client_dpi_scaling(window);
 
+        ImeContext::set_ime_allowed(window, false);
+
         Window {
             window: WindowWrapper(window),
             window_state,
@@ -809,8 +847,8 @@ impl<'a, T: 'static> InitData<'a, T> {
     pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<isize> {
         let runner = self.event_loop.runner_shared.clone();
         let result = runner.catch_unwind(|| {
-            let mut window = self.create_window(window);
-            let window_data = self.create_window_data(&mut window);
+            let window = self.create_window(window);
+            let window_data = self.create_window_data(&window);
             (window, window_data)
         });
 
@@ -845,25 +883,28 @@ impl<'a, T: 'static> InitData<'a, T> {
             DeleteObject(region);
         }
 
+        win.set_skip_taskbar(self.pl_attribs.skip_taskbar);
+
         let attributes = self.attributes.clone();
 
         // Set visible before setting the size to ensure the
         // attribute is correctly applied.
         win.set_visible(attributes.visible);
 
-        let dimensions = attributes
-            .inner_size
-            .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
-        win.set_inner_size(dimensions);
-        if attributes.maximized {
-            // Need to set MAXIMIZED after setting `inner_size` as
-            // `Window::set_inner_size` changes MAXIMIZED to false.
-            win.set_maximized(true);
-        }
-
         if attributes.fullscreen.is_some() {
             win.set_fullscreen(attributes.fullscreen);
             force_window_active(win.window.0);
+        } else {
+            let dimensions = attributes
+                .inner_size
+                .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+            win.set_inner_size(dimensions);
+
+            if attributes.maximized {
+                // Need to set MAXIMIZED after setting `inner_size` as
+                // `Window::set_inner_size` changes MAXIMIZED to false.
+                win.set_maximized(true);
+            }
         }
 
         if let Some(position) = attributes.position {
@@ -932,7 +973,7 @@ where
         CW_USEDEFAULT,
         parent.unwrap_or(0),
         pl_attribs.menu.unwrap_or(0),
-        GetModuleHandleW(ptr::null()),
+        util::get_instance_handle(),
         &mut initdata as *mut _ as *mut _,
     );
 
@@ -967,11 +1008,11 @@ unsafe fn register_window_class<T: 'static>(
 
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
-        style: CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
+        style: CS_HREDRAW | CS_VREDRAW,
         lpfnWndProc: Some(super::event_loop::public_window_callback::<T>),
         cbClsExtra: 0,
         cbWndExtra: 0,
-        hInstance: GetModuleHandleW(ptr::null()),
+        hInstance: util::get_instance_handle(),
         hIcon: h_icon,
         hCursor: 0, // must be null in order for cursor state to work properly
         hbrBackground: 0,
@@ -1004,7 +1045,8 @@ thread_local! {
         }
     };
 
-    static TASKBAR_LIST: Cell<*mut ITaskbarList2> = Cell::new(ptr::null_mut());
+    static TASKBAR_LIST: Cell<*mut ITaskbarList> = Cell::new(ptr::null_mut());
+    static TASKBAR_LIST2: Cell<*mut ITaskbarList2> = Cell::new(ptr::null_mut());
 }
 
 pub fn com_initialized() {
@@ -1022,30 +1064,30 @@ pub fn com_initialized() {
 unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
     com_initialized();
 
-    TASKBAR_LIST.with(|task_bar_list_ptr| {
-        let mut task_bar_list = task_bar_list_ptr.get();
+    TASKBAR_LIST2.with(|task_bar_list2_ptr| {
+        let mut task_bar_list2 = task_bar_list2_ptr.get();
 
-        if task_bar_list.is_null() {
+        if task_bar_list2.is_null() {
             let hr = CoCreateInstance(
                 &CLSID_TaskbarList,
                 ptr::null_mut(),
                 CLSCTX_ALL,
                 &IID_ITaskbarList2,
-                &mut task_bar_list as *mut _ as *mut _,
+                &mut task_bar_list2 as *mut _ as *mut _,
             );
 
-            let hr_init = (*(*task_bar_list).lpVtbl).parent.HrInit;
+            let hr_init = (*(*task_bar_list2).lpVtbl).parent.HrInit;
 
-            if hr != S_OK || hr_init(task_bar_list.cast()) != S_OK {
+            if hr != S_OK || hr_init(task_bar_list2.cast()) != S_OK {
                 // In some old windows, the taskbar object could not be created, we just ignore it
                 return;
             }
-            task_bar_list_ptr.set(task_bar_list)
+            task_bar_list2_ptr.set(task_bar_list2)
         }
 
-        task_bar_list = task_bar_list_ptr.get();
-        let mark_fullscreen_window = (*(*task_bar_list).lpVtbl).MarkFullscreenWindow;
-        mark_fullscreen_window(task_bar_list, handle, if fullscreen { 1 } else { 0 });
+        task_bar_list2 = task_bar_list2_ptr.get();
+        let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
+        mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
     })
 }
 

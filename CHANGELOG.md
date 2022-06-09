@@ -9,11 +9,18 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - macOS: Fix emitting `Event::LoopDestroyed` on CMD+Q.
-- macOS: Remove the need to call `set_ime_position` after moving the window.
+- On macOS, fixed an issue where having multiple windows would prevent run_return from ever returning.
+- On Wayland, fix bug where the cursor wouldn't hide in GNOME.
+- On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
+- On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
+- On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
+- On Windows, remove internally unique DC per window.
+- On macOS, remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.
 - Added `Window::is_decorated`.
 - On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
+- On X11, fix scale factor calculation when the only monitor is reconnected
 - On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
 - **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
 - Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
@@ -25,8 +32,27 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Replaced `EventLoopExtUnix` with `EventLoopBuilderExtUnix` (which also has renamed methods).
 - **Breaking:** The platform specific extensions for Windows `winit::platform::windows` have changed. All `HANDLE`-like types e.g. `HWND` and `HMENU` were converted from winapi types or `*mut c_void` to `isize`. This was done to be consistent with the type definitions in windows-sys and to not expose internal dependencies.
 - The internal bindings to the [Windows API](https://docs.microsoft.com/en-us/windows/) were changed from the unofficial [winapi](https://github.com/retep998/winapi-rs) bindings to the official Microsoft [windows-sys](https://github.com/microsoft/windows-rs) bindings.
-- On Wayland, fix resize and scale factor changes not being propagated properly.
 - On Wayland, fix polling during consecutive `EventLoop::run_return` invocations.
+- On Windows, fix race issue creating fullscreen windows with `WindowBuilder::with_fullscreen`
+- On Android, `virtual_keycode` for `KeyboardInput` events is now filled in where a suitable match is found.
+- Added helper methods on `ControlFlow` to set its value.
+- On Wayland, fix `TouchPhase::Ended` always reporting the location of the first touch down, unless the compositor
+  sent a cancel or frame event.
+- On iOS, send `RedrawEventsCleared` even if there are no redraw events, consistent with other platforms.
+- **Breaking:** Replaced `Window::with_app_id` and `Window::with_class` with `Window::with_name` on `WindowBuilderExtUnix`.
+- On Wayland, fallback CSD was replaced with proper one:
+  - `WindowBuilderExtUnix::with_wayland_csd_theme` to set color theme in builder.
+  - `WindowExtUnix::wayland_set_csd_theme` to set color theme when creating a window.
+  - `WINIT_WAYLAND_CSD_THEME` env variable was added, it can be used to set "dark"/"light" theme in apps that don't expose theme setting.
+  - `wayland-csd-adwaita` feature that enables proper CSD with title rendering using FreeType system library.
+  - `wayland-csd-adwaita-notitle` feature that enables CSD but without title rendering.
+- On Wayland and X11, fix window not resizing with `Window::set_inner_size` after calling `Window:set_resizable(false)`.
+- On Windows, fix wrong fullscreen monitors being recognized when handling WM_WINDOWPOSCHANGING messages
+- **Breaking:** Added new `WindowEvent::Ime` supported on desktop platforms.
+- Added `Window::set_ime_allowed` supported on desktop platforms.
+- **Breaking:** IME input on desktop platforms won't be received unless it's explicitly allowed via `Window::set_ime_allowed` and new `WindowEvent::Ime` events are handled.
+- On macOS, `WindowEvent::Resized` is now emitted in `frameDidChange` instead of `windowDidResize`.
+- **Breaking:** On X11, device events are now ignored for unfocused windows by default, use `EventLoopWindowTarget::set_device_event_filter` to set the filter level.
 
 # 0.26.1 (2022-01-05)
 
@@ -252,13 +278,13 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - On X11, fix `ModifiersChanged` emitting incorrect modifier change events
 - **Breaking**: Overhaul how Winit handles DPI:
-  + Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
-  + Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
-  + `hidpi_factor` has been renamed to `scale_factor`.
-  + `HiDpiFactorChanged` has been renamed to `ScaleFactorChanged`, and lets you control how the OS
+  - Window functions and events now return `PhysicalSize` instead of `LogicalSize`.
+  - Functions that take `Size` or `Position` types can now take either `Logical` or `Physical` types.
+  - `hidpi_factor` has been renamed to `scale_factor`.
+  - `HiDpiFactorChanged` has been renamed to `ScaleFactorChanged`, and lets you control how the OS
     resizes the window in response to the change.
-  + On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`.
-  + `Size` and `Position` types are now generic over their exact pixel type.
+  - On X11, deprecate `WINIT_HIDPI_FACTOR` environment variable in favor of `WINIT_X11_SCALE_FACTOR`.
+  - `Size` and `Position` types are now generic over their exact pixel type.
 
 # 0.20.0 Alpha 6 (2020-01-03)
 
@@ -363,7 +389,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - `Window::set_fullscreen` now takes `Option<Fullscreen>` where `Fullscreen`
   consists of `Fullscreen::Exclusive(VideoMode)` and
   `Fullscreen::Borderless(MonitorHandle)` variants.
-    - Adds support for exclusive fullscreen mode.
+  - Adds support for exclusive fullscreen mode.
 - On iOS, add support for hiding the home indicator.
 - On iOS, add support for deferring system gestures.
 - On iOS, fix a crash that occurred while acquiring a monitor's name.
@@ -562,7 +588,7 @@ and `WindowEvent::HoveredFile`.
 # Version 0.16.1 (2018-07-02)
 
 - Added logging through `log`. Logging will become more extensive over time.
-- On X11 and Windows, the window's DPI factor is guessed before creating the window. This *greatly* cuts back on unsightly auto-resizing that would occur immediately after window creation.
+- On X11 and Windows, the window's DPI factor is guessed before creating the window. This _greatly_ cuts back on unsightly auto-resizing that would occur immediately after window creation.
 - Fixed X11 backend compilation for environments where `c_char` is unsigned.
 
 # Version 0.16.0 (2018-06-25)
@@ -712,7 +738,7 @@ and `WindowEvent::HoveredFile`.
 
 # Version 0.10.1 (2018-02-05)
 
-*Yanked*
+_Yanked_
 
 # Version 0.10.0 (2017-12-27)
 

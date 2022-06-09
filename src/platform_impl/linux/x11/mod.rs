@@ -44,13 +44,15 @@ use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
 use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
-    ime::{Ime, ImeCreationError, ImeReceiver, ImeSender},
+    ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
     util::modifiers::ModifierKeymap,
 };
 use crate::{
     error::OsError as RootOsError,
     event::{Event, StartCause},
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
+    },
     platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
     window::WindowAttributes,
 };
@@ -105,6 +107,7 @@ pub struct EventLoopWindowTarget<T> {
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
+    device_event_filter: DeviceEventFilter,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -144,6 +147,7 @@ impl<T: 'static> EventLoop<T> {
             .expect("Failed to call XInternAtoms when initializing drag and drop");
 
         let (ime_sender, ime_receiver) = mpsc::channel();
+        let (ime_event_sender, ime_event_receiver) = mpsc::channel();
         // Input methods will open successfully without setting the locale, but it won't be
         // possible to actually commit pre-edit sequences.
         unsafe {
@@ -168,7 +172,7 @@ impl<T: 'static> EventLoop<T> {
             }
         }
         let ime = RefCell::new({
-            let result = Ime::new(Arc::clone(&xconn));
+            let result = Ime::new(Arc::clone(&xconn), ime_event_sender);
             if let Err(ImeCreationError::OpenFailure(ref state)) = result {
                 panic!("Failed to open input method: {:#?}", state);
             }
@@ -228,21 +232,27 @@ impl<T: 'static> EventLoop<T> {
         let (user_sender, user_channel) = std::sync::mpsc::channel();
         let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
 
+        let window_target = EventLoopWindowTarget {
+            ime,
+            root,
+            windows: Default::default(),
+            _marker: ::std::marker::PhantomData,
+            ime_sender,
+            xconn,
+            wm_delete_window,
+            net_wm_ping,
+            redraw_sender: WakeSender {
+                sender: redraw_sender, // not used again so no clone
+                waker: waker.clone(),
+            },
+            device_event_filter: Default::default(),
+        };
+
+        // Set initial device event filter.
+        window_target.update_device_event_filter(true);
+
         let target = Rc::new(RootELW {
-            p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
-                ime,
-                root,
-                windows: Default::default(),
-                _marker: ::std::marker::PhantomData,
-                ime_sender,
-                xconn,
-                wm_delete_window,
-                net_wm_ping,
-                redraw_sender: WakeSender {
-                    sender: redraw_sender, // not used again so no clone
-                    waker: waker.clone(),
-                },
-            }),
+            p: super::EventLoopWindowTarget::X(window_target),
             _marker: ::std::marker::PhantomData,
         });
 
@@ -252,12 +262,14 @@ impl<T: 'static> EventLoop<T> {
             devices: Default::default(),
             randr_event_offset,
             ime_receiver,
+            ime_event_receiver,
             xi2ext,
             mod_keymap,
             device_mod_state: Default::default(),
             num_touch: 0,
             first_touch: None,
             active_window: None,
+            is_composing: false,
         };
 
         // Register for device hotplug events
@@ -521,6 +533,29 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn x_connection(&self) -> &Arc<XConnection> {
         &self.xconn
     }
+
+    pub fn set_device_event_filter(&mut self, filter: DeviceEventFilter) {
+        self.device_event_filter = filter;
+    }
+
+    /// Update the device event filter based on window focus.
+    pub fn update_device_event_filter(&self, focus: bool) {
+        let filter_events = self.device_event_filter == DeviceEventFilter::Never
+            || (self.device_event_filter == DeviceEventFilter::Unfocused && !focus);
+
+        let mut mask = 0;
+        if !filter_events {
+            mask = ffi::XI_RawMotionMask
+                | ffi::XI_RawButtonPressMask
+                | ffi::XI_RawButtonReleaseMask
+                | ffi::XI_RawKeyPressMask
+                | ffi::XI_RawKeyReleaseMask;
+        }
+
+        self.xconn
+            .select_xinput_events(self.root, ffi::XIAllDevices, mask)
+            .queue();
+    }
 }
 
 impl<T: 'static> EventLoopProxy<T> {
@@ -695,24 +730,11 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new<T: 'static>(el: &EventProcessor<T>, info: &ffi::XIDeviceInfo) -> Self {
+    fn new(info: &ffi::XIDeviceInfo) -> Self {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
 
-        let wt = get_xtarget(&el.target);
-
         if Device::physical_device(info) {
-            // Register for global raw events
-            let mask = ffi::XI_RawMotionMask
-                | ffi::XI_RawButtonPressMask
-                | ffi::XI_RawButtonReleaseMask
-                | ffi::XI_RawKeyPressMask
-                | ffi::XI_RawKeyReleaseMask;
-            // The request buffer is flushed when we poll for events
-            wt.xconn
-                .select_xinput_events(wt.root, info.deviceid, mask)
-                .queue();
-
             // Identify scroll axes
             for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };

@@ -1,10 +1,9 @@
-use std::{fmt, io, mem, path::Path, ptr, sync::Arc};
+use std::{fmt, io, mem, path::Path, sync::Arc};
 
 use windows_sys::{
     core::PCWSTR,
     Win32::{
         Foundation::HWND,
-        System::LibraryLoader::GetModuleHandleW,
         UI::WindowsAndMessaging::{
             CreateIcon, DestroyIcon, LoadImageW, SendMessageW, HICON, ICON_BIG, ICON_SMALL,
             IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
@@ -18,7 +17,7 @@ use crate::icon::*;
 use super::util;
 
 impl Pixel {
-    fn to_bgra(&mut self) {
+    fn convert_to_bgra(&mut self) {
         mem::swap(&mut self.r, &mut self.b);
     }
 }
@@ -32,7 +31,7 @@ impl RgbaIcon {
             unsafe { std::slice::from_raw_parts_mut(rgba.as_ptr() as *mut Pixel, pixel_count) };
         for pixel in pixels {
             and_mask.push(pixel.a.wrapping_sub(std::u8::MAX)); // invert alpha channel
-            pixel.to_bgra();
+            pixel.convert_to_bgra();
         }
         assert_eq!(and_mask.len(), pixel_count);
         let handle = unsafe {
@@ -111,7 +110,7 @@ impl WinIcon {
         let (width, height) = size.map(Into::into).unwrap_or((0, 0));
         let handle = unsafe {
             LoadImageW(
-                GetModuleHandleW(ptr::null()),
+                util::get_instance_handle(),
                 resource_id as PCWSTR,
                 IMAGE_ICON,
                 width as i32,

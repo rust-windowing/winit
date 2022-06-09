@@ -196,6 +196,10 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
     pub fn set_minimized(&self, _minimized: bool) {
         warn!("`Window::set_minimized` is ignored on iOS")
     }
@@ -285,6 +289,10 @@ impl Inner {
 
     pub fn set_ime_position(&self, _position: Position) {
         warn!("`Window::set_ime_position` is ignored on iOS")
+    }
+
+    pub fn set_ime_allowed(&self, _allowed: bool) {
+        warn!("`Window::set_ime_allowed` is ignored on iOS")
     }
 
     pub fn focus_window(&self) {

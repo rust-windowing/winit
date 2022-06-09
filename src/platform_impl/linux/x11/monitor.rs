@@ -1,5 +1,6 @@
 use std::os::raw::*;
 
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
 use super::{
@@ -18,9 +19,7 @@ use crate::{
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
-lazy_static! {
-    static ref MONITORS: Mutex<Option<Vec<MonitorHandle>>> = Mutex::default();
-}
+static MONITORS: Lazy<Mutex<Option<Vec<MonitorHandle>>>> = Lazy::new(Mutex::default);
 
 pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
     // We update this lazily.
