@@ -295,7 +295,7 @@ impl VideoMode {
 
 impl Window {
     #[inline]
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         window_target: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,

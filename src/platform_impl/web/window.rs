@@ -26,7 +26,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
