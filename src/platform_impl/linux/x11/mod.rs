@@ -23,7 +23,7 @@ pub use self::{
 };
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     ffi::CStr,
     mem::{self, MaybeUninit},
@@ -108,7 +108,7 @@ pub struct EventLoopWindowTarget<T> {
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
-    device_event_filter: DeviceEventFilter,
+    device_event_filter: Cell<DeviceEventFilter>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -536,14 +536,14 @@ impl<T> EventLoopWindowTarget<T> {
         &self.xconn
     }
 
-    pub fn set_device_event_filter(&mut self, filter: DeviceEventFilter) {
-        self.device_event_filter = filter;
+    pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {
+        self.device_event_filter.set(filter);
     }
 
     /// Update the device event filter based on window focus.
     pub fn update_device_event_filter(&self, focus: bool) {
-        let filter_events = self.device_event_filter == DeviceEventFilter::Never
-            || (self.device_event_filter == DeviceEventFilter::Unfocused && !focus);
+        let filter_events = self.device_event_filter.get() == DeviceEventFilter::Never
+            || (self.device_event_filter.get() == DeviceEventFilter::Unfocused && !focus);
 
         let mut mask = 0;
         if !filter_events {

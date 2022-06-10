@@ -6,7 +6,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::EventLoop,
+    event_loop::{DeviceEventFilter, EventLoop},
     window::{Fullscreen, WindowBuilder},
 };
 
@@ -31,6 +31,8 @@ fn main() {
 
     let mut minimized = false;
     let mut visible = true;
+
+    event_loop.set_device_event_filter(DeviceEventFilter::Never);
 
     event_loop.run(move |event, _, control_flow| {
         control_flow.set_wait();

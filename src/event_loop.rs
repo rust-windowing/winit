@@ -306,7 +306,7 @@ impl<T> EventLoopWindowTarget<T> {
     /// - **Wayland / Windows / macOS / iOS / Android / Web**: Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
-    pub fn set_device_event_filter(&mut self, _filter: DeviceEventFilter) {
+    pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
         #[cfg(any(
             target_os = "linux",
             target_os = "dragonfly",
