@@ -14,8 +14,8 @@ use cocoa::{
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, BOOL, NO};
 
+use super::ffi;
 use crate::dpi::LogicalPosition;
-use crate::platform_impl::platform::ffi;
 
 // Replace with `!` once stable
 #[derive(Debug)]

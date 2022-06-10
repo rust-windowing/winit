@@ -16,7 +16,7 @@ use windows_sys::Win32::{
     },
 };
 
-use crate::platform_impl::platform::util::{
+use super::util::{
     ENABLE_NON_CLIENT_DPI_SCALING, GET_DPI_FOR_MONITOR, GET_DPI_FOR_WINDOW, SET_PROCESS_DPI_AWARE,
     SET_PROCESS_DPI_AWARENESS, SET_PROCESS_DPI_AWARENESS_CONTEXT,
 };

@@ -19,22 +19,20 @@ use cocoa::{
 use objc::rc::autoreleasepool;
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
+use super::{
+    app::APP_CLASS,
+    app_delegate::APP_DELEGATE_CLASS,
+    app_state::{AppState, Callback},
+    get_aux_state_mut,
+    monitor::{self, MonitorHandle},
+    observer::*,
+    util::IdRef,
+};
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            app::APP_CLASS,
-            app_delegate::APP_DELEGATE_CLASS,
-            app_state::{AppState, Callback},
-            monitor::{self, MonitorHandle},
-            observer::*,
-            util::IdRef,
-        },
-    },
 };
 
 #[derive(Default)]

@@ -1,11 +1,12 @@
 use std::{env, slice, str::FromStr};
 
+use super::super::monitor;
+use super::super::VideoMode;
 use super::{
     ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
     *,
 };
-use crate::platform_impl::platform::x11::monitor;
-use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
+use crate::dpi::validate_scale_factor;
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
 pub enum EnvVarDPI {

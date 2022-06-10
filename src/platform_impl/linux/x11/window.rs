@@ -13,12 +13,12 @@ use parking_lot::Mutex;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
 use x11_dl::xlib::TrueColor;
 
+use super::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
-        x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },

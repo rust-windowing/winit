@@ -12,19 +12,19 @@ use std::{
 use objc::runtime::{BOOL, YES};
 use once_cell::sync::Lazy;
 
+use super::{
+    event_loop::{EventHandler, EventProxy, EventWrapper, Never},
+    ffi::{
+        id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
+        CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
+        CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSInteger,
+        NSOperatingSystemVersion, NSUInteger,
+    },
+};
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
-    platform_impl::platform::{
-        event_loop::{EventHandler, EventProxy, EventWrapper, Never},
-        ffi::{
-            id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
-            CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSInteger,
-            NSOperatingSystemVersion, NSUInteger,
-        },
-    },
     window::WindowId as RootWindowId,
 };
 

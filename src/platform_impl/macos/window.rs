@@ -13,29 +13,6 @@ use raw_window_handle::{
     AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
-use crate::{
-    dpi::{
-        LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
-    },
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform::macos::WindowExtMacOS,
-    platform_impl::platform::{
-        app_state::AppState,
-        ffi,
-        monitor::{self, MonitorHandle, VideoMode},
-        util::{self, IdRef},
-        view::CursorState,
-        view::{self, new_view},
-        window_delegate::new_delegate,
-        OsError,
-    },
-    window::{
-        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
-    },
-};
 use cocoa::{
     appkit::{
         self, CGFloat, NSApp, NSApplication, NSApplicationPresentationOptions, NSColor,
@@ -51,6 +28,30 @@ use objc::{
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 use once_cell::sync::Lazy;
+
+use super::{
+    app_state::AppState,
+    ffi,
+    monitor::{self, MonitorHandle, VideoMode},
+    util::{self, IdRef},
+    view::CursorState,
+    view::{self, new_view},
+    window_delegate::new_delegate,
+    OsError,
+};
+use crate::{
+    dpi::{
+        LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size, Size::Logical,
+    },
+    error::{ExternalError, NotSupportedError, OsError as RootOsError},
+    icon::Icon,
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    platform::macos::WindowExtMacOS,
+    window::{
+        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
+    },
+};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(pub usize);

@@ -2,8 +2,7 @@ use std::{collections::HashMap, mem, ptr, sync::Arc};
 
 use super::{ffi, XConnection, XError};
 
-use super::{context::ImeContext, input_method::PotentialInputMethods};
-use crate::platform_impl::platform::x11::ime::ImeEventSender;
+use super::{ImeEventSender, context::ImeContext, input_method::PotentialInputMethods};
 
 pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {
     (xconn.xlib.XCloseIM)(im);

@@ -5,13 +5,13 @@ use cocoa::{
     base::id,
 };
 
+use super::{
+    util::{IdRef, Never},
+    DEVICE_ID,
+};
 use crate::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
-    platform_impl::platform::{
-        util::{IdRef, Never},
-        DEVICE_ID,
-    },
 };
 
 #[derive(Debug)]

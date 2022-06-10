@@ -7,7 +7,7 @@ use std::{
     time::Instant,
 };
 
-use crate::platform_impl::platform::{
+use super::{
     app_state::AppState,
     event_loop::{stop_app_on_panic, PanicInfo},
     ffi,

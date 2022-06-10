@@ -14,15 +14,15 @@ use windows_sys::Win32::{
     },
 };
 
-use super::util::decode_wide;
+use super::{
+    dpi::{dpi_to_scale_factor, get_monitor_dpi},
+    util::decode_wide,
+    util::has_flag,
+    window::Window,
+};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::platform::{
-        dpi::{dpi_to_scale_factor, get_monitor_dpi},
-        util::has_flag,
-        window::Window,
-    },
 };
 
 #[derive(Clone)]

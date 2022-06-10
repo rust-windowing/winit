@@ -10,7 +10,8 @@ use objc::{
 };
 use once_cell::sync::Lazy;
 
-use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
+use super::app_state::AppState;
+use crate::platform::macos::ActivationPolicy;
 
 static AUX_DELEGATE_STATE_NAME: &str = "auxState";
 

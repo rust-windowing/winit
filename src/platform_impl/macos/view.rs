@@ -20,22 +20,22 @@ use objc::{
 };
 use once_cell::sync::Lazy;
 
+use super::{
+    app_state::AppState,
+    event::{
+        char_to_keycode, check_function_keys, event_mods, get_scancode, modifier_event,
+        scancode_to_keycode, EventWrapper,
+    },
+    ffi::*,
+    util::{self, id_to_string_lossy, IdRef},
+    window::get_window_id,
+    DEVICE_ID,
+};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
         DeviceEvent, ElementState, Event, Ime, KeyboardInput, ModifiersState, MouseButton,
         MouseScrollDelta, TouchPhase, VirtualKeyCode, WindowEvent,
-    },
-    platform_impl::platform::{
-        app_state::AppState,
-        event::{
-            char_to_keycode, check_function_keys, event_mods, get_scancode, modifier_event,
-            scancode_to_keycode, EventWrapper,
-        },
-        ffi::*,
-        util::{self, id_to_string_lossy, IdRef},
-        window::get_window_id,
-        DEVICE_ID,
     },
     window::WindowId,
 };

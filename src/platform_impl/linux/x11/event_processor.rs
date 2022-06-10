@@ -12,7 +12,7 @@ use super::{
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
 
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
+use super::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{

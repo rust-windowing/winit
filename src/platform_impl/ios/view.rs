@@ -5,20 +5,20 @@ use objc::{
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
 
+use super::{
+    app_state::{self, OSCapabilities},
+    event_loop::{self, EventProxy, EventWrapper},
+    ffi::{
+        id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
+        UIRectEdge, UITouchPhase, UITouchType,
+    },
+    window::PlatformSpecificWindowBuilderAttributes,
+    DeviceId,
+};
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
-    platform_impl::platform::{
-        app_state::{self, OSCapabilities},
-        event_loop::{self, EventProxy, EventWrapper},
-        ffi::{
-            id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
-            UIRectEdge, UITouchPhase, UITouchType,
-        },
-        window::PlatformSpecificWindowBuilderAttributes,
-        DeviceId,
-    },
     window::{Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
 

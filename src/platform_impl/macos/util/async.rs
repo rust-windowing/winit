@@ -12,14 +12,12 @@ use dispatch::Queue;
 use objc::rc::autoreleasepool;
 use objc::runtime::{BOOL, NO, YES};
 
-use crate::{
-    dpi::LogicalSize,
-    platform_impl::platform::{
-        ffi,
-        util::IdRef,
-        window::{SharedState, SharedStateMutexGuard},
-    },
+use super::super::{
+    ffi,
+    window::{SharedState, SharedStateMutexGuard},
 };
+use super::IdRef;
+use crate::dpi::LogicalSize;
 
 // Unsafe wrapper type that allows us to dispatch things that aren't Send.
 // This should *only* be used to dispatch to the main queue.

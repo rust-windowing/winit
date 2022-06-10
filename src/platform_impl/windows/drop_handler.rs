@@ -19,11 +19,10 @@ use windows_sys::{
     },
 };
 
-use crate::platform_impl::platform::{
+use super::{
     definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl},
     WindowId,
 };
-
 use crate::{event::Event, window::WindowId as RootWindowId};
 
 #[repr(C)]

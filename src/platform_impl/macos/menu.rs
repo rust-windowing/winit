@@ -1,4 +1,3 @@
-use super::util::IdRef;
 use cocoa::appkit::{NSApp, NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
 use cocoa::base::{nil, selector};
 use cocoa::foundation::{NSProcessInfo, NSString};
@@ -6,6 +5,8 @@ use objc::{
     rc::autoreleasepool,
     runtime::{Object, Sel},
 };
+
+use super::util::IdRef;
 
 struct KeyEquivalent<'a> {
     key: &'a str,

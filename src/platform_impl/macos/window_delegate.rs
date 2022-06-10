@@ -16,16 +16,16 @@ use objc::{
 };
 use once_cell::sync::Lazy;
 
+use super::{
+    app_state::AppState,
+    event::{EventProxy, EventWrapper},
+    util::{self, IdRef},
+    view::ViewState,
+    window::{get_window_id, UnownedWindow},
+};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
-    platform_impl::platform::{
-        app_state::AppState,
-        event::{EventProxy, EventWrapper},
-        util::{self, IdRef},
-        view::ViewState,
-        window::{get_window_id, UnownedWindow},
-    },
     window::{Fullscreen, WindowId},
 };
 

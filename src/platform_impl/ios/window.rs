@@ -6,6 +6,15 @@ use std::{
 use objc::runtime::{Class, Object, BOOL, NO, YES};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
+use super::{
+    app_state,
+    event_loop::{self, EventProxy, EventWrapper},
+    ffi::{
+        id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask, UIRectEdge,
+        UIScreenOverscanCompensation,
+    },
+    monitor, view, EventLoopWindowTarget, MonitorHandle,
+};
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -13,15 +22,6 @@ use crate::{
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
-    platform_impl::platform::{
-        app_state,
-        event_loop::{self, EventProxy, EventWrapper},
-        ffi::{
-            id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
-            UIRectEdge, UIScreenOverscanCompensation,
-        },
-        monitor, view, EventLoopWindowTarget, MonitorHandle,
-    },
     window::{
         CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
         WindowId as RootWindowId,

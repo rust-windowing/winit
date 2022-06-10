@@ -23,22 +23,19 @@ use objc::{
 };
 use once_cell::sync::Lazy;
 
+use super::{
+    event::{EventProxy, EventWrapper},
+    event_loop::{post_dummy_event, PanicInfo},
+    get_aux_state_mut, menu,
+    observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
+    util::{IdRef, Never},
+    window::get_window_id,
+};
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            event::{EventProxy, EventWrapper},
-            event_loop::{post_dummy_event, PanicInfo},
-            menu,
-            observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
-            util::{IdRef, Never},
-            window::get_window_id,
-        },
-    },
     window::WindowId,
 };
 

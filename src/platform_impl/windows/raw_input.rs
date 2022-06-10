@@ -23,7 +23,8 @@ use windows_sys::Win32::{
     },
 };
 
-use crate::{event::ElementState, platform_impl::platform::util};
+use super::util;
+use crate::event::ElementState;
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {

@@ -1,10 +1,10 @@
+use super::super::{OsError, PlatformSpecificWindowBuilderAttributes};
 use super::event;
 use super::event_handle::EventListenerHandle;
 use super::media_query_handle::MediaQueryListHandle;
 use crate::dpi::{LogicalPosition, PhysicalPosition, PhysicalSize};
 use crate::error::OsError as RootOE;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
-use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 
 use std::cell::RefCell;
 use std::rc::Rc;

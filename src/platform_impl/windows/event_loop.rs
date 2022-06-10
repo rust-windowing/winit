@@ -74,23 +74,23 @@ use windows_sys::Win32::{
     },
 };
 
+use super::{
+    dark_mode::try_theme,
+    dpi::{become_dpi_aware, dpi_to_scale_factor},
+    drop_handler::FileDropHandler,
+    event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+    ime::ImeContext,
+    monitor::{self, MonitorHandle},
+    raw_input, util,
+    window::InitData,
+    window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
+    wrap_device_id, WindowId, DEVICE_ID,
+};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, Ime, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
-    platform_impl::platform::{
-        dark_mode::try_theme,
-        dpi::{become_dpi_aware, dpi_to_scale_factor},
-        drop_handler::FileDropHandler,
-        event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
-        ime::ImeContext,
-        monitor::{self, MonitorHandle},
-        raw_input, util,
-        window::InitData,
-        window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
-        wrap_device_id, WindowId, DEVICE_ID,
-    },
     window::{Fullscreen, WindowId as RootWindowId},
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};

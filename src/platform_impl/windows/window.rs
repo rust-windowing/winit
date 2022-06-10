@@ -52,25 +52,25 @@ use windows_sys::Win32::{
     },
 };
 
+use super::{
+    dark_mode::try_theme,
+    definitions::{
+        CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
+    },
+    dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
+    drop_handler::FileDropHandler,
+    event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
+    icon::{self, IconType},
+    ime::ImeContext,
+    monitor, util,
+    window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
+    Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
+};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
-    platform_impl::platform::{
-        dark_mode::try_theme,
-        definitions::{
-            CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
-        },
-        dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
-        drop_handler::FileDropHandler,
-        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
-        icon::{self, IconType},
-        ime::ImeContext,
-        monitor, util,
-        window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
-    },
     window::{CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
 

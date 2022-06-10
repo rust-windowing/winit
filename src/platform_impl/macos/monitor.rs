@@ -1,10 +1,5 @@
 use std::{collections::VecDeque, fmt};
 
-use super::{ffi, util};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-};
 use cocoa::{
     appkit::NSScreen,
     base::{id, nil},
@@ -16,6 +11,10 @@ use core_foundation::{
     string::CFString,
 };
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
+
+use super::{ffi, util};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
 
 #[derive(Clone)]
 pub struct VideoMode {

@@ -19,7 +19,7 @@ use crate::{
     platform::ios::Idiom,
 };
 
-use crate::platform_impl::platform::{
+use super::{
     app_state,
     ffi::{
         id, kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes,

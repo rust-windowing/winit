@@ -4,13 +4,13 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use super::{
+    app_state,
+    ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
+};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::platform::{
-        app_state,
-        ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
-    },
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]

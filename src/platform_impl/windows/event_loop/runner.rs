@@ -12,11 +12,11 @@ use windows_sys::Win32::{
     Graphics::Gdi::{RedrawWindow, RDW_INTERNALPAINT},
 };
 
+use super::util;
 use crate::{
     dpi::PhysicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
-    platform_impl::platform::util,
     window::WindowId,
 };
 
