@@ -788,12 +788,12 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn set_device_event_filter(&mut self, _filter: DeviceEventFilter) {
+    pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
         match *self {
             #[cfg(feature = "wayland")]
             EventLoopWindowTarget::Wayland(_) => (),
             #[cfg(feature = "x11")]
-            EventLoopWindowTarget::X(ref mut evlp) => evlp.set_device_event_filter(_filter),
+            EventLoopWindowTarget::X(ref evlp) => evlp.set_device_event_filter(_filter),
         }
     }
 }
