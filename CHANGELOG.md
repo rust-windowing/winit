@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Build docs on `docs.rs` for iOS and Android as well.
 - **Breaking:** Removed the `WindowAttributes` struct, since all its functionality is accessible from `WindowBuilder`.
 - On macOS, Fix emitting `Event::LoopDestroyed` on CMD+Q.
 - On macOS, fixed an issue where having multiple windows would prevent run_return from ever returning.

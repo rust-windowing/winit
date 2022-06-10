@@ -14,7 +14,23 @@ categories = ["gui"]
 [package.metadata.docs.rs]
 features = ["serde"]
 default-target = "x86_64-unknown-linux-gnu"
-targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
+# These are all tested in CI
+targets = [
+    # Windows
+    "i686-pc-windows-msvc",
+    "x86_64-pc-windows-msvc",
+    # macOS
+    "x86_64-apple-darwin",
+    # Unix (X11 & Wayland)
+    "i686-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    # iOS
+    "x86_64-apple-ios",
+    # Android
+    "aarch64-linux-android",
+    # WebAssembly
+    "wasm32-unknown-unknown",
+]
 
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]

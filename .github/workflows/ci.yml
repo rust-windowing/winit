@@ -24,6 +24,7 @@ jobs:
       matrix:
         rust_version: [stable, nightly]
         platform:
+          # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { target: x86_64-pc-windows-msvc,   os: windows-latest,  }
           - { target: i686-pc-windows-msvc,     os: windows-latest,  }
           - { target: x86_64-pc-windows-gnu,    os: windows-latest, host: -x86_64-pc-windows-gnu }
@@ -77,7 +78,6 @@ jobs:
 
     - name: Check documentation
       shell: bash
-      if: matrix.platform.target != 'wasm32-unknown-unknown'
       run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Build
