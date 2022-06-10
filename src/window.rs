@@ -999,7 +999,9 @@ impl Window {
     /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn current_monitor(&self) -> Option<MonitorHandle> {
-        self.window.current_monitor()
+        self.window
+            .current_monitor()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the list of all the monitors available on the system.
@@ -1033,7 +1035,9 @@ impl Window {
     /// [`EventLoopWindowTarget::primary_monitor`]: crate::event_loop::EventLoopWindowTarget::primary_monitor
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.window.primary_monitor()
+        self.window
+            .primary_monitor()
+            .map(|inner| MonitorHandle { inner })
     }
 }
 unsafe impl HasRawWindowHandle for Window {

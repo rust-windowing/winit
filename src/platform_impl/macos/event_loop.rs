@@ -22,7 +22,6 @@ use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
-    monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
     platform_impl::{
         get_aux_state_mut,
@@ -84,9 +83,9 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     #[inline]

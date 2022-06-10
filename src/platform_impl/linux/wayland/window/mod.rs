@@ -205,12 +205,11 @@ impl Window {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland")
             }
             Some(Fullscreen::Borderless(monitor)) => {
-                let monitor =
-                    monitor.and_then(|RootMonitorHandle { inner: monitor }| match monitor {
-                        PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                        #[cfg(feature = "x11")]
-                        PlatformMonitorHandle::X(_) => None,
-                    });
+                let monitor = monitor.and_then(|monitor| match monitor.inner {
+                    PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
+                    #[cfg(feature = "x11")]
+                    PlatformMonitorHandle::X(_) => None,
+                });
 
                 window.set_fullscreen(monitor.as_ref());
             }
@@ -462,12 +461,11 @@ impl Window {
                 return;
             }
             Some(Fullscreen::Borderless(monitor)) => {
-                let monitor =
-                    monitor.and_then(|RootMonitorHandle { inner: monitor }| match monitor {
-                        PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
-                        #[cfg(feature = "x11")]
-                        PlatformMonitorHandle::X(_) => None,
-                    });
+                let monitor = monitor.and_then(|monitor| match monitor.inner {
+                    PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
+                    #[cfg(feature = "x11")]
+                    PlatformMonitorHandle::X(_) => None,
+                });
 
                 WindowRequest::Fullscreen(monitor)
             }
@@ -576,7 +574,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
         None
     }
 

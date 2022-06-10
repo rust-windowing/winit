@@ -78,7 +78,9 @@ impl VideoMode {
     /// a separate set of valid video modes.
     #[inline]
     pub fn monitor(&self) -> MonitorHandle {
-        self.video_mode.monitor()
+        MonitorHandle {
+            inner: self.video_mode.monitor(),
+        }
     }
 }
 

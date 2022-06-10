@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    monitor::VideoMode as RootVideoMode,
     platform_impl::platform::{
         app_state,
         ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
@@ -84,10 +84,8 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }
 

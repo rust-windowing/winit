@@ -312,7 +312,9 @@ impl<T> EventLoopWindowTarget<T> {
     /// **Wayland:** Always returns `None`.
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.p.primary_monitor()
+        self.p
+            .primary_monitor()
+            .map(|inner| MonitorHandle { inner })
     }
 
     /// Change [`DeviceEvent`] filter mode.

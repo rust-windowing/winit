@@ -19,12 +19,11 @@ use crate::{
     },
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
         ffi,
-        monitor::{self, MonitorHandle, VideoMode},
+        monitor::{self, MonitorHandle},
         util::{self, IdRef},
         view::CursorState,
         view::{self, new_view},
@@ -142,15 +141,16 @@ fn create_window(
     pl_attrs: &PlatformSpecificWindowBuilderAttributes,
 ) -> Option<IdRef> {
     autoreleasepool(|| unsafe {
-        let screen = match attrs.fullscreen {
-            Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
-            | Some(Fullscreen::Exclusive(RootVideoMode {
-                video_mode: VideoMode { ref monitor, .. },
-            })) => {
-                let monitor_screen = monitor.ns_screen();
+        let screen = match &attrs.fullscreen {
+            Some(Fullscreen::Borderless(Some(monitor))) => {
+                let monitor_screen = monitor.inner.ns_screen();
                 Some(monitor_screen.unwrap_or_else(|| appkit::NSScreen::mainScreen(nil)))
             }
             Some(Fullscreen::Borderless(None)) => Some(appkit::NSScreen::mainScreen(nil)),
+            Some(Fullscreen::Exclusive(video_mode)) => {
+                let monitor_screen = video_mode.monitor().inner.ns_screen();
+                Some(monitor_screen.unwrap_or_else(|| appkit::NSScreen::mainScreen(nil)))
+            }
             None => None,
         };
         let frame = match screen {
@@ -834,15 +834,9 @@ impl UnownedWindow {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(borderless) => {
-                    let RootMonitorHandle { inner: monitor } = borderless
-                        .clone()
-                        .unwrap_or_else(|| self.current_monitor_inner());
-                    monitor
-                }
-                Fullscreen::Exclusive(RootVideoMode {
-                    video_mode: VideoMode { ref monitor, .. },
-                }) => monitor.clone(),
+                Fullscreen::Borderless(Some(monitor)) => monitor.inner.clone(),
+                Fullscreen::Borderless(None) => self.current_monitor_inner(),
+                Fullscreen::Exclusive(video_mode) => video_mode.monitor().inner,
             }
             .ns_screen()
             .unwrap();
@@ -952,7 +946,7 @@ impl UnownedWindow {
                     Arc::downgrade(&self.shared_state),
                 );
             },
-            (&Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })), &None) => unsafe {
+            (&Some(Fullscreen::Exclusive(ref video_mode)), &None) => unsafe {
                 util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
                 // Rest of the state is restored by `window_did_exit_fullscreen`
                 util::toggle_full_screen_async(
@@ -982,10 +976,7 @@ impl UnownedWindow {
 
                 let _: () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
             },
-            (
-                &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
-                &Some(Fullscreen::Borderless(_)),
-            ) => unsafe {
+            (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => unsafe {
                 let presentation_options =
                     shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
                         NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
@@ -1116,21 +1107,19 @@ impl UnownedWindow {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
+    pub(crate) fn current_monitor_inner(&self) -> MonitorHandle {
         unsafe {
             let screen: id = msg_send![*self.ns_window, screen];
             let desc = NSScreen::deviceDescription(screen);
             let key = util::ns_string_id_ref("NSScreenNumber");
             let value = NSDictionary::valueForKey_(desc, *key);
             let display_id: NSUInteger = msg_send![value, unsignedIntegerValue];
-            RootMonitorHandle {
-                inner: MonitorHandle::new(display_id.try_into().unwrap()),
-            }
+            MonitorHandle::new(display_id.try_into().unwrap())
         }
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.current_monitor_inner())
     }
 
@@ -1140,9 +1129,9 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     #[inline]

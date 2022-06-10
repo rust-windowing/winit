@@ -1,10 +1,7 @@
 use std::{collections::VecDeque, fmt};
 
 use super::{ffi, util};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::MonitorHandle as RootMonitorHandle,
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
 use cocoa::{
     appkit::NSScreen,
     base::{id, nil},
@@ -91,10 +88,8 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }
 

@@ -1,5 +1,4 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::MonitorHandle as RootMonitorHandle;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MonitorHandle;
@@ -49,9 +48,7 @@ impl VideoMode {
         32000
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: MonitorHandle,
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        MonitorHandle
     }
 }
