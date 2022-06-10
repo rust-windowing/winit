@@ -1,15 +1,14 @@
 #![cfg(target_os = "windows")]
 
-use std::{ffi::c_void, path::Path};
+use std::ffi::c_void;
+use std::path::Path;
 
-use crate::{
-    dpi::PhysicalSize,
-    event::DeviceId,
-    event_loop::EventLoopBuilder,
-    monitor::MonitorHandle,
-    platform_impl::{Parent, WinIcon},
-    window::{BadIcon, Icon, Theme, Window, WindowBuilder},
-};
+use crate::dpi::PhysicalSize;
+use crate::event::DeviceId;
+use crate::event_loop::EventLoopBuilder;
+use crate::monitor::MonitorHandle;
+use crate::platform_impl::{Parent, WinIcon};
+use crate::window::{BadIcon, Icon, Theme, Window, WindowBuilder};
 
 /// Window Handle type used by Win32 API
 pub type HWND = isize;
@@ -124,8 +123,8 @@ pub trait WindowExtWindows {
     ///
     /// A window must be enabled before it can be activated.
     /// If an application has create a modal dialog box by disabling its owner window
-    /// (as described in [`WindowBuilderExtWindows::with_owner_window`]), the application must enable
-    /// the owner window before destroying the dialog box.
+    /// (as described in [`WindowBuilderExtWindows::with_owner_window`]), the application must
+    /// enable the owner window before destroying the dialog box.
     /// Otherwise, another window will receive the keyboard focus and be activated.
     ///
     /// If a child window is disabled, it is ignored when the system tries to determine which
@@ -181,14 +180,16 @@ impl WindowExtWindows for Window {
 pub trait WindowBuilderExtWindows {
     /// Sets a parent to the window to be created.
     ///
-    /// A child window has the WS_CHILD style and is confined to the client area of its parent window.
+    /// A child window has the WS_CHILD style and is confined to the client area of its parent
+    /// window.
     ///
     /// For more information, see <https://docs.microsoft.com/en-us/windows/win32/winmsg/window-features#child-windows>
     fn with_parent_window(self, parent: HWND) -> WindowBuilder;
 
     /// Set an owner to the window to be created. Can be used to create a dialog box, for example.
-    /// Can be used in combination with [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable)
-    /// on the owner window to create a modal dialog box.
+    /// Can be used in combination with
+    /// [`WindowExtWindows::set_enable(false)`](WindowExtWindows::set_enable) on the owner
+    /// window to create a modal dialog box.
     ///
     /// From MSDN:
     /// - An owned window is always above its owner in the z-order.
@@ -204,8 +205,9 @@ pub trait WindowBuilderExtWindows {
     ///
     /// The menu must have been manually created beforehand with [`CreateMenu`] or similar.
     ///
-    /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
-    /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
+    /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how
+    /// the menus look. If you use this, it is recommended that you combine it with
+    /// `with_theme(Some(Theme::Light))` to avoid a jarring effect.
     ///
     /// [`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu
     fn with_menu(self, menu: HMENU) -> WindowBuilder;
@@ -216,12 +218,12 @@ pub trait WindowBuilderExtWindows {
     /// This sets `WS_EX_NOREDIRECTIONBITMAP`.
     fn with_no_redirection_bitmap(self, flag: bool) -> WindowBuilder;
 
-    /// Enables or disables drag and drop support (enabled by default). Will interfere with other crates
-    /// that use multi-threaded COM API (`CoInitializeEx` with `COINIT_MULTITHREADED` instead of
-    /// `COINIT_APARTMENTTHREADED`) on the same thread. Note that winit may still attempt to initialize
-    /// COM API regardless of this option. Currently only fullscreen mode does that, but there may be more in the future.
-    /// If you need COM API with `COINIT_MULTITHREADED` you must initialize it before calling any winit functions.
-    /// See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
+    /// Enables or disables drag and drop support (enabled by default). Will interfere with other
+    /// crates that use multi-threaded COM API (`CoInitializeEx` with `COINIT_MULTITHREADED`
+    /// instead of `COINIT_APARTMENTTHREADED`) on the same thread. Note that winit may still
+    /// attempt to initialize COM API regardless of this option. Currently only fullscreen mode
+    /// does that, but there may be more in the future. If you need COM API with
+    /// `COINIT_MULTITHREADED` you must initialize it before calling any winit functions. See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
     fn with_drag_and_drop(self, flag: bool) -> WindowBuilder;
 
     /// Forces a theme or uses the system settings if `None` was provided.

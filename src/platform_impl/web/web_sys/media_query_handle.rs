@@ -1,4 +1,5 @@
-use wasm_bindgen::{prelude::Closure, JsCast};
+use wasm_bindgen::prelude::Closure;
+use wasm_bindgen::JsCast;
 use web_sys::{MediaQueryList, MediaQueryListEvent};
 
 pub(super) struct MediaQueryListHandle {
@@ -12,19 +13,12 @@ impl MediaQueryListHandle {
         listener: Closure<dyn FnMut(MediaQueryListEvent)>,
     ) -> Option<Self> {
         let window = web_sys::window().expect("Failed to obtain window");
-        let mql = window
-            .match_media(media_query)
-            .ok()
-            .flatten()
-            .and_then(|mql| {
-                mql.add_listener_with_opt_callback(Some(listener.as_ref().unchecked_ref()))
-                    .map(|_| mql)
-                    .ok()
-            });
-        mql.map(|mql| Self {
-            mql,
-            listener: Some(listener),
-        })
+        let mql = window.match_media(media_query).ok().flatten().and_then(|mql| {
+            mql.add_listener_with_opt_callback(Some(listener.as_ref().unchecked_ref()))
+                .map(|_| mql)
+                .ok()
+        });
+        mql.map(|mql| Self { mql, listener: Some(listener) })
     }
 
     pub fn mql(&self) -> &MediaQueryList {
@@ -49,8 +43,7 @@ impl Drop for MediaQueryListHandle {
 }
 
 fn remove_listener(mql: &MediaQueryList, listener: &Closure<dyn FnMut(MediaQueryListEvent)>) {
-    mql.remove_listener_with_opt_callback(Some(listener.as_ref().unchecked_ref()))
-        .unwrap_or_else(|e| {
-            web_sys::console::error_2(&"Error removing media query listener".into(), &e)
-        });
+    mql.remove_listener_with_opt_callback(Some(listener.as_ref().unchecked_ref())).unwrap_or_else(
+        |e| web_sys::console::error_2(&"Error removing media query listener".into(), &e),
+    );
 }

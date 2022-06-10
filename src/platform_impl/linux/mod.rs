@@ -14,7 +14,8 @@ use crate::window::Theme;
 #[cfg(feature = "wayland")]
 use std::error::Error;
 
-use std::{collections::VecDeque, env, fmt};
+use std::collections::VecDeque;
+use std::{env, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
@@ -28,17 +29,15 @@ use raw_window_handle::RawWindowHandle;
 pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    event::Event,
-    event_loop::{
-        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
-    },
-    icon::Icon,
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::event::Event;
+use crate::event_loop::{
+    ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
 };
+use crate::icon::Icon;
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use crate::window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes};
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 
@@ -304,11 +303,11 @@ impl Window {
             #[cfg(feature = "wayland")]
             EventLoopWindowTarget::Wayland(ref window_target) => {
                 wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)
-            }
+            },
             #[cfg(feature = "x11")]
             EventLoopWindowTarget::X(ref window_target) => {
                 x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
-            }
+            },
         }
     }
 
@@ -491,6 +490,7 @@ impl Window {
             Window::Wayland(_) => (),
         }
     }
+
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
         match self {
             #[cfg(feature = "x11")]
@@ -511,17 +511,13 @@ impl Window {
             #[cfg(feature = "x11")]
             Window::X(ref window) => {
                 let current_monitor = MonitorHandle::X(window.current_monitor());
-                Some(RootMonitorHandle {
-                    inner: current_monitor,
-                })
-            }
+                Some(RootMonitorHandle { inner: current_monitor })
+            },
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => {
                 let current_monitor = MonitorHandle::Wayland(window.current_monitor()?);
-                Some(RootMonitorHandle {
-                    inner: current_monitor,
-                })
-            }
+                Some(RootMonitorHandle { inner: current_monitor })
+            },
         }
     }
 
@@ -529,17 +525,13 @@ impl Window {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match self {
             #[cfg(feature = "x11")]
-            Window::X(ref window) => window
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::X)
-                .collect(),
+            Window::X(ref window) => {
+                window.available_monitors().into_iter().map(MonitorHandle::X).collect()
+            },
             #[cfg(feature = "wayland")]
-            Window::Wayland(ref window) => window
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::Wayland)
-                .collect(),
+            Window::Wayland(ref window) => {
+                window.available_monitors().into_iter().map(MonitorHandle::Wayland).collect()
+            },
         }
     }
 
@@ -549,10 +541,8 @@ impl Window {
             #[cfg(feature = "x11")]
             Window::X(ref window) => {
                 let primary_monitor = MonitorHandle::X(window.primary_monitor());
-                Some(RootMonitorHandle {
-                    inner: primary_monitor,
-                })
-            }
+                Some(RootMonitorHandle { inner: primary_monitor })
+            },
             #[cfg(feature = "wayland")]
             Window::Wayland(ref window) => window.primary_monitor(),
         }
@@ -653,14 +643,14 @@ impl<T: 'static> EventLoop<T> {
                         .expect("Failed to initialize X11 backend");
                     #[cfg(not(feature = "x11"))]
                     panic!("x11 feature is not enabled")
-                }
+                },
                 "wayland" => {
                     #[cfg(feature = "wayland")]
                     return EventLoop::new_wayland_any_thread()
                         .expect("Failed to initialize Wayland backend");
                     #[cfg(not(feature = "wayland"))]
                     panic!("wayland feature is not enabled");
-                }
+                },
                 _ => panic!(
                     "Unknown environment variable value for {}, try one of `x11`,`wayland`",
                     BACKEND_PREFERENCE_ENV_VAR,
@@ -757,18 +747,13 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
         match *self {
             #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(ref evlp) => evlp
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::Wayland)
-                .collect(),
+            EventLoopWindowTarget::Wayland(ref evlp) => {
+                evlp.available_monitors().into_iter().map(MonitorHandle::Wayland).collect()
+            },
             #[cfg(feature = "x11")]
-            EventLoopWindowTarget::X(ref evlp) => evlp
-                .x_connection()
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::X)
-                .collect(),
+            EventLoopWindowTarget::X(ref evlp) => {
+                evlp.x_connection().available_monitors().into_iter().map(MonitorHandle::X).collect()
+            },
         }
     }
 
@@ -780,10 +765,8 @@ impl<T> EventLoopWindowTarget<T> {
             #[cfg(feature = "x11")]
             EventLoopWindowTarget::X(ref evlp) => {
                 let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
-                Some(RootMonitorHandle {
-                    inner: primary_monitor,
-                })
-            }
+                Some(RootMonitorHandle { inner: primary_monitor })
+            },
         }
     }
 

@@ -1,13 +1,11 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
-use winit::{
-    event::{
-        ElementState, Event, KeyboardInput, MouseButton, StartCause, VirtualKeyCode, WindowEvent,
-    },
-    event_loop::EventLoop,
-    window::{Window, WindowBuilder, WindowId},
+use winit::event::{
+    ElementState, Event, KeyboardInput, MouseButton, StartCause, VirtualKeyCode, WindowEvent,
 };
+use winit::event_loop::EventLoop;
+use winit::window::{Window, WindowBuilder, WindowId};
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -22,7 +20,7 @@ fn main() {
     event_loop.run(move |event, _, control_flow| match event {
         Event::NewEvents(StartCause::Init) => {
             eprintln!("Switch which window is to be dragged by pressing \"x\".")
-        }
+        },
         Event::WindowEvent { event, window_id } => match event {
             WindowEvent::CloseRequested => control_flow.set_exit(),
             WindowEvent::MouseInput {
@@ -39,11 +37,11 @@ fn main() {
                 };
 
                 window.drag_window().unwrap()
-            }
+            },
             WindowEvent::CursorEntered { .. } => {
                 entered_id = window_id;
                 name_windows(entered_id, switched, &window_1, &window_2)
-            }
+            },
             WindowEvent::KeyboardInput {
                 input:
                     KeyboardInput {
@@ -56,7 +54,7 @@ fn main() {
                 switched = !switched;
                 name_windows(entered_id, switched, &window_1, &window_2);
                 println!("Switched!")
-            }
+            },
             _ => (),
         },
         _ => (),

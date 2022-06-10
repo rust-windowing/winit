@@ -78,10 +78,6 @@ struct Preedit {
 
 impl TextInputInner {
     fn new() -> Self {
-        Self {
-            target_window_id: None,
-            pending_commit: None,
-            pending_preedit: None,
-        }
+        Self { target_window_id: None, pending_commit: None, pending_preedit: None }
     }
 }

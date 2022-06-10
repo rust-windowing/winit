@@ -50,10 +50,7 @@ impl OutputManager {
             }
         });
 
-        Self {
-            handle,
-            _output_listener: output_listener,
-        }
+        Self { handle, _output_listener: output_listener }
     }
 
     pub fn handle(&self) -> OutputManagerHandle {
@@ -149,10 +146,7 @@ impl MonitorHandle {
     #[inline]
     pub fn size(&self) -> PhysicalSize<u32> {
         match sctk::output::with_output_info(&self.proxy, |info| {
-            info.modes
-                .iter()
-                .find(|mode| mode.is_current)
-                .map(|mode| mode.dimensions)
+            info.modes.iter().find(|mode| mode.is_current).map(|mode| mode.dimensions)
         }) {
             Some(Some((w, h))) => (w as u32, h as u32),
             _ => (0, 0),
@@ -162,9 +156,7 @@ impl MonitorHandle {
 
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
-        sctk::output::with_output_info(&self.proxy, |info| info.location)
-            .unwrap_or((0, 0))
-            .into()
+        sctk::output::with_output_info(&self.proxy, |info| info.location).unwrap_or((0, 0)).into()
     }
 
     #[inline]
@@ -215,9 +207,7 @@ impl VideoMode {
     }
 
     pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: PlatformMonitorHandle::Wayland(self.monitor.clone()),
-        }
+        RootMonitorHandle { inner: PlatformMonitorHandle::Wayland(self.monitor.clone()) }
     }
 }
 

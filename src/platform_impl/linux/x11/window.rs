@@ -1,29 +1,25 @@
 use raw_window_handle::XlibHandle;
-use std::{
-    cmp, env,
-    ffi::CString,
-    mem::{self, replace, MaybeUninit},
-    os::raw::*,
-    path::Path,
-    ptr, slice,
-    sync::Arc,
-};
+use std::ffi::CString;
+use std::mem::{self, replace, MaybeUninit};
+use std::os::raw::*;
+use std::path::Path;
+use std::sync::Arc;
+use std::{cmp, env, ptr, slice};
 use x11_dl::xlib::TrueColor;
 
 use libc;
 use parking_lot::Mutex;
 
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::{
-        x11::{ime::ImeContextCreationError, MonitorHandle as X11MonitorHandle},
-        MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
-        VideoMode as PlatformVideoMode,
-    },
-    window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use crate::platform_impl::x11::ime::ImeContextCreationError;
+use crate::platform_impl::x11::MonitorHandle as X11MonitorHandle;
+use crate::platform_impl::{
+    MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
+    VideoMode as PlatformVideoMode,
 };
+use crate::window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes};
 
 use super::{
     ffi, util, EventLoopWindowTarget, ImeRequest, ImeSender, WakeSender, WindowId, XConnection,
@@ -66,11 +62,8 @@ pub enum Visibility {
 
 impl SharedState {
     fn new(last_monitor: X11MonitorHandle, window_attributes: &WindowAttributes) -> Mutex<Self> {
-        let visibility = if window_attributes.visible {
-            Visibility::YesWait
-        } else {
-            Visibility::No
-        };
+        let visibility =
+            if window_attributes.visible { Visibility::YesWait } else { Visibility::No };
 
         Mutex::new(SharedState {
             last_monitor,
@@ -146,16 +139,13 @@ impl UnownedWindow {
 
         info!("Guessed window scale factor: {}", scale_factor);
 
-        let max_inner_size: Option<(u32, u32)> = window_attrs
-            .max_inner_size
-            .map(|size| size.to_physical::<u32>(scale_factor).into());
-        let min_inner_size: Option<(u32, u32)> = window_attrs
-            .min_inner_size
-            .map(|size| size.to_physical::<u32>(scale_factor).into());
+        let max_inner_size: Option<(u32, u32)> =
+            window_attrs.max_inner_size.map(|size| size.to_physical::<u32>(scale_factor).into());
+        let min_inner_size: Option<(u32, u32)> =
+            window_attrs.min_inner_size.map(|size| size.to_physical::<u32>(scale_factor).into());
 
-        let position = window_attrs
-            .position
-            .map(|position| position.to_physical::<i32>(scale_factor));
+        let position =
+            window_attrs.position.map(|position| position.to_physical::<i32>(scale_factor));
 
         let dimensions = {
             // x11 only applies constraints when the window is actively resized
@@ -174,10 +164,7 @@ impl UnownedWindow {
                 dimensions.0 = cmp::max(dimensions.0, min.0);
                 dimensions.1 = cmp::max(dimensions.1, min.1);
             }
-            debug!(
-                "Calculated physical dimensions: {}x{}",
-                dimensions.0, dimensions.1
-            );
+            debug!("Calculated physical dimensions: {}x{}", dimensions.0, dimensions.1);
             dimensions
         };
 
@@ -205,19 +192,14 @@ impl UnownedWindow {
                     let vinfo = unsafe { vinfo.assume_init() };
                     (vinfo.visual, vinfo.depth, true)
                 } else {
-                    debug!("Could not set transparency, because XMatchVisualInfo returned zero for the required parameters");
-                    (
-                        ffi::CopyFromParent as *mut ffi::Visual,
-                        ffi::CopyFromParent,
-                        false,
-                    )
+                    debug!(
+                        "Could not set transparency, because XMatchVisualInfo returned zero for \
+                         the required parameters"
+                    );
+                    (ffi::CopyFromParent as *mut ffi::Visual, ffi::CopyFromParent, false)
                 }
-            }
-            _ => (
-                ffi::CopyFromParent as *mut ffi::Visual,
-                ffi::CopyFromParent,
-                false,
-            ),
+            },
+            _ => (ffi::CopyFromParent as *mut ffi::Visual, ffi::CopyFromParent, false),
         };
 
         let mut set_win_attr = {
@@ -290,9 +272,7 @@ impl UnownedWindow {
         // title to determine placement/etc., so doing this after mapping would cause the WM to
         // act on the wrong title state.
         window.set_title_inner(&window_attrs.title).queue();
-        window
-            .set_decorations_inner(window_attrs.decorations)
-            .queue();
+        window.set_decorations_inner(window_attrs.decorations).queue();
 
         {
             // Enable drag and drop (TODO: extend API to make this toggleable)
@@ -358,12 +338,10 @@ impl UnownedWindow {
 
             // set size hints
             {
-                let mut min_inner_size = window_attrs
-                    .min_inner_size
-                    .map(|size| size.to_physical::<u32>(scale_factor));
-                let mut max_inner_size = window_attrs
-                    .max_inner_size
-                    .map(|size| size.to_physical::<u32>(scale_factor));
+                let mut min_inner_size =
+                    window_attrs.min_inner_size.map(|size| size.to_physical::<u32>(scale_factor));
+                let mut max_inner_size =
+                    window_attrs.max_inner_size.map(|size| size.to_physical::<u32>(scale_factor));
 
                 if !window_attrs.resizable {
                     if util::wm_name_is_one_of(&["Xfwm4"]) {
@@ -391,9 +369,7 @@ impl UnownedWindow {
                         .map(|size| size.to_physical::<u32>(scale_factor).into()),
                 );
                 normal_hints.set_base_size(
-                    pl_attribs
-                        .base_size
-                        .map(|size| size.to_physical::<u32>(scale_factor).into()),
+                    pl_attribs.base_size.map(|size| size.to_physical::<u32>(scale_factor).into()),
                 );
                 xconn.set_normal_hints(window.xwindow, normal_hints).queue();
             }
@@ -430,9 +406,7 @@ impl UnownedWindow {
                     &mut supported_ptr,
                 );
                 if supported_ptr == ffi::False {
-                    return Err(os_error!(OsError::XMisc(
-                        "`XkbSetDetectableAutoRepeat` failed"
-                    )));
+                    return Err(os_error!(OsError::XMisc("`XkbSetDetectableAutoRepeat` failed")));
                 }
             }
 
@@ -449,21 +423,16 @@ impl UnownedWindow {
                     | ffi::XI_TouchBeginMask
                     | ffi::XI_TouchUpdateMask
                     | ffi::XI_TouchEndMask;
-            xconn
-                .select_xinput_events(window.xwindow, ffi::XIAllMasterDevices, mask)
-                .queue();
+            xconn.select_xinput_events(window.xwindow, ffi::XIAllMasterDevices, mask).queue();
 
             {
-                let result = event_loop
-                    .ime
-                    .borrow_mut()
-                    .create_context(window.xwindow, false);
+                let result = event_loop.ime.borrow_mut().create_context(window.xwindow, false);
                 if let Err(err) = result {
                     let e = match err {
                         ImeContextCreationError::XError(err) => OsError::XError(err),
                         ImeContextCreationError::Null => {
                             OsError::XMisc("IME Context creation failed")
-                        }
+                        },
                     };
                     return Err(os_error!(e));
                 }
@@ -486,25 +455,20 @@ impl UnownedWindow {
                 }
             }
             if window_attrs.always_on_top {
-                window
-                    .set_always_on_top_inner(window_attrs.always_on_top)
-                    .queue();
+                window.set_always_on_top_inner(window_attrs.always_on_top).queue();
             }
         }
 
         // We never want to give the user a broken window, since by then, it's too late to handle.
-        xconn
-            .sync_with_server()
-            .map(|_| window)
-            .map_err(|x_err| os_error!(OsError::XError(x_err)))
+        xconn.sync_with_server().map(|_| window).map_err(|x_err| os_error!(OsError::XError(x_err)))
     }
 
     fn set_pid(&self) -> Option<util::Flusher<'_>> {
         let pid_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_PID\0") };
         let client_machine_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_CLIENT_MACHINE\0") };
         unsafe {
-            // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For instance, this is
-            // the limit defined by OpenBSD.
+            // 64 would suffice for Linux, but 256 will be enough everywhere (as per SUSv2). For
+            // instance, this is the limit defined by OpenBSD.
             const MAXHOSTNAMELEN: usize = 256;
             // `assume_init` is safe here because the array consists of `MaybeUninit` values,
             // which do not require initialization.
@@ -541,10 +505,7 @@ impl UnownedWindow {
 
     fn set_window_types(&self, window_types: Vec<util::WindowType>) -> util::Flusher<'_> {
         let hint_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_WINDOW_TYPE\0") };
-        let atoms: Vec<_> = window_types
-            .iter()
-            .map(|t| t.as_atom(&self.xconn))
-            .collect();
+        let atoms: Vec<_> = window_types.iter().map(|t| t.as_atom(&self.xconn)).collect();
 
         self.xconn.change_property(
             self.xwindow,
@@ -579,13 +540,7 @@ impl UnownedWindow {
             self.root,
             state_atom,
             Some(ffi::SubstructureRedirectMask | ffi::SubstructureNotifyMask),
-            [
-                operation as c_long,
-                properties.0,
-                properties.1,
-                properties.2,
-                properties.3,
-            ],
+            [operation as c_long, properties.0, properties.1, properties.2, properties.3],
         )
     }
 
@@ -618,7 +573,7 @@ impl UnownedWindow {
             Visibility::No | Visibility::YesWait => {
                 shared_state_lock.desired_fullscreen = Some(fullscreen);
                 return None;
-            }
+            },
             Visibility::Yes => (),
         }
 
@@ -648,7 +603,7 @@ impl UnownedWindow {
                 let monitor = video_mode.monitor.as_ref().unwrap();
                 shared_state_lock.desktop_video_mode =
                     Some((monitor.id, self.xconn.get_crtc_mode(monitor.id)));
-            }
+            },
             // Restore desktop video mode upon exiting exclusive fullscreen
             (&Some(Fullscreen::Exclusive(_)), &None)
             | (&Some(Fullscreen::Exclusive(_)), &Some(Fullscreen::Borderless(_))) => {
@@ -656,7 +611,7 @@ impl UnownedWindow {
                 self.xconn
                     .set_crtc_config(monitor_id, mode_id)
                     .expect("failed to restore desktop video mode");
-            }
+            },
             _ => (),
         }
 
@@ -671,7 +626,7 @@ impl UnownedWindow {
                     self.set_position_inner(position.0, position.1).queue();
                 }
                 Some(flusher)
-            }
+            },
             Some(fullscreen) => {
                 let (video_mode, monitor) = match fullscreen {
                     Fullscreen::Exclusive(RootVideoMode {
@@ -724,10 +679,9 @@ impl UnownedWindow {
                 let window_position = self.outer_position_physical();
                 self.shared_state.lock().restore_position = Some(window_position);
                 let monitor_origin: (i32, i32) = monitor.position().into();
-                self.set_position_inner(monitor_origin.0, monitor_origin.1)
-                    .queue();
+                self.set_position_inner(monitor_origin.0, monitor_origin.1).queue();
                 Some(self.set_fullscreen_hint(true))
-            }
+            },
         }
     }
 
@@ -735,18 +689,13 @@ impl UnownedWindow {
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state = self.shared_state.lock();
 
-        shared_state
-            .desired_fullscreen
-            .clone()
-            .unwrap_or_else(|| shared_state.fullscreen.clone())
+        shared_state.desired_fullscreen.clone().unwrap_or_else(|| shared_state.fullscreen.clone())
     }
 
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         if let Some(flusher) = self.set_fullscreen_inner(fullscreen) {
-            flusher
-                .sync()
-                .expect("Failed to change window fullscreen state");
+            flusher.sync().expect("Failed to change window fullscreen state");
             self.invalidate_cached_frame_extents();
         }
     }
@@ -767,7 +716,7 @@ impl UnownedWindow {
                     drop(shared_state);
                     self.set_fullscreen(fullscreen);
                 }
-            }
+            },
         }
     }
 
@@ -808,55 +757,34 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_minimized(&self, minimized: bool) {
-        self.set_minimized_inner(minimized)
-            .flush()
-            .expect("Failed to change window minimization");
+        self.set_minimized_inner(minimized).flush().expect("Failed to change window minimization");
     }
 
     #[inline]
     pub fn is_maximized(&self) -> bool {
         let state_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE\0") };
-        let state = self
-            .xconn
-            .get_property(self.xwindow, state_atom, ffi::XA_ATOM);
-        let horz_atom = unsafe {
-            self.xconn
-                .get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0")
-        };
-        let vert_atom = unsafe {
-            self.xconn
-                .get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0")
-        };
+        let state = self.xconn.get_property(self.xwindow, state_atom, ffi::XA_ATOM);
+        let horz_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0") };
+        let vert_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0") };
         match state {
             Ok(atoms) => {
                 let horz_maximized = atoms.iter().any(|atom: &ffi::Atom| *atom == horz_atom);
                 let vert_maximized = atoms.iter().any(|atom: &ffi::Atom| *atom == vert_atom);
                 horz_maximized && vert_maximized
-            }
+            },
             _ => false,
         }
     }
 
     fn set_maximized_inner(&self, maximized: bool) -> util::Flusher<'_> {
-        let horz_atom = unsafe {
-            self.xconn
-                .get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0")
-        };
-        let vert_atom = unsafe {
-            self.xconn
-                .get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0")
-        };
-        self.set_netwm(
-            maximized.into(),
-            (horz_atom as c_long, vert_atom as c_long, 0, 0),
-        )
+        let horz_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_HORZ\0") };
+        let vert_atom = unsafe { self.xconn.get_atom_unchecked(b"_NET_WM_STATE_MAXIMIZED_VERT\0") };
+        self.set_netwm(maximized.into(), (horz_atom as c_long, vert_atom as c_long, 0, 0))
     }
 
     #[inline]
     pub fn set_maximized(&self, maximized: bool) {
-        self.set_maximized_inner(maximized)
-            .flush()
-            .expect("Failed to change window maximization");
+        self.set_maximized_inner(maximized).flush().expect("Failed to change window maximization");
         self.invalidate_cached_frame_extents();
     }
 
@@ -882,9 +810,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_title(&self, title: &str) {
-        self.set_title_inner(title)
-            .flush()
-            .expect("Failed to set window title");
+        self.set_title_inner(title).flush().expect("Failed to set window title");
     }
 
     fn set_decorations_inner(&self, decorations: bool) -> util::Flusher<'_> {
@@ -898,9 +824,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
-        self.set_decorations_inner(decorations)
-            .flush()
-            .expect("Failed to set decoration state");
+        self.set_decorations_inner(decorations).flush().expect("Failed to set decoration state");
         self.invalidate_cached_frame_extents();
     }
 
@@ -970,7 +894,7 @@ impl UnownedWindow {
         match (visible, shared_state.visibility) {
             (true, Visibility::Yes) | (true, Visibility::YesWait) | (false, Visibility::No) => {
                 return
-            }
+            },
             _ => (),
         }
 
@@ -978,17 +902,13 @@ impl UnownedWindow {
             unsafe {
                 (self.xconn.xlib.XMapRaised)(self.xconn.display, self.xwindow);
             }
-            self.xconn
-                .flush_requests()
-                .expect("Failed to call XMapRaised");
+            self.xconn.flush_requests().expect("Failed to call XMapRaised");
             shared_state.visibility = Visibility::YesWait;
         } else {
             unsafe {
                 (self.xconn.xlib.XUnmapWindow)(self.xconn.display, self.xwindow);
             }
-            self.xconn
-                .flush_requests()
-                .expect("Failed to call XUnmapWindow");
+            self.xconn.flush_requests().expect("Failed to call XUnmapWindow");
             shared_state.visibility = Visibility::No;
         }
     }
@@ -999,9 +919,7 @@ impl UnownedWindow {
     }
 
     fn update_cached_frame_extents(&self) {
-        let extents = self
-            .xconn
-            .get_frame_extents_heuristic(self.xwindow, self.root);
+        let extents = self.xconn.get_frame_extents_heuristic(self.xwindow, self.root);
         (*self.shared_state.lock()).frame_extents = Some(extents);
     }
 
@@ -1066,9 +984,7 @@ impl UnownedWindow {
     }
 
     pub(crate) fn set_position_physical(&self, x: i32, y: i32) {
-        self.set_position_inner(x, y)
-            .flush()
-            .expect("Failed to call `XMoveWindow`");
+        self.set_position_inner(x, y).flush().expect("Failed to call `XMoveWindow`");
     }
 
     #[inline]
@@ -1080,10 +996,7 @@ impl UnownedWindow {
     pub(crate) fn inner_size_physical(&self) -> (u32, u32) {
         // This should be okay to unwrap since the only error XGetGeometry can return
         // is BadWindow, and if the window handle is bad we have bigger problems.
-        self.xconn
-            .get_geometry(self.xwindow)
-            .map(|geo| (geo.width, geo.height))
-            .unwrap()
+        self.xconn.get_geometry(self.xwindow).map(|geo| (geo.width, geo.height)).unwrap()
     }
 
     #[inline]
@@ -1136,9 +1049,7 @@ impl UnownedWindow {
     {
         let mut normal_hints = self.xconn.get_normal_hints(self.xwindow)?;
         callback(&mut normal_hints);
-        self.xconn
-            .set_normal_hints(self.xwindow, normal_hints)
-            .flush()
+        self.xconn.set_normal_hints(self.xwindow, normal_hints).flush()
     }
 
     pub(crate) fn set_min_inner_size_physical(&self, dimensions: Option<(u32, u32)>) {
@@ -1198,19 +1109,17 @@ impl UnownedWindow {
 
     pub fn set_resizable(&self, resizable: bool) {
         if util::wm_name_is_one_of(&["Xfwm4"]) {
-            // Making the window unresizable on Xfwm prevents further changes to `WM_NORMAL_HINTS` from being detected.
-            // This makes it impossible for resizing to be re-enabled, and also breaks DPI scaling. As such, we choose
-            // the lesser of two evils and do nothing.
+            // Making the window unresizable on Xfwm prevents further changes to `WM_NORMAL_HINTS`
+            // from being detected. This makes it impossible for resizing to be
+            // re-enabled, and also breaks DPI scaling. As such, we choose the lesser of
+            // two evils and do nothing.
             warn!("To avoid a WM bug, disabling resizing has no effect on Xfwm4");
             return;
         }
 
         let (min_size, max_size) = if resizable {
             let shared_state_lock = self.shared_state.lock();
-            (
-                shared_state_lock.min_inner_size,
-                shared_state_lock.max_inner_size,
-            )
+            (shared_state_lock.min_inner_size, shared_state_lock.max_inner_size)
         } else {
             let window_size = Some(Size::from(self.inner_size()));
             (window_size, window_size)
@@ -1220,12 +1129,10 @@ impl UnownedWindow {
         self.set_maximizable_inner(resizable).queue();
 
         let scale_factor = self.scale_factor();
-        let min_inner_size = min_size
-            .map(|size| size.to_physical::<u32>(scale_factor))
-            .map(Into::into);
-        let max_inner_size = max_size
-            .map(|size| size.to_physical::<u32>(scale_factor))
-            .map(Into::into);
+        let min_inner_size =
+            min_size.map(|size| size.to_physical::<u32>(scale_factor)).map(Into::into);
+        let max_inner_size =
+            max_size.map(|size| size.to_physical::<u32>(scale_factor)).map(Into::into);
         self.update_normal_hints(|normal_hints| {
             normal_hints.set_min_size(min_inner_size);
             normal_hints.set_max_size(max_inner_size);
@@ -1313,11 +1220,11 @@ impl UnownedWindow {
                 ffi::GrabSuccess => Ok(()),
                 ffi::AlreadyGrabbed => {
                     Err("Cursor could not be grabbed: already grabbed by another client")
-                }
+                },
                 ffi::GrabInvalidTime => Err("Cursor could not be grabbed: invalid time"),
                 ffi::GrabNotViewable => {
                     Err("Cursor could not be grabbed: grab location not viewable")
-                }
+                },
                 ffi::GrabFrozen => Err("Cursor could not be grabbed: frozen by another client"),
                 _ => unreachable!(),
             }
@@ -1339,11 +1246,7 @@ impl UnownedWindow {
         if visible == *visible_lock {
             return;
         }
-        let cursor = if visible {
-            Some(*self.cursor.lock())
-        } else {
-            None
-        };
+        let cursor = if visible { Some(*self.cursor.lock()) } else { None };
         *visible_lock = visible;
         drop(visible_lock);
         self.xconn.set_cursor_icon(self.xwindow, cursor);
@@ -1417,32 +1320,24 @@ impl UnownedWindow {
     #[inline]
     pub fn set_ime_position(&self, spot: Position) {
         let (x, y) = spot.to_physical::<i32>(self.scale_factor()).into();
-        let _ = self
-            .ime_sender
-            .lock()
-            .send(ImeRequest::Position(self.xwindow, x, y));
+        let _ = self.ime_sender.lock().send(ImeRequest::Position(self.xwindow, x, y));
     }
 
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
-        let _ = self
-            .ime_sender
-            .lock()
-            .send(ImeRequest::Allow(self.xwindow, allowed));
+        let _ = self.ime_sender.lock().send(ImeRequest::Allow(self.xwindow, allowed));
     }
 
     #[inline]
     pub fn focus_window(&self) {
         let state_atom = unsafe { self.xconn.get_atom_unchecked(b"WM_STATE\0") };
         let state_type_atom = unsafe { self.xconn.get_atom_unchecked(b"CARD32\0") };
-        let is_minimized = if let Ok(state) =
-            self.xconn
-                .get_property(self.xwindow, state_atom, state_type_atom)
-        {
-            state.contains(&(ffi::IconicState as c_ulong))
-        } else {
-            false
-        };
+        let is_minimized =
+            if let Ok(state) = self.xconn.get_property(self.xwindow, state_atom, state_type_atom) {
+                state.contains(&(ffi::IconicState as c_ulong))
+            } else {
+                false
+            };
         let is_visible = match self.shared_state.lock().visibility {
             Visibility::Yes => true,
             Visibility::YesWait | Visibility::No => false,
@@ -1458,20 +1353,14 @@ impl UnownedWindow {
                 [1, ffi::CurrentTime as c_long, 0, 0, 0],
             );
             if let Err(e) = flusher.flush() {
-                log::error!(
-                    "`flush` returned an error when focusing the window. Error was: {}",
-                    e
-                );
+                log::error!("`flush` returned an error when focusing the window. Error was: {}", e);
             }
         }
     }
 
     #[inline]
     pub fn request_user_attention(&self, request_type: Option<UserAttentionType>) {
-        let mut wm_hints = self
-            .xconn
-            .get_wm_hints(self.xwindow)
-            .expect("`XGetWMHints` failed");
+        let mut wm_hints = self.xconn.get_wm_hints(self.xwindow).expect("`XGetWMHints` failed");
         if request_type.is_some() {
             (*wm_hints).flags |= ffi::XUrgencyHint;
         } else {
@@ -1490,10 +1379,7 @@ impl UnownedWindow {
 
     #[inline]
     pub fn request_redraw(&self) {
-        self.redraw_sender
-            .sender
-            .send(WindowId(self.xwindow))
-            .unwrap();
+        self.redraw_sender.sender.send(WindowId(self.xwindow)).unwrap();
         self.redraw_sender.waker.wake().unwrap();
     }
 

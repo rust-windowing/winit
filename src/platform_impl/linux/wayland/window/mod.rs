@@ -126,7 +126,7 @@ impl Window {
                     match event {
                         Event::Refresh => {
                             window_update.refresh_frame = true;
-                        }
+                        },
                         Event::Configure { new_size, states } => {
                             let is_maximized = states.contains(&State::Maximized);
                             maximized_clone.store(is_maximized, Ordering::Relaxed);
@@ -138,10 +138,10 @@ impl Window {
                             if let Some((w, h)) = new_size {
                                 window_update.size = Some(LogicalSize::new(w, h));
                             }
-                        }
+                        },
                         Event::Close => {
                             window_update.close_window = true;
-                        }
+                        },
                     }
                 },
             )
@@ -196,7 +196,7 @@ impl Window {
         match attributes.fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland")
-            }
+            },
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor =
                     monitor.and_then(|RootMonitorHandle { inner: monitor }| match monitor {
@@ -206,12 +206,12 @@ impl Window {
                     });
 
                 window.set_fullscreen(monitor.as_ref());
-            }
+            },
             None => {
                 if attributes.maximized {
                     window.set_maximized();
                 }
-            }
+            },
         }
 
         // Without this commit here at least on kwin 5.23.3 the initial configure
@@ -249,9 +249,7 @@ impl Window {
 
         winit_state.window_map.insert(window_id, window_handle);
 
-        winit_state
-            .window_updates
-            .insert(window_id, WindowUpdate::new());
+        winit_state.window_updates.insert(window_id, WindowUpdate::new());
 
         let windowing_features = event_loop_window_target.windowing_features;
 
@@ -328,10 +326,7 @@ impl Window {
     }
 
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.size
-            .lock()
-            .unwrap()
-            .to_physical(self.scale_factor() as f64)
+        self.size.lock().unwrap().to_physical(self.scale_factor() as f64)
     }
 
     #[inline]
@@ -341,10 +336,7 @@ impl Window {
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        self.size
-            .lock()
-            .unwrap()
-            .to_physical(self.scale_factor() as f64)
+        self.size.lock().unwrap().to_physical(self.scale_factor() as f64)
     }
 
     #[inline]
@@ -446,7 +438,7 @@ impl Window {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
                 return;
-            }
+            },
             Some(Fullscreen::Borderless(monitor)) => {
                 let monitor =
                     monitor.and_then(|RootMonitorHandle { inner: monitor }| match monitor {
@@ -456,7 +448,7 @@ impl Window {
                     });
 
                 WindowRequest::Fullscreen(monitor)
-            }
+            },
             None => WindowRequest::UnsetFullscreen,
         };
 

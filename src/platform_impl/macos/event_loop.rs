@@ -1,40 +1,30 @@
-use std::{
-    any::Any,
-    cell::{Cell, RefCell},
-    collections::VecDeque,
-    marker::PhantomData,
-    mem,
-    os::raw::c_void,
-    panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
-    process, ptr,
-    rc::{Rc, Weak},
-    sync::mpsc,
-};
+use std::any::Any;
+use std::cell::{Cell, RefCell};
+use std::collections::VecDeque;
+use std::marker::PhantomData;
+use std::os::raw::c_void;
+use std::panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe};
+use std::rc::{Rc, Weak};
+use std::sync::mpsc;
+use std::{mem, process, ptr};
 
-use cocoa::{
-    appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
-    base::{id, nil, BOOL, NO, YES},
-    foundation::{NSInteger, NSPoint, NSTimeInterval},
-};
+use cocoa::appkit::NSEventType::NSApplicationDefined;
+use cocoa::appkit::{NSApp, NSEventModifierFlags, NSEventSubtype};
+use cocoa::base::{id, nil, BOOL, NO, YES};
+use cocoa::foundation::{NSInteger, NSPoint, NSTimeInterval};
 use objc::rc::autoreleasepool;
 
-use crate::{
-    event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
-    monitor::MonitorHandle as RootMonitorHandle,
-    platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            app::APP_CLASS,
-            app_delegate::APP_DELEGATE_CLASS,
-            app_state::{AppState, Callback},
-            monitor::{self, MonitorHandle},
-            observer::*,
-            util::IdRef,
-        },
-    },
-};
+use crate::event::Event;
+use crate::event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::platform::macos::ActivationPolicy;
+use crate::platform_impl::get_aux_state_mut;
+use crate::platform_impl::platform::app::APP_CLASS;
+use crate::platform_impl::platform::app_delegate::APP_DELEGATE_CLASS;
+use crate::platform_impl::platform::app_state::{AppState, Callback};
+use crate::platform_impl::platform::monitor::{self, MonitorHandle};
+use crate::platform_impl::platform::observer::*;
+use crate::platform_impl::platform::util::IdRef;
 
 #[derive(Default)]
 pub struct PanicInfo {
@@ -53,12 +43,14 @@ impl PanicInfo {
         self.inner.set(inner);
         result
     }
+
     /// Overwrites the curret state if the current state is not panicking
     pub fn set_panic(&self, p: Box<dyn Any + Send + 'static>) {
         if !self.is_panicking() {
             self.inner.set(Some(p));
         }
     }
+
     pub fn take(&self) -> Option<Box<dyn Any + Send + 'static>> {
         self.inner.take()
     }
@@ -277,7 +269,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
                 post_dummy_event(app);
             }
             None
-        }
+        },
     }
 }
 
@@ -323,9 +315,7 @@ impl<T> EventLoopProxy<T> {
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.sender
-            .send(event)
-            .map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
+        self.sender.send(event).map_err(|mpsc::SendError(x)| EventLoopClosed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);

@@ -2,12 +2,10 @@
 
 use std::os::raw::c_void;
 
-use crate::{
-    dpi::LogicalSize,
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
-    monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
-};
+use crate::dpi::LogicalSize;
+use crate::event_loop::{EventLoopBuilder, EventLoopWindowTarget};
+use crate::monitor::MonitorHandle;
+use crate::window::{Window, WindowBuilder};
 
 /// Additional methods on `Window` that are specific to MacOS.
 pub trait WindowExtMacOS {
@@ -91,8 +89,8 @@ impl Default for ActivationPolicy {
 
 /// Additional methods on `WindowBuilder` that are specific to MacOS.
 ///
-/// **Note:** Properties dealing with the titlebar will be overwritten by the `with_decorations` method
-/// on the base `WindowBuilder`:
+/// **Note:** Properties dealing with the titlebar will be overwritten by the `with_decorations`
+/// method on the base `WindowBuilder`:
 ///
 ///  - `with_titlebar_transparent`
 ///  - `with_title_hidden`
@@ -190,7 +188,7 @@ pub trait EventLoopBuilderExtMacOS {
     /// ```
     /// use winit::event_loop::EventLoopBuilder;
     /// #[cfg(target_os = "macos")]
-    /// use winit::platform::macos::{EventLoopBuilderExtMacOS, ActivationPolicy};
+    /// use winit::platform::macos::{ActivationPolicy, EventLoopBuilderExtMacOS};
     ///
     /// let mut builder = EventLoopBuilder::new();
     /// #[cfg(target_os = "macos")]
@@ -259,9 +257,11 @@ impl MonitorHandleExtMacOS for MonitorHandle {
 
 /// Additional methods on `EventLoopWindowTarget` that are specific to macOS.
 pub trait EventLoopWindowTargetExtMacOS {
-    /// Hide the entire application. In most applications this is typically triggered with Command-H.
+    /// Hide the entire application. In most applications this is typically triggered with
+    /// Command-H.
     fn hide_application(&self);
-    /// Hide the other applications. In most applications this is typically triggered with Command+Option-H.
+    /// Hide the other applications. In most applications this is typically triggered with
+    /// Command+Option-H.
     fn hide_other_applications(&self);
 }
 

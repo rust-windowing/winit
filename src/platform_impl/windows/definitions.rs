@@ -3,14 +3,10 @@
 
 use std::ffi::c_void;
 
-use windows_sys::{
-    core::{IUnknown, GUID, HRESULT},
-    Win32::{
-        Foundation::{BOOL, HWND, POINTL},
-        System::Com::{
-            IAdviseSink, IDataObject, IEnumFORMATETC, IEnumSTATDATA, FORMATETC, STGMEDIUM,
-        },
-    },
+use windows_sys::core::{IUnknown, GUID, HRESULT};
+use windows_sys::Win32::Foundation::{BOOL, HWND, POINTL};
+use windows_sys::Win32::System::Com::{
+    IAdviseSink, IDataObject, IEnumFORMATETC, IEnumSTATDATA, FORMATETC, STGMEDIUM,
 };
 
 #[repr(C)]

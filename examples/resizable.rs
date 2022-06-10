@@ -1,12 +1,10 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
-use winit::{
-    dpi::LogicalSize,
-    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::EventLoop,
-    window::WindowBuilder,
-};
+use winit::dpi::LogicalSize;
+use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use winit::event_loop::EventLoop;
+use winit::window::WindowBuilder;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -39,7 +37,7 @@ fn main() {
                     resizable = !resizable;
                     println!("Resizable: {}", resizable);
                     window.set_resizable(resizable);
-                }
+                },
                 _ => (),
             },
             _ => (),

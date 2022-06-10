@@ -23,17 +23,11 @@ pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
 }
 
 pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
-    LogicalPosition {
-        x: event.offset_x() as f64,
-        y: event.offset_y() as f64,
-    }
+    LogicalPosition { x: event.offset_x() as f64, y: event.offset_y() as f64 }
 }
 
 pub fn mouse_delta(event: &MouseEvent) -> LogicalPosition<f64> {
-    LogicalPosition {
-        x: event.movement_x() as f64,
-        y: event.movement_y() as f64,
-    }
+    LogicalPosition { x: event.movement_x() as f64, y: event.movement_y() as f64 }
 }
 
 pub fn mouse_position_by_client(
@@ -56,7 +50,7 @@ pub fn mouse_scroll_delta(event: &WheelEvent) -> Option<MouseScrollDelta> {
         WheelEvent::DOM_DELTA_PIXEL => {
             let delta = LogicalPosition::new(x, y).to_physical(super::scale_factor());
             Some(MouseScrollDelta::PixelDelta(delta))
-        }
+        },
         _ => None,
     }
 }

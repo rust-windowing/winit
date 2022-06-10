@@ -34,13 +34,7 @@ pub(super) fn handle_pointer(
     let event_sink = &mut winit_state.event_sink;
     let mut pointer_data = pointer_data.borrow_mut();
     match event {
-        PointerEvent::Enter {
-            surface,
-            surface_x,
-            surface_y,
-            serial,
-            ..
-        } => {
+        PointerEvent::Enter { surface, surface_x, surface_y, serial, .. } => {
             pointer_data.latest_serial.replace(serial);
             pointer_data.latest_enter_serial.replace(serial);
 
@@ -88,7 +82,7 @@ pub(super) fn handle_pointer(
                 },
                 window_id,
             );
-        }
+        },
         PointerEvent::Leave { surface, serial } => {
             pointer_data.surface = None;
             pointer_data.latest_serial.replace(serial);
@@ -119,12 +113,8 @@ pub(super) fn handle_pointer(
                 },
                 window_id,
             );
-        }
-        PointerEvent::Motion {
-            surface_x,
-            surface_y,
-            ..
-        } => {
+        },
+        PointerEvent::Motion { surface_x, surface_y, .. } => {
             let surface = match pointer_data.surface.as_ref() {
                 Some(surface) => surface,
                 None => return,
@@ -145,13 +135,8 @@ pub(super) fn handle_pointer(
                 },
                 window_id,
             );
-        }
-        PointerEvent::Button {
-            button,
-            state,
-            serial,
-            ..
-        } => {
+        },
+        PointerEvent::Button { button, state, serial, .. } => {
             pointer_data.latest_serial.replace(serial);
             let window_id = match pointer_data.surface.as_ref().map(wayland::make_wid) {
                 Some(window_id) => window_id,
@@ -182,7 +167,7 @@ pub(super) fn handle_pointer(
                 },
                 window_id,
             );
-        }
+        },
         PointerEvent::Axis { axis, value, .. } => {
             let surface = match pointer_data.surface.as_ref() {
                 Some(surface) => surface,
@@ -232,12 +217,9 @@ pub(super) fn handle_pointer(
                     _ => TouchPhase::Started,
                 }
             }
-        }
+        },
         PointerEvent::AxisDiscrete { axis, discrete } => {
-            let (mut x, mut y) = pointer_data
-                .axis_data
-                .axis_discrete_buffer
-                .unwrap_or((0., 0.));
+            let (mut x, mut y) = pointer_data.axis_data.axis_discrete_buffer.unwrap_or((0., 0.));
 
             match axis {
                 // Wayland sign convention is the inverse of winit.
@@ -252,11 +234,11 @@ pub(super) fn handle_pointer(
                 TouchPhase::Started | TouchPhase::Moved => TouchPhase::Moved,
                 _ => TouchPhase::Started,
             }
-        }
+        },
         PointerEvent::AxisSource { .. } => (),
         PointerEvent::AxisStop { .. } => {
             pointer_data.axis_data.axis_state = TouchPhase::Ended;
-        }
+        },
         PointerEvent::Frame => {
             let axis_buffer = pointer_data.axis_data.axis_buffer.take();
             let axis_discrete_buffer = pointer_data.axis_data.axis_discrete_buffer.take();
@@ -293,23 +275,16 @@ pub(super) fn handle_pointer(
             };
 
             event_sink.push_window_event(window_event, window_id);
-        }
+        },
         _ => (),
     }
 }
 
 #[inline]
 pub(super) fn handle_relative_pointer(event: RelativePointerEvent, winit_state: &mut WinitState) {
-    if let RelativePointerEvent::RelativeMotion {
-        dx_unaccel,
-        dy_unaccel,
-        ..
-    } = event
-    {
+    if let RelativePointerEvent::RelativeMotion { dx_unaccel, dy_unaccel, .. } = event {
         winit_state.event_sink.push_device_event(
-            DeviceEvent::MouseMotion {
-                delta: (dx_unaccel, dy_unaccel),
-            },
+            DeviceEvent::MouseMotion { delta: (dx_unaccel, dy_unaccel) },
             DeviceId,
         )
     }

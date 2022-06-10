@@ -137,13 +137,7 @@ impl WindowUpdate {
         let close_window = self.close_window;
         self.close_window = false;
 
-        Self {
-            size,
-            scale_factor,
-            redraw_requested,
-            refresh_frame,
-            close_window,
-        }
+        Self { size, scale_factor, redraw_requested, refresh_frame, close_window }
     }
 }
 
@@ -335,9 +329,7 @@ impl WindowHandle {
         if passthrough_mouse_input {
             let region = self.compositor.create_region();
             region.add(0, 0, 0, 0);
-            self.window
-                .surface()
-                .set_input_region(Some(&region.detach()));
+            self.window.surface().set_input_region(Some(&region.detach()));
             region.destroy();
         } else {
             // Using `None` results in the entire window being clickable.
@@ -357,11 +349,8 @@ impl WindowHandle {
             text_input.set_input_allowed(allowed);
         }
 
-        let event = if allowed {
-            WindowEvent::Ime(Ime::Enabled)
-        } else {
-            WindowEvent::Ime(Ime::Disabled)
-        };
+        let event =
+            if allowed { WindowEvent::Ime(Ime::Enabled) } else { WindowEvent::Ime(Ime::Disabled) };
 
         event_sink.push_window_event(event, window_id);
     }
@@ -411,39 +400,39 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
             match request {
                 WindowRequest::Fullscreen(fullscreen) => {
                     window_handle.window.set_fullscreen(fullscreen.as_ref());
-                }
+                },
                 WindowRequest::UnsetFullscreen => {
                     window_handle.window.unset_fullscreen();
-                }
+                },
                 WindowRequest::ShowCursor(show_cursor) => {
                     window_handle.set_cursor_visible(show_cursor);
-                }
+                },
                 WindowRequest::NewCursorIcon(cursor_icon) => {
                     window_handle.set_cursor_icon(cursor_icon);
-                }
+                },
                 WindowRequest::ImePosition(position) => {
                     window_handle.set_ime_position(position);
-                }
+                },
                 WindowRequest::AllowIme(allow) => {
                     let event_sink = &mut winit_state.event_sink;
                     window_handle.set_ime_allowed(allow, event_sink);
-                }
+                },
                 WindowRequest::GrabCursor(grab) => {
                     window_handle.set_cursor_grab(grab);
-                }
+                },
                 WindowRequest::DragWindow => {
                     window_handle.drag_window();
-                }
+                },
                 WindowRequest::Maximize(maximize) => {
                     if maximize {
                         window_handle.window.set_maximized();
                     } else {
                         window_handle.window.unset_maximized();
                     }
-                }
+                },
                 WindowRequest::Minimize => {
                     window_handle.window.set_minimized();
-                }
+                },
                 WindowRequest::Decorate(decorate) => {
                     let decorations = match decorate {
                         true => Decorations::FollowServer,
@@ -455,44 +444,44 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     // We should refresh the frame to apply decorations change.
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
-                }
+                },
                 #[cfg(feature = "sctk-adwaita")]
                 WindowRequest::CsdThemeVariant(theme) => {
                     window_handle.window.set_frame_config(theme.into());
 
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
-                }
+                },
                 #[cfg(not(feature = "sctk-adwaita"))]
-                WindowRequest::CsdThemeVariant(_) => {}
+                WindowRequest::CsdThemeVariant(_) => {},
                 WindowRequest::Resizeable(resizeable) => {
                     window_handle.window.set_resizable(resizeable);
 
                     // We should refresh the frame to update button state.
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
-                }
+                },
                 WindowRequest::Title(title) => {
                     window_handle.window.set_title(title);
 
                     // We should refresh the frame to draw new title.
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
-                }
+                },
                 WindowRequest::MinSize(size) => {
                     let size = size.map(|size| (size.width, size.height));
                     window_handle.window.set_min_size(size);
 
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
-                }
+                },
                 WindowRequest::MaxSize(size) => {
                     let size = size.map(|size| (size.width, size.height));
                     window_handle.window.set_max_size(size);
 
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
-                }
+                },
                 WindowRequest::FrameSize(size) => {
                     if !window_handle.is_resizable.get() {
                         // On Wayland non-resizable window is achieved by setting both min and max
@@ -507,20 +496,20 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     // We should refresh the frame after resize.
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
-                }
+                },
                 WindowRequest::PassthroughMouseInput(passthrough) => {
                     window_handle.passthrough_mouse_input(passthrough);
 
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
-                }
+                },
                 WindowRequest::Attention(request_type) => {
                     window_handle.set_user_attention(request_type);
-                }
+                },
                 WindowRequest::Redraw => {
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.redraw_requested = true;
-                }
+                },
                 WindowRequest::Close => {
                     // The window was requested to be closed.
                     windows_to_close.push(*window_id);
@@ -528,7 +517,7 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     // Send event that the window was destroyed.
                     let event_sink = &mut winit_state.event_sink;
                     event_sink.push_window_event(WindowEvent::Destroyed, *window_id);
-                }
+                },
             };
         }
     }

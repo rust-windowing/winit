@@ -27,9 +27,7 @@ impl Touch {
             handlers::handle_touch(event, &mut inner, winit_state);
         });
 
-        Self {
-            touch: touch.detach(),
-        }
+        Self { touch: touch.detach() }
     }
 }
 
@@ -49,9 +47,7 @@ pub(super) struct TouchInner {
 
 impl TouchInner {
     fn new() -> Self {
-        Self {
-            touch_points: Vec::new(),
-        }
+        Self { touch_points: Vec::new() }
     }
 }
 
@@ -69,10 +65,6 @@ pub(super) struct TouchPoint {
 
 impl TouchPoint {
     pub fn new(surface: WlSurface, position: LogicalPosition<f64>, id: i32) -> Self {
-        Self {
-            surface,
-            position,
-            id,
-        }
+        Self { surface, position, id }
     }
 }

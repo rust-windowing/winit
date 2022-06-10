@@ -1,16 +1,15 @@
 mod r#async;
 mod cursor;
 
-pub use self::{cursor::*, r#async::*};
+pub use self::cursor::*;
+pub use self::r#async::*;
 
 use std::ops::{BitAnd, Deref};
 use std::os::raw::c_uchar;
 
-use cocoa::{
-    appkit::{NSApp, NSWindowStyleMask},
-    base::{id, nil},
-    foundation::{NSPoint, NSRect, NSString, NSUInteger},
-};
+use cocoa::appkit::{NSApp, NSWindowStyleMask};
+use cocoa::base::{id, nil};
+use cocoa::foundation::{NSPoint, NSRect, NSString, NSUInteger};
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, BOOL, NO};
 
@@ -28,10 +27,8 @@ where
     bitset & flag == flag
 }
 
-pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
-    location: ffi::NSNotFound as NSUInteger,
-    length: 0,
-};
+pub const EMPTY_RANGE: ffi::NSRange =
+    ffi::NSRange { location: ffi::NSNotFound as NSUInteger, length: 0 };
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct IdRef(id);
@@ -69,6 +66,7 @@ impl Drop for IdRef {
 
 impl Deref for IdRef {
     type Target = id;
+
     fn deref(&self) -> &id {
         &self.0
     }
@@ -95,10 +93,7 @@ impl TraceGuard {
     #[inline]
     pub(crate) fn new(module_path: &'static str, called_from_fn: &'static str) -> Self {
         trace!(target: module_path, "Triggered `{}`", called_from_fn);
-        Self {
-            module_path,
-            called_from_fn,
-        }
+        Self { module_path, called_from_fn }
     }
 }
 
@@ -120,10 +115,7 @@ pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
 /// Winit: top-left is (0, 0) and y increasing downwards
 /// macOS: bottom-left is (0, 0) and y increasing upwards
 pub fn window_position(position: LogicalPosition<f64>) -> NSPoint {
-    NSPoint::new(
-        position.x,
-        CGDisplay::main().pixels_high() as f64 - position.y,
-    )
+    NSPoint::new(position.x, CGDisplay::main().pixels_high() as f64 - position.y)
 }
 
 pub unsafe fn ns_string_id_ref(s: &str) -> IdRef {

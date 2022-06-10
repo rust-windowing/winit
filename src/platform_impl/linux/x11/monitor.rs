@@ -3,17 +3,15 @@ use std::os::raw::*;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
-use super::{
-    ffi::{
-        RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
-        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
-    },
-    util, XConnection, XError,
+use super::ffi::{
+    RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask, RRScreenChangeNotifyMask,
+    True, Window, XRRCrtcInfo, XRRScreenResources,
 };
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
+use super::{util, XConnection, XError};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use crate::platform_impl::{
+    MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode,
 };
 
 // Used for testing. This should always be committed as false.
@@ -53,9 +51,7 @@ impl VideoMode {
 
     #[inline]
     pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: PlatformMonitorHandle::X(self.monitor.clone().unwrap()),
-        }
+        RootMonitorHandle { inner: PlatformMonitorHandle::X(self.monitor.clone().unwrap()) }
     }
 }
 
@@ -174,9 +170,7 @@ impl MonitorHandle {
         let monitor = self.clone();
         self.video_modes.clone().into_iter().map(move |mut x| {
             x.monitor = Some(monitor.clone());
-            RootVideoMode {
-                video_mode: PlatformVideoMode::X(x),
-            }
+            RootVideoMode { video_mode: PlatformVideoMode::X(x) }
         })
     }
 }
@@ -226,7 +220,10 @@ impl XConnection {
             };
 
             if resources.is_null() {
-                panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
+                panic!(
+                    "[winit] `XRRGetScreenResources` returned NULL. That should only happen if \
+                     the root window doesn't exist."
+                );
             }
 
             let mut has_primary = false;
@@ -292,10 +289,7 @@ impl XConnection {
             let mut minor = 0;
             (self.xrandr.XRRQueryVersion)(self.display, &mut major, &mut minor)
         };
-        assert!(
-            has_xrandr == True,
-            "[winit] XRandR extension not available."
-        );
+        assert!(has_xrandr == True, "[winit] XRandR extension not available.");
 
         let mut event_offset = 0;
         let mut error_offset = 0;

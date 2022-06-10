@@ -1,4 +1,6 @@
-use std::{fmt::Debug, mem, os::raw::*};
+use std::fmt::Debug;
+use std::mem;
+use std::os::raw::*;
 
 // This isn't actually the number of the bits in the format.
 // X11 does a match on this value to determine which type to call sizeof on.
@@ -34,7 +36,8 @@ pub trait Formattable: Debug + Clone + Copy + PartialEq + PartialOrd {
     const FORMAT: Format;
 }
 
-// You might be surprised by the absence of c_int, but not as surprised as X11 would be by the presence of it.
+// You might be surprised by the absence of c_int, but not as surprised as X11 would be by the
+// presence of it.
 impl Formattable for c_schar {
     const FORMAT: Format = Format::Char;
 }

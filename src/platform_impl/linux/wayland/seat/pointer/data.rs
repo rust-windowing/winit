@@ -69,10 +69,6 @@ pub(super) struct AxisData {
 
 impl AxisData {
     pub fn new() -> Self {
-        Self {
-            axis_state: TouchPhase::Ended,
-            axis_buffer: None,
-            axis_discrete_buffer: None,
-        }
+        Self { axis_state: TouchPhase::Ended, axis_buffer: None, axis_discrete_buffer: None }
     }
 }

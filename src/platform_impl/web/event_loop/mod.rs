@@ -33,14 +33,9 @@ impl<T> EventLoop<T> {
     where
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        let target = RootEventLoopWindowTarget {
-            p: self.elw.p.clone(),
-            _marker: PhantomData,
-        };
+        let target = RootEventLoopWindowTarget { p: self.elw.p.clone(), _marker: PhantomData };
 
-        self.elw.p.run(Box::new(move |event, flow| {
-            event_handler(event, &target, flow)
-        }));
+        self.elw.p.run(Box::new(move |event, flow| event_handler(event, &target, flow)));
 
         // Throw an exception to break out of Rust exceution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'

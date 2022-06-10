@@ -1,35 +1,28 @@
-use std::{
-    char,
-    sync::atomic::{AtomicBool, AtomicIsize, Ordering},
-};
+use std::char;
+use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
 
-use windows_sys::Win32::{
-    Foundation::{LPARAM, WPARAM},
-    UI::{
-        Input::KeyboardAndMouse::{
-            GetKeyState, GetKeyboardLayout, GetKeyboardState, MapVirtualKeyA, ToUnicodeEx,
-            VIRTUAL_KEY, VK_0, VK_1, VK_2, VK_3, VK_4, VK_5, VK_6, VK_7, VK_8, VK_9, VK_A, VK_ADD,
-            VK_APPS, VK_B, VK_BACK, VK_BROWSER_BACK, VK_BROWSER_FAVORITES, VK_BROWSER_FORWARD,
-            VK_BROWSER_HOME, VK_BROWSER_REFRESH, VK_BROWSER_SEARCH, VK_BROWSER_STOP, VK_C,
-            VK_CAPITAL, VK_CONTROL, VK_CONVERT, VK_D, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN,
-            VK_E, VK_END, VK_ESCAPE, VK_F, VK_F1, VK_F10, VK_F11, VK_F12, VK_F13, VK_F14, VK_F15,
-            VK_F16, VK_F17, VK_F18, VK_F19, VK_F2, VK_F20, VK_F21, VK_F22, VK_F23, VK_F24, VK_F3,
-            VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_G, VK_H, VK_HOME, VK_I, VK_INSERT, VK_J,
-            VK_K, VK_KANA, VK_KANJI, VK_L, VK_LAUNCH_MAIL, VK_LAUNCH_MEDIA_SELECT, VK_LCONTROL,
-            VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_M, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE,
-            VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP, VK_MENU, VK_MULTIPLY, VK_N, VK_NEXT, VK_NONCONVERT,
-            VK_NUMLOCK, VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5,
-            VK_NUMPAD6, VK_NUMPAD7, VK_NUMPAD8, VK_NUMPAD9, VK_O, VK_OEM_1, VK_OEM_102, VK_OEM_2,
-            VK_OEM_3, VK_OEM_4, VK_OEM_5, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA, VK_OEM_MINUS,
-            VK_OEM_PERIOD, VK_OEM_PLUS, VK_P, VK_PAUSE, VK_PRIOR, VK_Q, VK_R, VK_RCONTROL,
-            VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_S, VK_SCROLL, VK_SHIFT, VK_SLEEP,
-            VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT, VK_T, VK_TAB, VK_U, VK_UP, VK_V, VK_VOLUME_DOWN,
-            VK_VOLUME_MUTE, VK_VOLUME_UP, VK_W, VK_X, VK_Y, VK_Z,
-        },
-        TextServices::HKL,
-        WindowsAndMessaging::{MAPVK_VK_TO_CHAR, MAPVK_VSC_TO_VK_EX},
-    },
+use windows_sys::Win32::Foundation::{LPARAM, WPARAM};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    GetKeyState, GetKeyboardLayout, GetKeyboardState, MapVirtualKeyA, ToUnicodeEx, VIRTUAL_KEY,
+    VK_0, VK_1, VK_2, VK_3, VK_4, VK_5, VK_6, VK_7, VK_8, VK_9, VK_A, VK_ADD, VK_APPS, VK_B,
+    VK_BACK, VK_BROWSER_BACK, VK_BROWSER_FAVORITES, VK_BROWSER_FORWARD, VK_BROWSER_HOME,
+    VK_BROWSER_REFRESH, VK_BROWSER_SEARCH, VK_BROWSER_STOP, VK_C, VK_CAPITAL, VK_CONTROL,
+    VK_CONVERT, VK_D, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_E, VK_END, VK_ESCAPE, VK_F,
+    VK_F1, VK_F10, VK_F11, VK_F12, VK_F13, VK_F14, VK_F15, VK_F16, VK_F17, VK_F18, VK_F19, VK_F2,
+    VK_F20, VK_F21, VK_F22, VK_F23, VK_F24, VK_F3, VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_G,
+    VK_H, VK_HOME, VK_I, VK_INSERT, VK_J, VK_K, VK_KANA, VK_KANJI, VK_L, VK_LAUNCH_MAIL,
+    VK_LAUNCH_MEDIA_SELECT, VK_LCONTROL, VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_M,
+    VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP, VK_MENU,
+    VK_MULTIPLY, VK_N, VK_NEXT, VK_NONCONVERT, VK_NUMLOCK, VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2,
+    VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7, VK_NUMPAD8, VK_NUMPAD9, VK_O,
+    VK_OEM_1, VK_OEM_102, VK_OEM_2, VK_OEM_3, VK_OEM_4, VK_OEM_5, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA,
+    VK_OEM_MINUS, VK_OEM_PERIOD, VK_OEM_PLUS, VK_P, VK_PAUSE, VK_PRIOR, VK_Q, VK_R, VK_RCONTROL,
+    VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_S, VK_SCROLL, VK_SHIFT, VK_SLEEP,
+    VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT, VK_T, VK_TAB, VK_U, VK_UP, VK_V, VK_VOLUME_DOWN,
+    VK_VOLUME_MUTE, VK_VOLUME_UP, VK_W, VK_X, VK_Y, VK_Z,
 };
+use windows_sys::Win32::UI::TextServices::HKL;
+use windows_sys::Win32::UI::WindowsAndMessaging::{MAPVK_VK_TO_CHAR, MAPVK_VSC_TO_VK_EX};
 
 use crate::event::{ModifiersState, ScanCode, VirtualKeyCode};
 
@@ -44,18 +37,9 @@ pub fn get_key_mods() -> ModifiersState {
 
     let mut mods = ModifiersState::empty();
     mods.set(ModifiersState::SHIFT, key_pressed(VK_SHIFT));
-    mods.set(
-        ModifiersState::CTRL,
-        key_pressed(VK_CONTROL) && !filter_out_altgr,
-    );
-    mods.set(
-        ModifiersState::ALT,
-        key_pressed(VK_MENU) && !filter_out_altgr,
-    );
-    mods.set(
-        ModifiersState::LOGO,
-        key_pressed(VK_LWIN) || key_pressed(VK_RWIN),
-    );
+    mods.set(ModifiersState::CTRL, key_pressed(VK_CONTROL) && !filter_out_altgr);
+    mods.set(ModifiersState::ALT, key_pressed(VK_MENU) && !filter_out_altgr);
+    mods.set(ModifiersState::LOGO, key_pressed(VK_LWIN) || key_pressed(VK_RWIN));
     mods
 }
 
@@ -96,10 +80,7 @@ impl From<ModifiersStateSide> for ModifiersState {
             Self::CTRL,
             side.intersects(ModifiersStateSide::LCTRL | ModifiersStateSide::RCTRL),
         );
-        state.set(
-            Self::ALT,
-            side.intersects(ModifiersStateSide::LALT | ModifiersStateSide::RALT),
-        );
+        state.set(Self::ALT, side.intersects(ModifiersStateSide::LALT | ModifiersStateSide::RALT));
         state.set(
             Self::LOGO,
             side.intersects(ModifiersStateSide::LLOGO | ModifiersStateSide::RLOGO),
@@ -130,9 +111,7 @@ unsafe fn get_char(keyboard_state: &[u8; 256], v_key: u32, hkl: HKL) -> Option<c
         hkl,
     );
     if len >= 1 {
-        char::decode_utf16(unicode_bytes.iter().cloned())
-            .next()
-            .and_then(|c| c.ok())
+        char::decode_utf16(unicode_bytes.iter().cloned()).next().and_then(|c| c.ok())
     } else {
         None
     }
@@ -160,8 +139,8 @@ fn layout_uses_altgr() -> bool {
         }
 
         let mut keyboard_state_altgr = [0u8; 256];
-        // AltGr is an alias for Ctrl+Alt for... some reason. Whatever it is, those are the keypresses
-        // we have to emulate to do an AltGr test.
+        // AltGr is an alias for Ctrl+Alt for... some reason. Whatever it is, those are the
+        // keypresses we have to emulate to do an AltGr test.
         keyboard_state_altgr[VK_MENU as usize] = 0x80;
         keyboard_state_altgr[VK_CONTROL as usize] = 0x80;
 
@@ -186,15 +165,15 @@ fn layout_uses_altgr() -> bool {
 pub fn vkey_to_winit_vkey(vkey: VIRTUAL_KEY) -> Option<VirtualKeyCode> {
     // VK_* codes are documented here https://msdn.microsoft.com/en-us/library/windows/desktop/dd375731(v=vs.85).aspx
     match vkey {
-        //VK_LBUTTON => Some(VirtualKeyCode::Lbutton),
-        //VK_RBUTTON => Some(VirtualKeyCode::Rbutton),
-        //VK_CANCEL => Some(VirtualKeyCode::Cancel),
-        //VK_MBUTTON => Some(VirtualKeyCode::Mbutton),
-        //VK_XBUTTON1 => Some(VirtualKeyCode::Xbutton1),
-        //VK_XBUTTON2 => Some(VirtualKeyCode::Xbutton2),
+        // VK_LBUTTON => Some(VirtualKeyCode::Lbutton),
+        // VK_RBUTTON => Some(VirtualKeyCode::Rbutton),
+        // VK_CANCEL => Some(VirtualKeyCode::Cancel),
+        // VK_MBUTTON => Some(VirtualKeyCode::Mbutton),
+        // VK_XBUTTON1 => Some(VirtualKeyCode::Xbutton1),
+        // VK_XBUTTON2 => Some(VirtualKeyCode::Xbutton2),
         VK_BACK => Some(VirtualKeyCode::Back),
         VK_TAB => Some(VirtualKeyCode::Tab),
-        //VK_CLEAR => Some(VirtualKeyCode::Clear),
+        // VK_CLEAR => Some(VirtualKeyCode::Clear),
         VK_RETURN => Some(VirtualKeyCode::Return),
         VK_LSHIFT => Some(VirtualKeyCode::LShift),
         VK_RSHIFT => Some(VirtualKeyCode::RShift),
@@ -205,17 +184,17 @@ pub fn vkey_to_winit_vkey(vkey: VIRTUAL_KEY) -> Option<VirtualKeyCode> {
         VK_PAUSE => Some(VirtualKeyCode::Pause),
         VK_CAPITAL => Some(VirtualKeyCode::Capital),
         VK_KANA => Some(VirtualKeyCode::Kana),
-        //VK_HANGUEL => Some(VirtualKeyCode::Hanguel),
-        //VK_HANGUL => Some(VirtualKeyCode::Hangul),
-        //VK_JUNJA => Some(VirtualKeyCode::Junja),
-        //VK_FINAL => Some(VirtualKeyCode::Final),
-        //VK_HANJA => Some(VirtualKeyCode::Hanja),
+        // VK_HANGUEL => Some(VirtualKeyCode::Hanguel),
+        // VK_HANGUL => Some(VirtualKeyCode::Hangul),
+        // VK_JUNJA => Some(VirtualKeyCode::Junja),
+        // VK_FINAL => Some(VirtualKeyCode::Final),
+        // VK_HANJA => Some(VirtualKeyCode::Hanja),
         VK_KANJI => Some(VirtualKeyCode::Kanji),
         VK_ESCAPE => Some(VirtualKeyCode::Escape),
         VK_CONVERT => Some(VirtualKeyCode::Convert),
         VK_NONCONVERT => Some(VirtualKeyCode::NoConvert),
-        //VK_ACCEPT => Some(VirtualKeyCode::Accept),
-        //VK_MODECHANGE => Some(VirtualKeyCode::Modechange),
+        // VK_ACCEPT => Some(VirtualKeyCode::Accept),
+        // VK_MODECHANGE => Some(VirtualKeyCode::Modechange),
         VK_SPACE => Some(VirtualKeyCode::Space),
         VK_PRIOR => Some(VirtualKeyCode::PageUp),
         VK_NEXT => Some(VirtualKeyCode::PageDown),
@@ -225,13 +204,13 @@ pub fn vkey_to_winit_vkey(vkey: VIRTUAL_KEY) -> Option<VirtualKeyCode> {
         VK_UP => Some(VirtualKeyCode::Up),
         VK_RIGHT => Some(VirtualKeyCode::Right),
         VK_DOWN => Some(VirtualKeyCode::Down),
-        //VK_SELECT => Some(VirtualKeyCode::Select),
-        //VK_PRINT => Some(VirtualKeyCode::Print),
-        //VK_EXECUTE => Some(VirtualKeyCode::Execute),
+        // VK_SELECT => Some(VirtualKeyCode::Select),
+        // VK_PRINT => Some(VirtualKeyCode::Print),
+        // VK_EXECUTE => Some(VirtualKeyCode::Execute),
         VK_SNAPSHOT => Some(VirtualKeyCode::Snapshot),
         VK_INSERT => Some(VirtualKeyCode::Insert),
         VK_DELETE => Some(VirtualKeyCode::Delete),
-        //VK_HELP => Some(VirtualKeyCode::Help),
+        // VK_HELP => Some(VirtualKeyCode::Help),
         VK_0 => Some(VirtualKeyCode::Key0),
         VK_1 => Some(VirtualKeyCode::Key1),
         VK_2 => Some(VirtualKeyCode::Key2),
@@ -284,7 +263,7 @@ pub fn vkey_to_winit_vkey(vkey: VIRTUAL_KEY) -> Option<VirtualKeyCode> {
         VK_NUMPAD9 => Some(VirtualKeyCode::Numpad9),
         VK_MULTIPLY => Some(VirtualKeyCode::NumpadMultiply),
         VK_ADD => Some(VirtualKeyCode::NumpadAdd),
-        //VK_SEPARATOR => Some(VirtualKeyCode::Separator),
+        // VK_SEPARATOR => Some(VirtualKeyCode::Separator),
         VK_SUBTRACT => Some(VirtualKeyCode::NumpadSubtract),
         VK_DECIMAL => Some(VirtualKeyCode::NumpadDecimal),
         VK_DIVIDE => Some(VirtualKeyCode::NumpadDivide),
@@ -330,8 +309,8 @@ pub fn vkey_to_winit_vkey(vkey: VIRTUAL_KEY) -> Option<VirtualKeyCode> {
         VK_MEDIA_PLAY_PAUSE => Some(VirtualKeyCode::PlayPause),
         VK_LAUNCH_MAIL => Some(VirtualKeyCode::Mail),
         VK_LAUNCH_MEDIA_SELECT => Some(VirtualKeyCode::MediaSelect),
-        /*VK_LAUNCH_APP1 => Some(VirtualKeyCode::Launch_app1),
-        VK_LAUNCH_APP2 => Some(VirtualKeyCode::Launch_app2),*/
+        // VK_LAUNCH_APP1 => Some(VirtualKeyCode::Launch_app1),
+        // VK_LAUNCH_APP2 => Some(VirtualKeyCode::Launch_app2),
         VK_OEM_PLUS => Some(VirtualKeyCode::Equals),
         VK_OEM_COMMA => Some(VirtualKeyCode::Comma),
         VK_OEM_MINUS => Some(VirtualKeyCode::Minus),
@@ -343,19 +322,19 @@ pub fn vkey_to_winit_vkey(vkey: VIRTUAL_KEY) -> Option<VirtualKeyCode> {
         VK_OEM_5 => map_text_keys(vkey),
         VK_OEM_6 => map_text_keys(vkey),
         VK_OEM_7 => map_text_keys(vkey),
-        /* VK_OEM_8 => Some(VirtualKeyCode::Oem_8), */
+        // VK_OEM_8 => Some(VirtualKeyCode::Oem_8),
         VK_OEM_102 => Some(VirtualKeyCode::OEM102),
-        /*VK_PROCESSKEY => Some(VirtualKeyCode::Processkey),
-        VK_PACKET => Some(VirtualKeyCode::Packet),
-        VK_ATTN => Some(VirtualKeyCode::Attn),
-        VK_CRSEL => Some(VirtualKeyCode::Crsel),
-        VK_EXSEL => Some(VirtualKeyCode::Exsel),
-        VK_EREOF => Some(VirtualKeyCode::Ereof),
-        VK_PLAY => Some(VirtualKeyCode::Play),
-        VK_ZOOM => Some(VirtualKeyCode::Zoom),
-        VK_NONAME => Some(VirtualKeyCode::Noname),
-        VK_PA1 => Some(VirtualKeyCode::Pa1),
-        VK_OEM_CLEAR => Some(VirtualKeyCode::Oem_clear),*/
+        // VK_PROCESSKEY => Some(VirtualKeyCode::Processkey),
+        // VK_PACKET => Some(VirtualKeyCode::Packet),
+        // VK_ATTN => Some(VirtualKeyCode::Attn),
+        // VK_CRSEL => Some(VirtualKeyCode::Crsel),
+        // VK_EXSEL => Some(VirtualKeyCode::Exsel),
+        // VK_EREOF => Some(VirtualKeyCode::Ereof),
+        // VK_PLAY => Some(VirtualKeyCode::Play),
+        // VK_ZOOM => Some(VirtualKeyCode::Zoom),
+        // VK_NONAME => Some(VirtualKeyCode::Noname),
+        // VK_PA1 => Some(VirtualKeyCode::Pa1),
+        // VK_OEM_CLEAR => Some(VirtualKeyCode::Oem_clear),
         _ => None,
     }
 }
@@ -375,36 +354,38 @@ pub fn handle_extended_keys(
             } else {
                 VK_LCONTROL
             }
-        }
+        },
         VK_MENU => {
             if extended {
                 VK_RMENU
             } else {
                 VK_LMENU
             }
-        }
+        },
         _ => {
             match scancode {
-                // When VK_PAUSE is pressed it emits a LeftControl + NumLock scancode event sequence, but reports VK_PAUSE
-                // as the virtual key on both events, or VK_PAUSE on the first event or 0xFF when using raw input.
+                // When VK_PAUSE is pressed it emits a LeftControl + NumLock scancode event
+                // sequence, but reports VK_PAUSE as the virtual key on both events,
+                // or VK_PAUSE on the first event or 0xFF when using raw input.
                 // Don't emit anything for the LeftControl event in the pair...
                 0xE01D if vkey == VK_PAUSE => return None,
                 // ...and emit the Pause event for the second event in the pair.
                 0x45 if vkey == VK_PAUSE || vkey == 0xFF => {
                     scancode = 0xE059;
                     VK_PAUSE
-                }
-                // VK_PAUSE has an incorrect vkey value when used with modifiers. VK_PAUSE also reports a different
-                // scancode when used with modifiers than when used without
+                },
+                // VK_PAUSE has an incorrect vkey value when used with modifiers. VK_PAUSE also
+                // reports a different scancode when used with modifiers than when
+                // used without
                 0xE046 => {
                     scancode = 0xE059;
                     VK_PAUSE
-                }
+                },
                 // VK_SCROLL has an incorrect vkey value when used with modifiers.
                 0x46 => VK_SCROLL,
                 _ => vkey,
             }
-        }
+        },
     };
     Some((vkey, scancode))
 }

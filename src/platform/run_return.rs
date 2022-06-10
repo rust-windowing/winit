@@ -9,10 +9,8 @@
     target_os = "openbsd"
 ))]
 
-use crate::{
-    event::Event,
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
-};
+use crate::event::Event;
+use crate::event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget};
 
 /// Additional methods on `EventLoop` to return control flow to the caller.
 pub trait EventLoopExtRunReturn {
@@ -30,14 +28,15 @@ pub trait EventLoopExtRunReturn {
     /// window is getting resized, resulting in all application logic outside of the
     /// `event_handler` closure not running until the resize operation ends. Other OS operations
     /// may also result in such freezes. This behavior is caused by fundamental limitations in the
-    /// underlying OS APIs, which cannot be hidden by `winit` without severe stability repercussions.
+    /// underlying OS APIs, which cannot be hidden by `winit` without severe stability
+    /// repercussions.
     ///
     /// You are strongly encouraged to use `run`, unless the use of this is absolutely necessary.
     ///
     /// ## Platform-specific
     ///
-    /// - **Unix-alikes** (**X11** or **Wayland**): This function returns `1` upon disconnection from
-    ///   the display server.
+    /// - **Unix-alikes** (**X11** or **Wayland**): This function returns `1` upon disconnection
+    ///   from the display server.
     fn run_return<F>(&mut self, event_handler: F) -> i32
     where
         F: FnMut(

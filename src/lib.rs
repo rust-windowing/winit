@@ -2,8 +2,8 @@
 //!
 //! # Building windows
 //!
-//! Before you can build a [`Window`], you first need to build an [`EventLoop`]. This is done with the
-//! [`EventLoop::new()`] function.
+//! Before you can build a [`Window`], you first need to build an [`EventLoop`]. This is done with
+//! the [`EventLoop::new()`] function.
 //!
 //! ```no_run
 //! use winit::event_loop::EventLoop;
@@ -13,7 +13,8 @@
 //! Once this is done there are two ways to create a [`Window`]:
 //!
 //!  - Calling [`Window::new(&event_loop)`][window_new].
-//!  - Calling [`let builder = WindowBuilder::new()`][window_builder_new] then [`builder.build(&event_loop)`][window_builder_build].
+//!  - Calling [`let builder = WindowBuilder::new()`][window_builder_new] then
+//!    [`builder.build(&event_loop)`][window_builder_build].
 //!
 //! The first method is the simplest, and will give you default values for everything. The second
 //! method allows you to customize the way your [`Window`] will look and behave by modifying the
@@ -35,18 +36,16 @@
 //! point [`Event`]`::`[`LoopDestroyed`] is emitted and the entire program terminates.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
-//! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
-//! most other platforms. However, this model can be re-implemented to an extent with
-//! [`EventLoopExtRunReturn::run_return`]. See that method's documentation for more reasons about why
-//! it's discouraged, beyond compatibility reasons.
+//! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works
+//! poorly on most other platforms. However, this model can be re-implemented to an extent with
+//! [`EventLoopExtRunReturn::run_return`]. See that method's documentation for more reasons about
+//! why it's discouraged, beyond compatibility reasons.
 //!
 //!
 //! ```no_run
-//! use winit::{
-//!     event::{Event, WindowEvent},
-//!     event_loop::EventLoop,
-//!     window::WindowBuilder,
-//! };
+//! use winit::event::{Event, WindowEvent};
+//! use winit::event_loop::EventLoop;
+//! use winit::window::WindowBuilder;
 //!
 //! let event_loop = EventLoop::new();
 //! let window = WindowBuilder::new().build(&event_loop).unwrap();
@@ -62,10 +61,7 @@
 //!     control_flow.set_wait();
 //!
 //!     match event {
-//!         Event::WindowEvent {
-//!             event: WindowEvent::CloseRequested,
-//!             ..
-//!         } => {
+//!         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
 //!             println!("The close button was pressed; stopping");
 //!             control_flow.set_exit();
 //!         },
@@ -86,14 +82,14 @@
 //!             // this event rather than in MainEventsCleared, since rendering in here allows
 //!             // the program to gracefully handle redraws requested by the OS.
 //!         },
-//!         _ => ()
+//!         _ => (),
 //!     }
 //! });
 //! ```
 //!
-//! [`Event`]`::`[`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should be
-//! compared to the value returned by [`Window::id()`][window_id_fn] to determine which [`Window`]
-//! dispatched the event.
+//! [`Event`]`::`[`WindowEvent`] has a [`WindowId`] member. In multi-window environments, it should
+//! be compared to the value returned by [`Window::id()`][window_id_fn] to determine which
+//! [`Window`] dispatched the event.
 //!
 //! # Drawing on the window
 //!

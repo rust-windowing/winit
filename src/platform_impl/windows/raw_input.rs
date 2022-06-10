@@ -1,29 +1,24 @@
-use std::{
-    mem::{self, size_of},
-    ptr,
+use std::mem::{self, size_of};
+use std::ptr;
+
+use windows_sys::Win32::Devices::HumanInterfaceDevice::{
+    HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE, HID_USAGE_PAGE_GENERIC,
+};
+use windows_sys::Win32::Foundation::{HANDLE, HWND};
+use windows_sys::Win32::UI::Input::{
+    GetRawInputData, GetRawInputDeviceInfoW, GetRawInputDeviceList, RegisterRawInputDevices,
+    HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTDEVICELIST, RAWINPUTHEADER, RIDEV_DEVNOTIFY,
+    RIDEV_INPUTSINK, RIDI_DEVICEINFO, RIDI_DEVICENAME, RID_DEVICE_INFO, RID_DEVICE_INFO_HID,
+    RID_DEVICE_INFO_KEYBOARD, RID_DEVICE_INFO_MOUSE, RID_INPUT, RIM_TYPEHID, RIM_TYPEKEYBOARD,
+    RIM_TYPEMOUSE,
+};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_MIDDLE_BUTTON_DOWN,
+    RI_MOUSE_MIDDLE_BUTTON_UP, RI_MOUSE_RIGHT_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_UP,
 };
 
-use windows_sys::Win32::{
-    Devices::HumanInterfaceDevice::{
-        HID_USAGE_GENERIC_KEYBOARD, HID_USAGE_GENERIC_MOUSE, HID_USAGE_PAGE_GENERIC,
-    },
-    Foundation::{HANDLE, HWND},
-    UI::{
-        Input::{
-            GetRawInputData, GetRawInputDeviceInfoW, GetRawInputDeviceList,
-            RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTDEVICELIST,
-            RAWINPUTHEADER, RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDI_DEVICEINFO, RIDI_DEVICENAME,
-            RID_DEVICE_INFO, RID_DEVICE_INFO_HID, RID_DEVICE_INFO_KEYBOARD, RID_DEVICE_INFO_MOUSE,
-            RID_INPUT, RIM_TYPEHID, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
-        },
-        WindowsAndMessaging::{
-            RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_MIDDLE_BUTTON_DOWN,
-            RI_MOUSE_MIDDLE_BUTTON_UP, RI_MOUSE_RIGHT_BUTTON_DOWN, RI_MOUSE_RIGHT_BUTTON_UP,
-        },
-    },
-};
-
-use crate::{event::ElementState, platform_impl::platform::util};
+use crate::event::ElementState;
+use crate::platform_impl::platform::util;
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
@@ -81,12 +76,7 @@ pub fn get_raw_input_device_info(handle: HANDLE) -> Option<RawDeviceInfo> {
 
     let mut minimum_size = 0;
     let status = unsafe {
-        GetRawInputDeviceInfoW(
-            handle,
-            RIDI_DEVICEINFO,
-            &mut info as *mut _ as _,
-            &mut minimum_size,
-        )
+        GetRawInputDeviceInfoW(handle, RIDI_DEVICEINFO, &mut info as *mut _ as _, &mut minimum_size)
     };
 
     if status == u32::MAX || status == 0 {
@@ -111,12 +101,7 @@ pub fn get_raw_input_device_name(handle: HANDLE) -> Option<String> {
     let mut name: Vec<u16> = Vec::with_capacity(minimum_size as _);
 
     let status = unsafe {
-        GetRawInputDeviceInfoW(
-            handle,
-            RIDI_DEVICENAME,
-            name.as_ptr() as _,
-            &mut minimum_size,
-        )
+        GetRawInputDeviceInfoW(handle, RIDI_DEVICENAME, name.as_ptr() as _, &mut minimum_size)
     };
 
     if status == u32::MAX || status == 0 {
@@ -167,13 +152,7 @@ pub fn get_raw_input_data(handle: HRAWINPUT) -> Option<RAWINPUT> {
     let header_size = size_of::<RAWINPUTHEADER>() as u32;
 
     let status = unsafe {
-        GetRawInputData(
-            handle,
-            RID_INPUT,
-            &mut data as *mut _ as _,
-            &mut data_size,
-            header_size,
-        )
+        GetRawInputData(handle, RID_INPUT, &mut data as *mut _ as _, &mut data_size, header_size)
     };
 
     if status == u32::MAX || status == 0 {

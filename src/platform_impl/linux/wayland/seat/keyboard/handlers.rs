@@ -8,8 +8,7 @@ use crate::event::{ElementState, KeyboardInput, ModifiersState, WindowEvent};
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::{self, DeviceId};
 
-use super::keymap;
-use super::KeyboardInner;
+use super::{keymap, KeyboardInner};
 
 #[inline]
 pub(super) fn handle_keyboard(
@@ -32,7 +31,7 @@ pub(super) fn handle_keyboard(
             }
 
             inner.target_window_id = Some(window_id);
-        }
+        },
         KeyboardEvent::Leave { surface, .. } => {
             let window_id = wayland::make_wid(&surface);
 
@@ -49,14 +48,8 @@ pub(super) fn handle_keyboard(
 
             // Reset the id.
             inner.target_window_id = None;
-        }
-        KeyboardEvent::Key {
-            rawkey,
-            keysym,
-            state,
-            utf8,
-            ..
-        } => {
+        },
+        KeyboardEvent::Key { rawkey, keysym, state, utf8, .. } => {
             let window_id = match inner.target_window_id {
                 Some(window_id) => window_id,
                 None => return,
@@ -97,13 +90,8 @@ pub(super) fn handle_keyboard(
                     event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
                 }
             }
-        }
-        KeyboardEvent::Repeat {
-            rawkey,
-            keysym,
-            utf8,
-            ..
-        } => {
+        },
+        KeyboardEvent::Repeat { rawkey, keysym, utf8, .. } => {
             let window_id = match inner.target_window_id {
                 Some(window_id) => window_id,
                 None => return,
@@ -133,7 +121,7 @@ pub(super) fn handle_keyboard(
                     event_sink.push_window_event(WindowEvent::ReceivedCharacter(ch), window_id);
                 }
             }
-        }
+        },
         KeyboardEvent::Modifiers { modifiers } => {
             let modifiers = ModifiersState::from(modifiers);
             if let Some(window_id) = inner.target_window_id {
@@ -146,6 +134,6 @@ pub(super) fn handle_keyboard(
                 // them on wl_keyboard::enter.
                 inner.pending_modifers_state = Some(modifiers);
             }
-        }
+        },
     }
 }

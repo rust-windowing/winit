@@ -1,11 +1,9 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
-use winit::{
-    event::{ElementState, Event, KeyboardInput, WindowEvent},
-    event_loop::EventLoop,
-    window::{CursorIcon, WindowBuilder},
-};
+use winit::event::{ElementState, Event, KeyboardInput, WindowEvent};
+use winit::event_loop::EventLoop;
+use winit::window::{CursorIcon, WindowBuilder};
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -23,11 +21,7 @@ fn main() {
             Event::WindowEvent {
                 event:
                     WindowEvent::KeyboardInput {
-                        input:
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                ..
-                            },
+                        input: KeyboardInput { state: ElementState::Pressed, .. },
                         ..
                     },
                 ..
@@ -39,13 +33,10 @@ fn main() {
                 } else {
                     cursor_idx = 0;
                 }
-            }
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => {
+            },
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 control_flow.set_exit();
-            }
+            },
             _ => (),
         }
     });

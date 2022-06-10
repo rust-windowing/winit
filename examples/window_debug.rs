@@ -3,12 +3,10 @@
 // This example is used by developers to test various window functions.
 
 use simple_logger::SimpleLogger;
-use winit::{
-    dpi::{LogicalSize, PhysicalSize},
-    event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-    event_loop::EventLoop,
-    window::{Fullscreen, WindowBuilder},
-};
+use winit::dpi::{LogicalSize, PhysicalSize};
+use winit::event::{DeviceEvent, ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use winit::event_loop::EventLoop;
+use winit::window::{Fullscreen, WindowBuilder};
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -50,13 +48,13 @@ fn main() {
                         minimized = !minimized;
                         window.set_minimized(minimized);
                     }
-                }
+                },
                 VirtualKeyCode::V => {
                     if !visible {
                         visible = !visible;
                         window.set_visible(visible);
                     }
-                }
+                },
                 _ => (),
             },
             Event::WindowEvent {
@@ -78,15 +76,14 @@ fn main() {
                     }
 
                     let monitor = window.current_monitor().unwrap();
-                    if let Some(mode) = monitor
-                        .video_modes()
-                        .max_by(|a, b| area(a.size()).cmp(&area(b.size())))
+                    if let Some(mode) =
+                        monitor.video_modes().max_by(|a, b| area(a.size()).cmp(&area(b.size())))
                     {
                         window.set_fullscreen(Some(Fullscreen::Exclusive(mode)));
                     } else {
                         eprintln!("no video modes available");
                     }
-                }
+                },
                 VirtualKeyCode::F => {
                     if window.fullscreen().is_some() {
                         window.set_fullscreen(None);
@@ -94,35 +91,36 @@ fn main() {
                         let monitor = window.current_monitor();
                         window.set_fullscreen(Some(Fullscreen::Borderless(monitor)));
                     }
-                }
+                },
                 VirtualKeyCode::P => {
                     if window.fullscreen().is_some() {
                         window.set_fullscreen(None);
                     } else {
                         window.set_fullscreen(Some(Fullscreen::Borderless(None)));
                     }
-                }
+                },
                 VirtualKeyCode::M => {
                     minimized = !minimized;
                     window.set_minimized(minimized);
-                }
+                },
                 VirtualKeyCode::Q => {
                     control_flow.set_exit();
-                }
+                },
                 VirtualKeyCode::V => {
                     visible = !visible;
                     window.set_visible(visible);
-                }
+                },
                 VirtualKeyCode::X => {
                     let is_maximized = window.is_maximized();
                     window.set_maximized(!is_maximized);
-                }
+                },
                 _ => (),
             },
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                window_id,
-            } if window_id == window.id() => control_flow.set_exit(),
+            Event::WindowEvent { event: WindowEvent::CloseRequested, window_id }
+                if window_id == window.id() =>
+            {
+                control_flow.set_exit()
+            },
             _ => (),
         }
     });

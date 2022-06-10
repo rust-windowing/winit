@@ -1,13 +1,11 @@
 //! The `Window` struct and associated types.
 use std::fmt;
 
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError},
-    event_loop::EventLoopWindowTarget,
-    monitor::{MonitorHandle, VideoMode},
-    platform_impl,
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::error::{ExternalError, NotSupportedError, OsError};
+use crate::event_loop::EventLoopWindowTarget;
+use crate::monitor::{MonitorHandle, VideoMode};
+use crate::platform_impl;
 
 pub use crate::icon::{BadIcon, Icon};
 
@@ -16,11 +14,9 @@ pub use crate::icon::{BadIcon, Icon};
 /// # Example
 ///
 /// ```no_run
-/// use winit::{
-///     event::{Event, WindowEvent},
-///     event_loop::EventLoop,
-///     window::Window,
-/// };
+/// use winit::event::{Event, WindowEvent};
+/// use winit::event_loop::EventLoop;
+/// use winit::window::Window;
 ///
 /// let mut event_loop = EventLoop::new();
 /// let window = Window::new(&event_loop).unwrap();
@@ -29,10 +25,9 @@ pub use crate::icon::{BadIcon, Icon};
 ///     control_flow.set_wait();
 ///
 ///     match event {
-///         Event::WindowEvent {
-///             event: WindowEvent::CloseRequested,
-///             ..
-///         } => control_flow.set_exit(),
+///         Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+///             control_flow.set_exit()
+///         },
 ///         _ => (),
 ///     }
 /// });
@@ -96,9 +91,7 @@ pub struct WindowBuilder {
 
 impl fmt::Debug for WindowBuilder {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmtr.debug_struct("WindowBuilder")
-            .field("window", &self.window)
-            .finish()
+        fmtr.debug_struct("WindowBuilder").field("window", &self.window).finish()
     }
 }
 
@@ -111,12 +104,14 @@ pub struct WindowAttributes {
     /// The default is `None`.
     pub inner_size: Option<Size>,
 
-    /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum dimensions (aside from reserved).
+    /// The minimum dimensions a window can be, If this is `None`, the window will have no minimum
+    /// dimensions (aside from reserved).
     ///
     /// The default is `None`.
     pub min_inner_size: Option<Size>,
 
-    /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum or will be set to the primary monitor's dimensions by the platform.
+    /// The maximum dimensions a window can be, If this is `None`, the maximum will have no maximum
+    /// or will be set to the primary monitor's dimensions by the platform.
     ///
     /// The default is `None`.
     pub max_inner_size: Option<Size>,
@@ -407,7 +402,8 @@ impl Window {
         WindowId(self.window.id())
     }
 
-    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice
+    /// versa.
     ///
     /// See the [`dpi`](crate::dpi) module for more information.
     ///
@@ -417,7 +413,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR` environment variable.
+    /// - **X11:** This respects Xft.dpi, and can be overridden using the `WINIT_X11_SCALE_FACTOR`
+    ///   environment variable.
     /// - **Android:** Always returns 1.0.
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
@@ -434,8 +431,9 @@ impl Window {
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
-    /// This function can cause `RedrawRequested` events to be emitted after `Event::MainEventsCleared`
-    /// but before `Event::NewEvents` if called in the following circumstances:
+    /// This function can cause `RedrawRequested` events to be emitted after
+    /// `Event::MainEventsCleared` but before `Event::NewEvents` if called in the following
+    /// circumstances:
     /// * While processing `MainEventsCleared`.
     /// * While processing a `RedrawRequested` event that was sent during `MainEventsCleared` or any
     ///   directly subsequent `RedrawRequested` event.
@@ -461,8 +459,8 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window's [safe area] in the screen space coordinate system.
-    /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns the
-    ///    same value as `outer_position`._
+    /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns
+    ///   the same value as `outer_position`._
     /// - **Android / Wayland:** Always returns [`NotSupportedError`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
@@ -494,8 +492,8 @@ impl Window {
 
     /// Modifies the position of the window.
     ///
-    /// See `outer_position` for more information about the coordinates. This automatically un-maximizes the
-    /// window if it's maximized.
+    /// See `outer_position` for more information about the coordinates. This automatically
+    /// un-maximizes the window if it's maximized.
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
@@ -566,13 +564,13 @@ impl Window {
 
     /// Returns the physical size of the entire window.
     ///
-    /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
-    /// use `inner_size` instead.
+    /// These dimensions include the title bar and borders. If you don't want that (and you usually
+    /// don't), use `inner_size` instead.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window in
-    ///   screen space coordinates.
+    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window
+    ///   in screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
     ///   `inner_size`._
     #[inline]
@@ -653,7 +651,8 @@ impl Window {
 
     /// Gets the window's current vibility state.
     ///
-    /// If `None` means it couldn't be determined so it is not recommended to use this to drive your rendering backend.
+    /// If `None` means it couldn't be determined so it is not recommended to use this to drive your
+    /// rendering backend.
     ///
     /// ## Platform-specific
     ///
@@ -730,11 +729,10 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** `Fullscreen::Exclusive` provides true exclusive mode with a
-    ///   video mode change. *Caveat!* macOS doesn't provide task switching (or
-    ///   spaces!) while in exclusive fullscreen mode. This mode should be used
-    ///   when a video mode change is desired, but for a better user experience,
-    ///   borderless fullscreen might be preferred.
+    /// - **macOS:** `Fullscreen::Exclusive` provides true exclusive mode with a video mode change.
+    ///   *Caveat!* macOS doesn't provide task switching (or spaces!) while in exclusive fullscreen
+    ///   mode. This mode should be used when a video mode change is desired, but for a better user
+    ///   experience, borderless fullscreen might be preferred.
     ///
     ///   `Fullscreen::Borderless` provides a borderless fullscreen window on a
     ///   separate space. This is the idiomatic way for fullscreen games to work
@@ -862,7 +860,8 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
+    /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are
+    ///   combined.
     /// - ** iOS / Android / Web :** Unsupported.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
@@ -965,8 +964,8 @@ impl Window {
     /// - **Windows:** The cursor is only hidden within the confines of the window.
     /// - **X11:** The cursor is only hidden within the confines of the window.
     /// - **Wayland:** The cursor is only hidden within the confines of the window.
-    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor is
-    ///   outside of the window.
+    /// - **macOS:** The cursor is hidden as long as the window has input focus, even if the cursor
+    ///   is outside of the window.
     /// - **iOS / Android:** Unsupported.
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
@@ -992,7 +991,8 @@ impl Window {
     /// Modifies whether the window catches cursor events.
     ///
     /// If `true`, the window will catch the cursor events. If `false`, events are passed through
-    /// the window such that any other window behind it receives them. By default hittest is enabled.
+    /// the window such that any other window behind it receives them. By default hittest is
+    /// enabled.
     ///
     /// ## Platform-specific
     ///
@@ -1019,24 +1019,23 @@ impl Window {
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as `EventLoopWindowTarget::available_monitors`, and is provided for convenience.
+    /// This is the same as `EventLoopWindowTarget::available_monitors`, and is provided for
+    /// convenience.
     ///
     /// ## Platform-specific
     ///
     /// **iOS:** Can only be called on the main thread.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.window
-            .available_monitors()
-            .into_iter()
-            .map(|inner| MonitorHandle { inner })
+        self.window.available_monitors().into_iter().map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the primary monitor of the system.
     ///
     /// Returns `None` if it can't identify any monitor as a primary one.
     ///
-    /// This is the same as `EventLoopWindowTarget::primary_monitor`, and is provided for convenience.
+    /// This is the same as `EventLoopWindowTarget::primary_monitor`, and is provided for
+    /// convenience.
     ///
     /// ## Platform-specific
     ///
@@ -1053,7 +1052,8 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android:** Only available after receiving the Resumed event and before Suspended. *If you*
+    /// - **Android:** Only available after receiving the Resumed event and before Suspended. *If
+    ///   you*
     /// *try to get the handle outside of that period, this function will panic*!
     fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         self.window.raw_window_handle()
@@ -1147,7 +1147,8 @@ pub enum Theme {
 pub enum UserAttentionType {
     /// ## Platform-specific
     /// - **macOS:** Bounces the dock icon until the application is in focus.
-    /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
+    /// - **Windows:** Flashes both the window and the taskbar button until the application is in
+    ///   focus.
     Critical,
     /// ## Platform-specific
     /// - **macOS:** Bounces the dock icon once.

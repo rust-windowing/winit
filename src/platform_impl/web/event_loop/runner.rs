@@ -1,17 +1,17 @@
-use super::{super::ScaleChangeArgs, backend, state::State};
+use super::super::ScaleChangeArgs;
+use super::backend;
+use super::state::State;
 use crate::event::{Event, StartCause};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
 
 use instant::{Duration, Instant};
-use std::{
-    cell::RefCell,
-    clone::Clone,
-    collections::{HashSet, VecDeque},
-    iter,
-    ops::Deref,
-    rc::{Rc, Weak},
-};
+use std::cell::RefCell;
+use std::clone::Clone;
+use std::collections::{HashSet, VecDeque};
+use std::iter;
+use std::ops::Deref;
+use std::rc::{Rc, Weak};
 
 pub struct Shared<T: 'static>(Rc<Execution<T>>);
 
@@ -59,10 +59,7 @@ struct Runner<T: 'static> {
 
 impl<T: 'static> Runner<T> {
     pub fn new(event_handler: Box<dyn FnMut(Event<'_, T>, &mut ControlFlow)>) -> Self {
-        Runner {
-            state: State::Init,
-            event_handler,
-        }
+        Runner { state: State::Init, event_handler }
     }
 
     /// Returns the cooresponding `StartCause` for the current `state`, or `None`
@@ -71,13 +68,9 @@ impl<T: 'static> Runner<T> {
         Some(match self.state {
             State::Init => StartCause::Init,
             State::Poll { .. } => StartCause::Poll,
-            State::Wait { start } => StartCause::WaitCancelled {
-                start,
-                requested_resume: None,
-            },
-            State::WaitUntil { start, end, .. } => StartCause::WaitCancelled {
-                start,
-                requested_resume: Some(end),
+            State::Wait { start } => StartCause::WaitCancelled { start, requested_resume: None },
+            State::WaitUntil { start, end, .. } => {
+                StartCause::WaitCancelled { start, requested_resume: Some(end) }
             },
             State::Exit => return None,
         })
@@ -110,10 +103,7 @@ impl<T: 'static> Shared<T> {
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
-        self.0
-            .all_canvases
-            .borrow_mut()
-            .push((id, Rc::downgrade(canvas)));
+        self.0.all_canvases.borrow_mut().push((id, Rc::downgrade(canvas)));
     }
 
     pub fn notify_destroy_window(&self, id: WindowId) {
@@ -171,10 +161,8 @@ impl<T: 'static> Shared<T> {
     // Run the logic for waking from a WaitUntil, which involves clearing the queue
     // Generally there shouldn't be events built up when this is called
     pub fn resume_time_reached(&self, start: Instant, requested_resume: Instant) {
-        let start_cause = Event::NewEvents(StartCause::ResumeTimeReached {
-            start,
-            requested_resume,
-        });
+        let start_cause =
+            Event::NewEvents(StartCause::ResumeTimeReached { start, requested_resume });
         self.run_until_cleared(iter::once(start_cause));
     }
 
@@ -197,21 +185,22 @@ impl<T: 'static> Shared<T> {
         let mut process_immediately = true;
         match self.0.runner.try_borrow().as_ref().map(Deref::deref) {
             Ok(RunnerEnum::Running(ref runner)) => {
-                // If we're currently polling, queue this and wait for the poll() method to be called
+                // If we're currently polling, queue this and wait for the poll() method to be
+                // called
                 if let State::Poll { .. } = runner.state {
                     process_immediately = false;
                 }
-            }
+            },
             Ok(RunnerEnum::Pending) => {
                 // The runner still hasn't been attached: queue this event and wait for it to be
                 process_immediately = false;
-            }
+            },
             // Some other code is mutating the runner, which most likely means
             // the event loop is running and busy. So we queue this event for
             // it to be processed later.
             Err(_) => {
                 process_immediately = false;
-            }
+            },
             // This is unreachable since `self.is_closed() == true`.
             Ok(RunnerEnum::Destroyed) => unreachable!(),
         }
@@ -244,15 +233,9 @@ impl<T: 'static> Shared<T> {
     // `NewEvents` and `MainEventsCleared`.
     fn process_destroy_pending_windows(&self, control: &mut ControlFlow) {
         while let Some(id) = self.0.destroy_pending.borrow_mut().pop_front() {
-            self.0
-                .all_canvases
-                .borrow_mut()
-                .retain(|&(item_id, _)| item_id != id);
+            self.0.all_canvases.borrow_mut().retain(|&(item_id, _)| item_id != id);
             self.handle_event(
-                Event::WindowEvent {
-                    window_id: id,
-                    event: crate::event::WindowEvent::Destroyed,
-                },
+                Event::WindowEvent { window_id: id, event: crate::event::WindowEvent::Destroyed },
                 control,
             );
             self.0.redraw_pending.borrow_mut().remove(&id);
@@ -383,7 +366,7 @@ impl<T: 'static> Shared<T> {
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
                 runner.handle_single_event(event, control);
-            }
+            },
             _ => panic!("Cannot handle event synchronously without a runner"),
         }
     }
@@ -398,7 +381,7 @@ impl<T: 'static> Shared<T> {
         match *self.0.runner.borrow_mut() {
             RunnerEnum::Running(ref mut runner) => {
                 runner.handle_single_event(event, control);
-            }
+            },
             // If an event is being handled without a runner somehow, add it to the event queue so
             // it will eventually be processed
             RunnerEnum::Pending => self.0.events.borrow_mut().push_back(event),
@@ -426,21 +409,13 @@ impl<T: 'static> Shared<T> {
         let new_state = match control_flow {
             ControlFlow::Poll => {
                 let cloned = self.clone();
-                State::Poll {
-                    request: backend::AnimationFrameRequest::new(move || cloned.poll()),
-                }
-            }
-            ControlFlow::Wait => State::Wait {
-                start: Instant::now(),
+                State::Poll { request: backend::AnimationFrameRequest::new(move || cloned.poll()) }
             },
+            ControlFlow::Wait => State::Wait { start: Instant::now() },
             ControlFlow::WaitUntil(end) => {
                 let start = Instant::now();
 
-                let delay = if end <= start {
-                    Duration::from_millis(0)
-                } else {
-                    end - start
-                };
+                let delay = if end <= start { Duration::from_millis(0) } else { end - start };
 
                 let cloned = self.clone();
 
@@ -452,7 +427,7 @@ impl<T: 'static> Shared<T> {
                         delay,
                     ),
                 }
-            }
+            },
             ControlFlow::ExitWithCode(_) => State::Exit,
         };
 
@@ -479,11 +454,10 @@ impl<T: 'static> Shared<T> {
         }
         // At this point, the `self.0` `Rc` should only be strongly referenced
         // by the following:
-        // * `self`, i.e. the item which triggered this event loop wakeup, which
-        //   is usually a `wasm-bindgen` `Closure`, which will be dropped after
-        //   returning to the JS glue code.
-        // * The `EventLoopWindowTarget` leaked inside `EventLoop::run` due to the
-        //   JS exception thrown at the end.
+        // * `self`, i.e. the item which triggered this event loop wakeup, which is usually a
+        //   `wasm-bindgen` `Closure`, which will be dropped after returning to the JS glue code.
+        // * The `EventLoopWindowTarget` leaked inside `EventLoop::run` due to the JS exception
+        //   thrown at the end.
         // * For each undropped `Window`:
         //     * The `register_redraw_request` closure.
         //     * The `destroy_fn` closure.

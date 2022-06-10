@@ -48,11 +48,7 @@ impl Keyboard {
 
         let (keyboard, repeat_token) = keyboard_data.ok()?;
 
-        Some(Self {
-            keyboard,
-            loop_handle,
-            repeat_token: Some(repeat_token),
-        })
+        Some(Self { keyboard, loop_handle, repeat_token: Some(repeat_token) })
     }
 }
 
@@ -85,11 +81,7 @@ struct KeyboardInner {
 
 impl KeyboardInner {
     fn new(modifiers_state: Rc<RefCell<ModifiersState>>) -> Self {
-        Self {
-            target_window_id: None,
-            pending_modifers_state: None,
-            modifiers_state,
-        }
+        Self { target_window_id: None, pending_modifers_state: None, modifiers_state }
     }
 }
 

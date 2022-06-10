@@ -3,11 +3,9 @@
 use std::path::Path;
 
 use simple_logger::SimpleLogger;
-use winit::{
-    event::Event,
-    event_loop::EventLoop,
-    window::{Icon, WindowBuilder},
-};
+use winit::event::Event;
+use winit::event_loop::EventLoop;
+use winit::window::{Icon, WindowBuilder};
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -39,7 +37,7 @@ fn main() {
                 CloseRequested => control_flow.set_exit(),
                 DroppedFile(path) => {
                     window.set_window_icon(Some(load_icon(&path)));
-                }
+                },
                 _ => (),
             }
         }
@@ -48,9 +46,7 @@ fn main() {
 
 fn load_icon(path: &Path) -> Icon {
     let (icon_rgba, icon_width, icon_height) = {
-        let image = image::open(path)
-            .expect("Failed to open icon path")
-            .into_rgba8();
+        let image = image::open(path).expect("Failed to open icon path").into_rgba8();
         let (width, height) = image.dimensions();
         let rgba = image.into_raw();
         (rgba, width, height)

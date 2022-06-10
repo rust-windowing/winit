@@ -1,16 +1,14 @@
 use std::collections::VecDeque;
 
-use cocoa::{
-    appkit::{self, NSEvent},
-    base::id,
-};
-use objc::{
-    declare::ClassDecl,
-    runtime::{Class, Object, Sel},
-};
+use cocoa::appkit::{self, NSEvent};
+use cocoa::base::id;
+use objc::declare::ClassDecl;
+use objc::runtime::{Class, Object, Sel};
 use once_cell::sync::Lazy;
 
-use super::{app_state::AppState, event::EventWrapper, util, DEVICE_ID};
+use super::app_state::AppState;
+use super::event::EventWrapper;
+use super::{util, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
 
 pub struct AppClass(pub *const Class);
@@ -21,10 +19,7 @@ pub static APP_CLASS: Lazy<AppClass> = Lazy::new(|| unsafe {
     let superclass = class!(NSApplication);
     let mut decl = ClassDecl::new("WinitApp", superclass).unwrap();
 
-    decl.add_method(
-        sel!(sendEvent:),
-        send_event as extern "C" fn(&Object, Sel, id),
-    );
+    decl.add_method(sel!(sendEvent:), send_event as extern "C" fn(&Object, Sel, id));
 
     AppClass(decl.register())
 });
@@ -40,10 +35,7 @@ extern "C" fn send_event(this: &Object, _sel: Sel, event: id) {
         let event_type = event.eventType();
         let modifier_flags = event.modifierFlags();
         if event_type == appkit::NSKeyUp
-            && util::has_flag(
-                modifier_flags,
-                appkit::NSEventModifierFlags::NSCommandKeyMask,
-            )
+            && util::has_flag(modifier_flags, appkit::NSEventModifierFlags::NSCommandKeyMask)
         {
             let key_window: id = msg_send![this, keyWindow];
             let _: () = msg_send![key_window, sendEvent: event];
@@ -70,34 +62,26 @@ unsafe fn maybe_dispatch_device_event(event: id) {
             if delta_x != 0.0 {
                 events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
                     device_id: DEVICE_ID,
-                    event: DeviceEvent::Motion {
-                        axis: 0,
-                        value: delta_x,
-                    },
+                    event: DeviceEvent::Motion { axis: 0, value: delta_x },
                 }));
             }
 
             if delta_y != 0.0 {
                 events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
                     device_id: DEVICE_ID,
-                    event: DeviceEvent::Motion {
-                        axis: 1,
-                        value: delta_y,
-                    },
+                    event: DeviceEvent::Motion { axis: 1, value: delta_y },
                 }));
             }
 
             if delta_x != 0.0 || delta_y != 0.0 {
                 events.push_back(EventWrapper::StaticEvent(Event::DeviceEvent {
                     device_id: DEVICE_ID,
-                    event: DeviceEvent::MouseMotion {
-                        delta: (delta_x, delta_y),
-                    },
+                    event: DeviceEvent::MouseMotion { delta: (delta_x, delta_y) },
                 }));
             }
 
             AppState::queue_events(events);
-        }
+        },
         appkit::NSLeftMouseDown | appkit::NSRightMouseDown | appkit::NSOtherMouseDown => {
             let mut events = VecDeque::with_capacity(1);
 
@@ -110,7 +94,7 @@ unsafe fn maybe_dispatch_device_event(event: id) {
             }));
 
             AppState::queue_events(events);
-        }
+        },
         appkit::NSLeftMouseUp | appkit::NSRightMouseUp | appkit::NSOtherMouseUp => {
             let mut events = VecDeque::with_capacity(1);
 
@@ -123,7 +107,7 @@ unsafe fn maybe_dispatch_device_event(event: id) {
             }));
 
             AppState::queue_events(events);
-        }
+        },
         _ => (),
     }
 }

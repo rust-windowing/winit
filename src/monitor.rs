@@ -1,18 +1,16 @@
 //! Types useful for interacting with a user's monitors.
 //!
-//! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_handle]
-//! type. This is retrieved from one of the following methods, which return an iterator of
-//! [`MonitorHandle`][monitor_handle]:
+//! If you want to get basic information about a monitor, you can use the
+//! [`MonitorHandle`][monitor_handle] type. This is retrieved from one of the following methods,
+//! which return an iterator of [`MonitorHandle`][monitor_handle]:
 //! - [`EventLoopWindowTarget::available_monitors`][loop_get]
 //! - [`Window::available_monitors`][window_get].
 //!
 //! [monitor_handle]: crate::monitor::MonitorHandle
 //! [loop_get]: crate::event_loop::EventLoopWindowTarget::available_monitors
 //! [window_get]: crate::window::Window::available_monitors
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    platform_impl,
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::platform_impl;
 
 /// Describes a fullscreen video mode of a monitor.
 ///
@@ -148,7 +146,8 @@ impl MonitorHandle {
         self.inner.position()
     }
 
-    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice versa.
+    /// Returns the scale factor that can be used to map logical pixels to physical pixels, and vice
+    /// versa.
     ///
     /// See the [`dpi`](crate::dpi) module for more information.
     ///

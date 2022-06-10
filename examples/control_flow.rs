@@ -3,11 +3,9 @@
 use std::{thread, time};
 
 use simple_logger::SimpleLogger;
-use winit::{
-    event::{Event, KeyboardInput, WindowEvent},
-    event_loop::EventLoop,
-    window::WindowBuilder,
-};
+use winit::event::{Event, KeyboardInput, WindowEvent};
+use winit::event_loop::EventLoop;
+use winit::window::WindowBuilder;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Mode {
@@ -48,11 +46,11 @@ fn main() {
                     StartCause::WaitCancelled { .. } => mode == Mode::WaitUntil,
                     _ => false,
                 }
-            }
+            },
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => {
                     close_requested = true;
-                }
+                },
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
@@ -65,22 +63,22 @@ fn main() {
                     VirtualKeyCode::Key1 => {
                         mode = Mode::Wait;
                         println!("\nmode: {:?}\n", mode);
-                    }
+                    },
                     VirtualKeyCode::Key2 => {
                         mode = Mode::WaitUntil;
                         println!("\nmode: {:?}\n", mode);
-                    }
+                    },
                     VirtualKeyCode::Key3 => {
                         mode = Mode::Poll;
                         println!("\nmode: {:?}\n", mode);
-                    }
+                    },
                     VirtualKeyCode::R => {
                         request_redraw = !request_redraw;
                         println!("\nrequest_redraw: {}\n", request_redraw);
-                    }
+                    },
                     VirtualKeyCode::Escape => {
                         close_requested = true;
-                    }
+                    },
                     _ => (),
                 },
                 _ => (),
@@ -92,8 +90,8 @@ fn main() {
                 if close_requested {
                     control_flow.set_exit();
                 }
-            }
-            Event::RedrawRequested(_window_id) => {}
+            },
+            Event::RedrawRequested(_window_id) => {},
             Event::RedrawEventsCleared => {
                 match mode {
                     Mode::Wait => control_flow.set_wait(),
@@ -101,13 +99,13 @@ fn main() {
                         if !wait_cancelled {
                             control_flow.set_wait_until(instant::Instant::now() + WAIT_TIME);
                         }
-                    }
+                    },
                     Mode::Poll => {
                         thread::sleep(POLL_SLEEP_TIME);
                         control_flow.set_poll();
-                    }
+                    },
                 };
-            }
+            },
             _ => (),
         }
     });

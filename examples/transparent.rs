@@ -1,11 +1,9 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::EventLoop,
-    window::WindowBuilder,
-};
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::EventLoop;
+use winit::window::WindowBuilder;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
@@ -24,10 +22,9 @@ fn main() {
         println!("{:?}", event);
 
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => control_flow.set_exit(),
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+                control_flow.set_exit()
+            },
             _ => (),
         }
     });

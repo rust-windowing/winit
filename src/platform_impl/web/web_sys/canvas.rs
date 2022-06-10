@@ -9,7 +9,8 @@ use crate::platform_impl::{OsError, PlatformSpecificWindowBuilderAttributes};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use wasm_bindgen::{closure::Closure, JsCast};
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::JsCast;
 use web_sys::{
     AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
     MediaQueryListEvent, MouseEvent, WheelEvent,
@@ -33,7 +34,8 @@ pub struct Canvas {
 }
 
 struct Common {
-    /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure the DPI factor is maintained.
+    /// Note: resizing the HTMLCanvasElement should go through `backend::set_canvas_size` to ensure
+    /// the DPI factor is maintained.
     raw: HtmlCanvasElement,
     wants_fullscreen: Rc<RefCell<bool>>,
 }
@@ -54,7 +56,7 @@ impl Canvas {
                     .create_element("canvas")
                     .map_err(|_| os_error!(OsError("Failed to create canvas element".to_owned())))?
                     .unchecked_into()
-            }
+            },
         };
 
         // A tabindex is needed in order to capture local keyboard events.
@@ -73,10 +75,7 @@ impl Canvas {
         };
 
         Ok(Canvas {
-            common: Common {
-                raw: canvas,
-                wants_fullscreen: Rc::new(RefCell::new(false)),
-            },
+            common: Common { raw: canvas, wants_fullscreen: Rc::new(RefCell::new(false)) },
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -113,17 +112,11 @@ impl Canvas {
     pub fn position(&self) -> LogicalPosition<f64> {
         let bounds = self.common.raw.get_bounding_client_rect();
 
-        LogicalPosition {
-            x: bounds.x(),
-            y: bounds.y(),
-        }
+        LogicalPosition { x: bounds.x(), y: bounds.y() }
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
-        PhysicalSize {
-            width: self.common.raw.width(),
-            height: self.common.raw.height(),
-        }
+        PhysicalSize { width: self.common.raw.width(), height: self.common.raw.height() }
     }
 
     pub fn raw(&self) -> &HtmlCanvasElement {
@@ -152,30 +145,27 @@ impl Canvas {
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
-        self.on_keyboard_release = Some(self.common.add_user_event(
-            "keyup",
-            move |event: KeyboardEvent| {
+        self.on_keyboard_release =
+            Some(self.common.add_user_event("keyup", move |event: KeyboardEvent| {
                 event.prevent_default();
                 handler(
                     event::scan_code(&event),
                     event::virtual_key_code(&event),
                     event::keyboard_modifiers(&event),
                 );
-            },
-        ));
+            }));
     }
 
     pub fn on_keyboard_press<F>(&mut self, mut handler: F)
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
-        self.on_keyboard_press = Some(self.common.add_user_event(
-            "keydown",
-            move |event: KeyboardEvent| {
-                // event.prevent_default() would suppress subsequent on_received_character() calls. That
-                // supression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
-                // scroll, etc. We should not do it for key sequences that result in meaningful character
-                // input though.
+        self.on_keyboard_press =
+            Some(self.common.add_user_event("keydown", move |event: KeyboardEvent| {
+                // event.prevent_default() would suppress subsequent on_received_character() calls.
+                // That supression is correct for key sequences like Tab/Shift-Tab,
+                // Ctrl+R, PgUp/Down to scroll, etc. We should not do it for key
+                // sequences that result in meaningful character input though.
                 let event_key = &event.key();
                 let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
                 let is_shortcut_modifiers =
@@ -188,8 +178,7 @@ impl Canvas {
                     event::virtual_key_code(&event),
                     event::keyboard_modifiers(&event),
                 );
-            },
-        ));
+            }));
     }
 
     pub fn on_received_character<F>(&mut self, mut handler: F)
@@ -201,14 +190,12 @@ impl Canvas {
         // The `keypress` event is deprecated, but there does not seem to be a
         // viable/compatible alternative as of now. `beforeinput` is still widely
         // unsupported.
-        self.on_received_character = Some(self.common.add_user_event(
-            "keypress",
-            move |event: KeyboardEvent| {
+        self.on_received_character =
+            Some(self.common.add_user_event("keypress", move |event: KeyboardEvent| {
                 // Supress further handling to stop keys like the space key from scrolling the page.
                 event.prevent_default();
                 handler(event::codepoint(&event));
-            },
-        ));
+            }));
     }
 
     pub fn on_cursor_leave<F>(&mut self, handler: F)
@@ -277,10 +264,8 @@ impl Canvas {
     where
         F: 'static + FnMut(),
     {
-        self.on_fullscreen_change = Some(
-            self.common
-                .add_event("fullscreenchange", move |_: Event| handler()),
-        );
+        self.on_fullscreen_change =
+            Some(self.common.add_event("fullscreenchange", move |_: Event| handler()));
     }
 
     pub fn on_dark_mode<F>(&mut self, mut handler: F)
@@ -288,10 +273,8 @@ impl Canvas {
         F: 'static + FnMut(bool),
     {
         let closure =
-            Closure::wrap(
-                Box::new(move |event: MediaQueryListEvent| handler(event.matches()))
-                    as Box<dyn FnMut(_)>,
-            );
+            Closure::wrap(Box::new(move |event: MediaQueryListEvent| handler(event.matches()))
+                as Box<dyn FnMut(_)>);
         self.on_dark_mode = MediaQueryListHandle::new("(prefers-color-scheme: dark)", closure);
     }
 
@@ -361,9 +344,7 @@ impl Common {
             handler(event);
 
             if *wants_fullscreen.borrow() {
-                canvas
-                    .request_fullscreen()
-                    .expect("Failed to enter fullscreen");
+                canvas.request_fullscreen().expect("Failed to enter fullscreen");
                 *wants_fullscreen.borrow_mut() = false;
             }
         })
@@ -389,9 +370,7 @@ impl Common {
             handler(event);
 
             if *wants_fullscreen.borrow() {
-                canvas
-                    .request_fullscreen()
-                    .expect("Failed to enter fullscreen");
+                canvas.request_fullscreen().expect("Failed to enter fullscreen");
                 *wants_fullscreen.borrow_mut() = false;
             }
         }) as Box<dyn FnMut(_)>);

@@ -1,14 +1,12 @@
 #![cfg(feature = "serde")]
 
 use serde::{Deserialize, Serialize};
-use winit::{
-    dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize},
-    event::{
-        ElementState, KeyboardInput, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
-        VirtualKeyCode,
-    },
-    window::CursorIcon,
+use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
+use winit::event::{
+    ElementState, KeyboardInput, ModifiersState, MouseButton, MouseScrollDelta, TouchPhase,
+    VirtualKeyCode,
 };
+use winit::window::CursorIcon;
 
 #[allow(dead_code)]
 fn needs_serde<S: Serialize + Deserialize<'static>>() {}

@@ -1,20 +1,15 @@
-use std::{collections::VecDeque, fmt};
+use std::collections::VecDeque;
+use std::fmt;
 
 use super::{ffi, util};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-};
-use cocoa::{
-    appkit::NSScreen,
-    base::{id, nil},
-    foundation::NSUInteger,
-};
-use core_foundation::{
-    array::{CFArrayGetCount, CFArrayGetValueAtIndex},
-    base::{CFRelease, TCFType},
-    string::CFString,
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use cocoa::appkit::NSScreen;
+use cocoa::base::{id, nil};
+use cocoa::foundation::NSUInteger;
+use core_foundation::array::{CFArrayGetCount, CFArrayGetValueAtIndex};
+use core_foundation::base::{CFRelease, TCFType};
+use core_foundation::string::CFString;
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
 use core_video_sys::{
     kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
@@ -96,9 +91,7 @@ impl VideoMode {
     }
 
     pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+        RootMonitorHandle { inner: self.monitor.clone() }
     }
 }
 
@@ -263,11 +256,8 @@ impl MonitorHandle {
 
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
-                let refresh_rate = if cg_refresh_rate > 0 {
-                    cg_refresh_rate
-                } else {
-                    cv_refresh_rate
-                };
+                let refresh_rate =
+                    if cg_refresh_rate > 0 { cg_refresh_rate } else { cv_refresh_rate };
 
                 let pixel_encoding =
                     CFString::wrap_under_create_rule(ffi::CGDisplayModeCopyPixelEncoding(mode))

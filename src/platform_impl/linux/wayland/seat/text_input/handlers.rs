@@ -37,11 +37,9 @@ pub(super) fn handle_text_input(
             }
 
             // Notify a window we're currently over about text input handler.
-            let text_input_handler = TextInputHandler {
-                text_input: text_input.detach(),
-            };
+            let text_input_handler = TextInputHandler { text_input: text_input.detach() };
             window_handle.text_input_entered(text_input_handler);
-        }
+        },
         TextInputEvent::Leave { surface } => {
             // Always issue a disable.
             text_input.disable();
@@ -57,31 +55,21 @@ pub(super) fn handle_text_input(
             inner.target_window_id = None;
 
             // Remove text input handler from the window we're leaving.
-            let text_input_handler = TextInputHandler {
-                text_input: text_input.detach(),
-            };
+            let text_input_handler = TextInputHandler { text_input: text_input.detach() };
             window_handle.text_input_left(text_input_handler);
             event_sink.push_window_event(WindowEvent::Ime(Ime::Disabled), window_id);
-        }
-        TextInputEvent::PreeditString {
-            text,
-            cursor_begin,
-            cursor_end,
-        } => {
+        },
+        TextInputEvent::PreeditString { text, cursor_begin, cursor_end } => {
             let cursor_begin = usize::try_from(cursor_begin).ok();
             let cursor_end = usize::try_from(cursor_end).ok();
             let text = text.unwrap_or_default();
-            inner.pending_preedit = Some(Preedit {
-                text,
-                cursor_begin,
-                cursor_end,
-            });
-        }
+            inner.pending_preedit = Some(Preedit { text, cursor_begin, cursor_end });
+        },
         TextInputEvent::CommitString { text } => {
             // Update currenly commited string and reset previous preedit.
             inner.pending_preedit = None;
             inner.pending_commit = Some(text.unwrap_or_default());
-        }
+        },
         TextInputEvent::Done { .. } => {
             let window_id = match inner.target_window_id {
                 Some(window_id) => window_id,
@@ -94,14 +82,13 @@ pub(super) fn handle_text_input(
 
             // Push preedit string we've got after latest commit.
             if let Some(preedit) = inner.pending_preedit.take() {
-                let cursor_range = preedit
-                    .cursor_begin
-                    .map(|b| (b, preedit.cursor_end.unwrap_or(b)));
+                let cursor_range =
+                    preedit.cursor_begin.map(|b| (b, preedit.cursor_end.unwrap_or(b)));
 
                 let event = Ime::Preedit(preedit.text, cursor_range);
                 event_sink.push_window_event(WindowEvent::Ime(event), window_id);
             }
-        }
+        },
         _ => (),
     }
 }

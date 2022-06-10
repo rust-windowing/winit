@@ -1,25 +1,20 @@
-use std::{
-    ffi::{c_void, OsString},
-    mem::zeroed,
-    os::windows::prelude::OsStringExt,
-    ptr::null_mut,
-};
+use std::ffi::{c_void, OsString};
+use std::mem::zeroed;
+use std::os::windows::prelude::OsStringExt;
+use std::ptr::null_mut;
 
-use windows_sys::Win32::{
-    Foundation::POINT,
-    Globalization::HIMC,
-    UI::{
-        Input::Ime::{
-            ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
-            ImmSetCandidateWindow, ATTR_TARGET_CONVERTED, ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM,
-            CFS_EXCLUDE, GCS_COMPATTR, GCS_COMPSTR, GCS_CURSORPOS, GCS_RESULTSTR, IACE_CHILDREN,
-            IACE_DEFAULT,
-        },
-        WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED},
-    },
+use windows_sys::Win32::Foundation::POINT;
+use windows_sys::Win32::Globalization::HIMC;
+use windows_sys::Win32::UI::Input::Ime::{
+    ImmAssociateContextEx, ImmGetCompositionStringW, ImmGetContext, ImmReleaseContext,
+    ImmSetCandidateWindow, ATTR_TARGET_CONVERTED, ATTR_TARGET_NOTCONVERTED, CANDIDATEFORM,
+    CFS_EXCLUDE, GCS_COMPATTR, GCS_COMPSTR, GCS_CURSORPOS, GCS_RESULTSTR, IACE_CHILDREN,
+    IACE_DEFAULT,
 };
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_IMMENABLED};
 
-use crate::{dpi::Position, platform::windows::HWND};
+use crate::dpi::Position;
+use crate::platform::windows::HWND;
 
 pub struct ImeContext {
     hwnd: HWND,
@@ -58,7 +53,8 @@ impl ImeContext {
         if first.is_some() && last.is_none() {
             last = Some(text.len());
         } else if first.is_none() {
-            // IME haven't split words and select any clause yet, so trying to retrieve normal cursor.
+            // IME haven't split words and select any clause yet, so trying to retrieve normal
+            // cursor.
             let cursor = self.get_composition_cursor(&text);
             first = cursor;
             last = cursor;

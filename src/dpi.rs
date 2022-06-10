@@ -70,14 +70,14 @@
 //!   global and changing it requires logging out. See [this article][windows_1] for technical
 //!   details.
 //! - **macOS:** Recent versions of macOS allow the user to change the scaling factor for certain
-//!   displays. When this is available, the user may pick a per-monitor scaling factor from a set
-//!   of pre-defined settings. All "retina displays" have a scaling factor above 1.0 by default but
-//!   the specific value varies across devices.
+//!   displays. When this is available, the user may pick a per-monitor scaling factor from a set of
+//!   pre-defined settings. All "retina displays" have a scaling factor above 1.0 by default but the
+//!   specific value varies across devices.
 //! - **X11:** Many man-hours have been spent trying to figure out how to handle DPI in X11. Winit
-//!   currently uses a three-pronged approach:
-//!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable, if present.
-//!   + If not present, use the value set in `Xft.dpi` in Xresources.
-//!   + Otherwise, calcuate the scale factor based on the millimeter monitor dimensions provided by XRandR.
+//!   currently uses a three-pronged approach: + Use the value in the `WINIT_X11_SCALE_FACTOR`
+//!   environment variable, if present. + If not present, use the value set in `Xft.dpi` in
+//!   Xresources. + Otherwise, calcuate the scale factor based on the millimeter monitor dimensions
+//!   provided by XRandR.
 //!
 //!   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use the
 //!   XRandR scaling method. Generally speaking, you should try to configure the standard system
@@ -89,9 +89,9 @@
 //!   information.
 //! - **Android:** Scale factors are set by the manufacturer to the value that best suits the
 //!   device, and range from `1.0` to `4.0`. See [this article][android_1] for more information.
-//! - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels.
-//!   In other words, it is the value of [`window.devicePixelRatio`][web_1]. It is affected by
-//!   both the screen scaling and the browser zoom level and can go below `1.0`.
+//! - **Web:** The scale factor is the ratio between CSS pixels and the physical device pixels. In
+//!   other words, it is the value of [`window.devicePixelRatio`][web_1]. It is affected by both the
+//!   screen scaling and the browser zoom level and can go below `1.0`.
 //!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
@@ -152,9 +152,9 @@ impl Pixel for f64 {
 
 /// Checks that the scale factor is a normal positive `f64`.
 ///
-/// All functions that take a scale factor assert that this will return `true`. If you're sourcing scale factors from
-/// anywhere other than winit, it's recommended to validate them using this function before passing them to winit;
-/// otherwise, you risk panics.
+/// All functions that take a scale factor assert that this will return `true`. If you're sourcing
+/// scale factors from anywhere other than winit, it's recommended to validate them using this
+/// function before passing them to winit; otherwise, you risk panics.
 #[inline]
 pub fn validate_scale_factor(scale_factor: f64) -> bool {
     scale_factor.is_sign_positive() && scale_factor.is_normal()
@@ -198,10 +198,7 @@ impl<P: Pixel> LogicalPosition<P> {
 
     #[inline]
     pub fn cast<X: Pixel>(&self) -> LogicalPosition<X> {
-        LogicalPosition {
-            x: self.x.cast(),
-            y: self.y.cast(),
-        }
+        LogicalPosition { x: self.x.cast(), y: self.y.cast() }
     }
 }
 
@@ -277,10 +274,7 @@ impl<P: Pixel> PhysicalPosition<P> {
 
     #[inline]
     pub fn cast<X: Pixel>(&self) -> PhysicalPosition<X> {
-        PhysicalPosition {
-            x: self.x.cast(),
-            y: self.y.cast(),
-        }
+        PhysicalPosition { x: self.x.cast(), y: self.y.cast() }
     }
 }
 
@@ -356,10 +350,7 @@ impl<P: Pixel> LogicalSize<P> {
 
     #[inline]
     pub fn cast<X: Pixel>(&self) -> LogicalSize<X> {
-        LogicalSize {
-            width: self.width.cast(),
-            height: self.height.cast(),
-        }
+        LogicalSize { width: self.width.cast(), height: self.height.cast() }
     }
 }
 
@@ -397,10 +388,7 @@ impl<P: Pixel> From<mint::Vector2<P>> for LogicalSize<P> {
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
     fn from(s: LogicalSize<P>) -> Self {
-        mint::Vector2 {
-            x: s.width,
-            y: s.height,
-        }
+        mint::Vector2 { x: s.width, y: s.height }
     }
 }
 
@@ -435,10 +423,7 @@ impl<P: Pixel> PhysicalSize<P> {
 
     #[inline]
     pub fn cast<X: Pixel>(&self) -> PhysicalSize<X> {
-        PhysicalSize {
-            width: self.width.cast(),
-            height: self.height.cast(),
-        }
+        PhysicalSize { width: self.width.cast(), height: self.height.cast() }
     }
 }
 
@@ -476,10 +461,7 @@ impl<P: Pixel> From<mint::Vector2<P>> for PhysicalSize<P> {
 #[cfg(feature = "mint")]
 impl<P: Pixel> From<PhysicalSize<P>> for mint::Vector2<P> {
     fn from(s: PhysicalSize<P>) -> Self {
-        mint::Vector2 {
-            x: s.width,
-            y: s.height,
-        }
+        mint::Vector2 { x: s.width, y: s.height }
     }
 }
 

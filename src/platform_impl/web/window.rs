@@ -9,7 +9,8 @@ use crate::window::{
 
 use raw_window_handle::{RawWindowHandle, WebHandle};
 
-use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget};
+use super::monitor::MonitorHandle;
+use super::{backend, EventLoopWindowTarget};
 
 use std::cell::{Ref, RefCell};
 use std::collections::vec_deque::IntoIter as VecDequeIter;
@@ -64,10 +65,7 @@ impl Window {
 
         backend::set_canvas_size(
             window.canvas.borrow().raw(),
-            attr.inner_size.unwrap_or(Size::Logical(LogicalSize {
-                width: 1024.0,
-                height: 768.0,
-            })),
+            attr.inner_size.unwrap_or(Size::Logical(LogicalSize { width: 1024.0, height: 768.0 })),
         );
         window.set_title(&attr.title);
         window.set_maximized(attr.maximized);
@@ -99,11 +97,7 @@ impl Window {
     }
 
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        Ok(self
-            .canvas
-            .borrow()
-            .position()
-            .to_physical(self.scale_factor()))
+        Ok(self.canvas.borrow().position().to_physical(self.scale_factor()))
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
@@ -217,10 +211,7 @@ impl Window {
 
     #[inline]
     pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        self.canvas
-            .borrow()
-            .set_cursor_grab(grab)
-            .map_err(ExternalError::Os)
+        self.canvas.borrow().set_cursor_grab(grab).map_err(ExternalError::Os)
     }
 
     #[inline]
@@ -228,9 +219,7 @@ impl Window {
         if !visible {
             self.canvas.borrow().set_attribute("cursor", "none");
         } else {
-            self.canvas
-                .borrow()
-                .set_attribute("cursor", *self.previous_pointer.borrow());
+            self.canvas.borrow().set_attribute("cursor", *self.previous_pointer.borrow());
         }
     }
 
@@ -320,9 +309,7 @@ impl Window {
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
     fn current_monitor_inner(&self) -> RootMH {
-        RootMH {
-            inner: MonitorHandle,
-        }
+        RootMH { inner: MonitorHandle }
     }
 
     #[inline]
@@ -337,9 +324,7 @@ impl Window {
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<RootMH> {
-        Some(RootMH {
-            inner: MonitorHandle,
-        })
+        Some(RootMH { inner: MonitorHandle })
     }
 
     #[inline]

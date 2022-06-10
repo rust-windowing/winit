@@ -1,7 +1,8 @@
 use super::super::ScaleChangeArgs;
 use super::media_query_handle::MediaQueryListHandle;
 
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::prelude::Closure;
 use web_sys::MediaQueryListEvent;
 
@@ -60,8 +61,10 @@ impl ScaleChangeDetectorInternal {
         // due to floating point precision limitations.
         let media_query = format!(
             "(min-resolution: {min_scale:.4}dppx) and (max-resolution: {max_scale:.4}dppx),
-             (-webkit-min-device-pixel-ratio: {min_scale:.4}) and (-webkit-max-device-pixel-ratio: {max_scale:.4})",
-            min_scale = current_scale - 0.0001, max_scale= current_scale + 0.0001,
+             (-webkit-min-device-pixel-ratio: {min_scale:.4}) and (-webkit-max-device-pixel-ratio: \
+             {max_scale:.4})",
+            min_scale = current_scale - 0.0001,
+            max_scale = current_scale + 0.0001,
         );
         let mql = MediaQueryListHandle::new(&media_query, closure);
         if let Some(mql) = &mql {
@@ -72,16 +75,10 @@ impl ScaleChangeDetectorInternal {
 
     fn handler(&mut self, event: MediaQueryListEvent) {
         assert!(!event.matches());
-        let mql = self
-            .mql
-            .take()
-            .expect("DevicePixelRatioChangeDetector::mql should not be None");
+        let mql = self.mql.take().expect("DevicePixelRatioChangeDetector::mql should not be None");
         let closure = mql.remove();
         let new_scale = super::scale_factor();
-        (self.callback)(ScaleChangeArgs {
-            old_scale: self.last_scale,
-            new_scale,
-        });
+        (self.callback)(ScaleChangeArgs { old_scale: self.last_scale, new_scale });
         let new_mql = Self::create_mql(closure);
         self.mql = new_mql;
         self.last_scale = new_scale;

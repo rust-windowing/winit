@@ -1,9 +1,7 @@
 #![cfg(any(target_os = "android"))]
 
-use crate::{
-    event_loop::{EventLoop, EventLoopWindowTarget},
-    window::{Window, WindowBuilder},
-};
+use crate::event_loop::{EventLoop, EventLoopWindowTarget};
+use crate::window::{Window, WindowBuilder};
 use ndk::configuration::Configuration;
 use ndk_glue::Rect;
 

@@ -4,17 +4,14 @@
 
 use std::ffi::c_void;
 
-use cocoa::{
-    base::id,
-    foundation::{NSInteger, NSUInteger},
-};
-use core_foundation::{
-    array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
-};
-use core_graphics::{
-    base::CGError,
-    display::{CGDirectDisplayID, CGDisplayConfigRef},
-};
+use cocoa::base::id;
+use cocoa::foundation::{NSInteger, NSUInteger};
+use core_foundation::array::CFArrayRef;
+use core_foundation::dictionary::CFDictionaryRef;
+use core_foundation::string::CFStringRef;
+use core_foundation::uuid::CFUUIDRef;
+use core_graphics::base::CGError;
+use core_graphics::display::{CGDirectDisplayID, CGDisplayConfigRef};
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
 

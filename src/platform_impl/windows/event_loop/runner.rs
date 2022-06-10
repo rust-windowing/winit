@@ -1,24 +1,18 @@
-use std::{
-    any::Any,
-    cell::{Cell, RefCell},
-    collections::{HashSet, VecDeque},
-    mem, panic, ptr,
-    rc::Rc,
-    time::Instant,
-};
+use std::any::Any;
+use std::cell::{Cell, RefCell};
+use std::collections::{HashSet, VecDeque};
+use std::rc::Rc;
+use std::time::Instant;
+use std::{mem, panic, ptr};
 
-use windows_sys::Win32::{
-    Foundation::HWND,
-    Graphics::Gdi::{RedrawWindow, RDW_INTERNALPAINT},
-};
+use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::Graphics::Gdi::{RedrawWindow, RDW_INTERNALPAINT};
 
-use crate::{
-    dpi::PhysicalSize,
-    event::{Event, StartCause, WindowEvent},
-    event_loop::ControlFlow,
-    platform_impl::platform::util,
-    window::WindowId,
-};
+use crate::dpi::PhysicalSize;
+use crate::event::{Event, StartCause, WindowEvent};
+use crate::event_loop::ControlFlow;
+use crate::platform_impl::platform::util;
+use crate::window::WindowId;
 
 pub(crate) type EventLoopRunnerShared<T> = Rc<EventLoopRunner<T>>;
 
@@ -162,18 +156,19 @@ impl<T> EventLoopRunner<T> {
                     Err(e) => {
                         self.panic_error.set(Some(e));
                         None
-                    }
+                    },
                 },
                 Some(e) => {
                     self.panic_error.set(Some(e));
                     None
-                }
+                },
             }
         } else {
             self.panic_error.set(panic_error);
             None
         }
     }
+
     pub fn register_window(&self, window: HWND) {
         let mut owned_windows = self.owned_windows.take();
         owned_windows.insert(window);
@@ -211,11 +206,9 @@ impl<T> EventLoopRunner<T> {
             }
             self.call_event_handler(event);
         } else if self.should_buffer() {
-            // If the runner is already borrowed, we're in the middle of an event loop invocation. Add
-            // the event to a buffer to be processed later.
-            self.event_buffer
-                .borrow_mut()
-                .push_back(BufferedEvent::from_event(event))
+            // If the runner is already borrowed, we're in the middle of an event loop invocation.
+            // Add the event to a buffer to be processed later.
+            self.event_buffer.borrow_mut().push_back(BufferedEvent::from_event(event))
         } else {
             self.move_state_to(RunnerState::HandlingMainEvents);
             self.call_event_handler(event);
@@ -238,10 +231,12 @@ impl<T> EventLoopRunner<T> {
     unsafe fn call_event_handler(&self, event: Event<'_, T>) {
         self.catch_unwind(|| {
             let mut control_flow = self.control_flow.take();
-            let mut event_handler = self.event_handler.take()
-                .expect("either event handler is re-entrant (likely), or no event handler is registered (very unlikely)");
+            let mut event_handler = self.event_handler.take().expect(
+                "either event handler is re-entrant (likely), or no event handler is registered \
+                 (very unlikely)",
+            );
 
-            if let ControlFlow::ExitWithCode(code) = control_flow  {
+            if let ControlFlow::ExitWithCode(code) = control_flow {
                 event_handler(event, &mut ControlFlow::ExitWithCode(code));
             } else {
                 event_handler(event, &mut control_flow);
@@ -294,10 +289,7 @@ impl<T> EventLoopRunner<T> {
             Destroyed, HandlingMainEvents, HandlingRedrawEvents, Idle, Uninitialized,
         };
 
-        match (
-            self.runner_state.replace(new_runner_state),
-            new_runner_state,
-        ) {
+        match (self.runner_state.replace(new_runner_state), new_runner_state) {
             (Uninitialized, Uninitialized)
             | (Idle, Idle)
             | (HandlingMainEvents, HandlingMainEvents)
@@ -307,62 +299,62 @@ impl<T> EventLoopRunner<T> {
             // State transitions that initialize the event loop.
             (Uninitialized, HandlingMainEvents) => {
                 self.call_new_events(true);
-            }
+            },
             (Uninitialized, HandlingRedrawEvents) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::MainEventsCleared);
-            }
+            },
             (Uninitialized, Idle) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
-            }
+            },
             (Uninitialized, Destroyed) => {
                 self.call_new_events(true);
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
                 self.call_event_handler(Event::LoopDestroyed);
-            }
+            },
             (_, Uninitialized) => panic!("cannot move state to Uninitialized"),
 
             // State transitions that start the event handling process.
             (Idle, HandlingMainEvents) => {
                 self.call_new_events(false);
-            }
+            },
             (Idle, HandlingRedrawEvents) => {
                 self.call_new_events(false);
                 self.call_event_handler(Event::MainEventsCleared);
-            }
+            },
             (Idle, Destroyed) => {
                 self.call_event_handler(Event::LoopDestroyed);
-            }
+            },
 
             (HandlingMainEvents, HandlingRedrawEvents) => {
                 self.call_event_handler(Event::MainEventsCleared);
-            }
+            },
             (HandlingMainEvents, Idle) => {
                 warn!("RedrawEventsCleared emitted without explicit MainEventsCleared");
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
-            }
+            },
             (HandlingMainEvents, Destroyed) => {
                 self.call_event_handler(Event::MainEventsCleared);
                 self.call_redraw_events_cleared();
                 self.call_event_handler(Event::LoopDestroyed);
-            }
+            },
 
             (HandlingRedrawEvents, Idle) => {
                 self.call_redraw_events_cleared();
-            }
+            },
             (HandlingRedrawEvents, HandlingMainEvents) => {
                 warn!("NewEvents emitted without explicit RedrawEventsCleared");
                 self.call_redraw_events_cleared();
                 self.call_new_events(false);
-            }
+            },
             (HandlingRedrawEvents, Destroyed) => {
                 self.call_redraw_events_cleared();
                 self.call_event_handler(Event::LoopDestroyed);
-            }
+            },
 
             (Destroyed, _) => panic!("cannot move state from Destroyed"),
         }
@@ -377,7 +369,7 @@ impl<T> EventLoopRunner<T> {
                     requested_resume: None,
                     start: self.last_events_cleared.get(),
                 }
-            }
+            },
             (false, ControlFlow::WaitUntil(requested_resume)) => {
                 if Instant::now() < requested_resume {
                     StartCause::WaitCancelled {
@@ -390,7 +382,7 @@ impl<T> EventLoopRunner<T> {
                         start: self.last_events_cleared.get(),
                     }
                 }
-            }
+            },
         };
         self.call_event_handler(Event::NewEvents(start_cause));
         self.dispatch_buffered_events();
@@ -407,11 +399,7 @@ impl<T> BufferedEvent<T> {
     pub fn from_event(event: Event<'_, T>) -> BufferedEvent<T> {
         match event {
             Event::WindowEvent {
-                event:
-                    WindowEvent::ScaleFactorChanged {
-                        scale_factor,
-                        new_inner_size,
-                    },
+                event: WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size },
                 window_id,
             } => BufferedEvent::ScaleFactorChanged(window_id, scale_factor, *new_inner_size),
             event => BufferedEvent::Event(event.to_static().unwrap()),
@@ -434,7 +422,7 @@ impl<T> BufferedEvent<T> {
                     new_inner_size.width as _,
                     new_inner_size.height as _,
                 );
-            }
+            },
         }
     }
 }

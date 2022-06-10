@@ -1,26 +1,20 @@
 use std::collections::HashMap;
 
-use objc::{
-    declare::ClassDecl,
-    runtime::{Class, Object, Sel, BOOL, NO, YES},
-};
+use objc::declare::ClassDecl;
+use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
 
-use crate::{
-    dpi::PhysicalPosition,
-    event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
-    platform::ios::MonitorHandleExtIOS,
-    platform_impl::platform::{
-        app_state::{self, OSCapabilities},
-        event_loop::{self, EventProxy, EventWrapper},
-        ffi::{
-            id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
-            UIRectEdge, UITouchPhase, UITouchType,
-        },
-        window::PlatformSpecificWindowBuilderAttributes,
-        DeviceId,
-    },
-    window::{Fullscreen, WindowAttributes, WindowId as RootWindowId},
+use crate::dpi::PhysicalPosition;
+use crate::event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent};
+use crate::platform::ios::MonitorHandleExtIOS;
+use crate::platform_impl::platform::app_state::{self, OSCapabilities};
+use crate::platform_impl::platform::event_loop::{self, EventProxy, EventWrapper};
+use crate::platform_impl::platform::ffi::{
+    id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
+    UIRectEdge, UITouchPhase, UITouchType,
 };
+use crate::platform_impl::platform::window::PlatformSpecificWindowBuilderAttributes;
+use crate::platform_impl::platform::DeviceId;
+use crate::window::{Fullscreen, WindowAttributes, WindowId as RootWindowId};
 
 macro_rules! add_property {
     (
@@ -94,10 +88,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
     classes.entry(root_view_class).or_insert_with(move || {
         let uiview_class = class!(UIView);
         let is_uiview: BOOL = msg_send![root_view_class, isSubclassOfClass: uiview_class];
-        assert_eq!(
-            is_uiview, YES,
-            "`root_view_class` must inherit from `UIView`"
-        );
+        assert_eq!(is_uiview, YES, "`root_view_class` must inherit from `UIView`");
 
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
             unsafe {
@@ -107,9 +98,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     std::iter::once(EventWrapper::StaticEvent(Event::RedrawRequested(
                         RootWindowId(window.into()),
                     )))
-                    .chain(std::iter::once(EventWrapper::StaticEvent(
-                        Event::RedrawEventsCleared,
-                    ))),
+                    .chain(std::iter::once(EventWrapper::StaticEvent(Event::RedrawEventsCleared))),
                 );
                 let superclass: &'static Class = msg_send![object, superclass];
                 let _: () = msg_send![super(object, superclass), drawRect: rect];
@@ -135,9 +124,10 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 }
                 .to_physical(scale_factor as f64);
 
-                // If the app is started in landscape, the view frame and window bounds can be mismatched.
-                // The view frame will be in portrait and the window bounds in landscape. So apply the
-                // window bounds to the view frame to make it consistent.
+                // If the app is started in landscape, the view frame and window bounds can be
+                // mismatched. The view frame will be in portrait and the window
+                // bounds in landscape. So apply the window bounds to the view frame
+                // to make it consistent.
                 let view_frame: CGRect = msg_send![object, frame];
                 if view_frame != window_bounds {
                     let _: () = msg_send![object, setFrame: window_bounds];
@@ -283,14 +273,8 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         let mut decl = ClassDecl::new(&format!("WinitUIView{}", ID), root_view_class)
             .expect("Failed to declare class `WinitUIView`");
         ID += 1;
-        decl.add_method(
-            sel!(drawRect:),
-            draw_rect as extern "C" fn(&Object, Sel, CGRect),
-        );
-        decl.add_method(
-            sel!(layoutSubviews),
-            layout_subviews as extern "C" fn(&Object, Sel),
-        );
+        decl.add_method(sel!(drawRect:), draw_rect as extern "C" fn(&Object, Sel, CGRect));
+        decl.add_method(sel!(layoutSubviews), layout_subviews as extern "C" fn(&Object, Sel));
         decl.add_method(
             sel!(setContentScaleFactor:),
             set_content_scale_factor as extern "C" fn(&mut Object, Sel, CGFloat),
@@ -414,14 +398,8 @@ unsafe fn get_window_class() -> &'static Class {
 
         let mut decl = ClassDecl::new("WinitUIWindow", uiwindow_class)
             .expect("Failed to declare class `WinitUIWindow`");
-        decl.add_method(
-            sel!(becomeKeyWindow),
-            become_key_window as extern "C" fn(&Object, Sel),
-        );
-        decl.add_method(
-            sel!(resignKeyWindow),
-            resign_key_window as extern "C" fn(&Object, Sel),
-        );
+        decl.add_method(sel!(becomeKeyWindow), become_key_window as extern "C" fn(&Object, Sel));
+        decl.add_method(sel!(resignKeyWindow), resign_key_window as extern "C" fn(&Object, Sel));
 
         CLASS = Some(decl.register());
     }
@@ -457,49 +435,27 @@ pub unsafe fn create_view_controller(
     let class = get_view_controller_class();
 
     let view_controller: id = msg_send![class, alloc];
-    assert!(
-        !view_controller.is_null(),
-        "Failed to create `UIViewController` instance"
-    );
+    assert!(!view_controller.is_null(), "Failed to create `UIViewController` instance");
     let view_controller: id = msg_send![view_controller, init];
-    assert!(
-        !view_controller.is_null(),
-        "Failed to initialize `UIViewController` instance"
-    );
-    let status_bar_hidden = if platform_attributes.prefers_status_bar_hidden {
-        YES
-    } else {
-        NO
-    };
+    assert!(!view_controller.is_null(), "Failed to initialize `UIViewController` instance");
+    let status_bar_hidden = if platform_attributes.prefers_status_bar_hidden { YES } else { NO };
     let idiom = event_loop::get_idiom();
     let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
         platform_attributes.valid_orientations,
         idiom,
     );
-    let prefers_home_indicator_hidden = if platform_attributes.prefers_home_indicator_hidden {
-        YES
-    } else {
-        NO
-    };
-    let edges: UIRectEdge = platform_attributes
-        .preferred_screen_edges_deferring_system_gestures
-        .into();
-    let _: () = msg_send![
-        view_controller,
-        setPrefersStatusBarHidden: status_bar_hidden
-    ];
-    let _: () = msg_send![
-        view_controller,
-        setSupportedInterfaceOrientations: supported_orientations
-    ];
+    let prefers_home_indicator_hidden =
+        if platform_attributes.prefers_home_indicator_hidden { YES } else { NO };
+    let edges: UIRectEdge =
+        platform_attributes.preferred_screen_edges_deferring_system_gestures.into();
+    let _: () = msg_send![view_controller, setPrefersStatusBarHidden: status_bar_hidden];
+    let _: () =
+        msg_send![view_controller, setSupportedInterfaceOrientations: supported_orientations];
     let _: () = msg_send![
         view_controller,
         setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
     ];
-    let _: () = msg_send![
-        view_controller,
-        setPreferredScreenEdgesDeferringSystemGestures: edges
-    ];
+    let _: () = msg_send![view_controller, setPreferredScreenEdgesDeferringSystemGestures: edges];
     let _: () = msg_send![view_controller, setView: view];
     view_controller
 }
@@ -516,28 +472,25 @@ pub unsafe fn create_window(
     let window: id = msg_send![class, alloc];
     assert!(!window.is_null(), "Failed to create `UIWindow` instance");
     let window: id = msg_send![window, initWithFrame: frame];
-    assert!(
-        !window.is_null(),
-        "Failed to initialize `UIWindow` instance"
-    );
+    assert!(!window.is_null(), "Failed to initialize `UIWindow` instance");
     let _: () = msg_send![window, setRootViewController: view_controller];
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             let uiscreen = video_mode.monitor().ui_screen() as id;
             let _: () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
-        }
+        },
         Some(Fullscreen::Borderless(ref monitor)) => {
             let uiscreen: id = match &monitor {
                 Some(monitor) => monitor.ui_screen() as id,
                 None => {
                     let uiscreen: id = msg_send![window, screen];
                     uiscreen
-                }
+                },
             };
 
             msg_send![window, setScreen: uiscreen]
-        }
+        },
         None => (),
     }
 

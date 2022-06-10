@@ -1,16 +1,12 @@
-use std::{
-    collections::{BTreeSet, VecDeque},
-    fmt,
-    ops::{Deref, DerefMut},
-};
+use std::collections::{BTreeSet, VecDeque};
+use std::fmt;
+use std::ops::{Deref, DerefMut};
 
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::platform::{
-        app_state,
-        ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
-    },
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use crate::platform_impl::platform::app_state;
+use crate::platform_impl::platform::ffi::{
+    id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger,
 };
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -101,9 +97,7 @@ impl VideoMode {
     }
 
     pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+        RootMonitorHandle { inner: self.monitor.clone() }
     }
 }
 
@@ -195,9 +189,7 @@ impl MonitorHandle {
             assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
             let _: () = msg_send![uiscreen, retain];
         }
-        MonitorHandle {
-            inner: Inner { uiscreen },
-        }
+        MonitorHandle { inner: Inner { uiscreen } }
     }
 }
 
@@ -266,9 +258,7 @@ impl Inner {
     pub fn preferred_video_mode(&self) -> RootVideoMode {
         unsafe {
             let mode: id = msg_send![self.uiscreen, preferredMode];
-            RootVideoMode {
-                video_mode: VideoMode::retained_new(self.uiscreen, mode),
-            }
+            RootVideoMode { video_mode: VideoMode::retained_new(self.uiscreen, mode) }
         }
     }
 }

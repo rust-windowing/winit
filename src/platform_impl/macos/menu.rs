@@ -2,10 +2,8 @@ use super::util::IdRef;
 use cocoa::appkit::{NSApp, NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
 use cocoa::base::{nil, selector};
 use cocoa::foundation::{NSProcessInfo, NSString};
-use objc::{
-    rc::autoreleasepool,
-    runtime::{Object, Sel},
-};
+use objc::rc::autoreleasepool;
+use objc::runtime::{Object, Sel};
 
 struct KeyEquivalent<'a> {
     key: &'a str,
@@ -26,11 +24,8 @@ pub fn initialize() {
         // About menu item
         let about_item_prefix = NSString::alloc(nil).init_str("About ");
         let about_item_title = about_item_prefix.stringByAppendingString_(process_name);
-        let about_item = menu_item(
-            about_item_title,
-            selector("orderFrontStandardAboutPanel:"),
-            None,
-        );
+        let about_item =
+            menu_item(about_item_title, selector("orderFrontStandardAboutPanel:"), None);
 
         // Seperator menu item
         let sep_first = NSMenuItem::separatorItem(nil);
@@ -41,10 +36,7 @@ pub fn initialize() {
         let hide_item = menu_item(
             hide_item_title,
             selector("hide:"),
-            Some(KeyEquivalent {
-                key: "h",
-                masks: None,
-            }),
+            Some(KeyEquivalent { key: "h", masks: None }),
         );
 
         // Hide other applications menu item
@@ -63,11 +55,8 @@ pub fn initialize() {
 
         // Show applications menu item
         let show_all_item_title = NSString::alloc(nil).init_str("Show All");
-        let show_all_item = menu_item(
-            show_all_item_title,
-            selector("unhideAllApplications:"),
-            None,
-        );
+        let show_all_item =
+            menu_item(show_all_item_title, selector("unhideAllApplications:"), None);
 
         // Seperator menu item
         let sep = NSMenuItem::separatorItem(nil);
@@ -78,10 +67,7 @@ pub fn initialize() {
         let quit_item = menu_item(
             quit_item_title,
             selector("terminate:"),
-            Some(KeyEquivalent {
-                key: "q",
-                masks: None,
-            }),
+            Some(KeyEquivalent { key: "q", masks: None }),
         );
 
         app_menu.addItem_(about_item);

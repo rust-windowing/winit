@@ -1,9 +1,7 @@
-use std::{
-    collections::HashMap,
-    ffi::{CStr, CString},
-    fmt::Debug,
-    os::raw::*,
-};
+use std::collections::HashMap;
+use std::ffi::{CStr, CString};
+use std::fmt::Debug;
+use std::os::raw::*;
 
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -32,11 +30,11 @@ impl XConnection {
                     self.check_errors(),
                 );
             }
-            /*println!(
-                "XInternAtom name:{:?} atom:{:?}",
-                name,
-                atom,
-            );*/
+            // println!(
+            // "XInternAtom name:{:?} atom:{:?}",
+            // name,
+            // atom,
+            // );
             (*atom_cache_lock).insert(name.to_owned(), atom);
             atom
         }
@@ -61,10 +59,10 @@ impl XConnection {
         );
         self.check_errors()?;
         atoms.set_len(names.len());
-        /*println!(
-            "XInternAtoms atoms:{:?}",
-            atoms,
-        );*/
+        // println!(
+        // "XInternAtoms atoms:{:?}",
+        // atoms,
+        // );
         Ok(atoms)
     }
 }

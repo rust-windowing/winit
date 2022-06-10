@@ -20,9 +20,7 @@ pub(super) fn handle_touch(
     let event_sink = &mut winit_state.event_sink;
 
     match event {
-        TouchEvent::Down {
-            surface, id, x, y, ..
-        } => {
+        TouchEvent::Down { surface, id, x, y, .. } => {
             let window_id = wayland::make_wid(&surface);
             if !winit_state.window_map.contains_key(&window_id) {
                 return;
@@ -49,11 +47,9 @@ pub(super) fn handle_touch(
             if let Some(i) = inner.touch_points.iter().position(|p| p.id == id) {
                 inner.touch_points[i].position = position;
             } else {
-                inner
-                    .touch_points
-                    .push(TouchPoint::new(surface, position, id));
+                inner.touch_points.push(TouchPoint::new(surface, position, id));
             }
-        }
+        },
         TouchEvent::Up { id, .. } => {
             let touch_point = match inner.touch_points.iter().find(|p| p.id == id) {
                 Some(touch_point) => touch_point,
@@ -76,7 +72,7 @@ pub(super) fn handle_touch(
                 }),
                 window_id,
             );
-        }
+        },
         TouchEvent::Motion { id, x, y, .. } => {
             let touch_point = match inner.touch_points.iter_mut().find(|p| p.id == id) {
                 Some(touch_point) => touch_point,
@@ -101,7 +97,7 @@ pub(super) fn handle_touch(
                 }),
                 window_id,
             );
-        }
+        },
         TouchEvent::Frame => (),
         TouchEvent::Cancel => {
             for touch_point in inner.touch_points.drain(..) {
@@ -122,7 +118,7 @@ pub(super) fn handle_touch(
                     window_id,
                 );
             }
-        }
+        },
         _ => (),
     }
 }

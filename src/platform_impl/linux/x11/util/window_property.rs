@@ -64,9 +64,11 @@ impl XConnection {
                     property_type,
                     &mut actual_type,
                     &mut actual_format,
-                    // This is the quantity of items we retrieved in our format, NOT of 32-bit chunks!
+                    // This is the quantity of items we retrieved in our format, NOT of 32-bit
+                    // chunks!
                     &mut quantity_returned,
-                    // ...and this is a quantity of bytes. So, this function deals in 3 different units.
+                    // ...and this is a quantity of bytes. So, this function deals in 3 different
+                    // units.
                     &mut bytes_after,
                     &mut buf,
                 );
@@ -132,11 +134,11 @@ impl XConnection {
                 new_value.len() as c_int,
             );
         }
-        /*println!(
-            "XChangeProperty prop:{:?} val:{:?}",
-            property,
-            new_value,
-        );*/
+        // println!(
+        // "XChangeProperty prop:{:?} val:{:?}",
+        // property,
+        // new_value,
+        // );
         Flusher::new(self)
     }
 }

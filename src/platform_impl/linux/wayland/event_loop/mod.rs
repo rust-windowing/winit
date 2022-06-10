@@ -132,9 +132,8 @@ impl<T: 'static> EventLoop<T> {
                 })
             });
 
-        let _wayland_source_dispatcher = event_loop
-            .handle()
-            .register_dispatcher(wayland_dispatcher.clone())?;
+        let _wayland_source_dispatcher =
+            event_loop.handle().register_dispatcher(wayland_dispatcher.clone())?;
 
         // A source of user events.
         let pending_user_events = Rc::new(RefCell::new(Vec::new()));
@@ -142,13 +141,11 @@ impl<T: 'static> EventLoop<T> {
         let (user_events_sender, user_events_channel) = calloop::channel::channel();
 
         // User events channel.
-        event_loop
-            .handle()
-            .insert_source(user_events_channel, move |event, _, _| {
-                if let calloop::channel::Event::Msg(msg) = event {
-                    pending_user_events_clone.borrow_mut().push(msg);
-                }
-            })?;
+        event_loop.handle().insert_source(user_events_channel, move |event, _, _| {
+            if let calloop::channel::Event::Msg(msg) = event {
+                pending_user_events_clone.borrow_mut().push(msg);
+            }
+        })?;
 
         // An event's loop awakener to wake up for window events from winit's windows.
         let (event_loop_awakener, event_loop_awakener_source) = calloop::ping::make_ping()?;
@@ -170,11 +167,7 @@ impl<T: 'static> EventLoop<T> {
         let event_loop_window_target = EventLoopWindowTarget {
             display: display.clone(),
             env,
-            state: RefCell::new(WinitState {
-                window_map,
-                event_sink,
-                window_updates,
-            }),
+            state: RefCell::new(WinitState { window_map, event_sink, window_updates }),
             event_loop_handle,
             output_manager,
             event_loop_awakener,
@@ -216,11 +209,7 @@ impl<T: 'static> EventLoop<T> {
         let mut control_flow = ControlFlow::Poll;
         let pending_user_events = self.pending_user_events.clone();
 
-        callback(
-            Event::NewEvents(StartCause::Init),
-            &self.window_target,
-            &mut control_flow,
-        );
+        callback(Event::NewEvents(StartCause::Init), &self.window_target, &mut control_flow);
 
         let mut window_updates: Vec<(WindowId, WindowUpdate)> = Vec::new();
         let mut event_sink_back_buffer = Vec::new();
@@ -248,7 +237,7 @@ impl<T: 'static> EventLoop<T> {
                 let state = match &mut self.window_target.p {
                     PlatformEventLoopWindowTarget::Wayland(window_target) => {
                         window_target.state.get_mut()
-                    }
+                    },
                     #[cfg(feature = "x11")]
                     _ => unreachable!(),
                 };
@@ -273,13 +262,10 @@ impl<T: 'static> EventLoop<T> {
                         &self.window_target,
                         &mut control_flow,
                     );
-                }
+                },
                 ControlFlow::Wait => {
-                    let timeout = if instant_wakeup {
-                        Some(Duration::from_millis(0))
-                    } else {
-                        None
-                    };
+                    let timeout =
+                        if instant_wakeup { Some(Duration::from_millis(0)) } else { None };
 
                     if let Err(error) = self.loop_dispatch(timeout) {
                         break error.raw_os_error().unwrap_or(1);
@@ -293,7 +279,7 @@ impl<T: 'static> EventLoop<T> {
                         &self.window_target,
                         &mut control_flow,
                     );
-                }
+                },
                 ControlFlow::WaitUntil(deadline) => {
                     let start = Instant::now();
 
@@ -329,7 +315,7 @@ impl<T: 'static> EventLoop<T> {
                             &mut control_flow,
                         )
                     }
-                }
+                },
             }
 
             // Handle pending user events. We don't need back buffer, since we can't dispatch
@@ -452,10 +438,7 @@ impl<T: 'static> EventLoop<T> {
             // we're doing callback to the user, since we can double borrow if the user decides
             // to create a window in one of those callbacks.
             self.with_state(|state| {
-                std::mem::swap(
-                    &mut event_sink_back_buffer,
-                    &mut state.event_sink.window_events,
-                )
+                std::mem::swap(&mut event_sink_back_buffer, &mut state.event_sink.window_events)
             });
 
             // Handle pending window events.

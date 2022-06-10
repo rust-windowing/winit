@@ -1,35 +1,27 @@
-use std::{
-    collections::VecDeque,
-    ffi::c_void,
-    fmt::{self, Debug},
-    marker::PhantomData,
-    mem, ptr,
-    sync::mpsc::{self, Receiver, Sender},
-};
+use std::collections::VecDeque;
+use std::ffi::c_void;
+use std::fmt::{self, Debug};
+use std::marker::PhantomData;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::{mem, ptr};
 
-use crate::{
-    dpi::LogicalSize,
-    event::Event,
-    event_loop::{
-        ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
-    },
-    monitor::MonitorHandle as RootMonitorHandle,
-    platform::ios::Idiom,
+use crate::dpi::LogicalSize;
+use crate::event::Event;
+use crate::event_loop::{
+    ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
 };
+use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::platform::ios::Idiom;
 
-use crate::platform_impl::platform::{
-    app_state,
-    ffi::{
-        id, kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes,
-        kCFRunLoopDefaultMode, kCFRunLoopEntry, kCFRunLoopExit, nil, CFIndex, CFRelease,
-        CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
-        CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext,
-        CFRunLoopSourceCreate, CFRunLoopSourceInvalidate, CFRunLoopSourceRef,
-        CFRunLoopSourceSignal, CFRunLoopWakeUp, NSStringRust, UIApplicationMain,
-        UIUserInterfaceIdiom,
-    },
-    monitor, view, MonitorHandle,
+use crate::platform_impl::platform::ffi::{
+    id, kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes,
+    kCFRunLoopDefaultMode, kCFRunLoopEntry, kCFRunLoopExit, nil, CFIndex, CFRelease,
+    CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
+    CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
+    CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
+    NSStringRust, UIApplicationMain, UIUserInterfaceIdiom,
 };
+use crate::platform_impl::platform::{app_state, monitor, view, MonitorHandle};
 
 #[derive(Debug)]
 pub enum EventWrapper {
@@ -39,11 +31,7 @@ pub enum EventWrapper {
 
 #[derive(Debug, PartialEq)]
 pub enum EventProxy {
-    DpiChangedProxy {
-        window_id: id,
-        suggested_size: LogicalSize<f64>,
-        scale_factor: f64,
-    },
+    DpiChangedProxy { window_id: id, suggested_size: LogicalSize<f64>, scale_factor: f64 },
 }
 
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -79,8 +67,7 @@ impl<T: 'static> EventLoop<T> {
             assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
             assert!(
                 !SINGLETON_INIT,
-                "Only one `EventLoop` is supported on iOS. \
-                 `EventLoopProxy` might be helpful"
+                "Only one `EventLoop` is supported on iOS. `EventLoopProxy` might be helpful"
             );
             SINGLETON_INIT = true;
             view::create_delegate_class();
@@ -93,10 +80,7 @@ impl<T: 'static> EventLoop<T> {
 
         EventLoop {
             window_target: RootEventLoopWindowTarget {
-                p: EventLoopWindowTarget {
-                    receiver,
-                    sender_to_clone,
-                },
+                p: EventLoopWindowTarget { receiver, sender_to_clone },
                 _marker: PhantomData,
             },
         }
@@ -112,8 +96,8 @@ impl<T: 'static> EventLoop<T> {
                 application,
                 ptr::null_mut(),
                 "\
-                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\n\
-                 Note: `EventLoop::run` calls `UIApplicationMain` on iOS"
+                 `EventLoop` cannot be `run` after a call to `UIApplicationMain` on iOS\nNote: \
+                 `EventLoop::run` calls `UIApplicationMain` on iOS"
             );
             app_state::will_launch(Box::new(EventLoopHandler {
                 f: event_handler,
@@ -191,9 +175,7 @@ impl<T> EventLoopProxy<T> {
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.sender
-            .send(event)
-            .map_err(|::std::sync::mpsc::SendError(x)| EventLoopClosed(x))?;
+        self.sender.send(event).map_err(|::std::sync::mpsc::SendError(x)| EventLoopClosed(x))?;
         unsafe {
             // let the main thread know there's a new event
             CFRunLoopSourceSignal(self.source);
@@ -206,7 +188,8 @@ impl<T> EventLoopProxy<T> {
 
 fn setup_control_flow_observers() {
     unsafe {
-        // begin is queued with the highest priority to ensure it is processed before other observers
+        // begin is queued with the highest priority to ensure it is processed before other
+        // observers
         extern "C" fn control_flow_begin_handler(
             _: CFRunLoopObserverRef,
             activity: CFRunLoopActivity,
@@ -224,10 +207,11 @@ fn setup_control_flow_observers() {
 
         // Core Animation registers its `CFRunLoopObserver` that performs drawing operations in
         // `CA::Transaction::ensure_implicit` with a priority of `0x1e8480`. We set the main_end
-        // priority to be 0, in order to send MainEventsCleared before RedrawRequested. This value was
-        // chosen conservatively to guard against apple using different priorities for their redraw
-        // observers in different OS's or on different devices. If it so happens that it's too
-        // conservative, the main symptom would be non-redraw events coming in after `MainEventsCleared`.
+        // priority to be 0, in order to send MainEventsCleared before RedrawRequested. This value
+        // was chosen conservatively to guard against apple using different priorities for
+        // their redraw observers in different OS's or on different devices. If it so
+        // happens that it's too conservative, the main symptom would be non-redraw events
+        // coming in after `MainEventsCleared`.
         //
         // The value of `0x1e8480` was determined by inspecting stack traces and the associated
         // registers for every `CFRunLoopAddObserver` call on an iPad Air 2 running iOS 11.4.
@@ -313,9 +297,7 @@ struct EventLoopHandler<F, T: 'static> {
 
 impl<F, T: 'static> Debug for EventLoopHandler<F, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("EventLoopHandler")
-            .field("event_loop", &self.event_loop)
-            .finish()
+        f.debug_struct("EventLoopHandler").field("event_loop", &self.event_loop).finish()
     }
 }
 
@@ -325,11 +307,7 @@ where
     T: 'static,
 {
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
-        (self.f)(
-            event.map_nonuser_event().unwrap(),
-            &self.event_loop,
-            control_flow,
-        );
+        (self.f)(event.map_nonuser_event().unwrap(), &self.event_loop, control_flow);
     }
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {

@@ -1,7 +1,8 @@
-use super::{
-    super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
-    window::WindowId,
-};
+use super::super::monitor::MonitorHandle;
+use super::device::DeviceId;
+use super::proxy::EventLoopProxy;
+use super::window::WindowId;
+use super::{backend, runner};
 use crate::dpi::{PhysicalSize, Size};
 use crate::event::{
     DeviceEvent, DeviceId as RootDeviceId, ElementState, Event, KeyboardInput, TouchPhase,
@@ -12,7 +13,8 @@ use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId as RootWindowId};
 use std::cell::RefCell;
 use std::clone::Clone;
-use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
+use std::collections::vec_deque::IntoIter as VecDequeIter;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -21,17 +23,13 @@ pub struct EventLoopWindowTarget<T: 'static> {
 
 impl<T> Clone for EventLoopWindowTarget<T> {
     fn clone(&self) -> Self {
-        Self {
-            runner: self.runner.clone(),
-        }
+        Self { runner: self.runner.clone() }
     }
 }
 
 impl<T> EventLoopWindowTarget<T> {
     pub fn new() -> Self {
-        Self {
-            runner: runner::Shared::new(),
-        }
+        Self { runner: runner::Shared::new() }
     }
 
     pub fn proxy(&self) -> EventLoopProxy<T> {
@@ -119,9 +117,7 @@ impl<T> EventLoopWindowTarget<T> {
         canvas.on_cursor_leave(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
-                event: WindowEvent::CursorLeft {
-                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                },
+                event: WindowEvent::CursorLeft { device_id: RootDeviceId(DeviceId(pointer_id)) },
             });
         });
 
@@ -129,9 +125,7 @@ impl<T> EventLoopWindowTarget<T> {
         canvas.on_cursor_enter(move |pointer_id| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
-                event: WindowEvent::CursorEntered {
-                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                },
+                event: WindowEvent::CursorEntered { device_id: RootDeviceId(DeviceId(pointer_id)) },
             });
         });
 
@@ -147,9 +141,7 @@ impl<T> EventLoopWindowTarget<T> {
             });
             runner.send_event(Event::DeviceEvent {
                 device_id: RootDeviceId(DeviceId(pointer_id)),
-                event: DeviceEvent::MouseMotion {
-                    delta: (delta.x, delta.y),
-                },
+                event: DeviceEvent::MouseMotion { delta: (delta.x, delta.y) },
             });
         });
 
@@ -209,18 +201,14 @@ impl<T> EventLoopWindowTarget<T> {
         let raw = canvas.raw().clone();
 
         // The size to restore to after exiting fullscreen.
-        let mut intended_size = PhysicalSize {
-            width: raw.width() as u32,
-            height: raw.height() as u32,
-        };
+        let mut intended_size =
+            PhysicalSize { width: raw.width() as u32, height: raw.height() as u32 };
         canvas.on_fullscreen_change(move || {
             // If the canvas is marked as fullscreen, it is moving *into* fullscreen
             // If it is not, it is moving *out of* fullscreen
             let new_size = if backend::is_fullscreen(&raw) {
-                intended_size = PhysicalSize {
-                    width: raw.width() as u32,
-                    height: raw.height() as u32,
-                };
+                intended_size =
+                    PhysicalSize { width: raw.width() as u32, height: raw.height() as u32 };
 
                 backend::window_size().to_physical(backend::scale_factor())
             } else {
@@ -237,11 +225,7 @@ impl<T> EventLoopWindowTarget<T> {
 
         let runner = self.runner.clone();
         canvas.on_dark_mode(move |is_dark_mode| {
-            let theme = if is_dark_mode {
-                Theme::Dark
-            } else {
-                Theme::Light
-            };
+            let theme = if is_dark_mode { Theme::Dark } else { Theme::Light };
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::ThemeChanged(theme),
@@ -254,8 +238,6 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     pub fn primary_monitor(&self) -> Option<RootMH> {
-        Some(RootMH {
-            inner: MonitorHandle,
-        })
+        Some(RootMH { inner: MonitorHandle })
     }
 }

@@ -26,10 +26,7 @@ impl Timeout {
             )
             .expect("Failed to set timeout");
 
-        Timeout {
-            handle,
-            _closure: closure,
-        }
+        Timeout { handle, _closure: closure }
     }
 }
 
@@ -67,11 +64,7 @@ impl AnimationFrameRequest {
             .request_animation_frame(closure.as_ref().unchecked_ref())
             .expect("Failed to request animation frame");
 
-        AnimationFrameRequest {
-            handle,
-            fired,
-            _closure: closure,
-        }
+        AnimationFrameRequest { handle, fired, _closure: closure }
     }
 }
 
@@ -79,9 +72,7 @@ impl Drop for AnimationFrameRequest {
     fn drop(&mut self) {
         if !(*self.fired).get() {
             let window = web_sys::window().expect("Failed to obtain window");
-            window
-                .cancel_animation_frame(self.handle)
-                .expect("Failed to cancel animation frame");
+            window.cancel_animation_frame(self.handle).expect("Failed to cancel animation frame");
         }
     }
 }

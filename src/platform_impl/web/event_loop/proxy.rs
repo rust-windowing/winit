@@ -19,8 +19,6 @@ impl<T: 'static> EventLoopProxy<T> {
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Self {
-            runner: self.runner.clone(),
-        }
+        Self { runner: self.runner.clone() }
     }
 }

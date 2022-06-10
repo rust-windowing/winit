@@ -38,9 +38,7 @@ pub fn on_unload(mut handler: impl FnMut() + 'static) -> UnloadEventHandle {
     );
 
     let listener = event_handle::EventListenerHandle::new(&window, "beforeunload", closure);
-    UnloadEventHandle {
-        _listener: listener,
-    }
+    UnloadEventHandle { _listener: listener }
 }
 
 impl WindowExtWebSys for Window {
@@ -109,7 +107,7 @@ pub fn is_fullscreen(canvas: &HtmlCanvasElement) -> bool {
         Some(elem) => {
             let raw: Element = canvas.clone().into();
             raw == elem
-        }
+        },
         None => false,
     }
 }

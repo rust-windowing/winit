@@ -1,12 +1,13 @@
-use std::{collections::HashMap, os::raw::c_char, ptr, sync::Arc};
+use std::collections::HashMap;
+use std::os::raw::c_char;
+use std::ptr;
+use std::sync::Arc;
 
 use super::{ffi, XConnection, XError};
 
-use super::{
-    context::{ImeContext, ImeContextCreationError},
-    inner::{close_im, ImeInner},
-    input_method::PotentialInputMethods,
-};
+use super::context::{ImeContext, ImeContextCreationError};
+use super::inner::{close_im, ImeInner};
+use super::input_method::PotentialInputMethods;
 
 pub unsafe fn xim_set_callback(
     xconn: &Arc<XConnection>,
@@ -24,8 +25,8 @@ pub unsafe fn xim_set_callback(
 // available. Note that this has nothing to do with what input methods are open or able to be
 // opened, and simply uses the modifiers that are set when the callback is set.
 // * This is called per locale modifier, not per input method opened with that locale modifier.
-// * Trying to set this for multiple locale modifiers causes problems, i.e. one of the rebuilt
-//   input contexts would always silently fail to use the input method.
+// * Trying to set this for multiple locale modifiers causes problems, i.e. one of the rebuilt input
+//   contexts would always silently fail to use the input method.
 pub unsafe fn set_instantiate_callback(
     xconn: &Arc<XConnection>,
     client_data: ffi::XPointer,
@@ -108,10 +109,8 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     let mut new_contexts = HashMap::new();
     for (window, old_context) in (*inner).contexts.iter() {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
-        let is_allowed = old_context
-            .as_ref()
-            .map(|old_context| old_context.is_allowed)
-            .unwrap_or_default();
+        let is_allowed =
+            old_context.as_ref().map(|old_context| old_context.is_allowed).unwrap_or_default();
         let new_context = {
             let result = ImeContext::new(
                 xconn,
@@ -152,13 +151,13 @@ pub unsafe extern "C" fn xim_instantiate_callback(
             Ok(()) => {
                 let _ = unset_instantiate_callback(xconn, client_data);
                 (*inner).is_fallback = false;
-            }
+            },
             Err(err) => {
                 if (*inner).is_destroyed {
                     // We have no usable input methods!
                     panic!("Failed to reopen input method: {:?}", err);
                 }
-            }
+            },
         }
     }
 }
@@ -184,7 +183,7 @@ pub unsafe extern "C" fn xim_destroy_callback(
                 Err(err) => {
                     // We have no usable input methods!
                     panic!("Failed to open fallback input method: {:?}", err);
-                }
+                },
             }
         }
     }

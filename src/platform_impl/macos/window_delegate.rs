@@ -1,33 +1,23 @@
-use std::{
-    f64,
-    os::raw::c_void,
-    sync::{Arc, Weak},
-};
+use std::f64;
+use std::os::raw::c_void;
+use std::sync::{Arc, Weak};
 
-use cocoa::{
-    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
-    base::{id, nil},
-    foundation::NSUInteger,
-};
-use objc::{
-    declare::ClassDecl,
-    rc::autoreleasepool,
-    runtime::{Class, Object, Sel, BOOL, NO, YES},
-};
+use cocoa::appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow};
+use cocoa::base::{id, nil};
+use cocoa::foundation::NSUInteger;
+use objc::declare::ClassDecl;
+use objc::rc::autoreleasepool;
+use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
 use once_cell::sync::Lazy;
 
-use crate::{
-    dpi::{LogicalPosition, LogicalSize},
-    event::{Event, ModifiersState, WindowEvent},
-    platform_impl::platform::{
-        app_state::AppState,
-        event::{EventProxy, EventWrapper},
-        util::{self, IdRef},
-        view::ViewState,
-        window::{get_window_id, UnownedWindow},
-    },
-    window::{Fullscreen, WindowId},
-};
+use crate::dpi::{LogicalPosition, LogicalSize};
+use crate::event::{Event, ModifiersState, WindowEvent};
+use crate::platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::event::{EventProxy, EventWrapper};
+use crate::platform_impl::platform::util::{self, IdRef};
+use crate::platform_impl::platform::view::ViewState;
+use crate::platform_impl::platform::window::{get_window_id, UnownedWindow};
+use crate::window::{Fullscreen, WindowId};
 
 pub struct WindowDelegateState {
     ns_window: IdRef, // never changes
@@ -76,10 +66,8 @@ impl WindowDelegateState {
     }
 
     pub fn emit_event(&mut self, event: WindowEvent<'static>) {
-        let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*self.ns_window)),
-            event,
-        };
+        let event =
+            Event::WindowEvent { window_id: WindowId(get_window_id(*self.ns_window)), event };
         AppState::queue_event(EventWrapper::StaticEvent(event));
     }
 
@@ -149,18 +137,9 @@ static WINDOW_DELEGATE_CLASS: Lazy<WindowDelegateClass> = Lazy::new(|| unsafe {
         sel!(windowShouldClose:),
         window_should_close as extern "C" fn(&Object, Sel, id) -> BOOL,
     );
-    decl.add_method(
-        sel!(windowWillClose:),
-        window_will_close as extern "C" fn(&Object, Sel, id),
-    );
-    decl.add_method(
-        sel!(windowDidResize:),
-        window_did_resize as extern "C" fn(&Object, Sel, id),
-    );
-    decl.add_method(
-        sel!(windowDidMove:),
-        window_did_move as extern "C" fn(&Object, Sel, id),
-    );
+    decl.add_method(sel!(windowWillClose:), window_will_close as extern "C" fn(&Object, Sel, id));
+    decl.add_method(sel!(windowDidResize:), window_did_resize as extern "C" fn(&Object, Sel, id));
+    decl.add_method(sel!(windowDidMove:), window_did_move as extern "C" fn(&Object, Sel, id));
     decl.add_method(
         sel!(windowDidChangeBackingProperties:),
         window_did_change_backing_properties as extern "C" fn(&Object, Sel, id),
@@ -190,10 +169,7 @@ static WINDOW_DELEGATE_CLASS: Lazy<WindowDelegateClass> = Lazy::new(|| unsafe {
         sel!(concludeDragOperation:),
         conclude_drag_operation as extern "C" fn(&Object, Sel, id),
     );
-    decl.add_method(
-        sel!(draggingExited:),
-        dragging_exited as extern "C" fn(&Object, Sel, id),
-    );
+    decl.add_method(sel!(draggingExited:), dragging_exited as extern "C" fn(&Object, Sel, id));
 
     decl.add_method(
         sel!(window:willUseFullScreenPresentationOptions:),
@@ -339,7 +315,8 @@ extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
 extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
     trace_scope!("draggingEntered:");
 
-    use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
+    use cocoa::appkit::NSPasteboard;
+    use cocoa::foundation::NSFastEnumeration;
     use std::path::PathBuf;
 
     let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
@@ -372,7 +349,8 @@ extern "C" fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> BOOL {
 extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
     trace_scope!("performDragOperation:");
 
-    use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
+    use cocoa::appkit::NSPasteboard;
+    use cocoa::foundation::NSFastEnumeration;
     use std::path::PathBuf;
 
     let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
@@ -403,9 +381,7 @@ extern "C" fn conclude_drag_operation(_: &Object, _: Sel, _: id) {
 /// Invoked when the dragging operation is cancelled
 extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
     trace_scope!("draggingExited:");
-    with_state(this, |state| {
-        state.emit_event(WindowEvent::HoveredFileCancelled)
-    });
+    with_state(this, |state| state.emit_event(WindowEvent::HoveredFileCancelled));
 }
 
 /// Invoked when before enter fullscreen
@@ -431,7 +407,7 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
                 None => {
                     let current_monitor = Some(window.current_monitor_inner());
                     shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
-                }
+                },
             }
             shared_state.in_fullscreen_transition = true;
         })

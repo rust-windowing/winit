@@ -2,11 +2,9 @@
 
 use std::os::raw::c_void;
 
-use crate::{
-    event_loop::EventLoop,
-    monitor::{MonitorHandle, VideoMode},
-    window::{Window, WindowBuilder},
-};
+use crate::event_loop::EventLoop;
+use crate::monitor::{MonitorHandle, VideoMode};
+use crate::window::{Window, WindowBuilder};
 
 /// Additional methods on [`EventLoop`] that are specific to iOS.
 pub trait EventLoopExtIOS {
@@ -129,8 +127,7 @@ impl WindowExtIOS for Window {
 
     #[inline]
     fn set_preferred_screen_edges_deferring_system_gestures(&self, edges: ScreenEdge) {
-        self.window
-            .set_preferred_screen_edges_deferring_system_gestures(edges)
+        self.window.set_preferred_screen_edges_deferring_system_gestures(edges)
     }
 
     #[inline]
@@ -141,7 +138,8 @@ impl WindowExtIOS for Window {
 
 /// Additional methods on [`WindowBuilder`] that are specific to iOS.
 pub trait WindowBuilderExtIOS {
-    /// Sets the root view class used by the [`Window`], otherwise a barebones [`UIView`] is provided.
+    /// Sets the root view class used by the [`Window`], otherwise a barebones [`UIView`] is
+    /// provided.
     ///
     /// An instance of the class will be initialized by calling [`-[UIView initWithFrame:]`](https://developer.apple.com/documentation/uikit/uiview/1622488-initwithframe?language=objc).
     ///
@@ -226,8 +224,7 @@ impl WindowBuilderExtIOS for WindowBuilder {
         mut self,
         edges: ScreenEdge,
     ) -> WindowBuilder {
-        self.platform_specific
-            .preferred_screen_edges_deferring_system_gestures = edges;
+        self.platform_specific.preferred_screen_edges_deferring_system_gestures = edges;
         self
     }
 

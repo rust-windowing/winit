@@ -1,10 +1,10 @@
-use std::{env, slice, str::FromStr};
+use std::str::FromStr;
+use std::{env, slice};
 
-use super::{
-    ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
-    *,
-};
-use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
+use super::ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources};
+use super::*;
+use crate::dpi::validate_scale_factor;
+use crate::platform_impl::platform::x11::VideoMode;
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
 pub enum EnvVarDPI {
@@ -53,6 +53,7 @@ impl XConnection {
         }
         None
     }
+
     pub unsafe fn get_output_info(
         &self,
         resources: *mut XRRScreenResources,
@@ -99,17 +100,16 @@ impl XConnection {
             })
             .collect();
 
-        let name_slice = slice::from_raw_parts(
-            (*output_info).name as *mut u8,
-            (*output_info).nameLen as usize,
-        );
+        let name_slice =
+            slice::from_raw_parts((*output_info).name as *mut u8, (*output_info).nameLen as usize);
         let name = String::from_utf8_lossy(name_slice).into();
         // Override DPI if `WINIT_X11_SCALE_FACTOR` variable is set
         let deprecated_dpi_override = env::var("WINIT_HIDPI_FACTOR").ok();
         if deprecated_dpi_override.is_some() {
             warn!(
-	            "The WINIT_HIDPI_FACTOR environment variable is deprecated; use WINIT_X11_SCALE_FACTOR"
-	        )
+                "The WINIT_HIDPI_FACTOR environment variable is deprecated; use \
+                 WINIT_X11_SCALE_FACTOR"
+            )
         }
         let dpi_env = env::var("WINIT_X11_SCALE_FACTOR").ok().map_or_else(
             || EnvVarDPI::NotSet,
@@ -122,7 +122,8 @@ impl XConnection {
                     EnvVarDPI::NotSet
                 } else {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal \
+                         floats greater than 0, or `randr`. Got `{}`",
                         var
                     );
                 }
@@ -132,33 +133,28 @@ impl XConnection {
         let scale_factor = match dpi_env {
             EnvVarDPI::Randr => calc_dpi_factor(
                 ((*crtc).width as u32, (*crtc).height as u32),
-                (
-                    (*output_info).mm_width as u64,
-                    (*output_info).mm_height as u64,
-                ),
+                ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
             ),
             EnvVarDPI::Scale(dpi_override) => {
                 if !validate_scale_factor(dpi_override) {
                     panic!(
-                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal floats greater than 0, or `randr`. Got `{}`",
+                        "`WINIT_X11_SCALE_FACTOR` invalid; DPI factors must be either normal \
+                         floats greater than 0, or `randr`. Got `{}`",
                         dpi_override,
                     );
                 }
                 dpi_override
-            }
+            },
             EnvVarDPI::NotSet => {
                 if let Some(dpi) = self.get_xft_dpi() {
                     dpi / 96.
                 } else {
                     calc_dpi_factor(
                         ((*crtc).width as u32, (*crtc).height as u32),
-                        (
-                            (*output_info).mm_width as u64,
-                            (*output_info).mm_height as u64,
-                        ),
+                        ((*output_info).mm_width as u64, (*output_info).mm_height as u64),
                     )
                 }
-            }
+            },
         };
 
         (self.xrandr.XRRFreeOutputInfo)(output_info);

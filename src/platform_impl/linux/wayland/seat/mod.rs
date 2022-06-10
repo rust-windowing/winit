@@ -66,9 +66,7 @@ impl SeatManager {
             inner.process_seat_update(&seat, seat_data);
         });
 
-        Self {
-            _seat_listener: seat_listener,
-        }
+        Self { _seat_listener: seat_listener }
     }
 }
 

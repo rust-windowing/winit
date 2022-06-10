@@ -1,16 +1,13 @@
-use std::{
-    cell::{RefCell, RefMut},
-    os::raw::c_void,
-};
+use std::cell::{RefCell, RefMut};
+use std::os::raw::c_void;
 
 use cocoa::base::id;
-use objc::{
-    declare::ClassDecl,
-    runtime::{Class, Object, Sel},
-};
+use objc::declare::ClassDecl;
+use objc::runtime::{Class, Object, Sel};
 use once_cell::sync::Lazy;
 
-use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
+use crate::platform::macos::ActivationPolicy;
+use crate::platform_impl::platform::app_state::AppState;
 
 static AUX_DELEGATE_STATE_NAME: &str = "auxState";
 

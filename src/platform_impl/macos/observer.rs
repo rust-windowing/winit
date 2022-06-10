@@ -1,17 +1,12 @@
-use std::{
-    self,
-    os::raw::*,
-    panic::{AssertUnwindSafe, UnwindSafe},
-    ptr,
-    rc::Weak,
-    time::Instant,
-};
+use std::os::raw::*;
+use std::panic::{AssertUnwindSafe, UnwindSafe};
+use std::rc::Weak;
+use std::time::Instant;
+use std::{self, ptr};
 
-use crate::platform_impl::platform::{
-    app_state::AppState,
-    event_loop::{stop_app_on_panic, PanicInfo},
-    ffi,
-};
+use crate::platform_impl::platform::app_state::AppState;
+use crate::platform_impl::platform::event_loop::{stop_app_on_panic, PanicInfo};
+use crate::platform_impl::platform::ffi;
 
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
@@ -156,10 +151,10 @@ extern "C" fn control_flow_begin_handler(
             #[allow(non_upper_case_globals)]
             match activity {
                 kCFRunLoopAfterWaiting => {
-                    //trace!("Triggered `CFRunLoopAfterWaiting`");
+                    // trace!("Triggered `CFRunLoopAfterWaiting`");
                     AppState::wakeup(panic_info);
-                    //trace!("Completed `CFRunLoopAfterWaiting`");
-                }
+                    // trace!("Completed `CFRunLoopAfterWaiting`");
+                },
                 kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
                 _ => unreachable!(),
             }
@@ -179,11 +174,11 @@ extern "C" fn control_flow_end_handler(
             #[allow(non_upper_case_globals)]
             match activity {
                 kCFRunLoopBeforeWaiting => {
-                    //trace!("Triggered `CFRunLoopBeforeWaiting`");
+                    // trace!("Triggered `CFRunLoopBeforeWaiting`");
                     AppState::cleared(panic_info);
-                    //trace!("Completed `CFRunLoopBeforeWaiting`");
-                }
-                kCFRunLoopExit => (), //unimplemented!(), // not expected to ever happen
+                    // trace!("Completed `CFRunLoopBeforeWaiting`");
+                },
+                kCFRunLoopExit => (), // unimplemented!(), // not expected to ever happen
                 _ => unreachable!(),
             }
         });

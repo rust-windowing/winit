@@ -16,17 +16,22 @@ mod randr;
 mod window_property;
 mod wm;
 
-pub use self::{
-    atom::*, client_msg::*, format::*, geometry::*, hint::*, icon::*, input::*, memory::*,
-    randr::*, window_property::*, wm::*,
-};
+pub use self::atom::*;
+pub use self::client_msg::*;
+pub use self::format::*;
+pub use self::geometry::*;
+pub use self::hint::*;
+pub use self::icon::*;
+pub use self::input::*;
+pub use self::memory::*;
+pub use self::randr::*;
+pub use self::window_property::*;
+pub use self::wm::*;
 
-use std::{
-    mem::{self, MaybeUninit},
-    ops::BitAnd,
-    os::raw::*,
-    ptr,
-};
+use std::mem::{self, MaybeUninit};
+use std::ops::BitAnd;
+use std::os::raw::*;
+use std::ptr;
 
 use super::{ffi, XConnection, XError};
 
@@ -47,7 +52,11 @@ where
     bitset & flag == flag
 }
 
-#[must_use = "This request was made asynchronously, and is still in the output buffer. You must explicitly choose to either `.flush()` (empty the output buffer, sending the request now) or `.queue()` (wait to send the request, allowing you to continue to add more requests without additional round-trips). For more information, see the documentation for `util::flush_requests`."]
+#[must_use = "This request was made asynchronously, and is still in the output buffer. You must \
+              explicitly choose to either `.flush()` (empty the output buffer, sending the request \
+              now) or `.queue()` (wait to send the request, allowing you to continue to add more \
+              requests without additional round-trips). For more information, see the \
+              documentation for `util::flush_requests`."]
 pub struct Flusher<'a> {
     xconn: &'a XConnection,
 }
@@ -78,12 +87,13 @@ impl XConnection {
     // 1. `XPending`, `XNextEvent`, and `XWindowEvent` flush "as needed"
     // 2. `XFlush` explicitly flushes
     // 3. `XSync` flushes and blocks until all requests are responded to
-    // 4. Calls that have a return dependent on a response (i.e. `XGetWindowProperty`) sync internally.
-    //    When in doubt, check the X11 source; if a function calls `_XReply`, it flushes and waits.
-    // All util functions that abstract an async function will return a `Flusher`.
+    // 4. Calls that have a return dependent on a response (i.e. `XGetWindowProperty`) sync
+    // internally.    When in doubt, check the X11 source; if a function calls `_XReply`, it
+    // flushes and waits. All util functions that abstract an async function will return a
+    // `Flusher`.
     pub fn flush_requests(&self) -> Result<(), XError> {
         unsafe { (self.xlib.XFlush)(self.display) };
-        //println!("XFlush");
+        // println!("XFlush");
         // This isn't necessarily a useful time to check for errors (since our request hasn't
         // necessarily been processed yet)
         self.check_errors()
@@ -91,7 +101,7 @@ impl XConnection {
 
     pub fn sync_with_server(&self) -> Result<(), XError> {
         unsafe { (self.xlib.XSync)(self.display, ffi::False) };
-        //println!("XSync");
+        // println!("XSync");
         self.check_errors()
     }
 }

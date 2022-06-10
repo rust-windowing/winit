@@ -1,13 +1,15 @@
 #![allow(non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
-use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
+use std::convert::TryInto;
+use std::ffi::CString;
+use std::ops::BitOr;
+use std::os::raw::*;
 
-use objc::{runtime::Object, Encode, Encoding};
+use objc::runtime::Object;
+use objc::{Encode, Encoding};
 
-use crate::{
-    dpi::LogicalSize,
-    platform::ios::{Idiom, ScreenEdge, ValidOrientations},
-};
+use crate::dpi::LogicalSize;
+use crate::platform::ios::{Idiom, ScreenEdge, ValidOrientations};
 
 pub type id = *mut Object;
 pub const nil: id = 0 as id;
@@ -44,10 +46,7 @@ pub struct CGSize {
 
 impl CGSize {
     pub fn new(size: LogicalSize<f64>) -> CGSize {
-        CGSize {
-            width: size.width as _,
-            height: size.height as _,
-        }
+        CGSize { width: size.width as _, height: size.height as _ }
     }
 }
 
@@ -126,11 +125,11 @@ unsafe impl Encode for UIUserInterfaceIdiom {
 }
 
 impl UIUserInterfaceIdiom {
-    pub const Unspecified: UIUserInterfaceIdiom = UIUserInterfaceIdiom(-1);
-    pub const Phone: UIUserInterfaceIdiom = UIUserInterfaceIdiom(0);
-    pub const Pad: UIUserInterfaceIdiom = UIUserInterfaceIdiom(1);
-    pub const TV: UIUserInterfaceIdiom = UIUserInterfaceIdiom(2);
     pub const CarPlay: UIUserInterfaceIdiom = UIUserInterfaceIdiom(3);
+    pub const Pad: UIUserInterfaceIdiom = UIUserInterfaceIdiom(1);
+    pub const Phone: UIUserInterfaceIdiom = UIUserInterfaceIdiom(0);
+    pub const TV: UIUserInterfaceIdiom = UIUserInterfaceIdiom(2);
+    pub const Unspecified: UIUserInterfaceIdiom = UIUserInterfaceIdiom(-1);
 }
 
 impl From<Idiom> for UIUserInterfaceIdiom {
@@ -168,16 +167,16 @@ unsafe impl Encode for UIInterfaceOrientationMask {
 }
 
 impl UIInterfaceOrientationMask {
-    pub const Portrait: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 1);
-    pub const PortraitUpsideDown: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 2);
-    pub const LandscapeLeft: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 4);
-    pub const LandscapeRight: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 3);
-    pub const Landscape: UIInterfaceOrientationMask =
-        UIInterfaceOrientationMask(Self::LandscapeLeft.0 | Self::LandscapeRight.0);
-    pub const AllButUpsideDown: UIInterfaceOrientationMask =
-        UIInterfaceOrientationMask(Self::Landscape.0 | Self::Portrait.0);
     pub const All: UIInterfaceOrientationMask =
         UIInterfaceOrientationMask(Self::AllButUpsideDown.0 | Self::PortraitUpsideDown.0);
+    pub const AllButUpsideDown: UIInterfaceOrientationMask =
+        UIInterfaceOrientationMask(Self::Landscape.0 | Self::Portrait.0);
+    pub const Landscape: UIInterfaceOrientationMask =
+        UIInterfaceOrientationMask(Self::LandscapeLeft.0 | Self::LandscapeRight.0);
+    pub const LandscapeLeft: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 4);
+    pub const LandscapeRight: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 3);
+    pub const Portrait: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 1);
+    pub const PortraitUpsideDown: UIInterfaceOrientationMask = UIInterfaceOrientationMask(1 << 2);
 }
 
 impl BitOr for UIInterfaceOrientationMask {
@@ -196,14 +195,14 @@ impl UIInterfaceOrientationMask {
         match (valid_orientations, idiom) {
             (ValidOrientations::LandscapeAndPortrait, Idiom::Phone) => {
                 UIInterfaceOrientationMask::AllButUpsideDown
-            }
+            },
             (ValidOrientations::LandscapeAndPortrait, _) => UIInterfaceOrientationMask::All,
             (ValidOrientations::Landscape, _) => UIInterfaceOrientationMask::Landscape,
             (ValidOrientations::Portrait, Idiom::Phone) => UIInterfaceOrientationMask::Portrait,
             (ValidOrientations::Portrait, _) => {
                 UIInterfaceOrientationMask::Portrait
                     | UIInterfaceOrientationMask::PortraitUpsideDown
-            }
+            },
         }
     }
 }
@@ -220,11 +219,7 @@ unsafe impl Encode for UIRectEdge {
 
 impl From<ScreenEdge> for UIRectEdge {
     fn from(screen_edge: ScreenEdge) -> UIRectEdge {
-        assert_eq!(
-            screen_edge.bits() & !ScreenEdge::ALL.bits(),
-            0,
-            "invalid `ScreenEdge`"
-        );
+        assert_eq!(screen_edge.bits() & !ScreenEdge::ALL.bits(), 0, "invalid `ScreenEdge`");
         UIRectEdge(screen_edge.bits().into())
     }
 }
@@ -248,9 +243,9 @@ unsafe impl Encode for UIScreenOverscanCompensation {
 
 #[allow(dead_code)]
 impl UIScreenOverscanCompensation {
-    pub const Scale: UIScreenOverscanCompensation = UIScreenOverscanCompensation(0);
     pub const InsetBounds: UIScreenOverscanCompensation = UIScreenOverscanCompensation(1);
     pub const None: UIScreenOverscanCompensation = UIScreenOverscanCompensation(2);
+    pub const Scale: UIScreenOverscanCompensation = UIScreenOverscanCompensation(0);
 }
 
 #[link(name = "UIKit", kind = "framework")]

@@ -11,22 +11,19 @@
     target_os = "openbsd"
 ))]
 fn main() {
-    use std::{thread::sleep, time::Duration};
+    use std::thread::sleep;
+    use std::time::Duration;
 
     use simple_logger::SimpleLogger;
-    use winit::{
-        event::{Event, WindowEvent},
-        event_loop::EventLoop,
-        platform::run_return::EventLoopExtRunReturn,
-        window::WindowBuilder,
-    };
+    use winit::event::{Event, WindowEvent};
+    use winit::event_loop::EventLoop;
+    use winit::platform::run_return::EventLoopExtRunReturn;
+    use winit::window::WindowBuilder;
     let mut event_loop = EventLoop::new();
 
     SimpleLogger::new().init().unwrap();
-    let _window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
+    let _window =
+        WindowBuilder::new().with_title("A fantastic window!").build(&event_loop).unwrap();
 
     let mut quit = false;
 
@@ -40,15 +37,12 @@ fn main() {
             }
 
             match event {
-                Event::WindowEvent {
-                    event: WindowEvent::CloseRequested,
-                    ..
-                } => {
+                Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                     quit = true;
-                }
+                },
                 Event::MainEventsCleared => {
                     control_flow.set_exit();
-                }
+                },
                 _ => (),
             }
         });

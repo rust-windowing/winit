@@ -1,41 +1,31 @@
-use std::{
-    ffi::{c_void, OsStr, OsString},
-    io,
-    iter::once,
-    mem,
-    ops::BitAnd,
-    os::windows::prelude::{OsStrExt, OsStringExt},
-    ptr,
-    sync::atomic::{AtomicBool, Ordering},
-};
+use std::ffi::{c_void, OsStr, OsString};
+use std::iter::once;
+use std::ops::BitAnd;
+use std::os::windows::prelude::{OsStrExt, OsStringExt};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::{io, mem, ptr};
 
 use once_cell::sync::Lazy;
-use windows_sys::{
-    core::{HRESULT, PCWSTR},
-    Win32::{
-        Foundation::{BOOL, HINSTANCE, HWND, RECT},
-        Graphics::Gdi::{ClientToScreen, InvalidateRgn, HMONITOR},
-        System::{
-            LibraryLoader::{GetProcAddress, LoadLibraryA},
-            SystemServices::IMAGE_DOS_HEADER,
-        },
-        UI::{
-            HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
-            Input::KeyboardAndMouse::GetActiveWindow,
-            WindowsAndMessaging::{
-                AdjustWindowRectEx, ClipCursor, GetClientRect, GetClipCursor, GetMenu,
-                GetSystemMetrics, GetWindowLongW, GetWindowRect, SetWindowPos, ShowCursor,
-                GWL_EXSTYLE, GWL_STYLE, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
-                IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE,
-                IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-                SM_YVIRTUALSCREEN, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
-                SWP_NOREPOSITION, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE,
-            },
-        },
-    },
+use windows_sys::core::{HRESULT, PCWSTR};
+use windows_sys::Win32::Foundation::{BOOL, HINSTANCE, HWND, RECT};
+use windows_sys::Win32::Graphics::Gdi::{ClientToScreen, InvalidateRgn, HMONITOR};
+use windows_sys::Win32::System::LibraryLoader::{GetProcAddress, LoadLibraryA};
+use windows_sys::Win32::System::SystemServices::IMAGE_DOS_HEADER;
+use windows_sys::Win32::UI::HiDpi::{
+    DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS,
+};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::GetActiveWindow;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    AdjustWindowRectEx, ClipCursor, GetClientRect, GetClipCursor, GetMenu, GetSystemMetrics,
+    GetWindowLongW, GetWindowRect, SetWindowPos, ShowCursor, GWL_EXSTYLE, GWL_STYLE,
+    IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM, IDC_NO, IDC_SIZEALL,
+    IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT, SM_CXVIRTUALSCREEN,
+    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE,
+    SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE,
 };
 
-use crate::{dpi::PhysicalSize, window::CursorIcon};
+use crate::dpi::PhysicalSize;
+use crate::window::CursorIcon;
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
@@ -95,28 +85,16 @@ pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
 
 pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
     let (width, height): (u32, u32) = size.into();
-    let rect = RECT {
-        left: 0,
-        right: width as i32,
-        top: 0,
-        bottom: height as i32,
-    };
+    let rect = RECT { left: 0, right: width as i32, top: 0, bottom: height as i32 };
     let rect = adjust_window_rect(hwnd, rect).unwrap_or(rect);
     PhysicalSize::new((rect.right - rect.left) as _, (rect.bottom - rect.top) as _)
 }
 
 pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
     unsafe {
-        let rect = adjust_window_rect(
-            window,
-            RECT {
-                top: 0,
-                left: 0,
-                bottom: y as i32,
-                right: x as i32,
-            },
-        )
-        .expect("adjust_window_rect failed");
+        let rect =
+            adjust_window_rect(window, RECT { top: 0, left: 0, bottom: y as i32, right: x as i32 })
+                .expect("adjust_window_rect failed");
 
         let outer_x = (rect.right - rect.left).abs() as _;
         let outer_y = (rect.top - rect.bottom).abs() as _;
@@ -184,10 +162,7 @@ pub fn get_cursor_clip() -> Result<RECT, io::Error> {
 /// Note that calling this will automatically dispatch a `WM_MOUSEMOVE` event.
 pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
     unsafe {
-        let rect_ptr = rect
-            .as_ref()
-            .map(|r| r as *const RECT)
-            .unwrap_or(ptr::null());
+        let rect_ptr = rect.as_ref().map(|r| r as *const RECT).unwrap_or(ptr::null());
         win_to_err(|| ClipCursor(rect_ptr))
     }
 }
@@ -234,7 +209,7 @@ impl CursorIcon {
             CursorIcon::NotAllowed | CursorIcon::NoDrop => IDC_NO,
             CursorIcon::Grab | CursorIcon::Grabbing | CursorIcon::Move | CursorIcon::AllScroll => {
                 IDC_SIZEALL
-            }
+            },
             CursorIcon::EResize
             | CursorIcon::WResize
             | CursorIcon::EwResize

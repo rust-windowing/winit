@@ -1,30 +1,23 @@
-use std::{
-    ffi::{c_void, OsString},
-    os::windows::ffi::OsStringExt,
-    path::PathBuf,
-    ptr,
-    sync::atomic::{AtomicUsize, Ordering},
-};
+use std::ffi::{c_void, OsString};
+use std::os::windows::ffi::OsStringExt;
+use std::path::PathBuf;
+use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
-use windows_sys::{
-    core::{IUnknown, GUID, HRESULT},
-    Win32::{
-        Foundation::{DV_E_FORMATETC, HWND, POINTL, S_OK},
-        System::{
-            Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL},
-            Ole::{DROPEFFECT_COPY, DROPEFFECT_NONE},
-            SystemServices::CF_HDROP,
-        },
-        UI::Shell::{DragFinish, DragQueryFileW, HDROP},
-    },
-};
+use windows_sys::core::{IUnknown, GUID, HRESULT};
+use windows_sys::Win32::Foundation::{DV_E_FORMATETC, HWND, POINTL, S_OK};
+use windows_sys::Win32::System::Com::{IDataObject, DVASPECT_CONTENT, FORMATETC, TYMED_HGLOBAL};
+use windows_sys::Win32::System::Ole::{DROPEFFECT_COPY, DROPEFFECT_NONE};
+use windows_sys::Win32::System::SystemServices::CF_HDROP;
+use windows_sys::Win32::UI::Shell::{DragFinish, DragQueryFileW, HDROP};
 
-use crate::platform_impl::platform::{
-    definitions::{IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl},
-    WindowId,
+use crate::platform_impl::platform::definitions::{
+    IDataObjectVtbl, IDropTarget, IDropTargetVtbl, IUnknownVtbl,
 };
+use crate::platform_impl::platform::WindowId;
 
-use crate::{event::Event, window::WindowId as RootWindowId};
+use crate::event::Event;
+use crate::window::WindowId as RootWindowId;
 
 #[repr(C)]
 pub struct FileDropHandlerData {
@@ -33,7 +26,8 @@ pub struct FileDropHandlerData {
     window: HWND,
     send_event: Box<dyn Fn(Event<'static, ()>)>,
     cursor_effect: u32,
-    hovered_is_valid: bool, /* If the currently hovered item is not valid there must not be any `HoveredFileCancelled` emitted */
+    hovered_is_valid: bool, /* If the currently hovered item is not valid there must not be any
+                             * `HoveredFileCancelled` emitted */
 }
 
 pub struct FileDropHandler {
@@ -44,18 +38,14 @@ pub struct FileDropHandler {
 impl FileDropHandler {
     pub fn new(window: HWND, send_event: Box<dyn Fn(Event<'static, ()>)>) -> FileDropHandler {
         let data = Box::new(FileDropHandlerData {
-            interface: IDropTarget {
-                lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl,
-            },
+            interface: IDropTarget { lpVtbl: &DROP_TARGET_VTBL as *const IDropTargetVtbl },
             refcount: AtomicUsize::new(1),
             window,
             send_event,
             cursor_effect: DROPEFFECT_NONE,
             hovered_is_valid: false,
         });
-        FileDropHandler {
-            data: Box::into_raw(data),
-        }
+        FileDropHandler { data: Box::into_raw(data) }
     }
 
     // Implement IUnknown
@@ -101,11 +91,8 @@ impl FileDropHandler {
             });
         });
         drop_handler.hovered_is_valid = hdrop.is_some();
-        drop_handler.cursor_effect = if drop_handler.hovered_is_valid {
-            DROPEFFECT_COPY
-        } else {
-            DROPEFFECT_NONE
-        };
+        drop_handler.cursor_effect =
+            if drop_handler.hovered_is_valid { DROPEFFECT_COPY } else { DROPEFFECT_NONE };
         *pdwEffect = drop_handler.cursor_effect;
 
         S_OK

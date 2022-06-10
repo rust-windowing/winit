@@ -1,29 +1,20 @@
-use std::{
-    collections::{BTreeSet, VecDeque},
-    hash::Hash,
-    io, mem, ptr,
-};
+use std::collections::{BTreeSet, VecDeque};
+use std::hash::Hash;
+use std::{io, mem, ptr};
 
-use windows_sys::Win32::{
-    Foundation::{BOOL, HWND, LPARAM, POINT, RECT},
-    Graphics::Gdi::{
-        EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, MonitorFromPoint,
-        MonitorFromWindow, DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT,
-        DM_PELSWIDTH, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST,
-        MONITOR_DEFAULTTOPRIMARY,
-    },
+use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM, POINT, RECT};
+use windows_sys::Win32::Graphics::Gdi::{
+    EnumDisplayMonitors, EnumDisplaySettingsExW, GetMonitorInfoW, MonitorFromPoint,
+    MonitorFromWindow, DEVMODEW, DM_BITSPERPEL, DM_DISPLAYFREQUENCY, DM_PELSHEIGHT, DM_PELSWIDTH,
+    HDC, HMONITOR, MONITORINFO, MONITORINFOEXW, MONITOR_DEFAULTTONEAREST, MONITOR_DEFAULTTOPRIMARY,
 };
 
 use super::util::decode_wide;
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    platform_impl::platform::{
-        dpi::{dpi_to_scale_factor, get_monitor_dpi},
-        util::has_flag,
-        window::Window,
-    },
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use crate::platform_impl::platform::dpi::{dpi_to_scale_factor, get_monitor_dpi};
+use crate::platform_impl::platform::util::has_flag;
+use crate::platform_impl::platform::window::Window;
 
 #[derive(Clone)]
 pub struct VideoMode {
@@ -80,9 +71,7 @@ impl VideoMode {
     }
 
     pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+        RootMonitorHandle { inner: self.monitor.clone() }
     }
 }
 
@@ -146,10 +135,7 @@ pub(crate) fn get_monitor_info(hmonitor: HMONITOR) -> Result<MONITORINFOEXW, io:
     let mut monitor_info: MONITORINFOEXW = unsafe { mem::zeroed() };
     monitor_info.monitorInfo.cbSize = mem::size_of::<MONITORINFOEXW>() as u32;
     let status = unsafe {
-        GetMonitorInfoW(
-            hmonitor,
-            &mut monitor_info as *mut MONITORINFOEXW as *mut MONITORINFO,
-        )
+        GetMonitorInfoW(hmonitor, &mut monitor_info as *mut MONITORINFOEXW as *mut MONITORINFO)
     };
     if status == false.into() {
         Err(io::Error::last_os_error())
@@ -166,11 +152,7 @@ impl MonitorHandle {
     #[inline]
     pub fn name(&self) -> Option<String> {
         let monitor_info = get_monitor_info(self.0).unwrap();
-        Some(
-            decode_wide(&monitor_info.szDevice)
-                .to_string_lossy()
-                .to_string(),
-        )
+        Some(decode_wide(&monitor_info.szDevice).to_string_lossy().to_string())
     }
 
     #[inline]
@@ -195,10 +177,7 @@ impl MonitorHandle {
     #[inline]
     pub fn position(&self) -> PhysicalPosition<i32> {
         let rc_monitor = get_monitor_info(self.0).unwrap().monitorInfo.rcMonitor;
-        PhysicalPosition {
-            x: rc_monitor.left,
-            y: rc_monitor.top,
-        }
+        PhysicalPosition { x: rc_monitor.left, y: rc_monitor.top }
     }
 
     #[inline]

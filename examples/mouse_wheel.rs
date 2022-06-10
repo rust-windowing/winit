@@ -1,20 +1,15 @@
 #![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
-use winit::{
-    event::{Event, WindowEvent},
-    event_loop::EventLoop,
-    window::WindowBuilder,
-};
+use winit::event::{Event, WindowEvent};
+use winit::event_loop::EventLoop;
+use winit::window::WindowBuilder;
 
 fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoop::new();
 
-    let window = WindowBuilder::new()
-        .with_title("Mouse Wheel events")
-        .build(&event_loop)
-        .unwrap();
+    let window = WindowBuilder::new().with_title("Mouse Wheel events").build(&event_loop).unwrap();
 
     println!(
         r"
@@ -45,14 +40,14 @@ In other words, the deltas indicate the direction in which to move the content (
                         pos.x += (x * pixels_per_line) as i32;
                         pos.y += (y * pixels_per_line) as i32;
                         window.set_outer_position(pos)
-                    }
+                    },
                     winit::event::MouseScrollDelta::PixelDelta(p) => {
                         println!("mouse wheel Pixel Delta: ({},{})", p.x, p.y);
                         let mut pos = window.outer_position().unwrap();
                         pos.x += p.x as i32;
                         pos.y += p.y as i32;
                         window.set_outer_position(pos)
-                    }
+                    },
                 },
                 _ => (),
             },

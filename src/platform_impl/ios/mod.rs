@@ -79,13 +79,11 @@ mod window;
 
 use std::fmt;
 
-pub(crate) use self::{
-    event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
-    },
-    monitor::{MonitorHandle, VideoMode},
-    window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
+pub(crate) use self::event_loop::{
+    EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
 };
+pub(crate) use self::monitor::{MonitorHandle, VideoMode};
+pub(crate) use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
@@ -96,9 +94,7 @@ pub struct DeviceId {
 
 impl DeviceId {
     pub const unsafe fn dummy() -> Self {
-        DeviceId {
-            uiscreen: std::ptr::null_mut(),
-        }
+        DeviceId { uiscreen: std::ptr::null_mut() }
     }
 }
 

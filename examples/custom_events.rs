@@ -3,11 +3,9 @@
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     use simple_logger::SimpleLogger;
-    use winit::{
-        event::{Event, WindowEvent},
-        event_loop::EventLoopBuilder,
-        window::WindowBuilder,
-    };
+    use winit::event::{Event, WindowEvent};
+    use winit::event_loop::EventLoopBuilder;
+    use winit::window::WindowBuilder;
 
     #[derive(Debug, Clone, Copy)]
     enum CustomEvent {
@@ -17,10 +15,8 @@ fn main() {
     SimpleLogger::new().init().unwrap();
     let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build();
 
-    let _window = WindowBuilder::new()
-        .with_title("A fantastic window!")
-        .build(&event_loop)
-        .unwrap();
+    let _window =
+        WindowBuilder::new().with_title("A fantastic window!").build(&event_loop).unwrap();
 
     // `EventLoopProxy` allows you to dispatch custom events to the main Winit event
     // loop from any thread.
@@ -40,10 +36,9 @@ fn main() {
 
         match event {
             Event::UserEvent(event) => println!("user event: {:?}", event),
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => control_flow.set_exit(),
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+                control_flow.set_exit()
+            },
             _ => (),
         }
     });

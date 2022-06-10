@@ -1,27 +1,20 @@
 #![cfg(target_os = "android")]
 
-use std::{
-    collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
-    time::{Duration, Instant},
-};
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::{Duration, Instant};
 
-use ndk::{
-    configuration::Configuration,
-    event::{InputEvent, KeyAction, Keycode, MotionAction},
-    looper::{ForeignLooper, Poll, ThreadLooper},
-};
+use ndk::configuration::Configuration;
+use ndk::event::{InputEvent, KeyAction, Keycode, MotionAction};
+use ndk::looper::{ForeignLooper, Poll, ThreadLooper};
 use ndk_glue::{Event, Rect};
 use once_cell::sync::Lazy;
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error,
-    event::{self, VirtualKeyCode},
-    event_loop::{self, ControlFlow},
-    monitor, window,
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::event::{self, VirtualKeyCode};
+use crate::event_loop::{self, ControlFlow};
+use crate::{error, monitor, window};
 
 static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {
     RwLock::new(Configuration::from_asset_manager(
@@ -221,11 +214,7 @@ fn poll(poll: Poll) -> Option<EventSource> {
         },
         Poll::Timeout => None,
         Poll::Wake => Some(
-            INTERNAL_EVENT
-                .write()
-                .unwrap()
-                .take()
-                .map_or(EventSource::User, EventSource::Internal),
+            INTERNAL_EVENT.write().unwrap().take().map_or(EventSource::User, EventSource::Internal),
         ),
         Poll::Callback => unreachable!(),
     }
@@ -257,9 +246,7 @@ impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
         Self {
             window_target: event_loop::EventLoopWindowTarget {
-                p: EventLoopWindowTarget {
-                    _marker: std::marker::PhantomData,
-                },
+                p: EventLoopWindowTarget { _marker: std::marker::PhantomData },
                 _marker: std::marker::PhantomData,
             },
             user_queue: Default::default(),
@@ -305,7 +292,7 @@ impl<T: 'static> EventLoop<T> {
                             control_flow,
                             event::Event::Resumed
                         );
-                    }
+                    },
                     Event::WindowResized => resized = true,
                     Event::WindowRedrawNeeded => redraw = true,
                     Event::WindowDestroyed => {
@@ -315,7 +302,7 @@ impl<T: 'static> EventLoop<T> {
                             control_flow,
                             event::Event::Suspended
                         );
-                    }
+                    },
                     Event::Pause => self.running = false,
                     Event::Resume => self.running = true,
                     Event::ConfigChanged => {
@@ -341,7 +328,7 @@ impl<T: 'static> EventLoop<T> {
                                 event
                             );
                         }
-                    }
+                    },
                     Event::WindowHasFocus => {
                         call_event_handler!(
                             event_handler,
@@ -352,7 +339,7 @@ impl<T: 'static> EventLoop<T> {
                                 event: event::WindowEvent::Focused(true),
                             }
                         );
-                    }
+                    },
                     Event::WindowLostFocus => {
                         call_event_handler!(
                             event_handler,
@@ -363,8 +350,8 @@ impl<T: 'static> EventLoop<T> {
                                 event: event::WindowEvent::Focused(false),
                             }
                         );
-                    }
-                    _ => {}
+                    },
+                    _ => {},
                 },
                 Some(EventSource::InputQueue) => {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
@@ -378,18 +365,18 @@ impl<T: 'static> EventLoop<T> {
                                         let phase = match motion_event.action() {
                                             MotionAction::Down | MotionAction::PointerDown => {
                                                 Some(event::TouchPhase::Started)
-                                            }
+                                            },
                                             MotionAction::Up | MotionAction::PointerUp => {
                                                 Some(event::TouchPhase::Ended)
-                                            }
+                                            },
                                             MotionAction::Move => Some(event::TouchPhase::Moved),
                                             MotionAction::Cancel => {
                                                 Some(event::TouchPhase::Cancelled)
-                                            }
+                                            },
                                             _ => {
                                                 handled = false;
                                                 None // TODO mouse events
-                                            }
+                                            },
                                         };
                                         if let Some(phase) = phase {
                                             let pointers: Box<
@@ -404,7 +391,7 @@ impl<T: 'static> EventLoop<T> {
                                                 event::TouchPhase::Moved
                                                 | event::TouchPhase::Cancelled => {
                                                     Box::new(motion_event.pointers())
-                                                }
+                                                },
                                             };
 
                                             for pointer in pointers {
@@ -432,7 +419,7 @@ impl<T: 'static> EventLoop<T> {
                                                 );
                                             }
                                         }
-                                    }
+                                    },
                                     InputEvent::KeyEvent(key) => {
                                         let state = match key.action() {
                                             KeyAction::Down => event::ElementState::Pressed,
@@ -461,13 +448,13 @@ impl<T: 'static> EventLoop<T> {
                                             control_flow,
                                             event
                                         );
-                                    }
+                                    },
                                 };
                                 input_queue.finish_event(event, handled);
                             }
                         }
                     }
-                }
+                },
                 Some(EventSource::User) => {
                     let mut user_queue = self.user_queue.lock().unwrap();
                     while let Some(event) = user_queue.pop_front() {
@@ -478,11 +465,11 @@ impl<T: 'static> EventLoop<T> {
                             event::Event::UserEvent(event)
                         );
                     }
-                }
+                },
                 Some(EventSource::Internal(internal)) => match internal {
                     InternalEvent::RedrawRequested => redraw = true,
                 },
-                None => {}
+                None => {},
             }
 
             call_event_handler!(
@@ -515,52 +502,37 @@ impl<T: 'static> EventLoop<T> {
 
             match control_flow {
                 ControlFlow::ExitWithCode(code) => {
-                    self.first_event = poll(
-                        self.looper
-                            .poll_once_timeout(Duration::from_millis(0))
-                            .unwrap(),
-                    );
+                    self.first_event =
+                        poll(self.looper.poll_once_timeout(Duration::from_millis(0)).unwrap());
                     self.start_cause = event::StartCause::WaitCancelled {
                         start: Instant::now(),
                         requested_resume: None,
                     };
                     break 'event_loop code;
-                }
+                },
                 ControlFlow::Poll => {
-                    self.first_event = poll(
-                        self.looper
-                            .poll_all_timeout(Duration::from_millis(0))
-                            .unwrap(),
-                    );
+                    self.first_event =
+                        poll(self.looper.poll_all_timeout(Duration::from_millis(0)).unwrap());
                     self.start_cause = event::StartCause::Poll;
-                }
+                },
                 ControlFlow::Wait => {
                     self.first_event = poll(self.looper.poll_all().unwrap());
                     self.start_cause = event::StartCause::WaitCancelled {
                         start: Instant::now(),
                         requested_resume: None,
                     }
-                }
+                },
                 ControlFlow::WaitUntil(instant) => {
                     let start = Instant::now();
-                    let duration = if instant <= start {
-                        Duration::default()
-                    } else {
-                        instant - start
-                    };
+                    let duration =
+                        if instant <= start { Duration::default() } else { instant - start };
                     self.first_event = poll(self.looper.poll_all_timeout(duration).unwrap());
                     self.start_cause = if self.first_event.is_some() {
-                        event::StartCause::WaitCancelled {
-                            start,
-                            requested_resume: Some(instant),
-                        }
+                        event::StartCause::WaitCancelled { start, requested_resume: Some(instant) }
                     } else {
-                        event::StartCause::ResumeTimeReached {
-                            start,
-                            requested_resume: instant,
-                        }
+                        event::StartCause::ResumeTimeReached { start, requested_resume: instant }
                     }
-                }
+                },
             }
         }
     }
@@ -592,10 +564,7 @@ impl<T> EventLoopProxy<T> {
 
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        EventLoopProxy {
-            queue: self.queue.clone(),
-            looper: self.looper.clone(),
-        }
+        EventLoopProxy { queue: self.queue.clone(), looper: self.looper.clone() }
     }
 }
 
@@ -605,9 +574,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 
 impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+        Some(monitor::MonitorHandle { inner: MonitorHandle })
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -655,9 +622,7 @@ impl Window {
     }
 
     pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+        Some(monitor::MonitorHandle { inner: MonitorHandle })
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -667,9 +632,7 @@ impl Window {
     }
 
     pub fn current_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+        Some(monitor::MonitorHandle { inner: MonitorHandle })
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -760,36 +723,32 @@ impl Window {
     pub fn set_cursor_icon(&self, _: window::CursorIcon) {}
 
     pub fn set_cursor_position(&self, _: Position) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
     pub fn set_cursor_grab(&self, _: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
     pub fn set_cursor_visible(&self, _: bool) {}
 
     pub fn drag_window(&self) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
     pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
-        Err(error::ExternalError::NotSupported(
-            error::NotSupportedError::new(),
-        ))
+        Err(error::ExternalError::NotSupported(error::NotSupportedError::new()))
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
         if let Some(native_window) = ndk_glue::native_window().as_ref() {
             native_window.raw_window_handle()
         } else {
-            panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
+            panic!(
+                "Cannot get the native window, it's null and will always be null before \
+                 Event::Resumed and after Event::Suspended. Make sure you only call this function \
+                 between those events."
+            );
         }
     }
 
@@ -838,10 +797,7 @@ impl MonitorHandle {
 
     pub fn scale_factor(&self) -> f64 {
         let config = CONFIG.read().unwrap();
-        config
-            .density()
-            .map(|dpi| dpi as f64 / 160.0)
-            .unwrap_or(1.0)
+        config.density().map(|dpi| dpi as f64 / 160.0).unwrap_or(1.0)
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
@@ -849,12 +805,7 @@ impl MonitorHandle {
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
         std::iter::once(monitor::VideoMode {
-            video_mode: VideoMode {
-                size,
-                bit_depth: 32,
-                refresh_rate: 60,
-                monitor: self.clone(),
-            },
+            video_mode: VideoMode { size, bit_depth: 32, refresh_rate: 60, monitor: self.clone() },
         })
     }
 }
@@ -881,8 +832,6 @@ impl VideoMode {
     }
 
     pub fn monitor(&self) -> monitor::MonitorHandle {
-        monitor::MonitorHandle {
-            inner: self.monitor.clone(),
-        }
+        monitor::MonitorHandle { inner: self.monitor.clone() }
     }
 }

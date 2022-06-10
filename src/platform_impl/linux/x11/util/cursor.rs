@@ -4,11 +4,8 @@ use super::*;
 
 impl XConnection {
     pub fn set_cursor_icon(&self, window: ffi::Window, cursor: Option<CursorIcon>) {
-        let cursor = *self
-            .cursor_cache
-            .lock()
-            .entry(cursor)
-            .or_insert_with(|| self.get_cursor(cursor));
+        let cursor =
+            *self.cursor_cache.lock().entry(cursor).or_insert_with(|| self.get_cursor(cursor));
 
         self.update_cursor(window, cursor);
     }

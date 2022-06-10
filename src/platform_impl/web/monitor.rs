@@ -18,10 +18,7 @@ impl MonitorHandle {
     }
 
     pub fn size(&self) -> PhysicalSize<u32> {
-        PhysicalSize {
-            width: 0,
-            height: 0,
-        }
+        PhysicalSize { width: 0, height: 0 }
     }
 
     pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
@@ -46,8 +43,6 @@ impl VideoMode {
     }
 
     pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: MonitorHandle,
-        }
+        RootMonitorHandle { inner: MonitorHandle }
     }
 }

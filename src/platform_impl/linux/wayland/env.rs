@@ -33,10 +33,7 @@ impl WindowingFeatures {
     pub fn new(env: &Environment<WinitEnv>) -> Self {
         let cursor_grab = env.get_global::<ZwpPointerConstraintsV1>().is_some();
         let xdg_activation = env.get_global::<XdgActivationV1>().is_some();
-        Self {
-            cursor_grab,
-            xdg_activation,
-        }
+        Self { cursor_grab, xdg_activation }
     }
 
     pub fn cursor_grab(&self) -> bool {

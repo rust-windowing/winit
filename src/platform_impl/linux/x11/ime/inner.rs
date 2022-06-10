@@ -1,8 +1,11 @@
-use std::{collections::HashMap, mem, ptr, sync::Arc};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::{mem, ptr};
 
 use super::{ffi, XConnection, XError};
 
-use super::{context::ImeContext, input_method::PotentialInputMethods};
+use super::context::ImeContext;
+use super::input_method::PotentialInputMethods;
 use crate::platform_impl::platform::x11::ime::ImeEventSender;
 
 pub unsafe fn close_im(xconn: &Arc<XConnection>, im: ffi::XIM) -> Result<(), XError> {

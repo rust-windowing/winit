@@ -1,18 +1,14 @@
 #![cfg(target_os = "windows")]
 
-use windows_sys::Win32::{
-    Foundation::{HANDLE, HWND},
-    UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX},
-};
+use windows_sys::Win32::Foundation::{HANDLE, HWND};
+use windows_sys::Win32::UI::WindowsAndMessaging::{HMENU, WINDOW_LONG_PTR_INDEX};
 
-pub(crate) use self::{
-    event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
-    },
-    icon::WinIcon,
-    monitor::{MonitorHandle, VideoMode},
-    window::Window,
+pub(crate) use self::event_loop::{
+    EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
 };
+pub(crate) use self::icon::WinIcon;
+pub(crate) use self::monitor::{MonitorHandle, VideoMode};
+pub(crate) use self::window::Window;
 
 pub use self::icon::WinIcon as PlatformIcon;
 

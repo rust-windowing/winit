@@ -1,25 +1,17 @@
-use std::{
-    ops::Deref,
-    sync::{Mutex, Weak},
-};
+use std::ops::Deref;
+use std::sync::{Mutex, Weak};
 
-use cocoa::{
-    appkit::{CGFloat, NSScreen, NSWindow, NSWindowStyleMask},
-    base::{id, nil},
-    foundation::{NSPoint, NSSize, NSString},
-};
+use cocoa::appkit::{CGFloat, NSScreen, NSWindow, NSWindowStyleMask};
+use cocoa::base::{id, nil};
+use cocoa::foundation::{NSPoint, NSSize, NSString};
 use dispatch::Queue;
 use objc::rc::autoreleasepool;
 use objc::runtime::{BOOL, NO, YES};
 
-use crate::{
-    dpi::LogicalSize,
-    platform_impl::platform::{
-        ffi,
-        util::IdRef,
-        window::{SharedState, SharedStateMutexGuard},
-    },
-};
+use crate::dpi::LogicalSize;
+use crate::platform_impl::platform::ffi;
+use crate::platform_impl::platform::util::IdRef;
+use crate::platform_impl::platform::window::{SharedState, SharedStateMutexGuard};
 
 // Unsafe wrapper type that allows us to dispatch things that aren't Send.
 // This should *only* be used to dispatch to the main queue.
@@ -31,6 +23,7 @@ unsafe impl<T> Send for MainThreadSafe<T> {}
 
 impl<T> Deref for MainThreadSafe<T> {
     type Target = T;
+
     fn deref(&self) -> &T {
         &self.0
     }
@@ -172,10 +165,7 @@ pub unsafe fn set_maximized_async(
                 return;
             }
 
-            if ns_window
-                .styleMask()
-                .contains(NSWindowStyleMask::NSResizableWindowMask)
-            {
+            if ns_window.styleMask().contains(NSWindowStyleMask::NSResizableWindowMask) {
                 // Just use the native zoom if resizable
                 ns_window.zoom_(nil);
             } else {

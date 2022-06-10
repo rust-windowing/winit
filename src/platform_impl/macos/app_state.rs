@@ -1,46 +1,32 @@
-use std::{
-    cell::{RefCell, RefMut},
-    collections::VecDeque,
-    fmt::{self, Debug},
-    hint::unreachable_unchecked,
-    mem,
-    rc::{Rc, Weak},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex, MutexGuard,
-    },
-    time::Instant,
-};
+use std::cell::{RefCell, RefMut};
+use std::collections::VecDeque;
+use std::fmt::{self, Debug};
+use std::hint::unreachable_unchecked;
+use std::mem;
+use std::rc::{Rc, Weak};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, MutexGuard};
+use std::time::Instant;
 
-use cocoa::{
-    appkit::{NSApp, NSApplication, NSWindow},
-    base::{id, nil},
-    foundation::NSSize,
-};
-use objc::{
-    rc::autoreleasepool,
-    runtime::{Object, BOOL, NO, YES},
-};
+use cocoa::appkit::{NSApp, NSApplication, NSWindow};
+use cocoa::base::{id, nil};
+use cocoa::foundation::NSSize;
+use objc::rc::autoreleasepool;
+use objc::runtime::{Object, BOOL, NO, YES};
 use once_cell::sync::Lazy;
 
-use crate::{
-    dpi::LogicalSize,
-    event::{Event, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
-    platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            event::{EventProxy, EventWrapper},
-            event_loop::{post_dummy_event, PanicInfo},
-            menu,
-            observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
-            util::{IdRef, Never},
-            window::get_window_id,
-        },
-    },
-    window::WindowId,
-};
+use crate::dpi::LogicalSize;
+use crate::event::{Event, StartCause, WindowEvent};
+use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget};
+use crate::platform::macos::ActivationPolicy;
+use crate::platform_impl::get_aux_state_mut;
+use crate::platform_impl::platform::event::{EventProxy, EventWrapper};
+use crate::platform_impl::platform::event_loop::{post_dummy_event, PanicInfo};
+use crate::platform_impl::platform::menu;
+use crate::platform_impl::platform::observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker};
+use crate::platform_impl::platform::util::{IdRef, Never};
+use crate::platform_impl::platform::window::get_window_id;
+use crate::window::WindowId;
 
 static HANDLER: Lazy<Handler> = Lazy::new(Default::default);
 
@@ -80,8 +66,8 @@ impl<T> EventLoopHandler<T> {
             (f)(self, callback);
         } else {
             panic!(
-                "Tried to dispatch an event, but the event loop that \
-                owned the event handler callback seems to be destroyed"
+                "Tried to dispatch an event, but the event loop that owned the event handler \
+                 callback seems to be destroyed"
             );
         }
     }
@@ -160,10 +146,7 @@ impl Handler {
     }
 
     fn should_exit(&self) -> bool {
-        matches!(
-            *self.control_flow.lock().unwrap(),
-            ControlFlow::ExitWithCode(_)
-        )
+        matches!(*self.control_flow.lock().unwrap(), ControlFlow::ExitWithCode(_))
     }
 
     fn get_control_flow_and_update_prev(&self) -> ControlFlow {
@@ -207,7 +190,7 @@ impl Handler {
             match wrapper {
                 EventWrapper::StaticEvent(event) => {
                     callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap())
-                }
+                },
                 EventWrapper::EventProxy(proxy) => self.handle_proxy(proxy, callback),
             }
         }
@@ -230,10 +213,7 @@ impl Handler {
         let new_inner_size = &mut size;
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*ns_window)),
-            event: WindowEvent::ScaleFactorChanged {
-                scale_factor,
-                new_inner_size,
-            },
+            event: WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size },
         };
 
         callback.handle_nonuser_event(event, &mut *self.control_flow.lock().unwrap());
@@ -246,16 +226,13 @@ impl Handler {
 
     fn handle_proxy(&self, proxy: EventProxy, callback: &mut Box<dyn EventHandler + 'static>) {
         match proxy {
-            EventProxy::DpiChangedProxy {
-                ns_window,
-                suggested_size,
-                scale_factor,
-            } => self.handle_scale_factor_changed_event(
-                callback,
-                ns_window,
-                suggested_size,
-                scale_factor,
-            ),
+            EventProxy::DpiChangedProxy { ns_window, suggested_size, scale_factor } => self
+                .handle_scale_factor_changed_event(
+                    callback,
+                    ns_window,
+                    suggested_size,
+                    scale_factor,
+                ),
         }
     }
 }
@@ -264,10 +241,8 @@ pub enum AppState {}
 
 impl AppState {
     pub fn set_callback<T>(callback: Weak<Callback<T>>, window_target: Rc<RootWindowTarget<T>>) {
-        *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
-            callback,
-            window_target,
-        }));
+        *HANDLER.callback.lock().unwrap() =
+            Some(Box::new(EventLoopHandler { callback, window_target }));
     }
 
     pub fn exit() -> i32 {
@@ -287,7 +262,8 @@ impl AppState {
         unsafe {
             let ns_app = NSApp();
             window_activation_hack(ns_app);
-            // TODO: Consider allowing the user to specify they don't want their application activated
+            // TODO: Consider allowing the user to specify they don't want their application
+            // activated
             ns_app.activateIgnoringOtherApps_(YES);
         };
         HANDLER.set_ready();
@@ -299,9 +275,7 @@ impl AppState {
             menu::initialize();
         }
         HANDLER.set_in_callback(true);
-        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
-            StartCause::Init,
-        )));
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)));
         HANDLER.set_in_callback(false);
     }
 
@@ -317,24 +291,16 @@ impl AppState {
         let start = HANDLER.get_start_time().unwrap();
         let cause = match HANDLER.get_control_flow_and_update_prev() {
             ControlFlow::Poll => StartCause::Poll,
-            ControlFlow::Wait => StartCause::WaitCancelled {
-                start,
-                requested_resume: None,
-            },
+            ControlFlow::Wait => StartCause::WaitCancelled { start, requested_resume: None },
             ControlFlow::WaitUntil(requested_resume) => {
                 if Instant::now() >= requested_resume {
-                    StartCause::ResumeTimeReached {
-                        start,
-                        requested_resume,
-                    }
+                    StartCause::ResumeTimeReached { start, requested_resume }
                 } else {
-                    StartCause::WaitCancelled {
-                        start,
-                        requested_resume: Some(requested_resume),
-                    }
+                    StartCause::WaitCancelled { start, requested_resume: Some(requested_resume) }
                 }
-            }
-            ControlFlow::ExitWithCode(_) => StartCause::Poll, //panic!("unexpected `ControlFlow::Exit`"),
+            },
+            ControlFlow::ExitWithCode(_) => StartCause::Poll, /* panic!("unexpected
+                                                               * `ControlFlow::Exit`"), */
         };
         HANDLER.set_in_callback(true);
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(cause)));

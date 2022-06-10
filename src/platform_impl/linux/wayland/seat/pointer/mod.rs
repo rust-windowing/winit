@@ -67,7 +67,7 @@ impl WinitPointer {
                 // event (compare to to start_interactive_move()).
                 (*self.pointer).set_cursor(self.latest_enter_serial.get(), None, 0, 0);
                 return;
-            }
+            },
         };
 
         let cursors: &[&str] = match cursor_icon {
@@ -135,11 +135,8 @@ impl WinitPointer {
             None => return,
         };
 
-        *confined_pointer.borrow_mut() = Some(init_confined_pointer(
-            pointer_constraints,
-            surface,
-            &*self.pointer,
-        ));
+        *confined_pointer.borrow_mut() =
+            Some(init_confined_pointer(pointer_constraints, surface, &*self.pointer));
     }
 
     /// Tries to unconfine the pointer if the current pointer is confined.
@@ -206,17 +203,11 @@ impl Pointers {
         );
 
         // Setup relative_pointer if it's available.
-        let relative_pointer = relative_pointer_manager
-            .as_ref()
-            .map(|relative_pointer_manager| {
-                init_relative_pointer(relative_pointer_manager, &*pointer)
-            });
+        let relative_pointer = relative_pointer_manager.as_ref().map(|relative_pointer_manager| {
+            init_relative_pointer(relative_pointer_manager, &*pointer)
+        });
 
-        Self {
-            pointer,
-            relative_pointer,
-            confined_pointer,
-        }
+        Self { pointer, relative_pointer, confined_pointer }
     }
 }
 

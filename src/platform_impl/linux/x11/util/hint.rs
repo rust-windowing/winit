@@ -26,11 +26,12 @@ impl From<bool> for StateOperation {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum WindowType {
-    /// A desktop feature. This can include a single window containing desktop icons with the same dimensions as the
-    /// screen, allowing the desktop environment to have full control of the desktop, without the need for proxying
-    /// root window clicks.
+    /// A desktop feature. This can include a single window containing desktop icons with the same
+    /// dimensions as the screen, allowing the desktop environment to have full control of the
+    /// desktop, without the need for proxying root window clicks.
     Desktop,
-    /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all other windows.
+    /// A dock or panel feature. Typically a Window Manager would keep such windows on top of all
+    /// other windows.
     Dock,
     /// Toolbar windows. "Torn off" from the main application.
     Toolbar,
@@ -48,8 +49,8 @@ pub enum WindowType {
     /// A popup menu that usually appears when the user right clicks on an object.
     /// This property is typically used on override-redirect windows.
     PopupMenu,
-    /// A tooltip window. Usually used to show additional information when hovering over an object with the cursor.
-    /// This property is typically used on override-redirect windows.
+    /// A tooltip window. Usually used to show additional information when hovering over an object
+    /// with the cursor. This property is typically used on override-redirect windows.
     Tooltip,
     /// The window is a notification.
     /// This property is typically used on override-redirect windows.
@@ -126,13 +127,7 @@ mod mwm {
 impl MotifHints {
     pub fn new() -> MotifHints {
         MotifHints {
-            hints: MwmHints {
-                flags: 0,
-                functions: 0,
-                decorations: 0,
-                input_mode: 0,
-                status: 0,
-            },
+            hints: MwmHints { flags: 0, functions: 0, decorations: 0, input_mode: 0, status: 0 },
         }
     }
 
@@ -191,9 +186,7 @@ pub struct NormalHints<'a> {
 
 impl<'a> NormalHints<'a> {
     pub fn new(xconn: &'a XConnection) -> Self {
-        NormalHints {
-            size_hints: xconn.alloc_size_hints(),
-        }
+        NormalHints { size_hints: xconn.alloc_size_hints() }
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {

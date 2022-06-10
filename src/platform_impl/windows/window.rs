@@ -2,75 +2,65 @@
 
 use parking_lot::Mutex;
 use raw_window_handle::{RawWindowHandle, Win32Handle};
-use std::{
-    cell::Cell,
-    ffi::c_void,
-    io, mem, panic, ptr,
-    sync::{mpsc::channel, Arc},
+use std::cell::Cell;
+use std::ffi::c_void;
+use std::sync::mpsc::channel;
+use std::sync::Arc;
+use std::{io, mem, panic, ptr};
+
+use windows_sys::Win32::Foundation::{
+    HINSTANCE, HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK,
+    WPARAM,
+};
+use windows_sys::Win32::Graphics::Dwm::{
+    DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND,
+};
+use windows_sys::Win32::Graphics::Gdi::{
+    ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn,
+    RedrawWindow, CDS_FULLSCREEN, DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE, DISP_CHANGE_BADPARAM,
+    DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL, RDW_INTERNALPAINT,
+};
+use windows_sys::Win32::System::Com::{
+    CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
+};
+use windows_sys::Win32::System::Ole::{OleInitialize, RegisterDragDrop};
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT, INPUT_0,
+    INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, VK_LMENU, VK_MENU,
+};
+use windows_sys::Win32::UI::Input::Touch::{RegisterTouchWindow, TWF_WANTPALM};
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
+    GetSystemMetrics, GetWindowPlacement, IsWindowVisible, LoadCursorW, PeekMessageW, PostMessageW,
+    RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow, SetWindowPlacement,
+    SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL,
+    FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY, GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC,
+    NID_READY, PM_NOREMOVE, SM_DIGITIZER, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE,
+    SWP_NOZORDER, WM_NCLBUTTONDOWN, WNDCLASSEXW,
 };
 
-use windows_sys::Win32::{
-    Foundation::{
-        HINSTANCE, HWND, LPARAM, OLE_E_WRONGCOMPOBJ, POINT, POINTS, RECT, RPC_E_CHANGED_MODE, S_OK,
-        WPARAM,
-    },
-    Graphics::{
-        Dwm::{DwmEnableBlurBehindWindow, DWM_BB_BLURREGION, DWM_BB_ENABLE, DWM_BLURBEHIND},
-        Gdi::{
-            ChangeDisplaySettingsExW, ClientToScreen, CreateRectRgn, DeleteObject, InvalidateRgn,
-            RedrawWindow, CDS_FULLSCREEN, DISP_CHANGE_BADFLAGS, DISP_CHANGE_BADMODE,
-            DISP_CHANGE_BADPARAM, DISP_CHANGE_FAILED, DISP_CHANGE_SUCCESSFUL, RDW_INTERNALPAINT,
-        },
-    },
-    System::{
-        Com::{
-            CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
-        },
-        Ole::{OleInitialize, RegisterDragDrop},
-    },
-    UI::{
-        Input::{
-            KeyboardAndMouse::{
-                EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT,
-                INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
-                VK_LMENU, VK_MENU,
-            },
-            Touch::{RegisterTouchWindow, TWF_WANTPALM},
-        },
-        WindowsAndMessaging::{
-            CreateWindowExW, FlashWindowEx, GetClientRect, GetCursorPos, GetForegroundWindow,
-            GetSystemMetrics, GetWindowPlacement, IsWindowVisible, LoadCursorW, PeekMessageW,
-            PostMessageW, RegisterClassExW, SetCursor, SetCursorPos, SetForegroundWindow,
-            SetWindowPlacement, SetWindowPos, SetWindowTextW, CS_HREDRAW, CS_VREDRAW,
-            CW_USEDEFAULT, FLASHWINFO, FLASHW_ALL, FLASHW_STOP, FLASHW_TIMERNOFG, FLASHW_TRAY,
-            GWLP_HINSTANCE, HTCAPTION, MAPVK_VK_TO_VSC, NID_READY, PM_NOREMOVE, SM_DIGITIZER,
-            SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOSIZE, SWP_NOZORDER, WM_NCLBUTTONDOWN,
-            WNDCLASSEXW,
-        },
-    },
+use crate::dpi::{PhysicalPosition, PhysicalSize, Position, Size};
+use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
+use crate::icon::Icon;
+use crate::monitor::MonitorHandle as RootMonitorHandle;
+use crate::platform_impl::platform::dark_mode::try_theme;
+use crate::platform_impl::platform::definitions::{
+    CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
 };
-
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error::{ExternalError, NotSupportedError, OsError as RootOsError},
-    icon::Icon,
-    monitor::MonitorHandle as RootMonitorHandle,
-    platform_impl::platform::{
-        dark_mode::try_theme,
-        definitions::{
-            CLSID_TaskbarList, IID_ITaskbarList, IID_ITaskbarList2, ITaskbarList, ITaskbarList2,
-        },
-        dpi::{dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi},
-        drop_handler::FileDropHandler,
-        event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
-        icon::{self, IconType},
-        ime::ImeContext,
-        monitor, util,
-        window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
-    },
-    window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
+use crate::platform_impl::platform::dpi::{
+    dpi_to_scale_factor, enable_non_client_dpi_scaling, hwnd_dpi,
 };
+use crate::platform_impl::platform::drop_handler::FileDropHandler;
+use crate::platform_impl::platform::event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID};
+use crate::platform_impl::platform::icon::{self, IconType};
+use crate::platform_impl::platform::ime::ImeContext;
+use crate::platform_impl::platform::window_state::{
+    CursorFlags, SavedWindow, WindowFlags, WindowState,
+};
+use crate::platform_impl::platform::{
+    monitor, util, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
+};
+use crate::window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes};
 
 /// The Win32 implementation of the main `Window` object.
 pub struct Window {
@@ -177,20 +167,14 @@ impl Window {
         if unsafe { GetClientRect(self.hwnd(), &mut rect) } == false.into() {
             panic!("Unexpected GetClientRect failure: please report this error to https://github.com/rust-windowing/winit")
         }
-        PhysicalSize::new(
-            (rect.right - rect.left) as u32,
-            (rect.bottom - rect.top) as u32,
-        )
+        PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
     }
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         util::get_window_rect(self.hwnd())
             .map(|rect| {
-                PhysicalSize::new(
-                    (rect.right - rect.left) as u32,
-                    (rect.bottom - rect.top) as u32,
-                )
+                PhysicalSize::new((rect.right - rect.left) as u32, (rect.bottom - rect.top) as u32)
             })
             .unwrap()
     }
@@ -341,10 +325,7 @@ impl Window {
                 GetCursorPos(&mut pos);
                 pos
             };
-            let points = POINTS {
-                x: points.x as i16,
-                y: points.y as i16,
-            };
+            let points = POINTS { x: points.x as i16, y: points.y as i16 };
             ReleaseCapture();
             PostMessageW(
                 self.hwnd(),
@@ -450,7 +431,7 @@ impl Window {
                     debug_assert!(res != DISP_CHANGE_BADPARAM);
                     debug_assert!(res != DISP_CHANGE_FAILED);
                     assert_eq!(res, DISP_CHANGE_SUCCESSFUL);
-                }
+                },
                 (Some(Fullscreen::Exclusive(_)), _) => {
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
@@ -467,7 +448,7 @@ impl Window {
                     debug_assert!(res != DISP_CHANGE_BADPARAM);
                     debug_assert!(res != DISP_CHANGE_FAILED);
                     assert_eq!(res, DISP_CHANGE_SUCCESSFUL);
-                }
+                },
                 _ => (),
             }
 
@@ -499,7 +480,8 @@ impl Window {
             // Mark as fullscreen window wrt to z-order
             //
             // this needs to be called before the below fullscreen SetWindowPos as this itself
-            // will generate WM_SIZE messages of the old window size that can race with what we set below
+            // will generate WM_SIZE messages of the old window size that can race with what we set
+            // below
             unsafe {
                 taskbar_mark_fullscreen(window.0, fullscreen.is_some());
             }
@@ -519,8 +501,8 @@ impl Window {
                     let monitor = match &fullscreen {
                         Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
                         Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
-                        Fullscreen::Borderless(None) => RootMonitorHandle {
-                            inner: monitor::current_monitor(window.0),
+                        Fullscreen::Borderless(None) => {
+                            RootMonitorHandle { inner: monitor::current_monitor(window.0) }
                         },
                     };
 
@@ -539,7 +521,7 @@ impl Window {
                         );
                         InvalidateRgn(window.0, 0, false.into());
                     }
-                }
+                },
                 None => {
                     let mut window_state_lock = window_state.lock();
                     if let Some(SavedWindow { placement }) = window_state_lock.saved_window.take() {
@@ -549,7 +531,7 @@ impl Window {
                             InvalidateRgn(window.0, 0, false.into());
                         }
                     }
-                }
+                },
             }
         });
     }
@@ -588,17 +570,13 @@ impl Window {
 
     #[inline]
     pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
-        Some(RootMonitorHandle {
-            inner: monitor::current_monitor(self.hwnd()),
-        })
+        Some(RootMonitorHandle { inner: monitor::current_monitor(self.hwnd()) })
     }
 
     #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         if let Some(ref window_icon) = window_icon {
-            window_icon
-                .inner
-                .set_for_window(self.hwnd(), IconType::Small);
+            window_icon.inner.set_for_window(self.hwnd(), IconType::Small);
         } else {
             icon::unset_for_window(self.hwnd(), IconType::Small);
         }
@@ -613,9 +591,7 @@ impl Window {
     #[inline]
     pub fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         if let Some(ref taskbar_icon) = taskbar_icon {
-            taskbar_icon
-                .inner
-                .set_for_window(self.hwnd(), IconType::Big);
+            taskbar_icon.inner.set_for_window(self.hwnd(), IconType::Big);
         } else {
             icon::unset_for_window(self.hwnd(), IconType::Big);
         }
@@ -689,7 +665,8 @@ impl Window {
                     let hr_init = (*(*task_bar_list).lpVtbl).HrInit;
 
                     if hr != S_OK || hr_init(task_bar_list.cast()) != S_OK {
-                        // In some old windows, the taskbar object could not be created, we just ignore it
+                        // In some old windows, the taskbar object could not be created, we just
+                        // ignore it
                         return;
                     }
                     task_bar_list_ptr.set(task_bar_list)
@@ -738,8 +715,8 @@ impl Drop for Window {
 #[derive(Clone)]
 pub struct WindowWrapper(HWND);
 
-// Send and Sync are not implemented for HWND and HDC, we have to wrap it and implement them manually.
-// For more info see:
+// Send and Sync are not implemented for HWND and HDC, we have to wrap it and implement them
+// manually. For more info see:
 // https://github.com/retep998/winapi-rs/issues/360
 // https://github.com/retep998/winapi-rs/issues/396
 unsafe impl Sync for WindowWrapper {}
@@ -806,9 +783,9 @@ impl<'a, T: 'static> InitData<'a, T> {
                 panic!("OleInitialize failed! Result was: `OLE_E_WRONGCOMPOBJ`");
             } else if ole_init_result == RPC_E_CHANGED_MODE {
                 panic!(
-                    "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. \
-                    Make sure other crates are not using multithreaded COM library \
-                    on the same thread or disable drag and drop support."
+                    "OleInitialize failed! Result was: `RPC_E_CHANGED_MODE`. Make sure other \
+                     crates are not using multithreaded COM library on the same thread or disable \
+                     drag and drop support."
                 );
             }
 
@@ -843,7 +820,8 @@ impl<'a, T: 'static> InitData<'a, T> {
     }
 
     // Returns a pointer to window user data on success.
-    // The user data will be registered for the window and can be accessed within the window event callback.
+    // The user data will be registered for the window and can be accessed within the window event
+    // callback.
     pub unsafe fn on_nccreate(&mut self, window: HWND) -> Option<isize> {
         let runner = self.event_loop.runner_shared.clone();
         let result = runner.catch_unwind(|| {
@@ -875,10 +853,7 @@ impl<'a, T: 'static> InitData<'a, T> {
             };
             let hr = DwmEnableBlurBehindWindow(win.hwnd(), &bb);
             if hr < 0 {
-                warn!(
-                    "Setting transparent window is failed. HRESULT Code: 0x{:X}",
-                    hr
-                );
+                warn!("Setting transparent window is failed. HRESULT Code: 0x{:X}", hr);
             }
             DeleteObject(region);
         }
@@ -895,9 +870,8 @@ impl<'a, T: 'static> InitData<'a, T> {
             win.set_fullscreen(attributes.fullscreen);
             force_window_active(win.window.0);
         } else {
-            let dimensions = attributes
-                .inner_size
-                .unwrap_or_else(|| PhysicalSize::new(800, 600).into());
+            let dimensions =
+                attributes.inner_size.unwrap_or_else(|| PhysicalSize::new(800, 600).into());
             win.set_inner_size(dimensions);
 
             if attributes.maximized {
@@ -927,10 +901,7 @@ where
     let mut window_flags = WindowFlags::empty();
     window_flags.set(WindowFlags::DECORATIONS, attributes.decorations);
     window_flags.set(WindowFlags::ALWAYS_ON_TOP, attributes.always_on_top);
-    window_flags.set(
-        WindowFlags::NO_BACK_BUFFER,
-        pl_attribs.no_redirection_bitmap,
-    );
+    window_flags.set(WindowFlags::NO_BACK_BUFFER, pl_attribs.no_redirection_bitmap);
     window_flags.set(WindowFlags::TRANSPARENT, attributes.transparent);
     // WindowFlags::VISIBLE and MAXIMIZED are set down below after the window has been configured.
     window_flags.set(WindowFlags::RESIZABLE, attributes.resizable);
@@ -942,15 +913,15 @@ where
                 warn!("Setting a menu on a child window is unsupported");
             }
             Some(parent)
-        }
+        },
         Parent::OwnedBy(parent) => {
             window_flags.set(WindowFlags::POPUP, true);
             Some(parent)
-        }
+        },
         Parent::None => {
             window_flags.set(WindowFlags::ON_TASKBAR, true);
             None
-        }
+        },
     };
 
     let mut initdata = InitData {
@@ -997,14 +968,8 @@ unsafe fn register_window_class<T: 'static>(
 ) -> Vec<u16> {
     let class_name = util::encode_wide("Window Class");
 
-    let h_icon = taskbar_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(0);
-    let h_icon_small = window_icon
-        .as_ref()
-        .map(|icon| icon.inner.as_raw_handle())
-        .unwrap_or(0);
+    let h_icon = taskbar_icon.as_ref().map(|icon| icon.inner.as_raw_handle()).unwrap_or(0);
+    let h_icon_small = window_icon.as_ref().map(|icon| icon.inner.as_raw_handle()).unwrap_or(0);
 
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
@@ -1126,11 +1091,7 @@ unsafe fn force_window_active(handle: HWND) {
     ];
 
     // Simulate a key press and release
-    SendInput(
-        inputs.len() as u32,
-        inputs.as_ptr(),
-        mem::size_of::<INPUT>() as i32,
-    );
+    SendInput(inputs.len() as u32, inputs.as_ptr(), mem::size_of::<INPUT>() as i32);
 
     SetForegroundWindow(handle);
 }

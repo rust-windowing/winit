@@ -1,32 +1,25 @@
 #![deny(unused_results)]
 
-use std::{
-    cell::{RefCell, RefMut},
-    collections::HashSet,
-    mem,
-    os::raw::c_void,
-    ptr,
-    time::Instant,
-};
+use std::cell::{RefCell, RefMut};
+use std::collections::HashSet;
+use std::os::raw::c_void;
+use std::time::Instant;
+use std::{mem, ptr};
 
 use objc::runtime::{BOOL, YES};
 use once_cell::sync::Lazy;
 
-use crate::{
-    dpi::LogicalSize,
-    event::{Event, StartCause, WindowEvent},
-    event_loop::ControlFlow,
-    platform_impl::platform::{
-        event_loop::{EventHandler, EventProxy, EventWrapper, Never},
-        ffi::{
-            id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
-            CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSInteger,
-            NSOperatingSystemVersion, NSUInteger,
-        },
-    },
-    window::WindowId as RootWindowId,
+use crate::dpi::LogicalSize;
+use crate::event::{Event, StartCause, WindowEvent};
+use crate::event_loop::ControlFlow;
+use crate::platform_impl::platform::event_loop::{EventHandler, EventProxy, EventWrapper, Never};
+use crate::platform_impl::platform::ffi::{
+    id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
+    CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
+    CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSInteger,
+    NSOperatingSystemVersion, NSUInteger,
 };
+use crate::window::WindowId as RootWindowId;
 
 macro_rules! bug {
     ($($msg:tt)*) => {
@@ -106,21 +99,15 @@ struct AppState {
 impl Drop for AppState {
     fn drop(&mut self) {
         match self.state_mut() {
-            &mut AppStateImpl::NotLaunched {
-                ref mut queued_windows,
-                ..
-            }
-            | &mut AppStateImpl::Launching {
-                ref mut queued_windows,
-                ..
-            } => {
+            &mut AppStateImpl::NotLaunched { ref mut queued_windows, .. }
+            | &mut AppStateImpl::Launching { ref mut queued_windows, .. } => {
                 for &mut window in queued_windows {
                     unsafe {
                         let _: () = msg_send![window, release];
                     }
                 }
-            }
-            _ => {}
+            },
+            _ => {},
         }
     }
 }
@@ -197,19 +184,14 @@ impl AppState {
     }
 
     fn has_launched(&self) -> bool {
-        !matches!(
-            self.state(),
-            AppStateImpl::NotLaunched { .. } | AppStateImpl::Launching { .. }
-        )
+        !matches!(self.state(), AppStateImpl::NotLaunched { .. } | AppStateImpl::Launching { .. })
     }
 
     fn will_launch_transition(&mut self, queued_event_handler: Box<dyn EventHandler>) {
         let (queued_windows, queued_events, queued_gpu_redraws) = match self.take_state() {
-            AppStateImpl::NotLaunched {
-                queued_windows,
-                queued_events,
-                queued_gpu_redraws,
-            } => (queued_windows, queued_events, queued_gpu_redraws),
+            AppStateImpl::NotLaunched { queued_windows, queued_events, queued_gpu_redraws } => {
+                (queued_windows, queued_events, queued_gpu_redraws)
+            },
             s => bug!("unexpected state {:?}", s),
         };
         self.set_state(AppStateImpl::Launching {
@@ -227,12 +209,7 @@ impl AppState {
                 queued_events,
                 queued_event_handler,
                 queued_gpu_redraws,
-            } => (
-                queued_windows,
-                queued_events,
-                queued_event_handler,
-                queued_gpu_redraws,
-            ),
+            } => (queued_windows, queued_events, queued_event_handler, queued_gpu_redraws),
             s => bug!("unexpected state {:?}", s),
         };
         self.set_state(AppStateImpl::ProcessingEvents {
@@ -251,22 +228,11 @@ impl AppState {
         }
 
         let (event_handler, event) = match (self.control_flow, self.take_state()) {
-            (
-                ControlFlow::Poll,
-                AppStateImpl::PollFinished {
-                    waiting_event_handler,
-                },
-            ) => (
+            (ControlFlow::Poll, AppStateImpl::PollFinished { waiting_event_handler }) => (
                 waiting_event_handler,
                 EventWrapper::StaticEvent(Event::NewEvents(StartCause::Poll)),
             ),
-            (
-                ControlFlow::Wait,
-                AppStateImpl::Waiting {
-                    waiting_event_handler,
-                    start,
-                },
-            ) => (
+            (ControlFlow::Wait, AppStateImpl::Waiting { waiting_event_handler, start }) => (
                 waiting_event_handler,
                 EventWrapper::StaticEvent(Event::NewEvents(StartCause::WaitCancelled {
                     start,
@@ -275,10 +241,7 @@ impl AppState {
             ),
             (
                 ControlFlow::WaitUntil(requested_resume),
-                AppStateImpl::Waiting {
-                    waiting_event_handler,
-                    start,
-                },
+                AppStateImpl::Waiting { waiting_event_handler, start },
             ) => {
                 let event = if Instant::now() >= requested_resume {
                     EventWrapper::StaticEvent(Event::NewEvents(StartCause::ResumeTimeReached {
@@ -292,7 +255,7 @@ impl AppState {
                     }))
                 };
                 (waiting_event_handler, event)
-            }
+            },
             (ControlFlow::ExitWithCode(_), _) => bug!("unexpected `ControlFlow` `Exit`"),
             s => bug!("`EventHandler` unexpectedly woke up {:?}", s),
         };
@@ -309,18 +272,9 @@ impl AppState {
         // If we're not able to process an event due to recursion or `Init` not having been sent out
         // yet, then queue the events up.
         match self.state_mut() {
-            &mut AppStateImpl::Launching {
-                ref mut queued_events,
-                ..
-            }
-            | &mut AppStateImpl::NotLaunched {
-                ref mut queued_events,
-                ..
-            }
-            | &mut AppStateImpl::InUserCallback {
-                ref mut queued_events,
-                ..
-            } => {
+            &mut AppStateImpl::Launching { ref mut queued_events, .. }
+            | &mut AppStateImpl::NotLaunched { ref mut queued_events, .. }
+            | &mut AppStateImpl::InUserCallback { ref mut queued_events, .. } => {
                 // A lifetime cast: early returns are not currently handled well with NLL, but
                 // polonius handles them well. This transmute is a safe workaround.
                 return unsafe {
@@ -331,16 +285,16 @@ impl AppState {
                         queued_events,
                     })
                 };
-            }
+            },
 
             &mut AppStateImpl::ProcessingEvents { .. }
-            | &mut AppStateImpl::ProcessingRedraws { .. } => {}
+            | &mut AppStateImpl::ProcessingRedraws { .. } => {},
 
             s @ &mut AppStateImpl::PollFinished { .. }
             | s @ &mut AppStateImpl::Waiting { .. }
             | s @ &mut AppStateImpl::Terminated => {
                 bug!("unexpected attempted to process an event {:?}", s)
-            }
+            },
         }
 
         let (event_handler, queued_gpu_redraws, active_control_flow, processing_redraws) =
@@ -352,16 +306,10 @@ impl AppState {
                     event_handler,
                     queued_gpu_redraws,
                     active_control_flow,
-                } => (
-                    event_handler,
-                    queued_gpu_redraws,
-                    active_control_flow,
-                    false,
-                ),
-                AppStateImpl::ProcessingRedraws {
-                    event_handler,
-                    active_control_flow,
-                } => (event_handler, Default::default(), active_control_flow, true),
+                } => (event_handler, queued_gpu_redraws, active_control_flow, false),
+                AppStateImpl::ProcessingRedraws { event_handler, active_control_flow } => {
+                    (event_handler, Default::default(), active_control_flow, true)
+                },
                 AppStateImpl::PollFinished { .. }
                 | AppStateImpl::Waiting { .. }
                 | AppStateImpl::Terminated => unreachable!(),
@@ -386,10 +334,7 @@ impl AppState {
             } => (event_handler, queued_gpu_redraws, active_control_flow),
             s => bug!("unexpected state {:?}", s),
         };
-        self.set_state(AppStateImpl::ProcessingRedraws {
-            event_handler,
-            active_control_flow,
-        });
+        self.set_state(AppStateImpl::ProcessingRedraws { event_handler, active_control_flow });
         queued_gpu_redraws
     }
 
@@ -398,72 +343,54 @@ impl AppState {
             return;
         }
         let (waiting_event_handler, old) = match self.take_state() {
-            AppStateImpl::ProcessingRedraws {
-                event_handler,
-                active_control_flow,
-            } => (event_handler, active_control_flow),
+            AppStateImpl::ProcessingRedraws { event_handler, active_control_flow } => {
+                (event_handler, active_control_flow)
+            },
             s => bug!("unexpected state {:?}", s),
         };
 
         let new = self.control_flow;
         match (old, new) {
-            (ControlFlow::Poll, ControlFlow::Poll) => self.set_state(AppStateImpl::PollFinished {
-                waiting_event_handler,
-            }),
+            (ControlFlow::Poll, ControlFlow::Poll) => {
+                self.set_state(AppStateImpl::PollFinished { waiting_event_handler })
+            },
             (ControlFlow::Wait, ControlFlow::Wait) => {
                 let start = Instant::now();
-                self.set_state(AppStateImpl::Waiting {
-                    waiting_event_handler,
-                    start,
-                });
-            }
+                self.set_state(AppStateImpl::Waiting { waiting_event_handler, start });
+            },
             (ControlFlow::WaitUntil(old_instant), ControlFlow::WaitUntil(new_instant))
                 if old_instant == new_instant =>
             {
                 let start = Instant::now();
-                self.set_state(AppStateImpl::Waiting {
-                    waiting_event_handler,
-                    start,
-                });
-            }
+                self.set_state(AppStateImpl::Waiting { waiting_event_handler, start });
+            },
             (_, ControlFlow::Wait) => {
                 let start = Instant::now();
-                self.set_state(AppStateImpl::Waiting {
-                    waiting_event_handler,
-                    start,
-                });
+                self.set_state(AppStateImpl::Waiting { waiting_event_handler, start });
                 self.waker.stop()
-            }
+            },
             (_, ControlFlow::WaitUntil(new_instant)) => {
                 let start = Instant::now();
-                self.set_state(AppStateImpl::Waiting {
-                    waiting_event_handler,
-                    start,
-                });
+                self.set_state(AppStateImpl::Waiting { waiting_event_handler, start });
                 self.waker.start_at(new_instant)
-            }
+            },
             (_, ControlFlow::Poll) => {
-                self.set_state(AppStateImpl::PollFinished {
-                    waiting_event_handler,
-                });
+                self.set_state(AppStateImpl::PollFinished { waiting_event_handler });
                 self.waker.start()
-            }
+            },
             (_, ControlFlow::ExitWithCode(_)) => {
                 // https://developer.apple.com/library/archive/qa/qa1561/_index.html
                 // it is not possible to quit an iOS app gracefully and programatically
                 warn!("`ControlFlow::Exit` ignored on iOS");
                 self.control_flow = old
-            }
+            },
         }
     }
 
     fn terminated_transition(&mut self) -> Box<dyn EventHandler> {
         match self.replace_state(AppStateImpl::Terminated) {
             AppStateImpl::ProcessingEvents { event_handler, .. } => event_handler,
-            s => bug!(
-                "`LoopDestroyed` happened while not processing events {:?}",
-                s
-            ),
+            s => bug!("`LoopDestroyed` happened while not processing events {:?}", s),
         }
     }
 }
@@ -480,19 +407,18 @@ pub unsafe fn set_key_window(window: id) {
     );
     let mut this = AppState::get_mut();
     match this.state_mut() {
-        &mut AppStateImpl::NotLaunched {
-            ref mut queued_windows,
-            ..
-        } => return queued_windows.push(msg_send![window, retain]),
+        &mut AppStateImpl::NotLaunched { ref mut queued_windows, .. } => {
+            return queued_windows.push(msg_send![window, retain])
+        },
         &mut AppStateImpl::ProcessingEvents { .. }
         | &mut AppStateImpl::InUserCallback { .. }
-        | &mut AppStateImpl::ProcessingRedraws { .. } => {}
+        | &mut AppStateImpl::ProcessingRedraws { .. } => {},
         s @ &mut AppStateImpl::Launching { .. }
         | s @ &mut AppStateImpl::Waiting { .. }
         | s @ &mut AppStateImpl::PollFinished { .. } => bug!("unexpected state {:?}", s),
         &mut AppStateImpl::Terminated => {
             panic!("Attempt to create a `Window` after the app has terminated")
-        }
+        },
     }
     drop(this);
     msg_send![window, makeKeyAndVisible]
@@ -510,30 +436,18 @@ pub unsafe fn queue_gl_or_metal_redraw(window: id) {
     );
     let mut this = AppState::get_mut();
     match this.state_mut() {
-        &mut AppStateImpl::NotLaunched {
-            ref mut queued_gpu_redraws,
-            ..
-        }
-        | &mut AppStateImpl::Launching {
-            ref mut queued_gpu_redraws,
-            ..
-        }
-        | &mut AppStateImpl::ProcessingEvents {
-            ref mut queued_gpu_redraws,
-            ..
-        }
-        | &mut AppStateImpl::InUserCallback {
-            ref mut queued_gpu_redraws,
-            ..
-        } => {
+        &mut AppStateImpl::NotLaunched { ref mut queued_gpu_redraws, .. }
+        | &mut AppStateImpl::Launching { ref mut queued_gpu_redraws, .. }
+        | &mut AppStateImpl::ProcessingEvents { ref mut queued_gpu_redraws, .. }
+        | &mut AppStateImpl::InUserCallback { ref mut queued_gpu_redraws, .. } => {
             let _ = queued_gpu_redraws.insert(window);
-        }
+        },
         s @ &mut AppStateImpl::ProcessingRedraws { .. }
         | s @ &mut AppStateImpl::Waiting { .. }
         | s @ &mut AppStateImpl::PollFinished { .. } => bug!("unexpected state {:?}", s),
         &mut AppStateImpl::Terminated => {
             panic!("Attempt to create a `Window` after the app has terminated")
-        }
+        },
     }
 
     drop(this);
@@ -591,10 +505,8 @@ pub unsafe fn did_finish_launching() {
 
     let (windows, events) = AppState::get_mut().did_finish_launching_transition();
 
-    let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(
-        StartCause::Init,
-    )))
-    .chain(events);
+    let events = std::iter::once(EventWrapper::StaticEvent(Event::NewEvents(StartCause::Init)))
+        .chain(events);
     handle_nonuser_events(events);
 
     // the above window dance hack, could possibly trigger new windows to be created.
@@ -635,7 +547,7 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
             UserCallbackTransitionResult::ReentrancyPrevented { queued_events } => {
                 queued_events.extend(events);
                 return;
-            }
+            },
             UserCallbackTransitionResult::Success {
                 event_handler,
                 active_control_flow,
@@ -657,28 +569,26 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
                     );
                 }
                 event_handler.handle_nonuser_event(event, &mut control_flow)
-            }
+            },
             EventWrapper::EventProxy(proxy) => {
                 handle_event_proxy(&mut event_handler, control_flow, proxy)
-            }
+            },
         }
     }
 
     loop {
         let mut this = AppState::get_mut();
         let queued_events = match this.state_mut() {
-            &mut AppStateImpl::InUserCallback {
-                ref mut queued_events,
-                queued_gpu_redraws: _,
-            } => mem::take(queued_events),
+            &mut AppStateImpl::InUserCallback { ref mut queued_events, queued_gpu_redraws: _ } => {
+                mem::take(queued_events)
+            },
             s => bug!("unexpected state {:?}", s),
         };
         if queued_events.is_empty() {
             let queued_gpu_redraws = match this.take_state() {
-                AppStateImpl::InUserCallback {
-                    queued_events: _,
-                    queued_gpu_redraws,
-                } => queued_gpu_redraws,
+                AppStateImpl::InUserCallback { queued_events: _, queued_gpu_redraws } => {
+                    queued_gpu_redraws
+                },
                 _ => unreachable!(),
             };
             this.app_state = Some(if processing_redraws {
@@ -686,10 +596,7 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
                     queued_gpu_redraws.is_empty(),
                     "redraw queued while processing redraws"
                 );
-                AppStateImpl::ProcessingRedraws {
-                    event_handler,
-                    active_control_flow,
-                }
+                AppStateImpl::ProcessingRedraws { event_handler, active_control_flow }
             } else {
                 AppStateImpl::ProcessingEvents {
                     event_handler,
@@ -709,15 +616,16 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
                         log::info!("processing `RedrawRequested` during the main event loop");
                     } else if processing_redraws && !event.is_redraw() {
                         log::warn!(
-                            "processing non-`RedrawRequested` event after the main event loop: {:#?}",
+                            "processing non-`RedrawRequested` event after the main event loop: \
+                             {:#?}",
                             event
                         );
                     }
                     event_handler.handle_nonuser_event(event, &mut control_flow)
-                }
+                },
                 EventWrapper::EventProxy(proxy) => {
                     handle_event_proxy(&mut event_handler, control_flow, proxy)
-                }
+                },
             }
         }
     }
@@ -731,7 +639,7 @@ unsafe fn handle_user_events() {
         match this.try_user_callback_transition() {
             UserCallbackTransitionResult::ReentrancyPrevented { .. } => {
                 bug!("unexpected attempted to process an event")
-            }
+            },
             UserCallbackTransitionResult::Success {
                 event_handler,
                 active_control_flow,
@@ -748,18 +656,16 @@ unsafe fn handle_user_events() {
     loop {
         let mut this = AppState::get_mut();
         let queued_events = match this.state_mut() {
-            &mut AppStateImpl::InUserCallback {
-                ref mut queued_events,
-                queued_gpu_redraws: _,
-            } => mem::take(queued_events),
+            &mut AppStateImpl::InUserCallback { ref mut queued_events, queued_gpu_redraws: _ } => {
+                mem::take(queued_events)
+            },
             s => bug!("unexpected state {:?}", s),
         };
         if queued_events.is_empty() {
             let queued_gpu_redraws = match this.take_state() {
-                AppStateImpl::InUserCallback {
-                    queued_events: _,
-                    queued_gpu_redraws,
-                } => queued_gpu_redraws,
+                AppStateImpl::InUserCallback { queued_events: _, queued_gpu_redraws } => {
+                    queued_gpu_redraws
+                },
                 _ => unreachable!(),
             };
             this.app_state = Some(AppStateImpl::ProcessingEvents {
@@ -776,10 +682,10 @@ unsafe fn handle_user_events() {
             match wrapper {
                 EventWrapper::StaticEvent(event) => {
                     event_handler.handle_nonuser_event(event, &mut control_flow)
-                }
+                },
                 EventWrapper::EventProxy(proxy) => {
                     handle_event_proxy(&mut event_handler, control_flow, proxy)
-                }
+                },
             }
         }
         event_handler.handle_user_events(&mut control_flow);
@@ -793,7 +699,7 @@ pub unsafe fn handle_main_events_cleared() {
         return;
     }
     match this.state_mut() {
-        &mut AppStateImpl::ProcessingEvents { .. } => {}
+        &mut AppStateImpl::ProcessingEvents { .. } => {},
         _ => bug!("`ProcessingRedraws` happened unexpectedly"),
     };
     drop(this);
@@ -838,17 +744,9 @@ fn handle_event_proxy(
     proxy: EventProxy,
 ) {
     match proxy {
-        EventProxy::DpiChangedProxy {
-            suggested_size,
-            scale_factor,
-            window_id,
-        } => handle_hidpi_proxy(
-            event_handler,
-            control_flow,
-            suggested_size,
-            scale_factor,
-            window_id,
-        ),
+        EventProxy::DpiChangedProxy { suggested_size, scale_factor, window_id } => {
+            handle_hidpi_proxy(event_handler, control_flow, suggested_size, scale_factor, window_id)
+        },
     }
 }
 
@@ -863,10 +761,7 @@ fn handle_hidpi_proxy(
     let new_inner_size = &mut size;
     let event = Event::WindowEvent {
         window_id: RootWindowId(window_id.into()),
-        event: WindowEvent::ScaleFactorChanged {
-            scale_factor,
-            new_inner_size,
-        },
+        event: WindowEvent::ScaleFactorChanged { scale_factor, new_inner_size },
     };
     event_handler.handle_nonuser_event(event, &mut control_flow);
     let (view, screen_frame) = get_view_and_screen_frame(window_id);
@@ -1019,21 +914,17 @@ pub fn os_capabilities() -> OSCapabilities {
     static OS_CAPABILITIES: Lazy<OSCapabilities> = Lazy::new(|| {
         let version: NSOperatingSystemVersion = unsafe {
             let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
-            let atleast_ios_8: BOOL = msg_send![
-                process_info,
-                respondsToSelector: sel!(operatingSystemVersion)
-            ];
-            // winit requires atleast iOS 8 because no one has put the time into supporting earlier os versions.
-            // Older iOS versions are increasingly difficult to test. For example, Xcode 11 does not support
-            // debugging on devices with an iOS version of less than 8. Another example, in order to use an iOS
-            // simulator older than iOS 8, you must download an older version of Xcode (<9), and at least Xcode 7
-            // has been tested to not even run on macOS 10.15 - Xcode 8 might?
+            let atleast_ios_8: BOOL =
+                msg_send![process_info, respondsToSelector: sel!(operatingSystemVersion)];
+            // winit requires atleast iOS 8 because no one has put the time into supporting earlier
+            // os versions. Older iOS versions are increasingly difficult to test. For
+            // example, Xcode 11 does not support debugging on devices with an iOS
+            // version of less than 8. Another example, in order to use an iOS simulator
+            // older than iOS 8, you must download an older version of Xcode (<9), and at least
+            // Xcode 7 has been tested to not even run on macOS 10.15 - Xcode 8 might?
             //
             // The minimum required iOS version is likely to grow in the future.
-            assert!(
-                atleast_ios_8 == YES,
-                "`winit` requires iOS version 8 or greater"
-            );
+            assert!(atleast_ios_8 == YES, "`winit` requires iOS version 8 or greater");
             msg_send![process_info, operatingSystemVersion]
         };
         version.into()

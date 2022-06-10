@@ -1,11 +1,7 @@
-use std::{
-    env,
-    ffi::{CStr, CString, IntoStringError},
-    fmt,
-    os::raw::c_char,
-    ptr,
-    sync::Arc,
-};
+use std::ffi::{CStr, CString, IntoStringError};
+use std::os::raw::c_char;
+use std::sync::Arc;
+use std::{env, fmt, ptr};
 
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -20,16 +16,11 @@ unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<f
     // XSetLocaleModifiers returns...
     // * The current locale modifiers if it's given a NULL pointer.
     // * The new locale modifiers if we succeeded in setting them.
-    // * NULL if the locale modifiers string is malformed or if the
-    //   current locale is not supported by Xlib.
+    // * NULL if the locale modifiers string is malformed or if the current locale is not supported
+    //   by Xlib.
     (xconn.xlib.XSetLocaleModifiers)(locale_modifiers.as_ptr());
 
-    let im = (xconn.xlib.XOpenIM)(
-        xconn.display,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        ptr::null_mut(),
-    );
+    let im = (xconn.xlib.XOpenIM)(xconn.display, ptr::null_mut(), ptr::null_mut(), ptr::null_mut());
 
     if im.is_null() {
         None
@@ -134,10 +125,7 @@ impl InputMethodName {
     pub fn from_str(string: &str) -> Self {
         let c_string =
             CString::new(string).expect("String used to construct CString contained null byte");
-        InputMethodName {
-            c_string,
-            string: string.to_owned(),
-        }
+        InputMethodName { c_string, string: string.to_owned() }
     }
 }
 
@@ -155,17 +143,11 @@ struct PotentialInputMethod {
 
 impl PotentialInputMethod {
     pub fn from_string(string: String) -> Self {
-        PotentialInputMethod {
-            name: InputMethodName::from_string(string),
-            successful: None,
-        }
+        PotentialInputMethod { name: InputMethodName::from_string(string), successful: None }
     }
 
     pub fn from_str(string: &str) -> Self {
-        PotentialInputMethod {
-            name: InputMethodName::from_str(string),
-            successful: None,
-        }
+        PotentialInputMethod { name: InputMethodName::from_str(string), successful: None }
     }
 
     pub fn reset(&mut self) {
@@ -199,9 +181,7 @@ pub struct PotentialInputMethods {
 
 impl PotentialInputMethods {
     pub fn new(xconn: &Arc<XConnection>) -> Self {
-        let xmodifiers = env::var("XMODIFIERS")
-            .ok()
-            .map(PotentialInputMethod::from_string);
+        let xmodifiers = env::var("XMODIFIERS").ok().map(PotentialInputMethod::from_string);
         PotentialInputMethods {
             // Since passing "" to XSetLocaleModifiers results in it defaulting to the value of
             // XMODIFIERS, it's worth noting what happens if XMODIFIERS is also "". If simply

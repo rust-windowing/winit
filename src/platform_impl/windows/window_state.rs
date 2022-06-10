@@ -1,25 +1,21 @@
-use crate::{
-    dpi::{PhysicalPosition, Size},
-    event::ModifiersState,
-    icon::Icon,
-    platform_impl::platform::{event_loop, util},
-    window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
-};
+use crate::dpi::{PhysicalPosition, Size};
+use crate::event::ModifiersState;
+use crate::icon::Icon;
+use crate::platform_impl::platform::{event_loop, util};
+use crate::window::{CursorIcon, Fullscreen, Theme, WindowAttributes};
 use parking_lot::MutexGuard;
 use std::io;
-use windows_sys::Win32::{
-    Foundation::{HWND, RECT},
-    Graphics::Gdi::InvalidateRgn,
-    UI::WindowsAndMessaging::{
-        SendMessageW, SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE,
-        HWND_NOTOPMOST, HWND_TOPMOST, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE,
-        SW_SHOW, WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD,
-        WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
-        WS_EX_LEFT, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE,
-        WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPED,
-        WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
-    },
+use windows_sys::Win32::Foundation::{HWND, RECT};
+use windows_sys::Win32::Graphics::Gdi::InvalidateRgn;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    SendMessageW, SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE, HWND_NOTOPMOST,
+    HWND_TOPMOST, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WINDOWPLACEMENT,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN,
+    WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_LEFT,
+    WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE,
+    WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_OVERLAPPEDWINDOW, WS_POPUP,
+    WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
 };
 
 /// Contains information about states and the window that the callback is going to use.
@@ -188,7 +184,7 @@ impl MouseProperties {
             Err(e) => {
                 self.cursor_flags = old_flags;
                 return Err(e);
-            }
+            },
         }
 
         Ok(())
@@ -271,13 +267,10 @@ impl WindowFlags {
 
         if diff.contains(WindowFlags::VISIBLE) {
             unsafe {
-                ShowWindow(
-                    window,
-                    match new.contains(WindowFlags::VISIBLE) {
-                        true => SW_SHOW,
-                        false => SW_HIDE,
-                    },
-                );
+                ShowWindow(window, match new.contains(WindowFlags::VISIBLE) {
+                    true => SW_SHOW,
+                    false => SW_HIDE,
+                });
             }
         }
         if diff.contains(WindowFlags::ALWAYS_ON_TOP) {
@@ -300,26 +293,20 @@ impl WindowFlags {
 
         if diff.contains(WindowFlags::MAXIMIZED) || new.contains(WindowFlags::MAXIMIZED) {
             unsafe {
-                ShowWindow(
-                    window,
-                    match new.contains(WindowFlags::MAXIMIZED) {
-                        true => SW_MAXIMIZE,
-                        false => SW_RESTORE,
-                    },
-                );
+                ShowWindow(window, match new.contains(WindowFlags::MAXIMIZED) {
+                    true => SW_MAXIMIZE,
+                    false => SW_RESTORE,
+                });
             }
         }
 
         // Minimize operations should execute after maximize for proper window animations
         if diff.contains(WindowFlags::MINIMIZED) {
             unsafe {
-                ShowWindow(
-                    window,
-                    match new.contains(WindowFlags::MINIMIZED) {
-                        true => SW_MINIMIZE,
-                        false => SW_RESTORE,
-                    },
-                );
+                ShowWindow(window, match new.contains(WindowFlags::MINIMIZED) {
+                    true => SW_MINIMIZE,
+                    false => SW_RESTORE,
+                });
             }
         }
 
@@ -374,8 +361,9 @@ impl CursorFlags {
             };
 
             // We do this check because calling `set_cursor_clip` incessantly will flood the event
-            // loop with `WM_MOUSEMOVE` events, and `refresh_os_cursor` is called by `set_cursor_flags`
-            // which at times gets called once every iteration of the eventloop.
+            // loop with `WM_MOUSEMOVE` events, and `refresh_os_cursor` is called by
+            // `set_cursor_flags` which at times gets called once every iteration of the
+            // eventloop.
             if active_cursor_clip != cursor_clip.map(rect_to_tuple) {
                 util::set_cursor_clip(cursor_clip)?;
             }

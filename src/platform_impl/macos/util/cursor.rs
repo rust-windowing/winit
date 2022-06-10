@@ -1,9 +1,7 @@
-use cocoa::{
-    appkit::NSImage,
-    base::{id, nil},
-    foundation::{NSDictionary, NSPoint, NSString},
-};
-use objc::{runtime::Sel, runtime::NO};
+use cocoa::appkit::NSImage;
+use cocoa::base::{id, nil};
+use cocoa::foundation::{NSDictionary, NSPoint, NSString};
+use objc::runtime::{Sel, NO};
 use std::cell::RefCell;
 
 use crate::window::CursorIcon;
@@ -28,7 +26,7 @@ impl From<CursorIcon> for Cursor {
             CursorIcon::Alias => Cursor::Native("dragLinkCursor"),
             CursorIcon::NotAllowed | CursorIcon::NoDrop => {
                 Cursor::Native("operationNotAllowedCursor")
-            }
+            },
             CursorIcon::ContextMenu => Cursor::Native("contextualMenuCursor"),
             CursorIcon::Crosshair => Cursor::Native("crosshairCursor"),
             CursorIcon::EResize => Cursor::Native("resizeRightCursor"),
@@ -60,7 +58,7 @@ impl From<CursorIcon> for Cursor {
             // what's used in Safari and Chrome.
             CursorIcon::Wait | CursorIcon::Progress => {
                 Cursor::Undocumented("busyButClickableCursor")
-            }
+            },
 
             // For the rest, we can just snatch the cursors from WebKit...
             // They fit the style of the native cursors, and will seem
@@ -84,7 +82,7 @@ impl Cursor {
             Cursor::Native(cursor_name) => {
                 let sel = Sel::register(cursor_name);
                 msg_send![class!(NSCursor), performSelector: sel]
-            }
+            },
             Cursor::Undocumented(cursor_name) => {
                 let class = class!(NSCursor);
                 let sel = Sel::register(cursor_name);
@@ -95,7 +93,7 @@ impl Cursor {
                     sel!(arrowCursor)
                 };
                 msg_send![class, performSelector: sel]
-            }
+            },
             Cursor::WebKit(cursor_name) => load_webkit_cursor(cursor_name),
         }
     }
@@ -104,7 +102,8 @@ impl Cursor {
 // Note that loading `busybutclickable` with this code won't animate the frames;
 // instead you'll just get them all in a column.
 pub unsafe fn load_webkit_cursor(cursor_name: &str) -> id {
-    static CURSOR_ROOT: &str = "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/Resources/cursors";
+    static CURSOR_ROOT: &str = "/System/Library/Frameworks/ApplicationServices.framework/Versions/\
+                                A/Frameworks/HIServices.framework/Versions/A/Resources/cursors";
     let cursor_root = NSString::alloc(nil).init_str(CURSOR_ROOT);
     let cursor_name = NSString::alloc(nil).init_str(cursor_name);
     let cursor_pdf = NSString::alloc(nil).init_str("cursor.pdf");

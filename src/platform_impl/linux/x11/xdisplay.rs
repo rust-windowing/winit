@@ -1,4 +1,7 @@
-use std::{collections::HashMap, error::Error, fmt, os::raw::c_int, ptr};
+use std::collections::HashMap;
+use std::error::Error;
+use std::os::raw::c_int;
+use std::{fmt, ptr};
 
 use libc;
 use parking_lot::Mutex;

@@ -10,11 +10,9 @@ use std::os::raw;
 #[cfg(feature = "x11")]
 use std::{ptr, sync::Arc};
 
-use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
-    monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
-};
+use crate::event_loop::{EventLoopBuilder, EventLoopWindowTarget};
+use crate::monitor::MonitorHandle;
+use crate::window::{Window, WindowBuilder};
 
 #[cfg(feature = "x11")]
 use crate::dpi::Size;
@@ -88,7 +86,7 @@ impl<T> EventLoopWindowTargetExtUnix for EventLoopWindowTarget<T> {
         match self.p {
             LinuxEventLoopWindowTarget::Wayland(ref p) => {
                 Some(p.display().get_display_ptr() as *mut _)
-            }
+            },
             #[cfg(feature = "x11")]
             _ => None,
         }
@@ -275,7 +273,7 @@ impl WindowExtUnix for Window {
         match self.window {
             LinuxWindow::Wayland(ref w) => w.set_csd_theme(theme),
             #[cfg(feature = "x11")]
-            _ => {}
+            _ => {},
         }
     }
 
@@ -299,7 +297,8 @@ pub trait WindowBuilderExtUnix {
     /// file destributed with your program. The `instance` is a `no-op`.
     ///
     /// On X11, the `general` sets general class of `WM_CLASS(STRING)`, while `instance` set the
-    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "general", "instance"`.
+    /// instance part of it. The resulted property looks like `WM_CLASS(STRING) = "general",
+    /// "instance"`.
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
@@ -313,7 +312,8 @@ pub trait WindowBuilderExtUnix {
     #[cfg(feature = "x11")]
     fn with_x11_window_type(self, x11_window_type: Vec<XWindowType>) -> Self;
 
-    /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
+    /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only
+    /// relevant on X11.
     #[cfg(feature = "x11")]
     fn with_gtk_theme_variant(self, variant: String) -> Self;
 

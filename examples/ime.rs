@@ -2,18 +2,13 @@
 
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
-use winit::{
-    dpi::PhysicalPosition,
-    event::{ElementState, Event, Ime, VirtualKeyCode, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder,
-};
+use winit::dpi::PhysicalPosition;
+use winit::event::{ElementState, Event, Ime, VirtualKeyCode, WindowEvent};
+use winit::event_loop::{ControlFlow, EventLoop};
+use winit::window::WindowBuilder;
 
 fn main() {
-    SimpleLogger::new()
-        .with_level(LevelFilter::Trace)
-        .init()
-        .unwrap();
+    SimpleLogger::new().with_level(LevelFilter::Trace).init().unwrap();
 
     println!("IME position will system default");
     println!("Click to set IME position to cursor's");
@@ -36,53 +31,33 @@ fn main() {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
-            Event::WindowEvent {
-                event: WindowEvent::CloseRequested,
-                ..
-            } => *control_flow = ControlFlow::Exit,
-            Event::WindowEvent {
-                event: WindowEvent::CursorMoved { position, .. },
-                ..
-            } => {
+            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
+                *control_flow = ControlFlow::Exit
+            },
+            Event::WindowEvent { event: WindowEvent::CursorMoved { position, .. }, .. } => {
                 cursor_position = position;
-            }
+            },
             Event::WindowEvent {
-                event:
-                    WindowEvent::MouseInput {
-                        state: ElementState::Released,
-                        ..
-                    },
+                event: WindowEvent::MouseInput { state: ElementState::Released, .. },
                 ..
             } => {
-                println!(
-                    "Setting ime position to {}, {}",
-                    cursor_position.x, cursor_position.y
-                );
+                println!("Setting ime position to {}, {}", cursor_position.x, cursor_position.y);
                 ime_pos = cursor_position;
                 if may_show_ime {
                     window.set_ime_position(ime_pos);
                 }
-            }
-            Event::WindowEvent {
-                event: WindowEvent::Ime(event),
-                ..
-            } => {
+            },
+            Event::WindowEvent { event: WindowEvent::Ime(event), .. } => {
                 println!("{:?}", event);
                 may_show_ime = event != Ime::Disabled;
                 if may_show_ime {
                     window.set_ime_position(ime_pos);
                 }
-            }
-            Event::WindowEvent {
-                event: WindowEvent::ReceivedCharacter(ch),
-                ..
-            } => {
+            },
+            Event::WindowEvent { event: WindowEvent::ReceivedCharacter(ch), .. } => {
                 println!("ch: {:?}", ch);
-            }
-            Event::WindowEvent {
-                event: WindowEvent::KeyboardInput { input, .. },
-                ..
-            } => {
+            },
+            Event::WindowEvent { event: WindowEvent::KeyboardInput { input, .. }, .. } => {
                 println!("key: {:?}", input);
 
                 if input.state == ElementState::Pressed
@@ -92,7 +67,7 @@ fn main() {
                     window.set_ime_allowed(ime_allowed);
                     println!("\nIME: {}\n", ime_allowed);
                 }
-            }
+            },
             _ => (),
         }
     });

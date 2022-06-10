@@ -1,14 +1,12 @@
-use std::{fmt, io, mem, path::Path, sync::Arc};
+use std::path::Path;
+use std::sync::Arc;
+use std::{fmt, io, mem};
 
-use windows_sys::{
-    core::PCWSTR,
-    Win32::{
-        Foundation::HWND,
-        UI::WindowsAndMessaging::{
-            CreateIcon, DestroyIcon, LoadImageW, SendMessageW, HICON, ICON_BIG, ICON_SMALL,
-            IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
-        },
-    },
+use windows_sys::core::PCWSTR;
+use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    CreateIcon, DestroyIcon, LoadImageW, SendMessageW, HICON, ICON_BIG, ICON_SMALL, IMAGE_ICON,
+    LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
 };
 
 use crate::dpi::PhysicalSize;
@@ -137,9 +135,7 @@ impl WinIcon {
     }
 
     fn from_handle(handle: HICON) -> Self {
-        Self {
-            inner: Arc::new(RaiiIcon { handle }),
-        }
+        Self { inner: Arc::new(RaiiIcon { handle }) }
     }
 }
 

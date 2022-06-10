@@ -1,5 +1,6 @@
 use crate::platform_impl::PlatformIcon;
-use std::{error::Error, fmt, io, mem};
+use std::error::Error;
+use std::{fmt, io, mem};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -20,12 +21,7 @@ pub enum BadIcon {
     ByteCountNotDivisibleBy4 { byte_count: usize },
     /// Produced when the number of pixels (`rgba.len() / 4`) isn't equal to `width * height`.
     /// At least one of your arguments is incorrect.
-    DimensionsVsPixelCount {
-        width: u32,
-        height: u32,
-        width_x_height: usize,
-        pixel_count: usize,
-    },
+    DimensionsVsPixelCount { width: u32, height: u32, width_x_height: usize, pixel_count: usize },
     /// Produced when underlying OS functionality failed to create the icon
     OsError(io::Error),
 }
@@ -33,19 +29,21 @@ pub enum BadIcon {
 impl fmt::Display for BadIcon {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BadIcon::ByteCountNotDivisibleBy4 { byte_count } => write!(f,
-                "The length of the `rgba` argument ({:?}) isn't divisible by 4, making it impossible to interpret as 32bpp RGBA pixels.",
+            BadIcon::ByteCountNotDivisibleBy4 { byte_count } => write!(
+                f,
+                "The length of the `rgba` argument ({:?}) isn't divisible by 4, making it \
+                 impossible to interpret as 32bpp RGBA pixels.",
                 byte_count,
             ),
-            BadIcon::DimensionsVsPixelCount {
-                width,
-                height,
-                width_x_height,
-                pixel_count,
-            } => write!(f,
-                "The specified dimensions ({:?}x{:?}) don't match the number of pixels supplied by the `rgba` argument ({:?}). For those dimensions, the expected pixel count is {:?}.",
-                width, height, pixel_count, width_x_height,
-            ),
+            BadIcon::DimensionsVsPixelCount { width, height, width_x_height, pixel_count } => {
+                write!(
+                    f,
+                    "The specified dimensions ({:?}x{:?}) don't match the number of pixels \
+                     supplied by the `rgba` argument ({:?}). For those dimensions, the expected \
+                     pixel count is {:?}.",
+                    width, height, pixel_count, width_x_height,
+                )
+            },
             BadIcon::OsError(e) => write!(f, "OS error when instantiating the icon: {:?}", e),
         }
     }
@@ -79,9 +77,7 @@ mod constructors {
         /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
         pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
             if rgba.len() % PIXEL_SIZE != 0 {
-                return Err(BadIcon::ByteCountNotDivisibleBy4 {
-                    byte_count: rgba.len(),
-                });
+                return Err(BadIcon::ByteCountNotDivisibleBy4 { byte_count: rgba.len() });
             }
             let pixel_count = rgba.len() / PIXEL_SIZE;
             if pixel_count != (width * height) as usize {
@@ -92,11 +88,7 @@ mod constructors {
                     pixel_count,
                 })
             } else {
-                Ok(RgbaIcon {
-                    rgba,
-                    width,
-                    height,
-                })
+                Ok(RgbaIcon { rgba, width, height })
             }
         }
     }
@@ -128,8 +120,6 @@ impl Icon {
     /// The length of `rgba` must be divisible by 4, and `width * height` must equal
     /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
     pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
-        Ok(Icon {
-            inner: PlatformIcon::from_rgba(rgba, width, height)?,
-        })
+        Ok(Icon { inner: PlatformIcon::from_rgba(rgba, width, height)? })
     }
 }

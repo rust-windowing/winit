@@ -1,7 +1,8 @@
 //! The `EventLoop` struct and assorted supporting types, including `ControlFlow`.
 //!
-//! If you want to send custom events to the event loop, use [`EventLoop::create_proxy()`][create_proxy]
-//! to acquire an [`EventLoopProxy`][event_loop_proxy] and call its [`send_event`][send_event] method.
+//! If you want to send custom events to the event loop, use
+//! [`EventLoop::create_proxy()`][create_proxy] to acquire an [`EventLoopProxy`][event_loop_proxy]
+//! and call its [`send_event`][send_event] method.
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
@@ -14,7 +15,9 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
 
-use crate::{event::Event, monitor::MonitorHandle, platform_impl};
+use crate::event::Event;
+use crate::monitor::MonitorHandle;
+use crate::platform_impl;
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -29,7 +32,6 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// forbidding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
 /// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
 /// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
-///
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
@@ -69,10 +71,7 @@ impl<T> EventLoopBuilder<T> {
     /// type.
     #[inline]
     pub fn with_user_event() -> Self {
-        Self {
-            platform_specific: Default::default(),
-            _p: PhantomData,
-        }
+        Self { platform_specific: Default::default(), _p: PhantomData }
     }
 
     /// Builds a new event loop.
@@ -80,18 +79,18 @@ impl<T> EventLoopBuilder<T> {
     /// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
     /// Attempting to create the event loop on a different thread will panic. This restriction isn't
     /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
-    /// porting to platforms that require it. `EventLoopBuilderExt::any_thread` functions are exposed
-    /// in the relevant `platform` module if the target platform supports creating an event loop on
-    /// any thread.
+    /// porting to platforms that require it. `EventLoopBuilderExt::any_thread` functions are
+    /// exposed in the relevant `platform` module if the target platform supports creating an
+    /// event loop on any thread.
     ///
     /// Calling this function will result in display backend initialisation.
     ///
     /// ## Platform-specific
     ///
     /// - **Linux:** Backend type can be controlled using an environment variable
-    ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
-    ///   If it is not set, winit will try to connect to a Wayland connection, and if that fails,
-    ///   will fall back on X11. If this variable is set with any other value, winit will panic.
+    ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`. If it is not set, winit will
+    ///   try to connect to a Wayland connection, and if that fails, will fall back on X11. If this
+    ///   variable is set with any other value, winit will panic.
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
         // Certain platforms accept a mutable reference in their API.
@@ -117,8 +116,8 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 
 /// Set by the user callback given to the `EventLoop::run` method.
 ///
-/// Indicates the desired behavior of the event loop after [`Event::RedrawEventsCleared`][events_cleared]
-/// is emitted. Defaults to `Poll`.
+/// Indicates the desired behavior of the event loop after
+/// [`Event::RedrawEventsCleared`][events_cleared] is emitted. Defaults to `Poll`.
 ///
 /// ## Persistency
 /// Almost every change is persistent between multiple calls to the event loop closure within a
@@ -133,26 +132,26 @@ pub enum ControlFlow {
     /// whether or not new events are available to process.
     ///
     /// ## Platform-specific
-    /// - **Web:** Events are queued and usually sent when `requestAnimationFrame` fires but sometimes
-    ///   the events in the queue may be sent before the next `requestAnimationFrame` callback, for
-    ///   example when the scaling of the page has changed. This should be treated as an implementation
-    ///   detail which should not be relied on.
+    /// - **Web:** Events are queued and usually sent when `requestAnimationFrame` fires but
+    ///   sometimes the events in the queue may be sent before the next `requestAnimationFrame`
+    ///   callback, for example when the scaling of the page has changed. This should be treated as
+    ///   an implementation detail which should not be relied on.
     Poll,
     /// When the current loop iteration finishes, suspend the thread until another event arrives.
     Wait,
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
     ///
-    /// Useful for implementing efficient timers. Applications which want to render at the display's
-    /// native refresh rate should instead use `Poll` and the VSync functionality of a graphics API
-    /// to reduce odds of missed frames.
+    /// Useful for implementing efficient timers. Applications which want to render at the
+    /// display's native refresh rate should instead use `Poll` and the VSync functionality of
+    /// a graphics API to reduce odds of missed frames.
     WaitUntil(Instant),
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
     /// result in the `control_flow` parameter being reset to `ExitWithCode`.
     ///
-    /// The contained number will be used as exit code. The [`Exit`] constant is a shortcut for this
-    /// with exit code 0.
+    /// The contained number will be used as exit code. The [`Exit`] constant is a shortcut for
+    /// this with exit code 0.
     ///
     /// ## Platform-specific
     ///
@@ -260,14 +259,13 @@ impl<T> EventLoop<T> {
 
     /// Creates an `EventLoopProxy` that can be used to dispatch user events to the main event loop.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy {
-            event_loop_proxy: self.event_loop.create_proxy(),
-        }
+        EventLoopProxy { event_loop_proxy: self.event_loop.create_proxy() }
     }
 }
 
 impl<T> Deref for EventLoop<T> {
     type Target = EventLoopWindowTarget<T>;
+
     fn deref(&self) -> &EventLoopWindowTarget<T> {
         self.event_loop.window_target()
     }
@@ -277,10 +275,7 @@ impl<T> EventLoopWindowTarget<T> {
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.p
-            .available_monitors()
-            .into_iter()
-            .map(|inner| MonitorHandle { inner })
+        self.p.available_monitors().into_iter().map(|inner| MonitorHandle { inner })
     }
 
     /// Returns the primary monitor of the system.
@@ -325,9 +320,7 @@ pub struct EventLoopProxy<T: 'static> {
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Self {
-            event_loop_proxy: self.event_loop_proxy.clone(),
-        }
+        Self { event_loop_proxy: self.event_loop_proxy.clone() }
     }
 }
 

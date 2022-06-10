@@ -17,19 +17,19 @@ mod view;
 mod window;
 mod window_delegate;
 
-use std::{fmt, ops::Deref, sync::Arc};
+use std::fmt;
+use std::ops::Deref;
+use std::sync::Arc;
 
-pub(crate) use self::{
-    app_delegate::get_aux_state_mut,
-    event_loop::{
-        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
-    },
-    monitor::{MonitorHandle, VideoMode},
-    window::{PlatformSpecificWindowBuilderAttributes, UnownedWindow, WindowId},
+pub(crate) use self::app_delegate::get_aux_state_mut;
+pub(crate) use self::event_loop::{
+    EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
 };
-use crate::{
-    error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
-};
+pub(crate) use self::monitor::{MonitorHandle, VideoMode};
+pub(crate) use self::window::{PlatformSpecificWindowBuilderAttributes, UnownedWindow, WindowId};
+use crate::error::OsError as RootOsError;
+use crate::event::DeviceId as RootDeviceId;
+use crate::window::WindowAttributes;
 use objc::rc::autoreleasepool;
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
@@ -63,6 +63,7 @@ unsafe impl Sync for Window {}
 
 impl Deref for Window {
     type Target = UnownedWindow;
+
     #[inline]
     fn deref(&self) -> &Self::Target {
         &*self.window

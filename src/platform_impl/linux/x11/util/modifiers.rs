@@ -1,4 +1,5 @@
-use std::{collections::HashMap, slice};
+use std::collections::HashMap;
+use std::slice;
 
 use super::*;
 
