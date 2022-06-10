@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 // Limit this example to only compatible platforms.
 #[cfg(any(
     target_os = "windows",

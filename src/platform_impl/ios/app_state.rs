@@ -53,11 +53,7 @@ enum UserCallbackTransitionResult<'a> {
 
 impl Event<'static, Never> {
     fn is_redraw(&self) -> bool {
-        if let Event::RedrawRequested(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Event::RedrawRequested(_))
     }
 }
 
@@ -120,7 +116,7 @@ impl Drop for AppState {
             } => {
                 for &mut window in queued_windows {
                     unsafe {
-                        let () = msg_send![window, release];
+                        let _: () = msg_send![window, release];
                     }
                 }
             }
@@ -201,10 +197,10 @@ impl AppState {
     }
 
     fn has_launched(&self) -> bool {
-        match self.state() {
-            &AppStateImpl::NotLaunched { .. } | &AppStateImpl::Launching { .. } => false,
-            _ => true,
-        }
+        !matches!(
+            self.state(),
+            AppStateImpl::NotLaunched { .. } | AppStateImpl::Launching { .. }
+        )
     }
 
     fn will_launch_transition(&mut self, queued_event_handler: Box<dyn EventHandler>) {
@@ -529,7 +525,9 @@ pub unsafe fn queue_gl_or_metal_redraw(window: id) {
         | &mut AppStateImpl::InUserCallback {
             ref mut queued_gpu_redraws,
             ..
-        } => drop(queued_gpu_redraws.insert(window)),
+        } => {
+            let _ = queued_gpu_redraws.insert(window);
+        }
         s @ &mut AppStateImpl::ProcessingRedraws { .. }
         | s @ &mut AppStateImpl::Waiting { .. }
         | s @ &mut AppStateImpl::PollFinished { .. } => bug!("unexpected state {:?}", s),
@@ -537,6 +535,7 @@ pub unsafe fn queue_gl_or_metal_redraw(window: id) {
             panic!("Attempt to create a `Window` after the app has terminated")
         }
     }
+
     drop(this);
 }
 
@@ -549,7 +548,7 @@ pub unsafe fn will_launch(queued_event_handler: Box<dyn EventHandler>) {
 pub unsafe fn did_finish_launching() {
     let mut this = AppState::get_mut();
     let windows = match this.state_mut() {
-        AppStateImpl::Launching { queued_windows, .. } => mem::replace(queued_windows, Vec::new()),
+        AppStateImpl::Launching { queued_windows, .. } => mem::take(queued_windows),
         s => bug!("unexpected state {:?}", s),
     };
 
@@ -579,15 +578,15 @@ pub unsafe fn did_finish_launching() {
             // ```
             let screen: id = msg_send![window, screen];
             let _: id = msg_send![screen, retain];
-            let () = msg_send![window, setScreen:0 as id];
-            let () = msg_send![window, setScreen: screen];
-            let () = msg_send![screen, release];
+            let _: () = msg_send![window, setScreen:0 as id];
+            let _: () = msg_send![window, setScreen: screen];
+            let _: () = msg_send![screen, release];
             let controller: id = msg_send![window, rootViewController];
-            let () = msg_send![window, setRootViewController:ptr::null::<()>()];
-            let () = msg_send![window, setRootViewController: controller];
-            let () = msg_send![window, makeKeyAndVisible];
+            let _: () = msg_send![window, setRootViewController:ptr::null::<()>()];
+            let _: () = msg_send![window, setRootViewController: controller];
+            let _: () = msg_send![window, makeKeyAndVisible];
         }
-        let () = msg_send![window, release];
+        let _: () = msg_send![window, release];
     }
 
     let (windows, events) = AppState::get_mut().did_finish_launching_transition();
@@ -604,9 +603,9 @@ pub unsafe fn did_finish_launching() {
         let count: NSUInteger = msg_send![window, retainCount];
         // make sure the window is still referenced
         if count > 1 {
-            let () = msg_send![window, makeKeyAndVisible];
+            let _: () = msg_send![window, makeKeyAndVisible];
         }
-        let () = msg_send![window, release];
+        let _: () = msg_send![window, release];
     }
 }
 
@@ -671,7 +670,7 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
             &mut AppStateImpl::InUserCallback {
                 ref mut queued_events,
                 queued_gpu_redraws: _,
-            } => mem::replace(queued_events, Vec::new()),
+            } => mem::take(queued_events),
             s => bug!("unexpected state {:?}", s),
         };
         if queued_events.is_empty() {
@@ -752,7 +751,7 @@ unsafe fn handle_user_events() {
             &mut AppStateImpl::InUserCallback {
                 ref mut queued_events,
                 queued_gpu_redraws: _,
-            } => mem::replace(queued_events, Vec::new()),
+            } => mem::take(queued_events),
             s => bug!("unexpected state {:?}", s),
         };
         if queued_events.is_empty() {
@@ -876,7 +875,7 @@ fn handle_hidpi_proxy(
     let size = CGSize::new(logical_size);
     let new_frame: CGRect = CGRect::new(screen_frame.origin, size);
     unsafe {
-        let () = msg_send![view, setFrame: new_frame];
+        let _: () = msg_send![view, setFrame: new_frame];
     }
 }
 

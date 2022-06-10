@@ -53,6 +53,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** IME input on desktop platforms won't be received unless it's explicitly allowed via `Window::set_ime_allowed` and new `WindowEvent::Ime` events are handled.
 - On macOS, `WindowEvent::Resized` is now emitted in `frameDidChange` instead of `windowDidResize`.
 - **Breaking:** On X11, device events are now ignored for unfocused windows by default, use `EventLoopWindowTarget::set_device_event_filter` to set the filter level.
+- Implemented `Default` on `EventLoop<()>`.
+- Implemented `Eq` for `Fullscreen`, `Theme`, and `UserAttentionType`.
 
 # 0.26.1 (2022-01-05)
 

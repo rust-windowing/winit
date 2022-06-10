@@ -240,7 +240,7 @@ pub struct EventLoop<T: 'static> {
     running: bool,
 }
 
-#[derive(Default, Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 macro_rules! call_event_handler {
@@ -846,18 +846,16 @@ impl MonitorHandle {
 
     pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
         let size = self.size().into();
-        let mut v = Vec::new();
         // FIXME this is not the real refresh rate
-        // (it is guarunteed to support 32 bit color though)
-        v.push(monitor::VideoMode {
+        // (it is guaranteed to support 32 bit color though)
+        std::iter::once(monitor::VideoMode {
             video_mode: VideoMode {
                 size,
                 bit_depth: 32,
                 refresh_rate: 60,
                 monitor: self.clone(),
             },
-        });
-        v.into_iter()
+        })
     }
 }
 

@@ -243,7 +243,7 @@ pub(super) fn init_relative_pointer(
     relative_pointer_manager: &ZwpRelativePointerManagerV1,
     pointer: &WlPointer,
 ) -> ZwpRelativePointerV1 {
-    let relative_pointer = relative_pointer_manager.get_relative_pointer(&*pointer);
+    let relative_pointer = relative_pointer_manager.get_relative_pointer(pointer);
     relative_pointer.quick_assign(move |_, event, mut dispatch_data| {
         let winit_state = dispatch_data.get::<WinitState>().unwrap();
         handlers::handle_relative_pointer(event, winit_state);

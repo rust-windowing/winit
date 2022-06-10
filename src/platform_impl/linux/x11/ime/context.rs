@@ -65,12 +65,10 @@ extern "C" fn preedit_done_callback(
         .expect("failed to send preedit end event");
 }
 
-fn calc_byte_position(text: &Vec<char>, pos: usize) -> usize {
-    let mut byte_pos = 0;
-    for i in 0..pos {
-        byte_pos += text[i].len_utf8();
-    }
-    byte_pos
+fn calc_byte_position(text: &[char], pos: usize) -> usize {
+    text.iter()
+        .take(pos)
+        .fold(0, |byte_pos, text| byte_pos + text.len_utf8())
 }
 
 /// Preedit text information to be drawn inline by the client.

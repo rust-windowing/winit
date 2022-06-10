@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use std::{thread, time};
 
 use simple_logger::SimpleLogger;

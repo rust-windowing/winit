@@ -414,7 +414,7 @@ impl<T: 'static> EventProcessor<T> {
                         // resizing by dragging across monitors *without* dropping the window.
                         let (width, height) = shared_state_lock
                             .dpi_adjusted
-                            .unwrap_or_else(|| (xev.width as u32, xev.height as u32));
+                            .unwrap_or((xev.width as u32, xev.height as u32));
 
                         let last_scale_factor = shared_state_lock.last_monitor.scale_factor;
                         let new_scale_factor = {
@@ -1258,46 +1258,48 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        match self.ime_event_receiver.try_recv() {
-            Ok((window, event)) => match event {
-                ImeEvent::Enabled => {
+        let (window, event) = match self.ime_event_receiver.try_recv() {
+            Ok((window, event)) => (window, event),
+            Err(_) => return,
+        };
+
+        match event {
+            ImeEvent::Enabled => {
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Ime(Ime::Enabled),
+                });
+            }
+            ImeEvent::Start => {
+                self.is_composing = true;
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
+                });
+            }
+            ImeEvent::Update(text, position) => {
+                if self.is_composing {
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Enabled),
+                        event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
                     });
                 }
-                ImeEvent::Start => {
-                    self.is_composing = true;
-                    callback(Event::WindowEvent {
-                        window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
-                    });
-                }
-                ImeEvent::Update(text, position) => {
-                    if self.is_composing {
-                        callback(Event::WindowEvent {
-                            window_id: mkwid(window),
-                            event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
-                        });
-                    }
-                }
-                ImeEvent::End => {
-                    self.is_composing = false;
-                    // Issue empty preedit on `Done`.
-                    callback(Event::WindowEvent {
-                        window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                    });
-                }
-                ImeEvent::Disabled => {
-                    self.is_composing = false;
-                    callback(Event::WindowEvent {
-                        window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Disabled),
-                    });
-                }
-            },
-            Err(_) => (),
+            }
+            ImeEvent::End => {
+                self.is_composing = false;
+                // Issue empty preedit on `Done`.
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                });
+            }
+            ImeEvent::Disabled => {
+                self.is_composing = false;
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Ime(Ime::Disabled),
+                });
+            }
         }
     }
 

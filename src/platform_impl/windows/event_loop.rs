@@ -1976,7 +1976,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 false => old_physical_inner_size,
             };
 
-            let _ = userdata.send_event(Event::WindowEvent {
+            userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,

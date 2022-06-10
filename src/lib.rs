@@ -132,6 +132,9 @@
 
 #![deny(rust_2018_idioms)]
 #![deny(rustdoc::broken_intra_doc_links)]
+#![deny(clippy::all)]
+#![cfg_attr(feature = "cargo-clippy", deny(warnings))]
+#![allow(clippy::missing_safety_doc)]
 
 #[allow(unused_imports)]
 #[macro_use]

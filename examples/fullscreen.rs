@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use std::io::{stdin, stdout, Write};
 
 use simple_logger::SimpleLogger;

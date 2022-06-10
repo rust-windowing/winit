@@ -406,7 +406,8 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
     // Process the rest of the events.
     for (window_id, window_handle) in window_map.iter_mut() {
         let mut requests = window_handle.pending_window_requests.lock().unwrap();
-        for request in requests.drain(..) {
+        let requests = requests.drain(..);
+        for request in requests {
             match request {
                 WindowRequest::Fullscreen(fullscreen) => {
                     window_handle.window.set_fullscreen(fullscreen.as_ref());

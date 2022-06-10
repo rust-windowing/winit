@@ -94,6 +94,8 @@ impl<T> EventLoopBuilder<T> {
     ///   will fall back on X11. If this variable is set with any other value, winit will panic.
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
+        // Certain platforms accept a mutable reference in their API.
+        #[allow(clippy::unnecessary_mut_passed)]
         EventLoop {
             event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
             _marker: PhantomData,
@@ -218,6 +220,12 @@ impl EventLoop<()> {
     #[inline]
     pub fn new() -> EventLoop<()> {
         EventLoopBuilder::new().build()
+    }
+}
+
+impl Default for EventLoop<()> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

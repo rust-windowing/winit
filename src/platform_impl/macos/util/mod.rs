@@ -33,7 +33,7 @@ pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
     length: 0,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct IdRef(id);
 
 impl IdRef {
@@ -61,7 +61,7 @@ impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
             unsafe {
-                let () = msg_send![self.0, release];
+                let _: () = msg_send![self.0, release];
             };
         }
     }
@@ -150,7 +150,7 @@ pub unsafe fn superclass(this: &Object) -> &Class {
 
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
-    let () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
+    let _: () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
 }
 
 pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, on: bool) {

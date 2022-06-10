@@ -456,11 +456,8 @@ impl<T: 'static> Shared<T> {
             ControlFlow::ExitWithCode(_) => State::Exit,
         };
 
-        match *self.0.runner.borrow_mut() {
-            RunnerEnum::Running(ref mut runner) => {
-                runner.state = new_state;
-            }
-            _ => (),
+        if let RunnerEnum::Running(ref mut runner) = *self.0.runner.borrow_mut() {
+            runner.state = new_state;
         }
     }
 

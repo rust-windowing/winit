@@ -1126,7 +1126,7 @@ impl Default for CursorIcon {
 }
 
 /// Fullscreen modes.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Fullscreen {
     Exclusive(VideoMode),
 
@@ -1134,7 +1134,7 @@ pub enum Fullscreen {
     Borderless(Option<MonitorHandle>),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Theme {
     Light,
     Dark,
@@ -1143,7 +1143,7 @@ pub enum Theme {
 /// ## Platform-specific
 ///
 /// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserAttentionType {
     /// ## Platform-specific
     /// - **macOS:** Bounces the dock icon until the application is in focus.

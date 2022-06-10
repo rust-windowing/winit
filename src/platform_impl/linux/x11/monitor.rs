@@ -229,11 +229,11 @@ impl XConnection {
                 panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
             }
 
-            let mut available;
             let mut has_primary = false;
 
             let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
-            available = Vec::with_capacity((*resources).ncrtc as usize);
+            let mut available = Vec::with_capacity((*resources).ncrtc as usize);
+
             for crtc_index in 0..(*resources).ncrtc {
                 let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
                 let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
