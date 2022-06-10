@@ -1168,7 +1168,7 @@ extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
             event: WindowEvent::TouchpadPressure {
                 device_id: DEVICE_ID,
                 pressure,
-                stage,
+                stage: stage as i64,
             },
         };
 

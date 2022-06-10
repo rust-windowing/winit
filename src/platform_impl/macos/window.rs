@@ -1255,10 +1255,11 @@ unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: Logica
     // Convert from client area size to window size
     min_size.width += (current_rect.size.width - content_rect.size.width) as f64; // this tends to be 0
     min_size.height += (current_rect.size.height - content_rect.size.height) as f64;
-    window.setMinSize_(NSSize {
+    let min_size = NSSize {
         width: min_size.width as CGFloat,
         height: min_size.height as CGFloat,
-    });
+    };
+    window.setMinSize_(min_size);
     // If necessary, resize the window to match constraint
     if current_rect.size.width < min_size.width {
         current_rect.size.width = min_size.width;
@@ -1279,10 +1280,11 @@ unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: Logica
     // Convert from client area size to window size
     max_size.width += (current_rect.size.width - content_rect.size.width) as f64; // this tends to be 0
     max_size.height += (current_rect.size.height - content_rect.size.height) as f64;
-    window.setMaxSize_(NSSize {
+    let max_size = NSSize {
         width: max_size.width as CGFloat,
         height: max_size.height as CGFloat,
-    });
+    };
+    window.setMaxSize_(max_size);
     // If necessary, resize the window to match constraint
     if current_rect.size.width > max_size.width {
         current_rect.size.width = max_size.width;
