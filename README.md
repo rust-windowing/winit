@@ -69,6 +69,14 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 ### Platform-specific usage
 
+#### Wayland
+
+Note that windows don't appear on Wayland until you draw/present to them.
+
+`winit` doesn't do drawing, try the examples in [`glutin`] instead.
+
+[`glutin`]: https://github.com/rust-windowing/glutin
+
 #### WebAssembly
 
 To run the web example: `cargo run-wasm --example web`
@@ -121,3 +129,16 @@ fn main() {
 ```
 
 And run the application with `cargo apk run --example request_redraw_threaded`
+
+#### MacOS
+
+A lot of functionality expects the application to be ready before you start
+doing anything; this includes creating windows, fetching monitors, drawing,
+and so on, see issues [#2238], [#2051] and [#2087].
+
+If you encounter problems, you should try doing your initialization inside
+`Event::NewEvents(StartCause::Init)`.
+
+[#2238]: https://github.com/rust-windowing/winit/issues/2238
+[#2051]: https://github.com/rust-windowing/winit/issues/2051
+[#2087]: https://github.com/rust-windowing/winit/issues/2087

@@ -9,16 +9,16 @@ use crate::{
     window::{Window, WindowBuilder},
 };
 
-/// Additional methods on `Window` that are specific to MacOS.
+/// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     fn ns_window(&self) -> *mut c_void;
 
     /// Returns a pointer to the cocoa `NSView` that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     fn ns_view(&self) -> *mut c_void;
 
     /// Returns whether or not the window is in simple fullscreen mode.
@@ -89,16 +89,14 @@ impl Default for ActivationPolicy {
     }
 }
 
-/// Additional methods on `WindowBuilder` that are specific to MacOS.
+/// Additional methods on [`WindowBuilder`] that are specific to MacOS.
 ///
-/// **Note:** Properties dealing with the titlebar will be overwritten by the `with_decorations` method
-/// on the base `WindowBuilder`:
-///
-///  - `with_titlebar_transparent`
-///  - `with_title_hidden`
-///  - `with_titlebar_hidden`
-///  - `with_titlebar_buttons_hidden`
-///  - `with_fullsize_content_view`
+/// **Note:** Properties dealing with the titlebar will be overwritten by the [`WindowBuilder::with_decorations`] method:
+/// - `with_titlebar_transparent`
+/// - `with_title_hidden`
+/// - `with_titlebar_hidden`
+/// - `with_titlebar_buttons_hidden`
+/// - `with_fullsize_content_view`
 pub trait WindowBuilderExtMacOS {
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
     fn with_movable_by_window_background(self, movable_by_window_background: bool)
@@ -238,7 +236,7 @@ impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
     }
 }
 
-/// Additional methods on `MonitorHandle` that are specific to MacOS.
+/// Additional methods on [`MonitorHandle`] that are specific to MacOS.
 pub trait MonitorHandleExtMacOS {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
@@ -257,7 +255,7 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 }
 
-/// Additional methods on `EventLoopWindowTarget` that are specific to macOS.
+/// Additional methods on [`EventLoopWindowTarget`] that are specific to macOS.
 pub trait EventLoopWindowTargetExtMacOS {
     /// Hide the entire application. In most applications this is typically triggered with Command-H.
     fn hide_application(&self);
