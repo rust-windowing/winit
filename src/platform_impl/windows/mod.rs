@@ -11,7 +11,7 @@ pub(crate) use self::{
     },
     icon::WinIcon,
     monitor::{MonitorHandle, VideoMode},
-    window::Window
+    window::Window,
 };
 
 pub use self::icon::WinIcon as PlatformIcon;
@@ -174,9 +174,9 @@ mod dpi;
 mod drop_handler;
 mod event_loop;
 mod icon;
+mod ime;
 mod keyboard;
 mod keyboard_layout;
-mod ime;
 mod monitor;
 mod raw_input;
 mod window;

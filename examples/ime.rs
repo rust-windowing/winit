@@ -6,7 +6,8 @@ use winit::{
     dpi::PhysicalPosition,
     event::{ElementState, Event, Ime, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
-    window::WindowBuilder, keyboard::KeyCode,
+    keyboard::KeyCode,
+    window::WindowBuilder,
 };
 
 fn main() {
@@ -79,9 +80,7 @@ fn main() {
             } => {
                 println!("key: {:?}", event);
 
-                if event.state == ElementState::Pressed
-                    && event.physical_key == KeyCode::F2
-                {
+                if event.state == ElementState::Pressed && event.physical_key == KeyCode::F2 {
                     ime_allowed = !ime_allowed;
                     window.set_ime_allowed(ime_allowed);
                     println!("\nIME: {}\n", ime_allowed);

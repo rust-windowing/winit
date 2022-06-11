@@ -7,38 +7,58 @@ use std::{
 
 use once_cell::sync::Lazy;
 use windows_sys::Win32::{
+    System::SystemServices::{LANG_JAPANESE, LANG_KOREAN},
     UI::{
         Input::KeyboardAndMouse::{
-            GetKeyState, GetKeyboardLayout, ToUnicodeEx,
-            VIRTUAL_KEY, VK_ADD,
-            VK_APPS, VK_BACK, VK_BROWSER_BACK, VK_BROWSER_FAVORITES, VK_BROWSER_FORWARD,
-            VK_BROWSER_HOME, VK_BROWSER_REFRESH, VK_BROWSER_SEARCH, VK_BROWSER_STOP,
-            VK_CAPITAL, VK_CONTROL, VK_CONVERT, VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_ESCAPE, VK_F1, VK_F10, VK_F11, VK_F12, VK_F13, VK_F14, VK_F15,
-            VK_F16, VK_F17, VK_F18, VK_F19, VK_F2, VK_F20, VK_F21, VK_F22, VK_F23, VK_F24, VK_F3,
-            VK_F4, VK_F5, VK_F6, VK_F7, VK_F8, VK_F9, VK_HOME, VK_INSERT, VK_KANA, VK_KANJI, VK_LAUNCH_MAIL, VK_LAUNCH_MEDIA_SELECT, VK_LCONTROL,
-            VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MEDIA_NEXT_TRACK, VK_MEDIA_PLAY_PAUSE,
-            VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP, VK_MENU, VK_MULTIPLY, VK_NEXT, VK_NONCONVERT,
-            VK_NUMLOCK, VK_NUMPAD0, VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5,
-            VK_NUMPAD6, VK_NUMPAD7, VK_NUMPAD8, VK_NUMPAD9, VK_OEM_1, VK_OEM_102, VK_OEM_2,
-            VK_OEM_3, VK_OEM_4, VK_OEM_5, VK_OEM_6, VK_OEM_7, VK_OEM_COMMA, VK_OEM_MINUS,
-            VK_OEM_PERIOD, VK_OEM_PLUS, VK_PAUSE, VK_PRIOR, VK_RCONTROL,
-            VK_RETURN, VK_RIGHT, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SCROLL, VK_SHIFT, VK_SLEEP,
-            VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT, VK_TAB, VK_UP, VK_VOLUME_DOWN,
-            VK_VOLUME_MUTE, VK_VOLUME_UP, VK_SEPARATOR, MapVirtualKeyExW, VK_HANGUL, VK_HANJA, VK_OEM_FINISH, VK_HELP, VK_CLEAR, VK_LAUNCH_APP1, VK_LAUNCH_APP2, VK_SELECT, VK_LBUTTON, VK_RBUTTON, VK_CANCEL, VK_MBUTTON, VK_XBUTTON1, VK_XBUTTON2, VK_JUNJA, VK_FINAL, VK_ACCEPT, VK_MODECHANGE, VK_PRINT, VK_EXECUTE, VK_NAVIGATION_VIEW, VK_NAVIGATION_MENU, VK_NAVIGATION_UP, VK_NAVIGATION_DOWN, VK_NAVIGATION_LEFT, VK_NAVIGATION_RIGHT, VK_NAVIGATION_ACCEPT, VK_NAVIGATION_CANCEL, VK_OEM_NEC_EQUAL, VK_OEM_FJ_MASSHOU, VK_OEM_FJ_TOUROKU, VK_OEM_FJ_LOYA, VK_OEM_FJ_ROYA, VK_GAMEPAD_A, VK_GAMEPAD_B, VK_GAMEPAD_X, VK_GAMEPAD_Y, VK_GAMEPAD_RIGHT_SHOULDER, VK_GAMEPAD_LEFT_SHOULDER, VK_GAMEPAD_LEFT_TRIGGER, VK_GAMEPAD_RIGHT_TRIGGER, VK_GAMEPAD_DPAD_UP, VK_GAMEPAD_DPAD_DOWN, VK_GAMEPAD_DPAD_LEFT, VK_GAMEPAD_DPAD_RIGHT, VK_GAMEPAD_MENU, VK_GAMEPAD_VIEW, VK_GAMEPAD_LEFT_THUMBSTICK_BUTTON, VK_GAMEPAD_RIGHT_THUMBSTICK_BUTTON, VK_GAMEPAD_LEFT_THUMBSTICK_UP, VK_GAMEPAD_LEFT_THUMBSTICK_DOWN, VK_GAMEPAD_LEFT_THUMBSTICK_RIGHT, VK_GAMEPAD_LEFT_THUMBSTICK_LEFT, VK_GAMEPAD_RIGHT_THUMBSTICK_UP, VK_GAMEPAD_RIGHT_THUMBSTICK_DOWN, VK_GAMEPAD_RIGHT_THUMBSTICK_RIGHT, VK_GAMEPAD_RIGHT_THUMBSTICK_LEFT, VK_OEM_8, VK_OEM_AX, VK_ICO_HELP, VK_ICO_00, VK_PROCESSKEY, VK_ICO_CLEAR, VK_PACKET, VK_OEM_RESET, VK_OEM_JUMP, VK_OEM_PA1, VK_OEM_PA2, VK_OEM_PA3, VK_OEM_WSCTRL, VK_OEM_CUSEL, VK_OEM_ATTN, VK_OEM_COPY, VK_OEM_AUTO, VK_OEM_ENLW, VK_OEM_BACKTAB, VK_ATTN, VK_CRSEL, VK_EXSEL, VK_EREOF, VK_PLAY, VK_ZOOM, VK_NONAME, VK_PA1, VK_OEM_CLEAR,
+            GetKeyState, GetKeyboardLayout, MapVirtualKeyExW, ToUnicodeEx, VIRTUAL_KEY, VK_ACCEPT,
+            VK_ADD, VK_APPS, VK_ATTN, VK_BACK, VK_BROWSER_BACK, VK_BROWSER_FAVORITES,
+            VK_BROWSER_FORWARD, VK_BROWSER_HOME, VK_BROWSER_REFRESH, VK_BROWSER_SEARCH,
+            VK_BROWSER_STOP, VK_CANCEL, VK_CAPITAL, VK_CLEAR, VK_CONTROL, VK_CONVERT, VK_CRSEL,
+            VK_DECIMAL, VK_DELETE, VK_DIVIDE, VK_DOWN, VK_END, VK_EREOF, VK_ESCAPE, VK_EXECUTE,
+            VK_EXSEL, VK_F1, VK_F10, VK_F11, VK_F12, VK_F13, VK_F14, VK_F15, VK_F16, VK_F17,
+            VK_F18, VK_F19, VK_F2, VK_F20, VK_F21, VK_F22, VK_F23, VK_F24, VK_F3, VK_F4, VK_F5,
+            VK_F6, VK_F7, VK_F8, VK_F9, VK_FINAL, VK_GAMEPAD_A, VK_GAMEPAD_B, VK_GAMEPAD_DPAD_DOWN,
+            VK_GAMEPAD_DPAD_LEFT, VK_GAMEPAD_DPAD_RIGHT, VK_GAMEPAD_DPAD_UP,
+            VK_GAMEPAD_LEFT_SHOULDER, VK_GAMEPAD_LEFT_THUMBSTICK_BUTTON,
+            VK_GAMEPAD_LEFT_THUMBSTICK_DOWN, VK_GAMEPAD_LEFT_THUMBSTICK_LEFT,
+            VK_GAMEPAD_LEFT_THUMBSTICK_RIGHT, VK_GAMEPAD_LEFT_THUMBSTICK_UP,
+            VK_GAMEPAD_LEFT_TRIGGER, VK_GAMEPAD_MENU, VK_GAMEPAD_RIGHT_SHOULDER,
+            VK_GAMEPAD_RIGHT_THUMBSTICK_BUTTON, VK_GAMEPAD_RIGHT_THUMBSTICK_DOWN,
+            VK_GAMEPAD_RIGHT_THUMBSTICK_LEFT, VK_GAMEPAD_RIGHT_THUMBSTICK_RIGHT,
+            VK_GAMEPAD_RIGHT_THUMBSTICK_UP, VK_GAMEPAD_RIGHT_TRIGGER, VK_GAMEPAD_VIEW,
+            VK_GAMEPAD_X, VK_GAMEPAD_Y, VK_HANGUL, VK_HANJA, VK_HELP, VK_HOME, VK_ICO_00,
+            VK_ICO_CLEAR, VK_ICO_HELP, VK_INSERT, VK_JUNJA, VK_KANA, VK_KANJI, VK_LAUNCH_APP1,
+            VK_LAUNCH_APP2, VK_LAUNCH_MAIL, VK_LAUNCH_MEDIA_SELECT, VK_LBUTTON, VK_LCONTROL,
+            VK_LEFT, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MBUTTON, VK_MEDIA_NEXT_TRACK,
+            VK_MEDIA_PLAY_PAUSE, VK_MEDIA_PREV_TRACK, VK_MEDIA_STOP, VK_MENU, VK_MODECHANGE,
+            VK_MULTIPLY, VK_NAVIGATION_ACCEPT, VK_NAVIGATION_CANCEL, VK_NAVIGATION_DOWN,
+            VK_NAVIGATION_LEFT, VK_NAVIGATION_MENU, VK_NAVIGATION_RIGHT, VK_NAVIGATION_UP,
+            VK_NAVIGATION_VIEW, VK_NEXT, VK_NONAME, VK_NONCONVERT, VK_NUMLOCK, VK_NUMPAD0,
+            VK_NUMPAD1, VK_NUMPAD2, VK_NUMPAD3, VK_NUMPAD4, VK_NUMPAD5, VK_NUMPAD6, VK_NUMPAD7,
+            VK_NUMPAD8, VK_NUMPAD9, VK_OEM_1, VK_OEM_102, VK_OEM_2, VK_OEM_3, VK_OEM_4, VK_OEM_5,
+            VK_OEM_6, VK_OEM_7, VK_OEM_8, VK_OEM_ATTN, VK_OEM_AUTO, VK_OEM_AX, VK_OEM_BACKTAB,
+            VK_OEM_CLEAR, VK_OEM_COMMA, VK_OEM_COPY, VK_OEM_CUSEL, VK_OEM_ENLW, VK_OEM_FINISH,
+            VK_OEM_FJ_LOYA, VK_OEM_FJ_MASSHOU, VK_OEM_FJ_ROYA, VK_OEM_FJ_TOUROKU, VK_OEM_JUMP,
+            VK_OEM_MINUS, VK_OEM_NEC_EQUAL, VK_OEM_PA1, VK_OEM_PA2, VK_OEM_PA3, VK_OEM_PERIOD,
+            VK_OEM_PLUS, VK_OEM_RESET, VK_OEM_WSCTRL, VK_PA1, VK_PACKET, VK_PAUSE, VK_PLAY,
+            VK_PRINT, VK_PRIOR, VK_PROCESSKEY, VK_RBUTTON, VK_RCONTROL, VK_RETURN, VK_RIGHT,
+            VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SCROLL, VK_SELECT, VK_SEPARATOR, VK_SHIFT, VK_SLEEP,
+            VK_SNAPSHOT, VK_SPACE, VK_SUBTRACT, VK_TAB, VK_UP, VK_VOLUME_DOWN, VK_VOLUME_MUTE,
+            VK_VOLUME_UP, VK_XBUTTON1, VK_XBUTTON2, VK_ZOOM,
         },
         TextServices::HKL,
-        WindowsAndMessaging::{MAPVK_VK_TO_VSC_EX},
-    }, System::SystemServices::{LANG_KOREAN, LANG_JAPANESE},
+        WindowsAndMessaging::MAPVK_VK_TO_VSC_EX,
+    },
 };
 
 use crate::{
     keyboard::{Key, KeyCode, ModifiersState, NativeKeyCode},
     platform::scancode::KeyCodeExtScancode,
-    platform_impl::{platform::keyboard::ExScancode, PRIMARYLANGID, LOWORD},
-
+    platform_impl::{platform::keyboard::ExScancode, LOWORD, PRIMARYLANGID},
 };
 
-pub(crate) static LAYOUT_CACHE: Lazy<Mutex<LayoutCache>> = Lazy::new(|| Mutex::new(LayoutCache::default()));
+pub(crate) static LAYOUT_CACHE: Lazy<Mutex<LayoutCache>> =
+    Lazy::new(|| Mutex::new(LayoutCache::default()));
 
 fn key_pressed(vkey: VIRTUAL_KEY) -> bool {
     unsafe { (GetKeyState(vkey as i32) & (1 << 15)) == (1 << 15) }
@@ -252,7 +272,7 @@ impl LayoutCache {
     /// Checks whether the current layout is already known and
     /// prepares the layout if it isn't known.
     /// The current layout is then returned.
-    pub fn get_current_layout<'a>(&'a mut self) -> (u64, &'a Layout) {
+    pub fn get_current_layout(&mut self) -> (u64, &Layout) {
         let locale_id = unsafe { GetKeyboardLayout(0) } as u64;
         match self.layouts.entry(locale_id) {
             Entry::Occupied(entry) => (locale_id, entry.into_mut()),
@@ -311,9 +331,7 @@ impl LayoutCache {
         // map_value: Key  <-  map_vkey: VK
         layout.numlock_off_keys.reserve(NUMPAD_KEYCODES.len());
         for vk in 0..256 {
-            let scancode = unsafe {
-                MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, locale_id as HKL)
-            };
+            let scancode = unsafe { MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, locale_id as HKL) };
             if scancode == 0 {
                 continue;
             }
@@ -324,7 +342,8 @@ impl LayoutCache {
                 if map_vkey == 0 {
                     continue;
                 }
-                let map_value = vkey_to_non_char_key(vk as VIRTUAL_KEY, native_code, locale_id, false);
+                let map_value =
+                    vkey_to_non_char_key(vk as VIRTUAL_KEY, native_code, locale_id, false);
                 if matches!(map_value, Key::Unidentified(_)) {
                     continue;
                 }
@@ -335,9 +354,7 @@ impl LayoutCache {
         layout.numlock_on_keys.reserve(NUMPAD_VKEYS.len());
         for vk in NUMPAD_VKEYS.iter() {
             let vk = (*vk) as u32;
-            let scancode = unsafe {
-                MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, locale_id as HKL)
-            };
+            let scancode = unsafe { MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, locale_id as HKL) };
             let unicode = Self::to_unicode_string(&key_state, vk, scancode, locale_id);
             if let ToUnicodeResult::Str(s) = unicode {
                 let static_str = get_or_insert_str(strings, s);
@@ -360,9 +377,8 @@ impl LayoutCache {
             // elements. This array is allowed to be indexed by virtual key values
             // giving the key state for the virtual key used for indexing.
             for vk in 0..256 {
-                let scancode = unsafe {
-                    MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, locale_id as HKL)
-                };
+                let scancode =
+                    unsafe { MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC_EX, locale_id as HKL) };
                 if scancode == 0 {
                     continue;
                 }
@@ -517,29 +533,29 @@ enum ToUnicodeResult {
 }
 
 fn is_numpad_specific(vk: VIRTUAL_KEY) -> bool {
-    match vk {
-        VK_NUMPAD0 => true,
-        VK_NUMPAD1 => true,
-        VK_NUMPAD2 => true,
-        VK_NUMPAD3 => true,
-        VK_NUMPAD4 => true,
-        VK_NUMPAD5 => true,
-        VK_NUMPAD6 => true,
-        VK_NUMPAD7 => true,
-        VK_NUMPAD8 => true,
-        VK_NUMPAD9 => true,
-        VK_ADD => true,
-        VK_SUBTRACT => true,
-        VK_DIVIDE => true,
-        VK_DECIMAL => true,
-        VK_SEPARATOR => true,
-        _ => false,
-    }
+    matches!(
+        vk,
+        VK_NUMPAD0
+            | VK_NUMPAD1
+            | VK_NUMPAD2
+            | VK_NUMPAD3
+            | VK_NUMPAD4
+            | VK_NUMPAD5
+            | VK_NUMPAD6
+            | VK_NUMPAD7
+            | VK_NUMPAD8
+            | VK_NUMPAD9
+            | VK_ADD
+            | VK_SUBTRACT
+            | VK_DIVIDE
+            | VK_DECIMAL
+            | VK_SEPARATOR
+    )
 }
 
 fn keycode_to_vkey(keycode: KeyCode, hkl: u64) -> VIRTUAL_KEY {
     let primary_lang_id = PRIMARYLANGID(LOWORD(hkl as u32));
-    let is_korean = primary_lang_id as u32== LANG_KOREAN;
+    let is_korean = primary_lang_id as u32 == LANG_KOREAN;
     let is_japanese = primary_lang_id as u32 == LANG_JAPANESE;
 
     match keycode {

@@ -34,8 +34,8 @@ use windows_sys::Win32::{
         Input::{
             Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
-                ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
-                TRACKMOUSEEVENT, VK_F4, MapVirtualKeyW, VK_NUMLOCK, VK_SHIFT,
+                MapVirtualKeyW, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
+                TRACKMOUSEEVENT, VK_F4, VK_NUMLOCK, VK_SHIFT,
             },
             Pointer::{
                 POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE, POINTER_INFO,
@@ -45,34 +45,35 @@ use windows_sys::Win32::{
                 CloseTouchInputHandle, GetTouchInputInfo, TOUCHEVENTF_DOWN, TOUCHEVENTF_MOVE,
                 TOUCHEVENTF_UP, TOUCHINPUT,
             },
-            RIM_TYPEKEYBOARD, RIM_TYPEMOUSE, RAWINPUT,
+            RAWINPUT, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
         },
         WindowsAndMessaging::{
             CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect,
             GetCursorPos, GetMessageW, GetWindowLongW, LoadCursorW, MsgWaitForMultipleObjectsEx,
             PeekMessageW, PostMessageW, PostThreadMessageW, RegisterClassExW,
             RegisterWindowMessageA, SetCursor, SetWindowPos, TranslateMessage, CREATESTRUCTW,
-            GIDC_ARRIVAL, GIDC_REMOVAL, GWL_EXSTYLE, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE, PM_NOREMOVE, PM_QS_PAINT,
+            GIDC_ARRIVAL, GIDC_REMOVAL, GWL_EXSTYLE, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT,
+            MAPVK_VK_TO_VSC_EX, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE, PM_NOREMOVE, PM_QS_PAINT,
             PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL,
             SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
             SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CLOSE, WM_CREATE,
-            WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
-            WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
-            WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP,
-            WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
-            WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY,
-            WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
-            WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
-            WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
-            WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
-            WS_VISIBLE, MAPVK_VK_TO_VSC_EX,
+            WM_DESTROY, WM_DPICHANGED, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO,
+            WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION,
+            WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
+            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
+            WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY, WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN,
+            WM_POINTERUP, WM_POINTERUPDATE, WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR,
+            WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP,
+            WM_TOUCH, WM_WINDOWPOSCHANGED, WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP,
+            WNDCLASSEXW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
+            WS_OVERLAPPED, WS_POPUP, WS_VISIBLE,
         },
     },
 };
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, Ime, Touch, TouchPhase, WindowEvent, RawKeyEvent},
+    event::{DeviceEvent, Event, Force, Ime, RawKeyEvent, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     keyboard::{KeyCode, ModifiersState},
     monitor::MonitorHandle as RootMonitorHandle,
@@ -81,9 +82,9 @@ use crate::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
         drop_handler::FileDropHandler,
+        ime::ImeContext,
         keyboard::KeyEventBuilder,
         keyboard_layout::LAYOUT_CACHE,
-        ime::ImeContext,
         monitor::{self, MonitorHandle},
         raw_input, util,
         window::InitData,
@@ -2291,10 +2292,8 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
     } else if data.header.dwType == RIM_TYPEKEYBOARD {
         let keyboard = data.data.keyboard;
 
-        let pressed =
-            keyboard.Message == WM_KEYDOWN || keyboard.Message == WM_SYSKEYDOWN;
-        let released =
-            keyboard.Message == WM_KEYUP || keyboard.Message == WM_SYSKEYUP;
+        let pressed = keyboard.Message == WM_KEYDOWN || keyboard.Message == WM_SYSKEYDOWN;
+        let released = keyboard.Message == WM_KEYUP || keyboard.Message == WM_SYSKEYUP;
 
         if !pressed && !released {
             return;
@@ -2340,8 +2339,7 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
             return;
         }
-        let code;
-        if keyboard.VKey == VK_NUMLOCK {
+        let code = if keyboard.VKey == VK_NUMLOCK {
             // Historically, the NumLock and the Pause key were one and the same physical key.
             // The user could trigger Pause by pressing Ctrl+NumLock.
             // Now these are often physically separate and the two keys can be differentiated by
@@ -2354,10 +2352,10 @@ unsafe fn handle_raw_input<T: 'static>(userdata: &ThreadMsgTargetData<T>, data: 
             // For more on this, read the article by Raymond Chen, titled:
             // "Why does Ctrl+ScrollLock cancel dialogs?"
             // https://devblogs.microsoft.com/oldnewthing/20080211-00/?p=23503
-            code = KeyCode::NumLock;
+            KeyCode::NumLock
         } else {
-            code = KeyCode::from_scancode(scancode as u32);
-        }
+            KeyCode::from_scancode(scancode as u32)
+        };
         if keyboard.VKey == VK_SHIFT {
             match code {
                 KeyCode::NumpadDecimal

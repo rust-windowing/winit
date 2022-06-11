@@ -32,9 +32,9 @@ use windows_sys::Win32::{
     UI::{
         Input::{
             KeyboardAndMouse::{
-                EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput, INPUT,
-                INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP,
-                VK_LMENU, VK_MENU, VIRTUAL_KEY, VK_SPACE, ToUnicode,
+                EnableWindow, GetActiveWindow, MapVirtualKeyW, ReleaseCapture, SendInput,
+                ToUnicode, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY,
+                KEYEVENTF_KEYUP, VIRTUAL_KEY, VK_LMENU, VK_MENU, VK_SPACE,
             },
             Touch::{RegisterTouchWindow, TWF_WANTPALM},
         },
@@ -65,8 +65,8 @@ use crate::{
         drop_handler::FileDropHandler,
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
-        keyboard::KeyEventBuilder,
         ime::ImeContext,
+        keyboard::KeyEventBuilder,
         monitor, util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Parent, PlatformSpecificWindowBuilderAttributes, WindowId,

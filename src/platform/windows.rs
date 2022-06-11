@@ -2,16 +2,19 @@
 
 use std::{ffi::c_void, path::Path};
 
-use windows_sys::Win32::{UI::Input::KeyboardAndMouse::GetKeyboardLayout, System::SystemServices::LANG_KOREAN};
+use windows_sys::Win32::{
+    System::SystemServices::LANG_KOREAN, UI::Input::KeyboardAndMouse::GetKeyboardLayout,
+};
 
 use crate::{
     dpi::PhysicalSize,
     event::{DeviceId, KeyEvent},
     event_loop::EventLoopBuilder,
+    keyboard::{Key, KeyCode, NativeKeyCode},
     monitor::MonitorHandle,
+    platform::{modifier_supplement::KeyEventExtModifierSupplement, scancode::KeyCodeExtScancode},
     platform_impl::{Parent, WinIcon, LOWORD, PRIMARYLANGID},
-    window::{BadIcon, Icon, Theme, Window, WindowBuilder}, keyboard::{KeyCode, NativeKeyCode, Key},
-    platform::{scancode::KeyCodeExtScancode, modifier_supplement::KeyEventExtModifierSupplement},
+    window::{BadIcon, Icon, Theme, Window, WindowBuilder},
 };
 
 /// Window Handle type used by Win32 API
