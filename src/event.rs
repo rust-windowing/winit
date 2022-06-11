@@ -36,6 +36,8 @@
 use instant::Instant;
 use std::path::PathBuf;
 
+#[cfg(doc)]
+use crate::window::Window;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     keyboard::{self, ModifiersState},
@@ -94,8 +96,7 @@ pub enum Event<'a, T: 'static> {
     /// This gets triggered in two scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
     ///   resizing the window).
-    /// - The application has explicitly requested a redraw via
-    ///   [`Window::request_redraw`](crate::window::Window::request_redraw).
+    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
     ///
     /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
     /// into a single event, to help avoid duplicating rendering work.
@@ -207,7 +208,7 @@ pub enum StartCause {
     Init,
 }
 
-/// Describes an event from a `Window`.
+/// Describes an event from a [`Window`].
 #[derive(Debug, PartialEq)]
 pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
@@ -239,13 +240,6 @@ pub enum WindowEvent<'a> {
     /// There will be a single `HoveredFileCancelled` event triggered even if multiple files were
     /// hovered.
     HoveredFileCancelled,
-
-    /// The user commited an IME string for this window.
-    ///
-    /// This is a temporary API until [#1497] gets completed.
-    ///
-    /// [#1497]: https://github.com/rust-windowing/winit/issues/1497
-    ReceivedImeText(String),
 
     /// The window gained or lost focus.
     ///
@@ -280,6 +274,14 @@ pub enum WindowEvent<'a> {
     /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
+
+    /// An event from input method.
+    ///
+    /// **Note :** You have to explicitly enable this event using [`Window::set_ime_allowed`].
+    ///
+    /// Platform-specific behavior:
+    /// - **iOS / Android / Web :** Unsupported.
+    Ime(Ime),
 
     /// The cursor has moved on the window.
     CursorMoved {
@@ -376,7 +378,6 @@ impl Clone for WindowEvent<'static> {
             DroppedFile(file) => DroppedFile(file.clone()),
             HoveredFile(file) => HoveredFile(file.clone()),
             HoveredFileCancelled => HoveredFileCancelled,
-            ReceivedImeText(s) => ReceivedImeText(s.clone()),
             Focused(f) => Focused(*f),
             KeyboardInput {
                 device_id,
@@ -387,7 +388,7 @@ impl Clone for WindowEvent<'static> {
                 event: event.clone(),
                 is_synthetic: *is_synthetic,
             },
-
+            Ime(preedit_state) => Ime(preedit_state.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
             #[allow(deprecated)]
             CursorMoved {
@@ -467,7 +468,6 @@ impl<'a> WindowEvent<'a> {
             DroppedFile(file) => Some(DroppedFile(file)),
             HoveredFile(file) => Some(HoveredFile(file)),
             HoveredFileCancelled => Some(HoveredFileCancelled),
-            ReceivedImeText(s) => Some(ReceivedImeText(s)),
             Focused(focused) => Some(Focused(focused)),
             KeyboardInput {
                 device_id,
@@ -479,6 +479,7 @@ impl<'a> WindowEvent<'a> {
                 is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
+            Ime(event) => Some(Ime(event)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -682,6 +683,73 @@ pub struct KeyEvent {
     pub(crate) platform_specific: platform_impl::KeyEventExtra,
 }
 
+/// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.
+///
+/// This is also called a "composition event".
+///
+/// Most keypresses using a latin-like keyboard layout simply generate a [`WindowEvent::ReceivedCharacter`].
+/// However, one couldn't possibly have a key for every single unicode character that the user might want to type
+/// - so the solution operating systems employ is to allow the user to type these using _a sequence of keypresses_ instead.
+///
+/// A prominent example of this is accents - many keyboard layouts allow you to first click the "accent key", and then
+/// the character you want to apply the accent to. This will generate the following event sequence:
+/// ```ignore
+/// // Press "`" key
+/// Ime::Preedit("`", Some(0), Some(0))
+/// // Press "E" key
+/// Ime::Commit("é")
+/// ```
+///
+/// Additionally, certain input devices are configured to display a candidate box that allow the user to select the
+/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_position`].)
+///
+/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keybaord the following event
+/// sequence could be obtained:
+/// ```ignore
+/// // Press "A" key
+/// Ime::Preedit("a", Some(1), Some(1))
+/// // Press "B" key
+/// Ime::Preedit("a b", Some(3), Some(3))
+/// // Press left arrow key
+/// Ime::Preedit("a b", Some(1), Some(1))
+/// // Press space key
+/// Ime::Preedit("啊b", Some(3), Some(3))
+/// // Press space key
+/// Ime::Commit("啊不")
+/// ```
+///
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Ime {
+    /// Notifies when the IME was enabled.
+    ///
+    /// After getting this event you could receive [`Preedit`](Self::Preedit) and
+    /// [`Commit`](Self::Commit) events. You should also start performing IME related requests
+    /// like [`Window::set_ime_position`].
+    Enabled,
+
+    /// Notifies when a new composing text should be set at the cursor position.
+    ///
+    /// The value represents a pair of the preedit string and the cursor begin position and end
+    /// position. When it's `None`, the cursor should be hidden.
+    ///
+    /// The cursor position is byte-wise indexed.
+    Preedit(String, Option<(usize, usize)>),
+
+    /// Notifies when text should be inserted into the editor widget.
+    ///
+    /// Any pending [`Preedit`](Self::Preedit) must be cleared.
+    Commit(String),
+
+    /// Notifies when the IME was disabled.
+    ///
+    /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
+    /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You can
+    /// also stop issuing IME related requests like [`Window::set_ime_position`] and clear pending
+    /// preedit text.
+    Disabled,
+}
+
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -811,14 +879,22 @@ pub enum MouseScrollDelta {
     /// Amount in lines or rows to scroll in the horizontal
     /// and vertical directions.
     ///
-    /// Positive values indicate movement forward
-    /// (away from the user) or rightwards.
+    /// Positive values indicate that the content that is being scrolled should move
+    /// right and down (revealing more content left and up).
     LineDelta(f32, f32),
+
     /// Amount in pixels to scroll in the horizontal and
     /// vertical direction.
     ///
     /// Scroll events are expressed as a PixelDelta if
     /// supported by the device (eg. a touchpad) and
     /// platform.
+    ///
+    /// Positive values indicate that the content being scrolled should
+    /// move right/down.
+    ///
+    /// For a 'natural scrolling' touch pad (that acts like a touch screen)
+    /// this means moving your fingers right and down should give positive values,
+    /// and move the content right and down (to reveal more things left and up).
     PixelDelta(PhysicalPosition<f64>),
 }

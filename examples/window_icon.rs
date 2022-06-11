@@ -1,10 +1,11 @@
-extern crate image;
+#![allow(clippy::single_match)]
+
 use std::path::Path;
 
 use simple_logger::SimpleLogger;
 use winit::{
     event::Event,
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::{Icon, WindowBuilder},
 };
 
@@ -30,12 +31,12 @@ fn main() {
         .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         if let Event::WindowEvent { event, .. } = event {
             use winit::event::WindowEvent::*;
             match event {
-                CloseRequested => *control_flow = ControlFlow::Exit,
+                CloseRequested => control_flow.set_exit(),
                 DroppedFile(path) => {
                     window.set_window_icon(Some(load_icon(&path)));
                 }

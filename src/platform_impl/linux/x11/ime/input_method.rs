@@ -7,13 +7,12 @@ use std::{
     sync::Arc,
 };
 
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
 use super::{ffi, util, XConnection, XError};
 
-lazy_static! {
-    static ref GLOBAL_LOCK: Mutex<()> = Default::default();
-}
+static GLOBAL_LOCK: Lazy<Mutex<()>> = Lazy::new(Default::default);
 
 unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<ffi::XIM> {
     let _lock = GLOBAL_LOCK.lock();

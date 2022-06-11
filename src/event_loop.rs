@@ -10,6 +10,7 @@
 //! [event_loop_proxy]: crate::event_loop::EventLoopProxy
 //! [send_event]: crate::event_loop::EventLoopProxy::send_event
 use instant::Instant;
+use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
 
@@ -31,7 +32,7 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 ///
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
-    pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
+    pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
 /// Target that associates windows with an `EventLoop`.
@@ -42,7 +43,64 @@ pub struct EventLoop<T: 'static> {
 /// `&EventLoop`.
 pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
-    pub(crate) _marker: ::std::marker::PhantomData<*mut ()>, // Not Send nor Sync
+    pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
+}
+
+/// Object that allows building the event loop.
+///
+/// This is used to make specifying options that affect the whole application
+/// easier. But note that constructing multiple event loops is not supported.
+#[derive(Default)]
+pub struct EventLoopBuilder<T: 'static> {
+    pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
+    _p: PhantomData<T>,
+}
+
+impl EventLoopBuilder<()> {
+    /// Start building a new event loop.
+    #[inline]
+    pub fn new() -> Self {
+        Self::with_user_event()
+    }
+}
+
+impl<T> EventLoopBuilder<T> {
+    /// Start building a new event loop, with the given type as the user event
+    /// type.
+    #[inline]
+    pub fn with_user_event() -> Self {
+        Self {
+            platform_specific: Default::default(),
+            _p: PhantomData,
+        }
+    }
+
+    /// Builds a new event loop.
+    ///
+    /// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
+    /// Attempting to create the event loop on a different thread will panic. This restriction isn't
+    /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
+    /// porting to platforms that require it. `EventLoopBuilderExt::any_thread` functions are exposed
+    /// in the relevant `platform` module if the target platform supports creating an event loop on
+    /// any thread.
+    ///
+    /// Calling this function will result in display backend initialisation.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Linux:** Backend type can be controlled using an environment variable
+    ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
+    ///   If it is not set, winit will try to connect to a Wayland connection, and if that fails,
+    ///   will fall back on X11. If this variable is set with any other value, winit will panic.
+    #[inline]
+    pub fn build(&mut self) -> EventLoop<T> {
+        // Certain platforms accept a mutable reference in their API.
+        #[allow(clippy::unnecessary_mut_passed)]
+        EventLoop {
+            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
+            _marker: PhantomData,
+        }
+    }
 }
 
 impl<T> fmt::Debug for EventLoop<T> {
@@ -64,9 +122,9 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 ///
 /// ## Persistency
 /// Almost every change is persistent between multiple calls to the event loop closure within a
-/// given run loop. The only exception to this is `Exit` which, once set, cannot be unset. Changes
-/// are **not** persistent between multiple calls to `run_return` - issuing a new call will reset
-/// the control flow to `Poll`.
+/// given run loop. The only exception to this is `ExitWithCode` which, once set, cannot be unset.
+/// Changes are **not** persistent between multiple calls to `run_return` - issuing a new call will
+/// reset the control flow to `Poll`.
 ///
 /// [events_cleared]: crate::event::Event::RedrawEventsCleared
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -84,11 +142,70 @@ pub enum ControlFlow {
     Wait,
     /// When the current loop iteration finishes, suspend the thread until either another event
     /// arrives or the given time is reached.
+    ///
+    /// Useful for implementing efficient timers. Applications which want to render at the display's
+    /// native refresh rate should instead use `Poll` and the VSync functionality of a graphics API
+    /// to reduce odds of missed frames.
     WaitUntil(Instant),
     /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
-    /// `control_flow` cannot be changed from `Exit`, and any future attempts to do so will result
-    /// in the `control_flow` parameter being reset to `Exit`.
-    Exit,
+    /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
+    /// result in the `control_flow` parameter being reset to `ExitWithCode`.
+    ///
+    /// The contained number will be used as exit code. The [`Exit`] constant is a shortcut for this
+    /// with exit code 0.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Android / iOS / WASM**: The supplied exit code is unused.
+    /// - **Unix**: On most Unix-like platforms, only the 8 least significant bits will be used,
+    ///   which can cause surprises with negative exit values (`-42` would end up as `214`). See
+    ///   [`std::process::exit`].
+    ///
+    /// [`Exit`]: ControlFlow::Exit
+    ExitWithCode(i32),
+}
+
+impl ControlFlow {
+    /// Alias for [`ExitWithCode`]`(0)`.
+    ///
+    /// [`ExitWithCode`]: ControlFlow::ExitWithCode
+    #[allow(non_upper_case_globals)]
+    pub const Exit: Self = Self::ExitWithCode(0);
+
+    /// Sets this to [`Poll`].
+    ///
+    /// [`Poll`]: ControlFlow::Poll
+    pub fn set_poll(&mut self) {
+        *self = Self::Poll;
+    }
+
+    /// Sets this to [`Wait`].
+    ///
+    /// [`Wait`]: ControlFlow::Wait
+    pub fn set_wait(&mut self) {
+        *self = Self::Wait;
+    }
+
+    /// Sets this to [`WaitUntil`]`(instant)`.
+    ///
+    /// [`WaitUntil`]: ControlFlow::WaitUntil
+    pub fn set_wait_until(&mut self, instant: Instant) {
+        *self = Self::WaitUntil(instant);
+    }
+
+    /// Sets this to [`ExitWithCode`]`(code)`.
+    ///
+    /// [`ExitWithCode`]: ControlFlow::ExitWithCode
+    pub fn set_exit_with_code(&mut self, code: i32) {
+        *self = Self::ExitWithCode(code);
+    }
+
+    /// Sets this to [`Exit`].
+    ///
+    /// [`Exit`]: ControlFlow::Exit
+    pub fn set_exit(&mut self) {
+        *self = Self::Exit;
+    }
 }
 
 impl Default for ControlFlow {
@@ -99,41 +216,23 @@ impl Default for ControlFlow {
 }
 
 impl EventLoop<()> {
-    /// Builds a new event loop with a `()` as the user event type.
-    ///
-    /// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
-    /// Attempting to create the event loop on a different thread will panic. This restriction isn't
-    /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
-    /// porting to platforms that require it. `EventLoopExt::new_any_thread` functions are exposed
-    /// in the relevant `platform` module if the target platform supports creating an event loop on
-    /// any thread.
-    ///
-    /// Usage will result in display backend initialisation, this can be controlled on linux
-    /// using an environment variable `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
-    /// If it is not set, winit will try to connect to a wayland connection, and if it fails will
-    /// fallback on x11. If this variable is set with any other value, winit will panic.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS:** Can only be called on the main thread.
+    /// Alias for `EventLoopBuilder::new().build()`.
+    #[inline]
     pub fn new() -> EventLoop<()> {
-        EventLoop::<()>::with_user_event()
+        EventLoopBuilder::new().build()
+    }
+}
+
+impl Default for EventLoop<()> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl<T> EventLoop<T> {
-    /// Builds a new event loop.
-    ///
-    /// All caveats documented in [`EventLoop::new`] apply to this function.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **iOS:** Can only be called on the main thread.
+    #[deprecated = "Use `EventLoopBuilder::<T>::with_user_event().build()` instead."]
     pub fn with_user_event() -> EventLoop<T> {
-        EventLoop {
-            event_loop: platform_impl::EventLoop::new(),
-            _marker: ::std::marker::PhantomData,
-        }
+        EventLoopBuilder::<T>::with_user_event().build()
     }
 
     /// Hijacks the calling thread and initializes the winit event loop with the provided
@@ -144,6 +243,11 @@ impl<T> EventLoop<T> {
     /// event loop's behavior.
     ///
     /// Any values not passed to this function will *not* be dropped.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Wayland**: The program terminates with exit code 1 if the display server
+    ///   disconnects.
     ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
@@ -190,6 +294,28 @@ impl<T> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.p.primary_monitor()
     }
+
+    /// Change [`DeviceEvent`] filter mode.
+    ///
+    /// Since the [`DeviceEvent`] capture can lead to high CPU usage for unfocused windows, winit
+    /// will ignore them by default for unfocused windows on Linux/BSD. This method allows changing
+    /// this filter at runtime to explicitly capture them again.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland / Windows / macOS / iOS / Android / Web**: Unsupported.
+    ///
+    /// [`DeviceEvent`]: crate::event::DeviceEvent
+    pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        ))]
+        self.p.set_device_event_filter(_filter);
+    }
 }
 
 /// Used to send custom events to `EventLoop`.
@@ -234,3 +360,20 @@ impl<T> fmt::Display for EventLoopClosed<T> {
 }
 
 impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
+
+/// Fiter controlling the propagation of device events.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum DeviceEventFilter {
+    /// Always filter out device events.
+    Always,
+    /// Filter out device events while the window is not focused.
+    Unfocused,
+    /// Report all device events regardless of window focus.
+    Never,
+}
+
+impl Default for DeviceEventFilter {
+    fn default() -> Self {
+        Self::Unfocused
+    }
+}

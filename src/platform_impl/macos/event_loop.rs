@@ -12,9 +12,9 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{NSApp, NSEventType::NSApplicationDefined},
-    base::{id, nil, YES},
-    foundation::NSPoint,
+    appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
+    base::{id, nil, BOOL, NO, YES},
+    foundation::{NSInteger, NSPoint, NSTimeInterval},
 };
 use objc::rc::autoreleasepool;
 
@@ -22,13 +22,17 @@ use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     monitor::MonitorHandle as RootMonitorHandle,
-    platform_impl::platform::{
-        app::APP_CLASS,
-        app_delegate::APP_DELEGATE_CLASS,
-        app_state::AppState,
-        monitor::{self, MonitorHandle},
-        observer::*,
-        util::IdRef,
+    platform::macos::ActivationPolicy,
+    platform_impl::{
+        get_aux_state_mut,
+        platform::{
+            app::APP_CLASS,
+            app_delegate::APP_DELEGATE_CLASS,
+            app_state::{AppState, Callback},
+            monitor::{self, MonitorHandle},
+            observer::*,
+            util::IdRef,
+        },
     },
 };
 
@@ -100,7 +104,9 @@ impl<T> EventLoopWindowTarget<T> {
 }
 
 pub struct EventLoop<T: 'static> {
-    pub(crate) delegate: IdRef,
+    /// The delegate is only weakly referenced by NSApplication, so we keep
+    /// it around here as well.
+    _delegate: IdRef,
 
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
@@ -111,13 +117,29 @@ pub struct EventLoop<T: 'static> {
     /// Every other reference should be a Weak reference which is only upgraded
     /// into a strong reference in order to call the callback but then the
     /// strong reference should be dropped as soon as possible.
-    _callback: Option<Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>>,
+    _callback: Option<Rc<Callback<T>>>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {
+    pub(crate) activation_policy: ActivationPolicy,
+    pub(crate) default_menu: bool,
+}
+
+impl Default for PlatformSpecificEventLoopAttributes {
+    fn default() -> Self {
+        Self {
+            activation_policy: Default::default(), // Regular
+            default_menu: true,
+        }
+    }
 }
 
 impl<T> EventLoop<T> {
-    pub fn new() -> Self {
+    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         let delegate = unsafe {
-            if !msg_send![class!(NSThread), isMainThread] {
+            let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
+            if is_main_thread == NO {
                 panic!("On macOS, `EventLoop` must be created on the main thread!");
             }
 
@@ -128,15 +150,21 @@ impl<T> EventLoop<T> {
             let app: id = msg_send![APP_CLASS.0, sharedApplication];
 
             let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
+
+            let mut aux_state = get_aux_state_mut(&**delegate);
+            aux_state.activation_policy = attributes.activation_policy;
+            aux_state.default_menu = attributes.default_menu;
+
             autoreleasepool(|| {
                 let _: () = msg_send![app, setDelegate:*delegate];
             });
+
             delegate
         };
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
         EventLoop {
-            delegate,
+            _delegate: delegate,
             window_target: Rc::new(RootWindowTarget {
                 p: Default::default(),
                 _marker: PhantomData,
@@ -154,11 +182,11 @@ impl<T> EventLoop<T> {
     where
         F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
-        self.run_return(callback);
-        process::exit(0);
+        let exit_code = self.run_return(callback);
+        process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, callback: F)
+    pub fn run_return<F>(&mut self, callback: F) -> i32
     where
         F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
     {
@@ -175,7 +203,7 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        autoreleasepool(|| unsafe {
+        let exit_code = autoreleasepool(|| unsafe {
             let app = NSApp();
             assert_ne!(app, nil);
 
@@ -185,19 +213,21 @@ impl<T> EventLoop<T> {
             mem::drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
-            let () = msg_send![app, run];
+            let _: () = msg_send![app, run];
 
             if let Some(panic) = self.panic_info.take() {
                 drop(self._callback.take());
                 resume_unwind(panic);
             }
-            AppState::exit();
+            AppState::exit()
         });
         drop(self._callback.take());
+
+        exit_code
     }
 
-    pub fn create_proxy(&self) -> Proxy<T> {
-        Proxy::new(self.window_target.p.sender.clone())
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy::new(self.window_target.p.sender.clone())
     }
 }
 
@@ -208,15 +238,15 @@ pub unsafe fn post_dummy_event(target: id) {
         event_class,
         otherEventWithType: NSApplicationDefined
         location: NSPoint::new(0.0, 0.0)
-        modifierFlags: 0
-        timestamp: 0
-        windowNumber: 0
+        modifierFlags: NSEventModifierFlags::empty()
+        timestamp: 0 as NSTimeInterval
+        windowNumber: 0 as NSInteger
         context: nil
-        subtype: 0
-        data1: 0
-        data2: 0
+        subtype: NSEventSubtype::NSWindowExposedEventType
+        data1: 0 as NSInteger
+        data2: 0 as NSInteger
     ];
-    let () = msg_send![target, postEvent: dummy_event atStart: YES];
+    let _: () = msg_send![target, postEvent: dummy_event atStart: YES];
 }
 
 /// Catches panics that happen inside `f` and when a panic
@@ -240,7 +270,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             unsafe {
                 let app_class = class!(NSApplication);
                 let app: id = msg_send![app_class, sharedApplication];
-                let () = msg_send![app, stop: nil];
+                let _: () = msg_send![app, stop: nil];
 
                 // Posting a dummy event to get `stop` to take effect immediately.
                 // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
@@ -251,14 +281,14 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     }
 }
 
-pub struct Proxy<T> {
+pub struct EventLoopProxy<T> {
     sender: mpsc::Sender<T>,
     source: CFRunLoopSourceRef,
 }
 
-unsafe impl<T: Send> Send for Proxy<T> {}
+unsafe impl<T: Send> Send for EventLoopProxy<T> {}
 
-impl<T> Drop for Proxy<T> {
+impl<T> Drop for EventLoopProxy<T> {
     fn drop(&mut self) {
         unsafe {
             CFRelease(self.source as _);
@@ -266,13 +296,13 @@ impl<T> Drop for Proxy<T> {
     }
 }
 
-impl<T> Clone for Proxy<T> {
+impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Proxy::new(self.sender.clone())
+        EventLoopProxy::new(self.sender.clone())
     }
 }
 
-impl<T> Proxy<T> {
+impl<T> EventLoopProxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
         unsafe {
             // just wake up the eventloop
@@ -288,7 +318,7 @@ impl<T> Proxy<T> {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            Proxy { sender, source }
+            EventLoopProxy { sender, source }
         }
     }
 

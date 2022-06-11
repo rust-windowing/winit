@@ -104,7 +104,7 @@ impl Cursor {
 // Note that loading `busybutclickable` with this code won't animate the frames;
 // instead you'll just get them all in a column.
 pub unsafe fn load_webkit_cursor(cursor_name: &str) -> id {
-    static CURSOR_ROOT: &'static str = "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/Resources/cursors";
+    static CURSOR_ROOT: &str = "/System/Library/Frameworks/ApplicationServices.framework/Versions/A/Frameworks/HIServices.framework/Versions/A/Resources/cursors";
     let cursor_root = NSString::alloc(nil).init_str(CURSOR_ROOT);
     let cursor_name = NSString::alloc(nil).init_str(cursor_name);
     let cursor_pdf = NSString::alloc(nil).init_str("cursor.pdf");

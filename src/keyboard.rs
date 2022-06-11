@@ -99,7 +99,7 @@ bitflags! {
         // left and right modifiers are currently commented out, but we should be able to support
         // them in a future release
         /// The "shift" key.
-        const SHIFT = 0b100 << 0;
+        const SHIFT = 0b100;
         // const LSHIFT = 0b010 << 0;
         // const RSHIFT = 0b001 << 0;
         /// The "control" key.

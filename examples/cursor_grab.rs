@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use simple_logger::SimpleLogger;
 use winit::{
     event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent},
@@ -18,11 +20,11 @@ fn main() {
     let mut modifiers = ModifiersState::default();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
@@ -35,7 +37,7 @@ fn main() {
                     // WARNING: Consider using `key_without_modifers()` if available on your platform.
                     // See the `key_binding` example
                     match key {
-                        Key::Escape => *control_flow = ControlFlow::Exit,
+                        Key::Escape => control_flow.set_exit(),
                         Key::Character(ch) => match ch.to_lowercase().as_str() {
                             "g" => window.set_cursor_grab(!modifiers.shift_key()).unwrap(),
                             "h" => window.set_cursor_visible(modifiers.shift_key()),

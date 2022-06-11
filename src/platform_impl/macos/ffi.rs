@@ -15,7 +15,6 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
-use objc;
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
 
@@ -107,6 +106,8 @@ pub const kCGCursorWindowLevelKey: NSInteger = 19;
 pub const kCGNumberOfWindowLevelKeys: NSInteger = 20;
 
 #[derive(Debug, Clone, Copy)]
+#[repr(isize)]
+#[allow(clippy::enum_variant_names)]
 pub enum NSWindowLevel {
     NSNormalWindowLevel = kCGBaseWindowLevelKey as _,
     NSFloatingWindowLevel = kCGFloatingWindowLevelKey as _,
@@ -170,16 +171,7 @@ pub type CGDisplayModeRef = *mut c_void;
 // directly. Fortunately, it has always been available as a subframework of
 // `ApplicationServices`, see:
 // https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/SystemFrameworks/SystemFrameworks.html#//apple_ref/doc/uid/TP40001067-CH210-BBCFFIEG
-//
-// TODO: Remove the WINIT_LINK_COLORSYNC hack, it is probably not needed.
-#[cfg_attr(
-    not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
-    link(name = "ApplicationServices", kind = "framework")
-)]
-#[cfg_attr(
-    use_colorsync_cgdisplaycreateuuidfromdisplayid,
-    link(name = "ColorSync", kind = "framework")
-)]
+#[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
 }
@@ -229,3 +221,45 @@ extern "C" {
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
     pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
 }
+
+mod core_video {
+    use super::*;
+
+    #[link(name = "CoreVideo", kind = "framework")]
+    extern "C" {}
+
+    // CVBase.h
+
+    pub type CVTimeFlags = i32; // int32_t
+    pub const kCVTimeIsIndefinite: CVTimeFlags = 1 << 0;
+
+    #[repr(C)]
+    #[derive(Debug, Clone)]
+    pub struct CVTime {
+        pub time_value: i64, // int64_t
+        pub time_scale: i32, // int32_t
+        pub flags: i32,      // int32_t
+    }
+
+    // CVReturn.h
+
+    pub type CVReturn = i32; // int32_t
+    pub const kCVReturnSuccess: CVReturn = 0;
+
+    // CVDisplayLink.h
+
+    pub type CVDisplayLinkRef = *mut c_void;
+
+    extern "C" {
+        pub fn CVDisplayLinkCreateWithCGDisplay(
+            displayID: CGDirectDisplayID,
+            displayLinkOut: *mut CVDisplayLinkRef,
+        ) -> CVReturn;
+        pub fn CVDisplayLinkGetNominalOutputVideoRefreshPeriod(
+            displayLink: CVDisplayLinkRef,
+        ) -> CVTime;
+        pub fn CVDisplayLinkRelease(displayLink: CVDisplayLinkRef);
+    }
+}
+
+pub use core_video::*;

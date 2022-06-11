@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
@@ -150,9 +152,9 @@ fn main() {
         });
     }
     event_loop.run(move |event, _event_loop, control_flow| {
-        *control_flow = match !window_senders.is_empty() {
-            true => ControlFlow::Wait,
-            false => ControlFlow::Exit,
+        match !window_senders.is_empty() {
+            true => control_flow.set_wait(),
+            false => control_flow.set_exit(),
         };
         match event {
             Event::WindowEvent { event, window_id } => match event {

@@ -3,7 +3,7 @@ name = "winit"
 version = "0.26.1"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
-edition = "2018"
+edition = "2021"
 keywords = ["windowing"]
 license = "Apache-2.0"
 readme = "README.md"
@@ -14,17 +14,35 @@ categories = ["gui"]
 [package.metadata.docs.rs]
 features = ["serde"]
 default-target = "x86_64-unknown-linux-gnu"
-targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
+# These are all tested in CI
+targets = [
+    # Windows
+    "i686-pc-windows-msvc",
+    "x86_64-pc-windows-msvc",
+    # macOS
+    "x86_64-apple-darwin",
+    # Unix (X11 & Wayland)
+    "i686-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    # iOS
+    "x86_64-apple-ios",
+    # Android
+    "aarch64-linux-android",
+    # WebAssembly
+    "wasm32-unknown-unknown",
+]
 
 [features]
-default = ["x11", "wayland", "wayland-dlopen"]
+default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
 x11 = ["x11-dl", "mio", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "wayland-protocols", "sctk"]
 wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
+wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/title"]
+wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
-lazy_static = "1"
+once_cell = "1.12"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
 raw-window-handle = "0.4.2"
@@ -33,13 +51,13 @@ mint = { version = "0.5.6", optional = true }
 nameof = "1"
 
 [dev-dependencies]
-image = "0.23.12"
-simple_logger = "1.9"
+image = { version = "0.24.0", default-features = false, features = ["png"] }
+simple_logger = "2.1.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ndk = "0.5"
-ndk-sys = "0.2.0"
-ndk-glue = "0.5"
+# Coordinate the next winit release with android-ndk-rs: https://github.com/rust-windowing/winit/issues/1995
+ndk = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "7e33384" }
+ndk-glue = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "7e33384" }
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 objc = "0.2.7"
@@ -50,51 +68,49 @@ core-foundation = "0.9"
 core-graphics = "0.22"
 dispatch = "0.2.0"
 
-[target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
-version = "0.1.4"
-default_features = false
-features = ["display_link"]
-
 [target.'cfg(target_os = "windows")'.dependencies]
-parking_lot = "0.11"
+parking_lot = "0.12"
 unicode-segmentation = "1.7.1"
 
-[target.'cfg(target_os = "windows")'.dependencies.winapi]
-version = "0.3.9"
+
+[target.'cfg(target_os = "windows")'.dependencies.windows-sys]
+version = "0.36"
 features = [
-    "combaseapi",
-    "commctrl",
-    "dwmapi",
-    "errhandlingapi",
-    "imm",
-    "hidusage",
-    "libloaderapi",
-    "objbase",
-    "ole2",
-    "processthreadsapi",
-    "shellapi",
-    "shellscalingapi",
-    "shobjidl_core",
-    "unknwnbase",
-    "winbase",
-    "windowsx",
-    "winerror",
-    "wingdi",
-    "winnt",
-    "winnls",
-    "winuser",
-    "mmsystem",
-    "timeapi"
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Media",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_Pointer",
+    "Win32_UI_Input_Touch",
+    "Win32_UI_Shell",
+    "Win32_UI_TextServices",
+    "Win32_UI_WindowsAndMessaging",
 ]
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
-wayland-client = { version = "0.29", default_features = false,  features = ["use_system_lib"], optional = true }
-wayland-protocols = { version = "0.29", features = [ "staging_protocols"], optional = true }
-sctk = { package = "smithay-client-toolkit", version = "0.15.1", default_features = false, features = ["calloop"],  optional = true }
+wayland-client = { version = "0.29.4", default_features = false,  features = ["use_system_lib"], optional = true }
+wayland-protocols = { version = "0.29.4", features = [ "staging_protocols"], optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.15.4", default_features = false, features = ["calloop"],  optional = true }
+sctk-adwaita = { version = "0.3.5", optional = true }
 mio = { version = "0.8", features = ["os-ext"], optional = true }
 x11-dl = { version = "2.18.5", optional = true }
 percent-encoding = { version = "2.0", optional = true }
-parking_lot = { version = "0.11.0", optional = true }
+parking_lot = { version = "0.12.0", optional = true }
 libc = "0.2.64"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
@@ -128,3 +144,8 @@ version = "0.2.45"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 console_log = "0.2"
+
+[workspace]
+members = [
+    "run-wasm",
+]

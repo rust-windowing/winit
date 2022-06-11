@@ -1,10 +1,12 @@
+#![allow(clippy::single_match)]
+
 // This example is used by developers to test various window functions.
 
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyEvent, RawKeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::{ControlFlow, EventLoop, DeviceEventFilter},
     keyboard::{Key, KeyCode},
     window::{Fullscreen, WindowBuilder},
 };
@@ -15,7 +17,7 @@ fn main() {
 
     let window = WindowBuilder::new()
         .with_title("A fantastic window!")
-        .with_inner_size(LogicalSize::new(100.0, 100.0))
+        .with_inner_size(LogicalSize::new(100 as f32, 100 as f32))
         .build(&event_loop)
         .unwrap();
 
@@ -31,8 +33,10 @@ fn main() {
     let mut minimized = false;
     let mut visible = true;
 
+    event_loop.set_device_event_filter(DeviceEventFilter::Never);
+
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             // This used to use the virtual key, but the new API
@@ -66,7 +70,7 @@ fn main() {
                         event:
                             KeyEvent {
                                 logical_key: Key::Character(key_str),
-                                state: ElementState::Released,
+                                state: ElementState::Pressed,
                                 ..
                             },
                         ..
@@ -110,7 +114,7 @@ fn main() {
                     window.set_minimized(minimized);
                 }
                 "q" => {
-                    *control_flow = ControlFlow::Exit;
+                    control_flow.set_exit();
                 }
                 "v" => {
                     visible = !visible;
@@ -125,7 +129,7 @@ fn main() {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            } if window_id == window.id() => control_flow.set_exit(),
             _ => (),
         }
     });

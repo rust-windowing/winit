@@ -26,8 +26,11 @@ pub(super) struct PointerData {
 
     pub confined_pointer: Rc<RefCell<Option<ZwpConfinedPointerV1>>>,
 
-    /// A latest event serial.
+    /// Latest observed serial in pointer events.
     pub latest_serial: Rc<Cell<u32>>,
+
+    /// Latest observed serial in pointer enter events.
+    pub latest_enter_serial: Rc<Cell<u32>>,
 
     /// The currently accumulated axis data on a pointer.
     pub axis_data: AxisData,
@@ -42,6 +45,7 @@ impl PointerData {
         Self {
             surface: None,
             latest_serial: Rc::new(Cell::new(0)),
+            latest_enter_serial: Rc::new(Cell::new(0)),
             confined_pointer,
             modifiers_state,
             pointer_constraints,

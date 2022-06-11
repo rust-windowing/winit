@@ -2,13 +2,13 @@ use super::runner;
 use crate::event::Event;
 use crate::event_loop::EventLoopClosed;
 
-pub struct Proxy<T: 'static> {
+pub struct EventLoopProxy<T: 'static> {
     runner: runner::Shared<T>,
 }
 
-impl<T: 'static> Proxy<T> {
+impl<T: 'static> EventLoopProxy<T> {
     pub fn new(runner: runner::Shared<T>) -> Self {
-        Proxy { runner }
+        Self { runner }
     }
 
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
@@ -17,9 +17,9 @@ impl<T: 'static> Proxy<T> {
     }
 }
 
-impl<T: 'static> Clone for Proxy<T> {
+impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Proxy {
+        Self {
             runner: self.runner.clone(),
         }
     }

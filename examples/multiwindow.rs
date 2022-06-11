@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use std::collections::HashMap;
 
 use simple_logger::SimpleLogger;
@@ -18,7 +20,7 @@ fn main() {
     }
 
     event_loop.run(move |event, event_loop, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, window_id } => {
@@ -30,7 +32,7 @@ fn main() {
                         windows.remove(&window_id);
 
                         if windows.is_empty() {
-                            *control_flow = ControlFlow::Exit;
+                            control_flow.set_exit();
                         }
                     }
                     WindowEvent::KeyboardInput {

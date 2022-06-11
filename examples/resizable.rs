@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use simple_logger::SimpleLogger;
 use winit::{
     dpi::LogicalSize,
@@ -21,11 +23,11 @@ fn main() {
         .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {

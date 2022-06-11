@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use std::io::{stdin, stdout, Write};
 
 use simple_logger::SimpleLogger;
@@ -33,11 +35,11 @@ fn main() {
         .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::KeyboardInput {
                     event:
                         KeyEvent {
@@ -47,7 +49,7 @@ fn main() {
                         },
                     ..
                 } => match key {
-                    Key::Escape => *control_flow = ControlFlow::Exit,
+                    Key::Escape => control_flow.set_exit(),
 
                     // WARNING: Consider using `key_without_modifers()` if available on your platform.
                     // See the `key_binding` example
