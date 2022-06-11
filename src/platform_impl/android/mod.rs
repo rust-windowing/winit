@@ -20,7 +20,8 @@ use crate::{
     error,
     event::{self, VirtualKeyCode},
     event_loop::{self, ControlFlow},
-    monitor, window,
+    monitor,
+    window::{self, CursorGrabMode},
 };
 
 static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {
@@ -765,7 +766,7 @@ impl Window {
         ))
     }
 
-    pub fn set_cursor_grab(&self, _: bool) -> Result<(), error::ExternalError> {
+    pub fn set_cursor_grab_mode(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))

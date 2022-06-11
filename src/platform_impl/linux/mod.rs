@@ -10,8 +10,6 @@
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 #[cfg(feature = "wayland")]
-use crate::window::Theme;
-#[cfg(feature = "wayland")]
 use std::error::Error;
 
 use std::{collections::VecDeque, env, fmt};
@@ -28,6 +26,8 @@ use raw_window_handle::RawWindowHandle;
 pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+#[cfg(feature = "wayland")]
+use crate::window::Theme;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -37,7 +37,7 @@ use crate::{
     },
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -388,8 +388,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.set_cursor_grab(grab))
+    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.set_cursor_grab_mode(mode))
     }
 
     #[inline]

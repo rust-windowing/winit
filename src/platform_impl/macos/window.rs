@@ -29,7 +29,8 @@ use crate::{
         OsError,
     },
     window::{
-        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
     },
 };
 use cocoa::{
@@ -621,9 +622,17 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let associate_mouse_cursor = match mode {
+            CursorGrabMode::Locked => false,
+            CursorGrabMode::None => true,
+            CursorGrabMode::Confined => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            }
+        };
+
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
-        CGDisplay::associate_mouse_and_mouse_cursor_position(!grab)
+        CGDisplay::associate_mouse_and_mouse_cursor_position(associate_mouse_cursor)
             .map_err(|status| ExternalError::Os(os_error!(OsError::CGError(status))))
     }
 

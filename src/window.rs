@@ -906,18 +906,10 @@ impl Window {
         self.window.set_cursor_position(position.into())
     }
 
-    /// Grabs the cursor, preventing it from leaving the window.
-    ///
-    /// There's no guarantee that the cursor will be hidden. You should
-    /// hide it by yourself if you want so.
-    ///
-    /// ## Platform-specific
-    ///
-    /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
-    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    /// Set grabbing [mode]([`CursorGrabMode`]) on the cursor preventing it from leaving the window.
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        self.window.set_cursor_grab(grab)
+    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        self.window.set_cursor_grab_mode(mode)
     }
 
     /// Modifies the cursor's visibility.
@@ -1026,6 +1018,35 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Window {
     fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         self.window.raw_window_handle()
     }
+}
+
+/// The behavior of cursor grabbing.
+///
+/// To grab cursor [`Window::set_cursor_grab_mode`] should be used.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CursorGrabMode {
+    /// No grabbing of the cursor is performed.
+    None,
+
+    /// There's no guarantee that the cursor will be hidden. You should hide it by yourself if you
+    /// want so.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Not implemented.
+    /// - ** iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    Confined,
+
+    /// The cursor is locked inside the window area to the certain position.
+    ///
+    /// There's no guarantee that the cursor will be hidden, you should h
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Windows:** Not implemented.
+    /// - ** iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    Locked,
 }
 
 /// Describes the appearance of the mouse cursor.

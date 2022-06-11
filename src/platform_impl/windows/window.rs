@@ -69,7 +69,7 @@ use crate::{
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
@@ -276,7 +276,15 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let confine = match mode {
+            CursorGrabMode::None => false,
+            CursorGrabMode::Confined => true,
+            CursorGrabMode::Locked => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            }
+        };
+
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);
         let (tx, rx) = channel();
@@ -286,7 +294,7 @@ impl Window {
             let result = window_state
                 .lock()
                 .mouse
-                .set_cursor_flags(window.0, |f| f.set(CursorFlags::GRABBED, grab))
+                .set_cursor_flags(window.0, |f| f.set(CursorFlags::GRABBED, confine))
                 .map_err(|e| ExternalError::Os(os_error!(e)));
             let _ = tx.send(result);
         });

@@ -9,7 +9,7 @@ fn main() {
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
         event_loop::EventLoop,
-        window::{CursorIcon, Fullscreen, WindowBuilder},
+        window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder},
     };
 
     const WINDOW_COUNT: usize = 3;
@@ -88,7 +88,15 @@ fn main() {
                                 }
                                 (false, _) => None,
                             }),
-                            G => window.set_cursor_grab(state).unwrap(),
+                            L if state => {
+                                window.set_cursor_grab_mode(CursorGrabMode::Locked).unwrap()
+                            }
+                            G if state => window
+                                .set_cursor_grab_mode(CursorGrabMode::Confined)
+                                .unwrap(),
+                            G | L if !state => {
+                                window.set_cursor_grab_mode(CursorGrabMode::None).unwrap()
+                            }
                             H => window.set_cursor_visible(!state),
                             I => {
                                 println!("Info:");

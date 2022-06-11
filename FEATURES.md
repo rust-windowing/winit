@@ -100,7 +100,8 @@ If your PR makes notable changes to Winit's features, please update this section
 ### Input Handling
 - **Mouse events**: Generating mouse events associated with pointer motion, click, and scrolling events.
 - **Mouse set location**: Forcibly changing the location of the pointer.
-- **Cursor grab**: Locking the cursor so it cannot exit the client area of a window.
+- **Cursor locking**: Locking the cursor inside the window so it cannot move.
+- **Cursor confining**: Confining the cursor to the window bounds so it cannot leave them.
 - **Cursor icon**: Changing the cursor icon, or hiding the cursor.
 - **Cursor hittest**: Handle or ignore mouse events for a window.
 - **Touch events**: Single-touch events.
@@ -197,8 +198,9 @@ Legend:
 |Feature                 |Windows   |MacOS   |Linux x11|Linux Wayland|Android|iOS    |WASM      |
 |----------------------- | -----    | ----   | ------- | ----------- | ----- | ----- | -------- |
 |Mouse events            |✔️       |▢[#63]  |✔️       |✔️          |**N/A**|**N/A**|✔️        |
-|Mouse set location      |✔️       |✔️      |✔️       |❓           |**N/A**|**N/A**|**N/A**|
-|Cursor grab             |✔️       |▢[#165] |▢[#242]  |✔️         |**N/A**|**N/A**|✔️        |
+|Mouse set location      |✔️       |✔️      |✔️       |✔️(when locked)  |**N/A**|**N/A**|**N/A**|
+|Cursor locking          |❌      |✔️      |❌    |✔️         |**N/A**|**N/A**|✔️        |
+|Cursor confining        |✔️       |❌     |✔️     |✔️         |**N/A**|**N/A**|❌       |
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
 |Cursor hittest          |✔️       |✔️      |❌       |✔️           |**N/A**|**N/A**|❌        |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |

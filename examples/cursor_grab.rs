@@ -4,7 +4,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
     event_loop::EventLoop,
-    window::WindowBuilder,
+    window::{CursorGrabMode, WindowBuilder},
 };
 
 fn main() {
@@ -36,7 +36,11 @@ fn main() {
                     use winit::event::VirtualKeyCode::*;
                     match key {
                         Escape => control_flow.set_exit(),
-                        G => window.set_cursor_grab(!modifiers.shift()).unwrap(),
+                        G => window
+                            .set_cursor_grab_mode(CursorGrabMode::Confined)
+                            .unwrap(),
+                        L => window.set_cursor_grab_mode(CursorGrabMode::Locked).unwrap(),
+                        A => window.set_cursor_grab_mode(CursorGrabMode::None).unwrap(),
                         H => window.set_cursor_visible(modifiers.shift()),
                         _ => (),
                     }
