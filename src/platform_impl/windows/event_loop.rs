@@ -43,9 +43,9 @@ use crate::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
         drop_handler::FileDropHandler,
-        keyboard::is_msg_keyboard_related,
+        keyboard::KeyEventBuilder,
         keyboard_layout::LAYOUT_CACHE,
-        minimal_ime::is_msg_ime_related,
+        minimal_ime::MinimalIme,
         monitor::{self, MonitorHandle},
         raw_input, util,
         window::InitData,
@@ -91,6 +91,8 @@ lazy_static! {
 pub(crate) struct WindowData<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
+    pub key_event_builder: KeyEventBuilder,
+    pub ime_handler: MinimalIme,
     pub _file_drop_handler: Option<FileDropHandler>,
     pub userdata_removed: Cell<bool>,
     pub recurse_depth: Cell<u32>,
@@ -913,18 +915,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
     let keyboard_callback = || {
         use crate::event::WindowEvent::KeyboardInput;
-        let is_keyboard_related = is_msg_keyboard_related(msg);
-        if !is_keyboard_related {
-            // We return early to avoid a deadlock from locking the window state
-            // when not appropriate.
-            return;
-        }
-        let events = {
-            let mut window_state = userdata.window_state.lock();
-            window_state
+        let events =
+            userdata
                 .key_event_builder
-                .process_message(window, msg, wparam, lparam, &mut result)
-        };
+                .process_message(window, msg, wparam, lparam, &mut result);
         for event in events {
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
@@ -943,16 +937,9 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
     let ime_callback = || {
         use crate::event::WindowEvent::ReceivedImeText;
-        let is_ime_related = is_msg_ime_related(msg);
-        if !is_ime_related {
-            return;
-        }
-        let text = {
-            let mut window_state = userdata.window_state.lock();
-            window_state
-                .ime_handler
-                .process_message(window, msg, wparam, lparam, &mut result)
-        };
+        let text = userdata
+            .ime_handler
+            .process_message(window, msg, wparam, lparam, &mut result);
         if let Some(str) = text {
             userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
