@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 
 use winit::event::{Event, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::EventLoop;
 use winit::keyboard::Key;
 use winit::window::WindowBuilder;
 

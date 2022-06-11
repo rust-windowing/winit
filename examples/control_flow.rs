@@ -5,7 +5,7 @@ use std::{thread, time};
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     keyboard::Key,
     window::WindowBuilder,
 };

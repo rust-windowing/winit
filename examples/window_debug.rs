@@ -6,7 +6,7 @@ use simple_logger::SimpleLogger;
 use winit::{
     dpi::{LogicalSize, PhysicalSize},
     event::{DeviceEvent, ElementState, Event, KeyEvent, RawKeyEvent, WindowEvent},
-    event_loop::{ControlFlow, DeviceEventFilter, EventLoop},
+    event_loop::{DeviceEventFilter, EventLoop},
     keyboard::{Key, KeyCode},
     window::{Fullscreen, WindowBuilder},
 };

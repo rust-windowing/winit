@@ -8,7 +8,7 @@ fn main() {
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyEvent, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         keyboard::{Key, ModifiersState},
         window::{CursorIcon, Fullscreen, WindowBuilder},
     };

@@ -3,7 +3,7 @@
 use simple_logger::SimpleLogger;
 use winit::{
     event::{ElementState, Event, KeyEvent, MouseButton, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     keyboard::Key,
     window::{Window, WindowBuilder, WindowId},
 };
