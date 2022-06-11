@@ -221,3 +221,45 @@ extern "C" {
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
     pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
 }
+
+mod core_video {
+    use super::*;
+
+    #[link(name = "CoreVideo", kind = "framework")]
+    extern "C" {}
+
+    // CVBase.h
+
+    pub type CVTimeFlags = i32; // int32_t
+    pub const kCVTimeIsIndefinite: CVTimeFlags = 1 << 0;
+
+    #[repr(C)]
+    #[derive(Debug, Clone)]
+    pub struct CVTime {
+        pub time_value: i64, // int64_t
+        pub time_scale: i32, // int32_t
+        pub flags: i32,      // int32_t
+    }
+
+    // CVReturn.h
+
+    pub type CVReturn = i32; // int32_t
+    pub const kCVReturnSuccess: CVReturn = 0;
+
+    // CVDisplayLink.h
+
+    pub type CVDisplayLinkRef = *mut c_void;
+
+    extern "C" {
+        pub fn CVDisplayLinkCreateWithCGDisplay(
+            displayID: CGDirectDisplayID,
+            displayLinkOut: *mut CVDisplayLinkRef,
+        ) -> CVReturn;
+        pub fn CVDisplayLinkGetNominalOutputVideoRefreshPeriod(
+            displayLink: CVDisplayLinkRef,
+        ) -> CVTime;
+        pub fn CVDisplayLinkRelease(displayLink: CVDisplayLinkRef);
+    }
+}
+
+pub use core_video::*;
