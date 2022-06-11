@@ -42,6 +42,13 @@ impl PointerHandler {
         self.on_cursor_leave = Some(canvas_common.add_event(
             "pointerout",
             move |event: PointerEvent| {
+                // touch events are handled separately
+                // handling them here would produce duplicate mouse events, inconsistent with
+                // other platforms.
+                if event.pointer_type() == "touch" {
+                    return;
+                }
+
                 handler(event.pointer_id());
             },
         ));
@@ -54,6 +61,13 @@ impl PointerHandler {
         self.on_cursor_enter = Some(canvas_common.add_event(
             "pointerover",
             move |event: PointerEvent| {
+                // touch events are handled separately
+                // handling them here would produce duplicate mouse events, inconsistent with
+                // other platforms.
+                if event.pointer_type() == "touch" {
+                    return;
+                }
+
                 handler(event.pointer_id());
             },
         ));
@@ -66,6 +80,13 @@ impl PointerHandler {
         self.on_pointer_release = Some(canvas_common.add_user_event(
             "pointerup",
             move |event: PointerEvent| {
+                // touch events are handled separately
+                // handling them here would produce duplicate mouse events, inconsistent with
+                // other platforms.
+                if event.pointer_type() == "touch" {
+                    return;
+                }
+
                 handler(
                     event.pointer_id(),
                     event::mouse_button(&event),
@@ -83,6 +104,13 @@ impl PointerHandler {
         self.on_pointer_press = Some(canvas_common.add_user_event(
             "pointerdown",
             move |event: PointerEvent| {
+                // touch events are handled separately
+                // handling them here would produce duplicate mouse events, inconsistent with
+                // other platforms.
+                if event.pointer_type() == "touch" {
+                    return;
+                }
+
                 handler(
                     event.pointer_id(),
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
@@ -105,6 +133,13 @@ impl PointerHandler {
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
             move |event: PointerEvent| {
+                // touch events are handled separately
+                // handling them here would produce duplicate mouse events, inconsistent with
+                // other platforms.
+                if event.pointer_type() == "touch" {
+                    return;
+                }
+
                 handler(
                     event.pointer_id(),
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
