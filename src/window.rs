@@ -317,7 +317,7 @@ impl WindowBuilder {
     ///
     /// Platform-specific behavior:
     /// - **Web**: The window is created but not inserted into the web page automatically. Please
-    /// see the web platform module for more information.
+    ///   see the web platform module for more information.
     #[inline]
     pub fn build<T: 'static>(
         self,
@@ -343,7 +343,7 @@ impl Window {
     ///
     /// Platform-specific behavior:
     /// - **Web**: The window is created but not inserted into the web page automatically. Please
-    /// see the web platform module for more information.
+    ///   see the web platform module for more information.
     ///
     /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
     #[inline]
@@ -427,14 +427,14 @@ impl Window {
     }
 
     /// Returns the position of the top-left hand corner of the window relative to the
-    ///  top-left hand corner of the desktop.
+    /// top-left hand corner of the desktop.
     ///
     /// Note that the top-left hand corner of the desktop is not necessarily the same as
-    ///  the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
-    ///  of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
+    /// the screen. If the user uses a desktop with multiple monitors, the top-left hand corner
+    /// of the desktop is the top-left hand corner of the monitor at the top-left of the desktop.
     ///
     /// The coordinates can be negative if the top-left hand corner of the window is outside
-    ///  of the visible screen region.
+    /// of the visible screen region.
     ///
     /// ## Platform-specific
     ///
@@ -597,6 +597,7 @@ impl Window {
     /// Modifies the window's visibility.
     ///
     /// If `false`, this will hide the window. If `true`, this will show the window.
+    ///
     /// ## Platform-specific
     ///
     /// - **Android / Wayland / Web:** Unsupported.
@@ -608,7 +609,7 @@ impl Window {
 
     /// Gets the window's current vibility state.
     ///
-    /// If `None` means it couldn't be determined so it is not recommended to use this to drive your rendering backend.
+    /// `None` means it couldn't be determined, so it is not recommended to use this to drive your rendering backend.
     ///
     /// ## Platform-specific
     ///
@@ -698,7 +699,7 @@ impl Window {
     ///   on macOS. See `WindowExtMacOs::set_simple_fullscreen` if
     ///   separate spaces are not preferred.
     ///
-    ///   The dock and the menu bar are always disabled in fullscreen mode.
+    ///   The dock and the menu bar are disabled in exclusive fullscreen mode.
     /// - **iOS:** Can only be called on the main thread.
     /// - **Wayland:** Does not support exclusive fullscreen mode and will no-op a request.
     /// - **Windows:** Screen saver is disabled in fullscreen mode.
@@ -751,18 +752,20 @@ impl Window {
         self.window.set_always_on_top(always_on_top)
     }
 
-    /// Sets the window icon. On Windows and X11, this is typically the small icon in the top-left
+    /// Sets the window icon.
+    ///
+    /// On Windows and X11, this is typically the small icon in the top-left
     /// corner of the titlebar.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / Wayland / macOS:** Unsupported.
     ///
-    /// On Windows, this sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
-    /// recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
+    /// - **Windows:** Sets `ICON_SMALL`. The base size for a window icon is 16x16, but it's
+    ///   recommended to account for screen scaling and pick a multiple of that, i.e. 32x32.
     ///
-    /// X11 has no universal guidelines for icon sizes, so you're at the whims of the WM. That
-    /// said, it's usually in the same ballpark as on Windows.
+    /// - **X11:** Has no universal guidelines for icon sizes, so you're at the whims of the WM. That
+    ///   said, it's usually in the same ballpark as on Windows.
     #[inline]
     pub fn set_window_icon(&self, window_icon: Option<Icon>) {
         self.window.set_window_icon(window_icon)

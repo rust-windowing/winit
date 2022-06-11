@@ -601,7 +601,7 @@ pub enum DeviceEvent {
         delta: MouseScrollDelta,
     },
 
-    /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
+    /// Motion on some analog axis. This event will be reported for all arbitrary input devices
     /// that winit supports on this platform, including mouse devices.  If the device is a mouse
     /// device then this will be reported alongside the MouseMotion event.
     Motion {
@@ -682,7 +682,6 @@ pub struct KeyboardInput {
 /// // Press space key
 /// Ime::Commit("啊不")
 /// ```
-///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Ime {
@@ -792,6 +791,7 @@ pub enum Force {
 
 impl Force {
     /// Returns the force normalized to the range between 0.0 and 1.0 inclusive.
+    ///
     /// Instead of normalizing the force, you should prefer to handle
     /// [`Force::Calibrated`] so that the amount of force the user has to apply is
     /// consistent across devices.

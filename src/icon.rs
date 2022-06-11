@@ -73,10 +73,6 @@ mod constructors {
     use super::*;
 
     impl RgbaIcon {
-        /// Creates an `Icon` from 32bpp RGBA data.
-        ///
-        /// The length of `rgba` must be divisible by 4, and `width * height` must equal
-        /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.
         pub fn from_rgba(rgba: Vec<u8>, width: u32, height: u32) -> Result<Self, BadIcon> {
             if rgba.len() % PIXEL_SIZE != 0 {
                 return Err(BadIcon::ByteCountNotDivisibleBy4 {

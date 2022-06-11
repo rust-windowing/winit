@@ -123,6 +123,7 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
 /// Defaults to [`Poll`].
 ///
 /// ## Persistency
+///
 /// Almost every change is persistent between multiple calls to the event loop closure within a
 /// given run loop. The only exception to this is [`ExitWithCode`] which, once set, cannot be unset.
 /// Changes are **not** persistent between multiple calls to `run_return` - issuing a new call will
@@ -174,41 +175,41 @@ pub enum ControlFlow {
 impl ControlFlow {
     /// Alias for [`ExitWithCode`]`(0)`.
     ///
-    /// [`ExitWithCode`]: ControlFlow::ExitWithCode
+    /// [`ExitWithCode`]: Self::ExitWithCode
     #[allow(non_upper_case_globals)]
     pub const Exit: Self = Self::ExitWithCode(0);
 
     /// Sets this to [`Poll`].
     ///
-    /// [`Poll`]: ControlFlow::Poll
+    /// [`Poll`]: Self::Poll
     pub fn set_poll(&mut self) {
         *self = Self::Poll;
     }
 
     /// Sets this to [`Wait`].
     ///
-    /// [`Wait`]: ControlFlow::Wait
+    /// [`Wait`]: Self::Wait
     pub fn set_wait(&mut self) {
         *self = Self::Wait;
     }
 
     /// Sets this to [`WaitUntil`]`(instant)`.
     ///
-    /// [`WaitUntil`]: ControlFlow::WaitUntil
+    /// [`WaitUntil`]: Self::WaitUntil
     pub fn set_wait_until(&mut self, instant: Instant) {
         *self = Self::WaitUntil(instant);
     }
 
     /// Sets this to [`ExitWithCode`]`(code)`.
     ///
-    /// [`ExitWithCode`]: ControlFlow::ExitWithCode
+    /// [`ExitWithCode`]: Self::ExitWithCode
     pub fn set_exit_with_code(&mut self, code: i32) {
         *self = Self::ExitWithCode(code);
     }
 
     /// Sets this to [`Exit`].
     ///
-    /// [`Exit`]: ControlFlow::Exit
+    /// [`Exit`]: Self::Exit
     pub fn set_exit(&mut self) {
         *self = Self::Exit;
     }
@@ -216,8 +217,8 @@ impl ControlFlow {
 
 impl Default for ControlFlow {
     #[inline(always)]
-    fn default() -> ControlFlow {
-        ControlFlow::Poll
+    fn default() -> Self {
+        Self::Poll
     }
 }
 
