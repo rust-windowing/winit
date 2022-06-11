@@ -1,10 +1,10 @@
-//! The `Event` enum and assorted supporting types.
+//! The [`Event`] enum and assorted supporting types.
 //!
-//! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
+//! These are sent to the closure given to [`EventLoop::run(...)`], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
 //! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run(...)`][event_loop_run] like this:
+//! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
 //!
 //! ```rust,ignore
 //! let mut control_flow = ControlFlow::Poll;
@@ -29,10 +29,11 @@
 //! event_handler(LoopDestroyed, ..., &mut control_flow);
 //! ```
 //!
-//! This leaves out timing details like `ControlFlow::WaitUntil` but hopefully
+//! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
 //! describes what happens in what order.
 //!
-//! [event_loop_run]: crate::event_loop::EventLoop::run
+//! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
+//! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use instant::Instant;
 use std::path::PathBuf;
 
@@ -90,7 +91,7 @@ pub enum Event<'a, T: 'static> {
     /// can render here unconditionally for simplicity.
     MainEventsCleared,
 
-    /// Emitted after `MainEventsCleared` when a window should be redrawn.
+    /// Emitted after [`MainEventsCleared`] when a window should be redrawn.
     ///
     /// This gets triggered in two scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
@@ -102,14 +103,18 @@ pub enum Event<'a, T: 'static> {
     ///
     /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
     /// something changes, like most non-game GUIs.
+    ///
+    /// [`MainEventsCleared`]: Self::MainEventsCleared
     RedrawRequested(WindowId),
 
-    /// Emitted after all `RedrawRequested` events have been processed and control flow is about to
+    /// Emitted after all [`RedrawRequested`] events have been processed and control flow is about to
     /// be taken away from the program. If there are no `RedrawRequested` events, it is emitted
     /// immediately after `MainEventsCleared`.
     ///
     /// This event is useful for doing any cleanup or bookkeeping work after all the rendering
     /// tasks have been completed.
+    ///
+    /// [`RedrawRequested`]: Self::RedrawRequested
     RedrawEventsCleared,
 
     /// Emitted when the event loop is being shut down.
@@ -184,9 +189,11 @@ impl<'a, T> Event<'a, T> {
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartCause {
-    /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
+    /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
     /// guaranteed to be equal to or after the requested resume time.
+    ///
+    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
     ResumeTimeReached {
         start: Instant,
         requested_resume: Instant,
@@ -200,7 +207,9 @@ pub enum StartCause {
     },
 
     /// Sent if the event loop is being resumed after the loop's control flow was set to
-    /// `ControlFlow::Poll`.
+    /// [`ControlFlow::Poll`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
     Poll,
 
     /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
@@ -550,7 +559,7 @@ impl<'a> WindowEvent<'a> {
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing.
+    /// Returns a dummy id, useful for unit testing.
     ///
     /// # Safety
     ///
@@ -579,7 +588,7 @@ pub enum DeviceEvent {
 
     /// Change in physical position of a pointing device.
     ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
+    /// This represents raw, unfiltered physical motion. Not to be confused with [`WindowEvent::CursorMoved`].
     MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///
@@ -718,18 +727,18 @@ pub enum TouchPhase {
 
 /// Represents a touch event
 ///
-/// Every time the user touches the screen, a new `Start` event with an unique
-/// identifier for the finger is generated. When the finger is lifted, an `End`
+/// Every time the user touches the screen, a new [`TouchPhase::Started`] event with an unique
+/// identifier for the finger is generated. When the finger is lifted, an [`TouchPhase::Ended`]
 /// event is generated with the same finger id.
 ///
-/// After a `Start` event has been emitted, there may be zero or more `Move`
+/// After a `Started` event has been emitted, there may be zero or more `Move`
 /// events when the finger is moved or the touch pressure changes.
 ///
-/// The finger id may be reused by the system after an `End` event. The user
-/// should assume that a new `Start` event received with the same id has nothing
+/// The finger id may be reused by the system after an `Ended` event. The user
+/// should assume that a new `Started` event received with the same id has nothing
 /// to do with the old finger and is a new finger.
 ///
-/// A `Cancelled` event is emitted when the system has canceled tracking this
+/// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
 /// touch, such as when the window loses focus, or on iOS if the user moves the
 /// device against their face.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -784,7 +793,7 @@ pub enum Force {
 impl Force {
     /// Returns the force normalized to the range between 0.0 and 1.0 inclusive.
     /// Instead of normalizing the force, you should prefer to handle
-    /// `Force::Calibrated` so that the amount of force the user has to apply is
+    /// [`Force::Calibrated`] so that the amount of force the user has to apply is
     /// consistent across devices.
     pub fn normalized(&self) -> f64 {
         match self {
@@ -845,7 +854,7 @@ pub enum MouseScrollDelta {
     /// Amount in pixels to scroll in the horizontal and
     /// vertical direction.
     ///
-    /// Scroll events are expressed as a PixelDelta if
+    /// Scroll events are expressed as a `PixelDelta` if
     /// supported by the device (eg. a touchpad) and
     /// platform.
     ///

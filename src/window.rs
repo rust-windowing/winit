@@ -1,4 +1,4 @@
-//! The `Window` struct and associated types.
+//! The [`Window`] struct and associated types.
 use std::fmt;
 
 use crate::{
@@ -61,7 +61,7 @@ impl Drop for Window {
 
 /// Identifier of a window. Unique for each window.
 ///
-/// Can be obtained with `window.id()`.
+/// Can be obtained with [`window.id()`](`Window::id`).
 ///
 /// Whenever you receive an event specific to a window, this event contains a `WindowId` which you
 /// can then compare to the ids of your windows.
@@ -69,13 +69,13 @@ impl Drop for Window {
 pub struct WindowId(pub(crate) platform_impl::WindowId);
 
 impl WindowId {
-    /// Returns a dummy `WindowId`, useful for unit testing.
+    /// Returns a dummy id, useful for unit testing.
     ///
     /// # Safety
     ///
     /// The only guarantee made about the return value of this function is that
     /// it will always be equal to itself and to future values returned by this function.
-    /// No other guarantees are made. This may be equal to a real `WindowId`.
+    /// No other guarantees are made. This may be equal to a real [`WindowId`].
     ///
     /// **Passing this into a winit function will result in undefined behavior.**
     pub const unsafe fn dummy() -> Self {
@@ -142,7 +142,7 @@ impl Default for WindowAttributes {
 }
 
 impl WindowBuilder {
-    /// Initializes a new `WindowBuilder` with default values.
+    /// Initializes a new builder with default values.
     #[inline]
     pub fn new() -> Self {
         Default::default()
@@ -345,7 +345,7 @@ impl Window {
     /// - **Web**: The window is created but not inserted into the web page automatically. Please
     /// see the web platform module for more information.
     ///
-    /// [`WindowBuilder::new().build(event_loop)`]: crate::window::WindowBuilder::build
+    /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
     #[inline]
     pub fn new<T: 'static>(event_loop: &EventLoopWindowTarget<T>) -> Result<Window, OsError> {
         let builder = WindowBuilder::new();
@@ -363,7 +363,7 @@ impl Window {
     /// See the [`dpi`](crate::dpi) module for more information.
     ///
     /// Note that this value can change depending on user action (for example if the window is
-    /// moved to another screen); as such, tracking `WindowEvent::ScaleFactorChanged` events is
+    /// moved to another screen); as such, tracking [`WindowEvent::ScaleFactorChanged`] events is
     /// the most robust way to track the DPI you need to use to draw.
     ///
     /// ## Platform-specific
@@ -373,19 +373,20 @@ impl Window {
     /// - **iOS:** Can only be called on the main thread. Returns the underlying `UIView`'s
     ///   [`contentScaleFactor`].
     ///
+    /// [`WindowEvent::ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
     /// [`contentScaleFactor`]: https://developer.apple.com/documentation/uikit/uiview/1622657-contentscalefactor?language=objc
     #[inline]
     pub fn scale_factor(&self) -> f64 {
         self.window.scale_factor()
     }
 
-    /// Emits a `WindowEvent::RedrawRequested` event in the associated event loop after all OS
+    /// Emits a [`Event::RedrawRequested`] event in the associated event loop after all OS
     /// events have been processed by the event loop.
     ///
     /// This is the **strongly encouraged** method of redrawing windows, as it can integrate with
     /// OS-requested redraws (e.g. when a window gets resized).
     ///
-    /// This function can cause `RedrawRequested` events to be emitted after `Event::MainEventsCleared`
+    /// This function can cause `RedrawRequested` events to be emitted after [`Event::MainEventsCleared`]
     /// but before `Event::NewEvents` if called in the following circumstances:
     /// * While processing `MainEventsCleared`.
     /// * While processing a `RedrawRequested` event that was sent during `MainEventsCleared` or any
@@ -395,6 +396,9 @@ impl Window {
     ///
     /// - **iOS:** Can only be called on the main thread.
     /// - **Android:** Subsequent calls after `MainEventsCleared` are not handled.
+    ///
+    /// [`Event::RedrawRequested`]: crate::event::Event::RedrawRequested
+    /// [`Event::MainEventsCleared`]: crate::event::Event::MainEventsCleared
     #[inline]
     pub fn request_redraw(&self) {
         self.window.request_redraw()
@@ -406,14 +410,14 @@ impl Window {
     /// Returns the position of the top-left hand corner of the window's client area relative to the
     /// top-left hand corner of the desktop.
     ///
-    /// The same conditions that apply to `outer_position` apply to this method.
+    /// The same conditions that apply to [`Window::outer_position`] apply to this method.
     ///
     /// ## Platform-specific
     ///
     /// - **iOS:** Can only be called on the main thread. Returns the top left coordinates of the
     ///   window's [safe area] in the screen space coordinate system.
     /// - **Web:** Returns the top-left coordinates relative to the viewport. _Note: this returns the
-    ///    same value as `outer_position`._
+    ///    same value as [`Window::outer_position`]._
     /// - **Android / Wayland:** Always returns [`NotSupportedError`].
     ///
     /// [safe area]: https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
@@ -445,8 +449,8 @@ impl Window {
 
     /// Modifies the position of the window.
     ///
-    /// See `outer_position` for more information about the coordinates. This automatically un-maximizes the
-    /// window if it's maximized.
+    /// See [`Window::outer_position`] for more information about the coordinates.
+    /// This automatically un-maximizes the window if it's maximized.
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalPosition, PhysicalPosition};
@@ -490,8 +494,8 @@ impl Window {
 
     /// Modifies the inner size of the window.
     ///
-    /// See `inner_size` for more information about the values. This automatically un-maximizes the
-    /// window if it's maximized.
+    /// See [`Window::inner_size`] for more information about the values.
+    /// This automatically un-maximizes the window if it's maximized.
     ///
     /// ```no_run
     /// # use winit::dpi::{LogicalSize, PhysicalSize};
@@ -518,14 +522,14 @@ impl Window {
     /// Returns the physical size of the entire window.
     ///
     /// These dimensions include the title bar and borders. If you don't want that (and you usually don't),
-    /// use `inner_size` instead.
+    /// use [`Window::inner_size`] instead.
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS:** Can only be called on the main thread. Returns the `PhysicalSize` of the window in
+    /// - **iOS:** Can only be called on the main thread. Returns the [`PhysicalSize`] of the window in
     ///   screen space coordinates.
     /// - **Web:** Returns the size of the canvas element. _Note: this returns the same value as
-    ///   `inner_size`._
+    ///   [`Window::inner_size`]._
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
         self.window.outer_size()
@@ -617,9 +621,9 @@ impl Window {
 
     /// Sets whether the window is resizable or not.
     ///
-    /// Note that making the window unresizable doesn't exempt you from handling `Resized`, as that
+    /// Note that making the window unresizable doesn't exempt you from handling [`WindowEvent::Resized`], as that
     /// event can still be triggered by DPI scaling, entering fullscreen mode, etc. Also, the
-    /// window could still be resized by calling `[Window::set_inner_size]`.
+    /// window could still be resized by calling [`Window::set_inner_size`].
     ///
     /// ## Platform-specific
     ///
@@ -630,6 +634,8 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web:** Unsupported.
+    ///
+    /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.window.set_resizable(resizable)
@@ -681,13 +687,13 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** `Fullscreen::Exclusive` provides true exclusive mode with a
+    /// - **macOS:** [`Fullscreen::Exclusive`] provides true exclusive mode with a
     ///   video mode change. *Caveat!* macOS doesn't provide task switching (or
     ///   spaces!) while in exclusive fullscreen mode. This mode should be used
     ///   when a video mode change is desired, but for a better user experience,
     ///   borderless fullscreen might be preferred.
     ///
-    ///   `Fullscreen::Borderless` provides a borderless fullscreen window on a
+    ///   [`Fullscreen::Borderless`] provides a borderless fullscreen window on a
     ///   separate space. This is the idiomatic way for fullscreen games to work
     ///   on macOS. See `WindowExtMacOs::set_simple_fullscreen` if
     ///   separate spaces are not preferred.
@@ -719,8 +725,6 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web:** Unsupported.
-    ///
-    /// [`setPrefersStatusBarHidden`]: https://developer.apple.com/documentation/uikit/uiviewcontroller/1621440-prefersstatusbarhidden?language=objc
     #[inline]
     pub fn set_decorations(&self, decorations: bool) {
         self.window.set_decorations(decorations)
@@ -841,7 +845,7 @@ impl Window {
 
     /// Requests user attention to the window, this has no effect if the application
     /// is already focused. How requesting for user attention manifests is platform dependent,
-    /// see `UserAttentionType` for details.
+    /// see [`UserAttentionType`] for details.
     ///
     /// Providing `None` will unset the request for user attention. Unsetting the request for
     /// user attention might not be done automatically by the WM when the window receives input.
@@ -970,11 +974,13 @@ impl Window {
 
     /// Returns the list of all the monitors available on the system.
     ///
-    /// This is the same as `EventLoopWindowTarget::available_monitors`, and is provided for convenience.
+    /// This is the same as [`EventLoopWindowTarget::available_monitors`], and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
     /// **iOS:** Can only be called on the main thread.
+    ///
+    /// [`EventLoopWindowTarget::available_monitors`]: crate::event_loop::EventLoopWindowTarget::available_monitors
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
         self.window
@@ -987,12 +993,14 @@ impl Window {
     ///
     /// Returns `None` if it can't identify any monitor as a primary one.
     ///
-    /// This is the same as `EventLoopWindowTarget::primary_monitor`, and is provided for convenience.
+    /// This is the same as [`EventLoopWindowTarget::primary_monitor`], and is provided for convenience.
     ///
     /// ## Platform-specific
     ///
     /// **iOS:** Can only be called on the main thread.
     /// **Wayland:** Always returns `None`.
+    ///
+    /// [`EventLoopWindowTarget::primary_monitor`]: crate::event_loop::EventLoopWindowTarget::primary_monitor
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         self.window.primary_monitor()
@@ -1000,7 +1008,7 @@ impl Window {
 }
 
 unsafe impl raw_window_handle::HasRawWindowHandle for Window {
-    /// Returns a `raw_window_handle::RawWindowHandle` for the Window
+    /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
     ///
     /// ## Platform-specific
     ///
@@ -1093,7 +1101,10 @@ pub enum Theme {
 
 /// ## Platform-specific
 ///
-/// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between `Critical` and `Informational`.
+/// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between [`Critical`] and [`Informational`].
+///
+/// [`Critical`]: Self::Critical
+/// [`Informational`]: Self::Informational
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserAttentionType {
     /// ## Platform-specific

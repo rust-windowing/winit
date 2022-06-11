@@ -13,7 +13,7 @@ pub(crate) struct Pixel {
 pub(crate) const PIXEL_SIZE: usize = mem::size_of::<Pixel>();
 
 #[derive(Debug)]
-/// An error produced when using `Icon::from_rgba` with invalid arguments.
+/// An error produced when using [`Icon::from_rgba`] with invalid arguments.
 pub enum BadIcon {
     /// Produced when the length of the `rgba` argument isn't divisible by 4, thus `rgba` can't be
     /// safely interpreted as 32bpp RGBA pixels.
@@ -123,7 +123,7 @@ impl fmt::Debug for Icon {
 }
 
 impl Icon {
-    /// Creates an `Icon` from 32bpp RGBA data.
+    /// Creates an icon from 32bpp RGBA data.
     ///
     /// The length of `rgba` must be divisible by 4, and `width * height` must equal
     /// `rgba.len() / 4`. Otherwise, this will return a `BadIcon` error.

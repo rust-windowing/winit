@@ -35,13 +35,13 @@ pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupport
 #[cfg(feature = "wayland")]
 pub use crate::window::Theme;
 
-/// Additional methods on `EventLoopWindowTarget` that are specific to Unix.
+/// Additional methods on [`EventLoopWindowTarget`] that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
-    /// True if the `EventLoopWindowTarget` uses Wayland.
+    /// True if the [`EventLoopWindowTarget`] uses Wayland.
     #[cfg(feature = "wayland")]
     fn is_wayland(&self) -> bool;
 
-    /// True if the `EventLoopWindowTarget` uses X11.
+    /// True if the [`EventLoopWindowTarget`] uses X11.
     #[cfg(feature = "x11")]
     fn is_x11(&self) -> bool;
 
@@ -50,11 +50,13 @@ pub trait EventLoopWindowTargetExtUnix {
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>>;
 
     /// Returns a pointer to the `wl_display` object of wayland that is used by this
-    /// `EventLoopWindowTarget`.
+    /// [`EventLoopWindowTarget`].
     ///
-    /// Returns `None` if the `EventLoop` doesn't use wayland (if it uses xlib for example).
+    /// Returns `None` if the [`EventLoop`] doesn't use wayland (if it uses xlib for example).
     ///
-    /// The pointer will become invalid when the winit `EventLoop` is destroyed.
+    /// The pointer will become invalid when the winit [`EventLoop`] is destroyed.
+    ///
+    /// [`EventLoop`]: crate::event_loop::EventLoop
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 }
@@ -134,9 +136,9 @@ impl<T> EventLoopBuilderExtUnix for EventLoopBuilder<T> {
     }
 }
 
-/// Additional methods on `Window` that are specific to Unix.
+/// Additional methods on [`Window`] that are specific to Unix.
 pub trait WindowExtUnix {
-    /// Returns the ID of the `Window` xlib object that is used by this window.
+    /// Returns the ID of the [`Window`] xlib object that is used by this window.
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     #[cfg(feature = "x11")]
@@ -146,7 +148,7 @@ pub trait WindowExtUnix {
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     #[cfg(feature = "x11")]
     fn xlib_display(&self) -> Option<*mut raw::c_void>;
 
@@ -161,7 +163,7 @@ pub trait WindowExtUnix {
     ///
     /// Returns `None` if the window doesn't use xlib (if it uses wayland for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     #[cfg(feature = "x11")]
     fn xcb_connection(&self) -> Option<*mut raw::c_void>;
 
@@ -169,7 +171,7 @@ pub trait WindowExtUnix {
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     #[cfg(feature = "wayland")]
     fn wayland_surface(&self) -> Option<*mut raw::c_void>;
 
@@ -177,7 +179,7 @@ pub trait WindowExtUnix {
     ///
     /// Returns `None` if the window doesn't use wayland (if it uses xlib for example).
     ///
-    /// The pointer will become invalid when the glutin `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     #[cfg(feature = "wayland")]
     fn wayland_display(&self) -> Option<*mut raw::c_void>;
 
@@ -193,7 +195,7 @@ pub trait WindowExtUnix {
     /// It is a remnant of a previous implementation detail for the
     /// wayland backend, and is no longer relevant.
     ///
-    /// Always return true.
+    /// Always return `true`.
     #[deprecated]
     fn is_ready(&self) -> bool;
 }
@@ -285,7 +287,7 @@ impl WindowExtUnix for Window {
     }
 }
 
-/// Additional methods on `WindowBuilder` that are specific to Unix.
+/// Additional methods on [`WindowBuilder`] that are specific to Unix.
 pub trait WindowBuilderExtUnix {
     #[cfg(feature = "x11")]
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;

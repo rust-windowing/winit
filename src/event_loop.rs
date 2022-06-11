@@ -17,26 +17,27 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
 ///
-/// An `EventLoop` can be seen more or less as a "context". Calling `EventLoop::new()`
+/// An `EventLoop` can be seen more or less as a "context". Calling [`EventLoop::new`]
 /// initializes everything that will be required to create windows. For example on Linux creating
 /// an event loop opens a connection to the X or Wayland server.
 ///
-/// To wake up an `EventLoop` from a another thread, see the `EventLoopProxy` docs.
+/// To wake up an `EventLoop` from a another thread, see the [`EventLoopProxy`] docs.
 ///
-/// Note that the `EventLoop` cannot be shared across threads (due to platform-dependant logic
-/// forbidding it), as such it is neither `Send` nor `Sync`. If you need cross-thread access, the
-/// `Window` created from this `EventLoop` _can_ be sent to an other thread, and the
-/// `EventLoopProxy` allows you to wake up an `EventLoop` from another thread.
+/// Note that this cannot be shared across threads (due to platform-dependant logic
+/// forbidding it), as such it is neither [`Send`] nor [`Sync`]. If you need cross-thread access, the
+/// [`Window`] created from this _can_ be sent to an other thread, and the
+/// [`EventLoopProxy`] allows you to wake up an `EventLoop` from another thread.
 ///
+/// [`Window`]: crate::window::Window
 pub struct EventLoop<T: 'static> {
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
-/// Target that associates windows with an `EventLoop`.
+/// Target that associates windows with an [`EventLoop`].
 ///
 /// This type exists to allow you to create new windows while Winit executes
-/// your callback. `EventLoop` will coerce into this type (`impl<T> Deref for
+/// your callback. [`EventLoop`] will coerce into this type (`impl<T> Deref for
 /// EventLoop<T>`), so functions that take this as a parameter can also take
 /// `&EventLoop`.
 pub struct EventLoopWindowTarget<T: 'static> {
@@ -75,11 +76,11 @@ impl<T> EventLoopBuilder<T> {
 
     /// Builds a new event loop.
     ///
-    /// ***For cross-platform compatibility, the `EventLoop` must be created on the main thread.***
+    /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread.***
     /// Attempting to create the event loop on a different thread will panic. This restriction isn't
     /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
     /// porting to platforms that require it. `EventLoopBuilderExt::any_thread` functions are exposed
-    /// in the relevant `platform` module if the target platform supports creating an event loop on
+    /// in the relevant [`platform`] module if the target platform supports creating an event loop on
     /// any thread.
     ///
     /// Calling this function will result in display backend initialisation.
@@ -90,6 +91,8 @@ impl<T> EventLoopBuilder<T> {
     ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
     ///   If it is not set, winit will try to connect to a Wayland connection, and if that fails,
     ///   will fall back on X11. If this variable is set with any other value, winit will panic.
+    ///
+    /// [`platform`]: crate::platform
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
         // Certain platforms accept a mutable reference in their API.
@@ -113,16 +116,20 @@ impl<T> fmt::Debug for EventLoopWindowTarget<T> {
     }
 }
 
-/// Set by the user callback given to the `EventLoop::run` method.
+/// Set by the user callback given to the [`EventLoop::run`] method.
 ///
 /// Indicates the desired behavior of the event loop after [`Event::RedrawEventsCleared`] is emitted.
-/// Defaults to `Poll`.
+///
+/// Defaults to [`Poll`].
 ///
 /// ## Persistency
 /// Almost every change is persistent between multiple calls to the event loop closure within a
-/// given run loop. The only exception to this is `ExitWithCode` which, once set, cannot be unset.
+/// given run loop. The only exception to this is [`ExitWithCode`] which, once set, cannot be unset.
 /// Changes are **not** persistent between multiple calls to `run_return` - issuing a new call will
-/// reset the control flow to `Poll`.
+/// reset the control flow to [`Poll`].
+///
+/// [`ExitWithCode`]: Self::ExitWithCode
+/// [`Poll`]: Self::Poll
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ControlFlow {
     /// When the current loop iteration finishes, immediately begin a new iteration regardless of
@@ -140,10 +147,12 @@ pub enum ControlFlow {
     /// arrives or the given time is reached.
     ///
     /// Useful for implementing efficient timers. Applications which want to render at the display's
-    /// native refresh rate should instead use `Poll` and the VSync functionality of a graphics API
+    /// native refresh rate should instead use [`Poll`] and the VSync functionality of a graphics API
     /// to reduce odds of missed frames.
+    ///
+    /// [`Poll`]: Self::Poll
     WaitUntil(Instant),
-    /// Send a `LoopDestroyed` event and stop the event loop. This variant is *sticky* - once set,
+    /// Send a [`LoopDestroyed`] event and stop the event loop. This variant is *sticky* - once set,
     /// `control_flow` cannot be changed from `ExitWithCode`, and any future attempts to do so will
     /// result in the `control_flow` parameter being reset to `ExitWithCode`.
     ///
@@ -157,6 +166,7 @@ pub enum ControlFlow {
     ///   which can cause surprises with negative exit values (`-42` would end up as `214`). See
     ///   [`std::process::exit`].
     ///
+    /// [`LoopDestroyed`]: Event::LoopDestroyed
     /// [`Exit`]: ControlFlow::Exit
     ExitWithCode(i32),
 }
@@ -212,7 +222,9 @@ impl Default for ControlFlow {
 }
 
 impl EventLoop<()> {
-    /// Alias for `EventLoopBuilder::new().build()`.
+    /// Alias for [`EventLoopBuilder::new().build()`].
+    ///
+    /// [`EventLoopBuilder::new().build()`]: EventLoopBuilder::build
     #[inline]
     pub fn new() -> EventLoop<()> {
         EventLoopBuilder::new().build()
@@ -254,7 +266,7 @@ impl<T> EventLoop<T> {
         self.event_loop.run(event_handler)
     }
 
-    /// Creates an `EventLoopProxy` that can be used to dispatch user events to the main event loop.
+    /// Creates an [`EventLoopProxy`] that can be used to dispatch user events to the main event loop.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
             event_loop_proxy: self.event_loop.create_proxy(),
@@ -314,7 +326,7 @@ impl<T> EventLoopWindowTarget<T> {
     }
 }
 
-/// Used to send custom events to `EventLoop`.
+/// Used to send custom events to [`EventLoop`].
 pub struct EventLoopProxy<T: 'static> {
     event_loop_proxy: platform_impl::EventLoopProxy<T>,
 }
@@ -328,11 +340,13 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoopProxy<T> {
-    /// Send an event to the `EventLoop` from which this proxy was created. This emits a
+    /// Send an event to the [`EventLoop`] from which this proxy was created. This emits a
     /// `UserEvent(event)` event in the event loop, where `event` is the value passed to this
     /// function.
     ///
-    /// Returns an `Err` if the associated `EventLoop` no longer exists.
+    /// Returns an `Err` if the associated [`EventLoop`] no longer exists.
+    ///
+    /// [`UserEvent(event)`]: Event::UserEvent
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
         self.event_loop_proxy.send_event(event)
     }
@@ -344,8 +358,10 @@ impl<T: 'static> fmt::Debug for EventLoopProxy<T> {
     }
 }
 
-/// The error that is returned when an `EventLoopProxy` attempts to wake up an `EventLoop` that
-/// no longer exists. Contains the original event given to `send_event`.
+/// The error that is returned when an [`EventLoopProxy`] attempts to wake up an [`EventLoop`] that
+/// no longer exists.
+///
+/// Contains the original event given to [`EventLoopProxy::send_event`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct EventLoopClosed<T>(pub T);
 
