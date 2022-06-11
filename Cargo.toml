@@ -51,11 +51,6 @@ core-foundation = "0.9"
 core-graphics = "0.22"
 dispatch = "0.2.0"
 
-[target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
-version = "0.1.4"
-default_features = false
-features = ["display_link"]
-
 [target.'cfg(target_os = "windows")'.dependencies]
 parking_lot = "0.12"
 
