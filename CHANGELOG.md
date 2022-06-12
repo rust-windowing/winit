@@ -10,6 +10,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - Build docs on `docs.rs` for iOS and Android as well.
 - **Breaking:** Removed the `WindowAttributes` struct, since all its functionality is accessible from `WindowBuilder`.
+- Added `WindowBuilder::transparent` getter to check if the user set `transparent` attribute.
 - On macOS, Fix emitting `Event::LoopDestroyed` on CMD+Q.
 - On macOS, fixed an issue where having multiple windows would prevent run_return from ever returning.
 - On Wayland, fix bug where the cursor wouldn't hide in GNOME.
