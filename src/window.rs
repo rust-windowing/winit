@@ -278,6 +278,12 @@ impl WindowBuilder {
         self
     }
 
+    /// Get whether the window will support transparency.
+    #[inline]
+    pub fn transparent(&self) -> bool {
+        self.window.transparent
+    }
+
     /// Sets whether the window should have a border, a title bar, etc.
     ///
     /// The default is `true`.
