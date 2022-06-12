@@ -1,6 +1,8 @@
+#![allow(clippy::single_match)]
+
 use winit::{
     event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -16,7 +18,7 @@ pub fn main() {
     let log_list = wasm::create_log_list(&window);
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         #[cfg(target_arch = "wasm32")]
         wasm::log_event(&log_list, &event);
@@ -25,7 +27,7 @@ pub fn main() {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 window_id,
-            } if window_id == window.id() => *control_flow = ControlFlow::Exit,
+            } if window_id == window.id() => control_flow.set_exit(),
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
@@ -43,6 +45,7 @@ mod wasm {
     pub fn run() {
         console_log::init_with_level(log::Level::Debug).expect("error initializing logger");
 
+        #[allow(clippy::main_recursion)]
         super::main();
     }
 

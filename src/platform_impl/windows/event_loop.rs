@@ -2,10 +2,12 @@
 
 mod runner;
 
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use std::{
     cell::Cell,
     collections::VecDeque,
+    ffi::c_void,
     marker::PhantomData,
     mem, panic, ptr,
     rc::Rc,
@@ -26,13 +28,11 @@ use windows_sys::Win32::{
         RDW_INTERNALPAINT, SC_SCREENSAVE,
     },
     Media::{timeBeginPeriod, timeEndPeriod, timeGetDevCaps, TIMECAPS, TIMERR_NOERROR},
-    System::{
-        LibraryLoader::GetModuleHandleW, Ole::RevokeDragDrop, Threading::GetCurrentThreadId,
-        WindowsProgramming::INFINITE,
-    },
+    System::{Ole::RevokeDragDrop, Threading::GetCurrentThreadId, WindowsProgramming::INFINITE},
     UI::{
         Controls::{HOVER_DEFAULT, WM_MOUSELEAVE},
         Input::{
+            Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
                 MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
                 TRACKMOUSEEVENT, VK_F4,
@@ -56,11 +56,12 @@ use windows_sys::Win32::{
             MAPVK_VK_TO_VSC, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_NOREMOVE,
             PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS, RI_KEY_E0, RI_KEY_E1,
             RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE,
-            SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE,
-            WM_DESTROY, WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
-            WM_GETMINMAXINFO, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS,
-            WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL,
-            WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
+            SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE,
+            WM_CREATE, WM_DESTROY, WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
+            WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
+            WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP,
+            WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
+            WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
             WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
@@ -73,7 +74,7 @@ use windows_sys::Win32::{
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event::{DeviceEvent, Event, Force, KeyboardInput, Touch, TouchPhase, WindowEvent},
+    event::{DeviceEvent, Event, Force, Ime, KeyboardInput, Touch, TouchPhase, WindowEvent},
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
@@ -81,10 +82,11 @@ use crate::{
         dpi::{become_dpi_aware, dpi_to_scale_factor},
         drop_handler::FileDropHandler,
         event::{self, handle_extended_keys, process_key_params, vkey_to_winit_vkey},
+        ime::ImeContext,
         monitor::{self, MonitorHandle},
         raw_input, util,
         window::InitData,
-        window_state::{CursorFlags, WindowFlags, WindowState},
+        window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
         wrap_device_id, WindowId, DEVICE_ID,
     },
     window::{Fullscreen, WindowId as RootWindowId},
@@ -111,18 +113,17 @@ type GetPointerTouchInfo =
 type GetPointerPenInfo =
     unsafe extern "system" fn(pointId: u32, penInfo: *mut POINTER_PEN_INFO) -> BOOL;
 
-lazy_static! {
-    static ref GET_POINTER_FRAME_INFO_HISTORY: Option<GetPointerFrameInfoHistory> =
-        get_function!("user32.dll", GetPointerFrameInfoHistory);
-    static ref SKIP_POINTER_FRAME_MESSAGES: Option<SkipPointerFrameMessages> =
-        get_function!("user32.dll", SkipPointerFrameMessages);
-    static ref GET_POINTER_DEVICE_RECTS: Option<GetPointerDeviceRects> =
-        get_function!("user32.dll", GetPointerDeviceRects);
-    static ref GET_POINTER_TOUCH_INFO: Option<GetPointerTouchInfo> =
-        get_function!("user32.dll", GetPointerTouchInfo);
-    static ref GET_POINTER_PEN_INFO: Option<GetPointerPenInfo> =
-        get_function!("user32.dll", GetPointerPenInfo);
-}
+static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
+static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
+    Lazy::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
+static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
+static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
+static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
+
 pub(crate) struct WindowData<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
@@ -151,12 +152,13 @@ impl<T> ThreadMsgTargetData<T> {
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
     window_target: RootELW<T>,
+    msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) any_thread: bool,
     pub(crate) dpi_aware: bool,
+    pub(crate) msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
 impl Default for PlatformSpecificEventLoopAttributes {
@@ -164,6 +166,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
         Self {
             any_thread: false,
             dpi_aware: true,
+            msg_hook: None,
         }
     }
 }
@@ -175,7 +178,7 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
+    pub(crate) fn new(attributes: &mut PlatformSpecificEventLoopAttributes) -> Self {
         let thread_id = unsafe { GetCurrentThreadId() };
 
         if !attributes.any_thread && thread_id != main_thread_id() {
@@ -212,6 +215,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: PhantomData,
             },
+            msg_hook: attributes.msg_hook.take(),
         }
     }
 
@@ -252,8 +256,16 @@ impl<T: 'static> EventLoop<T> {
                 if GetMessageW(&mut msg, 0, 0, 0) == false.into() {
                     break 'main 0;
                 }
-                TranslateMessage(&msg);
-                DispatchMessageW(&msg);
+
+                let handled = if let Some(callback) = self.msg_hook.as_deref_mut() {
+                    callback(&mut msg as *mut _ as *mut _)
+                } else {
+                    false
+                };
+                if !handled {
+                    TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                }
 
                 if let Err(payload) = runner.take_panic_error() {
                     runner.reset_runner();
@@ -363,19 +375,17 @@ fn get_wait_thread_id() -> u32 {
     }
 }
 
-lazy_static! {
-    static ref WAIT_PERIOD_MIN: Option<u32> = unsafe {
-        let mut caps = TIMECAPS {
-            wPeriodMin: 0,
-            wPeriodMax: 0,
-        };
-        if timeGetDevCaps(&mut caps, mem::size_of::<TIMECAPS>() as u32) == TIMERR_NOERROR {
-            Some(caps.wPeriodMin)
-        } else {
-            None
-        }
+static WAIT_PERIOD_MIN: Lazy<Option<u32>> = Lazy::new(|| unsafe {
+    let mut caps = TIMECAPS {
+        wPeriodMin: 0,
+        wPeriodMax: 0,
     };
-}
+    if timeGetDevCaps(&mut caps, mem::size_of::<TIMECAPS>() as u32) == TIMERR_NOERROR {
+        Some(caps.wPeriodMin)
+    } else {
+        None
+    }
+});
 
 fn wait_thread(parent_thread_id: u32, msg_window_id: HWND) {
     unsafe {
@@ -570,59 +580,36 @@ impl<T: 'static> EventLoopProxy<T> {
 
 type WaitUntilInstantBox = Box<Instant>;
 
-lazy_static! {
-    // Message sent by the `EventLoopProxy` when we want to wake up the thread.
-    // WPARAM and LPARAM are unused.
-    static ref USER_EVENT_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr())
-        }
-    };
-    // Message sent when we want to execute a closure in the thread.
-    // WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
-    // and LPARAM is unused.
-    static ref EXEC_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr())
-        }
-    };
-    static ref PROCESS_NEW_EVENTS_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::ProcessNewEvents\0".as_ptr())
-        }
-    };
-    /// lparam is the wait thread's message id.
-    static ref SEND_WAIT_THREAD_ID_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::SendWaitThreadId\0".as_ptr())
-        }
-    };
-    /// lparam points to a `Box<Instant>` signifying the time `PROCESS_NEW_EVENTS_MSG_ID` should
-    /// be sent.
-    static ref WAIT_UNTIL_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::WaitUntil\0".as_ptr())
-        }
-    };
-    static ref CANCEL_WAIT_UNTIL_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::CancelWaitUntil\0".as_ptr())
-        }
-    };
-    // Message sent by a `Window` when it wants to be destroyed by the main thread.
-    // WPARAM and LPARAM are unused.
-    pub static ref DESTROY_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr())
-        }
-    };
-    // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
-    // documentation in the `window_state` module for more information.
-    pub static ref SET_RETAIN_STATE_ON_SIZE_MSG_ID: u32 = unsafe {
-        RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr())
-    };
-    static ref THREAD_EVENT_TARGET_WINDOW_CLASS: Vec<u16> = util::encode_wide("Winit Thread Event Target");
-}
+// Message sent by the `EventLoopProxy` when we want to wake up the thread.
+// WPARAM and LPARAM are unused.
+static USER_EVENT_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr()) });
+// Message sent when we want to execute a closure in the thread.
+// WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
+// and LPARAM is unused.
+static EXEC_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr()) });
+static PROCESS_NEW_EVENTS_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::ProcessNewEvents\0".as_ptr()) });
+/// lparam is the wait thread's message id.
+static SEND_WAIT_THREAD_ID_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SendWaitThreadId\0".as_ptr()) });
+/// lparam points to a `Box<Instant>` signifying the time `PROCESS_NEW_EVENTS_MSG_ID` should
+/// be sent.
+static WAIT_UNTIL_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::WaitUntil\0".as_ptr()) });
+static CANCEL_WAIT_UNTIL_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::CancelWaitUntil\0".as_ptr()) });
+// Message sent by a `Window` when it wants to be destroyed by the main thread.
+// WPARAM and LPARAM are unused.
+pub static DESTROY_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr()) });
+// WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
+// documentation in the `window_state` module for more information.
+pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr()) });
+static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
+    Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
 
 fn create_event_target_window<T: 'static>() -> HWND {
     unsafe {
@@ -632,7 +619,7 @@ fn create_event_target_window<T: 'static>() -> HWND {
             lpfnWndProc: Some(thread_event_target_callback::<T>),
             cbClsExtra: 0,
             cbWndExtra: 0,
-            hInstance: GetModuleHandleW(ptr::null()),
+            hInstance: util::get_instance_handle(),
             hIcon: 0,
             hCursor: 0, // must be null in order for cursor state to work properly
             hbrBackground: 0,
@@ -666,7 +653,7 @@ fn create_event_target_window<T: 'static>() -> HWND {
             0,
             0,
             0,
-            GetModuleHandleW(ptr::null()),
+            util::get_instance_handle(),
             ptr::null(),
         );
 
@@ -969,35 +956,68 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     right: window_pos.x + window_pos.cx,
                     bottom: window_pos.y + window_pos.cy,
                 };
-                let new_monitor = MonitorFromRect(&new_rect, MONITOR_DEFAULTTONULL);
-                match fullscreen {
-                    Fullscreen::Borderless(ref mut fullscreen_monitor) => {
-                        if new_monitor != 0
-                            && fullscreen_monitor
-                                .as_ref()
-                                .map(|monitor| new_monitor != monitor.inner.hmonitor())
-                                .unwrap_or(true)
-                        {
-                            if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor) {
-                                let new_monitor_rect = new_monitor_info.monitorInfo.rcMonitor;
-                                window_pos.x = new_monitor_rect.left;
-                                window_pos.y = new_monitor_rect.top;
-                                window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
-                                window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
-                            }
-                            *fullscreen_monitor = Some(crate::monitor::MonitorHandle {
-                                inner: MonitorHandle::new(new_monitor),
-                            });
-                        }
+
+                const NOMOVE_OR_NOSIZE: u32 = SWP_NOMOVE | SWP_NOSIZE;
+
+                let new_rect = if window_pos.flags & NOMOVE_OR_NOSIZE != 0 {
+                    let cur_rect = util::get_window_rect(window)
+                        .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit");
+
+                    match window_pos.flags & NOMOVE_OR_NOSIZE {
+                        NOMOVE_OR_NOSIZE => None,
+
+                        SWP_NOMOVE => Some(RECT {
+                            left: cur_rect.left,
+                            top: cur_rect.top,
+                            right: cur_rect.left + window_pos.cx,
+                            bottom: cur_rect.top + window_pos.cy,
+                        }),
+
+                        SWP_NOSIZE => Some(RECT {
+                            left: window_pos.x,
+                            top: window_pos.y,
+                            right: window_pos.x - cur_rect.left + cur_rect.right,
+                            bottom: window_pos.y - cur_rect.top + cur_rect.bottom,
+                        }),
+
+                        _ => unreachable!(),
                     }
-                    Fullscreen::Exclusive(ref video_mode) => {
-                        let old_monitor = video_mode.video_mode.monitor.hmonitor();
-                        if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
-                            let old_monitor_rect = old_monitor_info.monitorInfo.rcMonitor;
-                            window_pos.x = old_monitor_rect.left;
-                            window_pos.y = old_monitor_rect.top;
-                            window_pos.cx = old_monitor_rect.right - old_monitor_rect.left;
-                            window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
+                } else {
+                    Some(new_rect)
+                };
+
+                if let Some(new_rect) = new_rect {
+                    let new_monitor = MonitorFromRect(&new_rect, MONITOR_DEFAULTTONULL);
+                    match fullscreen {
+                        Fullscreen::Borderless(ref mut fullscreen_monitor) => {
+                            if new_monitor != 0
+                                && fullscreen_monitor
+                                    .as_ref()
+                                    .map(|monitor| new_monitor != monitor.inner.hmonitor())
+                                    .unwrap_or(true)
+                            {
+                                if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor)
+                                {
+                                    let new_monitor_rect = new_monitor_info.monitorInfo.rcMonitor;
+                                    window_pos.x = new_monitor_rect.left;
+                                    window_pos.y = new_monitor_rect.top;
+                                    window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
+                                    window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
+                                }
+                                *fullscreen_monitor = Some(crate::monitor::MonitorHandle {
+                                    inner: MonitorHandle::new(new_monitor),
+                                });
+                            }
+                        }
+                        Fullscreen::Exclusive(ref video_mode) => {
+                            let old_monitor = video_mode.video_mode.monitor.hmonitor();
+                            if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
+                                let old_monitor_rect = old_monitor_info.monitorInfo.rcMonitor;
+                                window_pos.x = old_monitor_rect.left;
+                                window_pos.y = old_monitor_rect.top;
+                                window_pos.cx = old_monitor_rect.right - old_monitor_rect.left;
+                                window_pos.cy = old_monitor_rect.bottom - old_monitor_rect.top;
+                            }
                         }
                     }
                 }
@@ -1082,6 +1102,104 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 }
             }
             0
+        }
+
+        WM_IME_STARTCOMPOSITION => {
+            let ime_allowed = userdata.window_state.lock().ime_allowed;
+            if ime_allowed {
+                userdata.window_state.lock().ime_state = ImeState::Enabled;
+
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::Ime(Ime::Enabled),
+                });
+            }
+
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
+
+        WM_IME_COMPOSITION => {
+            let ime_allowed_and_composing = {
+                let w = userdata.window_state.lock();
+                w.ime_allowed && w.ime_state != ImeState::Disabled
+            };
+            // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
+            // check whether composing.
+            if ime_allowed_and_composing {
+                let ime_context = ImeContext::current(window);
+
+                if lparam == 0 {
+                    userdata.send_event(Event::WindowEvent {
+                        window_id: RootWindowId(WindowId(window)),
+                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                    });
+                }
+
+                // Google Japanese Input and ATOK have both flags, so
+                // first, receive composing result if exist.
+                if (lparam as u32 & GCS_RESULTSTR) != 0 {
+                    if let Some(text) = ime_context.get_composed_text() {
+                        userdata.window_state.lock().ime_state = ImeState::Enabled;
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Commit(text)),
+                        });
+                    }
+                }
+
+                // Next, receive preedit range for next composing if exist.
+                if (lparam as u32 & GCS_COMPSTR) != 0 {
+                    if let Some((text, first, last)) = ime_context.get_composing_text_and_cursor() {
+                        userdata.window_state.lock().ime_state = ImeState::Preedit;
+                        let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
+
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Preedit(text, cursor_range)),
+                        });
+                    }
+                }
+            }
+
+            // Not calling DefWindowProc to hide composing text drawn by IME.
+            0
+        }
+
+        WM_IME_ENDCOMPOSITION => {
+            let ime_allowed_or_composing = {
+                let w = userdata.window_state.lock();
+                w.ime_allowed || w.ime_state != ImeState::Disabled
+            };
+            if ime_allowed_or_composing {
+                if userdata.window_state.lock().ime_state == ImeState::Preedit {
+                    // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
+                    // trying receiving composing result and commit if exists.
+                    let ime_context = ImeContext::current(window);
+                    if let Some(text) = ime_context.get_composed_text() {
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Commit(text)),
+                        });
+                    }
+                }
+
+                userdata.window_state.lock().ime_state = ImeState::Disabled;
+
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::Ime(Ime::Disabled),
+                });
+            }
+
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
+
+        WM_IME_SETCONTEXT => {
+            // Hide composing text drawn by IME.
+            let wparam = wparam & (!ISC_SHOWUICOMPOSITIONWINDOW as usize);
+
+            DefWindowProcW(window, msg, wparam, lparam)
         }
 
         // this is necessary for us to maintain minimize/restore state
@@ -1872,7 +1990,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 false => old_physical_inner_size,
             };
 
-            let _ = userdata.send_event(Event::WindowEvent {
+            userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,

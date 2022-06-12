@@ -1,14 +1,10 @@
 //! Types useful for interacting with a user's monitors.
 //!
-//! If you want to get basic information about a monitor, you can use the [`MonitorHandle`][monitor_handle]
-//! type. This is retrieved from one of the following methods, which return an iterator of
-//! [`MonitorHandle`][monitor_handle]:
-//! - [`EventLoopWindowTarget::available_monitors`][loop_get]
-//! - [`Window::available_monitors`][window_get].
-//!
-//! [monitor_handle]: crate::monitor::MonitorHandle
-//! [loop_get]: crate::event_loop::EventLoopWindowTarget::available_monitors
-//! [window_get]: crate::window::Window::available_monitors
+//! If you want to get basic information about a monitor, you can use the
+//! [`MonitorHandle`] type. This is retrieved from one of the following
+//! methods, which return an iterator of [`MonitorHandle`]:
+//! - [`EventLoopWindowTarget::available_monitors`](crate::event_loop::EventLoopWindowTarget::available_monitors).
+//! - [`Window::available_monitors`](crate::window::Window::available_monitors).
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
@@ -16,10 +12,7 @@ use crate::{
 
 /// Describes a fullscreen video mode of a monitor.
 ///
-/// Can be acquired with:
-/// - [`MonitorHandle::video_modes`][monitor_get].
-///
-/// [monitor_get]: crate::monitor::MonitorHandle::video_modes
+/// Can be acquired with [`MonitorHandle::video_modes`].
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct VideoMode {
     pub(crate) video_mode: platform_impl::VideoMode,

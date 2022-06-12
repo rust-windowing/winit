@@ -35,6 +35,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub no_redirection_bitmap: bool,
     pub drag_and_drop: bool,
     pub preferred_theme: Option<Theme>,
+    pub skip_taskbar: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -46,6 +47,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             no_redirection_bitmap: false,
             drag_and_drop: true,
             preferred_theme: None,
+            skip_taskbar: false,
         }
     }
 }
@@ -104,13 +106,13 @@ const fn get_xbutton_wparam(x: u32) -> u16 {
 }
 
 #[inline(always)]
-const fn get_x_lparam(x: u32) -> u16 {
-    loword(x)
+const fn get_x_lparam(x: u32) -> i16 {
+    loword(x) as _
 }
 
 #[inline(always)]
-const fn get_y_lparam(x: u32) -> u16 {
-    hiword(x)
+const fn get_y_lparam(x: u32) -> i16 {
+    hiword(x) as _
 }
 
 #[inline(always)]
@@ -152,6 +154,7 @@ mod drop_handler;
 mod event;
 mod event_loop;
 mod icon;
+mod ime;
 mod monitor;
 mod raw_input;
 mod window;

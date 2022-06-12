@@ -20,7 +20,6 @@ use crate::{
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
-        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
@@ -47,6 +46,7 @@ use objc::{
     rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
+use once_cell::sync::Lazy;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(pub usize);
@@ -247,32 +247,30 @@ struct WindowClass(*const Class);
 unsafe impl Send for WindowClass {}
 unsafe impl Sync for WindowClass {}
 
-lazy_static! {
-    static ref WINDOW_CLASS: WindowClass = unsafe {
-        let window_superclass = class!(NSWindow);
-        let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
+static WINDOW_CLASS: Lazy<WindowClass> = Lazy::new(|| unsafe {
+    let window_superclass = class!(NSWindow);
+    let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
 
-        pub extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
-            trace_scope!("canBecomeMainWindow");
-            YES
-        }
+    pub extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
+        trace_scope!("canBecomeMainWindow");
+        YES
+    }
 
-        pub extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
-            trace_scope!("canBecomeKeyWindow");
-            YES
-        }
+    pub extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
+        trace_scope!("canBecomeKeyWindow");
+        YES
+    }
 
-        decl.add_method(
-            sel!(canBecomeMainWindow),
-            can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        decl.add_method(
-            sel!(canBecomeKeyWindow),
-            can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        WindowClass(decl.register())
-    };
-}
+    decl.add_method(
+        sel!(canBecomeMainWindow),
+        can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
+    );
+    decl.add_method(
+        sel!(canBecomeKeyWindow),
+        can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
+    );
+    WindowClass(decl.register())
+});
 
 #[derive(Default)]
 pub struct SharedState {
@@ -373,7 +371,7 @@ unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
 impl UnownedWindow {
-    pub fn new(
+    pub(crate) fn new(
         mut win_attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<(Arc<Self>, IdRef), RootOsError> {
@@ -416,7 +414,7 @@ impl UnownedWindow {
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
-            let () = msg_send![
+            let _: () = msg_send![
                 *ns_window,
                 registerForDraggedTypes:
                     NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)
@@ -461,7 +459,7 @@ impl UnownedWindow {
         if maximized {
             window.set_maximized(maximized);
         }
-
+        trace!("Done unowned window::new");
         Ok((window, delegate))
     }
 
@@ -673,6 +671,15 @@ impl UnownedWindow {
         unsafe {
             let event: id = msg_send![NSApp(), currentEvent];
             let _: () = msg_send![*self.ns_window, performWindowDragWithEvent: event];
+        }
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        unsafe {
+            util::set_ignore_mouse_events(*self.ns_window, !hittest);
         }
 
         Ok(())
@@ -898,8 +905,6 @@ impl UnownedWindow {
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         shared_state_lock.fullscreen = fullscreen.clone();
 
-        INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
-
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
                 util::toggle_full_screen_async(
@@ -946,7 +951,7 @@ impl UnownedWindow {
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions_(presentation_options);
 
-                let () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
+                let _: () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
             },
             (
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
@@ -964,12 +969,12 @@ impl UnownedWindow {
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.
-                let () = msg_send![
+                let _: () = msg_send![
                     *self.ns_window,
                     setLevel: ffi::NSWindowLevel::NSNormalWindowLevel
                 ];
             },
-            _ => INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst),
+            _ => {}
         };
     }
 
@@ -1043,6 +1048,13 @@ impl UnownedWindow {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
         unsafe { view::set_ime_position(*self.ns_view, logical_spot) };
+    }
+
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        unsafe {
+            view::set_ime_allowed(*self.ns_view, allowed);
+        }
     }
 
     #[inline]
@@ -1243,10 +1255,11 @@ unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: Logica
     // Convert from client area size to window size
     min_size.width += (current_rect.size.width - content_rect.size.width) as f64; // this tends to be 0
     min_size.height += (current_rect.size.height - content_rect.size.height) as f64;
-    window.setMinSize_(NSSize {
+    let min_size = NSSize {
         width: min_size.width as CGFloat,
         height: min_size.height as CGFloat,
-    });
+    };
+    window.setMinSize_(min_size);
     // If necessary, resize the window to match constraint
     if current_rect.size.width < min_size.width {
         current_rect.size.width = min_size.width;
@@ -1267,10 +1280,11 @@ unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: Logica
     // Convert from client area size to window size
     max_size.width += (current_rect.size.width - content_rect.size.width) as f64; // this tends to be 0
     max_size.height += (current_rect.size.height - content_rect.size.height) as f64;
-    window.setMaxSize_(NSSize {
+    let max_size = NSSize {
         width: max_size.width as CGFloat,
         height: max_size.height as CGFloat,
-    });
+    };
+    window.setMaxSize_(max_size);
     // If necessary, resize the window to match constraint
     if current_rect.size.width > max_size.width {
         current_rect.size.width = max_size.width;

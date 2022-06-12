@@ -15,10 +15,10 @@ use windows_sys::Win32::{
         HWND_NOTOPMOST, HWND_TOPMOST, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE,
         SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE,
         SW_SHOW, WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_CAPTION, WS_CHILD,
-        WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LEFT,
-        WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX,
-        WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPED, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX,
-        WS_SYSMENU, WS_VISIBLE,
+        WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
+        WS_EX_LEFT, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE,
+        WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPED,
+        WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
     },
 };
 
@@ -42,6 +42,9 @@ pub struct WindowState {
     pub preferred_theme: Option<Theme>,
     pub high_surrogate: Option<u16>,
     pub window_flags: WindowFlags,
+
+    pub ime_state: ImeState,
+    pub ime_allowed: bool,
 }
 
 #[derive(Clone)]
@@ -93,13 +96,22 @@ bitflags! {
 
         const MINIMIZED = 1 << 12;
 
+        const IGNORE_CURSOR_EVENT = 1 << 14;
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
 }
 
+#[derive(Eq, PartialEq)]
+pub enum ImeState {
+    Disabled,
+    Enabled,
+    Preedit,
+}
+
 impl WindowState {
-    pub fn new(
+    pub(crate) fn new(
         attributes: &WindowAttributes,
         taskbar_icon: Option<Icon>,
         scale_factor: f64,
@@ -129,6 +141,9 @@ impl WindowState {
             preferred_theme,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
+
+            ime_state: ImeState::Disabled,
+            ime_allowed: false,
         }
     }
 
@@ -225,6 +240,9 @@ impl WindowFlags {
         }
         if self.contains(WindowFlags::MAXIMIZED) {
             style |= WS_MAXIMIZE;
+        }
+        if self.contains(WindowFlags::IGNORE_CURSOR_EVENT) {
+            style_ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
         }
 
         if self.intersects(

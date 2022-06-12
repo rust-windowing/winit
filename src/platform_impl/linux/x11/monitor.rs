@@ -1,5 +1,6 @@
 use std::os::raw::*;
 
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
 use super::{
@@ -18,9 +19,7 @@ use crate::{
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
-lazy_static! {
-    static ref MONITORS: Mutex<Option<Vec<MonitorHandle>>> = Mutex::default();
-}
+static MONITORS: Lazy<Mutex<Option<Vec<MonitorHandle>>>> = Lazy::new(Mutex::default);
 
 pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
     // We update this lazily.
@@ -230,11 +229,11 @@ impl XConnection {
                 panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
             }
 
-            let mut available;
             let mut has_primary = false;
 
             let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
-            available = Vec::with_capacity((*resources).ncrtc as usize);
+            let mut available = Vec::with_capacity((*resources).ncrtc as usize);
+
             for crtc_index in 0..(*resources).ncrtc {
                 let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
                 let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);

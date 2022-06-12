@@ -175,7 +175,7 @@ impl MonitorHandle {
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
         let modes = sctk::output::with_output_info(&self.proxy, |info| info.modes.clone())
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
 
         let monitor = self.clone();
 

@@ -1,8 +1,8 @@
-extern crate winit;
+#![allow(clippy::single_match)]
 
 use simple_logger::SimpleLogger;
 use winit::event::{Event, VirtualKeyCode, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::EventLoop;
 use winit::window::WindowBuilder;
 
 fn main() {
@@ -15,13 +15,13 @@ fn main() {
         .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = ControlFlow::Exit,
+            } => control_flow.set_exit(),
 
             // Keyboard input event to handle minimize via a hotkey
             Event::WindowEvent {

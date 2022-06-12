@@ -30,7 +30,7 @@ unsafe impl Send for NativeDisplayMode {}
 impl Drop for NativeDisplayMode {
     fn drop(&mut self) {
         unsafe {
-            let () = msg_send![self.0, release];
+            let _: () = msg_send![self.0, release];
         }
     }
 }
@@ -115,7 +115,7 @@ pub struct Inner {
 impl Drop for Inner {
     fn drop(&mut self) {
         unsafe {
-            let () = msg_send![self.uiscreen, release];
+            let _: () = msg_send![self.uiscreen, release];
         }
     }
 }
@@ -193,7 +193,7 @@ impl MonitorHandle {
     pub fn retained_new(uiscreen: id) -> MonitorHandle {
         unsafe {
             assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
-            let () = msg_send![uiscreen, retain];
+            let _: () = msg_send![uiscreen, retain];
         }
         MonitorHandle {
             inner: Inner { uiscreen },

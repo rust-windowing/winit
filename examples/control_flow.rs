@@ -1,9 +1,11 @@
+#![allow(clippy::single_match)]
+
 use std::{thread, time};
 
 use simple_logger::SimpleLogger;
 use winit::{
     event::{Event, KeyboardInput, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event_loop::EventLoop,
     window::WindowBuilder,
 };
 
@@ -88,23 +90,21 @@ fn main() {
                     window.request_redraw();
                 }
                 if close_requested {
-                    *control_flow = ControlFlow::Exit;
+                    control_flow.set_exit();
                 }
             }
             Event::RedrawRequested(_window_id) => {}
             Event::RedrawEventsCleared => {
-                *control_flow = match mode {
-                    Mode::Wait => ControlFlow::Wait,
+                match mode {
+                    Mode::Wait => control_flow.set_wait(),
                     Mode::WaitUntil => {
-                        if wait_cancelled {
-                            *control_flow
-                        } else {
-                            ControlFlow::WaitUntil(instant::Instant::now() + WAIT_TIME)
+                        if !wait_cancelled {
+                            control_flow.set_wait_until(instant::Instant::now() + WAIT_TIME);
                         }
                     }
                     Mode::Poll => {
                         thread::sleep(POLL_SLEEP_TIME);
-                        ControlFlow::Poll
+                        control_flow.set_poll();
                     }
                 };
             }

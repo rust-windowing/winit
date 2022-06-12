@@ -26,7 +26,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
@@ -36,11 +36,11 @@ impl Window {
         let id = target.generate_id();
 
         let canvas = backend::Canvas::create(platform_attr)?;
-        let mut canvas = Rc::new(RefCell::new(canvas));
+        let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        target.register(&mut canvas, id);
+        target.register(&canvas, id);
 
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
@@ -77,7 +77,7 @@ impl Window {
         Ok(window)
     }
 
-    pub fn canvas<'a>(&'a self) -> Ref<'a, backend::Canvas> {
+    pub fn canvas(&self) -> Ref<'_, backend::Canvas> {
         self.canvas.borrow()
     }
 
@@ -220,7 +220,7 @@ impl Window {
         self.canvas
             .borrow()
             .set_cursor_grab(grab)
-            .map_err(|e| ExternalError::Os(e))
+            .map_err(ExternalError::Os)
     }
 
     #[inline]
@@ -236,6 +236,11 @@ impl Window {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -298,6 +303,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_allowed(&self, _allowed: bool) {
+        // Currently not implemented
+    }
+
+    #[inline]
     pub fn focus_window(&self) {
         // Currently a no-op as it does not seem there is good support for this on web
     }
@@ -334,7 +344,7 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        return self.id;
+        self.id
     }
 
     #[inline]

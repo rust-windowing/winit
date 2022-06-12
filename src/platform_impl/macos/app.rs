@@ -8,6 +8,7 @@ use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel},
 };
+use once_cell::sync::Lazy;
 
 use super::{app_state::AppState, event::EventWrapper, util, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
@@ -16,19 +17,17 @@ pub struct AppClass(pub *const Class);
 unsafe impl Send for AppClass {}
 unsafe impl Sync for AppClass {}
 
-lazy_static! {
-    pub static ref APP_CLASS: AppClass = unsafe {
-        let superclass = class!(NSApplication);
-        let mut decl = ClassDecl::new("WinitApp", superclass).unwrap();
+pub static APP_CLASS: Lazy<AppClass> = Lazy::new(|| unsafe {
+    let superclass = class!(NSApplication);
+    let mut decl = ClassDecl::new("WinitApp", superclass).unwrap();
 
-        decl.add_method(
-            sel!(sendEvent:),
-            send_event as extern "C" fn(&Object, Sel, id),
-        );
+    decl.add_method(
+        sel!(sendEvent:),
+        send_event as extern "C" fn(&Object, Sel, id),
+    );
 
-        AppClass(decl.register())
-    };
-}
+    AppClass(decl.register())
+});
 
 // Normally, holding Cmd + any key never sends us a `keyUp` event for that key.
 // Overriding `sendEvent:` like this fixes that. (https://stackoverflow.com/a/15294196)
