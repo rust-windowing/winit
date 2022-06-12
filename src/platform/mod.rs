@@ -19,9 +19,9 @@ pub mod android;
 pub mod ios;
 pub mod macos;
 pub mod unix;
+pub mod web;
 pub mod windows;
 
 pub mod modifier_supplement;
 pub mod run_return;
 pub mod scancode;
-pub mod web;
