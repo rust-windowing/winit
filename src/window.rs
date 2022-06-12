@@ -1050,7 +1050,7 @@ pub enum CursorGrabMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS:** Not implemented.
+    /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
     /// - ** iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     Confined,
 
@@ -1061,7 +1061,7 @@ pub enum CursorGrabMode {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11 / Windows:** Not implemented.
+    /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
     /// - ** iOS / Android:** Always returns an [`ExternalError::NotSupported`].
     Locked,
 }
