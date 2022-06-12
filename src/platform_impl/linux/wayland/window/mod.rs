@@ -480,8 +480,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        if !self.windowing_features.pointer_constraints() && mode != CursorGrabMode::None {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        if !self.windowing_features.pointer_constraints() {
+            if mode == CursorGrabMode::None {
+                return Ok(());
+            }
+
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 

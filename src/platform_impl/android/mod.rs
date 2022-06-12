@@ -766,7 +766,7 @@ impl Window {
         ))
     }
 
-    pub fn set_cursor_grab_mode(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))

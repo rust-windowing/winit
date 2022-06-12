@@ -388,8 +388,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.set_cursor_grab_mode(mode))
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.set_cursor_grab(mode))
     }
 
     #[inline]

@@ -276,7 +276,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
         let confine = match mode {
             CursorGrabMode::None => false,
             CursorGrabMode::Confined => true,

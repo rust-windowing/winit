@@ -34,15 +34,23 @@ fn main() {
                     ..
                 } => {
                     use winit::event::VirtualKeyCode::*;
-                    match key {
-                        Escape => control_flow.set_exit(),
-                        G => window
-                            .set_cursor_grab_mode(CursorGrabMode::Confined)
-                            .unwrap(),
-                        L => window.set_cursor_grab_mode(CursorGrabMode::Locked).unwrap(),
-                        A => window.set_cursor_grab_mode(CursorGrabMode::None).unwrap(),
-                        H => window.set_cursor_visible(modifiers.shift()),
-                        _ => (),
+                    let result = match key {
+                        Escape => {
+                            control_flow.set_exit();
+                            Ok(())
+                        }
+                        G => window.set_cursor_grab(CursorGrabMode::Confined),
+                        L => window.set_cursor_grab(CursorGrabMode::Locked),
+                        A => window.set_cursor_grab(CursorGrabMode::None),
+                        H => {
+                            window.set_cursor_visible(modifiers.shift());
+                            Ok(())
+                        }
+                        _ => Ok(()),
+                    };
+
+                    if let Err(err) = result {
+                        println!("error: {}", err);
                     }
                 }
                 WindowEvent::ModifiersChanged(m) => modifiers = m,

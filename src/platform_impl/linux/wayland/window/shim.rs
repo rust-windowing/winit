@@ -222,7 +222,7 @@ impl WindowHandle {
         }
     }
 
-    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) {
         // The new requested state matches the current confine status, return.
         let old_mode = self.cursor_grab_mode.replace(mode);
         if old_mode == mode {
@@ -450,7 +450,7 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_handle.set_ime_allowed(allow, event_sink);
                 }
                 WindowRequest::SetCursorGrabMode(mode) => {
-                    window_handle.set_cursor_grab_mode(mode);
+                    window_handle.set_cursor_grab(mode);
                 }
                 WindowRequest::SetLockedCursorPosition(position) => {
                     window_handle.set_locked_cursor_position(position);

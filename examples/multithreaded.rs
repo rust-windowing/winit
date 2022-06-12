@@ -89,13 +89,19 @@ fn main() {
                                 (false, _) => None,
                             }),
                             L if state => {
-                                window.set_cursor_grab_mode(CursorGrabMode::Locked).unwrap()
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::Locked) {
+                                    println!("error: {}", err);
+                                }
                             }
-                            G if state => window
-                                .set_cursor_grab_mode(CursorGrabMode::Confined)
-                                .unwrap(),
+                            G if state => {
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::Confined) {
+                                    println!("error: {}", err);
+                                }
+                            }
                             G | L if !state => {
-                                window.set_cursor_grab_mode(CursorGrabMode::None).unwrap()
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::None) {
+                                    println!("error: {}", err);
+                                }
                             }
                             H => window.set_cursor_visible(!state),
                             I => {

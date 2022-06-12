@@ -185,7 +185,7 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_grab_mode(&self, _: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 

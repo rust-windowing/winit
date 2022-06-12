@@ -622,7 +622,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
         let associate_mouse_cursor = match mode {
             CursorGrabMode::Locked => false,
             CursorGrabMode::None => true,

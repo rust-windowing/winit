@@ -907,9 +907,23 @@ impl Window {
     }
 
     /// Set grabbing [mode]([`CursorGrabMode`]) on the cursor preventing it from leaving the window.
+    ///
+    /// # Example
+    ///
+    /// First try confining the cursor, and if that fails, try locking it instead.
+    ///
+    /// ```no-run
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::{CursorGrabMode, Window};
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// window.set_cursor_grab(CursorGrabMode::Confined)
+    ///             .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
+    ///             .unwrap();
+    /// ```
     #[inline]
-    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
-        self.window.set_cursor_grab_mode(mode)
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        self.window.set_cursor_grab(mode)
     }
 
     /// Modifies the cursor's visibility.
@@ -1022,15 +1036,17 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Window {
 
 /// The behavior of cursor grabbing.
 ///
-/// To grab cursor [`Window::set_cursor_grab_mode`] should be used.
+/// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CursorGrabMode {
     /// No grabbing of the cursor is performed.
     None,
 
+    /// The cursor is confined to the window area.
+    ///
     /// There's no guarantee that the cursor will be hidden. You should hide it by yourself if you
-    /// want so.
+    /// want to do so.
     ///
     /// ## Platform-specific
     ///
@@ -1040,7 +1056,8 @@ pub enum CursorGrabMode {
 
     /// The cursor is locked inside the window area to the certain position.
     ///
-    /// There's no guarantee that the cursor will be hidden, you should h
+    /// There's no guarantee that the cursor will be hidden. You should hide it by yourself if you
+    /// want to do so.
     ///
     /// ## Platform-specific
     ///

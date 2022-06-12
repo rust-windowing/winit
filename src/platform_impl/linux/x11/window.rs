@@ -1272,7 +1272,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab_mode(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
         let mut grabbed_lock = self.cursor_grabbed_mode.lock();
         if mode == *grabbed_lock {
             return Ok(());
