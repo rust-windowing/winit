@@ -4,7 +4,7 @@ use crate::event;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{
-    CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
 use raw_window_handle::{RawWindowHandle, WebHandle};
@@ -216,10 +216,18 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let lock = match mode {
+            CursorGrabMode::None => false,
+            CursorGrabMode::Locked => true,
+            CursorGrabMode::Confined => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            }
+        };
+
         self.canvas
             .borrow()
-            .set_cursor_grab(grab)
+            .set_cursor_lock(lock)
             .map_err(ExternalError::Os)
     }
 

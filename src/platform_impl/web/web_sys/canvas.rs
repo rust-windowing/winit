@@ -89,8 +89,8 @@ impl Canvas {
         })
     }
 
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), RootOE> {
-        if grab {
+    pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
+        if lock {
             self.raw().request_pointer_lock();
         } else {
             let window = web_sys::window()

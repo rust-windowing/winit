@@ -19,7 +19,7 @@ use crate::platform_impl::wayland::event_loop::{EventSink, WinitState};
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
-use crate::window::{CursorIcon, Theme, UserAttentionType};
+use crate::window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType};
 
 use super::WinitFrame;
 
@@ -40,8 +40,11 @@ pub enum WindowRequest {
     /// Change the cursor icon.
     NewCursorIcon(CursorIcon),
 
-    /// Grab cursor.
-    GrabCursor(bool),
+    /// Change cursor grabbing mode.
+    SetCursorGrabMode(CursorGrabMode),
+
+    /// Set cursor position.
+    SetLockedCursorPosition(LogicalPosition<u32>),
 
     /// Drag window.
     DragWindow,
@@ -172,7 +175,7 @@ pub struct WindowHandle {
     cursor_visible: Cell<bool>,
 
     /// Cursor confined to the surface.
-    confined: Cell<bool>,
+    cursor_grab_mode: Cell<CursorGrabMode>,
 
     /// Pointers over the current surface.
     pointers: Vec<WinitPointer>,
@@ -208,7 +211,7 @@ impl WindowHandle {
             pending_window_requests,
             cursor_icon: Cell::new(CursorIcon::Default),
             is_resizable: Cell::new(true),
-            confined: Cell::new(false),
+            cursor_grab_mode: Cell::new(CursorGrabMode::None),
             cursor_visible: Cell::new(true),
             pointers: Vec::new(),
             text_inputs: Vec::new(),
@@ -219,22 +222,35 @@ impl WindowHandle {
         }
     }
 
-    pub fn set_cursor_grab(&self, grab: bool) {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) {
         // The new requested state matches the current confine status, return.
-        if self.confined.get() == grab {
+        let old_mode = self.cursor_grab_mode.replace(mode);
+        if old_mode == mode {
             return;
         }
 
-        self.confined.replace(grab);
+        // Clear old pointer data.
+        match old_mode {
+            CursorGrabMode::None => (),
+            CursorGrabMode::Confined => self.pointers.iter().for_each(|p| p.unconfine()),
+            CursorGrabMode::Locked => self.pointers.iter().for_each(|p| p.unlock()),
+        }
 
-        for pointer in self.pointers.iter() {
-            if self.confined.get() {
-                let surface = self.window.surface();
-                pointer.confine(surface);
-            } else {
-                pointer.unconfine();
+        let surface = self.window.surface();
+        match mode {
+            CursorGrabMode::Locked => self.pointers.iter().for_each(|p| p.lock(surface)),
+            CursorGrabMode::Confined => self.pointers.iter().for_each(|p| p.confine(surface)),
+            CursorGrabMode::None => {
+                // Current lock/confine was already removed.
             }
         }
+    }
+
+    pub fn set_locked_cursor_position(&self, position: LogicalPosition<u32>) {
+        // XXX the cursor locking is ensured inside `Window`.
+        self.pointers
+            .iter()
+            .for_each(|p| p.set_cursor_position(position.x, position.y));
     }
 
     pub fn set_user_attention(&self, request_type: Option<UserAttentionType>) {
@@ -284,10 +300,13 @@ impl WindowHandle {
         let position = self.pointers.iter().position(|p| *p == pointer);
 
         if position.is_none() {
-            if self.confined.get() {
-                let surface = self.window.surface();
-                pointer.confine(surface);
+            let surface = self.window.surface();
+            match self.cursor_grab_mode.get() {
+                CursorGrabMode::None => (),
+                CursorGrabMode::Locked => pointer.lock(surface),
+                CursorGrabMode::Confined => pointer.confine(surface),
             }
+
             self.pointers.push(pointer);
         }
 
@@ -302,9 +321,11 @@ impl WindowHandle {
         if let Some(position) = position {
             let pointer = self.pointers.remove(position);
 
-            // Drop the confined pointer.
-            if self.confined.get() {
-                pointer.unconfine();
+            // Drop the grabbing mode.
+            match self.cursor_grab_mode.get() {
+                CursorGrabMode::None => (),
+                CursorGrabMode::Locked => pointer.unlock(),
+                CursorGrabMode::Confined => pointer.unconfine(),
             }
         }
     }
@@ -428,8 +449,11 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     let event_sink = &mut winit_state.event_sink;
                     window_handle.set_ime_allowed(allow, event_sink);
                 }
-                WindowRequest::GrabCursor(grab) => {
-                    window_handle.set_cursor_grab(grab);
+                WindowRequest::SetCursorGrabMode(mode) => {
+                    window_handle.set_cursor_grab(mode);
+                }
+                WindowRequest::SetLockedCursorPosition(position) => {
+                    window_handle.set_locked_cursor_position(position);
                 }
                 WindowRequest::DragWindow => {
                     window_handle.drag_window();

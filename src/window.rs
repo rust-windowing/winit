@@ -906,18 +906,24 @@ impl Window {
         self.window.set_cursor_position(position.into())
     }
 
-    /// Grabs the cursor, preventing it from leaving the window.
+    /// Set grabbing [mode]([`CursorGrabMode`]) on the cursor preventing it from leaving the window.
     ///
-    /// There's no guarantee that the cursor will be hidden. You should
-    /// hide it by yourself if you want so.
+    /// # Example
     ///
-    /// ## Platform-specific
+    /// First try confining the cursor, and if that fails, try locking it instead.
     ///
-    /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
-    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    /// ```no-run
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::{CursorGrabMode, Window};
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// window.set_cursor_grab(CursorGrabMode::Confined)
+    ///             .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
+    ///             .unwrap();
+    /// ```
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        self.window.set_cursor_grab(grab)
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        self.window.set_cursor_grab(mode)
     }
 
     /// Modifies the cursor's visibility.
@@ -1026,6 +1032,38 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Window {
     fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         self.window.raw_window_handle()
     }
+}
+
+/// The behavior of cursor grabbing.
+///
+/// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CursorGrabMode {
+    /// No grabbing of the cursor is performed.
+    None,
+
+    /// The cursor is confined to the window area.
+    ///
+    /// There's no guarantee that the cursor will be hidden. You should hide it by yourself if you
+    /// want to do so.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
+    /// - ** iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    Confined,
+
+    /// The cursor is locked inside the window area to the certain position.
+    ///
+    /// There's no guarantee that the cursor will be hidden. You should hide it by yourself if you
+    /// want to do so.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
+    /// - ** iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    Locked,
 }
 
 /// Describes the appearance of the mouse cursor.

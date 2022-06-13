@@ -17,7 +17,9 @@ use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes};
+use crate::window::{
+    CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
+};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -72,6 +74,9 @@ pub struct Window {
 
     /// Whether the window is decorated.
     decorated: AtomicBool,
+
+    /// Grabbing mode.
+    cursor_grab_mode: Mutex<CursorGrabMode>,
 }
 
 impl Window {
@@ -285,6 +290,7 @@ impl Window {
             windowing_features,
             resizeable: AtomicBool::new(attributes.resizable),
             decorated: AtomicBool::new(attributes.decorations),
+            cursor_grab_mode: Mutex::new(CursorGrabMode::None),
         };
 
         Ok(window)
@@ -474,12 +480,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        if !self.windowing_features.cursor_grab() {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        if !self.windowing_features.pointer_constraints() {
+            if mode == CursorGrabMode::None {
+                return Ok(());
+            }
+
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 
-        self.send_request(WindowRequest::GrabCursor(grab));
+        *self.cursor_grab_mode.lock().unwrap() = mode;
+        self.send_request(WindowRequest::SetCursorGrabMode(mode));
 
         Ok(())
     }
@@ -494,15 +505,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _: Position) -> Result<(), ExternalError> {
-        // XXX This is possible if the locked pointer is being used. We don't have any
-        // API for that right now, but it could be added in
-        // https://github.com/rust-windowing/winit/issues/1677.
-        //
-        // This function is essential for the locked pointer API.
-        //
-        // See pointer-constraints-unstable-v1.xml.
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        // Positon can be set only for locked cursor.
+        if *self.cursor_grab_mode.lock().unwrap() != CursorGrabMode::Locked {
+            return Err(ExternalError::Os(os_error!(OsError::WaylandMisc(
+                "cursor position can be set only for locked cursor."
+            ))));
+        }
+
+        let scale_factor = self.scale_factor() as f64;
+        let position = position.to_logical(scale_factor);
+        self.send_request(WindowRequest::SetLockedCursorPosition(position));
+
+        Ok(())
     }
 
     #[inline]

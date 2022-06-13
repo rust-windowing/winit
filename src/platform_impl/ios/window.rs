@@ -23,7 +23,8 @@ use crate::{
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
     window::{
-        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
     },
 };
 
@@ -184,7 +185,7 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 

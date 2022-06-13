@@ -11,6 +11,7 @@ use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_rela
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_v1::ZwpRelativePointerV1;
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::{ZwpPointerConstraintsV1, Lifetime};
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_confined_pointer_v1::ZwpConfinedPointerV1;
+use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_locked_pointer_v1::ZwpLockedPointerV1;
 
 use sctk::seat::pointer::{ThemeManager, ThemedPointer};
 use sctk::window::Window;
@@ -35,9 +36,13 @@ pub struct WinitPointer {
     /// Cursor to handle confine requests.
     confined_pointer: Weak<RefCell<Option<ZwpConfinedPointerV1>>>,
 
+    /// Cursor to handle locked requests.
+    locked_pointer: Weak<RefCell<Option<ZwpLockedPointerV1>>>,
+
     /// Latest observed serial in pointer events.
     /// used by Window::start_interactive_move()
     latest_serial: Rc<Cell<u32>>,
+
     /// Latest observed serial in pointer enter events.
     /// used by Window::set_cursor()
     latest_enter_serial: Rc<Cell<u32>>,
@@ -157,6 +162,52 @@ impl WinitPointer {
         }
     }
 
+    pub fn lock(&self, surface: &WlSurface) {
+        let pointer_constraints = match &self.pointer_constraints {
+            Some(pointer_constraints) => pointer_constraints,
+            None => return,
+        };
+
+        let locked_pointer = match self.locked_pointer.upgrade() {
+            Some(locked_pointer) => locked_pointer,
+            // A pointer is gone.
+            None => return,
+        };
+
+        *locked_pointer.borrow_mut() = Some(init_locked_pointer(
+            pointer_constraints,
+            surface,
+            &*self.pointer,
+        ));
+    }
+
+    pub fn unlock(&self) {
+        let locked_pointer = match self.locked_pointer.upgrade() {
+            Some(locked_pointer) => locked_pointer,
+            // A pointer is gone.
+            None => return,
+        };
+
+        let mut locked_pointer = locked_pointer.borrow_mut();
+
+        if let Some(locked_pointer) = locked_pointer.take() {
+            locked_pointer.destroy();
+        }
+    }
+
+    pub fn set_cursor_position(&self, surface_x: u32, surface_y: u32) {
+        let locked_pointer = match self.locked_pointer.upgrade() {
+            Some(locked_pointer) => locked_pointer,
+            // A pointer is gone.
+            None => return,
+        };
+
+        let locked_pointer = locked_pointer.borrow_mut();
+        if let Some(locked_pointer) = locked_pointer.as_ref() {
+            locked_pointer.set_cursor_position_hint(surface_x.into(), surface_y.into());
+        }
+    }
+
     pub fn drag_window(&self, window: &Window<WinitFrame>) {
         // WlPointer::setart_interactive_move() expects the last serial of *any*
         // pointer event (compare to set_cursor()).
@@ -174,6 +225,9 @@ pub(super) struct Pointers {
 
     /// Confined pointer.
     confined_pointer: Rc<RefCell<Option<ZwpConfinedPointerV1>>>,
+
+    /// Locked pointer.
+    locked_pointer: Rc<RefCell<Option<ZwpLockedPointerV1>>>,
 }
 
 impl Pointers {
@@ -185,11 +239,15 @@ impl Pointers {
         modifiers_state: Rc<RefCell<ModifiersState>>,
     ) -> Self {
         let confined_pointer = Rc::new(RefCell::new(None));
+        let locked_pointer = Rc::new(RefCell::new(None));
+
         let pointer_data = Rc::new(RefCell::new(PointerData::new(
             confined_pointer.clone(),
+            locked_pointer.clone(),
             pointer_constraints.clone(),
             modifiers_state,
         )));
+
         let pointer_seat = seat.detach();
         let pointer = theme_manager.theme_pointer_with_impl(
             seat,
@@ -216,6 +274,7 @@ impl Pointers {
             pointer,
             relative_pointer,
             confined_pointer,
+            locked_pointer,
         }
     }
 }
@@ -230,6 +289,11 @@ impl Drop for Pointers {
         // Drop confined pointer.
         if let Some(confined_pointer) = self.confined_pointer.borrow_mut().take() {
             confined_pointer.destroy();
+        }
+
+        // Drop lock ponter.
+        if let Some(locked_pointer) = self.locked_pointer.borrow_mut().take() {
+            locked_pointer.destroy();
         }
 
         // Drop the pointer itself in case it's possible.
@@ -263,4 +327,17 @@ pub(super) fn init_confined_pointer(
     confined_pointer.quick_assign(move |_, _, _| {});
 
     confined_pointer.detach()
+}
+
+pub(super) fn init_locked_pointer(
+    pointer_constraints: &Attached<ZwpPointerConstraintsV1>,
+    surface: &WlSurface,
+    pointer: &WlPointer,
+) -> ZwpLockedPointerV1 {
+    let locked_pointer =
+        pointer_constraints.lock_pointer(surface, pointer, None, Lifetime::Persistent);
+
+    locked_pointer.quick_assign(move |_, _, _| {});
+
+    locked_pointer.detach()
 }
