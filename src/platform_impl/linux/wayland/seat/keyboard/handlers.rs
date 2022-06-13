@@ -187,7 +187,7 @@ pub enum Error {
     /// The provided seat does not have the keyboard capability
     NoKeyboard,
     /// Failed to init timers for repetition
-    TimerError(std::io::Error),
+    Timer(std::io::Error),
 }
 
 impl From<xkb_state::Error> for Error {
@@ -304,7 +304,7 @@ where
         let current_repeat = Rc::new(RefCell::new(None));
 
         let source = RepeatSource {
-            timer: calloop::timer::Timer::new().map_err(Error::TimerError)?,
+            timer: calloop::timer::Timer::new().map_err(Error::Timer)?,
             state: state.clone(),
             current_repeat: current_repeat.clone(),
         };
@@ -325,13 +325,13 @@ where
 
     let source = loop_handle
         .insert_source(source, move |event, kbd, ddata| {
-            (&mut *callback.borrow_mut())(
+            (callback.borrow_mut())(
                 event,
                 kbd.clone(),
                 wayland_client::DispatchData::wrap(ddata),
             )
         })
-        .map_err(|e| Error::TimerError(e.error))?;
+        .map_err(|e| Error::Timer(e.error))?;
 
     keyboard.quick_assign(move |keyboard, event, data| {
         kbd_handler.event(keyboard.detach(), event, data)
@@ -495,7 +495,7 @@ impl KbdHandler {
             .map(|c| u32::from_ne_bytes(c.try_into().unwrap()))
             .collect::<Vec<_>>();
         let keys: Vec<u32> = rawkeys.iter().map(|k| state.get_one_sym_raw(*k)).collect();
-        (&mut *self.callback.borrow_mut())(
+        (self.callback.borrow_mut())(
             Event::Enter {
                 serial,
                 surface,
@@ -519,7 +519,7 @@ impl KbdHandler {
                 repeat.stop_all_repeat();
             }
         }
-        (&mut *self.callback.borrow_mut())(Event::Leave { serial, surface }, object, dispatch_data);
+        (self.callback.borrow_mut())(Event::Leave { serial, surface }, object, dispatch_data);
     }
 
     fn key(
@@ -582,7 +582,7 @@ impl KbdHandler {
             }
         }
 
-        (&mut *self.callback.borrow_mut())(
+        (self.callback.borrow_mut())(
             Event::Key {
                 serial,
                 time,
@@ -611,7 +611,7 @@ impl KbdHandler {
         {
             let mut state = self.state.borrow_mut();
             state.update_modifiers(mods_depressed, mods_latched, mods_locked, 0, 0, group);
-            (&mut *self.callback.borrow_mut())(
+            (self.callback.borrow_mut())(
                 Event::Modifiers {
                     modifiers: state.mods_state(),
                 },

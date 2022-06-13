@@ -1,17 +1,21 @@
 use std::convert::TryInto;
 use std::env;
 use std::ffi::CString;
-use std::fs::File;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStringExt;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+
+#[cfg(feature = "wayland")]
+use std::fs::File;
 
 #[cfg(feature = "wayland")]
 use memmap2::MmapOptions;
 #[cfg(feature = "wayland")]
 pub use sctk::seat::keyboard::RMLVO;
+
+#[cfg(feature = "x11")]
+use std::sync::Mutex;
 
 #[cfg(feature = "x11")]
 use once_cell::sync::Lazy;
@@ -52,6 +56,7 @@ pub(crate) struct KbState {
     xkb_compose_state: *mut ffi::xkb_compose_state,
     xkb_compose_state_2: *mut ffi::xkb_compose_state,
     mods_state: ModifiersState,
+    #[cfg(feature = "wayland")]
     locked: bool,
     scratch_buffer: Vec<u8>,
 }
@@ -132,6 +137,7 @@ impl ModifiersState {
 }
 
 impl KbState {
+    #[cfg(feature = "wayland")]
     pub(crate) fn update_modifiers(
         &mut self,
         mods_depressed: u32,
@@ -294,6 +300,7 @@ impl KbState {
             xkb_compose_state: ptr::null_mut(),
             xkb_compose_state_2: ptr::null_mut(),
             mods_state: ModifiersState::new(),
+            #[cfg(feature = "wayland")]
             locked: false,
             scratch_buffer: Vec::new(),
         };
@@ -493,6 +500,7 @@ impl KbState {
 }
 
 impl KbState {
+    #[cfg(feature = "wayland")]
     pub(crate) unsafe fn key_repeats(&mut self, keycode: ffi::xkb_keycode_t) -> bool {
         (XKBH.xkb_keymap_key_repeats)(self.xkb_keymap, keycode) == 1
     }
@@ -503,11 +511,13 @@ impl KbState {
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
     pub(crate) fn locked(&self) -> bool {
         self.locked
     }
 
     #[inline]
+    #[cfg(feature = "wayland")]
     pub(crate) fn mods_state(&self) -> ModifiersState {
         self.mods_state
     }
@@ -544,6 +554,7 @@ pub enum Error {
     /// libxkbcommon is not available
     XKBNotFound,
     /// Provided RMLVO specified a keymap that would not be loaded
+    #[cfg(feature = "wayland")]
     BadNames,
 }
 
@@ -552,6 +563,7 @@ impl KbState {
         KeyEventResults::new(self, keycode, state == ElementState::Pressed)
     }
 
+    #[cfg(feature = "wayland")]
     pub fn process_key_repeat_event(&mut self, keycode: u32) -> KeyEventResults<'_> {
         KeyEventResults::new(self, keycode, false)
     }
@@ -652,7 +664,7 @@ impl<'a> KeyEventResults<'a> {
                             Key::Dead(
                                 self.state
                                     .compose_get_utf8_2()
-                                    .map(|s| s.chars().nth(0).unwrap()),
+                                    .map(|s| s.chars().next().unwrap()),
                             ),
                             location,
                         ),

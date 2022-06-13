@@ -34,7 +34,7 @@ impl Keyboard {
         let mut inner = KeyboardInner::new(modifiers_state);
         let keyboard_data = handlers::map_keyboard_repeat(
             loop_handle.clone(),
-            &seat,
+            seat,
             None,
             handlers::RepeatKind::System,
             move |event, _, mut dispatch_data| {
