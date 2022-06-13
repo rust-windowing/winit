@@ -178,27 +178,10 @@ impl KbState {
         if !self.ready() {
             return None;
         }
-        let size =
-            unsafe { (XKBH.xkb_state_key_get_utf8)(self.xkb_state, keycode, ptr::null_mut(), 0) }
-                + 1;
-        if size <= 1 {
-            return None;
-        };
-        self.scratch_buffer.clear();
-        let size = size.try_into().unwrap();
-        self.scratch_buffer.reserve(size);
-        unsafe {
-            self.scratch_buffer.set_len(size);
-            (XKBH.xkb_state_key_get_utf8)(
-                self.xkb_state,
-                keycode,
-                self.scratch_buffer.as_mut_ptr() as *mut _,
-                size,
-            );
-        };
-        // remove the final `\0`
-        self.scratch_buffer.pop();
-        Some(byte_slice_to_cached_string(&self.scratch_buffer))
+        let xkb_state = self.xkb_state;
+        self._get_utf8({
+            |ptr, len| unsafe { (XKBH.xkb_state_key_get_utf8)(xkb_state, keycode, ptr, len) }
+        })
     }
 
     fn compose_feed_normal(&mut self, keysym: u32) -> Option<ffi::xkb_compose_feed_result> {
@@ -257,25 +240,34 @@ impl KbState {
         if !self.ready() || xkb_compose_state.is_null() {
             return None;
         }
-        let size =
-            unsafe { (XKBCH.xkb_compose_state_get_utf8)(xkb_compose_state, ptr::null_mut(), 0) }
-                + 1;
-        if size <= 1 {
+        self._get_utf8(|ptr, len| unsafe {
+            (XKBCH.xkb_compose_state_get_utf8)(xkb_compose_state, ptr, len)
+        })
+    }
+
+    fn _get_utf8<F>(&mut self, mut f: F) -> Option<&'static str>
+    where
+        F: FnMut(*mut i8, usize) -> i32,
+    {
+        let size = f(ptr::null_mut(), 0);
+        if size == 0 {
             return None;
-        };
+        }
+        let size = usize::try_from(size).unwrap();
         self.scratch_buffer.clear();
-        let size = size.try_into().unwrap();
-        self.scratch_buffer.reserve(size);
+        // The allocated buffer must include space for the null-terminator
+        self.scratch_buffer.reserve(size + 1);
         unsafe {
-            self.scratch_buffer.set_len(size);
-            (XKBCH.xkb_compose_state_get_utf8)(
-                xkb_compose_state,
-                self.scratch_buffer.as_mut_ptr() as *mut _,
-                size as usize,
+            let written = f(
+                self.scratch_buffer.as_mut_ptr().cast(),
+                self.scratch_buffer.capacity(),
             );
+            if usize::try_from(written).unwrap() != size {
+                // This will likely never happen
+                return None;
+            }
+            self.scratch_buffer.set_len(size);
         };
-        // remove the final `\0`
-        self.scratch_buffer.pop();
         Some(byte_slice_to_cached_string(&self.scratch_buffer))
     }
 
@@ -592,7 +584,7 @@ impl KbState {
             }
         }
 
-        // remove the final `\0`
+        // Remove the null-terminator
         self.scratch_buffer.pop();
         Some(byte_slice_to_cached_string(&self.scratch_buffer))
     }
