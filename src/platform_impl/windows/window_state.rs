@@ -264,9 +264,6 @@ impl WindowFlags {
         self = self.mask();
         new = new.mask();
 
-        dbg!(self);
-        dbg!(new);
-
         let mut diff = self ^ new;
 
         // when hiding a maximized window, `self` contains `WindowFlags::MAXIMIZED`
