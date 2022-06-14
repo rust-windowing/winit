@@ -232,6 +232,10 @@ impl<T: 'static> EventLoop<T> {
             &mut control_flow,
         );
 
+        // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        callback(Event::Resumed, &self.window_target, &mut control_flow);
+
         let mut window_updates: Vec<(WindowId, WindowUpdate)> = Vec::new();
         let mut event_sink_back_buffer = Vec::new();
 

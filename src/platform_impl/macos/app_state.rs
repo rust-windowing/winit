@@ -302,6 +302,9 @@ impl AppState {
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
             StartCause::Init,
         )));
+        // NB: For consistency all platforms must emit a 'resumed' event even though macOS
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed));
         HANDLER.set_in_callback(false);
     }
 

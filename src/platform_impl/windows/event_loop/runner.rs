@@ -393,6 +393,11 @@ impl<T> EventLoopRunner<T> {
             }
         };
         self.call_event_handler(Event::NewEvents(start_cause));
+        // NB: For consistency all platforms must emit a 'resumed' event even though Windows
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        if init {
+            self.call_event_handler(Event::Resumed);
+        }
         self.dispatch_buffered_events();
         RedrawWindow(self.thread_msg_target, ptr::null(), 0, RDW_INTERNALPAINT);
     }
