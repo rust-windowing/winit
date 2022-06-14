@@ -1,69 +1,69 @@
-extern crate winit;
+#![allow(clippy::single_match)]
 
-use std::io::{self, Write};
-use winit::{ControlFlow, Event, WindowEvent};
+use std::io::{stdin, stdout, Write};
+
+use simple_logger::SimpleLogger;
+use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
+use winit::event_loop::EventLoop;
+use winit::monitor::{MonitorHandle, VideoMode};
+use winit::window::{Fullscreen, WindowBuilder};
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    SimpleLogger::new().init().unwrap();
+    let event_loop = EventLoop::new();
 
-    // enumerating monitors
-    let monitor = {
-        for (num, monitor) in events_loop.get_available_monitors().enumerate() {
-            println!("Monitor #{}: {:?}", num, monitor.get_name());
-        }
+    print!("Please choose the fullscreen mode: (1) exclusive, (2) borderless: ");
+    stdout().flush().unwrap();
 
-        print!("Please write the number of the monitor to use: ");
-        io::stdout().flush().unwrap();
+    let mut num = String::new();
+    stdin().read_line(&mut num).unwrap();
+    let num = num.trim().parse().expect("Please enter a number");
 
-        let mut num = String::new();
-        io::stdin().read_line(&mut num).unwrap();
-        let num = num.trim().parse().ok().expect("Please enter a number");
-        let monitor = events_loop.get_available_monitors().nth(num).expect("Please enter a valid ID");
+    let fullscreen = Some(match num {
+        1 => Fullscreen::Exclusive(prompt_for_video_mode(&prompt_for_monitor(&event_loop))),
+        2 => Fullscreen::Borderless(Some(prompt_for_monitor(&event_loop))),
+        _ => panic!("Please enter a valid number"),
+    });
 
-        println!("Using {:?}", monitor.get_name());
-
-        monitor
-    };
-
-    let window = winit::WindowBuilder::new()
-        .with_title("Hello world!")
-        .with_fullscreen(Some(monitor))
-        .build(&events_loop)
-        .unwrap();
-
-    let mut is_fullscreen = true;
-    let mut is_maximized = false;
     let mut decorations = true;
 
-    events_loop.run_forever(|event| {
-        println!("{:?}", event);
+    let window = WindowBuilder::new()
+        .with_title("Hello world!")
+        .with_fullscreen(fullscreen.clone())
+        .build(&event_loop)
+        .unwrap();
+
+    event_loop.run(move |event, _, control_flow| {
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => return ControlFlow::Break,
+                WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::KeyboardInput {
                     input:
-                        winit::KeyboardInput {
+                        KeyboardInput {
                             virtual_keycode: Some(virtual_code),
                             state,
                             ..
                         },
                     ..
                 } => match (virtual_code, state) {
-                    (winit::VirtualKeyCode::Escape, _) => return ControlFlow::Break,
-                    (winit::VirtualKeyCode::F, winit::ElementState::Pressed) => {
-                        is_fullscreen = !is_fullscreen;
-                        if !is_fullscreen {
+                    (VirtualKeyCode::Escape, _) => control_flow.set_exit(),
+                    (VirtualKeyCode::F, ElementState::Pressed) => {
+                        if window.fullscreen().is_some() {
                             window.set_fullscreen(None);
                         } else {
-                            window.set_fullscreen(Some(window.get_current_monitor()));
+                            window.set_fullscreen(fullscreen.clone());
                         }
                     }
-                    (winit::VirtualKeyCode::M, winit::ElementState::Pressed) => {
-                        is_maximized = !is_maximized;
-                        window.set_maximized(is_maximized);
+                    (VirtualKeyCode::S, ElementState::Pressed) => {
+                        println!("window.fullscreen {:?}", window.fullscreen());
                     }
-                    (winit::VirtualKeyCode::D, winit::ElementState::Pressed) => {
+                    (VirtualKeyCode::M, ElementState::Pressed) => {
+                        let is_maximized = window.is_maximized();
+                        window.set_maximized(!is_maximized);
+                    }
+                    (VirtualKeyCode::D, ElementState::Pressed) => {
                         decorations = !decorations;
                         window.set_decorations(decorations);
                     }
@@ -73,7 +73,48 @@ fn main() {
             },
             _ => {}
         }
-
-        ControlFlow::Continue
     });
+}
+
+// Enumerate monitors and prompt user to choose one
+fn prompt_for_monitor(event_loop: &EventLoop<()>) -> MonitorHandle {
+    for (num, monitor) in event_loop.available_monitors().enumerate() {
+        println!("Monitor #{}: {:?}", num, monitor.name());
+    }
+
+    print!("Please write the number of the monitor to use: ");
+    stdout().flush().unwrap();
+
+    let mut num = String::new();
+    stdin().read_line(&mut num).unwrap();
+    let num = num.trim().parse().expect("Please enter a number");
+    let monitor = event_loop
+        .available_monitors()
+        .nth(num)
+        .expect("Please enter a valid ID");
+
+    println!("Using {:?}", monitor.name());
+
+    monitor
+}
+
+fn prompt_for_video_mode(monitor: &MonitorHandle) -> VideoMode {
+    for (i, video_mode) in monitor.video_modes().enumerate() {
+        println!("Video mode #{}: {}", i, video_mode);
+    }
+
+    print!("Please write the number of the video mode to use: ");
+    stdout().flush().unwrap();
+
+    let mut num = String::new();
+    stdin().read_line(&mut num).unwrap();
+    let num = num.trim().parse().expect("Please enter a number");
+    let video_mode = monitor
+        .video_modes()
+        .nth(num)
+        .expect("Please enter a valid ID");
+
+    println!("Using {}", video_mode);
+
+    video_mode
 }

@@ -1,32 +1,90 @@
-extern crate winit;
+#![allow(clippy::single_match)]
 
-use winit::{Event, ElementState, MouseCursor, WindowEvent, KeyboardInput, ControlFlow};
+use simple_logger::SimpleLogger;
+use winit::{
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event_loop::EventLoop,
+    window::{CursorIcon, WindowBuilder},
+};
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    SimpleLogger::new().init().unwrap();
+    let event_loop = EventLoop::new();
 
-    let window = winit::WindowBuilder::new().build(&events_loop).unwrap();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
     window.set_title("A fantastic window!");
 
-    let cursors = [MouseCursor::Default, MouseCursor::Crosshair, MouseCursor::Hand, MouseCursor::Arrow, MouseCursor::Move, MouseCursor::Text, MouseCursor::Wait, MouseCursor::Help, MouseCursor::Progress, MouseCursor::NotAllowed, MouseCursor::ContextMenu, MouseCursor::Cell, MouseCursor::VerticalText, MouseCursor::Alias, MouseCursor::Copy, MouseCursor::NoDrop, MouseCursor::Grab, MouseCursor::Grabbing, MouseCursor::AllScroll, MouseCursor::ZoomIn, MouseCursor::ZoomOut, MouseCursor::EResize, MouseCursor::NResize, MouseCursor::NeResize, MouseCursor::NwResize, MouseCursor::SResize, MouseCursor::SeResize, MouseCursor::SwResize, MouseCursor::WResize, MouseCursor::EwResize, MouseCursor::NsResize, MouseCursor::NeswResize, MouseCursor::NwseResize, MouseCursor::ColResize, MouseCursor::RowResize];
     let mut cursor_idx = 0;
 
-    events_loop.run_forever(|event| {
+    event_loop.run(move |event, _, control_flow| {
+        control_flow.set_wait();
+
         match event {
-            Event::WindowEvent { event: WindowEvent::KeyboardInput { input: KeyboardInput { state: ElementState::Pressed, .. }, .. }, .. } => {
-                println!("Setting cursor to \"{:?}\"", cursors[cursor_idx]);
-                window.set_cursor(cursors[cursor_idx]);
-                if cursor_idx < cursors.len() - 1 {
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    },
+                ..
+            } => {
+                println!("Setting cursor to \"{:?}\"", CURSORS[cursor_idx]);
+                window.set_cursor_icon(CURSORS[cursor_idx]);
+                if cursor_idx < CURSORS.len() - 1 {
                     cursor_idx += 1;
                 } else {
                     cursor_idx = 0;
                 }
-            },
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                return ControlFlow::Break;
-            },
-            _ => ()
+            }
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => {
+                control_flow.set_exit();
+            }
+            _ => (),
         }
-        ControlFlow::Continue
     });
 }
+
+const CURSORS: &[CursorIcon] = &[
+    CursorIcon::Default,
+    CursorIcon::Crosshair,
+    CursorIcon::Hand,
+    CursorIcon::Arrow,
+    CursorIcon::Move,
+    CursorIcon::Text,
+    CursorIcon::Wait,
+    CursorIcon::Help,
+    CursorIcon::Progress,
+    CursorIcon::NotAllowed,
+    CursorIcon::ContextMenu,
+    CursorIcon::Cell,
+    CursorIcon::VerticalText,
+    CursorIcon::Alias,
+    CursorIcon::Copy,
+    CursorIcon::NoDrop,
+    CursorIcon::Grab,
+    CursorIcon::Grabbing,
+    CursorIcon::AllScroll,
+    CursorIcon::ZoomIn,
+    CursorIcon::ZoomOut,
+    CursorIcon::EResize,
+    CursorIcon::NResize,
+    CursorIcon::NeResize,
+    CursorIcon::NwResize,
+    CursorIcon::SResize,
+    CursorIcon::SeResize,
+    CursorIcon::SwResize,
+    CursorIcon::WResize,
+    CursorIcon::EwResize,
+    CursorIcon::NsResize,
+    CursorIcon::NeswResize,
+    CursorIcon::NwseResize,
+    CursorIcon::ColResize,
+    CursorIcon::RowResize,
+];

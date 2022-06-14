@@ -1,38 +1,70 @@
-extern crate winit;
+#![allow(clippy::single_match)]
+
+use simple_logger::SimpleLogger;
+use winit::{
+    event::{DeviceEvent, ElementState, Event, KeyboardInput, ModifiersState, WindowEvent},
+    event_loop::EventLoop,
+    window::{CursorGrabMode, WindowBuilder},
+};
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    SimpleLogger::new().init().unwrap();
+    let event_loop = EventLoop::new();
 
-    let window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("Super Cursor Grab'n'Hide Simulator 9000")
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
-    events_loop.run_forever(|event| {
-        if let winit::Event::WindowEvent { event, .. } = event {
-            use winit::WindowEvent::*;
-            match event {
-                CloseRequested => return winit::ControlFlow::Break,
-                KeyboardInput {
-                    input: winit::KeyboardInput {
-                        state: winit::ElementState::Released,
-                        virtual_keycode: Some(key),
-                        modifiers,
-                        ..
-                    },
+    let mut modifiers = ModifiersState::default();
+
+    event_loop.run(move |event, _, control_flow| {
+        control_flow.set_wait();
+
+        match event {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::KeyboardInput {
+                    input:
+                        KeyboardInput {
+                            state: ElementState::Released,
+                            virtual_keycode: Some(key),
+                            ..
+                        },
                     ..
                 } => {
-                    use winit::VirtualKeyCode::*;
-                    match key {
-                        Escape => return winit::ControlFlow::Break,
-                        G => window.grab_cursor(!modifiers.shift).unwrap(),
-                        H => window.hide_cursor(!modifiers.shift),
-                        _ => (),
+                    use winit::event::VirtualKeyCode::*;
+                    let result = match key {
+                        Escape => {
+                            control_flow.set_exit();
+                            Ok(())
+                        }
+                        G => window.set_cursor_grab(CursorGrabMode::Confined),
+                        L => window.set_cursor_grab(CursorGrabMode::Locked),
+                        A => window.set_cursor_grab(CursorGrabMode::None),
+                        H => {
+                            window.set_cursor_visible(modifiers.shift());
+                            Ok(())
+                        }
+                        _ => Ok(()),
+                    };
+
+                    if let Err(err) = result {
+                        println!("error: {}", err);
                     }
                 }
+                WindowEvent::ModifiersChanged(m) => modifiers = m,
                 _ => (),
-            }
+            },
+            Event::DeviceEvent { event, .. } => match event {
+                DeviceEvent::MouseMotion { delta } => println!("mouse moved: {:?}", delta),
+                DeviceEvent::Button { button, state } => match state {
+                    ElementState::Pressed => println!("mouse button {} pressed", button),
+                    ElementState::Released => println!("mouse button {} released", button),
+                },
+                _ => (),
+            },
+            _ => (),
         }
-        winit::ControlFlow::Continue
     });
 }

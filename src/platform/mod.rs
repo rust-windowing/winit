@@ -1,25 +1,25 @@
-pub use self::platform::*;
+//! Contains traits with platform-specific methods in them.
+//!
+//! Contains the follow OS-specific modules:
+//!
+//!  - `android`
+//!  - `ios`
+//!  - `macos`
+//!  - `unix`
+//!  - `windows`
+//!  - `web`
+//!
+//! And the following platform-specific module:
+//!
+//! - `run_return` (available on `windows`, `unix`, `macos`, and `android`)
+//!
+//! However only the module corresponding to the platform you're compiling to will be available.
 
-#[cfg(target_os = "windows")]
-#[path="windows/mod.rs"]
-mod platform;
-#[cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))]
-#[path="linux/mod.rs"]
-mod platform;
-#[cfg(target_os = "macos")]
-#[path="macos/mod.rs"]
-mod platform;
-#[cfg(target_os = "android")]
-#[path="android/mod.rs"]
-mod platform;
-#[cfg(target_os = "ios")]
-#[path="ios/mod.rs"]
-mod platform;
-#[cfg(target_os = "emscripten")]
-#[path="emscripten/mod.rs"]
-mod platform;
+pub mod android;
+pub mod ios;
+pub mod macos;
+pub mod unix;
+pub mod web;
+pub mod windows;
 
-#[cfg(all(not(target_os = "ios"), not(target_os = "windows"), not(target_os = "linux"),
-  not(target_os = "macos"), not(target_os = "android"), not(target_os = "dragonfly"),
-  not(target_os = "freebsd"), not(target_os = "openbsd"), not(target_os = "emscripten")))]
-compile_error!("The platform you're compiling for is not supported by winit");
+pub mod run_return;

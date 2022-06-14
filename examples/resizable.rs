@@ -1,26 +1,37 @@
-extern crate winit;
+#![allow(clippy::single_match)]
+
+use simple_logger::SimpleLogger;
+use winit::{
+    dpi::LogicalSize,
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+    event_loop::EventLoop,
+    window::WindowBuilder,
+};
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    SimpleLogger::new().init().unwrap();
+    let event_loop = EventLoop::new();
 
     let mut resizable = false;
 
-    let window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("Hit space to toggle resizability.")
-        .with_dimensions((400, 200).into())
+        .with_inner_size(LogicalSize::new(400.0, 200.0))
         .with_resizable(resizable)
-        .build(&events_loop)
+        .build(&event_loop)
         .unwrap();
 
-    events_loop.run_forever(|event| {
+    event_loop.run(move |event, _, control_flow| {
+        control_flow.set_wait();
+
         match event {
-            winit::Event::WindowEvent { event, .. } => match event {
-                winit::WindowEvent::CloseRequested => return winit::ControlFlow::Break,
-                winit::WindowEvent::KeyboardInput {
+            Event::WindowEvent { event, .. } => match event {
+                WindowEvent::CloseRequested => control_flow.set_exit(),
+                WindowEvent::KeyboardInput {
                     input:
-                        winit::KeyboardInput {
-                            virtual_keycode: Some(winit::VirtualKeyCode::Space),
-                            state: winit::ElementState::Released,
+                        KeyboardInput {
+                            virtual_keycode: Some(VirtualKeyCode::Space),
+                            state: ElementState::Released,
                             ..
                         },
                     ..
@@ -33,6 +44,5 @@ fn main() {
             },
             _ => (),
         };
-        winit::ControlFlow::Continue
     });
 }

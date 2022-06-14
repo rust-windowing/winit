@@ -1,22 +1,35 @@
-extern crate winit;
+#![allow(clippy::single_match)]
+
+use simple_logger::SimpleLogger;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::EventLoop,
+    window::WindowBuilder,
+};
 
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    SimpleLogger::new().init().unwrap();
+    let event_loop = EventLoop::new();
 
-    let _window = winit::WindowBuilder::new()
+    let window = WindowBuilder::new()
         .with_title("A fantastic window!")
-        .build(&events_loop)
+        .with_inner_size(winit::dpi::LogicalSize::new(128.0, 128.0))
+        .build(&event_loop)
         .unwrap();
 
-    events_loop.run_forever(|event| {
+    event_loop.run(move |event, _, control_flow| {
+        control_flow.set_wait();
         println!("{:?}", event);
 
         match event {
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::CloseRequested,
-                ..
-            } => winit::ControlFlow::Break,
-            _ => winit::ControlFlow::Continue,
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                window_id,
+            } if window_id == window.id() => control_flow.set_exit(),
+            Event::MainEventsCleared => {
+                window.request_redraw();
+            }
+            _ => (),
         }
     });
 }

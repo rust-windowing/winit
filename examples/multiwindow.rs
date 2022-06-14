@@ -1,33 +1,55 @@
-extern crate winit;
+#![allow(clippy::single_match)]
 
 use std::collections::HashMap;
 
+use simple_logger::SimpleLogger;
+use winit::{
+    event::{ElementState, Event, KeyboardInput, WindowEvent},
+    event_loop::EventLoop,
+    window::Window,
+};
+
 fn main() {
-    let mut events_loop = winit::EventsLoop::new();
+    SimpleLogger::new().init().unwrap();
+    let event_loop = EventLoop::new();
 
     let mut windows = HashMap::new();
     for _ in 0..3 {
-        let window = winit::Window::new(&events_loop).unwrap();
+        let window = Window::new(&event_loop).unwrap();
         windows.insert(window.id(), window);
     }
 
-    events_loop.run_forever(|event| {
+    event_loop.run(move |event, event_loop, control_flow| {
+        control_flow.set_wait();
+
         match event {
-            winit::Event::WindowEvent {
-                event: winit::WindowEvent::CloseRequested,
-                window_id,
-            } => {
-                println!("Window {:?} has received the signal to close", window_id);
+            Event::WindowEvent { event, window_id } => {
+                match event {
+                    WindowEvent::CloseRequested => {
+                        println!("Window {:?} has received the signal to close", window_id);
 
-                // This drops the window, causing it to close.
-                windows.remove(&window_id);
+                        // This drops the window, causing it to close.
+                        windows.remove(&window_id);
 
-                if windows.is_empty() {
-                    return winit::ControlFlow::Break;
+                        if windows.is_empty() {
+                            control_flow.set_exit();
+                        }
+                    }
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state: ElementState::Pressed,
+                                ..
+                            },
+                        ..
+                    } => {
+                        let window = Window::new(event_loop).unwrap();
+                        windows.insert(window.id(), window);
+                    }
+                    _ => (),
                 }
             }
             _ => (),
         }
-        winit::ControlFlow::Continue
     })
 }

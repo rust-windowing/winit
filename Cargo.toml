@@ -1,61 +1,148 @@
 [package]
 name = "winit"
-version = "0.16.2"
-authors = ["The winit contributors, Pierre Krieger <pierre.krieger1708@gmail.com>"]
+version = "0.26.1"
+authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
+edition = "2021"
 keywords = ["windowing"]
 license = "Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/tomaka/winit"
+repository = "https://github.com/rust-windowing/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
 
 [package.metadata.docs.rs]
-features = ["icon_loading"]
-
-[features]
-icon_loading = ["image"]
-
-[dependencies]
-lazy_static = "1"
-libc = "0.2"
-log = "0.4"
-image = { version = "0.19", optional = true }
-
-[target.'cfg(target_os = "android")'.dependencies.android_glue]
-version = "0.2"
-
-[target.'cfg(target_os = "ios")'.dependencies]
-objc = "0.2"
-
-[target.'cfg(target_os = "macos")'.dependencies]
-objc = "0.2"
-cocoa = "0.15"
-core-foundation = "0.6"
-core-graphics = "0.14"
-
-[target.'cfg(target_os = "windows")'.dependencies.winapi]
-version = "0.3.5"
-features = [
-    "combaseapi",
-    "dwmapi",
-    "hidusage",
-    "libloaderapi",
-    "objbase",
-    "processthreadsapi",
-    "shellapi",
-    "shellscalingapi",
-    "shobjidl_core",
-    "unknwnbase",
-    "windowsx",
-    "wingdi",
-    "winnt",
-    "winuser",
+features = ["serde"]
+default-target = "x86_64-unknown-linux-gnu"
+# These are all tested in CI
+targets = [
+    # Windows
+    "i686-pc-windows-msvc",
+    "x86_64-pc-windows-msvc",
+    # macOS
+    "x86_64-apple-darwin",
+    # Unix (X11 & Wayland)
+    "i686-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    # iOS
+    "x86_64-apple-ios",
+    # Android
+    "aarch64-linux-android",
+    # WebAssembly
+    "wasm32-unknown-unknown",
 ]
 
-[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd"))'.dependencies]
-wayland-client = { version = "0.20.6", features = [ "dlopen", "egl", "cursor"] }
-smithay-client-toolkit = "0.2.2"
-x11-dl = "2.17.5"
-parking_lot = "0.6"
-percent-encoding = "1.0"
+[features]
+default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
+x11 = ["x11-dl", "mio", "percent-encoding", "parking_lot"]
+wayland = ["wayland-client", "wayland-protocols", "sctk"]
+wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
+wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/title"]
+wayland-csd-adwaita-notitle = ["sctk-adwaita"]
+
+[dependencies]
+instant = { version = "0.1", features = ["wasm-bindgen"] }
+once_cell = "1.12"
+log = "0.4"
+serde = { version = "1", optional = true, features = ["serde_derive"] }
+raw-window-handle = "0.4.2"
+bitflags = "1"
+mint = { version = "0.5.6", optional = true }
+
+[dev-dependencies]
+image = { version = "0.24.0", default-features = false, features = ["png"] }
+simple_logger = "2.1.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Coordinate the next winit release with android-ndk-rs: https://github.com/rust-windowing/winit/issues/1995
+ndk = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "7e33384" }
+ndk-glue = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "7e33384" }
+
+[target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
+objc = "0.2.7"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+cocoa = "0.24"
+core-foundation = "0.9"
+core-graphics = "0.22"
+dispatch = "0.2.0"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+parking_lot = "0.12"
+
+[target.'cfg(target_os = "windows")'.dependencies.windows-sys]
+version = "0.36"
+features = [
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Media",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_SystemInformation",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_WindowsProgramming",
+    "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_Ime",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Input_Pointer",
+    "Win32_UI_Input_Touch",
+    "Win32_UI_Shell",
+    "Win32_UI_TextServices",
+    "Win32_UI_WindowsAndMessaging",
+]
+
+[target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
+wayland-client = { version = "0.29.4", default_features = false,  features = ["use_system_lib"], optional = true }
+wayland-protocols = { version = "0.29.4", features = [ "staging_protocols"], optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.15.4", default_features = false, features = ["calloop"],  optional = true }
+sctk-adwaita = { version = "0.3.5", optional = true }
+mio = { version = "0.8", features = ["os-ext"], optional = true }
+x11-dl = { version = "2.18.5", optional = true }
+percent-encoding = { version = "2.0", optional = true }
+parking_lot = { version = "0.12.0", optional = true }
+libc = "0.2.64"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web_sys]
+package = "web-sys"
+version = "0.3.22"
+features = [
+    'console',
+    "AddEventListenerOptions",
+    'CssStyleDeclaration',
+    'BeforeUnloadEvent',
+    'Document',
+    'DomRect',
+    'Element',
+    'Event',
+    'EventTarget',
+    'FocusEvent',
+    'HtmlCanvasElement',
+    'HtmlElement',
+    'KeyboardEvent',
+    'MediaQueryList',
+    'MediaQueryListEvent',
+    'MouseEvent',
+    'Node',
+    'PointerEvent',
+    'Window',
+    'WheelEvent'
+]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
+version = "0.2.45"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+console_log = "0.2"
+
+[workspace]
+members = [
+    "run-wasm",
+]
