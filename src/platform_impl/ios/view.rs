@@ -587,7 +587,16 @@ pub fn create_delegate_class() {
         }
     }
 
-    extern "C" fn open(_: &mut Object, _: Sel, _: id, _: id, _: id) -> BOOL {
+    extern "C" fn open(_: &mut Object, _: Sel, _: id, url: id, _: id) -> BOOL {
+        let string = unsafe {
+            let absolute_string: id = msg_send![url, absoluteString];
+            let ptr: *const std::os::raw::c_char = msg_send!(absolute_string, UTF8String);
+            std::ffi::CStr::from_ptr(ptr)
+                .to_str()
+                .unwrap_or_default()
+                .to_string()
+        };
+        println!("{:?}", string);
         YES
     }
 
