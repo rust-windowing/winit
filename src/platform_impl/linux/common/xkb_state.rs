@@ -58,6 +58,8 @@ pub(crate) struct KbState {
     mods_state: ModifiersState,
     #[cfg(feature = "wayland")]
     locked: bool,
+    #[cfg(feature = "x11")]
+    pub(crate) core_keyboard_id: i32,
     scratch_buffer: Vec<u8>,
 }
 
@@ -294,6 +296,8 @@ impl KbState {
             mods_state: ModifiersState::new(),
             #[cfg(feature = "wayland")]
             locked: false,
+            #[cfg(feature = "x11")]
+            core_keyboard_id: 0,
             scratch_buffer: Vec::new(),
         };
 
@@ -428,17 +432,20 @@ impl KbState {
         }
 
         // TODO: Support keyboards other than the "virtual core keyboard device".
-        let core_keyboard_id = (XKBXH.xkb_x11_get_core_keyboard_device_id)(self.xcb_connection);
+        self.core_keyboard_id = (XKBXH.xkb_x11_get_core_keyboard_device_id)(self.xcb_connection);
         let keymap = (XKBXH.xkb_x11_keymap_new_from_device)(
             self.xkb_context,
             self.xcb_connection,
-            core_keyboard_id,
+            self.core_keyboard_id,
             xkbcommon_dl::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
         );
         assert_ne!(keymap, ptr::null_mut());
 
-        let state =
-            (XKBXH.xkb_x11_state_new_from_device)(keymap, self.xcb_connection, core_keyboard_id);
+        let state = (XKBXH.xkb_x11_state_new_from_device)(
+            keymap,
+            self.xcb_connection,
+            self.core_keyboard_id,
+        );
         self.post_init(state, keymap);
     }
 

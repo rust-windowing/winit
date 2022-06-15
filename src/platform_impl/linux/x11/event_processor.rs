@@ -35,6 +35,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) randr_event_offset: c_int,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
+    pub(super) xkbext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
     pub(super) kb_state: KbState,
     pub(super) mod_keymap: ModifierKeymap,
@@ -1095,44 +1096,6 @@ impl<T: 'static> EventProcessor<T> {
                     }
 
                     ffi::XI_RawKeyPress | ffi::XI_RawKeyRelease => {
-                        // This is horrible, but I couldn't manage to respect keyboard layout changes
-                        // in any other way. In fact, getting this to work at all proved so frustrating
-                        // that I (@maroider) lost motivation to work on the keyboard event rework for
-                        // some months. Thankfully, @ArturKovacs offered to help debug the problem
-                        // over discord, and the following is the result of that debugging session.
-                        //
-                        // Without the XKB extension, the X.Org server sends us the `MappingNotify`
-                        // event when there's been a change in the keyboard layout. This stops
-                        // being the case when we select ourselves some XKB events with `XkbSelectEvents`
-                        // and the "core keyboard device (0x100)" (we haven't tried with any other
-                        // devices). We managed to reproduce this on both our machines.
-                        //
-                        // With the XKB extension active, it would seem like we're supposed to use the
-                        // `XkbStateNotify` event to detect keyboard layout changes, but the `group`
-                        // never changes value (it is always `0`). This worked for @ArturKovacs, but
-                        // not for me. We also tried to use the `group` given to us in keypress events,
-                        // but it remained constant there, too.
-                        //
-                        // We also tried to see if there was some other event that got fired when the
-                        // keyboard layout changed, and we found a mysterious event with the value
-                        // `85` (`0x55`). We couldn't find any reference to it in the X11 headers or
-                        // in the X.Org server source.
-                        //
-                        // `KeymapNotify` did briefly look interesting based purely on the name, but
-                        // it is only useful for checking what keys are pressed when we receive the
-                        // event.
-                        //
-                        // So instead of any vaguely reasonable approach, we get this: reloading the
-                        // keymap on *every* keypress. That's peak efficiency right there!
-                        //
-                        // FIXME: Someone please save our souls! Or at least our wasted CPU cycles.
-                        //
-                        //        If you do manage to find a solution, remember to re-enable (and handle) the
-                        //        `XkbStateNotify` event with `XkbSelectEventDetails` with a mask of
-                        //        `XkbAllStateComponentsMask & !XkbPointerButtonMask` like in
-                        //        <https://github.com/maroider/winit/pull/2>.
-                        unsafe { self.kb_state.init_with_x11_keymap() };
-
                         let xev: &ffi::XIRawEvent = unsafe { &*(xev.data as *const _) };
 
                         let state = match xev.evtype {
@@ -1213,6 +1176,32 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
             _ => {
+                if event_type == self.xkbext.first_event_id {
+                    let xev = unsafe { &*(xev as *const _ as *const ffi::XkbAnyEvent) };
+                    #[allow(clippy::single_match)]
+                    match xev.xkb_type {
+                        ffi::XkbNewKeyboardNotify => {
+                            let xev = unsafe {
+                                &*(xev as *const _ as *const ffi::XkbNewKeyboardNotifyEvent)
+                            };
+                            let keycodes_changed_flag = 0x1;
+                            let geometry_changed_flag = 0x1 << 1;
+
+                            // TODO: What do we do about the "geometry changed" case?
+                            let keycodes_changed =
+                                util::has_flag(xev.changed, keycodes_changed_flag);
+                            let geometry_changed =
+                                util::has_flag(xev.changed, geometry_changed_flag);
+
+                            if xev.device == self.kb_state.core_keyboard_id
+                                && (keycodes_changed || geometry_changed)
+                            {
+                                unsafe { self.kb_state.init_with_x11_keymap() };
+                            }
+                        }
+                        _ => {}
+                    }
+                }
                 if event_type == self.randr_event_offset {
                     // In the future, it would be quite easy to emit monitor hotplug events.
                     let prev_list = monitor::invalidate_cached_monitor_list();
