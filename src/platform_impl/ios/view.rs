@@ -587,11 +587,20 @@ pub fn create_delegate_class() {
         }
     }
 
+    extern "C" fn open(_: &mut Object, _: Sel, _: id, _: id, _: id) -> BOOL {
+        YES
+    }
+
     let ui_responder = class!(UIResponder);
     let mut decl =
         ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
 
     unsafe {
+        decl.add_method(
+            sel!(application:open:options:),
+            open as extern "C" fn(&mut Object, Sel, id, id, id) -> BOOL,
+        );
+
         decl.add_method(
             sel!(application:didFinishLaunchingWithOptions:),
             did_finish_launching as extern "C" fn(&mut Object, Sel, id, id) -> BOOL,
