@@ -100,8 +100,13 @@ unsafe fn create_view(
 ) -> Option<(IdRef, Weak<Mutex<CursorState>>)> {
     let (ns_view, cursor_state) = new_view(ns_window);
     ns_view.non_nil().map(|ns_view| {
+        // The default value of `setWantsBestResolutionOpenGLSurface_` was `false` until
+        // macos 10.14 and `true` after 10.5, we should set it to `YES` o `NO` to avoid
+        // always the default system value in favour of the user's code
         if !pl_attribs.disallow_hidpi {
             ns_view.setWantsBestResolutionOpenGLSurface_(YES);
+        } else {
+            ns_view.setWantsBestResolutionOpenGLSurface_(NO);
         }
 
         // On Mojave, views automatically become layer-backed shortly after being added to
