@@ -600,18 +600,6 @@ pub fn create_delegate_class() {
         YES
     }
 
-    extern "C" fn continue_user_activity(
-        _: &mut Object,
-        _: Sel,
-        _: id,
-        _: id,
-        _: id,
-        _: id,
-    ) -> BOOL {
-        println!("LOG application:continueUserActivity:restorationHandler");
-        YES
-    }
-
     let ui_responder = class!(UIResponder);
     let mut decl =
         ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
@@ -620,11 +608,6 @@ pub fn create_delegate_class() {
         decl.add_method(
             sel!(application:openURL:options:),
             open_url as extern "C" fn(&mut Object, Sel, id, id, id) -> BOOL,
-        );
-
-        decl.add_method(
-            sel!(application:continueUserActivity:restorationHandler:),
-            continue_user_activity as extern "C" fn(&mut Object, Sel, id, id, id, id) -> BOOL,
         );
 
         decl.add_method(
