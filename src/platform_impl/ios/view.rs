@@ -587,7 +587,7 @@ pub fn create_delegate_class() {
         }
     }
 
-    extern "C" fn open(_: &mut Object, _: Sel, _: id, url: id, _: id) -> BOOL {
+    extern "C" fn open_url(_: &mut Object, _: Sel, _: id, url: id, _: id) -> BOOL {
         let string = unsafe {
             let absolute_string: id = msg_send![url, absoluteString];
             let ptr: *const std::os::raw::c_char = msg_send!(absolute_string, UTF8String);
@@ -606,8 +606,8 @@ pub fn create_delegate_class() {
 
     unsafe {
         decl.add_method(
-            sel!(application:open:options:),
-            open as extern "C" fn(&mut Object, Sel, id, id, id) -> BOOL,
+            sel!(application:openURL:options:),
+            open_url as extern "C" fn(&mut Object, Sel, id, id, id) -> BOOL,
         );
 
         decl.add_method(
