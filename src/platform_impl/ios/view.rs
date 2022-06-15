@@ -596,7 +596,7 @@ pub fn create_delegate_class() {
                 .unwrap_or_default()
                 .to_string()
         };
-        println!("{:?}", string);
+        println!("LOG openURL: {:?}", string);
         YES
     }
 
