@@ -60,6 +60,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Implemented `Eq` for `Fullscreen`, `Theme`, and `UserAttentionType`.
 - **Breaking:** `Window::set_cursor_grab` now accepts `CursorGrabMode` to control grabbing behavior.
 - On Wayland, add support for `Window::set_cursor_position`.
+- Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true o false by the user no matter the SO default value. 
 
 # 0.26.1 (2022-01-05)
 
