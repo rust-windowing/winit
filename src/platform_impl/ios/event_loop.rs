@@ -242,7 +242,7 @@ fn setup_control_flow_observers() {
                 #[allow(non_upper_case_globals)]
                 match activity {
                     kCFRunLoopBeforeWaiting => app_state::handle_main_events_cleared(),
-                    kCFRunLoopExit => unimplemented!(), // not expected to ever happen
+                    kCFRunLoopExit => println!("control_flow_main_end_handler: kCFRunLoopExit"),
                     _ => unreachable!(),
                 }
             }
@@ -258,7 +258,7 @@ fn setup_control_flow_observers() {
                 #[allow(non_upper_case_globals)]
                 match activity {
                     kCFRunLoopBeforeWaiting => app_state::handle_events_cleared(),
-                    kCFRunLoopExit => unimplemented!(), // not expected to ever happen
+                    kCFRunLoopExit => println!("control_flow_end_handler: kCFRunLoopExit"),
                     _ => unreachable!(),
                 }
             }
