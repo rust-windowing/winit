@@ -912,7 +912,7 @@ impl Window {
     ///
     /// First try confining the cursor, and if that fails, try locking it instead.
     ///
-    /// ```no-run
+    /// ```no_run
     /// # use winit::event_loop::EventLoop;
     /// # use winit::window::{CursorGrabMode, Window};
     /// # let mut event_loop = EventLoop::new();
