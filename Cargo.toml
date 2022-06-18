@@ -136,8 +136,10 @@ features = [
     'WheelEvent'
 ]
 
-[target.'cfg(target_arch = "wasm32")'.dependencies.wasm-bindgen]
-version = "0.2.45"
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.45"
+wasm-bindgen-futures = "0.4.31"
+async-channel = "1.6.1"
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 console_log = "0.2"

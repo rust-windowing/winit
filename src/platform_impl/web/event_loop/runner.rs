@@ -1,8 +1,10 @@
+use super::EventLoopProxy;
 use super::{super::ScaleChangeArgs, backend, state::State};
 use crate::event::{Event, StartCause};
 use crate::event_loop::ControlFlow;
 use crate::window::WindowId;
 
+use async_channel::Sender;
 use instant::{Duration, Instant};
 use std::{
     cell::RefCell,
@@ -30,6 +32,9 @@ pub struct Execution<T: 'static> {
     destroy_pending: RefCell<VecDeque<WindowId>>,
     scale_change_detector: RefCell<Option<backend::ScaleChangeDetector>>,
     unload_event_handle: RefCell<Option<backend::UnloadEventHandle>>,
+    /// A channel through which user events can be sent, to be cloned and put
+    /// into `EventLoopProxy`s.
+    proxy_sender: Sender<T>,
 }
 
 enum RunnerEnum<T: 'static> {
@@ -97,7 +102,9 @@ impl<T: 'static> Runner<T> {
 
 impl<T: 'static> Shared<T> {
     pub fn new() -> Self {
-        Shared(Rc::new(Execution {
+        let (proxy_sender, proxy_receiver) = async_channel::unbounded();
+
+        let this = Shared(Rc::new(Execution {
             runner: RefCell::new(RunnerEnum::Pending),
             events: RefCell::new(VecDeque::new()),
             id: RefCell::new(0),
@@ -106,7 +113,22 @@ impl<T: 'static> Shared<T> {
             destroy_pending: RefCell::new(VecDeque::new()),
             scale_change_detector: RefCell::new(None),
             unload_event_handle: RefCell::new(None),
-        }))
+            proxy_sender,
+        }));
+
+        {
+            let runner = this.clone();
+            wasm_bindgen_futures::spawn_local(async move {
+                while let Ok(value) = proxy_receiver.recv().await {
+                    runner.send_event(Event::UserEvent(value))
+                }
+
+                // An error was returned because the channel was closed, which
+                // happens when the event loop gets closed, so we can stop now.
+            })
+        }
+
+        this
     }
 
     pub fn add_canvas(&self, id: WindowId, canvas: &Rc<RefCell<backend::Canvas>>) {
@@ -151,6 +173,12 @@ impl<T: 'static> Shared<T> {
         *id += 1;
 
         *id
+    }
+
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy {
+            sender: self.0.proxy_sender.clone(),
+        }
     }
 
     pub fn request_redraw(&self, id: WindowId) {
@@ -463,6 +491,10 @@ impl<T: 'static> Shared<T> {
 
     fn handle_loop_destroyed(&self, control: &mut ControlFlow) {
         self.handle_event(Event::LoopDestroyed, control);
+        // Close the `EventLoopProxy` channel, causing any more calls to
+        // `EventLoopProxy::send_event` to fail and indirectly stopping the receiver
+        // task.
+        self.0.proxy_sender.close();
         let all_canvases = std::mem::take(&mut *self.0.all_canvases.borrow_mut());
         *self.0.scale_change_detector.borrow_mut() = None;
         *self.0.unload_event_handle.borrow_mut() = None;
