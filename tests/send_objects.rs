@@ -1,7 +1,6 @@
 #[allow(dead_code)]
 fn needs_send<T: Send>() {}
 
-#[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn event_loop_proxy_send() {
     #[allow(dead_code)]

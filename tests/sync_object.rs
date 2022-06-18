@@ -1,7 +1,6 @@
 #[allow(dead_code)]
 fn needs_sync<T: Sync>() {}
 
-#[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn event_loop_proxy_sync() {
     #[allow(dead_code)]
