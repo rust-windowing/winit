@@ -7,7 +7,7 @@ use sctk::reexports::client::protocol::wl_keyboard::WlKeyboard;
 use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
 
-use sctk::reexports::calloop::{LoopHandle, RegistrationToken};
+use sctk::reexports::calloop::LoopHandle;
 
 use sctk::seat::keyboard;
 
@@ -20,12 +20,6 @@ mod keymap;
 
 pub(crate) struct Keyboard {
     pub keyboard: WlKeyboard,
-
-    /// The source for repeat keys.
-    pub repeat_token: Option<RegistrationToken>,
-
-    /// LoopHandle to drop `RepeatSource`, when dropping the keyboard.
-    pub loop_handle: LoopHandle<'static, WinitState>,
 }
 
 impl Keyboard {
@@ -35,7 +29,7 @@ impl Keyboard {
         modifiers_state: Rc<RefCell<ModifiersState>>,
     ) -> Option<Self> {
         let mut inner = KeyboardInner::new(modifiers_state);
-        let keyboard_data = keyboard::map_keyboard_repeat(
+        let keyboard = keyboard::map_keyboard_repeat(
             loop_handle.clone(),
             seat,
             None,
@@ -44,15 +38,10 @@ impl Keyboard {
                 let winit_state = dispatch_data.get::<WinitState>().unwrap();
                 handlers::handle_keyboard(event, &mut inner, winit_state);
             },
-        );
+        )
+        .ok()?;
 
-        let (keyboard, repeat_token) = keyboard_data.ok()?;
-
-        Some(Self {
-            keyboard,
-            loop_handle,
-            repeat_token: Some(repeat_token),
-        })
+        Some(Self { keyboard })
     }
 }
 
@@ -60,10 +49,6 @@ impl Drop for Keyboard {
     fn drop(&mut self) {
         if self.keyboard.as_ref().version() >= 3 {
             self.keyboard.release();
-        }
-
-        if let Some(repeat_token) = self.repeat_token.take() {
-            self.loop_handle.remove(repeat_token);
         }
     }
 }
