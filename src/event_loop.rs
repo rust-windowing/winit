@@ -11,6 +11,7 @@ use instant::Instant;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
+use once_cell::sync::OnceCell;
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
@@ -55,6 +56,8 @@ pub struct EventLoopBuilder<T: 'static> {
     _p: PhantomData<T>,
 }
 
+static EVENT_LOOP_CREATED: OnceCell<()> = OnceCell::new();
+
 impl EventLoopBuilder<()> {
     /// Start building a new event loop.
     #[inline]
@@ -76,8 +79,11 @@ impl<T> EventLoopBuilder<T> {
 
     /// Builds a new event loop.
     ///
-    /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread.***
-    /// Attempting to create the event loop on a different thread will panic. This restriction isn't
+    /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
+    /// and only once per application.***
+    ///
+    /// Attempting to create the event loop on a different thread, or multiple event loops in
+    /// the same application, will panic. This restriction isn't
     /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
     /// porting to platforms that require it. `EventLoopBuilderExt::any_thread` functions are exposed
     /// in the relevant [`platform`] module if the target platform supports creating an event loop on
@@ -95,6 +101,9 @@ impl<T> EventLoopBuilder<T> {
     /// [`platform`]: crate::platform
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
+        if EVENT_LOOP_CREATED.set(()).is_err() {
+            panic!("Attempted to build an EventLoop twice in the same application which is unsupported.")
+        }
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
         EventLoop {
