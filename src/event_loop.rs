@@ -8,10 +8,10 @@
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
 use instant::Instant;
+use once_cell::sync::OnceCell;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
-use once_cell::sync::OnceCell;
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
