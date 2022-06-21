@@ -2,7 +2,7 @@
 
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
+    sync::{mpsc, RwLock},
     time::{Duration, Instant},
 };
 
@@ -234,7 +234,8 @@ fn poll(poll: Poll) -> Option<EventSource> {
 
 pub struct EventLoop<T: 'static> {
     window_target: event_loop::EventLoopWindowTarget<T>,
-    user_queue: Arc<Mutex<VecDeque<T>>>,
+    user_events_sender: mpsc::Sender<T>,
+    user_events_receiver: mpsc::Receiver<T>,
     first_event: Option<EventSource>,
     start_cause: event::StartCause,
     looper: ThreadLooper,
@@ -256,6 +257,7 @@ macro_rules! call_event_handler {
 
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
+        let (sender, receiver) = mpsc::channel();
         Self {
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
@@ -263,7 +265,8 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: std::marker::PhantomData,
             },
-            user_queue: Default::default(),
+            user_events_sender: sender,
+            user_events_receiver: receiver,
             first_event: None,
             start_cause: event::StartCause::Init,
             looper: ThreadLooper::for_thread().unwrap(),
@@ -470,12 +473,9 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
                 Some(EventSource::User) => {
-                    // Dont hold the lock while calling the event handler to avoid dead
-                    // locks.
-                    while let Some(event) = {
-                        let mut user_queue = self.user_queue.lock().unwrap();
-                        user_queue.pop_front()
-                    } {
+                    // try_recv only errors when empty (expected) or disconnect. But because Self
+                    // contains a Sender it will never disconnect, so no error handling need.
+                    while let Ok(event) = self.user_events_receiver.try_recv() {
                         call_event_handler!(
                             event_handler,
                             self.window_target(),
@@ -576,20 +576,22 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            queue: self.user_queue.clone(),
+            user_events_sender: self.user_events_sender.clone(),
             looper: ForeignLooper::for_thread().expect("called from event loop thread"),
         }
     }
 }
 
 pub struct EventLoopProxy<T: 'static> {
-    queue: Arc<Mutex<VecDeque<T>>>,
+    user_events_sender: mpsc::Sender<T>,
     looper: ForeignLooper,
 }
 
 impl<T> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
-        self.queue.lock().unwrap().push_back(event);
+        self.user_events_sender
+            .send(event)
+            .map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
         self.looper.wake();
         Ok(())
     }
@@ -598,7 +600,7 @@ impl<T> EventLoopProxy<T> {
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         EventLoopProxy {
-            queue: self.queue.clone(),
+            user_events_sender: self.user_events_sender.clone(),
             looper: self.looper.clone(),
         }
     }
