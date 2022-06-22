@@ -61,7 +61,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** `Window::set_cursor_grab` now accepts `CursorGrabMode` to control grabbing behavior.
 - On Wayland, add support for `Window::set_cursor_position`.
 - Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value. 
-- EventLoopBuilder::build` will now panic when the `EventLoop` is being created more than once.
+- `EventLoopBuilder::build` will now panic when the `EventLoop` is being created more than once.
 
 # 0.26.1 (2022-01-05)
 

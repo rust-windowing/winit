@@ -7,11 +7,12 @@
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
-use instant::Instant;
-use once_cell::sync::OnceCell;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
+
+use instant::Instant;
+use once_cell::sync::OnceCell;
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
@@ -101,7 +102,7 @@ impl<T> EventLoopBuilder<T> {
     pub fn build(&mut self) -> EventLoop<T> {
         static EVENT_LOOP_CREATED: OnceCell<()> = OnceCell::new();
         if EVENT_LOOP_CREATED.set(()).is_err() {
-            panic!("Attempted to build an EventLoop twice in the same application which is unsupported.")
+            panic!("Creating EventLoop multiple times is not supported.");
         }
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
