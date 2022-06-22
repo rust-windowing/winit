@@ -96,7 +96,7 @@ bitflags! {
 
         const MINIMIZED = 1 << 12;
 
-        const IGNORE_CURSOR_EVENT = 1 << 14;
+        const IGNORE_CURSOR_EVENT = 1 << 15;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
