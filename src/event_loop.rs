@@ -56,8 +56,6 @@ pub struct EventLoopBuilder<T: 'static> {
     _p: PhantomData<T>,
 }
 
-static EVENT_LOOP_CREATED: OnceCell<()> = OnceCell::new();
-
 impl EventLoopBuilder<()> {
     /// Start building a new event loop.
     #[inline]
@@ -101,6 +99,7 @@ impl<T> EventLoopBuilder<T> {
     /// [`platform`]: crate::platform
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
+        static EVENT_LOOP_CREATED: OnceCell<()> = OnceCell::new();
         if EVENT_LOOP_CREATED.set(()).is_err() {
             panic!("Attempted to build an EventLoop twice in the same application which is unsupported.")
         }
