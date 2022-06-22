@@ -257,7 +257,7 @@ macro_rules! call_event_handler {
 
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
-        let (sender, receiver) = mpsc::channel();
+        let (user_events_sender, user_events_receiver) = mpsc::channel();
         Self {
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
@@ -265,8 +265,8 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: std::marker::PhantomData,
             },
-            user_events_sender: sender,
-            user_events_receiver: receiver,
+            user_events_sender,
+            user_events_receiver,
             first_event: None,
             start_cause: event::StartCause::Init,
             looper: ThreadLooper::for_thread().unwrap(),
