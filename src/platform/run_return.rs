@@ -82,13 +82,11 @@ impl<T> crate::platform_impl::EventLoop<T> {
         let this: &'static mut Self = unsafe { &mut *(&mut self as *mut Self) };
         // Note: we don't touch `callback` again if this unwinds, so it doesn't matter
         // if it's unwind safe.
-        let exit_code = match catch_unwind(AssertUnwindSafe(|| this.run_return(callback))) {
-            Ok(code) => code,
+        let exit_code = catch_unwind(AssertUnwindSafe(|| this.run_return(callback)))
             // 101 seems to be the status code Rust uses for panics.
             // Note: the panic message gets printed before unwinding, so we don't have to print it
             // ourselves.
-            Err(_) => 101,
-        };
+            .unwrap_or(101);
         process::exit(exit_code);
     }
 }
