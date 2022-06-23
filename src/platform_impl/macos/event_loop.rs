@@ -6,7 +6,7 @@ use std::{
     mem,
     os::raw::c_void,
     panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
-    process, ptr,
+    ptr,
     rc::{Rc, Weak},
     sync::mpsc,
 };
