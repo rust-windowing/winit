@@ -35,8 +35,9 @@
 //!
 //! ### Position and Size types
 //!
-//! Winit's `Physical(Position|Size)` types correspond with the actual pixels on the device, and the
-//! `Logical(Position|Size)` types correspond to the physical pixels divided by the scale factor.
+//! Winit's [`PhysicalPosition`] / [`PhysicalSize`] types correspond with the actual pixels on the
+//! device, and the [`LogicalPosition`] / [`LogicalSize`] types correspond to the physical pixels
+//! divided by the scale factor.
 //! All of Winit's functions return physical types, but can take either logical or physical
 //! coordinates as input, allowing you to use the most convenient coordinate system for your
 //! particular application.
@@ -46,19 +47,18 @@
 //! floating precision when necessary (e.g. logical sizes for fractional scale factors and touch
 //! input). If `P` is a floating-point type, please do not cast the values with `as {int}`. Doing so
 //! will truncate the fractional part of the float, rather than properly round to the nearest
-//! integer. Use the provided `cast` function or `From`/`Into` conversions, which handle the
+//! integer. Use the provided `cast` function or [`From`]/[`Into`] conversions, which handle the
 //! rounding properly. Note that precision loss will still occur when rounding from a float to an
 //! int, although rounding lessens the problem.
 //!
 //! ### Events
 //!
-//! Winit will dispatch a [`ScaleFactorChanged`](crate::event::WindowEvent::ScaleFactorChanged)
-//! event whenever a window's scale factor has changed. This can happen if the user drags their
-//! window from a standard-resolution monitor to a high-DPI monitor, or if the user changes their
-//! DPI settings. This gives you a chance to rescale your application's UI elements and adjust how
-//! the platform changes the window's size to reflect the new scale factor. If a window hasn't
-//! received a [`ScaleFactorChanged`](crate::event::WindowEvent::ScaleFactorChanged) event,
-//! then its scale factor is `1.0`.
+//! Winit will dispatch a [`ScaleFactorChanged`] event whenever a window's scale factor has changed.
+//! This can happen if the user drags their window from a standard-resolution monitor to a high-DPI
+//! monitor, or if the user changes their DPI settings. This gives you a chance to rescale your
+//! application's UI elements and adjust how the platform changes the window's size to reflect the new
+//! scale factor. If a window hasn't received a [`ScaleFactorChanged`] event,  then its scale factor
+//! can be found by calling [`window.scale_factor()`].
 //!
 //! ## How is the scale factor calculated?
 //!
@@ -69,9 +69,10 @@
 //!   selection of "nice" scale factors, i.e. 1.0, 1.25, 1.5... on Windows 7, the scale factor is
 //!   global and changing it requires logging out. See [this article][windows_1] for technical
 //!   details.
-//! - **macOS:** "retina displays" have a scale factor of 2.0. Otherwise, the scale factor is 1.0.
-//!   Intermediate scale factors are never used. It's possible for any display to use that 2.0 scale
-//!   factor, given the use of the command line.
+//! - **macOS:** Recent versions of macOS allow the user to change the scaling factor for certain
+//!   displays. When this is available, the user may pick a per-monitor scaling factor from a set
+//!   of pre-defined settings. All "retina displays" have a scaling factor above 1.0 by default but
+//!   the specific value varies across devices.
 //! - **X11:** Many man-hours have been spent trying to figure out how to handle DPI in X11. Winit
 //!   currently uses a three-pronged approach:
 //!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable, if present.
@@ -92,8 +93,11 @@
 //!   In other words, it is the value of [`window.devicePixelRatio`][web_1]. It is affected by
 //!   both the screen scaling and the browser zoom level and can go below `1.0`.
 //!
+//!
 //! [points]: https://en.wikipedia.org/wiki/Point_(typography)
 //! [picas]: https://en.wikipedia.org/wiki/Pica_(typography)
+//! [`ScaleFactorChanged`]: crate::event::WindowEvent::ScaleFactorChanged
+//! [`window.scale_factor()`]: crate::window::Window::scale_factor
 //! [windows_1]: https://docs.microsoft.com/en-us/windows/win32/hidpi/high-dpi-desktop-application-development-on-windows
 //! [apple_1]: https://developer.apple.com/library/archive/documentation/DeviceInformation/Reference/iOSDeviceCompatibility/Displays/Displays.html
 //! [apple_2]: https://developer.apple.com/design/human-interface-guidelines/macos/icons-and-images/image-size-and-resolution/
@@ -163,7 +167,7 @@ pub fn validate_scale_factor(scale_factor: f64) -> bool {
 /// The position is stored as floats, so please be careful. Casting floats to integers truncates the
 /// fractional part, which can cause noticable issues. To help with that, an `Into<(i32, i32)>`
 /// implementation is provided which does the rounding for you.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalPosition<P> {
     pub x: P,
@@ -209,9 +213,9 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalPosition<P> {
-    fn into(self: Self) -> (X, X) {
-        (self.x.cast(), self.y.cast())
+impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for (X, X) {
+    fn from(p: LogicalPosition<P>) -> (X, X) {
+        (p.x.cast(), p.y.cast())
     }
 }
 
@@ -221,14 +225,28 @@ impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalPosition<P> {
-    fn into(self: Self) -> [X; 2] {
-        [self.x.cast(), self.y.cast()]
+impl<P: Pixel, X: Pixel> From<LogicalPosition<P>> for [X; 2] {
+    fn from(p: LogicalPosition<P>) -> [X; 2] {
+        [p.x.cast(), p.y.cast()]
+    }
+}
+
+#[cfg(feature = "mint")]
+impl<P: Pixel> From<mint::Point2<P>> for LogicalPosition<P> {
+    fn from(p: mint::Point2<P>) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
+#[cfg(feature = "mint")]
+impl<P: Pixel> From<LogicalPosition<P>> for mint::Point2<P> {
+    fn from(p: LogicalPosition<P>) -> Self {
+        mint::Point2 { x: p.x, y: p.y }
     }
 }
 
 /// A position represented in physical pixels.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalPosition<P> {
     pub x: P,
@@ -274,9 +292,9 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalPosition<P> {
-    fn into(self: Self) -> (X, X) {
-        (self.x.cast(), self.y.cast())
+impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for (X, X) {
+    fn from(p: PhysicalPosition<P>) -> (X, X) {
+        (p.x.cast(), p.y.cast())
     }
 }
 
@@ -286,14 +304,28 @@ impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalPosition<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalPosition<P> {
-    fn into(self: Self) -> [X; 2] {
-        [self.x.cast(), self.y.cast()]
+impl<P: Pixel, X: Pixel> From<PhysicalPosition<P>> for [X; 2] {
+    fn from(p: PhysicalPosition<P>) -> [X; 2] {
+        [p.x.cast(), p.y.cast()]
+    }
+}
+
+#[cfg(feature = "mint")]
+impl<P: Pixel> From<mint::Point2<P>> for PhysicalPosition<P> {
+    fn from(p: mint::Point2<P>) -> Self {
+        Self::new(p.x, p.y)
+    }
+}
+
+#[cfg(feature = "mint")]
+impl<P: Pixel> From<PhysicalPosition<P>> for mint::Point2<P> {
+    fn from(p: PhysicalPosition<P>) -> Self {
+        mint::Point2 { x: p.x, y: p.y }
     }
 }
 
 /// A size represented in logical pixels.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LogicalSize<P> {
     pub width: P,
@@ -339,9 +371,9 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for LogicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<(X, X)> for LogicalSize<P> {
-    fn into(self: LogicalSize<P>) -> (X, X) {
-        (self.width.cast(), self.height.cast())
+impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for (X, X) {
+    fn from(s: LogicalSize<P>) -> (X, X) {
+        (s.width.cast(), s.height.cast())
     }
 }
 
@@ -351,14 +383,31 @@ impl<P: Pixel, X: Pixel> From<[X; 2]> for LogicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<[X; 2]> for LogicalSize<P> {
-    fn into(self: Self) -> [X; 2] {
-        [self.width.cast(), self.height.cast()]
+impl<P: Pixel, X: Pixel> From<LogicalSize<P>> for [X; 2] {
+    fn from(s: LogicalSize<P>) -> [X; 2] {
+        [s.width.cast(), s.height.cast()]
+    }
+}
+
+#[cfg(feature = "mint")]
+impl<P: Pixel> From<mint::Vector2<P>> for LogicalSize<P> {
+    fn from(v: mint::Vector2<P>) -> Self {
+        Self::new(v.x, v.y)
+    }
+}
+
+#[cfg(feature = "mint")]
+impl<P: Pixel> From<LogicalSize<P>> for mint::Vector2<P> {
+    fn from(s: LogicalSize<P>) -> Self {
+        mint::Vector2 {
+            x: s.width,
+            y: s.height,
+        }
     }
 }
 
 /// A size represented in physical pixels.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PhysicalSize<P> {
     pub width: P,
@@ -401,9 +450,9 @@ impl<P: Pixel, X: Pixel> From<(X, X)> for PhysicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<(X, X)> for PhysicalSize<P> {
-    fn into(self: Self) -> (X, X) {
-        (self.width.cast(), self.height.cast())
+impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for (X, X) {
+    fn from(s: PhysicalSize<P>) -> (X, X) {
+        (s.width.cast(), s.height.cast())
     }
 }
 
@@ -413,9 +462,26 @@ impl<P: Pixel, X: Pixel> From<[X; 2]> for PhysicalSize<P> {
     }
 }
 
-impl<P: Pixel, X: Pixel> Into<[X; 2]> for PhysicalSize<P> {
-    fn into(self: Self) -> [X; 2] {
-        [self.width.cast(), self.height.cast()]
+impl<P: Pixel, X: Pixel> From<PhysicalSize<P>> for [X; 2] {
+    fn from(s: PhysicalSize<P>) -> [X; 2] {
+        [s.width.cast(), s.height.cast()]
+    }
+}
+
+#[cfg(feature = "mint")]
+impl<P: Pixel> From<mint::Vector2<P>> for PhysicalSize<P> {
+    fn from(v: mint::Vector2<P>) -> Self {
+        Self::new(v.x, v.y)
+    }
+}
+
+#[cfg(feature = "mint")]
+impl<P: Pixel> From<PhysicalSize<P>> for mint::Vector2<P> {
+    fn from(s: PhysicalSize<P>) -> Self {
+        mint::Vector2 {
+            x: s.width,
+            y: s.height,
+        }
     }
 }
 

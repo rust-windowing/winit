@@ -1,12 +1,12 @@
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
 use super::*;
 
 // This info is global to the window manager.
-lazy_static! {
-    static ref SUPPORTED_HINTS: Mutex<Vec<ffi::Atom>> = Mutex::new(Vec::with_capacity(0));
-    static ref WM_NAME: Mutex<Option<String>> = Mutex::new(None);
-}
+static SUPPORTED_HINTS: Lazy<Mutex<Vec<ffi::Atom>>> =
+    Lazy::new(|| Mutex::new(Vec::with_capacity(0)));
+static WM_NAME: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
 pub fn hint_is_supported(hint: ffi::Atom) -> bool {
     (*SUPPORTED_HINTS.lock()).contains(&hint)
@@ -60,13 +60,9 @@ impl XConnection {
         let root_window_wm_check = {
             let result = self.get_property(root, check_atom, ffi::XA_WINDOW);
 
-            let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
+            let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
-            if let Some(wm_check) = wm_check {
-                wm_check
-            } else {
-                return None;
-            }
+            wm_check?
         };
 
         // Querying the same property on the child window we were given, we should get this child
@@ -74,13 +70,9 @@ impl XConnection {
         let child_window_wm_check = {
             let result = self.get_property(root_window_wm_check, check_atom, ffi::XA_WINDOW);
 
-            let wm_check = result.ok().and_then(|wm_check| wm_check.get(0).cloned());
+            let wm_check = result.ok().and_then(|wm_check| wm_check.first().cloned());
 
-            if let Some(wm_check) = wm_check {
-                wm_check
-            } else {
-                return None;
-            }
+            wm_check?
         };
 
         // These values should be the same.

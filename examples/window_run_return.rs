@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 // Limit this example to only compatible platforms.
 #[cfg(any(
     target_os = "windows",
@@ -6,7 +8,8 @@
     target_os = "dragonfly",
     target_os = "freebsd",
     target_os = "netbsd",
-    target_os = "openbsd"
+    target_os = "openbsd",
+    target_os = "android",
 ))]
 fn main() {
     use std::{thread::sleep, time::Duration};
@@ -14,7 +17,7 @@ fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoop,
         platform::run_return::EventLoopExtRunReturn,
         window::WindowBuilder,
     };
@@ -30,7 +33,7 @@ fn main() {
 
     while !quit {
         event_loop.run_return(|event, _, control_flow| {
-            *control_flow = ControlFlow::Wait;
+            control_flow.set_wait();
 
             if let Event::WindowEvent { event, .. } = &event {
                 // Print only Window events to reduce noise
@@ -45,7 +48,7 @@ fn main() {
                     quit = true;
                 }
                 Event::MainEventsCleared => {
-                    *control_flow = ControlFlow::Exit;
+                    control_flow.set_exit();
                 }
                 _ => (),
             }
@@ -57,7 +60,7 @@ fn main() {
     }
 }
 
-#[cfg(any(target_os = "ios", target_os = "android", target_arch = "wasm32"))]
+#[cfg(any(target_os = "ios", target_arch = "wasm32"))]
 fn main() {
     println!("This platform doesn't support run_return.");
 }

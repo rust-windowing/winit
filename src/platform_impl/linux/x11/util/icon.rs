@@ -1,3 +1,5 @@
+#![allow(clippy::assertions_on_constants)]
+
 use super::*;
 use crate::icon::{Icon, Pixel, PIXEL_SIZE};
 
@@ -27,7 +29,7 @@ impl Icon {
         data.push(rgba_icon.height as Cardinal);
         let pixels = rgba_icon.rgba.as_ptr() as *const Pixel;
         for pixel_index in 0..pixel_count {
-            let pixel = unsafe { &*pixels.offset(pixel_index as isize) };
+            let pixel = unsafe { &*pixels.add(pixel_index) };
             data.push(pixel.to_packed_argb());
         }
         data

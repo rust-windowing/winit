@@ -1,8 +1,10 @@
+#![allow(clippy::single_match)]
+
 use std::io::{stdin, stdout, Write};
 
 use simple_logger::SimpleLogger;
 use winit::event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent};
-use winit::event_loop::{ControlFlow, EventLoop};
+use winit::event_loop::EventLoop;
 use winit::monitor::{MonitorHandle, VideoMode};
 use winit::window::{Fullscreen, WindowBuilder};
 
@@ -15,7 +17,7 @@ fn main() {
 
     let mut num = String::new();
     stdin().read_line(&mut num).unwrap();
-    let num = num.trim().parse().ok().expect("Please enter a number");
+    let num = num.trim().parse().expect("Please enter a number");
 
     let fullscreen = Some(match num {
         1 => Fullscreen::Exclusive(prompt_for_video_mode(&prompt_for_monitor(&event_loop))),
@@ -32,11 +34,11 @@ fn main() {
         .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::WindowEvent { event, .. } => match event {
-                WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                WindowEvent::CloseRequested => control_flow.set_exit(),
                 WindowEvent::KeyboardInput {
                     input:
                         KeyboardInput {
@@ -46,7 +48,7 @@ fn main() {
                         },
                     ..
                 } => match (virtual_code, state) {
-                    (VirtualKeyCode::Escape, _) => *control_flow = ControlFlow::Exit,
+                    (VirtualKeyCode::Escape, _) => control_flow.set_exit(),
                     (VirtualKeyCode::F, ElementState::Pressed) => {
                         if window.fullscreen().is_some() {
                             window.set_fullscreen(None);
@@ -85,7 +87,7 @@ fn prompt_for_monitor(event_loop: &EventLoop<()>) -> MonitorHandle {
 
     let mut num = String::new();
     stdin().read_line(&mut num).unwrap();
-    let num = num.trim().parse().ok().expect("Please enter a number");
+    let num = num.trim().parse().expect("Please enter a number");
     let monitor = event_loop
         .available_monitors()
         .nth(num)
@@ -106,7 +108,7 @@ fn prompt_for_video_mode(monitor: &MonitorHandle) -> VideoMode {
 
     let mut num = String::new();
     stdin().read_line(&mut num).unwrap();
-    let num = num.trim().parse().ok().expect("Please enter a number");
+    let num = num.trim().parse().expect("Please enter a number");
     let video_mode = monitor
         .video_modes()
         .nth(num)

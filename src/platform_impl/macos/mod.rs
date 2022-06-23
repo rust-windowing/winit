@@ -1,29 +1,36 @@
 #![cfg(target_os = "macos")]
+#![allow(clippy::let_unit_value)]
 
-mod activation_hack;
+#[macro_use]
+mod util;
+
 mod app;
 mod app_delegate;
 mod app_state;
 mod event;
 mod event_loop;
 mod ffi;
+mod menu;
 mod monitor;
 mod observer;
-mod util;
 mod view;
 mod window;
 mod window_delegate;
 
 use std::{fmt, ops::Deref, sync::Arc};
 
-pub use self::{
-    event_loop::{EventLoop, EventLoopWindowTarget, Proxy as EventLoopProxy},
+pub(crate) use self::{
+    app_delegate::get_aux_state_mut,
+    event_loop::{
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
+    },
     monitor::{MonitorHandle, VideoMode},
-    window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
+    window::{PlatformSpecificWindowBuilderAttributes, UnownedWindow, WindowId},
 };
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
 };
+use objc::rc::autoreleasepool;
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
@@ -31,7 +38,7 @@ pub(crate) use crate::icon::NoIcon as PlatformIcon;
 pub struct DeviceId;
 
 impl DeviceId {
-    pub unsafe fn dummy() -> Self {
+    pub const unsafe fn dummy() -> Self {
         DeviceId
     }
 }
@@ -63,12 +70,12 @@ impl Deref for Window {
 }
 
 impl Window {
-    pub fn new<T: 'static>(
+    pub(crate) fn new<T: 'static>(
         _window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = UnownedWindow::new(attributes, pl_attribs)?;
+        let (window, _delegate) = autoreleasepool(|| UnownedWindow::new(attributes, pl_attribs))?;
         Ok(Window { window, _delegate })
     }
 }

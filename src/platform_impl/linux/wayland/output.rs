@@ -112,7 +112,7 @@ impl Eq for MonitorHandle {}
 
 impl PartialOrd for MonitorHandle {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -175,7 +175,7 @@ impl MonitorHandle {
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
         let modes = sctk::output::with_output_info(&self.proxy, |info| info.modes.clone())
-            .unwrap_or_else(Vec::new);
+            .unwrap_or_default();
 
         let monitor = self.clone();
 

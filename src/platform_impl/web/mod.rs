@@ -1,5 +1,5 @@
 // Brief introduction to the internals of the web backend:
-// Currently, the web backend supports both wasm-bindgen and stdweb as methods of binding to the
+// The web backend used to support both wasm-bindgen and stdweb as methods of binding to the
 // environment. Because they are both supporting the same underlying APIs, the actual web bindings
 // are cordoned off into backend abstractions, which present the thinnest unifying layer possible.
 //
@@ -17,36 +17,22 @@
 // incoming events (from the registered handlers) and ensuring they are passed to the user in a
 // compliant way.
 
-// Silence warnings from use of deprecated stdweb backend
-#![allow(deprecated)]
-
 mod device;
 mod error;
 mod event_loop;
 mod monitor;
 mod window;
 
-#[cfg(feature = "web-sys")]
 #[path = "web_sys/mod.rs"]
 mod backend;
 
-#[cfg(feature = "stdweb")]
-#[path = "stdweb/mod.rs"]
-mod backend;
-
-#[cfg(not(any(feature = "web-sys", feature = "stdweb")))]
-compile_error!("Please select a feature to build for web: `web-sys`, `stdweb`");
-
-pub use self::device::Id as DeviceId;
+pub use self::device::DeviceId;
 pub use self::error::OsError;
-pub use self::event_loop::{
-    EventLoop, Proxy as EventLoopProxy, WindowTarget as EventLoopWindowTarget,
+pub(crate) use self::event_loop::{
+    EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
 };
-pub use self::monitor::{Handle as MonitorHandle, Mode as VideoMode};
-pub use self::window::{
-    Id as WindowId, PlatformSpecificBuilderAttributes as PlatformSpecificWindowBuilderAttributes,
-    Window,
-};
+pub use self::monitor::{MonitorHandle, VideoMode};
+pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 

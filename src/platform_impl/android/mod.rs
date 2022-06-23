@@ -1,31 +1,216 @@
 #![cfg(target_os = "android")]
 
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-    error, event,
-    event_loop::{self, ControlFlow},
-    monitor, window,
-};
-use ndk::{
-    configuration::Configuration,
-    event::{InputEvent, MotionAction},
-    looper::{ForeignLooper, Poll, ThreadLooper},
-};
-use ndk_glue::{Event, Rect};
 use std::{
     collections::VecDeque,
     sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
 
-lazy_static! {
-    static ref CONFIG: RwLock<Configuration> = RwLock::new(Configuration::new());
+use ndk::{
+    configuration::Configuration,
+    event::{InputEvent, KeyAction, Keycode, MotionAction},
+    looper::{ForeignLooper, Poll, ThreadLooper},
+};
+use ndk_glue::{Event, Rect};
+use once_cell::sync::Lazy;
+use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
+    error,
+    event::{self, VirtualKeyCode},
+    event_loop::{self, ControlFlow},
+    monitor,
+    window::{self, CursorGrabMode},
+};
+
+static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {
+    RwLock::new(Configuration::from_asset_manager(
+        #[allow(deprecated)] // TODO: rust-windowing/winit#2196
+        &ndk_glue::native_activity().asset_manager(),
+    ))
+});
+// If this is `Some()` a `Poll::Wake` is considered an `EventSource::Internal` with the event
+// contained in the `Option`. The event is moved outside of the `Option` replacing it with a
+// `None`.
+//
+// This allows us to inject event into the event loop without going through `ndk-glue` and
+// calling unsafe function that should only be called by Android.
+static INTERNAL_EVENT: Lazy<RwLock<Option<InternalEvent>>> = Lazy::new(|| RwLock::new(None));
+
+enum InternalEvent {
+    RedrawRequested,
 }
 
 enum EventSource {
     Callback,
     InputQueue,
     User,
+    Internal(InternalEvent),
+}
+
+fn ndk_keycode_to_virtualkeycode(keycode: Keycode) -> Option<event::VirtualKeyCode> {
+    match keycode {
+        Keycode::A => Some(VirtualKeyCode::A),
+        Keycode::B => Some(VirtualKeyCode::B),
+        Keycode::C => Some(VirtualKeyCode::C),
+        Keycode::D => Some(VirtualKeyCode::D),
+        Keycode::E => Some(VirtualKeyCode::E),
+        Keycode::F => Some(VirtualKeyCode::F),
+        Keycode::G => Some(VirtualKeyCode::G),
+        Keycode::H => Some(VirtualKeyCode::H),
+        Keycode::I => Some(VirtualKeyCode::I),
+        Keycode::J => Some(VirtualKeyCode::J),
+        Keycode::K => Some(VirtualKeyCode::K),
+        Keycode::L => Some(VirtualKeyCode::L),
+        Keycode::M => Some(VirtualKeyCode::M),
+        Keycode::N => Some(VirtualKeyCode::N),
+        Keycode::O => Some(VirtualKeyCode::O),
+        Keycode::P => Some(VirtualKeyCode::P),
+        Keycode::Q => Some(VirtualKeyCode::Q),
+        Keycode::R => Some(VirtualKeyCode::R),
+        Keycode::S => Some(VirtualKeyCode::S),
+        Keycode::T => Some(VirtualKeyCode::T),
+        Keycode::U => Some(VirtualKeyCode::U),
+        Keycode::V => Some(VirtualKeyCode::V),
+        Keycode::W => Some(VirtualKeyCode::W),
+        Keycode::X => Some(VirtualKeyCode::X),
+        Keycode::Y => Some(VirtualKeyCode::Y),
+        Keycode::Z => Some(VirtualKeyCode::Z),
+
+        Keycode::Keycode0 => Some(VirtualKeyCode::Key0),
+        Keycode::Keycode1 => Some(VirtualKeyCode::Key1),
+        Keycode::Keycode2 => Some(VirtualKeyCode::Key2),
+        Keycode::Keycode3 => Some(VirtualKeyCode::Key3),
+        Keycode::Keycode4 => Some(VirtualKeyCode::Key4),
+        Keycode::Keycode5 => Some(VirtualKeyCode::Key5),
+        Keycode::Keycode6 => Some(VirtualKeyCode::Key6),
+        Keycode::Keycode7 => Some(VirtualKeyCode::Key7),
+        Keycode::Keycode8 => Some(VirtualKeyCode::Key8),
+        Keycode::Keycode9 => Some(VirtualKeyCode::Key9),
+
+        Keycode::Numpad0 => Some(VirtualKeyCode::Numpad0),
+        Keycode::Numpad1 => Some(VirtualKeyCode::Numpad1),
+        Keycode::Numpad2 => Some(VirtualKeyCode::Numpad2),
+        Keycode::Numpad3 => Some(VirtualKeyCode::Numpad3),
+        Keycode::Numpad4 => Some(VirtualKeyCode::Numpad4),
+        Keycode::Numpad5 => Some(VirtualKeyCode::Numpad5),
+        Keycode::Numpad6 => Some(VirtualKeyCode::Numpad6),
+        Keycode::Numpad7 => Some(VirtualKeyCode::Numpad7),
+        Keycode::Numpad8 => Some(VirtualKeyCode::Numpad8),
+        Keycode::Numpad9 => Some(VirtualKeyCode::Numpad9),
+
+        Keycode::NumpadAdd => Some(VirtualKeyCode::NumpadAdd),
+        Keycode::NumpadSubtract => Some(VirtualKeyCode::NumpadSubtract),
+        Keycode::NumpadMultiply => Some(VirtualKeyCode::NumpadMultiply),
+        Keycode::NumpadDivide => Some(VirtualKeyCode::NumpadDivide),
+        Keycode::NumpadEnter => Some(VirtualKeyCode::NumpadEnter),
+        Keycode::NumpadEquals => Some(VirtualKeyCode::NumpadEquals),
+        Keycode::NumpadComma => Some(VirtualKeyCode::NumpadComma),
+        Keycode::NumpadDot => Some(VirtualKeyCode::NumpadDecimal),
+        Keycode::NumLock => Some(VirtualKeyCode::Numlock),
+
+        Keycode::DpadLeft => Some(VirtualKeyCode::Left),
+        Keycode::DpadRight => Some(VirtualKeyCode::Right),
+        Keycode::DpadUp => Some(VirtualKeyCode::Up),
+        Keycode::DpadDown => Some(VirtualKeyCode::Down),
+
+        Keycode::F1 => Some(VirtualKeyCode::F1),
+        Keycode::F2 => Some(VirtualKeyCode::F2),
+        Keycode::F3 => Some(VirtualKeyCode::F3),
+        Keycode::F4 => Some(VirtualKeyCode::F4),
+        Keycode::F5 => Some(VirtualKeyCode::F5),
+        Keycode::F6 => Some(VirtualKeyCode::F6),
+        Keycode::F7 => Some(VirtualKeyCode::F7),
+        Keycode::F8 => Some(VirtualKeyCode::F8),
+        Keycode::F9 => Some(VirtualKeyCode::F9),
+        Keycode::F10 => Some(VirtualKeyCode::F10),
+        Keycode::F11 => Some(VirtualKeyCode::F11),
+        Keycode::F12 => Some(VirtualKeyCode::F12),
+
+        Keycode::Space => Some(VirtualKeyCode::Space),
+        Keycode::Escape => Some(VirtualKeyCode::Escape),
+        Keycode::Enter => Some(VirtualKeyCode::Return), // not on the Numpad
+        Keycode::Tab => Some(VirtualKeyCode::Tab),
+
+        Keycode::PageUp => Some(VirtualKeyCode::PageUp),
+        Keycode::PageDown => Some(VirtualKeyCode::PageDown),
+        Keycode::MoveHome => Some(VirtualKeyCode::Home),
+        Keycode::MoveEnd => Some(VirtualKeyCode::End),
+        Keycode::Insert => Some(VirtualKeyCode::Insert),
+
+        Keycode::Del => Some(VirtualKeyCode::Back), // Backspace (above Enter)
+        Keycode::ForwardDel => Some(VirtualKeyCode::Delete), // Delete (below Insert)
+
+        Keycode::Copy => Some(VirtualKeyCode::Copy),
+        Keycode::Paste => Some(VirtualKeyCode::Paste),
+        Keycode::Cut => Some(VirtualKeyCode::Cut),
+
+        Keycode::VolumeUp => Some(VirtualKeyCode::VolumeUp),
+        Keycode::VolumeDown => Some(VirtualKeyCode::VolumeDown),
+        Keycode::VolumeMute => Some(VirtualKeyCode::Mute), // ???
+        Keycode::Mute => Some(VirtualKeyCode::Mute),       // ???
+        Keycode::MediaPlayPause => Some(VirtualKeyCode::PlayPause),
+        Keycode::MediaStop => Some(VirtualKeyCode::MediaStop), // ??? simple "Stop"?
+        Keycode::MediaNext => Some(VirtualKeyCode::NextTrack),
+        Keycode::MediaPrevious => Some(VirtualKeyCode::PrevTrack),
+
+        Keycode::Plus => Some(VirtualKeyCode::Plus),
+        Keycode::Minus => Some(VirtualKeyCode::Minus),
+        Keycode::Equals => Some(VirtualKeyCode::Equals),
+        Keycode::Semicolon => Some(VirtualKeyCode::Semicolon),
+        Keycode::Slash => Some(VirtualKeyCode::Slash),
+        Keycode::Backslash => Some(VirtualKeyCode::Backslash),
+        Keycode::Comma => Some(VirtualKeyCode::Comma),
+        Keycode::Period => Some(VirtualKeyCode::Period),
+        Keycode::Apostrophe => Some(VirtualKeyCode::Apostrophe),
+        Keycode::Grave => Some(VirtualKeyCode::Grave),
+        Keycode::At => Some(VirtualKeyCode::At),
+
+        // TODO: Maybe mapping this to Snapshot makes more sense? See: "PrtScr/SysRq"
+        Keycode::Sysrq => Some(VirtualKeyCode::Sysrq),
+        // These are usually the same (Pause/Break)
+        Keycode::Break => Some(VirtualKeyCode::Pause),
+        // These are exactly the same
+        Keycode::ScrollLock => Some(VirtualKeyCode::Scroll),
+
+        Keycode::Yen => Some(VirtualKeyCode::Yen),
+        Keycode::Kana => Some(VirtualKeyCode::Kana),
+
+        Keycode::CtrlLeft => Some(VirtualKeyCode::LControl),
+        Keycode::CtrlRight => Some(VirtualKeyCode::RControl),
+
+        Keycode::ShiftLeft => Some(VirtualKeyCode::LShift),
+        Keycode::ShiftRight => Some(VirtualKeyCode::RShift),
+
+        Keycode::AltLeft => Some(VirtualKeyCode::LAlt),
+        Keycode::AltRight => Some(VirtualKeyCode::RAlt),
+
+        // Different names for the same keys
+        Keycode::MetaLeft => Some(VirtualKeyCode::LWin),
+        Keycode::MetaRight => Some(VirtualKeyCode::RWin),
+
+        Keycode::LeftBracket => Some(VirtualKeyCode::LBracket),
+        Keycode::RightBracket => Some(VirtualKeyCode::RBracket),
+
+        Keycode::Power => Some(VirtualKeyCode::Power),
+        Keycode::Sleep => Some(VirtualKeyCode::Sleep), // what about SoftSleep?
+        Keycode::Wakeup => Some(VirtualKeyCode::Wake),
+
+        Keycode::NavigateNext => Some(VirtualKeyCode::NavigateForward),
+        Keycode::NavigatePrevious => Some(VirtualKeyCode::NavigateBackward),
+
+        Keycode::Calculator => Some(VirtualKeyCode::Calculator),
+        Keycode::Explorer => Some(VirtualKeyCode::MyComputer), // "close enough"
+        Keycode::Envelope => Some(VirtualKeyCode::Mail),       // "close enough"
+
+        Keycode::Star => Some(VirtualKeyCode::Asterisk), // ???
+        Keycode::AllApps => Some(VirtualKeyCode::Apps),  // ???
+        Keycode::AppSwitch => Some(VirtualKeyCode::Apps), // ???
+        Keycode::Refresh => Some(VirtualKeyCode::WebRefresh), // ???
+
+        _ => None,
+    }
 }
 
 fn poll(poll: Poll) -> Option<EventSource> {
@@ -36,7 +221,13 @@ fn poll(poll: Poll) -> Option<EventSource> {
             _ => unreachable!(),
         },
         Poll::Timeout => None,
-        Poll::Wake => Some(EventSource::User),
+        Poll::Wake => Some(
+            INTERNAL_EVENT
+                .write()
+                .unwrap()
+                .take()
+                .map_or(EventSource::User, EventSource::Internal),
+        ),
         Poll::Callback => unreachable!(),
     }
 }
@@ -50,18 +241,21 @@ pub struct EventLoop<T: 'static> {
     running: bool,
 }
 
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {}
+
 macro_rules! call_event_handler {
     ( $event_handler:expr, $window_target:expr, $cf:expr, $event:expr ) => {{
-        if $cf != ControlFlow::Exit {
-            $event_handler($event, $window_target, &mut $cf);
+        if let ControlFlow::ExitWithCode(code) = $cf {
+            $event_handler($event, $window_target, &mut ControlFlow::ExitWithCode(code));
         } else {
-            $event_handler($event, $window_target, &mut ControlFlow::Exit);
+            $event_handler($event, $window_target, &mut $cf);
         }
     }};
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Self {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
         Self {
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
@@ -82,11 +276,11 @@ impl<T: 'static> EventLoop<T> {
         F: 'static
             + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        self.run_return(event_handler);
-        ::std::process::exit(0);
+        let exit_code = self.run_return(event_handler);
+        ::std::process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F)
+    pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
     where
         F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
     {
@@ -126,6 +320,7 @@ impl<T: 'static> EventLoop<T> {
                     Event::Pause => self.running = false,
                     Event::Resume => self.running = true,
                     Event::ConfigChanged => {
+                        #[allow(deprecated)] // TODO: rust-windowing/winit#2196
                         let am = ndk_glue::native_activity().asset_manager();
                         let config = Configuration::from_asset_manager(&am);
                         let old_scale_factor = MonitorHandle.scale_factor();
@@ -239,9 +434,34 @@ impl<T: 'static> EventLoop<T> {
                                             }
                                         }
                                     }
-                                    InputEvent::KeyEvent(_) => {
-                                        // TODO
-                                        handled = false;
+                                    InputEvent::KeyEvent(key) => {
+                                        let state = match key.action() {
+                                            KeyAction::Down => event::ElementState::Pressed,
+                                            KeyAction::Up => event::ElementState::Released,
+                                            _ => event::ElementState::Released,
+                                        };
+                                        #[allow(deprecated)]
+                                        let event = event::Event::WindowEvent {
+                                            window_id,
+                                            event: event::WindowEvent::KeyboardInput {
+                                                device_id,
+                                                input: event::KeyboardInput {
+                                                    scancode: key.scan_code() as u32,
+                                                    state,
+                                                    virtual_keycode: ndk_keycode_to_virtualkeycode(
+                                                        key.key_code(),
+                                                    ),
+                                                    modifiers: event::ModifiersState::default(),
+                                                },
+                                                is_synthetic: false,
+                                            },
+                                        };
+                                        call_event_handler!(
+                                            event_handler,
+                                            self.window_target(),
+                                            control_flow,
+                                            event
+                                        );
                                     }
                                 };
                                 input_queue.finish_event(event, handled);
@@ -260,6 +480,9 @@ impl<T: 'static> EventLoop<T> {
                         );
                     }
                 }
+                Some(EventSource::Internal(internal)) => match internal {
+                    InternalEvent::RedrawRequested => redraw = true,
+                },
                 None => {}
             }
 
@@ -292,7 +515,7 @@ impl<T: 'static> EventLoop<T> {
             );
 
             match control_flow {
-                ControlFlow::Exit => {
+                ControlFlow::ExitWithCode(code) => {
                     self.first_event = poll(
                         self.looper
                             .poll_once_timeout(Duration::from_millis(0))
@@ -302,7 +525,7 @@ impl<T: 'static> EventLoop<T> {
                         start: Instant::now(),
                         requested_resume: None,
                     };
-                    break 'event_loop;
+                    break 'event_loop code;
                 }
                 ControlFlow::Poll => {
                     self.first_event = poll(
@@ -399,7 +622,7 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 pub struct WindowId;
 
 impl WindowId {
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         WindowId
     }
 }
@@ -408,7 +631,7 @@ impl WindowId {
 pub struct DeviceId;
 
 impl DeviceId {
-    pub fn dummy() -> Self {
+    pub const fn dummy() -> Self {
         DeviceId
     }
 }
@@ -419,7 +642,7 @@ pub struct PlatformSpecificWindowBuilderAttributes;
 pub struct Window;
 
 impl Window {
-    pub fn new<T: 'static>(
+    pub(crate) fn new<T: 'static>(
         _el: &EventLoopWindowTarget<T>,
         _window_attrs: window::WindowAttributes,
         _: PlatformSpecificWindowBuilderAttributes,
@@ -455,7 +678,8 @@ impl Window {
     }
 
     pub fn request_redraw(&self) {
-        // TODO
+        *INTERNAL_EVENT.write().unwrap() = Some(InternalEvent::RedrawRequested);
+        ForeignLooper::for_thread().unwrap().wake();
     }
 
     pub fn inner_position(&self) -> Result<PhysicalPosition<i32>, error::NotSupportedError> {
@@ -490,7 +714,15 @@ impl Window {
 
     pub fn set_visible(&self, _visibility: bool) {}
 
+    pub fn is_visible(&self) -> Option<bool> {
+        None
+    }
+
     pub fn set_resizable(&self, _resizeable: bool) {}
+
+    pub fn is_resizable(&self) -> bool {
+        false
+    }
 
     pub fn set_minimized(&self, _minimized: bool) {}
 
@@ -510,11 +742,19 @@ impl Window {
 
     pub fn set_decorations(&self, _decorations: bool) {}
 
+    pub fn is_decorated(&self) -> bool {
+        true
+    }
+
     pub fn set_always_on_top(&self, _always_on_top: bool) {}
 
     pub fn set_window_icon(&self, _window_icon: Option<crate::icon::Icon>) {}
 
     pub fn set_ime_position(&self, _position: Position) {}
+
+    pub fn set_ime_allowed(&self, _allowed: bool) {}
+
+    pub fn focus_window(&self) {}
 
     pub fn request_user_attention(&self, _request_type: Option<window::UserAttentionType>) {}
 
@@ -526,7 +766,7 @@ impl Window {
         ))
     }
 
-    pub fn set_cursor_grab(&self, _: bool) -> Result<(), error::ExternalError> {
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))
@@ -534,15 +774,24 @@ impl Window {
 
     pub fn set_cursor_visible(&self, _: bool) {}
 
-    pub fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
-        let a_native_window = if let Some(native_window) = ndk_glue::native_window().as_ref() {
-            unsafe { native_window.ptr().as_mut() as *mut _ as *mut _ }
+    pub fn drag_window(&self) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        if let Some(native_window) = ndk_glue::native_window().as_ref() {
+            native_window.raw_window_handle()
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
-        };
-        let mut handle = raw_window_handle::android::AndroidHandle::empty();
-        handle.a_native_window = a_native_window;
-        raw_window_handle::RawWindowHandle::Android(handle)
+        }
     }
 
     pub fn config(&self) -> Configuration {
@@ -598,18 +847,16 @@ impl MonitorHandle {
 
     pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
         let size = self.size().into();
-        let mut v = Vec::new();
         // FIXME this is not the real refresh rate
-        // (it is guarunteed to support 32 bit color though)
-        v.push(monitor::VideoMode {
+        // (it is guaranteed to support 32 bit color though)
+        std::iter::once(monitor::VideoMode {
             video_mode: VideoMode {
                 size,
                 bit_depth: 32,
                 refresh_rate: 60,
                 monitor: self.clone(),
             },
-        });
-        v.into_iter()
+        })
     }
 }
 

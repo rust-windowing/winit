@@ -69,8 +69,11 @@ pub struct EventLoop<T: 'static> {
     window_target: RootEventLoopWindowTarget<T>,
 }
 
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub(crate) struct PlatformSpecificEventLoopAttributes {}
+
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> EventLoop<T> {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> EventLoop<T> {
         static mut SINGLETON_INIT: bool = false;
         unsafe {
             assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");

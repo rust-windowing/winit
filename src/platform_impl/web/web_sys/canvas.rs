@@ -18,6 +18,7 @@ use web_sys::{
 mod mouse_handler;
 mod pointer_handler;
 
+#[allow(dead_code)]
 pub struct Canvas {
     common: Common,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
@@ -43,11 +44,11 @@ impl Canvas {
             Some(canvas) => canvas,
             None => {
                 let window = web_sys::window()
-                    .ok_or(os_error!(OsError("Failed to obtain window".to_owned())))?;
+                    .ok_or_else(|| os_error!(OsError("Failed to obtain window".to_owned())))?;
 
                 let document = window
                     .document()
-                    .ok_or(os_error!(OsError("Failed to obtain document".to_owned())))?;
+                    .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
 
                 document
                     .create_element("canvas")
@@ -88,11 +89,25 @@ impl Canvas {
         })
     }
 
+    pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
+        if lock {
+            self.raw().request_pointer_lock();
+        } else {
+            let window = web_sys::window()
+                .ok_or_else(|| os_error!(OsError("Failed to obtain window".to_owned())))?;
+            let document = window
+                .document()
+                .ok_or_else(|| os_error!(OsError("Failed to obtain document".to_owned())))?;
+            document.exit_pointer_lock();
+        }
+        Ok(())
+    }
+
     pub fn set_attribute(&self, attribute: &str, value: &str) {
         self.common
             .raw
             .set_attribute(attribute, value)
-            .expect(&format!("Set attribute: {}", attribute));
+            .unwrap_or_else(|err| panic!("error: {:?}\nSet attribute: {}", err, attribute))
     }
 
     pub fn position(&self) -> LogicalPosition<f64> {
@@ -324,9 +339,7 @@ impl Common {
             handler(event);
         }) as Box<dyn FnMut(E)>);
 
-        let listener = EventListenerHandle::new(&self.raw, event_name, closure);
-
-        listener
+        EventListenerHandle::new(&self.raw, event_name, closure)
     }
 
     // The difference between add_event and add_user_event is that the latter has a special meaning

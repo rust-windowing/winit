@@ -1,9 +1,11 @@
+#![allow(clippy::single_match)]
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
         event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
+        event_loop::EventLoopBuilder,
         window::WindowBuilder,
     };
 
@@ -13,7 +15,7 @@ fn main() {
     }
 
     SimpleLogger::new().init().unwrap();
-    let event_loop = EventLoop::<CustomEvent>::with_user_event();
+    let event_loop = EventLoopBuilder::<CustomEvent>::with_user_event().build();
 
     let _window = WindowBuilder::new()
         .with_title("A fantastic window!")
@@ -34,14 +36,14 @@ fn main() {
     });
 
     event_loop.run(move |event, _, control_flow| {
-        *control_flow = ControlFlow::Wait;
+        control_flow.set_wait();
 
         match event {
             Event::UserEvent(event) => println!("user event: {:?}", event),
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
-            } => *control_flow = ControlFlow::Exit,
+            } => control_flow.set_exit(),
             _ => (),
         }
     });

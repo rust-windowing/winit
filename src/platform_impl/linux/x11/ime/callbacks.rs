@@ -62,7 +62,7 @@ pub unsafe fn set_destroy_callback(
     inner: &ImeInner,
 ) -> Result<(), XError> {
     xim_set_callback(
-        &xconn,
+        xconn,
         im,
         ffi::XNDestroyCallback_0.as_ptr() as *const _,
         &inner.destroy_callback as *const _ as *mut _,
@@ -70,6 +70,7 @@ pub unsafe fn set_destroy_callback(
 }
 
 #[derive(Debug)]
+#[allow(clippy::enum_variant_names)]
 enum ReplaceImError {
     MethodOpenFailed(PotentialInputMethods),
     ContextCreationFailed(ImeContextCreationError),
@@ -107,8 +108,19 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     let mut new_contexts = HashMap::new();
     for (window, old_context) in (*inner).contexts.iter() {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
+        let is_allowed = old_context
+            .as_ref()
+            .map(|old_context| old_context.is_allowed)
+            .unwrap_or_default();
         let new_context = {
-            let result = ImeContext::new(xconn, new_im.im, *window, spot);
+            let result = ImeContext::new(
+                xconn,
+                new_im.im,
+                *window,
+                spot,
+                is_allowed,
+                (*inner).event_sender.clone(),
+            );
             if result.is_err() {
                 let _ = close_im(xconn, new_im.im);
             }
@@ -136,13 +148,17 @@ pub unsafe extern "C" fn xim_instantiate_callback(
     let inner: *mut ImeInner = client_data as _;
     if !inner.is_null() {
         let xconn = &(*inner).xconn;
-        let result = replace_im(inner);
-        if result.is_ok() {
-            let _ = unset_instantiate_callback(xconn, client_data);
-            (*inner).is_fallback = false;
-        } else if result.is_err() && (*inner).is_destroyed {
-            // We have no usable input methods!
-            result.expect("Failed to reopen input method");
+        match replace_im(inner) {
+            Ok(()) => {
+                let _ = unset_instantiate_callback(xconn, client_data);
+                (*inner).is_fallback = false;
+            }
+            Err(err) => {
+                if (*inner).is_destroyed {
+                    // We have no usable input methods!
+                    panic!("Failed to reopen input method: {:?}", err);
+                }
+            }
         }
     }
 }
@@ -163,12 +179,12 @@ pub unsafe extern "C" fn xim_destroy_callback(
         if !(*inner).is_fallback {
             let _ = set_instantiate_callback(xconn, client_data);
             // Attempt to open fallback input method.
-            let result = replace_im(inner);
-            if result.is_ok() {
-                (*inner).is_fallback = true;
-            } else {
-                // We have no usable input methods!
-                result.expect("Failed to open fallback input method");
+            match replace_im(inner) {
+                Ok(()) => (*inner).is_fallback = true,
+                Err(err) => {
+                    // We have no usable input methods!
+                    panic!("Failed to open fallback input method: {:?}", err);
+                }
             }
         }
     }

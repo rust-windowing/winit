@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-winit = "0.24.0"
+winit = "0.26.1"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -19,9 +19,8 @@ For features _outside_ the scope of winit, see [Missing features provided by oth
 
 Join us in any of these:
 
-[![Freenode](https://img.shields.io/badge/freenode.net-%23glutin-red.svg)](http://webchat.freenode.net?channels=%23glutin&uio=MTY9dHJ1ZSYyPXRydWUmND10cnVlJjExPTE4NSYxMj10cnVlJjE1PXRydWU7a)
-[![Matrix](https://img.shields.io/badge/Matrix-%23Glutin%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#Glutin:matrix.org)
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/tomaka/glutin?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Matrix](https://img.shields.io/badge/Matrix-%23rust--windowing%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#rust-windowing:matrix.org)
+[![Libera.Chat](https://img.shields.io/badge/libera.chat-%23winit-red.svg)](https://web.libera.chat/#winit)
 
 ## Usage
 
@@ -66,15 +65,23 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 * `serde`: Enables serialization/deserialization of certain types with [Serde](https://crates.io/crates/serde).
 * `x11` (enabled by default): On Unix platform, compiles with the X11 backend
 * `wayland` (enabled by default): On Unix platform, compiles with the Wayland backend
+* `mint`: Enables mint (math interoperability standard types) conversions.
 
 ### Platform-specific usage
 
+#### Wayland
+
+Note that windows don't appear on Wayland until you draw/present to them.
+
+`winit` doesn't do drawing, try the examples in [`glutin`] instead.
+
+[`glutin`]: https://github.com/rust-windowing/glutin
+
 #### WebAssembly
 
-Winit supports compiling to the `wasm32-unknown-unknown` target with either a
-`stdweb` or a `web-sys` backend for use on web browsers. However, please note
-that **the `stdweb` backend is being deprecated and may be removed in a future
-release of Winit**. The `web-sys` backend is also more feature complete.
+To run the web example: `cargo run-wasm --example web`
+
+Winit supports compiling to the `wasm32-unknown-unknown` target with `web-sys`.
 
 On the web platform, a Winit window is backed by a `<canvas>` element. You can
 either [provide Winit with a `<canvas>` element][web with_canvas], or [let Winit
@@ -94,7 +101,19 @@ book].
 
 This library makes use of the [ndk-rs](https://github.com/rust-windowing/android-ndk-rs) crates, refer to that repo for more documentation.
 
+The `ndk_glue` version needs to match the version used by `winit`. Otherwise, the application will not start correctly as `ndk_glue`'s internal NativeActivity static is not the same due to version mismatch.
+
+`ndk_glue` <-> `winit` version comparison compatibility:
+
+| winit |       ndk_glue       |
+| :---: | :------------------: |
+| 0.24  | `ndk_glue = "0.2.0"` |
+| 0.25  | `ndk_glue = "0.3.0"` |
+| 0.26  | `ndk_glue = "0.5.0"` |
+| 0.27  | `ndk_glue = "0.6.0"` |
+
 Running on an Android device needs a dynamic system library, add this to Cargo.toml:
+
 ```toml
 [[example]]
 name = "request_redraw_threaded"
@@ -113,10 +132,13 @@ And run the application with `cargo apk run --example request_redraw_threaded`
 
 #### MacOS
 
-To ensure compatibility with older MacOS systems, winit links to
-CGDisplayCreateUUIDFromDisplayID through the CoreGraphics framework.
-However, under certain setups this function is only available to be linked
-through the newer ColorSync framework. So, winit provides the
-`WINIT_LINK_COLORSYNC` environment variable which can be set to `1` or `true` 
-while compiling to enable linking via ColorSync.
+A lot of functionality expects the application to be ready before you start
+doing anything; this includes creating windows, fetching monitors, drawing,
+and so on, see issues [#2238], [#2051] and [#2087].
 
+If you encounter problems, you should try doing your initialization inside
+`Event::NewEvents(StartCause::Init)`.
+
+[#2238]: https://github.com/rust-windowing/winit/issues/2238
+[#2051]: https://github.com/rust-windowing/winit/issues/2051
+[#2087]: https://github.com/rust-windowing/winit/issues/2087

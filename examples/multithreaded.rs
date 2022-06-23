@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
@@ -6,8 +8,8 @@ fn main() {
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::{CursorIcon, Fullscreen, WindowBuilder},
+        event_loop::EventLoop,
+        window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder},
     };
 
     const WINDOW_COUNT: usize = 3;
@@ -34,10 +36,10 @@ fn main() {
                         // We need to update our chosen video mode if the window
                         // was moved to an another monitor, so that the window
                         // appears on this monitor instead when we go fullscreen
-                        let previous_video_mode = video_modes.iter().cloned().nth(video_mode_id);
+                        let previous_video_mode = video_modes.get(video_mode_id).cloned();
                         video_modes = window.current_monitor().unwrap().video_modes().collect();
                         video_mode_id = video_mode_id.min(video_modes.len());
-                        let video_mode = video_modes.iter().nth(video_mode_id);
+                        let video_mode = video_modes.get(video_mode_id);
 
                         // Different monitors may support different video modes,
                         // and the index we chose previously may now point to a
@@ -45,7 +47,7 @@ fn main() {
                         if video_mode != previous_video_mode.as_ref() {
                             println!(
                                 "Window moved to another monitor, picked video mode: {}",
-                                video_modes.iter().nth(video_mode_id).unwrap()
+                                video_modes.get(video_mode_id).unwrap()
                             );
                         }
                     }
@@ -77,19 +79,30 @@ fn main() {
                                     Right => (video_modes.len() - 1).min(video_mode_id + 1),
                                     _ => unreachable!(),
                                 };
-                                println!(
-                                    "Picking video mode: {}",
-                                    video_modes.iter().nth(video_mode_id).unwrap()
-                                );
+                                println!("Picking video mode: {}", video_modes[video_mode_id]);
                             }
                             F => window.set_fullscreen(match (state, modifiers.alt()) {
                                 (true, false) => Some(Fullscreen::Borderless(None)),
-                                (true, true) => Some(Fullscreen::Exclusive(
-                                    video_modes.iter().nth(video_mode_id).unwrap().clone(),
-                                )),
+                                (true, true) => {
+                                    Some(Fullscreen::Exclusive(video_modes[video_mode_id].clone()))
+                                }
                                 (false, _) => None,
                             }),
-                            G => window.set_cursor_grab(state).unwrap(),
+                            L if state => {
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::Locked) {
+                                    println!("error: {}", err);
+                                }
+                            }
+                            G if state => {
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::Confined) {
+                                    println!("error: {}", err);
+                                }
+                            }
+                            G | L if !state => {
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::None) {
+                                    println!("error: {}", err);
+                                }
+                            }
                             H => window.set_cursor_visible(!state),
                             I => {
                                 println!("Info:");
@@ -146,9 +159,9 @@ fn main() {
         });
     }
     event_loop.run(move |event, _event_loop, control_flow| {
-        *control_flow = match !window_senders.is_empty() {
-            true => ControlFlow::Wait,
-            false => ControlFlow::Exit,
+        match !window_senders.is_empty() {
+            true => control_flow.set_wait(),
+            false => control_flow.set_exit(),
         };
         match event {
             Event::WindowEvent { event, window_id } => match event {
@@ -173,7 +186,7 @@ fn main() {
                     }
                 }
             },
-            _ => (),
+            _ => {}
         }
     })
 }

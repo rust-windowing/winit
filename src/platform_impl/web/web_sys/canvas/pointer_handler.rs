@@ -5,6 +5,7 @@ use crate::event::{ModifiersState, MouseButton};
 
 use web_sys::PointerEvent;
 
+#[allow(dead_code)]
 pub(super) struct PointerHandler {
     on_cursor_leave: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
     on_cursor_enter: Option<EventListenerHandle<dyn FnMut(PointerEvent)>>,
@@ -78,9 +79,11 @@ impl PointerHandler {
                     event::mouse_button(&event),
                     event::mouse_modifiers(&event),
                 );
-                canvas
-                    .set_pointer_capture(event.pointer_id())
-                    .expect("Failed to set pointer capture");
+
+                // Error is swallowed here since the error would occur every time the mouse is
+                // clicked when the cursor is grabbed, and there is probably not a situation where
+                // this could fail, that we care if it fails.
+                let _e = canvas.set_pointer_capture(event.pointer_id());
             },
         ));
     }

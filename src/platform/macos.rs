@@ -4,21 +4,21 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::EventLoopWindowTarget,
+    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
 
-/// Additional methods on `Window` that are specific to MacOS.
+/// Additional methods on [`Window`] that are specific to MacOS.
 pub trait WindowExtMacOS {
     /// Returns a pointer to the cocoa `NSWindow` that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     fn ns_window(&self) -> *mut c_void;
 
     /// Returns a pointer to the cocoa `NSView` that is used by this window.
     ///
-    /// The pointer will become invalid when the `Window` is destroyed.
+    /// The pointer will become invalid when the [`Window`] is destroyed.
     fn ns_view(&self) -> *mut c_void;
 
     /// Returns whether or not the window is in simple fullscreen mode.
@@ -73,7 +73,7 @@ impl WindowExtMacOS for Window {
 }
 
 /// Corresponds to `NSApplicationActivationPolicy`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ActivationPolicy {
     /// Corresponds to `NSApplicationActivationPolicyRegular`.
     Regular,
@@ -89,19 +89,15 @@ impl Default for ActivationPolicy {
     }
 }
 
-/// Additional methods on `WindowBuilder` that are specific to MacOS.
+/// Additional methods on [`WindowBuilder`] that are specific to MacOS.
 ///
-/// **Note:** Properties dealing with the titlebar will be overwritten by the `with_decorations` method
-/// on the base `WindowBuilder`:
-///
-///  - `with_titlebar_transparent`
-///  - `with_title_hidden`
-///  - `with_titlebar_hidden`
-///  - `with_titlebar_buttons_hidden`
-///  - `with_fullsize_content_view`
+/// **Note:** Properties dealing with the titlebar will be overwritten by the [`WindowBuilder::with_decorations`] method:
+/// - `with_titlebar_transparent`
+/// - `with_title_hidden`
+/// - `with_titlebar_hidden`
+/// - `with_titlebar_buttons_hidden`
+/// - `with_fullsize_content_view`
 pub trait WindowBuilderExtMacOS {
-    /// Sets the activation policy for the window being built.
-    fn with_activation_policy(self, activation_policy: ActivationPolicy) -> WindowBuilder;
     /// Enables click-and-drag behavior for the entire window, not just the titlebar.
     fn with_movable_by_window_background(self, movable_by_window_background: bool)
         -> WindowBuilder;
@@ -122,12 +118,6 @@ pub trait WindowBuilderExtMacOS {
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
-    #[inline]
-    fn with_activation_policy(mut self, activation_policy: ActivationPolicy) -> WindowBuilder {
-        self.platform_specific.activation_policy = activation_policy;
-        self
-    }
-
     #[inline]
     fn with_movable_by_window_background(
         mut self,
@@ -169,7 +159,7 @@ impl WindowBuilderExtMacOS for WindowBuilder {
 
     #[inline]
     fn with_resize_increments(mut self, increments: LogicalSize<f64>) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some(increments.into());
+        self.platform_specific.resize_increments = Some(increments);
         self
     }
 
@@ -186,7 +176,67 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     }
 }
 
-/// Additional methods on `MonitorHandle` that are specific to MacOS.
+pub trait EventLoopBuilderExtMacOS {
+    /// Sets the activation policy for the application.
+    ///
+    /// It is set to [`ActivationPolicy::Regular`] by default.
+    ///
+    /// # Example
+    ///
+    /// Set the activation policy to "accessory".
+    ///
+    /// ```
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "macos")]
+    /// use winit::platform::macos::{EventLoopBuilderExtMacOS, ActivationPolicy};
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "macos")]
+    /// builder.with_activation_policy(ActivationPolicy::Accessory);
+    /// # if false { // We can't test this part
+    /// let event_loop = builder.build();
+    /// # }
+    /// ```
+    fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self;
+
+    /// Used to control whether a default menubar menu is created.
+    ///
+    /// Menu creation is enabled by default.
+    ///
+    /// # Example
+    ///
+    /// Disable creating a default menubar.
+    ///
+    /// ```
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "macos")]
+    /// use winit::platform::macos::EventLoopBuilderExtMacOS;
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "macos")]
+    /// builder.with_default_menu(false);
+    /// # if false { // We can't test this part
+    /// let event_loop = builder.build();
+    /// # }
+    /// ```
+    fn with_default_menu(&mut self, enable: bool) -> &mut Self;
+}
+
+impl<T> EventLoopBuilderExtMacOS for EventLoopBuilder<T> {
+    #[inline]
+    fn with_activation_policy(&mut self, activation_policy: ActivationPolicy) -> &mut Self {
+        self.platform_specific.activation_policy = activation_policy;
+        self
+    }
+
+    #[inline]
+    fn with_default_menu(&mut self, enable: bool) -> &mut Self {
+        self.platform_specific.default_menu = enable;
+        self
+    }
+}
+
+/// Additional methods on [`MonitorHandle`] that are specific to MacOS.
 pub trait MonitorHandleExtMacOS {
     /// Returns the identifier of the monitor for Cocoa.
     fn native_id(&self) -> u32;
@@ -205,7 +255,7 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 }
 
-/// Additional methods on `EventLoopWindowTarget` that are specific to macOS.
+/// Additional methods on [`EventLoopWindowTarget`] that are specific to macOS.
 pub trait EventLoopWindowTargetExtMacOS {
     /// Hide the entire application. In most applications this is typically triggered with Command-H.
     fn hide_application(&self);
@@ -215,14 +265,10 @@ pub trait EventLoopWindowTargetExtMacOS {
 
 impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
     fn hide_application(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hide: 0] }
+        self.p.hide_application()
     }
 
     fn hide_other_applications(&self) {
-        let cls = objc::runtime::Class::get("NSApplication").unwrap();
-        let app: cocoa::base::id = unsafe { msg_send![cls, sharedApplication] };
-        unsafe { msg_send![app, hideOtherApplications: 0] }
+        self.p.hide_other_applications()
     }
 }

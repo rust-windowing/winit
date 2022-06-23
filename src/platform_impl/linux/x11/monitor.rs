@@ -1,5 +1,6 @@
 use std::os::raw::*;
 
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
 use super::{
@@ -18,9 +19,7 @@ use crate::{
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
-lazy_static! {
-    static ref MONITORS: Mutex<Option<Vec<MonitorHandle>>> = Mutex::default();
-}
+static MONITORS: Lazy<Mutex<Option<Vec<MonitorHandle>>>> = Lazy::new(Mutex::default);
 
 pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
     // We update this lazily.
@@ -90,7 +89,7 @@ impl Eq for MonitorHandle {}
 
 impl PartialOrd for MonitorHandle {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
@@ -204,7 +203,7 @@ impl XConnection {
             let overlapping_area = window_rect.get_overlapping_area(&monitor.rect);
             if overlapping_area > largest_overlap {
                 largest_overlap = overlapping_area;
-                matched_monitor = &monitor;
+                matched_monitor = monitor;
             }
         }
 
@@ -230,11 +229,11 @@ impl XConnection {
                 panic!("[winit] `XRRGetScreenResources` returned NULL. That should only happen if the root window doesn't exist.");
             }
 
-            let mut available;
             let mut has_primary = false;
 
             let primary = (self.xrandr.XRRGetOutputPrimary)(self.display, root);
-            available = Vec::with_capacity((*resources).ncrtc as usize);
+            let mut available = Vec::with_capacity((*resources).ncrtc as usize);
+
             for crtc_index in 0..(*resources).ncrtc {
                 let crtc_id = *((*resources).crtcs.offset(crtc_index as isize));
                 let crtc = (self.xrandr.XRRGetCrtcInfo)(self.display, resources, crtc_id);
@@ -242,8 +241,11 @@ impl XConnection {
                 if is_active {
                     let is_primary = *(*crtc).outputs.offset(0) == primary;
                     has_primary |= is_primary;
-                    MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
-                        .map(|monitor_id| available.push(monitor_id));
+                    if let Some(monitor_id) =
+                        MonitorHandle::new(self, resources, crtc_id, crtc, is_primary)
+                    {
+                        available.push(monitor_id)
+                    }
                 }
                 (self.xrandr.XRRFreeCrtcInfo)(crtc);
             }

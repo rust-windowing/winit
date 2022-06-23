@@ -5,15 +5,14 @@ use std::{
     os::raw::*,
 };
 
+use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 
 use super::*;
 
 type AtomCache = HashMap<CString, ffi::Atom>;
 
-lazy_static! {
-    static ref ATOM_CACHE: Mutex<AtomCache> = Mutex::new(HashMap::with_capacity(2048));
-}
+static ATOM_CACHE: Lazy<Mutex<AtomCache>> = Lazy::new(|| Mutex::new(HashMap::with_capacity(2048)));
 
 impl XConnection {
     pub fn get_atom<T: AsRef<CStr> + Debug>(&self, name: T) -> ffi::Atom {
@@ -27,12 +26,11 @@ impl XConnection {
                 (self.xlib.XInternAtom)(self.display, name.as_ptr() as *const c_char, ffi::False)
             };
             if atom == 0 {
-                let msg = format!(
+                panic!(
                     "`XInternAtom` failed, which really shouldn't happen. Atom: {:?}, Error: {:#?}",
                     name,
                     self.check_errors(),
                 );
-                panic!(msg);
             }
             /*println!(
                 "XInternAtom name:{:?} atom:{:?}",

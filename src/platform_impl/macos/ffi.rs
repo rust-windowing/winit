@@ -2,6 +2,8 @@
 
 #![allow(dead_code, non_snake_case, non_upper_case_globals)]
 
+use std::ffi::c_void;
+
 use cocoa::{
     base::id,
     foundation::{NSInteger, NSUInteger},
@@ -13,7 +15,6 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
-use objc;
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
 
@@ -105,6 +106,8 @@ pub const kCGCursorWindowLevelKey: NSInteger = 19;
 pub const kCGNumberOfWindowLevelKeys: NSInteger = 20;
 
 #[derive(Debug, Clone, Copy)]
+#[repr(isize)]
+#[allow(clippy::enum_variant_names)]
 pub enum NSWindowLevel {
     NSNormalWindowLevel = kCGBaseWindowLevelKey as _,
     NSFloatingWindowLevel = kCGFloatingWindowLevelKey as _,
@@ -159,16 +162,16 @@ pub const IOYUV422Pixels: &str = "Y4U2V2";
 pub const IO8BitOverlayPixels: &str = "O8";
 
 pub type CGWindowLevel = i32;
-pub type CGDisplayModeRef = *mut libc::c_void;
+pub type CGDisplayModeRef = *mut c_void;
 
-#[cfg_attr(
-    not(use_colorsync_cgdisplaycreateuuidfromdisplayid),
-    link(name = "CoreGraphics", kind = "framework")
-)]
-#[cfg_attr(
-    use_colorsync_cgdisplaycreateuuidfromdisplayid,
-    link(name = "ColorSync", kind = "framework")
-)]
+// `CGDisplayCreateUUIDFromDisplayID` comes from the `ColorSync` framework.
+// However, that framework was only introduced "publicly" in macOS 10.13.
+//
+// Since we want to support older versions, we can't link to `ColorSync`
+// directly. Fortunately, it has always been available as a subframework of
+// `ApplicationServices`, see:
+// https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/OSX_Technology_Overview/SystemFrameworks/SystemFrameworks.html#//apple_ref/doc/uid/TP40001067-CH210-BBCFFIEG
+#[link(name = "ApplicationServices", kind = "framework")]
 extern "C" {
     pub fn CGDisplayCreateUUIDFromDisplayID(display: CGDirectDisplayID) -> CFUUIDRef;
 }
@@ -218,3 +221,45 @@ extern "C" {
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
     pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
 }
+
+mod core_video {
+    use super::*;
+
+    #[link(name = "CoreVideo", kind = "framework")]
+    extern "C" {}
+
+    // CVBase.h
+
+    pub type CVTimeFlags = i32; // int32_t
+    pub const kCVTimeIsIndefinite: CVTimeFlags = 1 << 0;
+
+    #[repr(C)]
+    #[derive(Debug, Clone)]
+    pub struct CVTime {
+        pub time_value: i64, // int64_t
+        pub time_scale: i32, // int32_t
+        pub flags: i32,      // int32_t
+    }
+
+    // CVReturn.h
+
+    pub type CVReturn = i32; // int32_t
+    pub const kCVReturnSuccess: CVReturn = 0;
+
+    // CVDisplayLink.h
+
+    pub type CVDisplayLinkRef = *mut c_void;
+
+    extern "C" {
+        pub fn CVDisplayLinkCreateWithCGDisplay(
+            displayID: CGDirectDisplayID,
+            displayLinkOut: *mut CVDisplayLinkRef,
+        ) -> CVReturn;
+        pub fn CVDisplayLinkGetNominalOutputVideoRefreshPeriod(
+            displayLink: CVDisplayLinkRef,
+        ) -> CVTime;
+        pub fn CVDisplayLinkRelease(displayLink: CVDisplayLinkRef);
+    }
+}
+
+pub use core_video::*;

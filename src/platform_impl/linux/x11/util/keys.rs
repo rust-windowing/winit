@@ -36,7 +36,7 @@ impl Iterator for KeymapIter<'_> {
 
     fn next(&mut self) -> Option<ffi::KeyCode> {
         if self.item.is_none() {
-            while let Some((index, &item)) = self.iter.next() {
+            for (index, &item) in self.iter.by_ref() {
                 if item != 0 {
                     self.index = index;
                     self.item = Some(item);

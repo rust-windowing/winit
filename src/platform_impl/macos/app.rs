@@ -2,33 +2,32 @@ use std::collections::VecDeque;
 
 use cocoa::{
     appkit::{self, NSEvent},
-    base::{id, nil},
+    base::id,
 };
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel},
 };
+use once_cell::sync::Lazy;
 
-use super::{activation_hack, app_state::AppState, event::EventWrapper, util, DEVICE_ID};
+use super::{app_state::AppState, event::EventWrapper, util, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
 
 pub struct AppClass(pub *const Class);
 unsafe impl Send for AppClass {}
 unsafe impl Sync for AppClass {}
 
-lazy_static! {
-    pub static ref APP_CLASS: AppClass = unsafe {
-        let superclass = class!(NSApplication);
-        let mut decl = ClassDecl::new("WinitApp", superclass).unwrap();
+pub static APP_CLASS: Lazy<AppClass> = Lazy::new(|| unsafe {
+    let superclass = class!(NSApplication);
+    let mut decl = ClassDecl::new("WinitApp", superclass).unwrap();
 
-        decl.add_method(
-            sel!(sendEvent:),
-            send_event as extern "C" fn(&Object, Sel, id),
-        );
+    decl.add_method(
+        sel!(sendEvent:),
+        send_event as extern "C" fn(&Object, Sel, id),
+    );
 
-        AppClass(decl.register())
-    };
-}
+    AppClass(decl.register())
+});
 
 // Normally, holding Cmd + any key never sends us a `keyUp` event for that key.
 // Overriding `sendEvent:` like this fixes that. (https://stackoverflow.com/a/15294196)
@@ -49,14 +48,14 @@ extern "C" fn send_event(this: &Object, _sel: Sel, event: id) {
             let key_window: id = msg_send![this, keyWindow];
             let _: () = msg_send![key_window, sendEvent: event];
         } else {
-            maybe_dispatch_device_event(this, event);
+            maybe_dispatch_device_event(event);
             let superclass = util::superclass(this);
             let _: () = msg_send![super(this, superclass), sendEvent: event];
         }
     }
 }
 
-unsafe fn maybe_dispatch_device_event(this: &Object, event: id) {
+unsafe fn maybe_dispatch_device_event(event: id) {
     let event_type = event.eventType();
     match event_type {
         appkit::NSMouseMoved
@@ -98,21 +97,6 @@ unsafe fn maybe_dispatch_device_event(this: &Object, event: id) {
             }
 
             AppState::queue_events(events);
-
-            // Notify the delegate when the first mouse move occurs. This is
-            // used for the unbundled app activation hack, which needs to know
-            // if any mouse motions occurred prior to the app activating.
-            let delegate: id = msg_send![this, delegate];
-            assert_ne!(delegate, nil);
-            if !activation_hack::State::get_mouse_moved(&*delegate) {
-                activation_hack::State::set_mouse_moved(&*delegate, true);
-                let () = msg_send![
-                    delegate,
-                    performSelector: sel!(activationHackMouseMoved:)
-                    withObject: nil
-                    afterDelay: 0.0
-                ];
-            }
         }
         appkit::NSLeftMouseDown | appkit::NSRightMouseDown | appkit::NSOtherMouseDown => {
             let mut events = VecDeque::with_capacity(1);

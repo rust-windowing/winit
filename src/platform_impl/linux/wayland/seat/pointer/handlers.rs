@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use sctk::reexports::client::protocol::wl_pointer::{self, Event as PointerEvent};
+use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_v1::Event as RelativePointerEvent;
 
 use sctk::seat::pointer::ThemedPointer;
@@ -28,6 +29,7 @@ pub(super) fn handle_pointer(
     event: PointerEvent,
     pointer_data: &Rc<RefCell<PointerData>>,
     winit_state: &mut WinitState,
+    seat: WlSeat,
 ) {
     let event_sink = &mut winit_state.event_sink;
     let mut pointer_data = pointer_data.borrow_mut();
@@ -40,6 +42,7 @@ pub(super) fn handle_pointer(
             ..
         } => {
             pointer_data.latest_serial.replace(serial);
+            pointer_data.latest_enter_serial.replace(serial);
 
             let window_id = wayland::make_wid(&surface);
             if !winit_state.window_map.contains_key(&window_id) {
@@ -57,8 +60,11 @@ pub(super) fn handle_pointer(
             let winit_pointer = WinitPointer {
                 pointer,
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
+                locked_pointer: Rc::downgrade(&pointer_data.locked_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
+                latest_enter_serial: pointer_data.latest_enter_serial.clone(),
+                seat,
             };
             window_handle.pointer_entered(winit_pointer);
 
@@ -99,8 +105,11 @@ pub(super) fn handle_pointer(
             let winit_pointer = WinitPointer {
                 pointer,
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
+                locked_pointer: Rc::downgrade(&pointer_data.locked_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
+                latest_enter_serial: pointer_data.latest_enter_serial.clone(),
+                seat,
             };
             window_handle.pointer_left(winit_pointer);
 
@@ -125,7 +134,7 @@ pub(super) fn handle_pointer(
 
             let window_id = wayland::make_wid(surface);
 
-            let scale_factor = sctk::get_surface_scale_factor(&surface) as f64;
+            let scale_factor = sctk::get_surface_scale_factor(surface) as f64;
             let position = LogicalPosition::new(surface_x, surface_y).to_physical(scale_factor);
 
             event_sink.push_window_event(
@@ -182,20 +191,20 @@ pub(super) fn handle_pointer(
                 None => return,
             };
 
-            let window_id = wayland::make_wid(&surface);
+            let window_id = wayland::make_wid(surface);
 
             if pointer.as_ref().version() < 5 {
                 let (mut x, mut y) = (0.0, 0.0);
 
                 // Old seat compatibility.
                 match axis {
-                    // Wayland vertical sign convention is the inverse of winit.
+                    // Wayland sign convention is the inverse of winit.
                     wl_pointer::Axis::VerticalScroll => y -= value as f32,
-                    wl_pointer::Axis::HorizontalScroll => x += value as f32,
+                    wl_pointer::Axis::HorizontalScroll => x -= value as f32,
                     _ => unreachable!(),
                 }
 
-                let scale_factor = sctk::get_surface_scale_factor(&surface) as f64;
+                let scale_factor = sctk::get_surface_scale_factor(surface) as f64;
                 let delta = LogicalPosition::new(x as f64, y as f64).to_physical(scale_factor);
 
                 event_sink.push_window_event(
@@ -212,9 +221,9 @@ pub(super) fn handle_pointer(
             } else {
                 let (mut x, mut y) = pointer_data.axis_data.axis_buffer.unwrap_or((0.0, 0.0));
                 match axis {
-                    // Wayland vertical sign convention is the inverse of winit.
+                    // Wayland sign convention is the inverse of winit.
                     wl_pointer::Axis::VerticalScroll => y -= value as f32,
-                    wl_pointer::Axis::HorizontalScroll => x += value as f32,
+                    wl_pointer::Axis::HorizontalScroll => x -= value as f32,
                     _ => unreachable!(),
                 }
 
@@ -233,9 +242,9 @@ pub(super) fn handle_pointer(
                 .unwrap_or((0., 0.));
 
             match axis {
-                // Wayland vertical sign convention is the inverse of winit.
+                // Wayland sign convention is the inverse of winit.
                 wl_pointer::Axis::VerticalScroll => y -= discrete as f32,
-                wl_pointer::Axis::HorizontalScroll => x += discrete as f32,
+                wl_pointer::Axis::HorizontalScroll => x -= discrete as f32,
                 _ => unreachable!(),
             }
 
@@ -258,7 +267,7 @@ pub(super) fn handle_pointer(
                 Some(surface) => surface,
                 None => return,
             };
-            let window_id = wayland::make_wid(&surface);
+            let window_id = wayland::make_wid(surface);
 
             let window_event = if let Some((x, y)) = axis_discrete_buffer {
                 WindowEvent::MouseWheel {
@@ -270,7 +279,7 @@ pub(super) fn handle_pointer(
                     modifiers: *pointer_data.modifiers_state.borrow(),
                 }
             } else if let Some((x, y)) = axis_buffer {
-                let scale_factor = sctk::get_surface_scale_factor(&surface) as f64;
+                let scale_factor = sctk::get_surface_scale_factor(surface) as f64;
                 let delta = LogicalPosition::new(x, y).to_physical(scale_factor);
 
                 WindowEvent::MouseWheel {
@@ -293,9 +302,17 @@ pub(super) fn handle_pointer(
 
 #[inline]
 pub(super) fn handle_relative_pointer(event: RelativePointerEvent, winit_state: &mut WinitState) {
-    if let RelativePointerEvent::RelativeMotion { dx, dy, .. } = event {
-        winit_state
-            .event_sink
-            .push_device_event(DeviceEvent::MouseMotion { delta: (dx, dy) }, DeviceId)
+    if let RelativePointerEvent::RelativeMotion {
+        dx_unaccel,
+        dy_unaccel,
+        ..
+    } = event
+    {
+        winit_state.event_sink.push_device_event(
+            DeviceEvent::MouseMotion {
+                delta: (dx_unaccel, dy_unaccel),
+            },
+            DeviceId,
+        )
     }
 }

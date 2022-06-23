@@ -31,8 +31,8 @@
 //! You can retrieve events by calling [`EventLoop::run`][event_loop_run]. This function will
 //! dispatch events for every [`Window`] that was created with that particular [`EventLoop`], and
 //! will run until the `control_flow` argument given to the closure is set to
-//! [`ControlFlow`]`::`[`Exit`], at which point [`Event`]`::`[`LoopDestroyed`] is emitted and the
-//! entire program terminates.
+//! [`ControlFlow`]`::`[`ExitWithCode`] (which [`ControlFlow`]`::`[`Exit`] aliases to), at which
+//! point [`Event`]`::`[`LoopDestroyed`] is emitted and the entire program terminates.
 //!
 //! Winit no longer uses a `EventLoop::poll_events() -> impl Iterator<Event>`-based event loop
 //! model, since that can't be implemented properly on some platforms (e.g web, iOS) and works poorly on
@@ -44,7 +44,7 @@
 //! ```no_run
 //! use winit::{
 //!     event::{Event, WindowEvent},
-//!     event_loop::{ControlFlow, EventLoop},
+//!     event_loop::EventLoop,
 //!     window::WindowBuilder,
 //! };
 //!
@@ -54,12 +54,12 @@
 //! event_loop.run(move |event, _, control_flow| {
 //!     // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
 //!     // dispatched any events. This is ideal for games and similar applications.
-//!     *control_flow = ControlFlow::Poll;
+//!     control_flow.set_poll();
 //!
 //!     // ControlFlow::Wait pauses the event loop if no events are available to process.
 //!     // This is ideal for non-game applications that only update in response to user
 //!     // input, and uses significantly less power/CPU time than ControlFlow::Poll.
-//!     *control_flow = ControlFlow::Wait;
+//!     control_flow.set_wait();
 //!
 //!     match event {
 //!         Event::WindowEvent {
@@ -67,7 +67,7 @@
 //!             ..
 //!         } => {
 //!             println!("The close button was pressed; stopping");
-//!             *control_flow = ControlFlow::Exit
+//!             control_flow.set_exit();
 //!         },
 //!         Event::MainEventsCleared => {
 //!             // Application update code.
@@ -114,6 +114,7 @@
 //! [event_loop_run]: event_loop::EventLoop::run
 //! [`ControlFlow`]: event_loop::ControlFlow
 //! [`Exit`]: event_loop::ControlFlow::Exit
+//! [`ExitWithCode`]: event_loop::ControlFlow::ExitWithCode
 //! [`Window`]: window::Window
 //! [`WindowId`]: window::WindowId
 //! [`WindowBuilder`]: window::WindowBuilder
@@ -130,11 +131,11 @@
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
 
 #![deny(rust_2018_idioms)]
-#![deny(broken_intra_doc_links)]
+#![deny(rustdoc::broken_intra_doc_links)]
+#![deny(clippy::all)]
+#![cfg_attr(feature = "cargo-clippy", deny(warnings))]
+#![allow(clippy::missing_safety_doc)]
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate lazy_static;
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
@@ -146,8 +147,6 @@ extern crate bitflags;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
-#[cfg(all(target_arch = "wasm32", feature = "std_web"))]
-extern crate std_web as stdweb;
 
 pub mod dpi;
 #[macro_use]
