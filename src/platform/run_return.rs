@@ -9,7 +9,10 @@
     target_os = "openbsd"
 ))]
 
-use std::{process, panic::{AssertUnwindSafe, catch_unwind}};
+use std::{
+    panic::{catch_unwind, AssertUnwindSafe},
+    process,
+};
 
 use crate::{
     event::Event,
