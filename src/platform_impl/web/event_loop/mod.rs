@@ -31,15 +31,18 @@ impl<T> EventLoop<T> {
 
     pub fn run<F>(self, mut event_handler: F) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &'static RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        let target = RootEventLoopWindowTarget {
+        // `Box::leak` the `EventLoopWindowTarget` to make it last for `'static`.
+        // This is a memory leak, but it doesn't really matter because only one
+        // `EventLoop` can ever be created.
+        let target: &'static _ = Box::leak(Box::new(RootEventLoopWindowTarget {
             p: self.elw.p.clone(),
             _marker: PhantomData,
-        };
+        }));
 
         self.elw.p.run(Box::new(move |event, flow| {
-            event_handler(event, &target, flow)
+            event_handler(event, target, flow)
         }));
 
         // Throw an exception to break out of Rust exceution and use unreachable to tell the
