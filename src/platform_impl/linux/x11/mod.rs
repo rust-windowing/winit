@@ -555,7 +555,7 @@ impl<T> EventLoopWindowTarget<T> {
         }
 
         self.xconn
-            .select_xinput_events(self.root, ffi::XIAllDevices, mask)
+            .select_xinput_events(self.root, ffi::XIAllMasterDevices, mask)
             .queue();
     }
 }

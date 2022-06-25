@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, Fix hiding a maximized window.
+- On X11, fix events for caps lock key not being sent
 - Build docs on `docs.rs` for iOS and Android as well.
 - **Breaking:** Removed the `WindowAttributes` struct, since all its functionality is accessible from `WindowBuilder`.
 - Added `WindowBuilder::transparent` getter to check if the user set `transparent` attribute.
@@ -61,6 +62,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Implemented `Eq` for `Fullscreen`, `Theme`, and `UserAttentionType`.
 - **Breaking:** `Window::set_cursor_grab` now accepts `CursorGrabMode` to control grabbing behavior.
 - On Wayland, add support for `Window::set_cursor_position`.
+- Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value. 
+- `EventLoopBuilder::build` will now panic when the `EventLoop` is being created more than once.
 
 # 0.26.1 (2022-01-05)
 

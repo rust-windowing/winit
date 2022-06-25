@@ -333,7 +333,7 @@ impl<T> EventLoopWindowTarget<T> {
 /// entrypoint.
 ///
 /// Full details of CRT initialization can be found here:
-/// https://docs.microsoft.com/en-us/cpp/c-runtime-library/crt-initialization?view=msvc-160
+/// <https://docs.microsoft.com/en-us/cpp/c-runtime-library/crt-initialization?view=msvc-160>
 fn main_thread_id() -> u32 {
     static mut MAIN_THREAD_ID: u32 = 0;
 

@@ -49,6 +49,7 @@ jobs:
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
       CMD: ${{ matrix.platform.cmd }}
+      RUSTDOCFLAGS: -Dwarnings
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -78,7 +79,7 @@ jobs:
 
     - name: Check documentation
       shell: bash
-      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
 
     - name: Build
       shell: bash

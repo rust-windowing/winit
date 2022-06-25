@@ -22,7 +22,7 @@ use crate::{
     event_loop::EventLoopWindowTarget as RootELW,
 };
 
-/// The X11 documentation states: "Keycodes lie in the inclusive range [8,255]".
+/// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
 const KEYCODE_OFFSET: u8 = 8;
 
 pub(super) struct EventProcessor<T: 'static> {

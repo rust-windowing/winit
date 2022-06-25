@@ -538,6 +538,8 @@ impl<T: 'static> EventLoop<T> {
             _ => unreachable!(),
         };
 
-        self.event_loop.dispatch(timeout, state)
+        self.event_loop
+            .dispatch(timeout, state)
+            .map_err(|error| error.into())
     }
 }
