@@ -641,6 +641,20 @@ impl WindowId {
     }
 }
 
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.window as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self {
+            window: raw_id as _,
+        }
+    }
+}
+
 unsafe impl Send for WindowId {}
 unsafe impl Sync for WindowId {}
 

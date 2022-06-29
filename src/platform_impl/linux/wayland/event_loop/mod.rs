@@ -369,9 +369,7 @@ impl<T: 'static> EventLoop<T> {
 
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: crate::window::WindowId(
-                                crate::platform_impl::WindowId::Wayland(*window_id),
-                            ),
+                            window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::ScaleFactorChanged {
                                 scale_factor,
                                 new_inner_size: &mut physical_size,
@@ -421,9 +419,7 @@ impl<T: 'static> EventLoop<T> {
                     if let Some(physical_size) = physical_size {
                         sticky_exit_callback(
                             Event::WindowEvent {
-                                window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Wayland(*window_id),
-                                ),
+                                window_id: crate::window::WindowId(*window_id),
                                 event: WindowEvent::Resized(physical_size),
                             },
                             &self.window_target,
@@ -436,9 +432,7 @@ impl<T: 'static> EventLoop<T> {
                 if window_update.close_window {
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: crate::window::WindowId(
-                                crate::platform_impl::WindowId::Wayland(*window_id),
-                            ),
+                            window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::CloseRequested,
                         },
                         &self.window_target,
@@ -488,9 +482,7 @@ impl<T: 'static> EventLoop<T> {
                 // Handle redraw request.
                 if window_update.redraw_requested {
                     sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(
-                            crate::platform_impl::WindowId::Wayland(*window_id),
-                        )),
+                        Event::RedrawRequested(crate::window::WindowId(*window_id)),
                         &self.window_target,
                         &mut control_flow,
                         &mut callback,

@@ -1,7 +1,7 @@
 //! An event loop's sink to deliver events from the Wayland event callbacks.
 
 use crate::event::{DeviceEvent, DeviceId as RootDeviceId, Event, WindowEvent};
-use crate::platform_impl::platform::{DeviceId as PlatformDeviceId, WindowId as PlatformWindowId};
+use crate::platform_impl::platform::DeviceId as PlatformDeviceId;
 use crate::window::WindowId as RootWindowId;
 
 use super::{DeviceId, WindowId};
@@ -30,7 +30,7 @@ impl EventSink {
     pub fn push_window_event(&mut self, event: WindowEvent<'static>, window_id: WindowId) {
         self.window_events.push(Event::WindowEvent {
             event,
-            window_id: RootWindowId(PlatformWindowId::Wayland(window_id)),
+            window_id: RootWindowId(window_id),
         });
     }
 }
