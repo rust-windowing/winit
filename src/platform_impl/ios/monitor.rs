@@ -17,7 +17,7 @@ use crate::{
 pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate: u16,
+    pub(crate) refresh_rate_millihertz: u32,
     pub(crate) screen_mode: NativeDisplayMode,
     pub(crate) monitor: MonitorHandle,
 }
@@ -49,7 +49,7 @@ impl Clone for VideoMode {
         VideoMode {
             size: self.size,
             bit_depth: self.bit_depth,
-            refresh_rate: self.refresh_rate,
+            refresh_rate_millihertz: self.refresh_rate_millihertz,
             screen_mode: self.screen_mode.clone(),
             monitor: self.monitor.clone(),
         }
@@ -59,30 +59,14 @@ impl Clone for VideoMode {
 impl VideoMode {
     unsafe fn retained_new(uiscreen: id, screen_mode: id) -> VideoMode {
         assert_main_thread!("`VideoMode` can only be created on the main thread on iOS");
-        let os_capabilities = app_state::os_capabilities();
-        let refresh_rate: NSInteger = if os_capabilities.maximum_frames_per_second {
-            msg_send![uiscreen, maximumFramesPerSecond]
-        } else {
-            // https://developer.apple.com/library/archive/technotes/tn2460/_index.html
-            // https://en.wikipedia.org/wiki/IPad_Pro#Model_comparison
-            //
-            // All iOS devices support 60 fps, and on devices where `maximumFramesPerSecond` is not
-            // supported, they are all guaranteed to have 60hz refresh rates. This does not
-            // correctly handle external displays. ProMotion displays support 120fps, but they were
-            // introduced at the same time as the `maximumFramesPerSecond` API.
-            //
-            // FIXME: earlier OSs could calculate the refresh rate using
-            // `-[CADisplayLink duration]`.
-            os_capabilities.maximum_frames_per_second_err_msg("defaulting to 60 fps");
-            60
-        };
+        let refresh_rate_millihertz = refresh_rate_millihertz(uiscreen);
         let size: CGSize = msg_send![screen_mode, size];
         let screen_mode: id = msg_send![screen_mode, retain];
         let screen_mode = NativeDisplayMode(screen_mode);
         VideoMode {
             size: (size.width as u32, size.height as u32),
             bit_depth: 32,
-            refresh_rate: refresh_rate as u16,
+            refresh_rate_millihertz,
             screen_mode,
             monitor: MonitorHandle::retained_new(uiscreen),
         }
@@ -96,8 +80,8 @@ impl VideoMode {
         self.bit_depth
     }
 
-    pub fn refresh_rate(&self) -> u16 {
-        self.refresh_rate
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        self.refresh_rate_millihertz
     }
 
     pub fn monitor(&self) -> RootMonitorHandle {
@@ -239,6 +223,10 @@ impl Inner {
         }
     }
 
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        Some(refresh_rate_millihertz(self.uiscreen))
+    }
+
     pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
         let mut modes = BTreeSet::new();
         unsafe {
@@ -255,6 +243,30 @@ impl Inner {
 
         modes.into_iter()
     }
+}
+
+fn refresh_rate_millihertz(uiscreen: id) -> u32 {
+    let refresh_rate_millihertz: NSInteger = unsafe {
+        let os_capabilities = app_state::os_capabilities();
+        if os_capabilities.maximum_frames_per_second {
+            msg_send![uiscreen, maximumFramesPerSecond]
+        } else {
+            // https://developer.apple.com/library/archive/technotes/tn2460/_index.html
+            // https://en.wikipedia.org/wiki/IPad_Pro#Model_comparison
+            //
+            // All iOS devices support 60 fps, and on devices where `maximumFramesPerSecond` is not
+            // supported, they are all guaranteed to have 60hz refresh rates. This does not
+            // correctly handle external displays. ProMotion displays support 120fps, but they were
+            // introduced at the same time as the `maximumFramesPerSecond` API.
+            //
+            // FIXME: earlier OSs could calculate the refresh rate using
+            // `-[CADisplayLink duration]`.
+            os_capabilities.maximum_frames_per_second_err_msg("defaulting to 60 fps");
+            60
+        }
+    };
+
+    refresh_rate_millihertz as u32 * 1000
 }
 
 // MonitorHandleExtIOS

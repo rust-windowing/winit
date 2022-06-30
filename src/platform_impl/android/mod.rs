@@ -857,6 +857,11 @@ impl MonitorHandle {
             .unwrap_or(1.0)
     }
 
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        // FIXME no way to get real refrsh rate for now.
+        None
+    }
+
     pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
@@ -865,7 +870,7 @@ impl MonitorHandle {
             video_mode: VideoMode {
                 size,
                 bit_depth: 32,
-                refresh_rate: 60,
+                refresh_rate_millihertz: 60000,
                 monitor: self.clone(),
             },
         })
@@ -876,7 +881,7 @@ impl MonitorHandle {
 pub struct VideoMode {
     size: (u32, u32),
     bit_depth: u16,
-    refresh_rate: u16,
+    refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
@@ -889,8 +894,8 @@ impl VideoMode {
         self.bit_depth
     }
 
-    pub fn refresh_rate(&self) -> u16 {
-        self.refresh_rate
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        self.refresh_rate_millihertz
     }
 
     pub fn monitor(&self) -> monitor::MonitorHandle {

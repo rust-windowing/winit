@@ -64,6 +64,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value. 
 - `EventLoopBuilder::build` will now panic when the `EventLoop` is being created more than once.
 - Added `From<u64>` for `WindowId` and `From<WindowId>` for `u64`.
+- Added `MonitorHandle::refresh_rate_millihertz` to get monitor's refresh rate.
+- **Breaking**, Replaced `VideoMode::refresh_rate` with `VideoMode::refresh_rate_millihertz` providing better precision.
 
 # 0.26.1 (2022-01-05)
 
