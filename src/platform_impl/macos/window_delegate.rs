@@ -5,7 +5,7 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
+    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow, NSWindowOcclusionState},
     base::{id, nil},
     foundation::NSUInteger,
 };
@@ -219,6 +219,10 @@ static WINDOW_DELEGATE_CLASS: Lazy<WindowDelegateClass> = Lazy::new(|| unsafe {
     decl.add_method(
         sel!(windowDidFailToEnterFullScreen:),
         window_did_fail_to_enter_fullscreen as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(windowDidChangeOcclusionState:),
+        window_did_change_occlusion_state as extern "C" fn(&Object, Sel, id),
     );
 
     decl.add_ivar::<*mut c_void>("winitState");
@@ -553,4 +557,19 @@ extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) 
             state.with_window(|window| window.restore_state_from_fullscreen());
         }
     });
+}
+
+// Invoked when the occlusion state of the window changes
+extern "C" fn window_did_change_occlusion_state(this: &Object, _: Sel, _: id) {
+    trace_scope!("windowDidChangeOcclusionState:");
+    unsafe {
+        with_state(this, |state| {
+            state.emit_event(WindowEvent::Occluded(
+                !state
+                    .ns_window
+                    .occlusionState()
+                    .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible),
+            ))
+        });
+    }
 }

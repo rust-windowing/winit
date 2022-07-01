@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On macOS, added `WindowExtWindows::is_occluded`
+- Added `Occluded(bool)` window event (current only supported on macos) and on macOS, added `WindowExtWindows::is_occluded`
 - On X11, fix events for caps lock key not being sent
 - Build docs on `docs.rs` for iOS and Android as well.
 - **Breaking:** Removed the `WindowAttributes` struct, since all its functionality is accessible from `WindowBuilder`.
