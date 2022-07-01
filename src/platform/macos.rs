@@ -33,6 +33,13 @@ pub trait WindowExtMacOS {
     /// space or taking control over the entire monitor.
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool;
 
+    // Returns whether or not the window is occluded.
+    //
+    // Occlusion differs from window visibility as an occluded window
+    // can be occluded from the screen surface for reasons such as being closed,
+    // minimised, not set visible, or behind another window.
+    fn is_occluded(&self) -> bool;
+
     /// Returns whether or not the window has shadow.
     fn has_shadow(&self) -> bool;
 
@@ -59,6 +66,11 @@ impl WindowExtMacOS for Window {
     #[inline]
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         self.window.set_simple_fullscreen(fullscreen)
+    }
+
+    #[inline]
+    fn is_occluded(&self) -> bool {
+        self.window.is_occluded()
     }
 
     #[inline]
