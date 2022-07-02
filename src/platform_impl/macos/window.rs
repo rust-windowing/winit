@@ -58,6 +58,18 @@ impl WindowId {
     }
 }
 
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0 as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id as usize)
+    }
+}
+
 // Convert the `cocoa::base::id` associated with a window to a usize to use as a unique identifier
 // for the window.
 pub fn get_window_id(window_cocoa_id: id) -> WindowId {

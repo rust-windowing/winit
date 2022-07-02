@@ -83,6 +83,18 @@ impl WindowId {
     }
 }
 
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.into()
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        raw_id.into()
+    }
+}
+
 /// Object that allows building windows.
 #[derive(Clone, Default)]
 #[must_use]

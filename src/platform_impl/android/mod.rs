@@ -627,6 +627,18 @@ impl WindowId {
     }
 }
 
+impl From<WindowId> for u64 {
+    fn from(_: WindowId) -> Self {
+        0
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(_: u64) -> Self {
+        Self
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DeviceId;
 
