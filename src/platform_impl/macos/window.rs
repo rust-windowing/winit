@@ -36,8 +36,7 @@ use crate::{
 use cocoa::{
     appkit::{
         self, CGFloat, NSApp, NSApplication, NSApplicationPresentationOptions, NSColor,
-        NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton,
-        NSWindowOcclusionState, NSWindowStyleMask,
+        NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
     foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSUInteger},
@@ -1237,16 +1236,6 @@ impl WindowExtMacOS for UnownedWindow {
 
                 true
             }
-        }
-    }
-
-    #[inline]
-    fn is_occluded(&self) -> bool {
-        unsafe {
-            !self
-                .ns_window
-                .occlusionState()
-                .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible)
         }
     }
 
