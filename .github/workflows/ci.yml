@@ -69,7 +69,7 @@ jobs:
 
     - name: Install Linux dependencies
       if: (matrix.platform.os == 'ubuntu-latest')
-      run: sudo apt-get update && sudo apt-get install pkg-config cmake libfreetype6-dev libfontconfig1-dev
+      run: sudo apt-get update && sudo apt-get install pkg-config cmake libfreetype6-dev libfontconfig1-dev libwayland-client0
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo dpkg --add-architecture i386 && sudo apt-get update && sudo apt-get install g++-multilib gcc-multilib libfreetype6-dev:i386 libfontconfig1-dev:i386
