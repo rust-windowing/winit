@@ -39,8 +39,10 @@ pub trait WindowExtMacOS {
     /// can be occluded from the screen surface for reasons such as being closed,
     /// minimised, not set visible, or behind another window.
     ///
-    /// Alternatively the event [`WindowEvent::Occluded`](crate::event::WindowEvent::Occluded)
+    /// Alternatively the event [`WindowEvent::Occluded`]
     /// can be used to track the occlusion state of the window.
+    ///
+    /// [`WindowEvent::Occluded`]: crate::event::WindowEvent::Occluded
     fn is_occluded(&self) -> bool;
 
     /// Returns whether or not the window has shadow.
