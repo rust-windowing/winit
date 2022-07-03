@@ -283,7 +283,7 @@ pub enum WindowEvent<'a> {
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
-    /// An event from input method.
+    /// An event from an input method.
     ///
     /// **Note:** You have to explicitly enable this event using [`Window::set_ime_allowed`].
     ///
