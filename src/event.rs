@@ -378,6 +378,8 @@ pub enum WindowEvent<'a> {
     /// This is different to window visibility as it depends on whether the window is closed,
     /// minimised, set invisible, or fully occluded by another window.
     ///
+    /// ## Platform-specific
+    ///
     /// At the moment this is only supported on macOS.
     Occluded(bool),
 }
