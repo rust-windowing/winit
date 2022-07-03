@@ -380,7 +380,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// At the moment this is only supported on macOS.
+    /// At the moment this is only supported on macOS and X11.
     Occluded(bool),
 }
 
