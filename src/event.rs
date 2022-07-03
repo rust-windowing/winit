@@ -277,17 +277,19 @@ pub enum WindowEvent<'a> {
 
     /// The keyboard modifiers have changed.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    /// ## Platform-specific
+    ///
+    /// - **Web:** This API is currently unimplemented on the web. This isn't by design - it's an
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
     /// An event from input method.
     ///
-    /// **Note :** You have to explicitly enable this event using [`Window::set_ime_allowed`].
+    /// **Note:** You have to explicitly enable this event using [`Window::set_ime_allowed`].
     ///
-    /// Platform-specific behavior:
-    /// - **iOS / Android / Web :** Unsupported.
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
     Ime(Ime),
 
     /// The cursor has moved on the window.

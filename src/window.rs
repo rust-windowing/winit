@@ -203,20 +203,20 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: The top left corner position of the window content, the
+    /// - **macOS:** The top left corner position of the window content, the
     ///   window's "inner" position. The window title bar will be placed above
     ///   it. The window will be positioned such that it fits on screen,
     ///   maintaining set `inner_size` if any.
     ///   If you need to precisely position the top left corner of the whole
     ///   window you have to use [`Window::set_outer_position`] after creating
     ///   the window.
-    /// - **Windows**: The top left corner position of the window title bar,
+    /// - **Windows:** The top left corner position of the window title bar,
     ///   the window's "outer" position.
     ///   There may be a small gap between this position and the window due to
     ///   the specifics of the Window Manager.
-    /// - **X11**: The top left corner of the window, the window's "outer"
+    /// - **X11:** The top left corner of the window, the window's "outer"
     ///   position.
-    /// - **Others**: Ignored.
+    /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
         self.window.position = Some(position.into());
@@ -333,8 +333,9 @@ impl WindowBuilder {
     ///
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// ## Platform-specific
+    ///
+    /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     #[inline]
     pub fn build<T: 'static>(
@@ -359,8 +360,9 @@ impl Window {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// ## Platform-specific
+    ///
+    /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     ///
     /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
@@ -839,7 +841,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
-    /// - ** iOS / Android / Web :** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
@@ -873,7 +875,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web :** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     /// - **macOS:** `None` has no effect.
     /// - **X11:** Requests for user attention must be manually cleared.
     /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
@@ -1063,7 +1065,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - ** iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
     Confined,
 
     /// The cursor is locked inside the window area to the certain position.
@@ -1074,7 +1076,7 @@ pub enum CursorGrabMode {
     /// ## Platform-specific
     ///
     /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
-    /// - ** iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
     Locked,
 }
 
@@ -1167,10 +1169,12 @@ pub enum Theme {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserAttentionType {
     /// ## Platform-specific
+    ///
     /// - **macOS:** Bounces the dock icon until the application is in focus.
     /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
     Critical,
     /// ## Platform-specific
+    ///
     /// - **macOS:** Bounces the dock icon once.
     /// - **Windows:** Flashes the taskbar button until the application is in focus.
     Informational,
