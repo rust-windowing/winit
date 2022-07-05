@@ -438,8 +438,8 @@ impl UnownedWindow {
 
             // Select XInput2 events
             let mask = ffi::XI_MotionMask
-                    | ffi::XI_ButtonPressMask
-                    | ffi::XI_ButtonReleaseMask
+                    //| ffi::XI_ButtonPressMask
+                    //| ffi::XI_ButtonReleaseMask
                     //| ffi::XI_KeyPressMask
                     //| ffi::XI_KeyReleaseMask
                     | ffi::XI_EnterMask

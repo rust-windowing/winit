@@ -6,8 +6,7 @@ use parking_lot::MutexGuard;
 
 use super::{
     events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
-    DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
-    XExtension,
+    DndState, GenericEventCookie, ImeReceiver, UnownedWindow, WindowId, XExtension,
 };
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
@@ -629,6 +628,87 @@ impl<T: 'static> EventProcessor<T> {
                 }
             }
 
+            ffi::ButtonPress | ffi::ButtonRelease => {
+                use crate::event::{
+                    ElementState::{Pressed, Released},
+                    MouseButton::{Left, Middle, Other, Right},
+                    MouseScrollDelta::LineDelta,
+                    WindowEvent::{MouseInput, MouseWheel},
+                };
+                let xev: &mut ffi::XButtonEvent = xev.as_mut();
+                let window_id = mkwid(xev.window);
+                let device_id = mkdid(util::VIRTUAL_CORE_POINTER);
+
+                let modifiers = ModifiersState::from_x11_mask(xev.state);
+                update_modifiers!(modifiers, None);
+
+                let state = if xev.type_ == ffi::ButtonPress {
+                    Pressed
+                } else {
+                    Released
+                };
+                match xev.button as u32 {
+                    ffi::Button1 => callback(Event::WindowEvent {
+                        window_id,
+                        event: MouseInput {
+                            device_id,
+                            state,
+                            button: Left,
+                            modifiers,
+                        },
+                    }),
+                    ffi::Button2 => callback(Event::WindowEvent {
+                        window_id,
+                        event: MouseInput {
+                            device_id,
+                            state,
+                            button: Middle,
+                            modifiers,
+                        },
+                    }),
+                    ffi::Button3 => callback(Event::WindowEvent {
+                        window_id,
+                        event: MouseInput {
+                            device_id,
+                            state,
+                            button: Right,
+                            modifiers,
+                        },
+                    }),
+
+                    4 | 5 | 6 | 7 => {
+                        // Listening to release doesn't make a lot of sense when considering scrolling
+                        if state == Pressed {
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: MouseWheel {
+                                    device_id,
+                                    delta: match xev.button {
+                                        4 => LineDelta(0.0, 1.0),
+                                        5 => LineDelta(0.0, -1.0),
+                                        6 => LineDelta(1.0, 0.0),
+                                        7 => LineDelta(-1.0, 0.0),
+                                        _ => unreachable!(),
+                                    },
+                                    phase: TouchPhase::Moved,
+                                    modifiers,
+                                },
+                            });
+                        }
+                    }
+
+                    x => callback(Event::WindowEvent {
+                        window_id,
+                        event: MouseInput {
+                            device_id,
+                            state,
+                            button: Other(x as u16),
+                            modifiers,
+                        },
+                    }),
+                }
+            }
+
             ffi::GenericEvent => {
                 let guard = if let Some(e) = GenericEventCookie::from_event(&wt.xconn, *xev) {
                     e
@@ -642,96 +722,15 @@ impl<T: 'static> EventProcessor<T> {
 
                 use crate::event::{
                     ElementState::{Pressed, Released},
-                    MouseButton::{Left, Middle, Other, Right},
                     MouseScrollDelta::LineDelta,
                     Touch,
                     WindowEvent::{
-                        AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseInput,
-                        MouseWheel,
+                        AxisMotion, CursorEntered, CursorLeft, CursorMoved, Focused, MouseWheel,
                     },
                 };
+                use crate::platform_impl::x11::ScrollOrientation;
 
                 match xev.evtype {
-                    ffi::XI_ButtonPress | ffi::XI_ButtonRelease => {
-                        let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
-                        let window_id = mkwid(xev.event);
-                        let device_id = mkdid(xev.deviceid);
-                        if (xev.flags & ffi::XIPointerEmulated) != 0 {
-                            // Deliver multi-touch events instead of emulated mouse events.
-                            return;
-                        }
-
-                        let modifiers = ModifiersState::from_x11(&xev.mods);
-                        update_modifiers!(modifiers, None);
-
-                        let state = if xev.evtype == ffi::XI_ButtonPress {
-                            Pressed
-                        } else {
-                            Released
-                        };
-                        match xev.detail as u32 {
-                            ffi::Button1 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Left,
-                                    modifiers,
-                                },
-                            }),
-                            ffi::Button2 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Middle,
-                                    modifiers,
-                                },
-                            }),
-                            ffi::Button3 => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Right,
-                                    modifiers,
-                                },
-                            }),
-
-                            // Suppress emulated scroll wheel clicks, since we handle the real motion events for those.
-                            // In practice, even clicky scroll wheels appear to be reported by evdev (and XInput2 in
-                            // turn) as axis motion, so we don't otherwise special-case these button presses.
-                            4 | 5 | 6 | 7 => {
-                                if xev.flags & ffi::XIPointerEmulated == 0 {
-                                    callback(Event::WindowEvent {
-                                        window_id,
-                                        event: MouseWheel {
-                                            device_id,
-                                            delta: match xev.detail {
-                                                4 => LineDelta(0.0, 1.0),
-                                                5 => LineDelta(0.0, -1.0),
-                                                6 => LineDelta(1.0, 0.0),
-                                                7 => LineDelta(-1.0, 0.0),
-                                                _ => unreachable!(),
-                                            },
-                                            phase: TouchPhase::Moved,
-                                            modifiers,
-                                        },
-                                    });
-                                }
-                            }
-
-                            x => callback(Event::WindowEvent {
-                                window_id,
-                                event: MouseInput {
-                                    device_id,
-                                    state,
-                                    button: Other(x as u16),
-                                    modifiers,
-                                },
-                            }),
-                        }
-                    }
                     ffi::XI_Motion => {
                         let xev: &ffi::XIDeviceEvent = unsafe { &*(xev.data as *const _) };
                         let device_id = mkdid(xev.deviceid);
@@ -786,23 +785,26 @@ impl<T: 'static> EventProcessor<T> {
                                     {
                                         let delta = (x - info.position) / info.increment;
                                         info.position = x;
-                                        events.push(Event::WindowEvent {
-                                            window_id,
-                                            event: MouseWheel {
-                                                device_id,
-                                                delta: match info.orientation {
-                                                    // X11 vertical scroll coordinates are opposite to winit's
-                                                    ScrollOrientation::Horizontal => {
-                                                        LineDelta(-delta as f32, 0.0)
-                                                    }
-                                                    ScrollOrientation::Vertical => {
-                                                        LineDelta(0.0, -delta as f32)
-                                                    }
+                                        // Don't send MouseWheel events targeting the core pointer as these will be handled by ButtonPress events
+                                        if xev.deviceid != util::VIRTUAL_CORE_POINTER {
+                                            events.push(Event::WindowEvent {
+                                                window_id,
+                                                event: MouseWheel {
+                                                    device_id,
+                                                    delta: match info.orientation {
+                                                        // X11 vertical scroll coordinates are opposite to winit's
+                                                        ScrollOrientation::Horizontal => {
+                                                            LineDelta(-delta as f32, 0.0)
+                                                        }
+                                                        ScrollOrientation::Vertical => {
+                                                            LineDelta(0.0, -delta as f32)
+                                                        }
+                                                    },
+                                                    phase: TouchPhase::Moved,
+                                                    modifiers,
                                                 },
-                                                phase: TouchPhase::Moved,
-                                                modifiers,
-                                            },
-                                        });
+                                            });
+                                        }
                                     } else {
                                         events.push(Event::WindowEvent {
                                             window_id,
