@@ -12,12 +12,12 @@ use winit::{
 
 #[cfg(all(target_os = "linux", feature = "x11"))]
 fn spawn_child_window(
-    parent: usize,
+    parent: u64,
     event_loop: &EventLoopWindowTarget<()>,
     windows: &mut HashMap<usize, Window>,
 ) {
     let child_window = WindowBuilder::new()
-        .with_x11_parent(parent)
+        .with_x11_parent(parent.try_into().unwrap())
         .with_title("child window")
         .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
         .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
@@ -41,7 +41,7 @@ fn main() {
         .with_inner_size(LogicalSize::new(640.0f32, 480.0f32))
         .build(&event_loop)
         .unwrap();
-    let root: usize = parent_window.xlib_window().unwrap().try_into().unwrap();
+    let root: u64 = parent_window.xlib_window().unwrap().try_into().unwrap();
     println!("parent window id: {})", root);
 
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {

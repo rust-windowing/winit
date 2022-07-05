@@ -4,7 +4,7 @@ use std::{ptr, sync::Arc};
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    window::{Window, WindowBuilder},
+    window::{Window, WindowBuilder, WindowId},
 };
 
 use crate::dpi::Size;
@@ -173,7 +173,7 @@ pub trait WindowBuilderExtX11 {
     fn with_x11_screen(self, screen_id: i32) -> Self;
     #[cfg(feature = "x11")]
     /// Build window with X11's parent window. Only relevant on X11.
-    fn with_x11_parent(self, parent_id: usize) -> Self;
+    fn with_x11_parent(self, parent_id: WindowId) -> Self;
 
     /// Build window with the given `general` and `instance` names.
     ///
@@ -232,8 +232,8 @@ impl WindowBuilderExtX11 for WindowBuilder {
 
     #[inline]
     #[cfg(feature = "x11")]
-    fn with_x11_parent(mut self, parent_id: usize) -> Self {
-        self.platform_specific.parent_id = Some(parent_id);
+    fn with_x11_parent(mut self, parent_id: WindowId) -> Self {
+        self.platform_specific.parent_id = Some(parent_id.0);
         self
     }
 
