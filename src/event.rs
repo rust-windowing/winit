@@ -372,6 +372,15 @@ pub enum WindowEvent<'a> {
     ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
+
+    /// The window has been occluded (completely hidden from view).
+    ///
+    /// This is different to window visibility as it depends on whether the window is closed,
+    /// minimised, set invisible, or fully occluded by another window.
+    ///
+    /// Platform-specific behavior:
+    /// - **iOS / Android / Web / Wayland / Windows :** Unsupported.
+    Occluded(bool),
 }
 
 impl Clone for WindowEvent<'static> {
@@ -461,6 +470,7 @@ impl Clone for WindowEvent<'static> {
             ScaleFactorChanged { .. } => {
                 unreachable!("Static event can't be about scale factor changing")
             }
+            Occluded(occluded) => Occluded(*occluded),
         };
     }
 }
@@ -546,6 +556,7 @@ impl<'a> WindowEvent<'a> {
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
             ScaleFactorChanged { .. } => None,
+            Occluded(occluded) => Some(Occluded(occluded)),
         }
     }
 }
