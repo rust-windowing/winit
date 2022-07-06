@@ -61,7 +61,7 @@ use windows_sys::Win32::{
             WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
             WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP,
             WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
-            WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY,
+            WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCREATE, WM_NCDESTROY,
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
             WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
@@ -793,6 +793,74 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
             });
         }
     }
+}
+
+unsafe fn gain_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
+    use crate::event::{ElementState::Released, WindowEvent::Focused};
+    for windows_keycode in event::get_pressed_keys() {
+        let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
+        let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
+
+        update_modifiers(window, userdata);
+
+        #[allow(deprecated)]
+        userdata.send_event(Event::WindowEvent {
+            window_id: RootWindowId(WindowId(window)),
+            event: WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                input: KeyboardInput {
+                    scancode,
+                    virtual_keycode,
+                    state: Released,
+                    modifiers: event::get_key_mods(),
+                },
+                is_synthetic: true,
+            },
+        })
+    }
+
+    userdata.send_event(Event::WindowEvent {
+        window_id: RootWindowId(WindowId(window)),
+        event: Focused(true),
+    });
+}
+
+unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
+    use crate::event::{
+        ElementState::Released,
+        ModifiersState,
+        WindowEvent::{Focused, ModifiersChanged},
+    };
+    for windows_keycode in event::get_pressed_keys() {
+        let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
+        let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
+
+        #[allow(deprecated)]
+        userdata.send_event(Event::WindowEvent {
+            window_id: RootWindowId(WindowId(window)),
+            event: WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                input: KeyboardInput {
+                    scancode,
+                    virtual_keycode,
+                    state: Released,
+                    modifiers: event::get_key_mods(),
+                },
+                is_synthetic: true,
+            },
+        })
+    }
+
+    userdata.window_state.lock().modifiers_state = ModifiersState::empty();
+    userdata.send_event(Event::WindowEvent {
+        window_id: RootWindowId(WindowId(window)),
+        event: ModifiersChanged(ModifiersState::empty()),
+    });
+
+    userdata.send_event(Event::WindowEvent {
+        window_id: RootWindowId(WindowId(window)),
+        event: Focused(false),
+    });
 }
 
 /// Any window whose callback is configured to this function will have its events propagated
@@ -1770,74 +1838,32 @@ unsafe fn public_window_callback_inner<T: 'static>(
             0
         }
 
-        WM_SETFOCUS => {
-            use crate::event::{ElementState::Released, WindowEvent::Focused};
-            for windows_keycode in event::get_pressed_keys() {
-                let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
-                let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
-
-                update_modifiers(window, userdata);
-
-                #[allow(deprecated)]
-                userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            scancode,
-                            virtual_keycode,
-                            state: Released,
-                            modifiers: event::get_key_mods(),
-                        },
-                        is_synthetic: true,
-                    },
-                })
+        WM_NCACTIVATE => {
+            let is_active = wparam == 1;
+            let active_focus_changed = userdata.window_state.lock().set_active(is_active);
+            if active_focus_changed {
+                if is_active {
+                    gain_active_focus(window, userdata);
+                } else {
+                    lose_active_focus(window, userdata);
+                }
             }
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: Focused(true),
-            });
-
+        WM_SETFOCUS => {
+            let active_focus_changed = userdata.window_state.lock().set_focused(true);
+            if active_focus_changed {
+                gain_active_focus(window, userdata);
+            }
             0
         }
 
         WM_KILLFOCUS => {
-            use crate::event::{
-                ElementState::Released,
-                ModifiersState,
-                WindowEvent::{Focused, ModifiersChanged},
-            };
-            for windows_keycode in event::get_pressed_keys() {
-                let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
-                let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
-
-                #[allow(deprecated)]
-                userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            scancode,
-                            virtual_keycode,
-                            state: Released,
-                            modifiers: event::get_key_mods(),
-                        },
-                        is_synthetic: true,
-                    },
-                })
+            let active_focus_changed = userdata.window_state.lock().set_focused(false);
+            if active_focus_changed {
+                lose_active_focus(window, userdata);
             }
-
-            userdata.window_state.lock().modifiers_state = ModifiersState::empty();
-            userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: ModifiersChanged(ModifiersState::empty()),
-            });
-
-            userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: Focused(false),
-            });
             0
         }
 
