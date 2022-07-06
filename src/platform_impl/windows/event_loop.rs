@@ -1273,7 +1273,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     event: CursorMoved {
                         device_id: DEVICE_ID,
                         position,
-                        modifiers: event::get_key_mods(),
                     },
                 });
             }
@@ -1315,7 +1314,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     delta: LineDelta(0.0, value),
                     phase: TouchPhase::Moved,
-                    modifiers: event::get_key_mods(),
                 },
             });
 
@@ -1337,7 +1335,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     delta: LineDelta(value, 0.0),
                     phase: TouchPhase::Moved,
-                    modifiers: event::get_key_mods(),
                 },
             });
 
@@ -1352,7 +1349,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
                     update_modifiers(window, userdata);
 
-                    #[allow(deprecated)]
                     userdata.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: WindowEvent::KeyboardInput {
@@ -1361,7 +1357,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                                 state: Pressed,
                                 scancode,
                                 virtual_keycode: vkey,
-                                modifiers: event::get_key_mods(),
                             },
                             is_synthetic: false,
                         },
@@ -1384,7 +1379,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
             if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
                 update_modifiers(window, userdata);
 
-                #[allow(deprecated)]
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1393,7 +1387,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             state: Released,
                             scancode,
                             virtual_keycode: vkey,
-                            modifiers: event::get_key_mods(),
                         },
                         is_synthetic: false,
                     },
@@ -1415,7 +1408,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Left,
-                    modifiers: event::get_key_mods(),
                 },
             });
             0
@@ -1436,7 +1428,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Left,
-                    modifiers: event::get_key_mods(),
                 },
             });
             0
@@ -1457,7 +1448,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Right,
-                    modifiers: event::get_key_mods(),
                 },
             });
             0
@@ -1478,7 +1468,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Right,
-                    modifiers: event::get_key_mods(),
                 },
             });
             0
@@ -1499,7 +1488,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Middle,
-                    modifiers: event::get_key_mods(),
                 },
             });
             0
@@ -1520,7 +1508,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Middle,
-                    modifiers: event::get_key_mods(),
                 },
             });
             0
@@ -1542,7 +1529,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Pressed,
                     button: Other(xbutton),
-                    modifiers: event::get_key_mods(),
                 },
             });
             0
@@ -1564,7 +1550,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     device_id: DEVICE_ID,
                     state: Released,
                     button: Other(xbutton),
-                    modifiers: event::get_key_mods(),
                 },
             });
             0
@@ -1778,7 +1763,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
                 update_modifiers(window, userdata);
 
-                #[allow(deprecated)]
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1787,7 +1771,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             scancode,
                             virtual_keycode,
                             state: Released,
-                            modifiers: event::get_key_mods(),
                         },
                         is_synthetic: true,
                     },
@@ -1812,7 +1795,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
                 let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
 
-                #[allow(deprecated)]
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
                     event: WindowEvent::KeyboardInput {
@@ -1821,7 +1803,6 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             scancode,
                             virtual_keycode,
                             state: Released,
-                            modifiers: event::get_key_mods(),
                         },
                         is_synthetic: true,
                     },
@@ -2315,14 +2296,12 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                         {
                             let virtual_keycode = vkey_to_winit_vkey(vkey);
 
-                            #[allow(deprecated)]
                             userdata.send_event(Event::DeviceEvent {
                                 device_id,
                                 event: Key(KeyboardInput {
                                     scancode,
                                     state,
                                     virtual_keycode,
-                                    modifiers: event::get_key_mods(),
                                 }),
                             });
                         }

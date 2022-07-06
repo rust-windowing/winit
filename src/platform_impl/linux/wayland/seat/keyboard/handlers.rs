@@ -71,7 +71,6 @@ pub(super) fn handle_keyboard(
             let virtual_keycode = keymap::keysym_to_vkey(keysym);
 
             event_sink.push_window_event(
-                #[allow(deprecated)]
                 WindowEvent::KeyboardInput {
                     device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
                         DeviceId,
@@ -80,7 +79,6 @@ pub(super) fn handle_keyboard(
                         state,
                         scancode: rawkey,
                         virtual_keycode,
-                        modifiers: *inner.modifiers_state.borrow(),
                     },
                     is_synthetic: false,
                 },
@@ -112,7 +110,6 @@ pub(super) fn handle_keyboard(
             let virtual_keycode = keymap::keysym_to_vkey(keysym);
 
             event_sink.push_window_event(
-                #[allow(deprecated)]
                 WindowEvent::KeyboardInput {
                     device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
                         DeviceId,
@@ -121,7 +118,6 @@ pub(super) fn handle_keyboard(
                         state: ElementState::Pressed,
                         scancode: rawkey,
                         virtual_keycode,
-                        modifiers: *inner.modifiers_state.borrow(),
                     },
                     is_synthetic: false,
                 },

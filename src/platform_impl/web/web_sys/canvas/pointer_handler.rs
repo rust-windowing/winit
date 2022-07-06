@@ -1,7 +1,7 @@
 use super::event;
 use super::EventListenerHandle;
 use crate::dpi::PhysicalPosition;
-use crate::event::{ModifiersState, MouseButton};
+use crate::event::MouseButton;
 
 use web_sys::PointerEvent;
 
@@ -51,23 +51,19 @@ impl PointerHandler {
 
     pub fn on_mouse_release<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, MouseButton),
     {
         self.on_pointer_release = Some(canvas_common.add_user_event(
             "pointerup",
             move |event: PointerEvent| {
-                handler(
-                    event.pointer_id(),
-                    event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
-                );
+                handler(event.pointer_id(), event::mouse_button(&event));
             },
         ));
     }
 
     pub fn on_mouse_press<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton),
     {
         let canvas = canvas_common.raw.clone();
         self.on_pointer_press = Some(canvas_common.add_user_event(
@@ -77,7 +73,6 @@ impl PointerHandler {
                     event.pointer_id(),
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
                     event::mouse_button(&event),
-                    event::mouse_modifiers(&event),
                 );
 
                 // Error is swallowed here since the error would occur every time the mouse is
@@ -90,7 +85,7 @@ impl PointerHandler {
 
     pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
-        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
+        F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>),
     {
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
@@ -99,7 +94,6 @@ impl PointerHandler {
                     event.pointer_id(),
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
                     event::mouse_delta(&event).to_physical(super::super::scale_factor()),
-                    event::mouse_modifiers(&event),
                 );
             },
         ));

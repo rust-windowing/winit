@@ -769,7 +769,6 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         let preedit_related = was_in_preedit || now_in_preedit;
         if !preedit_related || state.forward_key_to_app || !state.ime_allowed {
-            #[allow(deprecated)]
             let window_event = Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput {
@@ -778,7 +777,6 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
                         state: ElementState::Pressed,
                         scancode,
                         virtual_keycode,
-                        modifiers: event_mods(event),
                     },
                     is_synthetic: false,
                 },
@@ -809,7 +807,6 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
 
         // We want to send keyboard input when we are not currently in preedit
         if state.ime_state != ImeState::Preedit {
-            #[allow(deprecated)]
             let window_event = Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::KeyboardInput {
@@ -818,7 +815,6 @@ extern "C" fn key_up(this: &Object, _sel: Sel, event: id) {
                         state: ElementState::Released,
                         scancode,
                         virtual_keycode,
-                        modifiers: event_mods(event),
                     },
                     is_synthetic: false,
                 },
@@ -929,7 +925,6 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
 
         update_potentially_stale_modifiers(state, event);
 
-        #[allow(deprecated)]
         let window_event = Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
             event: WindowEvent::KeyboardInput {
@@ -938,7 +933,6 @@ extern "C" fn cancel_operation(this: &Object, _sel: Sel, _sender: id) {
                     state: ElementState::Pressed,
                     scancode: scancode as _,
                     virtual_keycode,
-                    modifiers: event_mods(event),
                 },
                 is_synthetic: false,
             },
@@ -961,7 +955,6 @@ fn mouse_click(this: &Object, event: id, button: MouseButton, button_state: Elem
                 device_id: DEVICE_ID,
                 state: button_state,
                 button,
-                modifiers: event_mods(event),
             },
         };
 
@@ -1040,7 +1033,6 @@ fn mouse_motion(this: &Object, event: id) {
             event: WindowEvent::CursorMoved {
                 device_id: DEVICE_ID,
                 position: logical_position.to_physical(state.get_scale_factor()),
-                modifiers: event_mods(event),
             },
         };
 
@@ -1142,7 +1134,6 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
                 device_id: DEVICE_ID,
                 delta,
                 phase,
-                modifiers: event_mods(event),
             },
         };
 

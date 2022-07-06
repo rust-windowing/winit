@@ -298,8 +298,6 @@ pub enum WindowEvent<'a> {
         /// limited by the display area and it may have been transformed by the OS to implement effects such as cursor
         /// acceleration, it should not be used to implement non-cursor-like interactions such as 3D camera control.
         position: PhysicalPosition<f64>,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// The cursor has entered the window.
@@ -313,8 +311,6 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         delta: MouseScrollDelta,
         phase: TouchPhase,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// An mouse button press has been received.
@@ -322,8 +318,6 @@ pub enum WindowEvent<'a> {
         device_id: DeviceId,
         state: ElementState,
         button: MouseButton,
-        #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-        modifiers: ModifiersState,
     },
 
     /// Touchpad pressure event.
@@ -407,15 +401,12 @@ impl Clone for WindowEvent<'static> {
             },
             Ime(preedit_state) => Ime(preedit_state.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
-            #[allow(deprecated)]
             CursorMoved {
                 device_id,
                 position,
-                modifiers,
             } => CursorMoved {
                 device_id: *device_id,
                 position: *position,
-                modifiers: *modifiers,
             },
             CursorEntered { device_id } => CursorEntered {
                 device_id: *device_id,
@@ -423,29 +414,23 @@ impl Clone for WindowEvent<'static> {
             CursorLeft { device_id } => CursorLeft {
                 device_id: *device_id,
             },
-            #[allow(deprecated)]
             MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             } => MouseWheel {
                 device_id: *device_id,
                 delta: *delta,
                 phase: *phase,
-                modifiers: *modifiers,
             },
-            #[allow(deprecated)]
             MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             } => MouseInput {
                 device_id: *device_id,
                 state: *state,
                 button: *button,
-                modifiers: *modifiers,
             },
             TouchpadPressure {
                 device_id,
@@ -499,41 +484,32 @@ impl<'a> WindowEvent<'a> {
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
             Ime(event) => Some(Ime(event)),
-            #[allow(deprecated)]
             CursorMoved {
                 device_id,
                 position,
-                modifiers,
             } => Some(CursorMoved {
                 device_id,
                 position,
-                modifiers,
             }),
             CursorEntered { device_id } => Some(CursorEntered { device_id }),
             CursorLeft { device_id } => Some(CursorLeft { device_id }),
-            #[allow(deprecated)]
             MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             } => Some(MouseWheel {
                 device_id,
                 delta,
                 phase,
-                modifiers,
             }),
-            #[allow(deprecated)]
             MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             } => Some(MouseInput {
                 device_id,
                 state,
                 button,
-                modifiers,
             }),
             TouchpadPressure {
                 device_id,
@@ -650,13 +626,6 @@ pub struct KeyboardInput {
     /// Use when the semantics of the key are more important than the physical location of the key, such as when
     /// implementing appropriate behavior for "page up."
     pub virtual_keycode: Option<VirtualKeyCode>,
-
-    /// Modifier keys active at the time of this input.
-    ///
-    /// This is tracked internally to avoid tracking errors arising from modifier key state changes when events from
-    /// this device are not being delivered to the application, e.g. due to keyboard focus being elsewhere.
-    #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
-    pub modifiers: ModifiersState,
 }
 
 /// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.

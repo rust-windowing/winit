@@ -16,7 +16,6 @@ use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_l
 use sctk::seat::pointer::{ThemeManager, ThemedPointer};
 use sctk::window::Window;
 
-use crate::event::ModifiersState;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::window::WinitFrame;
 use crate::window::CursorIcon;
@@ -236,7 +235,6 @@ impl Pointers {
         theme_manager: &ThemeManager,
         relative_pointer_manager: &Option<Attached<ZwpRelativePointerManagerV1>>,
         pointer_constraints: &Option<Attached<ZwpPointerConstraintsV1>>,
-        modifiers_state: Rc<RefCell<ModifiersState>>,
     ) -> Self {
         let confined_pointer = Rc::new(RefCell::new(None));
         let locked_pointer = Rc::new(RefCell::new(None));
@@ -245,7 +243,6 @@ impl Pointers {
             confined_pointer.clone(),
             locked_pointer.clone(),
             pointer_constraints.clone(),
-            modifiers_state,
         )));
 
         let pointer_seat = seat.detach();

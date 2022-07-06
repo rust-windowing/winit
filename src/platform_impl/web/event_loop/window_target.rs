@@ -72,8 +72,7 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
-            #[allow(deprecated)]
+        canvas.on_keyboard_press(move |scancode, virtual_keycode| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::KeyboardInput {
@@ -82,7 +81,6 @@ impl<T> EventLoopWindowTarget<T> {
                         scancode,
                         state: ElementState::Pressed,
                         virtual_keycode,
-                        modifiers,
                     },
                     is_synthetic: false,
                 },
@@ -90,8 +88,7 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
-            #[allow(deprecated)]
+        canvas.on_keyboard_release(move |scancode, virtual_keycode| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::KeyboardInput {
@@ -100,7 +97,6 @@ impl<T> EventLoopWindowTarget<T> {
                         scancode,
                         state: ElementState::Released,
                         virtual_keycode,
-                        modifiers,
                     },
                     is_synthetic: false,
                 },
@@ -136,13 +132,12 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_cursor_move(move |pointer_id, position, delta, modifiers| {
+        canvas.on_cursor_move(move |pointer_id, position, delta| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::CursorMoved {
                     device_id: RootDeviceId(DeviceId(pointer_id)),
                     position,
-                    modifiers,
                 },
             });
             runner.send_event(Event::DeviceEvent {
@@ -154,7 +149,7 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_press(move |pointer_id, position, button, modifiers| {
+        canvas.on_mouse_press(move |pointer_id, position, button| {
             // A mouse down event may come in without any prior CursorMoved events,
             // therefore we should send a CursorMoved event to make sure that the
             // user code has the correct cursor position.
@@ -164,7 +159,6 @@ impl<T> EventLoopWindowTarget<T> {
                     event: WindowEvent::CursorMoved {
                         device_id: RootDeviceId(DeviceId(pointer_id)),
                         position,
-                        modifiers,
                     },
                 })
                 .chain(std::iter::once(Event::WindowEvent {
@@ -173,34 +167,31 @@ impl<T> EventLoopWindowTarget<T> {
                         device_id: RootDeviceId(DeviceId(pointer_id)),
                         state: ElementState::Pressed,
                         button,
-                        modifiers,
                     },
                 })),
             );
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_release(move |pointer_id, button, modifiers| {
+        canvas.on_mouse_release(move |pointer_id, button| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::MouseInput {
                     device_id: RootDeviceId(DeviceId(pointer_id)),
                     state: ElementState::Released,
                     button,
-                    modifiers,
                 },
             });
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_wheel(move |pointer_id, delta, modifiers| {
+        canvas.on_mouse_wheel(move |pointer_id, delta| {
             runner.send_event(Event::WindowEvent {
                 window_id: RootWindowId(id),
                 event: WindowEvent::MouseWheel {
                     device_id: RootDeviceId(DeviceId(pointer_id)),
                     delta,
                     phase: TouchPhase::Moved,
-                    modifiers,
                 },
             });
         });

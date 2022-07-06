@@ -131,7 +131,6 @@ impl SeatManagerInner {
                     &self.theme_manager,
                     &self.relative_pointer_manager,
                     &self.pointer_constraints,
-                    seat_info.modifiers_state.clone(),
                 ));
             }
         } else {

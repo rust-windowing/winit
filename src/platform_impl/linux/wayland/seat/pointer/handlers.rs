@@ -85,7 +85,6 @@ pub(super) fn handle_pointer(
                         DeviceId,
                     )),
                     position,
-                    modifiers: *pointer_data.modifiers_state.borrow(),
                 },
                 window_id,
             );
@@ -143,7 +142,6 @@ pub(super) fn handle_pointer(
                         DeviceId,
                     )),
                     position,
-                    modifiers: *pointer_data.modifiers_state.borrow(),
                 },
                 window_id,
             );
@@ -180,7 +178,6 @@ pub(super) fn handle_pointer(
                     )),
                     state,
                     button,
-                    modifiers: *pointer_data.modifiers_state.borrow(),
                 },
                 window_id,
             );
@@ -214,7 +211,6 @@ pub(super) fn handle_pointer(
                         )),
                         delta: MouseScrollDelta::PixelDelta(delta),
                         phase: TouchPhase::Moved,
-                        modifiers: *pointer_data.modifiers_state.borrow(),
                     },
                     window_id,
                 );
@@ -276,7 +272,6 @@ pub(super) fn handle_pointer(
                     )),
                     delta: MouseScrollDelta::LineDelta(x, y),
                     phase: pointer_data.axis_data.axis_state,
-                    modifiers: *pointer_data.modifiers_state.borrow(),
                 }
             } else if let Some((x, y)) = axis_buffer {
                 let scale_factor = sctk::get_surface_scale_factor(surface) as f64;
@@ -288,7 +283,6 @@ pub(super) fn handle_pointer(
                     )),
                     delta: MouseScrollDelta::PixelDelta(delta),
                     phase: pointer_data.axis_data.axis_state,
-                    modifiers: *pointer_data.modifiers_state.borrow(),
                 }
             } else {
                 return;

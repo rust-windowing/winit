@@ -586,9 +586,6 @@ impl<T: 'static> EventProcessor<T> {
                         self.mod_keymap.get_modifier(xkev.keycode as ffi::KeyCode)
                     );
 
-                    let modifiers = self.device_mod_state.modifiers();
-
-                    #[allow(deprecated)]
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::KeyboardInput {
@@ -597,7 +594,6 @@ impl<T: 'static> EventProcessor<T> {
                                 state,
                                 scancode,
                                 virtual_keycode,
-                                modifiers,
                             },
                             is_synthetic: false,
                         },
@@ -681,7 +677,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Left,
-                                    modifiers,
                                 },
                             }),
                             ffi::Button2 => callback(Event::WindowEvent {
@@ -690,7 +685,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Middle,
-                                    modifiers,
                                 },
                             }),
                             ffi::Button3 => callback(Event::WindowEvent {
@@ -699,7 +693,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Right,
-                                    modifiers,
                                 },
                             }),
 
@@ -720,7 +713,6 @@ impl<T: 'static> EventProcessor<T> {
                                                 _ => unreachable!(),
                                             },
                                             phase: TouchPhase::Moved,
-                                            modifiers,
                                         },
                                     });
                                 }
@@ -732,7 +724,6 @@ impl<T: 'static> EventProcessor<T> {
                                     device_id,
                                     state,
                                     button: Other(x as u16),
-                                    modifiers,
                                 },
                             }),
                         }
@@ -758,7 +749,6 @@ impl<T: 'static> EventProcessor<T> {
                                 event: CursorMoved {
                                     device_id,
                                     position,
-                                    modifiers,
                                 },
                             });
                         } else if cursor_moved.is_none() {
@@ -805,7 +795,6 @@ impl<T: 'static> EventProcessor<T> {
                                                     }
                                                 },
                                                 phase: TouchPhase::Moved,
-                                                modifiers,
                                             },
                                         });
                                     } else {
@@ -866,18 +855,12 @@ impl<T: 'static> EventProcessor<T> {
                             // This needs to only be done after confirming the window still exists,
                             // since otherwise we risk getting a `BadWindow` error if the window was
                             // dropped with queued events.
-                            let modifiers = wt
-                                .xconn
-                                .query_pointer(xev.event, xev.deviceid)
-                                .expect("Failed to query pointer device")
-                                .get_modifier_state();
 
                             callback(Event::WindowEvent {
                                 window_id,
                                 event: CursorMoved {
                                     device_id,
                                     position,
-                                    modifiers,
                                 },
                             });
                         }
@@ -943,7 +926,6 @@ impl<T: 'static> EventProcessor<T> {
                                 event: CursorMoved {
                                     device_id: mkdid(pointer_id),
                                     position,
-                                    modifiers,
                                 },
                             });
 
@@ -1007,7 +989,6 @@ impl<T: 'static> EventProcessor<T> {
                         };
                         if self.window_exists(xev.event) {
                             let id = xev.detail as u64;
-                            let modifiers = self.device_mod_state.modifiers();
                             let location =
                                 PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
 
@@ -1020,7 +1001,6 @@ impl<T: 'static> EventProcessor<T> {
                                     event: WindowEvent::CursorMoved {
                                         device_id: mkdid(util::VIRTUAL_CORE_POINTER),
                                         position: location.cast(),
-                                        modifiers,
                                     },
                                 });
                             }
@@ -1125,14 +1105,12 @@ impl<T: 'static> EventProcessor<T> {
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
 
-                        #[allow(deprecated)]
                         callback(Event::DeviceEvent {
                             device_id,
                             event: DeviceEvent::Key(KeyboardInput {
                                 scancode: scancode as u32,
                                 virtual_keycode,
                                 state,
-                                modifiers,
                             }),
                         });
 
@@ -1315,7 +1293,6 @@ impl<T: 'static> EventProcessor<T> {
         F: FnMut(Event<'_, T>),
     {
         let device_id = mkdid(util::VIRTUAL_CORE_KEYBOARD);
-        let modifiers = device_mod_state.modifiers();
 
         // Update modifiers state and emit key events based on which keys are currently pressed.
         for keycode in wt
@@ -1336,7 +1313,6 @@ impl<T: 'static> EventProcessor<T> {
                 );
             }
 
-            #[allow(deprecated)]
             callback(Event::WindowEvent {
                 window_id,
                 event: WindowEvent::KeyboardInput {
@@ -1345,7 +1321,6 @@ impl<T: 'static> EventProcessor<T> {
                         scancode,
                         state,
                         virtual_keycode,
-                        modifiers,
                     },
                     is_synthetic: true,
                 },

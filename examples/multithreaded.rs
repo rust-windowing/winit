@@ -7,7 +7,7 @@ fn main() {
     use simple_logger::SimpleLogger;
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
-        event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
+        event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
         event_loop::EventLoop,
         window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder},
     };
@@ -29,6 +29,7 @@ fn main() {
 
         let (tx, rx) = mpsc::channel();
         window_senders.insert(window.id(), tx);
+        let mut modifiers = ModifiersState::default();
         thread::spawn(move || {
             while let Ok(event) = rx.recv() {
                 match event {
@@ -51,13 +52,14 @@ fn main() {
                             );
                         }
                     }
-                    #[allow(deprecated)]
+                    WindowEvent::ModifiersChanged(mod_state) => {
+                        modifiers = mod_state;
+                    }
                     WindowEvent::KeyboardInput {
                         input:
                             KeyboardInput {
                                 state: ElementState::Released,
                                 virtual_keycode: Some(key),
-                                modifiers,
                                 ..
                             },
                         ..

@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Removed the deprecated `modifiers` field on the `CursorMoved`, `MouseWheel`, and `MouseInput` `WindowEvent`s, as well as on the `KeyboardInput` struct.
 - Added `WindowEvent::Occluded(bool)`, currently implemented on macOS and X11.
 - On X11, fix events for caps lock key not being sent
 - Build docs on `docs.rs` for iOS and Android as well.

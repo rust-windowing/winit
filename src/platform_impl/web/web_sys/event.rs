@@ -1,5 +1,5 @@
 use crate::dpi::LogicalPosition;
-use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
+use crate::event::{MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
 use std::convert::TryInto;
 use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
@@ -11,15 +11,6 @@ pub fn mouse_button(event: &MouseEvent) -> MouseButton {
         2 => MouseButton::Right,
         i => MouseButton::Other((i - 3).try_into().expect("very large mouse button value")),
     }
-}
-
-pub fn mouse_modifiers(event: &MouseEvent) -> ModifiersState {
-    let mut m = ModifiersState::empty();
-    m.set(ModifiersState::SHIFT, event.shift_key());
-    m.set(ModifiersState::CTRL, event.ctrl_key());
-    m.set(ModifiersState::ALT, event.alt_key());
-    m.set(ModifiersState::LOGO, event.meta_key());
-    m
 }
 
 pub fn mouse_position(event: &MouseEvent) -> LogicalPosition<f64> {
@@ -229,15 +220,6 @@ pub fn virtual_key_code(event: &KeyboardEvent) -> Option<VirtualKeyCode> {
         "Yen" => VirtualKeyCode::Yen,
         _ => return None,
     })
-}
-
-pub fn keyboard_modifiers(event: &KeyboardEvent) -> ModifiersState {
-    let mut m = ModifiersState::empty();
-    m.set(ModifiersState::SHIFT, event.shift_key());
-    m.set(ModifiersState::CTRL, event.ctrl_key());
-    m.set(ModifiersState::ALT, event.alt_key());
-    m.set(ModifiersState::LOGO, event.meta_key());
-    m
 }
 
 pub fn codepoint(event: &KeyboardEvent) -> char {
