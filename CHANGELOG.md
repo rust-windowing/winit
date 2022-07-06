@@ -69,6 +69,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Added `From<u64>` for `WindowId` and `From<WindowId>` for `u64`.
 - Added `MonitorHandle::refresh_rate_millihertz` to get monitor's refresh rate.
 - **Breaking**, Replaced `VideoMode::refresh_rate` with `VideoMode::refresh_rate_millihertz` providing better precision.
+- On Web, add `with_prevent_default` and `with_focusable` to `WindowBuilderExtWebSys` to control whether events should be propagated.
 
 # 0.26.1 (2022-01-05)
 

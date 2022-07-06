@@ -22,11 +22,34 @@ pub trait WindowExtWebSys {
 
 pub trait WindowBuilderExtWebSys {
     fn with_canvas(self, canvas: Option<HtmlCanvasElement>) -> Self;
+
+    /// Whether `event.preventDefault` should be automatically called to prevent event propagation
+    /// when appropriate.
+    ///
+    /// For example, mouse wheel events are only handled by the canvas by default. This avoids
+    /// the default behavior of scrolling the page.
+    fn with_prevent_default(self, prevent_default: bool) -> Self;
+
+    /// Whether the canvas should be focusable using the tab key. This is necessary to capture
+    /// canvas keyboard events.
+    fn with_focusable(self, focusable: bool) -> Self;
 }
 
 impl WindowBuilderExtWebSys for WindowBuilder {
     fn with_canvas(mut self, canvas: Option<HtmlCanvasElement>) -> Self {
         self.platform_specific.canvas = canvas;
+
+        self
+    }
+
+    fn with_prevent_default(mut self, prevent_default: bool) -> Self {
+        self.platform_specific.prevent_default = prevent_default;
+
+        self
+    }
+
+    fn with_focusable(mut self, focusable: bool) -> Self {
+        self.platform_specific.focusable = focusable;
 
         self
     }
