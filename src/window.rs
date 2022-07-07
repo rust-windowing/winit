@@ -650,10 +650,7 @@ impl Window {
     ///
     /// This only has an effect on desktop platforms.
     ///
-    /// Due to a bug in XFCE, this has no effect on Xfwm.
-    ///
-    /// ## Platform-specific
-    ///
+    /// - **X11:** Due to a bug in XFCE, this has no effect on Xfwm.
     /// - **iOS / Android / Web:** Unsupported.
     ///
     /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized

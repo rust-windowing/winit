@@ -372,6 +372,8 @@ pub enum WindowEvent<'a> {
     /// Applications might wish to react to this to change the theme of the content of the window
     /// when the system changes the window theme.
     ///
+    /// ## Platform-specific
+    ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
 
@@ -381,7 +383,7 @@ pub enum WindowEvent<'a> {
     /// minimised, set invisible, or fully occluded by another window.
     ///
     /// Platform-specific behavior:
-    /// - **iOS / Android / Web / Wayland / Windows :** Unsupported.
+    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
     Occluded(bool),
 }
 
