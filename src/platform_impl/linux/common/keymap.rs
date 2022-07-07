@@ -443,12 +443,9 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // keysyms::XKB_KEY_Touroku => Key::Touroku,
         // keysyms::XKB_KEY_Massyo => Key::Massyo,
         keysyms::XKB_KEY_Kana_Lock => Key::KanaMode,
-        // TODO: This seems a tad perverse, but I'm not really familiar with japanese keyboards.
-        //       MDN documents this as a valid mapping, however.
-        // keysyms::XKB_KEY_Kana_Shift => Key::KanaMode,
-        // TODO: Is this the correct mapping?
-        // keysyms::XKB_KEY_Eisu_Shift => Key::Alphanumeric,
-        // keysyms::XKB_KEY_Eisu_toggle => Key::Alphanumeric,
+        keysyms::XKB_KEY_Kana_Shift => Key::KanaMode,
+        keysyms::XKB_KEY_Eisu_Shift => Key::Alphanumeric,
+        keysyms::XKB_KEY_Eisu_toggle => Key::Alphanumeric,
         // NOTE: The next three items are aliases for values we've already mapped.
         // keysyms::XKB_KEY_Kanji_Bangou => Key::CodeInput,
         // keysyms::XKB_KEY_Zen_Koho => Key::AllCandidates,
@@ -501,8 +498,7 @@ pub fn keysym_to_key(keysym: u32) -> Key<'static> {
         // keysyms::XKB_KEY_KP_Next => Key::PageDown,
         keysyms::XKB_KEY_KP_Page_Down => Key::PageDown,
         keysyms::XKB_KEY_KP_End => Key::End,
-        // TODO: What is this supposed to map to?
-        //       This is the key labeled "5" on the numpad when NumLock is off.
+        // This is the key labeled "5" on the numpad when NumLock is off.
         // keysyms::XKB_KEY_KP_Begin => Key::Begin,
         keysyms::XKB_KEY_KP_Insert => Key::Insert,
         keysyms::XKB_KEY_KP_Delete => Key::Delete,

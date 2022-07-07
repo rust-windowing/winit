@@ -524,9 +524,6 @@ impl KbState {
 impl Drop for KbState {
     fn drop(&mut self) {
         unsafe {
-            // TODO: Simplify this. We can currently only safely assume that the `xkb_context`
-            //       is always valid. If we can somehow guarantee the same for `xkb_state` and
-            //       `xkb_keymap`, then we could omit their null-checks.
             if !self.xkb_compose_state.is_null() {
                 (XKBCH.xkb_compose_state_unref)(self.xkb_compose_state);
             }

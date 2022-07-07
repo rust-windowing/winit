@@ -1114,7 +1114,6 @@ impl<T: 'static> EventProcessor<T> {
                             let keycodes_changed_flag = 0x1;
                             let geometry_changed_flag = 0x1 << 1;
 
-                            // TODO: What do we do about the "geometry changed" case?
                             let keycodes_changed =
                                 util::has_flag(xev.changed, keycodes_changed_flag);
                             let geometry_changed =
