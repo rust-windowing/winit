@@ -40,6 +40,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) kb_state: KbState,
     pub(super) mod_keymap: ModifierKeymap,
     pub(super) device_mod_state: ModifierKeyState,
+    pub(super) pending_mod_change: Option<ModifiersState>,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,
     pub(super) first_touch: Option<u64>,
@@ -141,25 +142,14 @@ impl<T: 'static> EventProcessor<T> {
             return;
         }
 
-        // We can't call a `&mut self` method because of the above borrow,
-        // so we use this macro for repeated modifier state updates.
-        macro_rules! update_modifiers {
-            ( $state:expr , $modifier:expr ) => {{
-                match ($state, $modifier) {
-                    (state, modifier) => {
-                        if let Some(modifiers) =
-                            self.device_mod_state.update_state(&state, modifier)
-                        {
-                            if let Some(window_id) = self.active_window {
-                                callback(Event::WindowEvent {
-                                    window_id: mkwid(window_id),
-                                    event: WindowEvent::ModifiersChanged(modifiers),
-                                });
-                            }
-                        }
-                    }
+        macro_rules! assert_mods_eq {
+            ($old:expr, $new:expr) => {
+                if $old != $new {
+                    println!("New modifier tracking differed from the old one.");
+                    println!("Old: {:?}", $old);
+                    println!("New: {:?}", $new);
                 }
-            }};
+            }
         }
 
         let event_type = xev.get_type();
@@ -604,8 +594,9 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
 
-                        let modifiers = ModifiersState::from_x11(&xev.mods);
-                        update_modifiers!(modifiers, None);
+                        let old_modifiers = ModifiersState::from_x11(&xev.mods);
+                        let modifiers = self.kb_state.mods_state().into();
+                        assert_mods_eq!(old_modifiers, modifiers);
 
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
@@ -681,8 +672,9 @@ impl<T: 'static> EventProcessor<T> {
                         let window_id = mkwid(xev.event);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
 
-                        let modifiers = ModifiersState::from_x11(&xev.mods);
-                        update_modifiers!(modifiers, None);
+                        let old_modifiers = ModifiersState::from_x11(&xev.mods);
+                        let modifiers = self.kb_state.mods_state().into();
+                        assert_mods_eq!(old_modifiers, modifiers);
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state.lock();
@@ -843,9 +835,10 @@ impl<T: 'static> EventProcessor<T> {
                             .focus(xev.event)
                             .expect("Failed to focus input context");
 
-                        let modifiers = ModifiersState::from_x11(&xev.mods);
-
-                        self.device_mod_state.update_state(&modifiers, None);
+                        let old_modifiers = ModifiersState::from_x11(&xev.mods);
+                        self.device_mod_state.update_state(&old_modifiers, None);
+                        let modifiers = self.kb_state.mods_state().into();
+                        assert_mods_eq!(old_modifiers, modifiers);
 
                         if self.active_window != Some(xev.event) {
                             self.active_window = Some(xev.event);
@@ -860,7 +853,7 @@ impl<T: 'static> EventProcessor<T> {
                                 event: Focused(true),
                             });
 
-                            if !modifiers.is_empty() {
+                            if let Some(modifiers) = self.pending_mod_change.take() {
                                 callback(Event::WindowEvent {
                                     window_id,
                                     event: WindowEvent::ModifiersChanged(modifiers),
@@ -947,7 +940,9 @@ impl<T: 'static> EventProcessor<T> {
                         };
                         if self.window_exists(xev.event) {
                             let id = xev.detail as u64;
-                            let modifiers = self.device_mod_state.modifiers();
+                            let old_modifiers = ModifiersState::from_x11(&xev.mods);
+                            let modifiers = self.kb_state.mods_state().into();
+                            assert_mods_eq!(old_modifiers, modifiers);
                             let location =
                                 PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
 
@@ -1110,14 +1105,6 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
                         let physical_key = keymap::raw_keycode_to_keycode(keycode);
-                        // TODO: Figure out how redundant this is.
-                        //     This is the set of modifiers end users end up seeing. However, the set of
-                        //     modifiers used internally by the `KbState` are sourced directly from the XKB
-                        //     extension. Since we currently panic when the extension doesn't load, we should
-                        //     be able to use the modifiers supplied to us by the XKB extension. This
-                        //     requires us to have consensus on what to do if we can't load and initialize
-                        //     libxkbcommon.
-                        let modifiers = self.device_mod_state.modifiers();
 
                         callback(Event::DeviceEvent {
                             device_id,
@@ -1135,17 +1122,6 @@ impl<T: 'static> EventProcessor<T> {
                                 keycode as ffi::KeyCode,
                                 modifier,
                             );
-
-                            let new_modifiers = self.device_mod_state.modifiers();
-
-                            if modifiers != new_modifiers {
-                                if let Some(window_id) = self.active_window {
-                                    callback(Event::WindowEvent {
-                                        window_id: mkwid(window_id),
-                                        event: WindowEvent::ModifiersChanged(new_modifiers),
-                                    });
-                                }
-                            }
                         }
                     }
 
@@ -1178,7 +1154,6 @@ impl<T: 'static> EventProcessor<T> {
             _ => {
                 if event_type == self.xkbext.first_event_id {
                     let xev = unsafe { &*(xev as *const _ as *const ffi::XkbAnyEvent) };
-                    #[allow(clippy::single_match)]
                     match xev.xkb_type {
                         ffi::XkbNewKeyboardNotify => {
                             let xev = unsafe {
@@ -1197,6 +1172,31 @@ impl<T: 'static> EventProcessor<T> {
                                 && (keycodes_changed || geometry_changed)
                             {
                                 unsafe { self.kb_state.init_with_x11_keymap() };
+                            }
+                        }
+                        ffi::XkbStateNotify => {
+                            let xev =
+                                unsafe { &*(xev as *const _ as *const ffi::XkbStateNotifyEvent) };
+
+                            let prev_mods = self.kb_state.mods_state();
+                            self.kb_state.update_modifiers(
+                                xev.base_mods,
+                                xev.latched_mods,
+                                xev.locked_mods,
+                                xev.base_group as u32,
+                                xev.latched_group as u32,
+                                xev.locked_group as u32,
+                            );
+                            let new_mods = self.kb_state.mods_state();
+                            if prev_mods != new_mods {
+                                if let Some(window) = self.active_window {
+                                    callback(Event::WindowEvent {
+                                        window_id: mkwid(window),
+                                        event: WindowEvent::ModifiersChanged(new_mods.into()),
+                                    });
+                                } else {
+                                    self.pending_mod_change = Some(new_mods.into());
+                                }
                             }
                         }
                         _ => {}

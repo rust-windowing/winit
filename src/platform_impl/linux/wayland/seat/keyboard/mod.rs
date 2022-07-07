@@ -9,7 +9,6 @@ use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::Attached;
 
 use crate::keyboard::ModifiersState;
-use crate::platform_impl::platform::common::xkb_state;
 use crate::platform_impl::wayland::event_loop::WinitState;
 use crate::platform_impl::wayland::WindowId;
 
@@ -87,16 +86,5 @@ impl KeyboardInner {
             pending_modifers_state: None,
             modifiers_state,
         }
-    }
-}
-
-impl From<xkb_state::ModifiersState> for ModifiersState {
-    fn from(mods: xkb_state::ModifiersState) -> ModifiersState {
-        let mut wl_mods = ModifiersState::empty();
-        wl_mods.set(ModifiersState::SHIFT, mods.shift);
-        wl_mods.set(ModifiersState::CONTROL, mods.ctrl);
-        wl_mods.set(ModifiersState::ALT, mods.alt);
-        wl_mods.set(ModifiersState::SUPER, mods.logo);
-        wl_mods
     }
 }

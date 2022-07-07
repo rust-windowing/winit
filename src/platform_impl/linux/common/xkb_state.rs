@@ -69,7 +69,7 @@ pub(crate) struct KbState {
 ///
 /// For some modifiers, this means that the key is currently pressed, others are toggled
 /// (like caps lock).
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ModifiersState {
     /// The "control" key
     pub ctrl: bool,
@@ -138,8 +138,18 @@ impl ModifiersState {
     }
 }
 
+impl From<ModifiersState> for crate::keyboard::ModifiersState {
+    fn from(mods: ModifiersState) -> crate::keyboard::ModifiersState {
+        let mut to_mods = crate::keyboard::ModifiersState::empty();
+        to_mods.set(crate::keyboard::ModifiersState::SHIFT, mods.shift);
+        to_mods.set(crate::keyboard::ModifiersState::CONTROL, mods.ctrl);
+        to_mods.set(crate::keyboard::ModifiersState::ALT, mods.alt);
+        to_mods.set(crate::keyboard::ModifiersState::SUPER, mods.logo);
+        to_mods
+    }
+}
+
 impl KbState {
-    #[cfg(feature = "wayland")]
     pub(crate) fn update_modifiers(
         &mut self,
         mods_depressed: u32,
@@ -516,7 +526,6 @@ impl KbState {
     }
 
     #[inline]
-    #[cfg(feature = "wayland")]
     pub(crate) fn mods_state(&self) -> ModifiersState {
         self.mods_state
     }

@@ -294,6 +294,7 @@ impl<T: 'static> EventLoop<T> {
             kb_state,
             mod_keymap,
             device_mod_state: Default::default(),
+            pending_mod_change: Default::default(),
             num_touch: 0,
             first_touch: None,
             active_window: None,
@@ -311,7 +312,7 @@ impl<T: 'static> EventLoop<T> {
             .xconn
             .select_xkb_events(
                 0x100, // Use the "core keyboard device"
-                ffi::XkbNewKeyboardNotifyMask,
+                ffi::XkbNewKeyboardNotifyMask | ffi::XkbStateNotifyMask,
             )
             .unwrap()
             .queue();
