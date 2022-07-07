@@ -513,7 +513,6 @@ impl<T: 'static> EventProcessor<T> {
 
             // Note that in compose/pre-edit sequences, we'll always receive KeyRelease events
             ffi::KeyPress => {
-                // TODO: Is it possible to exclusively use XInput2 events here?
                 let xkev: &mut ffi::XKeyEvent = xev.as_mut();
 
                 let window = xkev.window;
@@ -528,16 +527,6 @@ impl<T: 'static> EventProcessor<T> {
                 // If we're composing right now, send the string we've got from X11 via
                 // Ime::Commit.
                 if self.is_composing && xkev.keycode == 0 && !written.is_empty() {
-                    if super::super::common::xkb_state::X11_EVPROC_NEXT_COMPOSE
-                        .lock()
-                        .unwrap()
-                        .take()
-                        .map(|composed| composed == written)
-                        .unwrap_or(false)
-                    {
-                        return;
-                    }
-
                     let event = Event::WindowEvent {
                         window_id,
                         event: WindowEvent::Ime(Ime::Commit(written)),
