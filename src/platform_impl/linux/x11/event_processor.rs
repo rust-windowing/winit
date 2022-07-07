@@ -9,8 +9,6 @@ use super::{
     GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId, XExtension,
 };
 
-use util::modifiers::{ModifierKeyState, ModifierKeymap};
-
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventReceiver, ImeRequest};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
@@ -38,8 +36,6 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) xkbext: XExtension,
     pub(super) target: Rc<RootELW<T>>,
     pub(super) kb_state: KbState,
-    pub(super) mod_keymap: ModifierKeymap,
-    pub(super) device_mod_state: ModifierKeyState,
     pub(super) pending_mod_change: Option<ModifiersState>,
     // Number of touch events currently in progress
     pub(super) num_touch: u32,
@@ -140,16 +136,6 @@ impl<T: 'static> EventProcessor<T> {
             }
         {
             return;
-        }
-
-        macro_rules! assert_mods_eq {
-            ($old:expr, $new:expr) => {
-                if $old != $new {
-                    println!("New modifier tracking differed from the old one.");
-                    println!("Old: {:?}", $old);
-                    println!("New: {:?}", $new);
-                }
-            }
         }
 
         let event_type = xev.get_type();
@@ -594,9 +580,7 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
 
-                        let old_modifiers = ModifiersState::from_x11(&xev.mods);
                         let modifiers = self.kb_state.mods_state().into();
-                        assert_mods_eq!(old_modifiers, modifiers);
 
                         let state = if xev.evtype == ffi::XI_ButtonPress {
                             Pressed
@@ -672,9 +656,7 @@ impl<T: 'static> EventProcessor<T> {
                         let window_id = mkwid(xev.event);
                         let new_cursor_pos = (xev.event_x, xev.event_y);
 
-                        let old_modifiers = ModifiersState::from_x11(&xev.mods);
                         let modifiers = self.kb_state.mods_state().into();
-                        assert_mods_eq!(old_modifiers, modifiers);
 
                         let cursor_moved = self.with_window(xev.event, |window| {
                             let mut shared_state_lock = window.shared_state.lock();
@@ -835,10 +817,7 @@ impl<T: 'static> EventProcessor<T> {
                             .focus(xev.event)
                             .expect("Failed to focus input context");
 
-                        let old_modifiers = ModifiersState::from_x11(&xev.mods);
-                        self.device_mod_state.update_state(&old_modifiers, None);
                         let modifiers = self.kb_state.mods_state().into();
-                        assert_mods_eq!(old_modifiers, modifiers);
 
                         if self.active_window != Some(xev.event) {
                             self.active_window = Some(xev.event);
@@ -884,8 +863,6 @@ impl<T: 'static> EventProcessor<T> {
                                 window_id,
                                 ElementState::Pressed,
                                 &mut self.kb_state,
-                                &self.mod_keymap,
-                                &mut self.device_mod_state,
                                 &mut callback,
                             );
                         }
@@ -912,8 +889,6 @@ impl<T: 'static> EventProcessor<T> {
                                 window_id,
                                 ElementState::Released,
                                 &mut self.kb_state,
-                                &self.mod_keymap,
-                                &mut self.device_mod_state,
                                 &mut callback,
                             );
 
@@ -940,9 +915,7 @@ impl<T: 'static> EventProcessor<T> {
                         };
                         if self.window_exists(xev.event) {
                             let id = xev.detail as u64;
-                            let old_modifiers = ModifiersState::from_x11(&xev.mods);
                             let modifiers = self.kb_state.mods_state().into();
-                            assert_mods_eq!(old_modifiers, modifiers);
                             let location =
                                 PhysicalPosition::new(xev.event_x as f64, xev.event_y as f64);
 
@@ -1113,16 +1086,6 @@ impl<T: 'static> EventProcessor<T> {
                                 state,
                             }),
                         });
-
-                        if let Some(modifier) =
-                            self.mod_keymap.get_modifier(keycode as ffi::KeyCode)
-                        {
-                            self.device_mod_state.key_event(
-                                state,
-                                keycode as ffi::KeyCode,
-                                modifier,
-                            );
-                        }
                     }
 
                     ffi::XI_HierarchyChanged => {
@@ -1330,8 +1293,6 @@ impl<T: 'static> EventProcessor<T> {
         window_id: crate::window::WindowId,
         state: ElementState,
         kb_state: &mut KbState,
-        mod_keymap: &ModifierKeymap,
-        device_mod_state: &mut ModifierKeyState,
         callback: &mut F,
     ) where
         F: FnMut(Event<'_, T>),
@@ -1353,14 +1314,6 @@ impl<T: 'static> EventProcessor<T> {
             let text = ker.text();
             let (key_without_modifiers, _) = ker.key_without_modifiers();
             let text_with_all_modifiers = ker.text_with_all_modifiers();
-
-            if let Some(modifier) = mod_keymap.get_modifier(keycode as ffi::KeyCode) {
-                device_mod_state.key_event(
-                    ElementState::Pressed,
-                    keycode as ffi::KeyCode,
-                    modifier,
-                );
-            }
 
             callback(Event::WindowEvent {
                 window_id,

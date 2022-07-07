@@ -44,7 +44,6 @@ use self::{
     dnd::{Dnd, DndState},
     event_processor::EventProcessor,
     ime::{Ime, ImeCreationError, ImeReceiver, ImeRequest, ImeSender},
-    util::modifiers::ModifierKeymap,
 };
 use super::common::xkb_state::KbState;
 use crate::{
@@ -241,9 +240,6 @@ impl<T: 'static> EventLoop<T> {
 
         xconn.update_cached_wm_info(root);
 
-        let mut mod_keymap = ModifierKeymap::new();
-        mod_keymap.reset_from_x_connection(&xconn);
-
         let poll = Poll::new().unwrap();
         let waker = Arc::new(Waker::new(poll.registry(), USER_REDRAW_TOKEN).unwrap());
 
@@ -292,8 +288,6 @@ impl<T: 'static> EventLoop<T> {
             xi2ext,
             xkbext,
             kb_state,
-            mod_keymap,
-            device_mod_state: Default::default(),
             pending_mod_change: Default::default(),
             num_touch: 0,
             first_touch: None,
