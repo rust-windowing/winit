@@ -257,6 +257,11 @@ impl MonitorHandle {
     }
 
     #[inline]
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        x11_or_wayland!(match self; MonitorHandle(m) => m.refresh_rate_millihertz())
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as f64)
     }
@@ -287,8 +292,8 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn refresh_rate(&self) -> u16 {
-        x11_or_wayland!(match self; VideoMode(m) => m.refresh_rate())
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        x11_or_wayland!(match self; VideoMode(m) => m.refresh_rate_millihertz())
     }
 
     #[inline]
