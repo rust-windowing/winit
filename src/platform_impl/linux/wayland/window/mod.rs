@@ -11,12 +11,14 @@ use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
 };
 use sctk::window::Decorations;
+use wayland_protocols::viewporter::client::wp_viewporter::WpViewporter;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
 use crate::platform_impl::{
-    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
-    PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
+    wayland::protocols::wp_fractional_scale_manager_v1::WpFractionalScaleManagerV1,
+    wayland::protocols::wp_fractional_scale_v1, Fullscreen, MonitorHandle as PlatformMonitorHandle,
+    OsError, PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
 use crate::window::{
     CursorGrabMode, CursorIcon, ResizeDirection, Theme, UserAttentionType, WindowAttributes,
@@ -30,7 +32,9 @@ use super::{EventLoopWindowTarget, WindowId};
 
 pub mod shim;
 
-use shim::{WindowCompositorUpdate, WindowHandle, WindowRequest, WindowUserRequest};
+use shim::{
+    FractionalScalingState, WindowCompositorUpdate, WindowHandle, WindowRequest, WindowUserRequest,
+};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
@@ -49,6 +53,9 @@ pub struct Window {
 
     /// The underlying wl_surface.
     surface: WlSurface,
+
+    /// The scale factor.
+    scale_factor: Arc<Mutex<f64>>,
 
     /// The current window size.
     size: Arc<Mutex<LogicalSize<u32>>>,
@@ -90,33 +97,50 @@ impl Window {
         attributes: WindowAttributes,
         platform_attributes: PlatformAttributes,
     ) -> Result<Self, RootOsError> {
-        let surface = event_loop_window_target
+        let viewporter = event_loop_window_target.env.get_global::<WpViewporter>();
+        let fractional_scale_manager = event_loop_window_target
             .env
-            .create_surface_with_scale_callback(move |scale, surface, mut dispatch_data| {
-                let winit_state = dispatch_data.get::<WinitState>().unwrap();
+            .get_global::<WpFractionalScaleManagerV1>();
 
-                // Get the window that received the event.
+        // Create surface and register callback for the scale factor changes.
+        let mut scale_factor = 1.;
+        let (surface, fractional_scaling_state) =
+            if let (Some(viewporter), Some(fractional_scale_manager)) =
+                (viewporter, fractional_scale_manager)
+            {
+                let surface = event_loop_window_target.env.create_surface().detach();
+                let fractional_scale = fractional_scale_manager.get_fractional_scale(&surface);
+
                 let window_id = super::make_wid(&surface);
-                let mut window_compositor_update = winit_state
-                    .window_compositor_updates
-                    .get_mut(&window_id)
-                    .unwrap();
+                fractional_scale.quick_assign(move |_, event, mut dispatch_data| {
+                    let wp_fractional_scale_v1::Event::PreferredScale { scale } = event;
+                    let winit_state = dispatch_data.get::<WinitState>().unwrap();
+                    apply_scale(window_id, scale as f64 / 120., winit_state);
+                });
 
-                // Mark that we need a frame refresh on the DPI change.
-                winit_state
-                    .window_user_requests
-                    .get_mut(&window_id)
-                    .unwrap()
-                    .refresh_frame = true;
+                let fractional_scale = fractional_scale.detach();
+                let viewport = viewporter.get_viewport(&surface).detach();
+                let fractional_scaling_state =
+                    FractionalScalingState::new(viewport, fractional_scale);
 
-                // Set pending scale factor.
-                window_compositor_update.scale_factor = Some(scale);
+                (surface, Some(fractional_scaling_state))
+            } else {
+                let surface = event_loop_window_target
+                    .env
+                    .create_surface_with_scale_callback(move |scale, surface, mut dispatch_data| {
+                        let winit_state = dispatch_data.get::<WinitState>().unwrap();
 
-                surface.set_buffer_scale(scale);
-            })
-            .detach();
+                        // Get the window that received the event.
+                        let window_id = super::make_wid(&surface);
+                        apply_scale(window_id, scale as f64, winit_state);
+                        surface.set_buffer_scale(scale);
+                    })
+                    .detach();
 
-        let scale_factor = sctk::get_surface_scale_factor(&surface);
+                scale_factor = sctk::get_surface_scale_factor(&surface) as _;
+
+                (surface, None)
+            };
 
         let window_id = super::make_wid(&surface);
         let maximized = Arc::new(AtomicBool::new(false));
@@ -126,7 +150,7 @@ impl Window {
 
         let (width, height) = attributes
             .inner_size
-            .map(|size| size.to_logical::<f64>(scale_factor as f64).into())
+            .map(|size| size.to_logical::<f64>(scale_factor).into())
             .unwrap_or((800, 600));
 
         let theme_manager = event_loop_window_target.theme_manager.clone();
@@ -194,13 +218,13 @@ impl Window {
         // Min dimensions.
         let min_size = attributes
             .min_inner_size
-            .map(|size| size.to_logical::<f64>(scale_factor as f64).into());
+            .map(|size| size.to_logical::<f64>(scale_factor).into());
         window.set_min_size(min_size);
 
         // Max dimensions.
         let max_size = attributes
             .max_inner_size
-            .map(|size| size.to_logical::<f64>(scale_factor as f64).into());
+            .map(|size| size.to_logical::<f64>(scale_factor).into());
         window.set_max_size(max_size);
 
         // Set Wayland specific window attributes.
@@ -263,6 +287,8 @@ impl Window {
             window,
             size.clone(),
             has_focus.clone(),
+            fractional_scaling_state,
+            scale_factor,
             window_requests.clone(),
         );
 
@@ -324,6 +350,7 @@ impl Window {
             decorated: AtomicBool::new(attributes.decorations),
             cursor_grab_mode: Mutex::new(CursorGrabMode::None),
             has_focus,
+            scale_factor: window_handle.scale_factor.clone(),
         };
 
         Ok(window)
@@ -372,10 +399,7 @@ impl Window {
     }
 
     pub fn inner_size(&self) -> PhysicalSize<u32> {
-        self.size
-            .lock()
-            .unwrap()
-            .to_physical(self.scale_factor() as f64)
+        self.size.lock().unwrap().to_physical(self.scale_factor())
     }
 
     #[inline]
@@ -385,15 +409,12 @@ impl Window {
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        self.size
-            .lock()
-            .unwrap()
-            .to_physical(self.scale_factor() as f64)
+        self.size.lock().unwrap().to_physical(self.scale_factor())
     }
 
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
-        let scale_factor = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor();
 
         let size = size.to_logical::<u32>(scale_factor);
         *self.size.lock().unwrap() = size;
@@ -403,7 +424,7 @@ impl Window {
 
     #[inline]
     pub fn set_min_inner_size(&self, dimensions: Option<Size>) {
-        let scale_factor = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor();
         let size = dimensions.map(|size| size.to_logical::<u32>(scale_factor));
 
         self.send_request(WindowRequest::MinSize(size));
@@ -411,7 +432,7 @@ impl Window {
 
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
-        let scale_factor = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor();
         let size = dimensions.map(|size| size.to_logical::<u32>(scale_factor));
 
         self.send_request(WindowRequest::MaxSize(size));
@@ -447,10 +468,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn scale_factor(&self) -> u32 {
-        // The scale factor from `get_surface_scale_factor` is always greater than zero, so
-        // u32 conversion is safe.
-        sctk::get_surface_scale_factor(&self.surface) as u32
+    pub fn scale_factor(&self) -> f64 {
+        *self.scale_factor.lock().unwrap()
     }
 
     #[inline]
@@ -561,7 +580,7 @@ impl Window {
             ))));
         }
 
-        let scale_factor = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
         self.send_request(WindowRequest::SetLockedCursorPosition(position));
 
@@ -589,7 +608,7 @@ impl Window {
 
     #[inline]
     pub fn set_ime_position(&self, position: Position) {
-        let scale_factor = self.scale_factor() as f64;
+        let scale_factor = self.scale_factor();
         let position = position.to_logical(scale_factor);
         self.send_request(WindowRequest::ImePosition(position));
     }
@@ -699,4 +718,21 @@ impl TryFrom<&str> for Theme {
             Err(())
         }
     }
+}
+
+/// Set pending scale for the provided `window_id`.
+fn apply_scale(window_id: WindowId, scale: f64, winit_state: &mut WinitState) {
+    // Set pending scale factor.
+    winit_state
+        .window_compositor_updates
+        .get_mut(&window_id)
+        .unwrap()
+        .scale_factor = Some(scale);
+
+    // Mark that we need a frame refresh on the DPI change.
+    winit_state
+        .window_user_requests
+        .get_mut(&window_id)
+        .unwrap()
+        .refresh_frame = true;
 }

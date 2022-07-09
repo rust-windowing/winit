@@ -24,11 +24,12 @@ pub(super) fn handle_touch(
             surface, id, x, y, ..
         } => {
             let window_id = wayland::make_wid(&surface);
-            if !winit_state.window_map.contains_key(&window_id) {
-                return;
-            }
+            let window_handle = match winit_state.window_map.get(&window_id) {
+                Some(w) => w,
+                _ => return,
+            };
 
-            let scale_factor = sctk::get_surface_scale_factor(&surface) as f64;
+            let scale_factor = window_handle.scale_factor();
             let position = LogicalPosition::new(x, y);
 
             event_sink.push_window_event(
@@ -60,7 +61,12 @@ pub(super) fn handle_touch(
                 None => return,
             };
 
-            let scale_factor = sctk::get_surface_scale_factor(&touch_point.surface) as f64;
+            let window_id = wayland::make_wid(&touch_point.surface);
+            let window_handle = match winit_state.window_map.get(&window_id) {
+                Some(w) => w,
+                _ => return,
+            };
+            let scale_factor = window_handle.scale_factor();
             let location = touch_point.position.to_physical(scale_factor);
             let window_id = wayland::make_wid(&touch_point.surface);
 
@@ -82,10 +88,15 @@ pub(super) fn handle_touch(
                 Some(touch_point) => touch_point,
                 None => return,
             };
+            let window_id = wayland::make_wid(&touch_point.surface);
+            let window_handle = match winit_state.window_map.get(&window_id) {
+                Some(w) => w,
+                _ => return,
+            };
 
             touch_point.position = LogicalPosition::new(x, y);
 
-            let scale_factor = sctk::get_surface_scale_factor(&touch_point.surface) as f64;
+            let scale_factor = window_handle.scale_factor();
             let location = touch_point.position.to_physical(scale_factor);
             let window_id = wayland::make_wid(&touch_point.surface);
 
@@ -105,9 +116,14 @@ pub(super) fn handle_touch(
         TouchEvent::Frame => (),
         TouchEvent::Cancel => {
             for touch_point in inner.touch_points.drain(..) {
-                let scale_factor = sctk::get_surface_scale_factor(&touch_point.surface) as f64;
-                let location = touch_point.position.to_physical(scale_factor);
                 let window_id = wayland::make_wid(&touch_point.surface);
+                let window_handle = match winit_state.window_map.get(&window_id) {
+                    Some(w) => w,
+                    _ => return,
+                };
+
+                let scale_factor = window_handle.scale_factor();
+                let location = touch_point.position.to_physical(scale_factor);
 
                 event_sink.push_window_event(
                     WindowEvent::Touch(crate::event::Touch {
