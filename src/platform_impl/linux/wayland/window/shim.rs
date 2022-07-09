@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
@@ -154,7 +155,7 @@ impl WindowUpdate {
 /// and react to events.
 pub struct WindowHandle {
     /// An actual window.
-    pub window: Window<WinitFrame>,
+    pub window: ManuallyDrop<Window<WinitFrame>>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -206,7 +207,7 @@ impl WindowHandle {
         let compositor = env.get_global::<WlCompositor>().unwrap();
 
         Self {
-            window,
+            window: ManuallyDrop::new(window),
             size,
             pending_window_requests,
             cursor_icon: Cell::new(CursorIcon::Default),
@@ -561,5 +562,16 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
     for window in windows_to_close {
         let _ = window_map.remove(&window);
         let _ = window_updates.remove(&window);
+    }
+}
+
+impl Drop for WindowHandle {
+    fn drop(&mut self) {
+        unsafe {
+            let surface = self.window.surface().clone();
+            // The window must be destroyed before wl_surface.
+            ManuallyDrop::drop(&mut self.window);
+            surface.destroy();
+        }
     }
 }
