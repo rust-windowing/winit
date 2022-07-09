@@ -254,6 +254,12 @@ impl Window {
 
         winit_state.window_map.insert(window_id, window_handle);
 
+        // On Wayland window doesn't have Focus by default and it'll get it later on. So be
+        // explicit here.
+        winit_state
+            .event_sink
+            .push_window_event(crate::event::WindowEvent::Focused(false), window_id);
+
         winit_state
             .window_updates
             .insert(window_id, WindowUpdate::new());
