@@ -20,6 +20,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
 - On Windows, added `EventLoopBuilderExtWindows::with_msg_hook`.
 - On Windows, remove internally unique DC per window.
+- On Windows, reduce `WM_PAINT` messages of thread target window by calling `RedrawWindow` only when it needs to process the message.
 - On macOS, remove the need to call `set_ime_position` after moving the window.
 - Added `Window::is_visible`.
 - Added `Window::is_resizable`.
