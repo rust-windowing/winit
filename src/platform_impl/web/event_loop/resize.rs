@@ -19,7 +19,7 @@ use super::runner::Shared;
 fn process_entry(entry: &ResizeObserverEntry) -> (WindowId, HtmlCanvasElement, PhysicalSize<u32>) {
     let canvas: HtmlCanvasElement = entry.target().dyn_into().unwrap();
 
-    let id = WindowId(super::window::Id(
+    let id = WindowId(super::window::WindowId(
         canvas
             .get_attribute("data-raw-handle")
             .expect("Canvas was missing `data-raw-handle` attribute")
