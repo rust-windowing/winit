@@ -32,7 +32,7 @@ impl WindowBuilderExtWebSys for WindowBuilder {
     }
 }
 
-/// Additional methods on `EventLoop` to spawn the event loop without throwing an exception.
+/// Additional methods on `EventLoop` that are specific to the web.
 pub trait EventLoopExtWebSys {
     /// A type provided by the user that can be passed through `Event::UserEvent`.
     type UserEvent;
