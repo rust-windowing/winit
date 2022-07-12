@@ -161,12 +161,16 @@ impl<T> EventLoopWindowTarget<T> {
             runner.send_events(
                 std::iter::once(Event::WindowEvent {
                     window_id: RootWindowId(id),
+                    event: WindowEvent::Focused(true),
+                })
+                .chain(std::iter::once(Event::WindowEvent {
+                    window_id: RootWindowId(id),
                     event: WindowEvent::CursorMoved {
                         device_id: RootDeviceId(DeviceId(pointer_id)),
                         position,
                         modifiers,
                     },
-                })
+                }))
                 .chain(std::iter::once(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::MouseInput {
