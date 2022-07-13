@@ -8,7 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- Added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
+- On Web, added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
 - Added `WindowEvent::Occluded(bool)`, currently implemented on macOS and X11.
 - On X11, fix events for caps lock key not being sent
 - Build docs on `docs.rs` for iOS and Android as well.
