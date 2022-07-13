@@ -618,7 +618,7 @@ pub fn create_delegate_class() {
     }
 
     extern "C" fn did_receive_memory_warning(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
+        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::MemoryWarning)) }
     }
 
     let ui_responder = class!(UIResponder);
