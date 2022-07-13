@@ -617,6 +617,10 @@ pub fn create_delegate_class() {
         YES
     }
 
+    extern "C" fn did_receive_memory_warning(_: &Object, _: Sel, _: id) {
+        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
+    }
+
     let ui_responder = class!(UIResponder);
     let mut decl =
         ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
@@ -657,6 +661,11 @@ pub fn create_delegate_class() {
         decl.add_method(
             sel!(applicationWillTerminate:),
             will_terminate as extern "C" fn(&Object, Sel, id),
+        );
+
+        decl.add_method(
+            sel!(applicationDidReceiveMemoryWarning:),
+            did_receive_memory_warning as extern "C" fn(&Object, Sel, id),
         );
 
         decl.register();

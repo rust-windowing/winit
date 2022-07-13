@@ -122,6 +122,9 @@ pub enum Event<'a, T: 'static> {
     /// This is irreversible - if this event is emitted, it is guaranteed to be the last event that
     /// gets emitted. You generally want to treat this as an "do on quit" event.
     LoopDestroyed,
+
+    // Emitted when the app receives a memory warning from the system
+    MemoryWarning,
 }
 
 impl<T: Clone> Clone for Event<'static, T> {
@@ -144,6 +147,7 @@ impl<T: Clone> Clone for Event<'static, T> {
             LoopDestroyed => LoopDestroyed,
             Suspended => Suspended,
             Resumed => Resumed,
+            MemoryWarning => MemoryWarning,
         }
     }
 }
@@ -162,6 +166,7 @@ impl<'a, T> Event<'a, T> {
             LoopDestroyed => Ok(LoopDestroyed),
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
+            MemoryWarning => Ok(MemoryWarning),
         }
     }
 
@@ -182,6 +187,7 @@ impl<'a, T> Event<'a, T> {
             LoopDestroyed => Some(LoopDestroyed),
             Suspended => Some(Suspended),
             Resumed => Some(Resumed),
+            MemoryWarning => Some(MemoryWarning),
         }
     }
 }
