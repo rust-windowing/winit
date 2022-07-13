@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 #[cfg(not(target_arch = "wasm32"))]
 fn main() {
     use std::{collections::HashMap, sync::mpsc, thread, time::Duration};
@@ -6,8 +8,8 @@ fn main() {
     use winit::{
         dpi::{PhysicalPosition, PhysicalSize, Position, Size},
         event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
-        event_loop::{ControlFlow, EventLoop},
-        window::{CursorIcon, Fullscreen, WindowBuilder},
+        event_loop::EventLoop,
+        window::{CursorGrabMode, CursorIcon, Fullscreen, WindowBuilder},
     };
 
     const WINDOW_COUNT: usize = 3;
@@ -86,7 +88,21 @@ fn main() {
                                 }
                                 (false, _) => None,
                             }),
-                            G => window.set_cursor_grab(state).unwrap(),
+                            L if state => {
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::Locked) {
+                                    println!("error: {}", err);
+                                }
+                            }
+                            G if state => {
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::Confined) {
+                                    println!("error: {}", err);
+                                }
+                            }
+                            G | L if !state => {
+                                if let Err(err) = window.set_cursor_grab(CursorGrabMode::None) {
+                                    println!("error: {}", err);
+                                }
+                            }
                             H => window.set_cursor_visible(!state),
                             I => {
                                 println!("Info:");
@@ -143,9 +159,9 @@ fn main() {
         });
     }
     event_loop.run(move |event, _event_loop, control_flow| {
-        *control_flow = match !window_senders.is_empty() {
-            true => ControlFlow::Wait,
-            false => ControlFlow::Exit,
+        match !window_senders.is_empty() {
+            true => control_flow.set_wait(),
+            false => control_flow.set_exit(),
         };
         match event {
             Event::WindowEvent { event, window_id } => match event {

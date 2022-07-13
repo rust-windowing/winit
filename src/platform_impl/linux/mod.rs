@@ -11,10 +11,13 @@ compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
 #[cfg(feature = "wayland")]
 use std::error::Error;
+
 use std::{collections::VecDeque, env, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
+#[cfg(feature = "x11")]
+use once_cell::sync::Lazy;
 #[cfg(feature = "x11")]
 use parking_lot::Mutex;
 use raw_window_handle::RawWindowHandle;
@@ -23,14 +26,18 @@ use raw_window_handle::RawWindowHandle;
 pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+#[cfg(feature = "wayland")]
+use crate::window::Theme;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
+    },
     icon::Icon,
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-    window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
 };
 
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
@@ -49,7 +56,7 @@ pub mod x11;
 /// If this variable is set with any other value, winit will panic.
 const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum Backend {
     #[cfg(feature = "x11")]
     X,
@@ -57,23 +64,27 @@ pub(crate) enum Backend {
     Wayland,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) forced_backend: Option<Backend>,
     pub(crate) any_thread: bool,
 }
 
-impl Default for PlatformSpecificEventLoopAttributes {
-    fn default() -> Self {
-        Self {
-            forced_backend: None,
-            any_thread: false,
-        }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApplicationName {
+    pub general: String,
+    pub instance: String,
+}
+
+impl ApplicationName {
+    pub fn new(general: String, instance: String) -> Self {
+        Self { general, instance }
     }
 }
 
 #[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
+    pub name: Option<ApplicationName>,
     #[cfg(feature = "x11")]
     pub visual_infos: Option<XVisualInfo>,
     #[cfg(feature = "x11")]
@@ -83,20 +94,19 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
     pub base_size: Option<Size>,
     #[cfg(feature = "x11")]
-    pub class: Option<(String, String)>,
-    #[cfg(feature = "x11")]
     pub override_redirect: bool,
     #[cfg(feature = "x11")]
     pub x11_window_types: Vec<XWindowType>,
     #[cfg(feature = "x11")]
     pub gtk_theme_variant: Option<String>,
     #[cfg(feature = "wayland")]
-    pub app_id: Option<String>,
+    pub csd_theme: Option<Theme>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
     fn default() -> Self {
         Self {
+            name: None,
             #[cfg(feature = "x11")]
             visual_infos: None,
             #[cfg(feature = "x11")]
@@ -106,24 +116,20 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             #[cfg(feature = "x11")]
             base_size: None,
             #[cfg(feature = "x11")]
-            class: None,
-            #[cfg(feature = "x11")]
             override_redirect: false,
             #[cfg(feature = "x11")]
             x11_window_types: vec![XWindowType::Normal],
             #[cfg(feature = "x11")]
             gtk_theme_variant: None,
             #[cfg(feature = "wayland")]
-            app_id: None,
+            csd_theme: None,
         }
     }
 }
 
 #[cfg(feature = "x11")]
-lazy_static! {
-    pub static ref X11_BACKEND: Mutex<Result<Arc<XConnection>, XNotSupported>> =
-        Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new));
-}
+pub static X11_BACKEND: Lazy<Mutex<Result<Arc<XConnection>, XNotSupported>>> =
+    Lazy::new(|| Mutex::new(XConnection::new(Some(x_error_callback)).map(Arc::new)));
 
 #[derive(Debug, Clone)]
 pub enum OsError {
@@ -156,19 +162,23 @@ pub enum Window {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum WindowId {
-    #[cfg(feature = "x11")]
-    X(x11::WindowId),
-    #[cfg(feature = "wayland")]
-    Wayland(wayland::WindowId),
+pub struct WindowId(u64);
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id)
+    }
 }
 
 impl WindowId {
     pub const unsafe fn dummy() -> Self {
-        #[cfg(feature = "wayland")]
-        return WindowId::Wayland(wayland::WindowId::dummy());
-        #[cfg(all(not(feature = "wayland"), feature = "x11"))]
-        return WindowId::X(x11::WindowId::dummy());
+        Self(0)
     }
 }
 
@@ -247,6 +257,11 @@ impl MonitorHandle {
     }
 
     #[inline]
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        x11_or_wayland!(match self; MonitorHandle(m) => m.refresh_rate_millihertz())
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as f64)
     }
@@ -277,8 +292,8 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn refresh_rate(&self) -> u16 {
-        x11_or_wayland!(match self; VideoMode(m) => m.refresh_rate())
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        x11_or_wayland!(match self; VideoMode(m) => m.refresh_rate_millihertz())
     }
 
     #[inline]
@@ -289,7 +304,7 @@ impl VideoMode {
 
 impl Window {
     #[inline]
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         window_target: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
@@ -308,7 +323,12 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        x11_or_wayland!(match self; Window(w) => w.id(); as WindowId)
+        match self {
+            #[cfg(feature = "wayland")]
+            Self::Wayland(window) => window.id(),
+            #[cfg(feature = "x11")]
+            Self::X(window) => window.id(),
+        }
     }
 
     #[inline]
@@ -382,8 +402,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        x11_or_wayland!(match self; Window(window) => window.set_cursor_grab(grab))
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(window) => window.set_cursor_grab(mode))
     }
 
     #[inline]
@@ -394,6 +414,11 @@ impl Window {
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
         x11_or_wayland!(match self; Window(window) => window.drag_window())
+    }
+
+    #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        x11_or_wayland!(match self; Window(w) => w.set_cursor_hittest(hittest))
     }
 
     #[inline]
@@ -464,6 +489,11 @@ impl Window {
     #[inline]
     pub fn set_ime_position(&self, position: Position) {
         x11_or_wayland!(match self; Window(w) => w.set_ime_position(position))
+    }
+
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        x11_or_wayland!(match self; Window(w) => w.set_ime_allowed(allowed))
     }
 
     #[inline]
@@ -709,7 +739,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
-        x11_or_wayland!(match self; EventLoop(evl) => evl.window_target())
+        x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
     }
 }
 
@@ -768,6 +798,16 @@ impl<T> EventLoopWindowTarget<T> {
                     inner: primary_monitor,
                 })
             }
+        }
+    }
+
+    #[inline]
+    pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
+        match *self {
+            #[cfg(feature = "wayland")]
+            EventLoopWindowTarget::Wayland(_) => (),
+            #[cfg(feature = "x11")]
+            EventLoopWindowTarget::X(ref evlp) => evlp.set_device_event_filter(_filter),
         }
     }
 }

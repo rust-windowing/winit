@@ -1,10 +1,10 @@
-//! The `Event` enum and assorted supporting types.
+//! The [`Event`] enum and assorted supporting types.
 //!
-//! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
+//! These are sent to the closure given to [`EventLoop::run(...)`], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
 //! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run(...)`][event_loop_run] like this:
+//! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
 //!
 //! ```rust,ignore
 //! let mut control_flow = ControlFlow::Poll;
@@ -29,13 +29,16 @@
 //! event_handler(LoopDestroyed, ..., &mut control_flow);
 //! ```
 //!
-//! This leaves out timing details like `ControlFlow::WaitUntil` but hopefully
+//! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
 //! describes what happens in what order.
 //!
-//! [event_loop_run]: crate::event_loop::EventLoop::run
+//! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
+//! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use instant::Instant;
 use std::path::PathBuf;
 
+#[cfg(doc)]
+use crate::window::Window;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     platform_impl,
@@ -88,27 +91,30 @@ pub enum Event<'a, T: 'static> {
     /// can render here unconditionally for simplicity.
     MainEventsCleared,
 
-    /// Emitted after `MainEventsCleared` when a window should be redrawn.
+    /// Emitted after [`MainEventsCleared`] when a window should be redrawn.
     ///
     /// This gets triggered in two scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
     ///   resizing the window).
-    /// - The application has explicitly requested a redraw via
-    ///   [`Window::request_redraw`](crate::window::Window::request_redraw).
+    /// - The application has explicitly requested a redraw via [`Window::request_redraw`].
     ///
     /// During each iteration of the event loop, Winit will aggregate duplicate redraw requests
     /// into a single event, to help avoid duplicating rendering work.
     ///
     /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
     /// something changes, like most non-game GUIs.
+    ///
+    /// [`MainEventsCleared`]: Self::MainEventsCleared
     RedrawRequested(WindowId),
 
-    /// Emitted after all `RedrawRequested` events have been processed and control flow is about to
+    /// Emitted after all [`RedrawRequested`] events have been processed and control flow is about to
     /// be taken away from the program. If there are no `RedrawRequested` events, it is emitted
     /// immediately after `MainEventsCleared`.
     ///
     /// This event is useful for doing any cleanup or bookkeeping work after all the rendering
     /// tasks have been completed.
+    ///
+    /// [`RedrawRequested`]: Self::RedrawRequested
     RedrawEventsCleared,
 
     /// Emitted when the event loop is being shut down.
@@ -183,9 +189,11 @@ impl<'a, T> Event<'a, T> {
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartCause {
-    /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
+    /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
     /// guaranteed to be equal to or after the requested resume time.
+    ///
+    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
     ResumeTimeReached {
         start: Instant,
         requested_resume: Instant,
@@ -199,14 +207,16 @@ pub enum StartCause {
     },
 
     /// Sent if the event loop is being resumed after the loop's control flow was set to
-    /// `ControlFlow::Poll`.
+    /// [`ControlFlow::Poll`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
     Poll,
 
     /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
     Init,
 }
 
-/// Describes an event from a `Window`.
+/// Describes an event from a [`Window`].
 #[derive(Debug, PartialEq)]
 pub enum WindowEvent<'a> {
     /// The size of the window has changed. Contains the client area's new dimensions.
@@ -240,6 +250,8 @@ pub enum WindowEvent<'a> {
     HoveredFileCancelled,
 
     /// The window received a unicode character.
+    ///
+    /// See also the [`Ime`](Self::Ime) event for more complex character sequences.
     ReceivedCharacter(char),
 
     /// The window gained or lost focus.
@@ -269,6 +281,14 @@ pub enum WindowEvent<'a> {
     /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
+
+    /// An event from input method.
+    ///
+    /// **Note :** You have to explicitly enable this event using [`Window::set_ime_allowed`].
+    ///
+    /// Platform-specific behavior:
+    /// - **iOS / Android / Web :** Unsupported.
+    Ime(Ime),
 
     /// The cursor has moved on the window.
     CursorMoved {
@@ -352,6 +372,15 @@ pub enum WindowEvent<'a> {
     ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
+
+    /// The window has been occluded (completely hidden from view).
+    ///
+    /// This is different to window visibility as it depends on whether the window is closed,
+    /// minimised, set invisible, or fully occluded by another window.
+    ///
+    /// Platform-specific behavior:
+    /// - **iOS / Android / Web / Wayland / Windows :** Unsupported.
+    Occluded(bool),
 }
 
 impl Clone for WindowEvent<'static> {
@@ -376,7 +405,7 @@ impl Clone for WindowEvent<'static> {
                 input: *input,
                 is_synthetic: *is_synthetic,
             },
-
+            Ime(preedit_state) => Ime(preedit_state.clone()),
             ModifiersChanged(modifiers) => ModifiersChanged(*modifiers),
             #[allow(deprecated)]
             CursorMoved {
@@ -441,6 +470,7 @@ impl Clone for WindowEvent<'static> {
             ScaleFactorChanged { .. } => {
                 unreachable!("Static event can't be about scale factor changing")
             }
+            Occluded(occluded) => Occluded(*occluded),
         };
     }
 }
@@ -468,6 +498,7 @@ impl<'a> WindowEvent<'a> {
                 is_synthetic,
             }),
             ModifiersChanged(modifiers) => Some(ModifiersChanged(modifiers)),
+            Ime(event) => Some(Ime(event)),
             #[allow(deprecated)]
             CursorMoved {
                 device_id,
@@ -525,6 +556,7 @@ impl<'a> WindowEvent<'a> {
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
             ScaleFactorChanged { .. } => None,
+            Occluded(occluded) => Some(Occluded(occluded)),
         }
     }
 }
@@ -538,7 +570,7 @@ impl<'a> WindowEvent<'a> {
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing.
+    /// Returns a dummy id, useful for unit testing.
     ///
     /// # Safety
     ///
@@ -567,7 +599,7 @@ pub enum DeviceEvent {
 
     /// Change in physical position of a pointing device.
     ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
+    /// This represents raw, unfiltered physical motion. Not to be confused with [`WindowEvent::CursorMoved`].
     MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///
@@ -580,7 +612,7 @@ pub enum DeviceEvent {
         delta: MouseScrollDelta,
     },
 
-    /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
+    /// Motion on some analog axis. This event will be reported for all arbitrary input devices
     /// that winit supports on this platform, including mouse devices.  If the device is a mouse
     /// device then this will be reported alongside the MouseMotion event.
     Motion {
@@ -627,6 +659,72 @@ pub struct KeyboardInput {
     pub modifiers: ModifiersState,
 }
 
+/// Describes [input method](https://en.wikipedia.org/wiki/Input_method) events.
+///
+/// This is also called a "composition event".
+///
+/// Most keypresses using a latin-like keyboard layout simply generate a [`WindowEvent::ReceivedCharacter`].
+/// However, one couldn't possibly have a key for every single unicode character that the user might want to type
+/// - so the solution operating systems employ is to allow the user to type these using _a sequence of keypresses_ instead.
+///
+/// A prominent example of this is accents - many keyboard layouts allow you to first click the "accent key", and then
+/// the character you want to apply the accent to. This will generate the following event sequence:
+/// ```ignore
+/// // Press "`" key
+/// Ime::Preedit("`", Some(0), Some(0))
+/// // Press "E" key
+/// Ime::Commit("é")
+/// ```
+///
+/// Additionally, certain input devices are configured to display a candidate box that allow the user to select the
+/// desired character interactively. (To properly position this box, you must use [`Window::set_ime_position`].)
+///
+/// An example of a keyboard layout which uses candidate boxes is pinyin. On a latin keybaord the following event
+/// sequence could be obtained:
+/// ```ignore
+/// // Press "A" key
+/// Ime::Preedit("a", Some(1), Some(1))
+/// // Press "B" key
+/// Ime::Preedit("a b", Some(3), Some(3))
+/// // Press left arrow key
+/// Ime::Preedit("a b", Some(1), Some(1))
+/// // Press space key
+/// Ime::Preedit("啊b", Some(3), Some(3))
+/// // Press space key
+/// Ime::Commit("啊不")
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum Ime {
+    /// Notifies when the IME was enabled.
+    ///
+    /// After getting this event you could receive [`Preedit`](Self::Preedit) and
+    /// [`Commit`](Self::Commit) events. You should also start performing IME related requests
+    /// like [`Window::set_ime_position`].
+    Enabled,
+
+    /// Notifies when a new composing text should be set at the cursor position.
+    ///
+    /// The value represents a pair of the preedit string and the cursor begin position and end
+    /// position. When it's `None`, the cursor should be hidden.
+    ///
+    /// The cursor position is byte-wise indexed.
+    Preedit(String, Option<(usize, usize)>),
+
+    /// Notifies when text should be inserted into the editor widget.
+    ///
+    /// Any pending [`Preedit`](Self::Preedit) must be cleared.
+    Commit(String),
+
+    /// Notifies when the IME was disabled.
+    ///
+    /// After receiving this event you won't get any more [`Preedit`](Self::Preedit) or
+    /// [`Commit`](Self::Commit) events until the next [`Enabled`](Self::Enabled) event. You can
+    /// also stop issuing IME related requests like [`Window::set_ime_position`] and clear pending
+    /// preedit text.
+    Disabled,
+}
+
 /// Describes touch-screen input state.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -639,18 +737,18 @@ pub enum TouchPhase {
 
 /// Represents a touch event
 ///
-/// Every time the user touches the screen, a new `Start` event with an unique
-/// identifier for the finger is generated. When the finger is lifted, an `End`
+/// Every time the user touches the screen, a new [`TouchPhase::Started`] event with an unique
+/// identifier for the finger is generated. When the finger is lifted, an [`TouchPhase::Ended`]
 /// event is generated with the same finger id.
 ///
-/// After a `Start` event has been emitted, there may be zero or more `Move`
+/// After a `Started` event has been emitted, there may be zero or more `Move`
 /// events when the finger is moved or the touch pressure changes.
 ///
-/// The finger id may be reused by the system after an `End` event. The user
-/// should assume that a new `Start` event received with the same id has nothing
+/// The finger id may be reused by the system after an `Ended` event. The user
+/// should assume that a new `Started` event received with the same id has nothing
 /// to do with the old finger and is a new finger.
 ///
-/// A `Cancelled` event is emitted when the system has canceled tracking this
+/// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
 /// touch, such as when the window loses focus, or on iOS if the user moves the
 /// device against their face.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -704,8 +802,9 @@ pub enum Force {
 
 impl Force {
     /// Returns the force normalized to the range between 0.0 and 1.0 inclusive.
+    ///
     /// Instead of normalizing the force, you should prefer to handle
-    /// `Force::Calibrated` so that the amount of force the user has to apply is
+    /// [`Force::Calibrated`] so that the amount of force the user has to apply is
     /// consistent across devices.
     pub fn normalized(&self) -> f64 {
         match self {
@@ -759,15 +858,23 @@ pub enum MouseScrollDelta {
     /// Amount in lines or rows to scroll in the horizontal
     /// and vertical directions.
     ///
-    /// Positive values indicate movement forward
-    /// (away from the user) or rightwards.
+    /// Positive values indicate that the content that is being scrolled should move
+    /// right and down (revealing more content left and up).
     LineDelta(f32, f32),
+
     /// Amount in pixels to scroll in the horizontal and
     /// vertical direction.
     ///
-    /// Scroll events are expressed as a PixelDelta if
+    /// Scroll events are expressed as a `PixelDelta` if
     /// supported by the device (eg. a touchpad) and
     /// platform.
+    ///
+    /// Positive values indicate that the content being scrolled should
+    /// move right/down.
+    ///
+    /// For a 'natural scrolling' touch pad (that acts like a touch screen)
+    /// this means moving your fingers right and down should give positive values,
+    /// and move the content right and down (to reveal more things left and up).
     PixelDelta(PhysicalPosition<f64>),
 }
 

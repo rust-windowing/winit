@@ -8,7 +8,7 @@ use sctk::reexports::client::Display;
 use sctk::reexports::calloop;
 
 use raw_window_handle::WaylandHandle;
-use sctk::window::{Decorations, FallbackFrame};
+use sctk::window::Decorations;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
@@ -17,7 +17,9 @@ use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorIcon, Fullscreen, UserAttentionType, WindowAttributes};
+use crate::window::{
+    CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
+};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -27,6 +29,14 @@ use super::{EventLoopWindowTarget, WindowId};
 pub mod shim;
 
 use shim::{WindowHandle, WindowRequest, WindowUpdate};
+
+#[cfg(feature = "sctk-adwaita")]
+pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
+#[cfg(not(feature = "sctk-adwaita"))]
+pub type WinitFrame = sctk::window::FallbackFrame;
+
+#[cfg(feature = "sctk-adwaita")]
+const WAYLAND_CSD_THEME_ENV_VAR: &str = "WINIT_WAYLAND_CSD_THEME";
 
 pub struct Window {
     /// Window id.
@@ -58,10 +68,19 @@ pub struct Window {
 
     /// Requests that SCTK window should perform.
     window_requests: Arc<Mutex<Vec<WindowRequest>>>,
+
+    /// Whether the window is resizeable.
+    resizeable: AtomicBool,
+
+    /// Whether the window is decorated.
+    decorated: AtomicBool,
+
+    /// Grabbing mode.
+    cursor_grab_mode: Mutex<CursorGrabMode>,
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         event_loop_window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         platform_attributes: PlatformAttributes,
@@ -87,7 +106,7 @@ impl Window {
 
         let window_id = super::make_wid(&surface);
         let maximized = Arc::new(AtomicBool::new(false));
-        let maximzied_clone = maximized.clone();
+        let maximized_clone = maximized.clone();
         let fullscreen = Arc::new(AtomicBool::new(false));
         let fullscreen_clone = fullscreen.clone();
 
@@ -99,7 +118,7 @@ impl Window {
         let theme_manager = event_loop_window_target.theme_manager.clone();
         let mut window = event_loop_window_target
             .env
-            .create_window::<FallbackFrame, _>(
+            .create_window::<WinitFrame, _>(
                 surface.clone(),
                 Some(theme_manager),
                 (width, height),
@@ -115,7 +134,7 @@ impl Window {
                         }
                         Event::Configure { new_size, states } => {
                             let is_maximized = states.contains(&State::Maximized);
-                            maximzied_clone.store(is_maximized, Ordering::Relaxed);
+                            maximized_clone.store(is_maximized, Ordering::Relaxed);
                             let is_fullscreen = states.contains(&State::Fullscreen);
                             fullscreen_clone.store(is_fullscreen, Ordering::Relaxed);
 
@@ -133,18 +152,26 @@ impl Window {
             )
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
 
+        // Set CSD frame config
+        #[cfg(feature = "sctk-adwaita")]
+        {
+            let theme = platform_attributes.csd_theme.unwrap_or_else(|| {
+                let env = std::env::var(WAYLAND_CSD_THEME_ENV_VAR).unwrap_or_default();
+                match env.to_lowercase().as_str() {
+                    "dark" => Theme::Dark,
+                    _ => Theme::Light,
+                }
+            });
+
+            window.set_frame_config(theme.into());
+        }
+
         // Set decorations.
         if attributes.decorations {
             window.set_decorate(Decorations::FollowServer);
         } else {
             window.set_decorate(Decorations::None);
         }
-        // Without this commit here at least on kwin 5.23.3 the initial configure
-        // will have a size (1,1), the second configure including the decoration
-        // mode will have the min_size as its size. With this commit the initial
-        // configure will have no size, the application will draw it's content
-        // with the initial size and everything works as expected afterwards.
-        window.surface().commit();
 
         // Min dimensions.
         let min_size = attributes
@@ -159,8 +186,8 @@ impl Window {
         window.set_max_size(max_size);
 
         // Set Wayland specific window attributes.
-        if let Some(app_id) = platform_attributes.app_id {
-            window.set_app_id(app_id);
+        if let Some(name) = platform_attributes.name {
+            window.set_app_id(name.general);
         }
 
         // Set common window attributes.
@@ -192,6 +219,16 @@ impl Window {
             }
         }
 
+        // Without this commit here at least on kwin 5.23.3 the initial configure
+        // will have a size (1,1), the second configure including the decoration
+        // mode will have the min_size as its size. With this commit the initial
+        // configure will have no size, the application will draw it's content
+        // with the initial size and everything works as expected afterwards.
+        //
+        // The window commit must be after setting on top level properties, but right before any
+        // buffer attachments commits.
+        window.surface().commit();
+
         let size = Arc::new(Mutex::new(LogicalSize::new(width, height)));
 
         // We should trigger redraw and commit the surface for the newly created window.
@@ -210,9 +247,18 @@ impl Window {
             window_requests.clone(),
         );
 
+        // Set resizable state, so we can determine how to handle `Window::set_inner_size`.
+        window_handle.is_resizable.set(attributes.resizable);
+
         let mut winit_state = event_loop_window_target.state.borrow_mut();
 
         winit_state.window_map.insert(window_id, window_handle);
+
+        // On Wayland window doesn't have Focus by default and it'll get it later on. So be
+        // explicit here.
+        winit_state
+            .event_sink
+            .push_window_event(crate::event::WindowEvent::Focused(false), window_id);
 
         winit_state
             .window_updates
@@ -248,6 +294,9 @@ impl Window {
             fullscreen,
             maximized,
             windowing_features,
+            resizeable: AtomicBool::new(attributes.resizable),
+            decorated: AtomicBool::new(attributes.decorations),
+            cursor_grab_mode: Mutex::new(CursorGrabMode::None),
         };
 
         Ok(window)
@@ -338,12 +387,13 @@ impl Window {
 
     #[inline]
     pub fn set_resizable(&self, resizable: bool) {
+        self.resizeable.store(resizable, Ordering::Relaxed);
         self.send_request(WindowRequest::Resizeable(resizable));
     }
 
     #[inline]
     pub fn is_resizable(&self) -> bool {
-        true
+        self.resizeable.load(Ordering::Relaxed)
     }
 
     #[inline]
@@ -355,12 +405,18 @@ impl Window {
 
     #[inline]
     pub fn set_decorations(&self, decorate: bool) {
+        self.decorated.store(decorate, Ordering::Relaxed);
         self.send_request(WindowRequest::Decorate(decorate));
     }
 
     #[inline]
     pub fn is_decorated(&self) -> bool {
-        true
+        self.decorated.load(Ordering::Relaxed)
+    }
+
+    #[inline]
+    pub fn set_csd_theme(&self, theme: Theme) {
+        self.send_request(WindowRequest::CsdThemeVariant(theme));
     }
 
     #[inline]
@@ -430,12 +486,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        if !self.windowing_features.cursor_grab() {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        if !self.windowing_features.pointer_constraints() {
+            if mode == CursorGrabMode::None {
+                return Ok(());
+            }
+
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 
-        self.send_request(WindowRequest::GrabCursor(grab));
+        *self.cursor_grab_mode.lock().unwrap() = mode;
+        self.send_request(WindowRequest::SetCursorGrabMode(mode));
 
         Ok(())
     }
@@ -450,15 +511,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _: Position) -> Result<(), ExternalError> {
-        // XXX This is possible if the locked pointer is being used. We don't have any
-        // API for that right now, but it could be added in
-        // https://github.com/rust-windowing/winit/issues/1677.
-        //
-        // This function is essential for the locked pointer API.
-        //
-        // See pointer-constraints-unstable-v1.xml.
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        // Positon can be set only for locked cursor.
+        if *self.cursor_grab_mode.lock().unwrap() != CursorGrabMode::Locked {
+            return Err(ExternalError::Os(os_error!(OsError::WaylandMisc(
+                "cursor position can be set only for locked cursor."
+            ))));
+        }
+
+        let scale_factor = self.scale_factor() as f64;
+        let position = position.to_logical(scale_factor);
+        self.send_request(WindowRequest::SetLockedCursorPosition(position));
+
+        Ok(())
     }
 
     #[inline]
@@ -469,10 +534,22 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_cursor_hittest(&self, hittest: bool) -> Result<(), ExternalError> {
+        self.send_request(WindowRequest::PassthroughMouseInput(!hittest));
+
+        Ok(())
+    }
+
+    #[inline]
     pub fn set_ime_position(&self, position: Position) {
         let scale_factor = self.scale_factor() as f64;
         let position = position.to_logical(scale_factor);
-        self.send_request(WindowRequest::IMEPosition(position));
+        self.send_request(WindowRequest::ImePosition(position));
+    }
+
+    #[inline]
+    pub fn set_ime_allowed(&self, allowed: bool) {
+        self.send_request(WindowRequest::AllowIme(allowed));
     }
 
     #[inline]
@@ -519,5 +596,15 @@ impl Window {
 impl Drop for Window {
     fn drop(&mut self) {
         self.send_request(WindowRequest::Close);
+    }
+}
+
+#[cfg(feature = "sctk-adwaita")]
+impl From<Theme> for sctk_adwaita::FrameConfig {
+    fn from(theme: Theme) -> Self {
+        match theme {
+            Theme::Light => sctk_adwaita::FrameConfig::light(),
+            Theme::Dark => sctk_adwaita::FrameConfig::dark(),
+        }
     }
 }

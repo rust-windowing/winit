@@ -99,7 +99,8 @@ pub type CFRunLoopTimerCallBack = extern "C" fn(timer: CFRunLoopTimerRef, info: 
 pub enum CFRunLoopTimerContext {}
 
 /// This mirrors the struct with the same name from Core Foundation.
-/// https://developer.apple.com/documentation/corefoundation/cfrunloopobservercontext?language=objc
+///
+/// <https://developer.apple.com/documentation/corefoundation/cfrunloopobservercontext?language=objc>
 #[allow(non_snake_case)]
 #[repr(C)]
 pub struct CFRunLoopObserverContext {

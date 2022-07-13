@@ -1,4 +1,5 @@
 #![cfg(target_os = "macos")]
+#![allow(clippy::let_unit_value)]
 
 #[macro_use]
 mod util;
@@ -21,11 +22,10 @@ use std::{fmt, ops::Deref, sync::Arc};
 pub(crate) use self::{
     app_delegate::get_aux_state_mut,
     event_loop::{
-        EventLoop, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
-        Proxy as EventLoopProxy,
+        EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoMode},
-    window::{Id as WindowId, PlatformSpecificWindowBuilderAttributes, UnownedWindow},
+    window::{PlatformSpecificWindowBuilderAttributes, UnownedWindow, WindowId},
 };
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
@@ -70,7 +70,7 @@ impl Deref for Window {
 }
 
 impl Window {
-    pub fn new<T: 'static>(
+    pub(crate) fn new<T: 'static>(
         _window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,

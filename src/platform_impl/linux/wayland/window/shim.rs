@@ -1,24 +1,28 @@
 use std::cell::Cell;
+use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 
+use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_output::WlOutput;
 use sctk::reexports::client::Attached;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_token_v1;
 use sctk::reexports::protocols::staging::xdg_activation::v1::client::xdg_activation_v1::XdgActivationV1;
 
 use sctk::environment::Environment;
-use sctk::window::{Decorations, FallbackFrame, Window};
+use sctk::window::{Decorations, Window};
 
 use crate::dpi::{LogicalPosition, LogicalSize};
 
-use crate::event::WindowEvent;
+use crate::event::{Ime, WindowEvent};
 use crate::platform_impl::wayland;
 use crate::platform_impl::wayland::env::WinitEnv;
-use crate::platform_impl::wayland::event_loop::WinitState;
+use crate::platform_impl::wayland::event_loop::{EventSink, WinitState};
 use crate::platform_impl::wayland::seat::pointer::WinitPointer;
 use crate::platform_impl::wayland::seat::text_input::TextInputHandler;
 use crate::platform_impl::wayland::WindowId;
-use crate::window::{CursorIcon, UserAttentionType};
+use crate::window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType};
+
+use super::WinitFrame;
 
 /// A request to SCTK window from Winit window.
 #[derive(Debug, Clone)]
@@ -37,8 +41,11 @@ pub enum WindowRequest {
     /// Change the cursor icon.
     NewCursorIcon(CursorIcon),
 
-    /// Grab cursor.
-    GrabCursor(bool),
+    /// Change cursor grabbing mode.
+    SetCursorGrabMode(CursorGrabMode),
+
+    /// Set cursor position.
+    SetLockedCursorPosition(LogicalPosition<u32>),
 
     /// Drag window.
     DragWindow,
@@ -51,6 +58,9 @@ pub enum WindowRequest {
 
     /// Request decorations change.
     Decorate(bool),
+
+    /// Request decorations change.
+    CsdThemeVariant(Theme),
 
     /// Make the window resizeable.
     Resizeable(bool),
@@ -68,12 +78,18 @@ pub enum WindowRequest {
     FrameSize(LogicalSize<u32>),
 
     /// Set IME window position.
-    IMEPosition(LogicalPosition<u32>),
+    ImePosition(LogicalPosition<u32>),
+
+    /// Enable IME on the given window.
+    AllowIme(bool),
 
     /// Request Attention.
     ///
     /// `None` unsets the attention request.
     Attention(Option<UserAttentionType>),
+
+    /// Passthrough mouse input to underlying windows.
+    PassthroughMouseInput(bool),
 
     /// Redraw was requested.
     Redraw,
@@ -139,7 +155,7 @@ impl WindowUpdate {
 /// and react to events.
 pub struct WindowHandle {
     /// An actual window.
-    pub window: Window<FallbackFrame>,
+    pub window: ManuallyDrop<Window<WinitFrame>>,
 
     /// The current size of the window.
     pub size: Arc<Mutex<LogicalSize<u32>>>,
@@ -150,11 +166,17 @@ pub struct WindowHandle {
     /// Current cursor icon.
     pub cursor_icon: Cell<CursorIcon>,
 
+    /// Whether the window is resizable.
+    pub is_resizable: Cell<bool>,
+
+    /// Allow IME events for that window.
+    pub ime_allowed: Cell<bool>,
+
     /// Visible cursor or not.
     cursor_visible: Cell<bool>,
 
     /// Cursor confined to the surface.
-    confined: Cell<bool>,
+    cursor_grab_mode: Cell<CursorGrabMode>,
 
     /// Pointers over the current surface.
     pointers: Vec<WinitPointer>,
@@ -167,47 +189,69 @@ pub struct WindowHandle {
 
     /// Indicator whether user attention is requested.
     attention_requested: Cell<bool>,
+
+    /// Compositor
+    compositor: Attached<WlCompositor>,
 }
 
 impl WindowHandle {
     pub fn new(
         env: &Environment<WinitEnv>,
-        window: Window<FallbackFrame>,
+        window: Window<WinitFrame>,
         size: Arc<Mutex<LogicalSize<u32>>>,
         pending_window_requests: Arc<Mutex<Vec<WindowRequest>>>,
     ) -> Self {
         let xdg_activation = env.get_global::<XdgActivationV1>();
+        // Unwrap is safe, since we can't create window without compositor anyway and won't be
+        // here.
+        let compositor = env.get_global::<WlCompositor>().unwrap();
 
         Self {
-            window,
+            window: ManuallyDrop::new(window),
             size,
             pending_window_requests,
             cursor_icon: Cell::new(CursorIcon::Default),
-            confined: Cell::new(false),
+            is_resizable: Cell::new(true),
+            cursor_grab_mode: Cell::new(CursorGrabMode::None),
             cursor_visible: Cell::new(true),
             pointers: Vec::new(),
             text_inputs: Vec::new(),
             xdg_activation,
             attention_requested: Cell::new(false),
+            compositor,
+            ime_allowed: Cell::new(false),
         }
     }
 
-    pub fn set_cursor_grab(&self, grab: bool) {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) {
         // The new requested state matches the current confine status, return.
-        if self.confined.get() == grab {
+        let old_mode = self.cursor_grab_mode.replace(mode);
+        if old_mode == mode {
             return;
         }
 
-        self.confined.replace(grab);
+        // Clear old pointer data.
+        match old_mode {
+            CursorGrabMode::None => (),
+            CursorGrabMode::Confined => self.pointers.iter().for_each(|p| p.unconfine()),
+            CursorGrabMode::Locked => self.pointers.iter().for_each(|p| p.unlock()),
+        }
 
-        for pointer in self.pointers.iter() {
-            if self.confined.get() {
-                let surface = self.window.surface();
-                pointer.confine(surface);
-            } else {
-                pointer.unconfine();
+        let surface = self.window.surface();
+        match mode {
+            CursorGrabMode::Locked => self.pointers.iter().for_each(|p| p.lock(surface)),
+            CursorGrabMode::Confined => self.pointers.iter().for_each(|p| p.confine(surface)),
+            CursorGrabMode::None => {
+                // Current lock/confine was already removed.
             }
         }
+    }
+
+    pub fn set_locked_cursor_position(&self, position: LogicalPosition<u32>) {
+        // XXX the cursor locking is ensured inside `Window`.
+        self.pointers
+            .iter()
+            .for_each(|p| p.set_cursor_position(position.x, position.y));
     }
 
     pub fn set_user_attention(&self, request_type: Option<UserAttentionType>) {
@@ -257,10 +301,13 @@ impl WindowHandle {
         let position = self.pointers.iter().position(|p| *p == pointer);
 
         if position.is_none() {
-            if self.confined.get() {
-                let surface = self.window.surface();
-                pointer.confine(surface);
+            let surface = self.window.surface();
+            match self.cursor_grab_mode.get() {
+                CursorGrabMode::None => (),
+                CursorGrabMode::Locked => pointer.lock(surface),
+                CursorGrabMode::Confined => pointer.confine(surface),
             }
+
             self.pointers.push(pointer);
         }
 
@@ -275,9 +322,11 @@ impl WindowHandle {
         if let Some(position) = position {
             let pointer = self.pointers.remove(position);
 
-            // Drop the confined pointer.
-            if self.confined.get() {
-                pointer.unconfine();
+            // Drop the grabbing mode.
+            match self.cursor_grab_mode.get() {
+                CursorGrabMode::None => (),
+                CursorGrabMode::Locked => pointer.unlock(),
+                CursorGrabMode::Confined => pointer.unconfine(),
             }
         }
     }
@@ -302,6 +351,41 @@ impl WindowHandle {
         for text_input in self.text_inputs.iter() {
             text_input.set_ime_position(x, y);
         }
+    }
+
+    pub fn passthrough_mouse_input(&self, passthrough_mouse_input: bool) {
+        if passthrough_mouse_input {
+            let region = self.compositor.create_region();
+            region.add(0, 0, 0, 0);
+            self.window
+                .surface()
+                .set_input_region(Some(&region.detach()));
+            region.destroy();
+        } else {
+            // Using `None` results in the entire window being clickable.
+            self.window.surface().set_input_region(None);
+        }
+    }
+
+    pub fn set_ime_allowed(&self, allowed: bool, event_sink: &mut EventSink) {
+        if self.ime_allowed.get() == allowed {
+            return;
+        }
+
+        self.ime_allowed.replace(allowed);
+        let window_id = wayland::make_wid(self.window.surface());
+
+        for text_input in self.text_inputs.iter() {
+            text_input.set_input_allowed(allowed);
+        }
+
+        let event = if allowed {
+            WindowEvent::Ime(Ime::Enabled)
+        } else {
+            WindowEvent::Ime(Ime::Disabled)
+        };
+
+        event_sink.push_window_event(event, window_id);
     }
 
     pub fn set_cursor_visible(&self, visible: bool) {
@@ -344,7 +428,8 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
     // Process the rest of the events.
     for (window_id, window_handle) in window_map.iter_mut() {
         let mut requests = window_handle.pending_window_requests.lock().unwrap();
-        for request in requests.drain(..) {
+        let requests = requests.drain(..);
+        for request in requests {
             match request {
                 WindowRequest::Fullscreen(fullscreen) => {
                     window_handle.window.set_fullscreen(fullscreen.as_ref());
@@ -358,11 +443,18 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                 WindowRequest::NewCursorIcon(cursor_icon) => {
                     window_handle.set_cursor_icon(cursor_icon);
                 }
-                WindowRequest::IMEPosition(position) => {
+                WindowRequest::ImePosition(position) => {
                     window_handle.set_ime_position(position);
                 }
-                WindowRequest::GrabCursor(grab) => {
-                    window_handle.set_cursor_grab(grab);
+                WindowRequest::AllowIme(allow) => {
+                    let event_sink = &mut winit_state.event_sink;
+                    window_handle.set_ime_allowed(allow, event_sink);
+                }
+                WindowRequest::SetCursorGrabMode(mode) => {
+                    window_handle.set_cursor_grab(mode);
+                }
+                WindowRequest::SetLockedCursorPosition(position) => {
+                    window_handle.set_locked_cursor_position(position);
                 }
                 WindowRequest::DragWindow => {
                     window_handle.drag_window();
@@ -389,6 +481,15 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
+                #[cfg(feature = "sctk-adwaita")]
+                WindowRequest::CsdThemeVariant(theme) => {
+                    window_handle.window.set_frame_config(theme.into());
+
+                    let window_update = window_updates.get_mut(window_id).unwrap();
+                    window_update.refresh_frame = true;
+                }
+                #[cfg(not(feature = "sctk-adwaita"))]
+                WindowRequest::CsdThemeVariant(_) => {}
                 WindowRequest::Resizeable(resizeable) => {
                     window_handle.window.set_resizable(resizeable);
 
@@ -418,10 +519,23 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
                     window_update.redraw_requested = true;
                 }
                 WindowRequest::FrameSize(size) => {
-                    // Set new size.
+                    if !window_handle.is_resizable.get() {
+                        // On Wayland non-resizable window is achieved by setting both min and max
+                        // size of the window to the same value.
+                        let size = Some((size.width, size.height));
+                        window_handle.window.set_max_size(size);
+                        window_handle.window.set_min_size(size);
+                    }
+
                     window_handle.window.resize(size.width, size.height);
 
                     // We should refresh the frame after resize.
+                    let window_update = window_updates.get_mut(window_id).unwrap();
+                    window_update.refresh_frame = true;
+                }
+                WindowRequest::PassthroughMouseInput(passthrough) => {
+                    window_handle.passthrough_mouse_input(passthrough);
+
                     let window_update = window_updates.get_mut(window_id).unwrap();
                     window_update.refresh_frame = true;
                 }
@@ -448,5 +562,16 @@ pub fn handle_window_requests(winit_state: &mut WinitState) {
     for window in windows_to_close {
         let _ = window_map.remove(&window);
         let _ = window_updates.remove(&window);
+    }
+}
+
+impl Drop for WindowHandle {
+    fn drop(&mut self) {
+        unsafe {
+            let surface = self.window.surface().clone();
+            // The window must be destroyed before wl_surface.
+            ManuallyDrop::drop(&mut self.window);
+            surface.destroy();
+        }
     }
 }

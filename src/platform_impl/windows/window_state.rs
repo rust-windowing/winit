@@ -6,13 +6,20 @@ use crate::{
     window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
 };
 use parking_lot::MutexGuard;
-use std::{io, ptr};
-use winapi::{
-    shared::{
-        minwindef::DWORD,
-        windef::{HWND, RECT},
+use std::io;
+use windows_sys::Win32::{
+    Foundation::{HWND, RECT},
+    Graphics::Gdi::InvalidateRgn,
+    UI::WindowsAndMessaging::{
+        SendMessageW, SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE,
+        HWND_NOTOPMOST, HWND_TOPMOST, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE,
+        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE,
+        SW_SHOW, WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD,
+        WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
+        WS_EX_LEFT, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE,
+        WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPED,
+        WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
     },
-    um::winuser,
 };
 
 /// Contains information about states and the window that the callback is going to use.
@@ -35,11 +42,14 @@ pub struct WindowState {
     pub preferred_theme: Option<Theme>,
     pub high_surrogate: Option<u16>,
     pub window_flags: WindowFlags,
+
+    pub ime_state: ImeState,
+    pub ime_allowed: bool,
 }
 
 #[derive(Clone)]
 pub struct SavedWindow {
-    pub placement: winuser::WINDOWPLACEMENT,
+    pub placement: WINDOWPLACEMENT,
 }
 
 #[derive(Clone)]
@@ -86,14 +96,23 @@ bitflags! {
 
         const MINIMIZED = 1 << 12;
 
+        const IGNORE_CURSOR_EVENT = 1 << 15;
+
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
         const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
 }
 
+#[derive(Eq, PartialEq)]
+pub enum ImeState {
+    Disabled,
+    Enabled,
+    Preedit,
+}
+
 impl WindowState {
-    pub fn new(
+    pub(crate) fn new(
         attributes: &WindowAttributes,
         taskbar_icon: Option<Icon>,
         scale_factor: f64,
@@ -123,6 +142,9 @@ impl WindowState {
             preferred_theme,
             high_surrogate: None,
             window_flags: WindowFlags::empty(),
+
+            ime_state: ImeState::Disabled,
+            ime_allowed: false,
         }
     }
 
@@ -187,10 +209,8 @@ impl WindowFlags {
         self
     }
 
-    pub fn to_window_styles(self) -> (DWORD, DWORD) {
-        use winapi::um::winuser::*;
-
-        let (mut style, mut style_ex) = (0, 0);
+    pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
+        let (mut style, mut style_ex) = (WS_OVERLAPPED, WS_EX_LEFT);
 
         if self.contains(WindowFlags::RESIZABLE) {
             style |= WS_SIZEBOX | WS_MAXIMIZEBOX;
@@ -223,6 +243,9 @@ impl WindowFlags {
         if self.contains(WindowFlags::MAXIMIZED) {
             style |= WS_MAXIMIZE;
         }
+        if self.contains(WindowFlags::IGNORE_CURSOR_EVENT) {
+            style_ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
+        }
 
         style |= WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
         style_ex |= WS_EX_ACCEPTFILES;
@@ -248,43 +271,40 @@ impl WindowFlags {
 
         if diff.contains(WindowFlags::VISIBLE) {
             unsafe {
-                winuser::ShowWindow(
+                ShowWindow(
                     window,
                     match new.contains(WindowFlags::VISIBLE) {
-                        true => winuser::SW_SHOW,
-                        false => winuser::SW_HIDE,
+                        true => SW_SHOW,
+                        false => SW_HIDE,
                     },
                 );
             }
         }
         if diff.contains(WindowFlags::ALWAYS_ON_TOP) {
             unsafe {
-                winuser::SetWindowPos(
+                SetWindowPos(
                     window,
                     match new.contains(WindowFlags::ALWAYS_ON_TOP) {
-                        true => winuser::HWND_TOPMOST,
-                        false => winuser::HWND_NOTOPMOST,
+                        true => HWND_TOPMOST,
+                        false => HWND_NOTOPMOST,
                     },
                     0,
                     0,
                     0,
                     0,
-                    winuser::SWP_ASYNCWINDOWPOS
-                        | winuser::SWP_NOMOVE
-                        | winuser::SWP_NOSIZE
-                        | winuser::SWP_NOACTIVATE,
+                    SWP_ASYNCWINDOWPOS | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
                 );
-                winuser::InvalidateRgn(window, ptr::null_mut(), 0);
+                InvalidateRgn(window, 0, false.into());
             }
         }
 
         if diff.contains(WindowFlags::MAXIMIZED) || new.contains(WindowFlags::MAXIMIZED) {
             unsafe {
-                winuser::ShowWindow(
+                ShowWindow(
                     window,
                     match new.contains(WindowFlags::MAXIMIZED) {
-                        true => winuser::SW_MAXIMIZE,
-                        false => winuser::SW_RESTORE,
+                        true => SW_MAXIMIZE,
+                        false => SW_RESTORE,
                     },
                 );
             }
@@ -293,11 +313,11 @@ impl WindowFlags {
         // Minimize operations should execute after maximize for proper window animations
         if diff.contains(WindowFlags::MINIMIZED) {
             unsafe {
-                winuser::ShowWindow(
+                ShowWindow(
                     window,
                     match new.contains(WindowFlags::MINIMIZED) {
-                        true => winuser::SW_MINIMIZE,
-                        false => winuser::SW_RESTORE,
+                        true => SW_MINIMIZE,
+                        false => SW_RESTORE,
                     },
                 );
             }
@@ -307,18 +327,15 @@ impl WindowFlags {
             let (style, style_ex) = new.to_window_styles();
 
             unsafe {
-                winuser::SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 1, 0);
+                SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 1, 0);
 
                 // This condition is necessary to avoid having an unrestorable window
                 if !new.contains(WindowFlags::MINIMIZED) {
-                    winuser::SetWindowLongW(window, winuser::GWL_STYLE, style as _);
-                    winuser::SetWindowLongW(window, winuser::GWL_EXSTYLE, style_ex as _);
+                    SetWindowLongW(window, GWL_STYLE, style as i32);
+                    SetWindowLongW(window, GWL_EXSTYLE, style_ex as i32);
                 }
 
-                let mut flags = winuser::SWP_NOZORDER
-                    | winuser::SWP_NOMOVE
-                    | winuser::SWP_NOSIZE
-                    | winuser::SWP_FRAMECHANGED;
+                let mut flags = SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED;
 
                 // We generally don't want style changes here to affect window
                 // focus, but for fullscreen windows they must be activated
@@ -326,12 +343,12 @@ impl WindowFlags {
                 if !new.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN)
                     && !new.contains(WindowFlags::MARKER_BORDERLESS_FULLSCREEN)
                 {
-                    flags |= winuser::SWP_NOACTIVATE;
+                    flags |= SWP_NOACTIVATE;
                 }
 
                 // Refresh the window frame
-                winuser::SetWindowPos(window, ptr::null_mut(), 0, 0, 0, 0, flags);
-                winuser::SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
+                SetWindowPos(window, 0, 0, 0, 0, 0, flags);
+                SendMessageW(window, *event_loop::SET_RETAIN_STATE_ON_SIZE_MSG_ID, 0, 0);
             }
         }
     }

@@ -1,10 +1,6 @@
 #![cfg(target_os = "windows")]
 
-use std::os::raw::c_void;
-use std::path::Path;
-
-use winapi::shared::minwindef::WORD;
-use winapi::shared::windef::{HMENU, HWND};
+use std::{ffi::c_void, path::Path};
 
 use crate::{
     dpi::PhysicalSize,
@@ -14,6 +10,15 @@ use crate::{
     platform_impl::{Parent, WinIcon},
     window::{BadIcon, Icon, Theme, Window, WindowBuilder},
 };
+
+/// Window Handle type used by Win32 API
+pub type HWND = isize;
+/// Menu Handle type used by Win32 API
+pub type HMENU = isize;
+/// Monitor Handle type used by Win32 API
+pub type HMONITOR = isize;
+/// Instance Handle type used by Win32 API
+pub type HINSTANCE = isize;
 
 /// Additional methods on `EventLoop` that are specific to Windows.
 pub trait EventLoopBuilderExtWindows {
@@ -51,6 +56,36 @@ pub trait EventLoopBuilderExtWindows {
     /// # }
     /// ```
     fn with_dpi_aware(&mut self, dpi_aware: bool) -> &mut Self;
+
+    /// A callback to be executed before dispatching a win32 message to the window procedure.
+    /// Return true to disable winit's internal message dispatching.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use windows_sys::Win32::UI::WindowsAndMessaging::{ACCEL, CreateAcceleratorTableW, TranslateAcceleratorW, DispatchMessageW, TranslateMessage, MSG};
+    /// use winit::event_loop::EventLoopBuilder;
+    /// #[cfg(target_os = "windows")]
+    /// use winit::platform::windows::EventLoopBuilderExtWindows;
+    ///
+    /// let mut builder = EventLoopBuilder::new();
+    /// #[cfg(target_os = "windows")]
+    /// builder.with_msg_hook(|msg|{
+    ///     let msg = msg as *const MSG;
+    /// #   let accels: Vec<ACCEL> = Vec::new();
+    ///     let translated = unsafe {
+    ///         TranslateAcceleratorW(
+    ///             (*msg).hwnd,
+    ///             CreateAcceleratorTableW(accels.as_ptr() as _, 1),
+    ///             msg,
+    ///         ) == 1
+    ///     };
+    ///     translated
+    /// });
+    /// ```
+    fn with_msg_hook<F>(&mut self, callback: F) -> &mut Self
+    where
+        F: FnMut(*const c_void) -> bool + 'static;
 }
 
 impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
@@ -65,16 +100,25 @@ impl<T> EventLoopBuilderExtWindows for EventLoopBuilder<T> {
         self.platform_specific.dpi_aware = dpi_aware;
         self
     }
+
+    #[inline]
+    fn with_msg_hook<F>(&mut self, callback: F) -> &mut Self
+    where
+        F: FnMut(*const c_void) -> bool + 'static,
+    {
+        self.platform_specific.msg_hook = Some(Box::new(callback));
+        self
+    }
 }
 
 /// Additional methods on `Window` that are specific to Windows.
 pub trait WindowExtWindows {
     /// Returns the HINSTANCE of the window
-    fn hinstance(&self) -> *mut c_void;
+    fn hinstance(&self) -> HINSTANCE;
     /// Returns the native handle that is used by this window.
     ///
     /// The pointer will become invalid when the native window was destroyed.
-    fn hwnd(&self) -> *mut c_void;
+    fn hwnd(&self) -> HWND;
 
     /// Enables or disables mouse and keyboard input to the specified window.
     ///
@@ -96,17 +140,20 @@ pub trait WindowExtWindows {
 
     /// Returns the current window theme.
     fn theme(&self) -> Theme;
+
+    /// Whether to show or hide the window icon in the taskbar.
+    fn set_skip_taskbar(&self, skip: bool);
 }
 
 impl WindowExtWindows for Window {
     #[inline]
-    fn hinstance(&self) -> *mut c_void {
-        self.window.hinstance() as *mut _
+    fn hinstance(&self) -> HINSTANCE {
+        self.window.hinstance()
     }
 
     #[inline]
-    fn hwnd(&self) -> *mut c_void {
-        self.window.hwnd() as *mut _
+    fn hwnd(&self) -> HWND {
+        self.window.hwnd()
     }
 
     #[inline]
@@ -122,6 +169,11 @@ impl WindowExtWindows for Window {
     #[inline]
     fn theme(&self) -> Theme {
         self.window.theme()
+    }
+
+    #[inline]
+    fn set_skip_taskbar(&self, skip: bool) {
+        self.window.set_skip_taskbar(skip)
     }
 }
 
@@ -150,10 +202,12 @@ pub trait WindowBuilderExtWindows {
     ///
     /// Parent and menu are mutually exclusive; a child window cannot have a menu!
     ///
-    /// The menu must have been manually created beforehand with [`winapi::um::winuser::CreateMenu`] or similar.
+    /// The menu must have been manually created beforehand with [`CreateMenu`] or similar.
     ///
     /// Note: Dark mode cannot be supported for win32 menus, it's simply not possible to change how the menus look.
     /// If you use this, it is recommended that you combine it with `with_theme(Some(Theme::Light))` to avoid a jarring effect.
+    ///
+    /// [`CreateMenu`]: windows_sys::Win32::UI::WindowsAndMessaging::CreateMenu
     fn with_menu(self, menu: HMENU) -> WindowBuilder;
 
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
@@ -172,6 +226,9 @@ pub trait WindowBuilderExtWindows {
 
     /// Forces a theme or uses the system settings if `None` was provided.
     fn with_theme(self, theme: Option<Theme>) -> WindowBuilder;
+
+    /// Whether show or hide the window icon in the taskbar.
+    fn with_skip_taskbar(self, skip: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -216,6 +273,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
         self.platform_specific.preferred_theme = theme;
         self
     }
+
+    #[inline]
+    fn with_skip_taskbar(mut self, skip: bool) -> WindowBuilder {
+        self.platform_specific.skip_taskbar = skip;
+        self
+    }
 }
 
 /// Additional methods on `MonitorHandle` that are specific to Windows.
@@ -224,7 +287,7 @@ pub trait MonitorHandleExtWindows {
     fn native_id(&self) -> String;
 
     /// Returns the handle of the monitor - `HMONITOR`.
-    fn hmonitor(&self) -> *mut c_void;
+    fn hmonitor(&self) -> HMONITOR;
 }
 
 impl MonitorHandleExtWindows for MonitorHandle {
@@ -234,8 +297,8 @@ impl MonitorHandleExtWindows for MonitorHandle {
     }
 
     #[inline]
-    fn hmonitor(&self) -> *mut c_void {
-        self.inner.hmonitor() as *mut _
+    fn hmonitor(&self) -> HMONITOR {
+        self.inner.hmonitor()
     }
 }
 
@@ -273,7 +336,7 @@ pub trait IconExtWindows: Sized {
     ///
     /// In cases where the specified size does not exist in the file, Windows may perform scaling
     /// to get an icon of the desired size.
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
+    fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon>;
 }
 
 impl IconExtWindows for Icon {
@@ -285,7 +348,7 @@ impl IconExtWindows for Icon {
         Ok(Icon { inner: win_icon })
     }
 
-    fn from_resource(ordinal: WORD, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
+    fn from_resource(ordinal: u16, size: Option<PhysicalSize<u32>>) -> Result<Self, BadIcon> {
         let win_icon = WinIcon::from_resource(ordinal, size)?;
         Ok(Icon { inner: win_icon })
     }

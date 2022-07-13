@@ -4,14 +4,15 @@ mod cursor;
 pub use self::{cursor::*, r#async::*};
 
 use std::ops::{BitAnd, Deref};
+use std::os::raw::c_uchar;
 
 use cocoa::{
-    appkit::{NSApp, NSWindowStyleMask},
+    appkit::{CGFloat, NSApp, NSWindowStyleMask},
     base::{id, nil},
     foundation::{NSPoint, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
-use objc::runtime::{Class, Object};
+use objc::runtime::{Class, Object, BOOL, NO};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -32,7 +33,7 @@ pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
     length: 0,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct IdRef(id);
 
 impl IdRef {
@@ -60,7 +61,7 @@ impl Drop for IdRef {
     fn drop(&mut self) {
         if self.0 != nil {
             unsafe {
-                let () = msg_send![self.0, release];
+                let _: () = msg_send![self.0, release];
             };
         }
     }
@@ -112,7 +113,7 @@ impl Drop for TraceGuard {
 // 1. translate the bottom-left window corner into the top-left window corner
 // 2. translate the coordinate from a bottom-left origin coordinate system to a top-left one
 pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
-    CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height)
+    CGDisplay::main().pixels_high() as f64 - (rect.origin.y + rect.size.height) as f64
 }
 
 /// Converts from winit screen-coordinates to macOS screen-coordinates.
@@ -120,8 +121,8 @@ pub fn bottom_left_to_top_left(rect: NSRect) -> f64 {
 /// macOS: bottom-left is (0, 0) and y increasing upwards
 pub fn window_position(position: LogicalPosition<f64>) -> NSPoint {
     NSPoint::new(
-        position.x,
-        CGDisplay::main().pixels_high() as f64 - position.y,
+        position.x as CGFloat,
+        CGDisplay::main().pixels_high() as CGFloat - position.y as CGFloat,
     )
 }
 
@@ -147,15 +148,9 @@ pub unsafe fn superclass(this: &Object) -> &Class {
     &*superclass
 }
 
-pub unsafe fn create_input_context(view: id) -> IdRef {
-    let input_context: id = msg_send![class!(NSTextInputContext), alloc];
-    let input_context: id = msg_send![input_context, initWithClient: view];
-    IdRef::new(input_context)
-}
-
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
-    let () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
+    let _: () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
 }
 
 pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, on: bool) {
@@ -170,4 +165,22 @@ pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, o
 
     // If we don't do this, key handling will break. Therefore, never call `setStyleMask` directly!
     window.makeFirstResponder_(view);
+}
+
+/// For invalid utf8 sequences potentially returned by `UTF8String`,
+/// it behaves identically to `String::from_utf8_lossy`
+///
+/// Safety: Assumes that `string` is an instance of `NSAttributedString` or `NSString`
+pub unsafe fn id_to_string_lossy(string: id) -> String {
+    let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+    let characters = if has_attr != NO {
+        // This is a *mut NSAttributedString
+        msg_send![string, string]
+    } else {
+        // This is already a *mut NSString
+        string
+    };
+    let utf8_sequence =
+        std::slice::from_raw_parts(characters.UTF8String() as *const c_uchar, characters.len());
+    String::from_utf8_lossy(utf8_sequence).into_owned()
 }

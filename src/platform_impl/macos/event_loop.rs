@@ -120,7 +120,7 @@ pub struct EventLoop<T: 'static> {
     _callback: Option<Rc<Callback<T>>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) activation_policy: ActivationPolicy,
     pub(crate) default_menu: bool,
@@ -213,7 +213,7 @@ impl<T> EventLoop<T> {
             mem::drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
-            let () = msg_send![app, run];
+            let _: () = msg_send![app, run];
 
             if let Some(panic) = self.panic_info.take() {
                 drop(self._callback.take());
@@ -226,8 +226,8 @@ impl<T> EventLoop<T> {
         exit_code
     }
 
-    pub fn create_proxy(&self) -> Proxy<T> {
-        Proxy::new(self.window_target.p.sender.clone())
+    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        EventLoopProxy::new(self.window_target.p.sender.clone())
     }
 }
 
@@ -246,7 +246,7 @@ pub unsafe fn post_dummy_event(target: id) {
         data1: 0 as NSInteger
         data2: 0 as NSInteger
     ];
-    let () = msg_send![target, postEvent: dummy_event atStart: YES];
+    let _: () = msg_send![target, postEvent: dummy_event atStart: YES];
 }
 
 /// Catches panics that happen inside `f` and when a panic
@@ -270,7 +270,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             unsafe {
                 let app_class = class!(NSApplication);
                 let app: id = msg_send![app_class, sharedApplication];
-                let () = msg_send![app, stop: nil];
+                let _: () = msg_send![app, stop: nil];
 
                 // Posting a dummy event to get `stop` to take effect immediately.
                 // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752
@@ -281,14 +281,14 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
     }
 }
 
-pub struct Proxy<T> {
+pub struct EventLoopProxy<T> {
     sender: mpsc::Sender<T>,
     source: CFRunLoopSourceRef,
 }
 
-unsafe impl<T: Send> Send for Proxy<T> {}
+unsafe impl<T: Send> Send for EventLoopProxy<T> {}
 
-impl<T> Drop for Proxy<T> {
+impl<T> Drop for EventLoopProxy<T> {
     fn drop(&mut self) {
         unsafe {
             CFRelease(self.source as _);
@@ -296,13 +296,13 @@ impl<T> Drop for Proxy<T> {
     }
 }
 
-impl<T> Clone for Proxy<T> {
+impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Proxy::new(self.sender.clone())
+        EventLoopProxy::new(self.sender.clone())
     }
 }
 
-impl<T> Proxy<T> {
+impl<T> EventLoopProxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
         unsafe {
             // just wake up the eventloop
@@ -318,7 +318,7 @@ impl<T> Proxy<T> {
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
             CFRunLoopWakeUp(rl);
 
-            Proxy { sender, source }
+            EventLoopProxy { sender, source }
         }
     }
 

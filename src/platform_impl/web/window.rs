@@ -4,12 +4,12 @@ use crate::event;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{
-    CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
 use raw_window_handle::{RawWindowHandle, WebHandle};
 
-use super::{backend, monitor, EventLoopWindowTarget};
+use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget};
 
 use std::cell::{Ref, RefCell};
 use std::collections::vec_deque::IntoIter as VecDequeIter;
@@ -19,28 +19,28 @@ use std::rc::Rc;
 pub struct Window {
     canvas: Rc<RefCell<backend::Canvas>>,
     previous_pointer: RefCell<&'static str>,
-    id: Id,
+    id: WindowId,
     register_redraw_request: Box<dyn Fn()>,
     resize_notify_fn: Box<dyn Fn(PhysicalSize<u32>)>,
     destroy_fn: Option<Box<dyn FnOnce()>>,
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
-        platform_attr: PlatformSpecificBuilderAttributes,
+        platform_attr: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOE> {
         let runner = target.runner.clone();
 
         let id = target.generate_id();
 
         let canvas = backend::Canvas::create(platform_attr)?;
-        let mut canvas = Rc::new(RefCell::new(canvas));
+        let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        target.register(&mut canvas, id);
+        target.register(&canvas, id);
 
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
@@ -77,7 +77,7 @@ impl Window {
         Ok(window)
     }
 
-    pub fn canvas<'a>(&'a self) -> Ref<'a, backend::Canvas> {
+    pub fn canvas(&self) -> Ref<'_, backend::Canvas> {
         self.canvas.borrow()
     }
 
@@ -216,11 +216,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let lock = match mode {
+            CursorGrabMode::None => false,
+            CursorGrabMode::Locked => true,
+            CursorGrabMode::Confined => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            }
+        };
+
         self.canvas
             .borrow()
-            .set_cursor_grab(grab)
-            .map_err(|e| ExternalError::Os(e))
+            .set_cursor_lock(lock)
+            .map_err(ExternalError::Os)
     }
 
     #[inline]
@@ -236,6 +244,11 @@ impl Window {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
+        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    }
+
+    #[inline]
+    pub fn set_cursor_hittest(&self, _hittest: bool) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -298,6 +311,11 @@ impl Window {
     }
 
     #[inline]
+    pub fn set_ime_allowed(&self, _allowed: bool) {
+        // Currently not implemented
+    }
+
+    #[inline]
     pub fn focus_window(&self) {
         // Currently a no-op as it does not seem there is good support for this on web
     }
@@ -311,7 +329,7 @@ impl Window {
     // Allow directly accessing the current monitor internally without unwrapping.
     fn current_monitor_inner(&self) -> RootMH {
         RootMH {
-            inner: monitor::Handle,
+            inner: MonitorHandle,
         }
     }
 
@@ -321,20 +339,20 @@ impl Window {
     }
 
     #[inline]
-    pub fn available_monitors(&self) -> VecDequeIter<monitor::Handle> {
+    pub fn available_monitors(&self) -> VecDequeIter<MonitorHandle> {
         VecDeque::new().into_iter()
     }
 
     #[inline]
     pub fn primary_monitor(&self) -> Option<RootMH> {
         Some(RootMH {
-            inner: monitor::Handle,
+            inner: MonitorHandle,
         })
     }
 
     #[inline]
-    pub fn id(&self) -> Id {
-        return self.id;
+    pub fn id(&self) -> WindowId {
+        self.id
     }
 
     #[inline]
@@ -354,15 +372,27 @@ impl Drop for Window {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Id(pub(crate) u32);
+pub struct WindowId(pub(crate) u32);
 
-impl Id {
-    pub const unsafe fn dummy() -> Id {
-        Id(0)
+impl WindowId {
+    pub const unsafe fn dummy() -> Self {
+        Self(0)
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0 as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id as u32)
     }
 }
 
 #[derive(Default, Clone)]
-pub struct PlatformSpecificBuilderAttributes {
+pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
 }
