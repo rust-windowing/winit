@@ -2272,7 +2272,8 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                     let mouse_button_flags = mouse.Anonymous.Anonymous.usButtonFlags;
 
                     if util::has_flag(mouse_button_flags as u32, RI_MOUSE_WHEEL) {
-                        let delta = mouse_button_flags as i16 as f32 / WHEEL_DELTA as f32;
+                        let delta = mouse.Anonymous.Anonymous.usButtonData as i16 as f32
+                            / WHEEL_DELTA as f32;
                         userdata.send_event(Event::DeviceEvent {
                             device_id,
                             event: MouseWheel {
