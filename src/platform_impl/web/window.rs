@@ -35,12 +35,14 @@ impl Window {
 
         let id = target.generate_id();
 
+        let prevent_default = platform_attr.prevent_default;
+
         let canvas = backend::Canvas::create(platform_attr)?;
         let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        target.register(&canvas, id);
+        target.register(&canvas, id, prevent_default);
 
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
@@ -392,7 +394,19 @@ impl From<u64> for WindowId {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
+    pub(crate) prevent_default: bool,
+    pub(crate) focusable: bool,
+}
+
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    fn default() -> Self {
+        Self {
+            canvas: None,
+            prevent_default: true,
+            focusable: true,
+        }
+    }
 }
