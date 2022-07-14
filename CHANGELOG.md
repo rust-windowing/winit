@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Android, `ndk-glue`'s `NativeWindow` lock is now held between `Event::Resumed` and `Event::Suspended`.
 - On Web, added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
 - Added `WindowEvent::Occluded(bool)`, currently implemented on macOS and X11.
 - On X11, fix events for caps lock key not being sent
@@ -64,7 +65,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Implemented `Eq` for `Fullscreen`, `Theme`, and `UserAttentionType`.
 - **Breaking:** `Window::set_cursor_grab` now accepts `CursorGrabMode` to control grabbing behavior.
 - On Wayland, add support for `Window::set_cursor_position`.
-- Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value. 
+- Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value.
 - `EventLoopBuilder::build` will now panic when the `EventLoop` is being created more than once.
 - Added `From<u64>` for `WindowId` and `From<WindowId>` for `u64`.
 - Added `MonitorHandle::refresh_rate_millihertz` to get monitor's refresh rate.

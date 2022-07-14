@@ -1039,8 +1039,17 @@ unsafe impl raw_window_handle::HasRawWindowHandle for Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android:** Only available after receiving the Resumed event and before Suspended. *If you*
-    /// *try to get the handle outside of that period, this function will panic*!
+    /// ### Android
+    ///
+    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
+    /// try to get the handle outside of that period, this function will panic*!
+    ///
+    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
+    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
+    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
+    ///
+    /// [`Event::Resumed`]: crate::event::Event::Resumed
+    /// [`Event::Suspended`]: crate::event::Event::Suspended
     fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
         self.window.raw_window_handle()
     }

@@ -10,8 +10,9 @@ use ndk::{
     configuration::Configuration,
     event::{InputEvent, KeyAction, Keycode, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
+    native_window::NativeWindow,
 };
-use ndk_glue::{Event, Rect};
+use ndk_glue::{Event, LockReadGuard, Rect};
 use once_cell::sync::Lazy;
 use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
 
@@ -239,6 +240,7 @@ pub struct EventLoop<T: 'static> {
     start_cause: event::StartCause,
     looper: ThreadLooper,
     running: bool,
+    window_lock: Option<LockReadGuard<NativeWindow>>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -268,6 +270,7 @@ impl<T: 'static> EventLoop<T> {
             start_cause: event::StartCause::Init,
             looper: ThreadLooper::for_thread().unwrap(),
             running: false,
+            window_lock: None,
         }
     }
 
@@ -300,22 +303,42 @@ impl<T: 'static> EventLoop<T> {
             match self.first_event.take() {
                 Some(EventSource::Callback) => match ndk_glue::poll_events().unwrap() {
                     Event::WindowCreated => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Resumed
-                        );
+                        // Acquire a lock on the window to prevent Android from destroying
+                        // it until we've notified and waited for the user in Event::Suspended.
+                        // WARNING: ndk-glue is inherently racy (https://github.com/rust-windowing/winit/issues/2293)
+                        // and may have already received onNativeWindowDestroyed while this thread hasn't yet processed
+                        // the event, and would see a `None` lock+window in that case.
+                        if let Some(next_window_lock) = ndk_glue::native_window() {
+                            assert!(
+                                self.window_lock.replace(next_window_lock).is_none(),
+                                "Received `Event::WindowCreated` while we were already holding a lock"
+                            );
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Resumed
+                            );
+                        } else {
+                            warn!("Received `Event::WindowCreated` while `ndk_glue::native_window()` provides no window");
+                        }
                     }
                     Event::WindowResized => resized = true,
                     Event::WindowRedrawNeeded => redraw = true,
                     Event::WindowDestroyed => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Suspended
-                        );
+                        // Release the lock, allowing Android to clean up this surface
+                        // WARNING: See above - if ndk-glue is racy, this event may be called
+                        // without having a `self.window_lock` in place.
+                        if self.window_lock.take().is_some() {
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Suspended
+                            );
+                        } else {
+                            warn!("Received `Event::WindowDestroyed` while we were not holding a window lock");
+                        }
                     }
                     Event::Pause => self.running = false,
                     Event::Resume => self.running = true,
@@ -369,7 +392,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 Some(EventSource::InputQueue) => {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
-                        while let Some(event) = input_queue.get_event() {
+                        while let Some(event) = input_queue.get_event().expect("get_event") {
                             if let Some(event) = input_queue.pre_dispatch(event) {
                                 let mut handled = true;
                                 let window_id = window::WindowId(WindowId);
@@ -799,7 +822,7 @@ impl Window {
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        if let Some(native_window) = ndk_glue::native_window().as_ref() {
+        if let Some(native_window) = ndk_glue::native_window() {
             native_window.raw_window_handle()
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
