@@ -77,7 +77,7 @@
 //!   currently uses a three-pronged approach:
 //!   + Use the value in the `WINIT_X11_SCALE_FACTOR` environment variable, if present.
 //!   + If not present, use the value set in `Xft.dpi` in Xresources.
-//!   + Otherwise, calcuate the scale factor based on the millimeter monitor dimensions provided by XRandR.
+//!   + Otherwise, calculate the scale factor based on the millimeter monitor dimensions provided by XRandR.
 //!
 //!   If `WINIT_X11_SCALE_FACTOR` is set to `randr`, it'll ignore the `Xft.dpi` field and use the
 //!   XRandR scaling method. Generally speaking, you should try to configure the standard system

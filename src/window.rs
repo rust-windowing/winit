@@ -625,7 +625,7 @@ impl Window {
         self.window.set_visible(visible)
     }
 
-    /// Gets the window's current vibility state.
+    /// Gets the window's current visibility state.
     ///
     /// `None` means it couldn't be determined, so it is not recommended to use this to drive your rendering backend.
     ///

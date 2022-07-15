@@ -65,7 +65,7 @@ impl<T: 'static> Runner<T> {
         }
     }
 
-    /// Returns the cooresponding `StartCause` for the current `state`, or `None`
+    /// Returns the corresponding `StartCause` for the current `state`, or `None`
     /// when in `Exit` state.
     fn maybe_start_cause(&self) -> Option<StartCause> {
         Some(match self.state {

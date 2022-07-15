@@ -90,7 +90,7 @@ impl Window {
             .create_surface_with_scale_callback(move |scale, surface, mut dispatch_data| {
                 let winit_state = dispatch_data.get::<WinitState>().unwrap();
 
-                // Get the window that receiced the event.
+                // Get the window that received the event.
                 let window_id = super::make_wid(&surface);
                 let mut window_update = winit_state.window_updates.get_mut(&window_id).unwrap();
 
