@@ -125,6 +125,11 @@ pub enum Event<'a, T: 'static> {
 
     // Emitted when the app receives a memory warning from the system
     MemoryWarning,
+
+    // Emitted when the app receives a deep link
+    OpenURL {
+        url: String,
+    },
 }
 
 impl<T: Clone> Clone for Event<'static, T> {
@@ -148,6 +153,7 @@ impl<T: Clone> Clone for Event<'static, T> {
             Suspended => Suspended,
             Resumed => Resumed,
             MemoryWarning => MemoryWarning,
+            OpenURL { url } => OpenURL { url: url.clone() },
         }
     }
 }
@@ -167,6 +173,7 @@ impl<'a, T> Event<'a, T> {
             Suspended => Ok(Suspended),
             Resumed => Ok(Resumed),
             MemoryWarning => Ok(MemoryWarning),
+            OpenURL { url } => Ok(OpenURL { url }),
         }
     }
 
@@ -188,6 +195,7 @@ impl<'a, T> Event<'a, T> {
             Suspended => Some(Suspended),
             Resumed => Some(Resumed),
             MemoryWarning => Some(MemoryWarning),
+            OpenURL { url } => Some(OpenURL { url }),
         }
     }
 }

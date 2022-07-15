@@ -594,7 +594,7 @@ pub fn create_delegate_class() {
         url: id,
         _options: id,
     ) -> BOOL {
-        let string = unsafe {
+        let url = unsafe {
             let absolute_string: id = msg_send![url, absoluteString];
             let ptr: *const std::os::raw::c_char = msg_send!(absolute_string, UTF8String);
             std::ffi::CStr::from_ptr(ptr)
@@ -602,7 +602,9 @@ pub fn create_delegate_class() {
                 .unwrap_or_default()
                 .to_string()
         };
-        println!("LOG openURL: {:?}", string);
+        unsafe {
+            app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::OpenURL { url }))
+        }
         YES
     }
 
