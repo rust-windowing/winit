@@ -1,4 +1,3 @@
-use raw_window_handle::XlibHandle;
 use std::{
     cmp, env,
     ffi::CString,
@@ -8,10 +7,11 @@ use std::{
     ptr, slice,
     sync::Arc,
 };
-use x11_dl::xlib::TrueColor;
 
 use libc;
 use parking_lot::Mutex;
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
+use x11_dl::xlib::TrueColor;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -1509,10 +1509,17 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> XlibHandle {
-        let mut handle = XlibHandle::empty();
-        handle.window = self.xlib_window();
-        handle.display = self.xlib_display();
-        handle
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut window_handle = XlibWindowHandle::empty();
+        window_handle.window = self.xlib_window();
+        RawWindowHandle::Xlib(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = XlibDisplayHandle::empty();
+        display_handle.display = self.xlib_display();
+        display_handle.screen = self.screen_id;
+        RawDisplayHandle::Xlib(display_handle)
     }
 }

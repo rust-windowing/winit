@@ -1,3 +1,10 @@
+use std::cell::RefCell;
+use std::clone::Clone;
+use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
+use std::rc::Rc;
+
+use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
+
 use super::{
     super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
     window::WindowId,
@@ -10,10 +17,6 @@ use crate::event::{
 use crate::event_loop::ControlFlow;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId as RootWindowId};
-use std::cell::RefCell;
-use std::clone::Clone;
-use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
-use std::rc::Rc;
 
 pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
@@ -278,5 +281,9 @@ impl<T> EventLoopWindowTarget<T> {
         Some(RootMH {
             inner: MonitorHandle,
         })
+    }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Web(WebDisplayHandle::empty())
     }
 }
