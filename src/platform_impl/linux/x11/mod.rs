@@ -457,7 +457,7 @@ impl<T: 'static> EventLoop<T> {
                     // must do this because during the execution of the iteration we sometimes wake
                     // the mio waker, and if the waker is already awaken before we call poll(),
                     // then poll doesn't block, but it returns immediately. This caused the event
-                    // loop to run continously even if the control_flow was `Wait`
+                    // loop to run continuously even if the control_flow was `Wait`
                     continue;
                 }
             }

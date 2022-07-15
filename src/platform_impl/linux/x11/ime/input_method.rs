@@ -180,10 +180,10 @@ impl PotentialInputMethod {
 }
 
 // By logging this struct, you get a sequential listing of every locale modifier tried, where it
-// came from, and if it succceeded.
+// came from, and if it succeeded.
 #[derive(Debug, Clone)]
 pub struct PotentialInputMethods {
-    // On correctly configured systems, the XMODIFIERS environemnt variable tells us everything we
+    // On correctly configured systems, the XMODIFIERS environment variable tells us everything we
     // need to know.
     xmodifiers: Option<PotentialInputMethod>,
     // We have some standard options at our disposal that should ostensibly always work. For users
@@ -213,7 +213,7 @@ impl PotentialInputMethods {
             // that case, we get `None` and end up skipping ahead to the next method.
             xmodifiers,
             fallbacks: [
-                // This is a standard input method that supports compose equences, which should
+                // This is a standard input method that supports compose sequences, which should
                 // always be available. `@im=none` appears to mean the same thing.
                 PotentialInputMethod::from_str("@im=local"),
                 // This explicitly specifies to use the implementation-dependent default, though

@@ -881,7 +881,7 @@ impl MonitorHandle {
     }
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
-        // FIXME no way to get real refrsh rate for now.
+        // FIXME no way to get real refresh rate for now.
         None
     }
 

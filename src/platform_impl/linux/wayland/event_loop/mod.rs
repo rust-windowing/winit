@@ -64,7 +64,7 @@ pub struct EventLoopWindowTarget<T> {
 
     /// Theme manager to manage cursors.
     ///
-    /// It's being shared amoung all windows to avoid loading
+    /// It's being shared between all windows to avoid loading
     /// multiple similar themes.
     pub theme_manager: ThemeManager,
 
