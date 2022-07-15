@@ -550,7 +550,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **iOS / Android:** Unsupported.
-    /// - **Web:** Sets the size of the canvas element's context box via the `style` attribute.
+    /// - **Web:** Sets the size of the canvas element's content box via the `style` attribute.
     #[inline]
     pub fn set_inner_size<S: Into<Size>>(&self, size: S) {
         self.window.set_inner_size(size.into())
