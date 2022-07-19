@@ -923,7 +923,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     };
 
     if userdata_removed && recurse_depth == 0 {
-        Box::from_raw(userdata_ptr);
+        drop(Box::from_raw(userdata_ptr));
     }
 
     result
@@ -2154,7 +2154,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
                 if window_state.current_theme != new_theme {
                     window_state.current_theme = new_theme;
-                    mem::drop(window_state);
+                    drop(window_state);
                     userdata.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: ThemeChanged(new_theme),
@@ -2413,7 +2413,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         .catch_unwind(callback)
         .unwrap_or(-1);
     if userdata_removed {
-        mem::drop(userdata);
+        drop(userdata);
     } else {
         Box::into_raw(userdata);
     }
