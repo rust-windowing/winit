@@ -123,7 +123,12 @@ impl UnownedWindow {
         // root should be a type ffi::Window and it is finally c_ulong.
         // cf. https://docs.rs/x11-dl/2.19.1/x11_dl/xlib/type.Window.html
         let root = if let Some(id) = pl_attribs.parent_id {
-            u64::from(id).try_into().unwrap()
+            #[cfg(target_pointer_width = "64")]
+            let root = u64::from(id);
+            #[cfg(not(target_pointer_width = "64"))]
+            let root = u64::from(id).try_into().unwrap();
+
+            root
         } else {
             event_loop.root
         };
