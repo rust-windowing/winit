@@ -613,7 +613,7 @@ pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: Lazy<u32> =
 static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
     Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
 /// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then broadcasts this message to all top-level windows
-/// https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification
+/// <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
 pub static TASKBAR_CREATED: Lazy<u32> =
     Lazy::new(|| unsafe { RegisterWindowMessageA("TaskbarCreated\0".as_ptr()) });
 
