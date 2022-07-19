@@ -93,6 +93,8 @@ use crate::{
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
+use super::window::set_skip_taskbar;
+
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
     pointerId: u32,
     entriesCount: *mut u32,
@@ -610,6 +612,10 @@ pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: Lazy<u32> =
     Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr()) });
 static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
     Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
+/// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then broadcasts this message to all top-level windows
+/// https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification
+pub static TASKBAR_CREATED: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("TaskbarCreated\0".as_ptr()) });
 
 fn create_event_target_window<T: 'static>() -> HWND {
     unsafe {
@@ -2175,6 +2181,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0)
                 });
                 0
+            } else if msg == *TASKBAR_CREATED {
+                let window_state = userdata.window_state.lock();
+                set_skip_taskbar(window, window_state.skip_taskbar);
+                DefWindowProcW(window, msg, wparam, lparam)
             } else {
                 DefWindowProcW(window, msg, wparam, lparam)
             }
