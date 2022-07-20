@@ -26,6 +26,8 @@ use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+#[cfg(feature = "x11")]
+use crate::platform::unix::XlibErrorHook;
 #[cfg(feature = "wayland")]
 use crate::window::Theme;
 use crate::{
@@ -583,6 +585,10 @@ impl Window {
     }
 }
 
+/// Hooks for X11 errors.
+#[cfg(feature = "x11")]
+pub(crate) static mut XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
+
 #[cfg(feature = "x11")]
 unsafe extern "C" fn x_error_callback(
     display: *mut x11::ffi::Display,
@@ -590,6 +596,12 @@ unsafe extern "C" fn x_error_callback(
 ) -> c_int {
     let xconn_lock = X11_BACKEND.lock();
     if let Ok(ref xconn) = *xconn_lock {
+        // Call all the hooks.
+        let mut error_handled = false;
+        for hook in XLIB_ERROR_HOOKS.lock().iter() {
+            error_handled |= hook(display as *mut _, event as *mut _);
+        }
+
         // `assume_init` is safe here because the array consists of `MaybeUninit` values,
         // which do not require initialization.
         let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
@@ -608,7 +620,10 @@ unsafe extern "C" fn x_error_callback(
             minor_code: (*event).minor_code,
         };
 
-        error!("X11 error: {:#?}", error);
+        // Don't log error.
+        if !error_handled {
+            error!("X11 error: {:#?}", error);
+        }
 
         *xconn.latest_error.lock() = Some(error);
     }
