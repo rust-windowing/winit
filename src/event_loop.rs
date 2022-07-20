@@ -146,6 +146,7 @@ pub enum ControlFlow {
     /// whether or not new events are available to process.
     ///
     /// ## Platform-specific
+    ///
     /// - **Web:** Events are queued and usually sent when `requestAnimationFrame` fires but sometimes
     ///   the events in the queue may be sent before the next `requestAnimationFrame` callback, for
     ///   example when the scaling of the page has changed. This should be treated as an implementation
@@ -171,8 +172,8 @@ pub enum ControlFlow {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android / iOS / WASM**: The supplied exit code is unused.
-    /// - **Unix**: On most Unix-like platforms, only the 8 least significant bits will be used,
+    /// - **Android / iOS / WASM:** The supplied exit code is unused.
+    /// - **Unix:** On most Unix-like platforms, only the 8 least significant bits will be used,
     ///   which can cause surprises with negative exit values (`-42` would end up as `214`). See
     ///   [`std::process::exit`].
     ///
@@ -264,7 +265,7 @@ impl<T> EventLoop<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11 / Wayland**: The program terminates with exit code 1 if the display server
+    /// - **X11 / Wayland:** The program terminates with exit code 1 if the display server
     ///   disconnects.
     ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
@@ -321,7 +322,7 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / Windows / macOS / iOS / Android / Web**: Unsupported.
+    /// - **Wayland / Windows / macOS / iOS / Android / Web:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {

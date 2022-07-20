@@ -37,7 +37,7 @@ pub trait EventLoopExtRunReturn {
     ///
     /// ## Platform-specific
     ///
-    /// - **Unix-alikes** (**X11** or **Wayland**): This function returns `1` upon disconnection from
+    /// - **X11 / Wayland:** This function returns `1` upon disconnection from
     ///   the display server.
     fn run_return<F>(&mut self, event_handler: F) -> i32
     where
