@@ -325,7 +325,7 @@ extern "C" fn dealloc(this: &Object, _sel: Sel) {
         let marked_text: id = *this.get_ivar("markedText");
         let _: () = msg_send![marked_text, release];
         let state: *mut c_void = *this.get_ivar("winitState");
-        Box::from_raw(state as *mut ViewState);
+        drop(Box::from_raw(state as *mut ViewState));
     }
 }
 

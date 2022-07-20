@@ -72,7 +72,7 @@ extern "C" fn dealloc(this: &Object, _: Sel) {
         let state_ptr: *mut c_void = *(this.get_ivar(AUX_DELEGATE_STATE_NAME));
         // As soon as the box is constructed it is immediately dropped, releasing the underlying
         // memory
-        Box::from_raw(state_ptr as *mut RefCell<AuxDelegateState>);
+        drop(Box::from_raw(state_ptr as *mut RefCell<AuxDelegateState>));
     }
 }
 

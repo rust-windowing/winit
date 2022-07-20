@@ -241,7 +241,7 @@ fn with_state<F: FnOnce(&mut WindowDelegateState) -> T, T>(this: &Object, callba
 
 extern "C" fn dealloc(this: &Object, _sel: Sel) {
     with_state(this, |state| unsafe {
-        Box::from_raw(state as *mut WindowDelegateState);
+        drop(Box::from_raw(state as *mut WindowDelegateState));
     });
 }
 
