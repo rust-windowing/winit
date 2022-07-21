@@ -54,11 +54,19 @@ impl Default for CursorState {
     }
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 enum ImeState {
+    /// The IME events are disabled, so only `ReceivedCharacter` is being sent to the user.
     Disabled,
+
+    /// The IME events are enabled.
     Enabled,
+
+    /// The IME is in preedit.
     Preedit,
+
+    /// The text was just commited, so the next input from the keyboard must be ignored.
+    Commited,
 }
 
 pub(super) struct ViewState {
@@ -527,17 +535,24 @@ extern "C" fn set_marked_text(
             }));
         }
 
-        let cursor_start = preedit_string.len();
-        let cursor_end = preedit_string.len();
-        state.ime_state = ImeState::Preedit;
+        // Don't update state to preedit when we've just commited a string, since the following
+        // preedit string will be None anyway.
+        if state.ime_state != ImeState::Commited {
+            state.ime_state = ImeState::Preedit;
+        }
+
+        // Empty string basically means that there's no preedit, so indicate that by sending
+        // `None` cursor range.
+        let cursor_range = if preedit_string.is_empty() {
+            None
+        } else {
+            Some((preedit_string.len(), preedit_string.len()))
+        };
 
         // Send WindowEvent for updating marked text
         AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
-            event: WindowEvent::Ime(Ime::Preedit(
-                preedit_string,
-                Some((cursor_start, cursor_end)),
-            )),
+            event: WindowEvent::Ime(Ime::Preedit(preedit_string, cursor_range)),
         }));
     }
 }
@@ -557,7 +572,7 @@ extern "C" fn unmark_text(this: &Object, _sel: Sel) {
         let state = &mut *(state_ptr as *mut ViewState);
         AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
             window_id: WindowId(get_window_id(state.ns_window)),
-            event: WindowEvent::Ime(Ime::Preedit(String::new(), Some((0, 0)))),
+            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
         }));
         if state.is_ime_enabled() {
             // Leave the Preedit state
@@ -630,18 +645,25 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
                 window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::Ime(Ime::Commit(string)),
             }));
-            state.ime_state = ImeState::Enabled;
+            state.ime_state = ImeState::Commited;
         }
     }
 }
 
 extern "C" fn do_command_by_selector(this: &Object, _sel: Sel, _command: Sel) {
     trace_scope!("doCommandBySelector:");
-    // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human readable" character
-    // happens, i.e. newlines, tabs, and Ctrl+C.
+    // Basically, we're sent this message whenever a keyboard event that doesn't generate a "human
+    // readable" character happens, i.e. newlines, tabs, and Ctrl+C.
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
         let state = &mut *(state_ptr as *mut ViewState);
+
+        // We shouldn't forward any character from just commited text, since we'll end up sending
+        // it twice with some IMEs like Korean one. We'll also always send `Enter` in that case,
+        // which is not desired given it was used to confirm IME input.
+        if state.ime_state == ImeState::Commited {
+            return;
+        }
 
         state.forward_key_to_app = true;
 
@@ -748,6 +770,7 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
         // we must send the `KeyboardInput` event during IME if it triggered
         // `doCommandBySelector`. (doCommandBySelector means that the keyboard input
         // is not handled by IME and should be handled by the application)
+        let mut text_commited = false;
         if state.ime_allowed {
             let events_for_nsview: id = msg_send![class!(NSArray), arrayWithObject: event];
             let _: () = msg_send![this, interpretKeyEvents: events_for_nsview];
@@ -758,6 +781,12 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
             // some of the reads (eg `state.ime_state`) that happen after this
             // point are not needed.
             compiler_fence(Ordering::SeqCst);
+
+            // If the text was commited we must treat the next keyboard event as IME related.
+            if state.ime_state == ImeState::Commited {
+                state.ime_state = ImeState::Enabled;
+                text_commited = true;
+            }
         }
 
         let now_in_preedit = state.ime_state == ImeState::Preedit;
@@ -767,8 +796,9 @@ extern "C" fn key_down(this: &Object, _sel: Sel, event: id) {
 
         update_potentially_stale_modifiers(state, event);
 
-        let preedit_related = was_in_preedit || now_in_preedit;
-        if !preedit_related || state.forward_key_to_app || !state.ime_allowed {
+        let ime_related = was_in_preedit || now_in_preedit || text_commited;
+
+        if !ime_related || state.forward_key_to_app || !state.ime_allowed {
             #[allow(deprecated)]
             let window_event = Event::WindowEvent {
                 window_id,
