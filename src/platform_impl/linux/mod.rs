@@ -20,7 +20,7 @@ use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 use once_cell::sync::Lazy;
 #[cfg(feature = "x11")]
 use parking_lot::Mutex;
-use raw_window_handle::RawWindowHandle;
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 
 #[cfg(feature = "x11")]
 pub use self::x11::XNotSupported;
@@ -572,13 +572,14 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        match self {
-            #[cfg(feature = "x11")]
-            Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
-            #[cfg(feature = "wayland")]
-            Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
-        }
+        x11_or_wayland!(match self; Window(window) => window.raw_window_handle())
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        x11_or_wayland!(match self; Window(window) => window.raw_display_handle())
     }
 }
 
@@ -809,6 +810,10 @@ impl<T> EventLoopWindowTarget<T> {
             #[cfg(feature = "x11")]
             EventLoopWindowTarget::X(ref evlp) => evlp.set_device_event_filter(_filter),
         }
+    }
+
+    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
     }
 }
 

@@ -17,6 +17,7 @@ use cocoa::{
     foundation::{NSInteger, NSPoint, NSTimeInterval},
 };
 use objc::rc::autoreleasepool;
+use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
     event::Event,
@@ -86,6 +87,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
         let monitor = monitor::primary_monitor();
         Some(RootMonitorHandle { inner: monitor })
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
 }
 

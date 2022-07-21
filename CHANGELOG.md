@@ -72,6 +72,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking**, Replaced `VideoMode::refresh_rate` with `VideoMode::refresh_rate_millihertz` providing better precision.
 - On Web, add `with_prevent_default` and `with_focusable` to `WindowBuilderExtWebSys` to control whether events should be propagated.
 - On Windows, fix focus events being sent to inactive windows.
+- **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
 
 # 0.26.1 (2022-01-05)
 

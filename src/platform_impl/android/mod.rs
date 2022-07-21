@@ -14,7 +14,9 @@ use ndk::{
 };
 use ndk_glue::{Event, LockReadGuard, Rect};
 use once_cell::sync::Lazy;
-use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use raw_window_handle::{
+    AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -645,6 +647,10 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         v.push_back(MonitorHandle);
         v
     }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -833,6 +839,10 @@ impl Window {
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
         }
+    }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
     }
 
     pub fn config(&self) -> Configuration {

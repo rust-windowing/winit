@@ -13,6 +13,7 @@ use std::{error, fmt};
 
 use instant::Instant;
 use once_cell::sync::OnceCell;
+use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
@@ -334,6 +335,13 @@ impl<T> EventLoopWindowTarget<T> {
             target_os = "openbsd"
         ))]
         self.p.set_device_event_filter(_filter);
+    }
+}
+
+unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
+    /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
+    fn raw_display_handle(&self) -> RawDisplayHandle {
+        self.p.raw_display_handle()
     }
 }
 

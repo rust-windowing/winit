@@ -6,6 +6,8 @@ use std::process;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
+
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::Display;
@@ -69,6 +71,14 @@ pub struct EventLoopWindowTarget<T> {
     pub theme_manager: ThemeManager,
 
     _marker: std::marker::PhantomData<T>,
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = WaylandDisplayHandle::empty();
+        display_handle.display = self.display.get_display_ptr() as *mut _;
+        RawDisplayHandle::Wayland(display_handle)
+    }
 }
 
 pub struct EventLoop<T: 'static> {
