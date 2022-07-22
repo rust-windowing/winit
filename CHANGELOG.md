@@ -73,6 +73,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Web, add `with_prevent_default` and `with_focusable` to `WindowBuilderExtWebSys` to control whether events should be propagated.
 - On Windows, fix focus events being sent to inactive windows.
 - **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
+- On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
 
 # 0.26.1 (2022-01-05)
 

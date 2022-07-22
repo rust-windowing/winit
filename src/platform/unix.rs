@@ -19,7 +19,7 @@ use crate::{
 #[cfg(feature = "x11")]
 use crate::dpi::Size;
 #[cfg(feature = "x11")]
-use crate::platform_impl::x11::{ffi::XVisualInfo, XConnection};
+use crate::platform_impl::{x11::ffi::XVisualInfo, x11::XConnection, XLIB_ERROR_HOOKS};
 use crate::platform_impl::{
     ApplicationName, Backend, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
     Window as LinuxWindow,
@@ -34,6 +34,29 @@ pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupport
 
 #[cfg(feature = "wayland")]
 pub use crate::window::Theme;
+
+/// The first argument in the provided hook will be the pointer to XDisplay
+/// and the second one the pointer to XError. The return `bool` is an indicator
+/// whether error was handled by the callback.
+#[cfg(feature = "x11")]
+pub type XlibErrorHook =
+    Box<dyn Fn(*mut std::ffi::c_void, *mut std::ffi::c_void) -> bool + Send + Sync>;
+
+/// Hook to winit's xlib error handling callback.
+///
+/// This method is provided as a safe way to handle the errors comming from X11 when using xlib
+/// in external crates, like glutin for GLX access. Trying to handle errors by speculating with
+/// `XSetErrorHandler` is [`unsafe`].
+///
+/// [`unsafe`]: https://www.remlab.net/op/xlib.shtml
+#[inline]
+#[cfg(feature = "x11")]
+pub fn register_xlib_error_hook(hook: XlibErrorHook) {
+    // Append new hook.
+    unsafe {
+        XLIB_ERROR_HOOKS.lock().push(hook);
+    }
+}
 
 /// Additional methods on [`EventLoopWindowTarget`] that are specific to Unix.
 pub trait EventLoopWindowTargetExtUnix {
