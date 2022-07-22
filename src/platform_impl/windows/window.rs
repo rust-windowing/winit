@@ -687,39 +687,8 @@ impl Window {
 
     #[inline]
     pub fn set_skip_taskbar(&self, skip: bool) {
-        com_initialized();
-        unsafe {
-            TASKBAR_LIST.with(|task_bar_list_ptr| {
-                let mut task_bar_list = task_bar_list_ptr.get();
-
-                if task_bar_list.is_null() {
-                    let hr = CoCreateInstance(
-                        &CLSID_TaskbarList,
-                        ptr::null_mut(),
-                        CLSCTX_ALL,
-                        &IID_ITaskbarList,
-                        &mut task_bar_list as *mut _ as *mut _,
-                    );
-
-                    let hr_init = (*(*task_bar_list).lpVtbl).HrInit;
-
-                    if hr != S_OK || hr_init(task_bar_list.cast()) != S_OK {
-                        // In some old windows, the taskbar object could not be created, we just ignore it
-                        return;
-                    }
-                    task_bar_list_ptr.set(task_bar_list)
-                }
-
-                task_bar_list = task_bar_list_ptr.get();
-                if skip {
-                    let delete_tab = (*(*task_bar_list).lpVtbl).DeleteTab;
-                    delete_tab(task_bar_list, self.window.0);
-                } else {
-                    let add_tab = (*(*task_bar_list).lpVtbl).AddTab;
-                    add_tab(task_bar_list, self.window.0);
-                }
-            });
-        }
+        self.window_state.lock().skip_taskbar = skip;
+        unsafe { set_skip_taskbar(self.hwnd(), skip) };
     }
 
     #[inline]
@@ -1104,6 +1073,40 @@ unsafe fn taskbar_mark_fullscreen(handle: HWND, fullscreen: bool) {
         let mark_fullscreen_window = (*(*task_bar_list2).lpVtbl).MarkFullscreenWindow;
         mark_fullscreen_window(task_bar_list2, handle, if fullscreen { 1 } else { 0 });
     })
+}
+
+pub(crate) unsafe fn set_skip_taskbar(hwnd: HWND, skip: bool) {
+    com_initialized();
+    TASKBAR_LIST.with(|task_bar_list_ptr| {
+        let mut task_bar_list = task_bar_list_ptr.get();
+
+        if task_bar_list.is_null() {
+            let hr = CoCreateInstance(
+                &CLSID_TaskbarList,
+                ptr::null_mut(),
+                CLSCTX_ALL,
+                &IID_ITaskbarList,
+                &mut task_bar_list as *mut _ as *mut _,
+            );
+
+            let hr_init = (*(*task_bar_list).lpVtbl).HrInit;
+
+            if hr != S_OK || hr_init(task_bar_list.cast()) != S_OK {
+                // In some old windows, the taskbar object could not be created, we just ignore it
+                return;
+            }
+            task_bar_list_ptr.set(task_bar_list)
+        }
+
+        task_bar_list = task_bar_list_ptr.get();
+        if skip {
+            let delete_tab = (*(*task_bar_list).lpVtbl).DeleteTab;
+            delete_tab(task_bar_list, hwnd);
+        } else {
+            let add_tab = (*(*task_bar_list).lpVtbl).AddTab;
+            add_tab(task_bar_list, hwnd);
+        }
+    });
 }
 
 unsafe fn force_window_active(handle: HWND) {

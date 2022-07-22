@@ -49,6 +49,8 @@ pub struct WindowState {
     // Used by WM_NCACTIVATE, WM_SETFOCUS and WM_KILLFOCUS
     pub is_active: bool,
     pub is_focused: bool,
+
+    pub skip_taskbar: bool,
 }
 
 #[derive(Clone)]
@@ -152,6 +154,8 @@ impl WindowState {
 
             is_active: false,
             is_focused: false,
+
+            skip_taskbar: false,
         }
     }
 
