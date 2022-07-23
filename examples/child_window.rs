@@ -7,17 +7,17 @@ use winit::{
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
     platform::unix::{WindowBuilderExtUnix, WindowExtUnix},
-    window::{Window, WindowBuilder},
+    window::{Window, WindowBuilder, WindowId},
 };
 
 #[cfg(all(target_os = "linux", feature = "x11"))]
 fn spawn_child_window(
-    parent: u64,
+    parent: u32,
     event_loop: &EventLoopWindowTarget<()>,
-    windows: &mut HashMap<u64, Window>,
+    windows: &mut HashMap<u32, Window>,
 ) {
     let child_window = WindowBuilder::new()
-        .with_x11_parent(parent.try_into().unwrap())
+        .with_x11_parent(WindowId::from(parent as u64))
         .with_title("child window")
         .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
         .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
@@ -25,10 +25,7 @@ fn spawn_child_window(
         .build(event_loop)
         .unwrap();
 
-    #[cfg(target_pointer_width = "64")]
-    let id = child_window.xlib_window().unwrap();
-    #[cfg(not(target_pointer_width = "64"))]
-    let id = child_window.xlib_window().unwrap().try_into().unwrap();
+    let id = child_window.xlib_window().unwrap() as u32;
     windows.insert(id, child_window);
     println!("child window created with id: {}", id);
 }
@@ -45,10 +42,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    #[cfg(target_pointer_width = "64")]
-    let root = parent_window.xlib_window().unwrap();
-    #[cfg(not(target_pointer_width = "64"))]
-    let root = parent_window.xlib_window().unwrap().try_into().unwrap();
+    let root = parent_window.xlib_window().unwrap() as u32;
     println!("parent window id: {})", root);
 
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {

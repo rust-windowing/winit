@@ -125,8 +125,12 @@ impl UnownedWindow {
         let root = if let Some(id) = pl_attribs.parent_id {
             #[cfg(target_pointer_width = "64")]
             let root = u64::from(id);
+
             #[cfg(not(target_pointer_width = "64"))]
-            let root = u64::from(id).try_into().unwrap();
+            // XID is defined as 32-bit value in the X11 protocol so
+            // there's no problem about higher bits truncation.
+            // cf. https://www.x.org/docs/XProtocol/proto.pdf
+            let root = u64::from(id) as u32;
 
             root
         } else {
