@@ -22,7 +22,7 @@ fn spawn_child_window(
         .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
         .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
         .with_visible(true)
-        .build(&event_loop)
+        .build(event_loop)
         .unwrap();
 
     #[cfg(target_pointer_width = "64")]
@@ -54,8 +54,8 @@ fn main() {
     event_loop.run(move |event: Event<'_, ()>, event_loop, control_flow| {
         *control_flow = ControlFlow::Wait;
 
-        match event {
-            Event::WindowEvent { event, window_id } => match event {
+        if let Event::WindowEvent { event, window_id } = event {
+            match event {
                 WindowEvent::CloseRequested => {
                     windows.clear();
                     *control_flow = ControlFlow::Exit;
@@ -78,8 +78,7 @@ fn main() {
                     spawn_child_window(root, event_loop, &mut windows);
                 }
                 _ => (),
-            },
-            _ => (),
+            }
         }
     })
 }
