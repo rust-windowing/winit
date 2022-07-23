@@ -106,7 +106,6 @@ bitflags! {
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
         const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
-        const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
 }
 
@@ -229,9 +228,6 @@ impl WindowFlags {
         if self.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN) {
             self |= WindowFlags::EXCLUSIVE_FULLSCREEN_OR_MASK;
         }
-        if !self.contains(WindowFlags::VISIBLE) {
-            self &= WindowFlags::INVISIBLE_AND_MASK;
-        }
         if !self.contains(WindowFlags::DECORATIONS) {
             self &= WindowFlags::NO_DECORATIONS_AND_MASK;
         }
@@ -294,21 +290,17 @@ impl WindowFlags {
         new = new.mask();
 
         let diff = self ^ new;
+
         if diff == WindowFlags::empty() {
             return;
         }
 
-        if diff.contains(WindowFlags::VISIBLE) {
+        if new.contains(WindowFlags::VISIBLE) {
             unsafe {
-                ShowWindow(
-                    window,
-                    match new.contains(WindowFlags::VISIBLE) {
-                        true => SW_SHOW,
-                        false => SW_HIDE,
-                    },
-                );
+                ShowWindow(window, SW_SHOW);
             }
         }
+
         if diff.contains(WindowFlags::ALWAYS_ON_TOP) {
             unsafe {
                 SetWindowPos(
@@ -349,6 +341,12 @@ impl WindowFlags {
                         false => SW_RESTORE,
                     },
                 );
+            }
+        }
+
+        if !new.contains(WindowFlags::VISIBLE) {
+            unsafe {
+                ShowWindow(window, SW_HIDE);
             }
         }
 
