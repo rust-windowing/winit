@@ -45,6 +45,12 @@ pub struct WindowState {
 
     pub ime_state: ImeState,
     pub ime_allowed: bool,
+
+    // Used by WM_NCACTIVATE, WM_SETFOCUS and WM_KILLFOCUS
+    pub is_active: bool,
+    pub is_focused: bool,
+
+    pub skip_taskbar: bool,
 }
 
 #[derive(Clone)]
@@ -144,6 +150,11 @@ impl WindowState {
 
             ime_state: ImeState::Disabled,
             ime_allowed: false,
+
+            is_active: false,
+            is_focused: false,
+
+            skip_taskbar: false,
         }
     }
 
@@ -168,6 +179,24 @@ impl WindowState {
         F: FnOnce(&mut WindowFlags),
     {
         f(&mut self.window_flags);
+    }
+
+    pub fn has_active_focus(&self) -> bool {
+        self.is_active && self.is_focused
+    }
+
+    // Updates is_active and returns whether active-focus state has changed
+    pub fn set_active(&mut self, is_active: bool) -> bool {
+        let old = self.has_active_focus();
+        self.is_active = is_active;
+        old != self.has_active_focus()
+    }
+
+    // Updates is_focused and returns whether active-focus state has changed
+    pub fn set_focused(&mut self, is_focused: bool) -> bool {
+        let old = self.has_active_focus();
+        self.is_focused = is_focused;
+        old != self.has_active_focus()
     }
 }
 

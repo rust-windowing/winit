@@ -277,17 +277,19 @@ pub enum WindowEvent<'a> {
 
     /// The keyboard modifiers have changed.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    /// ## Platform-specific
+    ///
+    /// - **Web:** This API is currently unimplemented on the web. This isn't by design - it's an
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
-    /// An event from input method.
+    /// An event from an input method.
     ///
-    /// **Note :** You have to explicitly enable this event using [`Window::set_ime_allowed`].
+    /// **Note:** You have to explicitly enable this event using [`Window::set_ime_allowed`].
     ///
-    /// Platform-specific behavior:
-    /// - **iOS / Android / Web :** Unsupported.
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
     Ime(Ime),
 
     /// The cursor has moved on the window.
@@ -370,8 +372,19 @@ pub enum WindowEvent<'a> {
     /// Applications might wish to react to this to change the theme of the content of the window
     /// when the system changes the window theme.
     ///
+    /// ## Platform-specific
+    ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
+
+    /// The window has been occluded (completely hidden from view).
+    ///
+    /// This is different to window visibility as it depends on whether the window is closed,
+    /// minimised, set invisible, or fully occluded by another window.
+    ///
+    /// Platform-specific behavior:
+    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    Occluded(bool),
 }
 
 impl Clone for WindowEvent<'static> {
@@ -461,6 +474,7 @@ impl Clone for WindowEvent<'static> {
             ScaleFactorChanged { .. } => {
                 unreachable!("Static event can't be about scale factor changing")
             }
+            Occluded(occluded) => Occluded(*occluded),
         };
     }
 }
@@ -546,6 +560,7 @@ impl<'a> WindowEvent<'a> {
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
             ScaleFactorChanged { .. } => None,
+            Occluded(occluded) => Some(Occluded(occluded)),
         }
     }
 }

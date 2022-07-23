@@ -1,4 +1,3 @@
-use raw_window_handle::{AppKitHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     convert::TryInto,
@@ -8,6 +7,10 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, MutexGuard, Weak,
     },
+};
+
+use raw_window_handle::{
+    AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
 use crate::{
@@ -55,6 +58,18 @@ pub struct WindowId(pub usize);
 impl WindowId {
     pub const unsafe fn dummy() -> Self {
         Self(0)
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0 as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id as usize)
     }
 }
 
@@ -1132,10 +1147,15 @@ impl UnownedWindow {
 
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = AppKitHandle::empty();
-        handle.ns_window = *self.ns_window as *mut _;
-        handle.ns_view = *self.ns_view as *mut _;
-        RawWindowHandle::AppKit(handle)
+        let mut window_handle = AppKitWindowHandle::empty();
+        window_handle.ns_window = *self.ns_window as *mut _;
+        window_handle.ns_view = *self.ns_view as *mut _;
+        RawWindowHandle::AppKit(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
 }
 

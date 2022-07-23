@@ -4,6 +4,7 @@ use super::{
     ffi::{CurrentTime, RRCrtc, RRMode, Success, XRRCrtcInfo, XRRScreenResources},
     *,
 };
+use crate::platform_impl::platform::x11::monitor;
 use crate::{dpi::validate_scale_factor, platform_impl::platform::x11::VideoMode};
 
 /// Represents values of `WINIT_HIDPI_FACTOR`.
@@ -80,18 +81,13 @@ impl XConnection {
             // XRROutputInfo contains an array of mode ids that correspond to
             // modes in the array in XRRScreenResources
             .filter(|x| output_modes.iter().any(|id| x.id == *id))
-            .map(|x| {
-                let refresh_rate = if x.dotClock > 0 && x.hTotal > 0 && x.vTotal > 0 {
-                    x.dotClock as u64 * 1000 / (x.hTotal as u64 * x.vTotal as u64)
-                } else {
-                    0
-                };
-
+            .map(|mode| {
                 VideoMode {
-                    size: (x.width, x.height),
-                    refresh_rate: (refresh_rate as f32 / 1000.0).round() as u16,
+                    size: (mode.width, mode.height),
+                    refresh_rate_millihertz: monitor::mode_refresh_rate_millihertz(mode)
+                        .unwrap_or(0),
                     bit_depth: bit_depth as u16,
-                    native_mode: x.id,
+                    native_mode: mode.id,
                     // This is populated in `MonitorHandle::video_modes` as the
                     // video mode is returned to the user
                     monitor: None,

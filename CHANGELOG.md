@@ -9,6 +9,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, fix hiding a maximized window.
+- On Android, `ndk-glue`'s `NativeWindow` lock is now held between `Event::Resumed` and `Event::Suspended`.
+- On Web, added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
+- Added `WindowEvent::Occluded(bool)`, currently implemented on macOS and X11.
 - On X11, fix events for caps lock key not being sent
 - Build docs on `docs.rs` for iOS and Android as well.
 - **Breaking:** Removed the `WindowAttributes` struct, since all its functionality is accessible from `WindowBuilder`.
@@ -27,6 +30,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
 - On X11, fix scale factor calculation when the only monitor is reconnected
 - On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
+- On Web, a focused event is manually generated when a click occurs to emulate behaviour of other backends.
 - **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
 - Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.
@@ -62,8 +66,15 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Implemented `Eq` for `Fullscreen`, `Theme`, and `UserAttentionType`.
 - **Breaking:** `Window::set_cursor_grab` now accepts `CursorGrabMode` to control grabbing behavior.
 - On Wayland, add support for `Window::set_cursor_position`.
-- Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value. 
+- Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value.
 - `EventLoopBuilder::build` will now panic when the `EventLoop` is being created more than once.
+- Added `From<u64>` for `WindowId` and `From<WindowId>` for `u64`.
+- Added `MonitorHandle::refresh_rate_millihertz` to get monitor's refresh rate.
+- **Breaking**, Replaced `VideoMode::refresh_rate` with `VideoMode::refresh_rate_millihertz` providing better precision.
+- On Web, add `with_prevent_default` and `with_focusable` to `WindowBuilderExtWebSys` to control whether events should be propagated.
+- On Windows, fix focus events being sent to inactive windows.
+- **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
+- On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
 
 # 0.26.1 (2022-01-05)
 

@@ -20,12 +20,14 @@ use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 use once_cell::sync::Lazy;
 #[cfg(feature = "x11")]
 use parking_lot::Mutex;
-use raw_window_handle::RawWindowHandle;
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 
 #[cfg(feature = "x11")]
 pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+#[cfg(feature = "x11")]
+use crate::platform::unix::XlibErrorHook;
 #[cfg(feature = "wayland")]
 use crate::window::Theme;
 use crate::{
@@ -162,19 +164,23 @@ pub enum Window {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum WindowId {
-    #[cfg(feature = "x11")]
-    X(x11::WindowId),
-    #[cfg(feature = "wayland")]
-    Wayland(wayland::WindowId),
+pub struct WindowId(u64);
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id)
+    }
 }
 
 impl WindowId {
     pub const unsafe fn dummy() -> Self {
-        #[cfg(feature = "wayland")]
-        return WindowId::Wayland(wayland::WindowId::dummy());
-        #[cfg(all(not(feature = "wayland"), feature = "x11"))]
-        return WindowId::X(x11::WindowId::dummy());
+        Self(0)
     }
 }
 
@@ -253,6 +259,11 @@ impl MonitorHandle {
     }
 
     #[inline]
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        x11_or_wayland!(match self; MonitorHandle(m) => m.refresh_rate_millihertz())
+    }
+
+    #[inline]
     pub fn scale_factor(&self) -> f64 {
         x11_or_wayland!(match self; MonitorHandle(m) => m.scale_factor() as f64)
     }
@@ -283,8 +294,8 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn refresh_rate(&self) -> u16 {
-        x11_or_wayland!(match self; VideoMode(m) => m.refresh_rate())
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        x11_or_wayland!(match self; VideoMode(m) => m.refresh_rate_millihertz())
     }
 
     #[inline]
@@ -314,7 +325,12 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        x11_or_wayland!(match self; Window(w) => w.id(); as WindowId)
+        match self {
+            #[cfg(feature = "wayland")]
+            Self::Wayland(window) => window.id(),
+            #[cfg(feature = "x11")]
+            Self::X(window) => window.id(),
+        }
     }
 
     #[inline]
@@ -558,15 +574,20 @@ impl Window {
         }
     }
 
+    #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        match self {
-            #[cfg(feature = "x11")]
-            Window::X(ref window) => RawWindowHandle::Xlib(window.raw_window_handle()),
-            #[cfg(feature = "wayland")]
-            Window::Wayland(ref window) => RawWindowHandle::Wayland(window.raw_window_handle()),
-        }
+        x11_or_wayland!(match self; Window(window) => window.raw_window_handle())
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        x11_or_wayland!(match self; Window(window) => window.raw_display_handle())
     }
 }
+
+/// Hooks for X11 errors.
+#[cfg(feature = "x11")]
+pub(crate) static mut XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
 
 #[cfg(feature = "x11")]
 unsafe extern "C" fn x_error_callback(
@@ -575,6 +596,12 @@ unsafe extern "C" fn x_error_callback(
 ) -> c_int {
     let xconn_lock = X11_BACKEND.lock();
     if let Ok(ref xconn) = *xconn_lock {
+        // Call all the hooks.
+        let mut error_handled = false;
+        for hook in XLIB_ERROR_HOOKS.lock().iter() {
+            error_handled |= hook(display as *mut _, event as *mut _);
+        }
+
         // `assume_init` is safe here because the array consists of `MaybeUninit` values,
         // which do not require initialization.
         let mut buf: [MaybeUninit<c_char>; 1024] = MaybeUninit::uninit().assume_init();
@@ -593,7 +620,10 @@ unsafe extern "C" fn x_error_callback(
             minor_code: (*event).minor_code,
         };
 
-        error!("X11 error: {:#?}", error);
+        // Don't log error.
+        if !error_handled {
+            error!("X11 error: {:#?}", error);
+        }
 
         *xconn.latest_error.lock() = Some(error);
     }
@@ -795,6 +825,10 @@ impl<T> EventLoopWindowTarget<T> {
             #[cfg(feature = "x11")]
             EventLoopWindowTarget::X(ref evlp) => evlp.set_device_event_filter(_filter),
         }
+    }
+
+    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
     }
 }
 

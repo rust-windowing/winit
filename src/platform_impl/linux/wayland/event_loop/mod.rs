@@ -6,6 +6,8 @@ use std::process;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
+
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::Display;
@@ -64,11 +66,19 @@ pub struct EventLoopWindowTarget<T> {
 
     /// Theme manager to manage cursors.
     ///
-    /// It's being shared amoung all windows to avoid loading
+    /// It's being shared between all windows to avoid loading
     /// multiple similar themes.
     pub theme_manager: ThemeManager,
 
     _marker: std::marker::PhantomData<T>,
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = WaylandDisplayHandle::empty();
+        display_handle.display = self.display.get_display_ptr() as *mut _;
+        RawDisplayHandle::Wayland(display_handle)
+    }
 }
 
 pub struct EventLoop<T: 'static> {
@@ -369,9 +379,7 @@ impl<T: 'static> EventLoop<T> {
 
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: crate::window::WindowId(
-                                crate::platform_impl::WindowId::Wayland(*window_id),
-                            ),
+                            window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::ScaleFactorChanged {
                                 scale_factor,
                                 new_inner_size: &mut physical_size,
@@ -421,9 +429,7 @@ impl<T: 'static> EventLoop<T> {
                     if let Some(physical_size) = physical_size {
                         sticky_exit_callback(
                             Event::WindowEvent {
-                                window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Wayland(*window_id),
-                                ),
+                                window_id: crate::window::WindowId(*window_id),
                                 event: WindowEvent::Resized(physical_size),
                             },
                             &self.window_target,
@@ -436,9 +442,7 @@ impl<T: 'static> EventLoop<T> {
                 if window_update.close_window {
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: crate::window::WindowId(
-                                crate::platform_impl::WindowId::Wayland(*window_id),
-                            ),
+                            window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::CloseRequested,
                         },
                         &self.window_target,
@@ -488,9 +492,7 @@ impl<T: 'static> EventLoop<T> {
                 // Handle redraw request.
                 if window_update.redraw_requested {
                     sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(
-                            crate::platform_impl::WindowId::Wayland(*window_id),
-                        )),
+                        Event::RedrawRequested(crate::window::WindowId(*window_id)),
                         &self.window_target,
                         &mut control_flow,
                         &mut callback,
