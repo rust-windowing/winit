@@ -1,10 +1,12 @@
 use std::os::raw;
 use std::{ptr, sync::Arc};
 
+#[cfg(feature = "x11")]
+use crate::window::WindowId;
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
-    window::{Window, WindowBuilder, WindowId},
+    window::{Window, WindowBuilder},
 };
 
 use crate::dpi::Size;
