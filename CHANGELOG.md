@@ -75,6 +75,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, fix focus events being sent to inactive windows.
 - **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
 - On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
+- On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
 
 # 0.26.1 (2022-01-05)
 
