@@ -511,6 +511,29 @@ impl Size {
             Size::Logical(size) => size.to_physical(scale_factor),
         }
     }
+
+    pub fn clamp<S: Into<Size>>(s1: S, s2: S, s3: S, scale_factor: f64) -> Size {
+        let (s1, s2, s3) = (
+            s1.into().to_physical::<f64>(scale_factor),
+            s2.into().to_physical::<f64>(scale_factor),
+            s3.into().to_physical::<f64>(scale_factor),
+        );
+
+        let clamp = |input: f64, min: f64, max: f64| {
+            if input < min {
+                min
+            } else if input > max {
+                max
+            } else {
+                input
+            }
+        };
+
+        let width = clamp(s1.width, s2.width, s3.width);
+        let height = clamp(s1.height, s2.height, s3.height);
+
+        PhysicalSize::new(width, height).into()
+    }
 }
 
 impl<P: Pixel> From<PhysicalSize<P>> for Size {
