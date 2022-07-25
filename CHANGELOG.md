@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, respect min/max inner sizes when creating the window.
 - On Windows, fix hiding a maximized window.
 - On Android, `ndk-glue`'s `NativeWindow` lock is now held between `Event::Resumed` and `Event::Suspended`.
 - On Web, added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
