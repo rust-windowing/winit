@@ -512,11 +512,11 @@ impl Size {
         }
     }
 
-    pub fn clamp<S: Into<Size>>(s1: S, s2: S, s3: S, scale_factor: f64) -> Size {
-        let (s1, s2, s3) = (
-            s1.into().to_physical::<f64>(scale_factor),
-            s2.into().to_physical::<f64>(scale_factor),
-            s3.into().to_physical::<f64>(scale_factor),
+    pub fn clamp<S: Into<Size>>(input: S, min: S, max: S, scale_factor: f64) -> Size {
+        let (input, min, max) = (
+            input.into().to_physical::<f64>(scale_factor),
+            min.into().to_physical::<f64>(scale_factor),
+            max.into().to_physical::<f64>(scale_factor),
         );
 
         let clamp = |input: f64, min: f64, max: f64| {
@@ -529,8 +529,8 @@ impl Size {
             }
         };
 
-        let width = clamp(s1.width, s2.width, s3.width);
-        let height = clamp(s1.height, s2.height, s3.height);
+        let width = clamp(input.width, min.width, max.width);
+        let height = clamp(input.height, min.height, max.height);
 
         PhysicalSize::new(width, height).into()
     }
