@@ -8,7 +8,7 @@ use std::{
 
 use ndk::{
     configuration::Configuration,
-    event::{InputEvent, KeyAction, Keycode, MotionAction},
+    event::{InputEvent, KeyAction, Keycode, MotionAction, Source},
     looper::{ForeignLooper, Poll, ThreadLooper},
     native_window::NativeWindow,
 };
@@ -21,7 +21,7 @@ use raw_window_handle::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
-    event::{self, VirtualKeyCode},
+    event::{self, Force, PenState, VirtualKeyCode},
     event_loop::{self, ControlFlow},
     monitor,
     window::{self, CursorGrabMode},
@@ -404,61 +404,101 @@ impl<T: 'static> EventLoop<T> {
                                 let device_id = event::DeviceId(DeviceId);
                                 match &event {
                                     InputEvent::MotionEvent(motion_event) => {
-                                        let phase = match motion_event.action() {
-                                            MotionAction::Down | MotionAction::PointerDown => {
-                                                Some(event::TouchPhase::Started)
-                                            }
-                                            MotionAction::Up | MotionAction::PointerUp => {
-                                                Some(event::TouchPhase::Ended)
-                                            }
-                                            MotionAction::Move => Some(event::TouchPhase::Moved),
-                                            MotionAction::Cancel => {
-                                                Some(event::TouchPhase::Cancelled)
-                                            }
-                                            _ => {
-                                                handled = false;
-                                                None // TODO mouse events
-                                            }
+                                        // TODO use getToolType https://developer.android.com/ndk/reference/group/input#amotionevent_gettooltype
+                                        // instead of matching Source::Unknown
+                                        let pen_state = match motion_event.source() {
+                                            Source::Unknown
+                                            | Source::Stylus
+                                            | Source::BluetoothStylus => Some(PenState {
+                                                rotation: 0.,
+                                                tilt: (0., 0.),
+                                                barrel: motion_event
+                                                    .button_state()
+                                                    .stylus_secondary(),
+                                                inverted: false,
+                                                eraser: motion_event
+                                                    .button_state()
+                                                    .stylus_primary(),
+                                            }),
+                                            _ => None,
                                         };
-                                        if let Some(phase) = phase {
-                                            let pointers: Box<
-                                                dyn Iterator<Item = ndk::event::Pointer<'_>>,
-                                            > = match phase {
-                                                event::TouchPhase::Started
-                                                | event::TouchPhase::Ended => Box::new(
-                                                    std::iter::once(motion_event.pointer_at_index(
-                                                        motion_event.pointer_index(),
-                                                    )),
-                                                ),
-                                                event::TouchPhase::Moved
-                                                | event::TouchPhase::Cancelled => {
-                                                    Box::new(motion_event.pointers())
+
+                                        let mouse_event = matches!(
+                                            motion_event.action(),
+                                            MotionAction::HoverMove
+                                                | MotionAction::Scroll
+                                                | MotionAction::HoverEnter
+                                                | MotionAction::HoverExit
+                                                | MotionAction::ButtonPress
+                                                | MotionAction::ButtonRelease
+                                        );
+
+                                        if mouse_event {
+                                            handled = false; // TODO handle mouse events
+                                        } else {
+                                            let phase = match motion_event.action() {
+                                                MotionAction::Down | MotionAction::PointerDown => {
+                                                    Some(event::TouchPhase::Started)
+                                                }
+                                                MotionAction::Up | MotionAction::PointerUp => {
+                                                    Some(event::TouchPhase::Ended)
+                                                }
+                                                MotionAction::Move => {
+                                                    Some(event::TouchPhase::Moved)
+                                                }
+                                                MotionAction::Cancel => {
+                                                    Some(event::TouchPhase::Cancelled)
+                                                }
+                                                _ => {
+                                                    handled = false;
+                                                    None
                                                 }
                                             };
+                                            if let Some(phase) = phase {
+                                                let pointers: Box<
+                                                    dyn Iterator<Item = ndk::event::Pointer<'_>>,
+                                                > = match phase {
+                                                    event::TouchPhase::Started
+                                                    | event::TouchPhase::Ended => {
+                                                        Box::new(std::iter::once(
+                                                            motion_event.pointer_at_index(
+                                                                motion_event.pointer_index(),
+                                                            ),
+                                                        ))
+                                                    }
+                                                    event::TouchPhase::Moved
+                                                    | event::TouchPhase::Cancelled => {
+                                                        Box::new(motion_event.pointers())
+                                                    }
+                                                };
 
-                                            for pointer in pointers {
-                                                let location = PhysicalPosition {
-                                                    x: pointer.x() as _,
-                                                    y: pointer.y() as _,
-                                                };
-                                                let event = event::Event::WindowEvent {
-                                                    window_id,
-                                                    event: event::WindowEvent::Touch(
-                                                        event::Touch {
-                                                            device_id,
-                                                            phase,
-                                                            location,
-                                                            id: pointer.pointer_id() as u64,
-                                                            force: None,
-                                                        },
-                                                    ),
-                                                };
-                                                call_event_handler!(
-                                                    event_handler,
-                                                    self.window_target(),
-                                                    control_flow,
-                                                    event
-                                                );
+                                                for pointer in pointers {
+                                                    let location = PhysicalPosition {
+                                                        x: pointer.x() as _,
+                                                        y: pointer.y() as _,
+                                                    };
+                                                    let event = event::Event::WindowEvent {
+                                                        window_id,
+                                                        event: event::WindowEvent::Touch(
+                                                            event::Touch {
+                                                                device_id,
+                                                                phase,
+                                                                location,
+                                                                id: pointer.pointer_id() as u64,
+                                                                force: Some(Force::Normalized(
+                                                                    pointer.pressure() as f64,
+                                                                )),
+                                                                pen_state,
+                                                            },
+                                                        ),
+                                                    };
+                                                    call_event_handler!(
+                                                        event_handler,
+                                                        self.window_target(),
+                                                        control_flow,
+                                                        event
+                                                    );
+                                                }
                                             }
                                         }
                                     }

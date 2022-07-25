@@ -1032,6 +1032,7 @@ impl<T: 'static> EventProcessor<T> {
                                     phase,
                                     location,
                                     force: None, // TODO
+                                    pen_state: None,
                                     id,
                                 }),
                             })
