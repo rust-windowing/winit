@@ -886,7 +886,7 @@ impl<'a, T: 'static> InitData<'a, T> {
                 .max_inner_size
                 .unwrap_or_else(|| PhysicalSize::new(f64::MAX, f64::MAX).into());
             let min_size = attributes
-                .max_inner_size
+                .min_inner_size
                 .unwrap_or_else(|| PhysicalSize::new(0, 0).into());
             let clamped_size = Size::clamp(size, min_size, max_size, win.scale_factor());
             win.set_inner_size(clamped_size);
