@@ -74,9 +74,107 @@ pub enum Event<'a, T: 'static> {
     UserEvent(T),
 
     /// Emitted when the application has been suspended.
+    ///
+    /// # Portability
+    ///
+    /// Not all platforms support the notion of suspending applications, and there may be no
+    /// technical way to guarantee being able to emit a `Suspended` event if the OS has
+    /// no formal application lifecycle (currently only Android and iOS do). For this reason,
+    /// Winit does not currently try to emit pseudo `Suspended` events before the application
+    /// quits on platforms without an application lifecycle.
+    ///
+    /// Considering that the implementation of `Suspended` and [`Resumed`] events may be internally
+    /// driven by multiple platform-specific events, and that there may be subtle differences across
+    /// platforms with how these internal events are delivered, it's recommended that applications
+    /// be able to gracefully handle redundant (i.e. back-to-back) `Suspended` or [`Resumed`] events.
+    ///
+    /// Also see [`Resumed`] notes.
+    ///
+    /// ## Android
+    ///
+    /// On Android, the `Suspended` event is only sent when the application's associated
+    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
+    /// lifecycle event but there may technically be a discrepancy.
+    ///
+    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
+    ///
+    /// Applications that need to run on Android should assume their [`SurfaceView`] has been
+    /// destroyed, which indirectly invalidates any existing render surfaces that may have been
+    /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
+    ///
+    /// After being `Suspended` on Android applications must drop all render surfaces before
+    /// the event callback completes, which may be re-created when the application is next [`Resumed`].
+    ///
+    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
+    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
+    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
+    ///
+    /// ## iOS
+    ///
+    /// On iOS, the `Suspended` event is currently emitted in response to an
+    /// [`applicationWillResignActive`] callback which means that the application is
+    /// about to transition from the active to inactive state (according to the
+    /// [iOS application lifecycle]).
+    ///
+    /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// [`Resumed`]: Self::Resumed
     Suspended,
 
     /// Emitted when the application has been resumed.
+    ///
+    /// For consistency, all platforms emit a `Resumed` event even if they don't themselves have a
+    /// formal suspend/resume lifecycle. For systems without a standard suspend/resume lifecycle
+    /// the `Resumed` event is always emitted after the [`NewEvents(StartCause::Init)`][StartCause::Init]
+    /// event.
+    ///
+    /// # Portability
+    ///
+    /// It's recommended that applications should only initialize their graphics context and create
+    /// a window after they have received their first `Resumed` event. Some systems
+    /// (specifically Android) won't allow applications to create a render surface until they are
+    /// resumed.
+    ///
+    /// Considering that the implementation of [`Suspended`] and `Resumed` events may be internally
+    /// driven by multiple platform-specific events, and that there may be subtle differences across
+    /// platforms with how these internal events are delivered, it's recommended that applications
+    /// be able to gracefully handle redundant (i.e. back-to-back) [`Suspended`] or `Resumed` events.
+    ///
+    /// Also see [`Suspended`] notes.
+    ///
+    /// ## Android
+    ///
+    /// On Android, the `Resumed` event is sent when a new [`SurfaceView`] has been created. This is
+    /// expected to closely correlate with the [`onResume`] lifecycle event but there may technically
+    /// be a discrepancy.
+    ///
+    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
+    ///
+    /// Applications that need to run on Android must wait until they have been `Resumed`
+    /// before they will be able to create a render surface (such as an `EGLSurface`,
+    /// [`VkSurfaceKHR`] or [`wgpu::Surface`]) which depend on having a
+    /// [`SurfaceView`]. Applications must also assume that if they are [`Suspended`], then their
+    /// render surfaces are invalid and should be dropped.
+    ///
+    /// Also see [`Suspended`] notes.
+    ///
+    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
+    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
+    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
+    ///
+    /// ## iOS
+    ///
+    /// On iOS, the `Resumed` event is emitted in response to an [`applicationDidBecomeActive`]
+    /// callback which means the application is "active" (according to the
+    /// [iOS application lifecycle]).
+    ///
+    /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// [`Suspended`]: Self::Suspended
     Resumed,
 
     /// Emitted when all of the event loop's input events have been processed and redraw processing

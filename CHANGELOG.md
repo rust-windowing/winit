@@ -76,6 +76,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
 - On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
 - On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
+- All platforms can now be relied on to emit a `Resumed` event. Applications are recommended to lazily initialize graphics state and windows on first resume for portability.
 
 # 0.26.1 (2022-01-05)
 

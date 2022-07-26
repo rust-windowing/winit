@@ -333,6 +333,17 @@ impl<T: 'static> EventLoop<T> {
                 callback,
             );
 
+            // NB: For consistency all platforms must emit a 'resumed' event even though X11
+            // applications don't themselves have a formal suspend/resume lifecycle.
+            if *cause == StartCause::Init {
+                sticky_exit_callback(
+                    crate::event::Event::Resumed,
+                    &this.target,
+                    control_flow,
+                    callback,
+                );
+            }
+
             // Process all pending events
             this.drain_events(callback, control_flow);
 
