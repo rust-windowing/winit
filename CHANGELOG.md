@@ -8,6 +8,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Added support for digital pen information in `WindowEvent::Touch`.
+- On Windows and Android, implemented digital pen information.
+- On Android, implemented touch pressure.
 - On Windows, fix hiding a maximized window.
 - On Android, `ndk-glue`'s `NativeWindow` lock is now held between `Event::Resumed` and `Event::Suspended`.
 - On Web, added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
@@ -206,7 +209,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, fix inverted horizontal scroll.
 - **Breaking:** `current_monitor` now returns `Option<MonitorHandle>`.
 - **Breaking:** `primary_monitor` now returns `Option<MonitorHandle>`.
-- On macOS, updated core-* dependencies and cocoa.
+- On macOS, updated core-\* dependencies and cocoa.
 - Bump `parking_lot` to 0.11
 - On Android, bump `ndk`, `ndk-sys` and `ndk-glue` to 0.2. Checkout the new ndk-glue main proc attribute.
 - On iOS, fixed starting the app in landscape where the view still had portrait dimensions.
@@ -248,7 +251,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, fix `WindowBuilder::with_maximized` being ignored.
 - On Android, minimal platform support.
 - On iOS, touch positions are now properly converted to physical pixels.
-- On macOS, updated core-* dependencies and cocoa
+- On macOS, updated core-\* dependencies and cocoa
 
 # 0.22.1 (2020-04-16)
 
@@ -435,7 +438,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - On X11, non-resizable windows now have maximize explicitly disabled.
 - On Windows, support paths longer than MAX_PATH (260 characters) in `WindowEvent::DroppedFile`
-and `WindowEvent::HoveredFile`.
+  and `WindowEvent::HoveredFile`.
 - On Mac, implement `DeviceEvent::Button`.
 - Change `Event::Suspended(true / false)` to `Event::Suspended` and `Event::Resumed`.
 - On X11, fix sanity check which checks that a monitor's reported width and height (in millimeters) are non-zero when calculating the DPI factor.
@@ -777,20 +780,20 @@ _Yanked_
 - Added event `WindowEvent::HiDPIFactorChanged`.
 - Added method `MonitorId::get_hidpi_factor`.
 - Deprecated `get_inner_size_pixels` and `get_inner_size_points` methods of `Window` in favor of
-`get_inner_size`.
+  `get_inner_size`.
 - **Breaking:** `EventsLoop` is `!Send` and `!Sync` because of platform-dependant constraints,
   but `Window`, `WindowId`, `DeviceId` and `MonitorId` guaranteed to be `Send`.
 - `MonitorId::get_position` now returns `(i32, i32)` instead of `(u32, u32)`.
 - Rewrite of the wayland backend to use wayland-client-0.11
 - Support for dead keys on wayland for keyboard utf8 input
 - Monitor enumeration on Windows is now implemented using `EnumDisplayMonitors` instead of
-`EnumDisplayDevices`. This changes the value returned by `MonitorId::get_name()`.
+  `EnumDisplayDevices`. This changes the value returned by `MonitorId::get_name()`.
 - On Windows added `MonitorIdExt::hmonitor` method
 - Impl `Clone` for `EventsLoopProxy`
 - `EventsLoop::get_primary_monitor()` on X11 will fallback to any available monitor if no primary is found
 - Support for touch event on wayland
 - `WindowEvent`s `MouseMoved`, `MouseEntered`, and `MouseLeft` have been renamed to
-`CursorMoved`, `CursorEntered`, and `CursorLeft`.
+  `CursorMoved`, `CursorEntered`, and `CursorLeft`.
 - New `DeviceEvent`s added, `MouseMotion` and `MouseWheel`.
 - Send `CursorMoved` event after `CursorEntered` and `Focused` events.
 - Add support for `ModifiersState`, `MouseMove`, `MouseInput`, `MouseMotion` for emscripten backend.
