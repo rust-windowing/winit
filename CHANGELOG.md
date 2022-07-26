@@ -77,6 +77,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
 - On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
 - All platforms can now be relied on to emit a `Resumed` event. Applications are recommended to lazily initialize graphics state and windows on first resume for portability.
+- **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
 
 # 0.26.1 (2022-01-05)
 
@@ -85,7 +86,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
 - On macOS, fix Pinyin IME input by reverting a change that intended to improve IME.
 - On Windows, fix a crash with transparent windows on Windows 11.
-- **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
 
 # 0.26.0 (2021-12-01)
 
