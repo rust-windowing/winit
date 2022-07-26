@@ -204,7 +204,8 @@ Legend:
 |Cursor icon             |✔️       |✔️      |✔️       |✔️           |**N/A**|**N/A**|✔️        |
 |Cursor hittest          |✔️       |✔️      |❌       |✔️           |**N/A**|**N/A**|❌        |
 |Touch events            |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
-|Touch pressure          |✔️       |❌      |❌       |❌          |❌    |✔️     |❌        |
+|Touch pressure          |✔️       |❌      |❌       |❌          |✔️    |✔️     |❌        |
+|Pen information         |✔️       |❌      |❌       |❌          |✔️    |❌     |❓        |
 |Multitouch              |✔️       |❌      |✔️       |✔️          |✔️    |✔️     |❌        |
 |Keyboard events         |✔️       |✔️      |✔️       |✔️          |❓     |❌     |✔️        |
 |Drag & Drop             |▢[#720]  |▢[#720] |▢[#720]  |❌[#306]    |**N/A**|**N/A**|❓        |

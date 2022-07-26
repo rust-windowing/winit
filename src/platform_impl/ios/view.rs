@@ -273,6 +273,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                             location: physical_location,
                             force,
                             phase,
+                            pen_state: None,
                         }),
                     }));
                 }
