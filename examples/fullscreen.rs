@@ -59,12 +59,12 @@ fn main() {
                     }
                     VirtualKeyCode::F => {
                         let fullscreen = Some(Fullscreen::Exclusive(mode.clone()));
-                        println!("Setting mode: {fullscreen:?}");
+                        println!("Setting mode: {:?}", fullscreen);
                         window.set_fullscreen(fullscreen);
                     }
                     VirtualKeyCode::B => {
                         let fullscreen = Some(Fullscreen::Borderless(Some(monitor.clone())));
-                        println!("Setting mode: {fullscreen:?}");
+                        println!("Setting mode: {:?}", fullscreen);
                         window.set_fullscreen(fullscreen);
                     }
                     VirtualKeyCode::S => {

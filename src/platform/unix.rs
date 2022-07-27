@@ -299,10 +299,11 @@ impl WindowExtUnix for Window {
     #[inline]
     #[cfg(feature = "wayland")]
     fn wayland_set_csd_theme(&self, theme: Theme) {
+        #[allow(clippy::single_match)]
         match self.window {
             LinuxWindow::Wayland(ref w) => w.set_csd_theme(theme),
             #[cfg(feature = "x11")]
-            _ => {}
+            _ => (),
         }
     }
 

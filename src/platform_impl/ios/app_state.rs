@@ -793,7 +793,7 @@ pub unsafe fn handle_main_events_cleared() {
         return;
     }
     match this.state_mut() {
-        &mut AppStateImpl::ProcessingEvents { .. } => {}
+        AppStateImpl::ProcessingEvents { .. } => {}
         _ => bug!("`ProcessingRedraws` happened unexpectedly"),
     };
     drop(this);

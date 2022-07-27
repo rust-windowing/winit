@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- The minimum supported Rust version was lowered to `1.57.0` and now explicitly tested.
+
 # 0.27.0 (2022-07-26)
 
 - On Windows, fix hiding a maximized window.
