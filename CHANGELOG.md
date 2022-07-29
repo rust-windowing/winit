@@ -8,7 +8,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.27.1 (2022-07-30)
+
 - The minimum supported Rust version was lowered to `1.57.0` and now explicitly tested.
+- On X11, fix crash on start due to inability to create an IME context without any preedit.
 
 # 0.27.0 (2022-07-26)
 
