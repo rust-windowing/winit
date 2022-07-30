@@ -1,12 +1,13 @@
-use std::mem::transmute;
+use std::ffi::CStr;
 use std::os::raw::c_short;
-use std::ptr;
 use std::sync::Arc;
+use std::{mem, ptr};
+
+use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
+
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
 
 use super::{ffi, util, XConnection, XError};
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
-use std::ffi::CStr;
-use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
 /// IME creation error.
 #[derive(Debug)]
@@ -163,7 +164,7 @@ struct PreeditCallbacks {
 impl PreeditCallbacks {
     pub fn new(client_data: ffi::XPointer) -> PreeditCallbacks {
         let start_callback = create_xim_callback(client_data, unsafe {
-            transmute(preedit_start_callback as usize)
+            mem::transmute(preedit_start_callback as usize)
         });
         let done_callback = create_xim_callback(client_data, preedit_done_callback);
         let caret_callback = create_xim_callback(client_data, preedit_caret_callback);
