@@ -9,6 +9,14 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, respect min/max inner sizes when creating the window.
+
+# 0.27.1 (2022-07-30)
+
+- The minimum supported Rust version was lowered to `1.57.0` and now explicitly tested.
+- On X11, fix crash on start due to inability to create an IME context without any preedit.
+
+# 0.27.0 (2022-07-26)
+
 - On Windows, fix hiding a maximized window.
 - On Android, `ndk-glue`'s `NativeWindow` lock is now held between `Event::Resumed` and `Event::Suspended`.
 - On Web, added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
@@ -76,6 +84,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, fix focus events being sent to inactive windows.
 - **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
 - On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
+- On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
+- All platforms can now be relied on to emit a `Resumed` event. Applications are recommended to lazily initialize graphics state and windows on first resume for portability.
+- **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
 
 # 0.26.1 (2022-01-05)
 
@@ -84,7 +95,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
 - On macOS, fix Pinyin IME input by reverting a change that intended to improve IME.
 - On Windows, fix a crash with transparent windows on Windows 11.
-- **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
 
 # 0.26.0 (2021-12-01)
 

@@ -587,7 +587,8 @@ impl Window {
 
 /// Hooks for X11 errors.
 #[cfg(feature = "x11")]
-pub(crate) static mut XLIB_ERROR_HOOKS: Mutex<Vec<XlibErrorHook>> = Mutex::new(Vec::new());
+pub(crate) static mut XLIB_ERROR_HOOKS: Lazy<Mutex<Vec<XlibErrorHook>>> =
+    Lazy::new(|| Mutex::new(Vec::new()));
 
 #[cfg(feature = "x11")]
 unsafe extern "C" fn x_error_callback(
@@ -633,7 +634,7 @@ unsafe extern "C" fn x_error_callback(
 
 pub enum EventLoop<T: 'static> {
     #[cfg(feature = "wayland")]
-    Wayland(wayland::EventLoop<T>),
+    Wayland(Box<wayland::EventLoop<T>>),
     #[cfg(feature = "x11")]
     X(x11::EventLoop<T>),
 }
@@ -723,7 +724,7 @@ impl<T: 'static> EventLoop<T> {
 
     #[cfg(feature = "wayland")]
     fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
-        wayland::EventLoop::new().map(EventLoop::Wayland)
+        wayland::EventLoop::new().map(|evlp| EventLoop::Wayland(Box::new(evlp)))
     }
 
     #[cfg(feature = "x11")]

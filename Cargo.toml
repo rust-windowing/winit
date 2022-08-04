@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.26.1"
+version = "0.27.1"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -10,6 +10,7 @@ readme = "README.md"
 repository = "https://github.com/rust-windowing/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
+rust-version = "1.57.0"
 
 [package.metadata.docs.rs]
 features = ["serde"]
@@ -55,8 +56,8 @@ simple_logger = "2.1.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 # Coordinate the next winit release with android-ndk-rs: https://github.com/rust-windowing/winit/issues/1995
-ndk = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "814be08" }
-ndk-glue = { git = "https://github.com/rust-windowing/android-ndk-rs", rev = "814be08" }
+ndk = "0.7.0"
+ndk-glue = "0.7.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 objc = "0.2.7"

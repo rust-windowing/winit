@@ -35,9 +35,11 @@ pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupport
 #[cfg(feature = "wayland")]
 pub use crate::window::Theme;
 
-/// The first argument in the provided hook will be the pointer to XDisplay
-/// and the second one the pointer to XError. The return `bool` is an indicator
-/// whether error was handled by the callback.
+/// The first argument in the provided hook will be the pointer to `XDisplay`
+/// and the second one the pointer to [`XErrorEvent`]. The returned `bool` is an
+/// indicator whether the error was handled by the callback.
+///
+/// [`XErrorEvent`]: https://linux.die.net/man/3/xerrorevent
 #[cfg(feature = "x11")]
 pub type XlibErrorHook =
     Box<dyn Fn(*mut std::ffi::c_void, *mut std::ffi::c_void) -> bool + Send + Sync>;
@@ -297,10 +299,11 @@ impl WindowExtUnix for Window {
     #[inline]
     #[cfg(feature = "wayland")]
     fn wayland_set_csd_theme(&self, theme: Theme) {
+        #[allow(clippy::single_match)]
         match self.window {
             LinuxWindow::Wayland(ref w) => w.set_csd_theme(theme),
             #[cfg(feature = "x11")]
-            _ => {}
+            _ => (),
         }
     }
 
