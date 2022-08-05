@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - On Windows, respect min/max inner sizes when creating the window.
+- **Breaking:** On Windows, device events are now ignored for unfocused windows by default, use `EventLoopWindowTarget::set_device_event_filter` to set the filter level.
 
 # 0.27.1 (2022-07-30)
 
