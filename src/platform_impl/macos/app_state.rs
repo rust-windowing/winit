@@ -21,6 +21,7 @@ use objc::{
     rc::autoreleasepool,
     runtime::{Object, BOOL, NO, YES},
 };
+use once_cell::sync::Lazy;
 
 use crate::{
     dpi::LogicalSize,
@@ -41,9 +42,7 @@ use crate::{
     window::WindowId,
 };
 
-lazy_static! {
-    static ref HANDLER: Handler = Default::default();
-}
+static HANDLER: Lazy<Handler> = Lazy::new(Default::default);
 
 impl<'a, Never> Event<'a, Never> {
     fn userify<T: 'static>(self) -> Event<'a, T> {
@@ -127,7 +126,6 @@ impl<T> EventHandler for EventLoopHandler<T> {
 struct Handler {
     ready: AtomicBool,
     in_callback: AtomicBool,
-    dialog_is_closing: AtomicBool,
     control_flow: Mutex<ControlFlow>,
     control_flow_prev: Mutex<ControlFlow>,
     start_time: Mutex<Option<Instant>>,
@@ -262,8 +260,6 @@ impl Handler {
     }
 }
 
-pub static INTERRUPT_EVENT_LOOP_EXIT: AtomicBool = AtomicBool::new(false);
-
 pub enum AppState {}
 
 impl AppState {
@@ -306,6 +302,9 @@ impl AppState {
         HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::NewEvents(
             StartCause::Init,
         )));
+        // NB: For consistency all platforms must emit a 'resumed' event even though macOS
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        HANDLER.handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed));
         HANDLER.set_in_callback(false);
     }
 
@@ -403,40 +402,12 @@ impl AppState {
         if HANDLER.should_exit() {
             unsafe {
                 let app: id = NSApp();
-                let windows: id = msg_send![app, windows];
-                let window_count: usize = msg_send![windows, count];
 
-                let dialog_open = if window_count > 1 {
-                    let dialog: id = msg_send![windows, lastObject];
-                    let is_main_window: BOOL = msg_send![dialog, isMainWindow];
-                    let is_visible: BOOL = msg_send![dialog, isVisible];
-                    is_visible != NO && is_main_window == NO
-                } else {
-                    false
-                };
-
-                let dialog_is_closing = HANDLER.dialog_is_closing.load(Ordering::SeqCst);
                 autoreleasepool(|| {
-                    if !INTERRUPT_EVENT_LOOP_EXIT.load(Ordering::SeqCst)
-                        && !dialog_open
-                        && !dialog_is_closing
-                    {
-                        let () = msg_send![app, stop: nil];
-                        // To stop event loop immediately, we need to post some event here.
-                        post_dummy_event(app);
-                    }
+                    let _: () = msg_send![app, stop: nil];
+                    // To stop event loop immediately, we need to post some event here.
+                    post_dummy_event(app);
                 });
-
-                if window_count > 0 {
-                    let window: id = msg_send![windows, firstObject];
-                    let window_has_focus: BOOL = msg_send![window, isKeyWindow];
-                    if !dialog_open && window_has_focus != NO && dialog_is_closing {
-                        HANDLER.dialog_is_closing.store(false, Ordering::SeqCst);
-                    }
-                    if dialog_open {
-                        HANDLER.dialog_is_closing.store(true, Ordering::SeqCst);
-                    }
-                }
             };
         }
         HANDLER.update_start_time();

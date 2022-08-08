@@ -2,7 +2,6 @@
 
 mod runner;
 
-use parking_lot::Mutex;
 use std::{
     cell::Cell,
     collections::VecDeque,
@@ -17,6 +16,10 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
+
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
+use raw_window_handle::{RawDisplayHandle, WindowsDisplayHandle};
 
 use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
@@ -60,7 +63,7 @@ use windows_sys::Win32::{
             WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
             WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP,
             WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
-            WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCCREATE, WM_NCDESTROY,
+            WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCREATE, WM_NCDESTROY,
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
             WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
@@ -92,6 +95,8 @@ use crate::{
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
+use super::window::set_skip_taskbar;
+
 type GetPointerFrameInfoHistory = unsafe extern "system" fn(
     pointerId: u32,
     entriesCount: *mut u32,
@@ -112,18 +117,17 @@ type GetPointerTouchInfo =
 type GetPointerPenInfo =
     unsafe extern "system" fn(pointId: u32, penInfo: *mut POINTER_PEN_INFO) -> BOOL;
 
-lazy_static! {
-    static ref GET_POINTER_FRAME_INFO_HISTORY: Option<GetPointerFrameInfoHistory> =
-        get_function!("user32.dll", GetPointerFrameInfoHistory);
-    static ref SKIP_POINTER_FRAME_MESSAGES: Option<SkipPointerFrameMessages> =
-        get_function!("user32.dll", SkipPointerFrameMessages);
-    static ref GET_POINTER_DEVICE_RECTS: Option<GetPointerDeviceRects> =
-        get_function!("user32.dll", GetPointerDeviceRects);
-    static ref GET_POINTER_TOUCH_INFO: Option<GetPointerTouchInfo> =
-        get_function!("user32.dll", GetPointerTouchInfo);
-    static ref GET_POINTER_PEN_INFO: Option<GetPointerPenInfo> =
-        get_function!("user32.dll", GetPointerPenInfo);
-}
+static GET_POINTER_FRAME_INFO_HISTORY: Lazy<Option<GetPointerFrameInfoHistory>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerFrameInfoHistory));
+static SKIP_POINTER_FRAME_MESSAGES: Lazy<Option<SkipPointerFrameMessages>> =
+    Lazy::new(|| get_function!("user32.dll", SkipPointerFrameMessages));
+static GET_POINTER_DEVICE_RECTS: Lazy<Option<GetPointerDeviceRects>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerDeviceRects));
+static GET_POINTER_TOUCH_INFO: Lazy<Option<GetPointerTouchInfo>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerTouchInfo));
+static GET_POINTER_PEN_INFO: Lazy<Option<GetPointerPenInfo>> =
+    Lazy::new(|| get_function!("user32.dll", GetPointerPenInfo));
+
 pub(crate) struct WindowData<T: 'static> {
     pub window_state: Arc<Mutex<WindowState>>,
     pub event_loop_runner: EventLoopRunnerShared<T>,
@@ -314,6 +318,10 @@ impl<T> EventLoopWindowTarget<T> {
         let monitor = monitor::primary_monitor();
         Some(RootMonitorHandle { inner: monitor })
     }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+    }
 }
 
 /// Returns the id of the main thread.
@@ -333,7 +341,7 @@ impl<T> EventLoopWindowTarget<T> {
 /// entrypoint.
 ///
 /// Full details of CRT initialization can be found here:
-/// https://docs.microsoft.com/en-us/cpp/c-runtime-library/crt-initialization?view=msvc-160
+/// <https://docs.microsoft.com/en-us/cpp/c-runtime-library/crt-initialization?view=msvc-160>
 fn main_thread_id() -> u32 {
     static mut MAIN_THREAD_ID: u32 = 0;
 
@@ -375,19 +383,17 @@ fn get_wait_thread_id() -> u32 {
     }
 }
 
-lazy_static! {
-    static ref WAIT_PERIOD_MIN: Option<u32> = unsafe {
-        let mut caps = TIMECAPS {
-            wPeriodMin: 0,
-            wPeriodMax: 0,
-        };
-        if timeGetDevCaps(&mut caps, mem::size_of::<TIMECAPS>() as u32) == TIMERR_NOERROR {
-            Some(caps.wPeriodMin)
-        } else {
-            None
-        }
+static WAIT_PERIOD_MIN: Lazy<Option<u32>> = Lazy::new(|| unsafe {
+    let mut caps = TIMECAPS {
+        wPeriodMin: 0,
+        wPeriodMax: 0,
     };
-}
+    if timeGetDevCaps(&mut caps, mem::size_of::<TIMECAPS>() as u32) == TIMERR_NOERROR {
+        Some(caps.wPeriodMin)
+    } else {
+        None
+    }
+});
 
 fn wait_thread(parent_thread_id: u32, msg_window_id: HWND) {
     unsafe {
@@ -582,59 +588,40 @@ impl<T: 'static> EventLoopProxy<T> {
 
 type WaitUntilInstantBox = Box<Instant>;
 
-lazy_static! {
-    // Message sent by the `EventLoopProxy` when we want to wake up the thread.
-    // WPARAM and LPARAM are unused.
-    static ref USER_EVENT_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr())
-        }
-    };
-    // Message sent when we want to execute a closure in the thread.
-    // WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
-    // and LPARAM is unused.
-    static ref EXEC_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr())
-        }
-    };
-    static ref PROCESS_NEW_EVENTS_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::ProcessNewEvents\0".as_ptr())
-        }
-    };
-    /// lparam is the wait thread's message id.
-    static ref SEND_WAIT_THREAD_ID_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::SendWaitThreadId\0".as_ptr())
-        }
-    };
-    /// lparam points to a `Box<Instant>` signifying the time `PROCESS_NEW_EVENTS_MSG_ID` should
-    /// be sent.
-    static ref WAIT_UNTIL_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::WaitUntil\0".as_ptr())
-        }
-    };
-    static ref CANCEL_WAIT_UNTIL_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::CancelWaitUntil\0".as_ptr())
-        }
-    };
-    // Message sent by a `Window` when it wants to be destroyed by the main thread.
-    // WPARAM and LPARAM are unused.
-    pub static ref DESTROY_MSG_ID: u32 = {
-        unsafe {
-            RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr())
-        }
-    };
-    // WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
-    // documentation in the `window_state` module for more information.
-    pub static ref SET_RETAIN_STATE_ON_SIZE_MSG_ID: u32 = unsafe {
-        RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr())
-    };
-    static ref THREAD_EVENT_TARGET_WINDOW_CLASS: Vec<u16> = util::encode_wide("Winit Thread Event Target");
-}
+// Message sent by the `EventLoopProxy` when we want to wake up the thread.
+// WPARAM and LPARAM are unused.
+static USER_EVENT_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::WakeupMsg\0".as_ptr()) });
+// Message sent when we want to execute a closure in the thread.
+// WPARAM contains a Box<Box<dyn FnMut()>> that must be retrieved with `Box::from_raw`,
+// and LPARAM is unused.
+static EXEC_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::ExecMsg\0".as_ptr()) });
+static PROCESS_NEW_EVENTS_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::ProcessNewEvents\0".as_ptr()) });
+/// lparam is the wait thread's message id.
+static SEND_WAIT_THREAD_ID_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SendWaitThreadId\0".as_ptr()) });
+/// lparam points to a `Box<Instant>` signifying the time `PROCESS_NEW_EVENTS_MSG_ID` should
+/// be sent.
+static WAIT_UNTIL_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::WaitUntil\0".as_ptr()) });
+static CANCEL_WAIT_UNTIL_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::CancelWaitUntil\0".as_ptr()) });
+// Message sent by a `Window` when it wants to be destroyed by the main thread.
+// WPARAM and LPARAM are unused.
+pub static DESTROY_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::DestroyMsg\0".as_ptr()) });
+// WPARAM is a bool specifying the `WindowFlags::MARKER_RETAIN_STATE_ON_SIZE` flag. See the
+// documentation in the `window_state` module for more information.
+pub static SET_RETAIN_STATE_ON_SIZE_MSG_ID: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("Winit::SetRetainMaximized\0".as_ptr()) });
+static THREAD_EVENT_TARGET_WINDOW_CLASS: Lazy<Vec<u16>> =
+    Lazy::new(|| util::encode_wide("Winit Thread Event Target"));
+/// When the taskbar is created, it registers a message with the "TaskbarCreated" string and then broadcasts this message to all top-level windows
+/// <https://docs.microsoft.com/en-us/windows/win32/shell/taskbar#taskbar-creation-notification>
+pub static TASKBAR_CREATED: Lazy<u32> =
+    Lazy::new(|| unsafe { RegisterWindowMessageA("TaskbarCreated\0".as_ptr()) });
 
 fn create_event_target_window<T: 'static>() -> HWND {
     unsafe {
@@ -820,6 +807,74 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
     }
 }
 
+unsafe fn gain_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
+    use crate::event::{ElementState::Released, WindowEvent::Focused};
+    for windows_keycode in event::get_pressed_keys() {
+        let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
+        let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
+
+        update_modifiers(window, userdata);
+
+        #[allow(deprecated)]
+        userdata.send_event(Event::WindowEvent {
+            window_id: RootWindowId(WindowId(window)),
+            event: WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                input: KeyboardInput {
+                    scancode,
+                    virtual_keycode,
+                    state: Released,
+                    modifiers: event::get_key_mods(),
+                },
+                is_synthetic: true,
+            },
+        })
+    }
+
+    userdata.send_event(Event::WindowEvent {
+        window_id: RootWindowId(WindowId(window)),
+        event: Focused(true),
+    });
+}
+
+unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
+    use crate::event::{
+        ElementState::Released,
+        ModifiersState,
+        WindowEvent::{Focused, ModifiersChanged},
+    };
+    for windows_keycode in event::get_pressed_keys() {
+        let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
+        let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
+
+        #[allow(deprecated)]
+        userdata.send_event(Event::WindowEvent {
+            window_id: RootWindowId(WindowId(window)),
+            event: WindowEvent::KeyboardInput {
+                device_id: DEVICE_ID,
+                input: KeyboardInput {
+                    scancode,
+                    virtual_keycode,
+                    state: Released,
+                    modifiers: event::get_key_mods(),
+                },
+                is_synthetic: true,
+            },
+        })
+    }
+
+    userdata.window_state.lock().modifiers_state = ModifiersState::empty();
+    userdata.send_event(Event::WindowEvent {
+        window_id: RootWindowId(WindowId(window)),
+        event: ModifiersChanged(ModifiersState::empty()),
+    });
+
+    userdata.send_event(Event::WindowEvent {
+        window_id: RootWindowId(WindowId(window)),
+        event: Focused(false),
+    });
+}
+
 /// Any window whose callback is configured to this function will have its events propagated
 /// through the events loop of the thread the window was created in.
 //
@@ -880,7 +935,7 @@ pub(super) unsafe extern "system" fn public_window_callback<T: 'static>(
     };
 
     if userdata_removed && recurse_depth == 0 {
-        Box::from_raw(userdata_ptr);
+        drop(Box::from_raw(userdata_ptr));
     }
 
     result
@@ -1795,74 +1850,32 @@ unsafe fn public_window_callback_inner<T: 'static>(
             0
         }
 
-        WM_SETFOCUS => {
-            use crate::event::{ElementState::Released, WindowEvent::Focused};
-            for windows_keycode in event::get_pressed_keys() {
-                let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
-                let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
-
-                update_modifiers(window, userdata);
-
-                #[allow(deprecated)]
-                userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            scancode,
-                            virtual_keycode,
-                            state: Released,
-                            modifiers: event::get_key_mods(),
-                        },
-                        is_synthetic: true,
-                    },
-                })
+        WM_NCACTIVATE => {
+            let is_active = wparam == 1;
+            let active_focus_changed = userdata.window_state.lock().set_active(is_active);
+            if active_focus_changed {
+                if is_active {
+                    gain_active_focus(window, userdata);
+                } else {
+                    lose_active_focus(window, userdata);
+                }
             }
+            DefWindowProcW(window, msg, wparam, lparam)
+        }
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: Focused(true),
-            });
-
+        WM_SETFOCUS => {
+            let active_focus_changed = userdata.window_state.lock().set_focused(true);
+            if active_focus_changed {
+                gain_active_focus(window, userdata);
+            }
             0
         }
 
         WM_KILLFOCUS => {
-            use crate::event::{
-                ElementState::Released,
-                ModifiersState,
-                WindowEvent::{Focused, ModifiersChanged},
-            };
-            for windows_keycode in event::get_pressed_keys() {
-                let scancode = MapVirtualKeyA(windows_keycode as u32, MAPVK_VK_TO_VSC);
-                let virtual_keycode = event::vkey_to_winit_vkey(windows_keycode);
-
-                #[allow(deprecated)]
-                userdata.send_event(Event::WindowEvent {
-                    window_id: RootWindowId(WindowId(window)),
-                    event: WindowEvent::KeyboardInput {
-                        device_id: DEVICE_ID,
-                        input: KeyboardInput {
-                            scancode,
-                            virtual_keycode,
-                            state: Released,
-                            modifiers: event::get_key_mods(),
-                        },
-                        is_synthetic: true,
-                    },
-                })
+            let active_focus_changed = userdata.window_state.lock().set_focused(false);
+            if active_focus_changed {
+                lose_active_focus(window, userdata);
             }
-
-            userdata.window_state.lock().modifiers_state = ModifiersState::empty();
-            userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: ModifiersChanged(ModifiersState::empty()),
-            });
-
-            userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: Focused(false),
-            });
             0
         }
 
@@ -2001,7 +2014,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 false => old_physical_inner_size,
             };
 
-            let _ = userdata.send_event(Event::WindowEvent {
+            userdata.send_event(Event::WindowEvent {
                 window_id: RootWindowId(WindowId(window)),
                 event: ScaleFactorChanged {
                     scale_factor: new_scale_factor,
@@ -2153,7 +2166,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
                 if window_state.current_theme != new_theme {
                     window_state.current_theme = new_theme;
-                    mem::drop(window_state);
+                    drop(window_state);
                     userdata.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
                         event: ThemeChanged(new_theme),
@@ -2174,6 +2187,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0)
                 });
                 0
+            } else if msg == *TASKBAR_CREATED {
+                let window_state = userdata.window_state.lock();
+                set_skip_taskbar(window, window_state.skip_taskbar);
+                DefWindowProcW(window, msg, wparam, lparam)
             } else {
                 DefWindowProcW(window, msg, wparam, lparam)
             }
@@ -2297,7 +2314,8 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
                     let mouse_button_flags = mouse.Anonymous.Anonymous.usButtonFlags;
 
                     if util::has_flag(mouse_button_flags as u32, RI_MOUSE_WHEEL) {
-                        let delta = mouse_button_flags as i16 as f32 / WHEEL_DELTA as f32;
+                        let delta = mouse.Anonymous.Anonymous.usButtonData as i16 as f32
+                            / WHEEL_DELTA as f32;
                         userdata.send_event(Event::DeviceEvent {
                             device_id,
                             event: MouseWheel {
@@ -2411,7 +2429,7 @@ unsafe extern "system" fn thread_event_target_callback<T: 'static>(
         .catch_unwind(callback)
         .unwrap_or(-1);
     if userdata_removed {
-        mem::drop(userdata);
+        drop(userdata);
     } else {
         Box::into_raw(userdata);
     }

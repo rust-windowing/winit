@@ -22,7 +22,7 @@ use crate::{
     event_loop::EventLoopWindowTarget as RootELW,
 };
 
-/// The X11 documentation states: "Keycodes lie in the inclusive range [8,255]".
+/// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
 const KEYCODE_OFFSET: u8 = 8;
 
 pub(super) struct EventProcessor<T: 'static> {
@@ -49,7 +49,7 @@ impl<T: 'static> EventProcessor<T> {
         let mut devices = self.devices.borrow_mut();
         if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
             for info in info.iter() {
-                devices.insert(DeviceId(info.deviceid), Device::new(self, info));
+                devices.insert(DeviceId(info.deviceid), Device::new(info));
             }
         }
     }
@@ -59,7 +59,7 @@ impl<T: 'static> EventProcessor<T> {
         F: Fn(&Arc<UnownedWindow>) -> Ret,
     {
         let mut deleted = false;
-        let window_id = WindowId(window_id);
+        let window_id = WindowId(window_id as u64);
         let wt = get_xtarget(&self.target);
         let result = wt
             .windows
@@ -414,7 +414,7 @@ impl<T: 'static> EventProcessor<T> {
                         // resizing by dragging across monitors *without* dropping the window.
                         let (width, height) = shared_state_lock
                             .dpi_adjusted
-                            .unwrap_or_else(|| (xev.width as u32, xev.height as u32));
+                            .unwrap_or((xev.width as u32, xev.height as u32));
 
                         let last_scale_factor = shared_state_lock.last_monitor.scale_factor;
                         let new_scale_factor = {
@@ -513,7 +513,7 @@ impl<T: 'static> EventProcessor<T> {
 
                 // In the event that the window's been destroyed without being dropped first, we
                 // cleanup again here.
-                wt.windows.borrow_mut().remove(&WindowId(window));
+                wt.windows.borrow_mut().remove(&WindowId(window as u64));
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.
@@ -531,8 +531,13 @@ impl<T: 'static> EventProcessor<T> {
             ffi::VisibilityNotify => {
                 let xev: &ffi::XVisibilityEvent = xev.as_ref();
                 let xwindow = xev.window;
-
-                self.with_window(xwindow, |window| window.visibility_notify());
+                callback(Event::WindowEvent {
+                    window_id: mkwid(xwindow),
+                    event: WindowEvent::Occluded(xev.state == ffi::VisibilityFullyObscured),
+                });
+                self.with_window(xwindow, |window| {
+                    window.visibility_notify();
+                });
             }
 
             ffi::Expose => {
@@ -907,6 +912,8 @@ impl<T: 'static> EventProcessor<T> {
                         if self.active_window != Some(xev.event) {
                             self.active_window = Some(xev.event);
 
+                            wt.update_device_event_filter(true);
+
                             let window_id = mkwid(xev.event);
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
 
@@ -956,6 +963,7 @@ impl<T: 'static> EventProcessor<T> {
                         if !self.window_exists(xev.event) {
                             return;
                         }
+
                         wt.ime
                             .borrow_mut()
                             .unfocus(xev.event)
@@ -963,6 +971,8 @@ impl<T: 'static> EventProcessor<T> {
 
                         if self.active_window.take() == Some(xev.event) {
                             let window_id = mkwid(xev.event);
+
+                            wt.update_device_event_filter(false);
 
                             // Issue key release events for all pressed keys
                             Self::handle_pressed_keys(
@@ -1208,11 +1218,7 @@ impl<T: 'static> EventProcessor<T> {
                                                 &*window.shared_state.lock(),
                                             );
 
-                                            let window_id = crate::window::WindowId(
-                                                crate::platform_impl::platform::WindowId::X(
-                                                    *window_id,
-                                                ),
-                                            );
+                                            let window_id = crate::window::WindowId(*window_id);
                                             let old_inner_size = PhysicalSize::new(width, height);
                                             let mut new_inner_size =
                                                 PhysicalSize::new(new_width, new_height);
@@ -1253,46 +1259,48 @@ impl<T: 'static> EventProcessor<T> {
             }
         }
 
-        match self.ime_event_receiver.try_recv() {
-            Ok((window, event)) => match event {
-                ImeEvent::Enabled => {
+        let (window, event) = match self.ime_event_receiver.try_recv() {
+            Ok((window, event)) => (window, event),
+            Err(_) => return,
+        };
+
+        match event {
+            ImeEvent::Enabled => {
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Ime(Ime::Enabled),
+                });
+            }
+            ImeEvent::Start => {
+                self.is_composing = true;
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
+                });
+            }
+            ImeEvent::Update(text, position) => {
+                if self.is_composing {
                     callback(Event::WindowEvent {
                         window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Enabled),
+                        event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
                     });
                 }
-                ImeEvent::Start => {
-                    self.is_composing = true;
-                    callback(Event::WindowEvent {
-                        window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit("".to_owned(), None)),
-                    });
-                }
-                ImeEvent::Update(text, position) => {
-                    if self.is_composing {
-                        callback(Event::WindowEvent {
-                            window_id: mkwid(window),
-                            event: WindowEvent::Ime(Ime::Preedit(text, Some((position, position)))),
-                        });
-                    }
-                }
-                ImeEvent::End => {
-                    self.is_composing = false;
-                    // Issue empty preedit on `Done`.
-                    callback(Event::WindowEvent {
-                        window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
-                    });
-                }
-                ImeEvent::Disabled => {
-                    self.is_composing = false;
-                    callback(Event::WindowEvent {
-                        window_id: mkwid(window),
-                        event: WindowEvent::Ime(Ime::Disabled),
-                    });
-                }
-            },
-            Err(_) => (),
+            }
+            ImeEvent::End => {
+                self.is_composing = false;
+                // Issue empty preedit on `Done`.
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                });
+            }
+            ImeEvent::Disabled => {
+                self.is_composing = false;
+                callback(Event::WindowEvent {
+                    window_id: mkwid(window),
+                    event: WindowEvent::Ime(Ime::Disabled),
+                });
+            }
         }
     }
 

@@ -9,6 +9,7 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+use once_cell::sync::Lazy;
 use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
@@ -298,19 +299,17 @@ pub type AdjustWindowRectExForDpi = unsafe extern "system" fn(
     dpi: u32,
 ) -> BOOL;
 
-lazy_static! {
-    pub static ref GET_DPI_FOR_WINDOW: Option<GetDpiForWindow> =
-        get_function!("user32.dll", GetDpiForWindow);
-    pub static ref ADJUST_WINDOW_RECT_EX_FOR_DPI: Option<AdjustWindowRectExForDpi> =
-        get_function!("user32.dll", AdjustWindowRectExForDpi);
-    pub static ref GET_DPI_FOR_MONITOR: Option<GetDpiForMonitor> =
-        get_function!("shcore.dll", GetDpiForMonitor);
-    pub static ref ENABLE_NON_CLIENT_DPI_SCALING: Option<EnableNonClientDpiScaling> =
-        get_function!("user32.dll", EnableNonClientDpiScaling);
-    pub static ref SET_PROCESS_DPI_AWARENESS_CONTEXT: Option<SetProcessDpiAwarenessContext> =
-        get_function!("user32.dll", SetProcessDpiAwarenessContext);
-    pub static ref SET_PROCESS_DPI_AWARENESS: Option<SetProcessDpiAwareness> =
-        get_function!("shcore.dll", SetProcessDpiAwareness);
-    pub static ref SET_PROCESS_DPI_AWARE: Option<SetProcessDPIAware> =
-        get_function!("user32.dll", SetProcessDPIAware);
-}
+pub static GET_DPI_FOR_WINDOW: Lazy<Option<GetDpiForWindow>> =
+    Lazy::new(|| get_function!("user32.dll", GetDpiForWindow));
+pub static ADJUST_WINDOW_RECT_EX_FOR_DPI: Lazy<Option<AdjustWindowRectExForDpi>> =
+    Lazy::new(|| get_function!("user32.dll", AdjustWindowRectExForDpi));
+pub static GET_DPI_FOR_MONITOR: Lazy<Option<GetDpiForMonitor>> =
+    Lazy::new(|| get_function!("shcore.dll", GetDpiForMonitor));
+pub static ENABLE_NON_CLIENT_DPI_SCALING: Lazy<Option<EnableNonClientDpiScaling>> =
+    Lazy::new(|| get_function!("user32.dll", EnableNonClientDpiScaling));
+pub static SET_PROCESS_DPI_AWARENESS_CONTEXT: Lazy<Option<SetProcessDpiAwarenessContext>> =
+    Lazy::new(|| get_function!("user32.dll", SetProcessDpiAwarenessContext));
+pub static SET_PROCESS_DPI_AWARENESS: Lazy<Option<SetProcessDpiAwareness>> =
+    Lazy::new(|| get_function!("shcore.dll", SetProcessDpiAwareness));
+pub static SET_PROCESS_DPI_AWARE: Lazy<Option<SetProcessDPIAware>> =
+    Lazy::new(|| get_function!("user32.dll", SetProcessDPIAware));

@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use instant::Instant;
 use std::time::Duration;
 

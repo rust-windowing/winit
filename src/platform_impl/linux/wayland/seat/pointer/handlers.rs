@@ -60,6 +60,7 @@ pub(super) fn handle_pointer(
             let winit_pointer = WinitPointer {
                 pointer,
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
+                locked_pointer: Rc::downgrade(&pointer_data.locked_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
                 latest_enter_serial: pointer_data.latest_enter_serial.clone(),
@@ -104,6 +105,7 @@ pub(super) fn handle_pointer(
             let winit_pointer = WinitPointer {
                 pointer,
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
+                locked_pointer: Rc::downgrade(&pointer_data.locked_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
                 latest_enter_serial: pointer_data.latest_enter_serial.clone(),
@@ -300,17 +302,17 @@ pub(super) fn handle_pointer(
 
 #[inline]
 pub(super) fn handle_relative_pointer(event: RelativePointerEvent, winit_state: &mut WinitState) {
-    match event {
-        RelativePointerEvent::RelativeMotion {
-            dx_unaccel,
-            dy_unaccel,
-            ..
-        } => winit_state.event_sink.push_device_event(
+    if let RelativePointerEvent::RelativeMotion {
+        dx_unaccel,
+        dy_unaccel,
+        ..
+    } = event
+    {
+        winit_state.event_sink.push_device_event(
             DeviceEvent::MouseMotion {
                 delta: (dx_unaccel, dy_unaccel),
             },
             DeviceId,
-        ),
-        _ => (),
+        )
     }
 }

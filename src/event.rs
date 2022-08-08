@@ -1,10 +1,10 @@
-//! The `Event` enum and assorted supporting types.
+//! The [`Event`] enum and assorted supporting types.
 //!
-//! These are sent to the closure given to [`EventLoop::run(...)`][event_loop_run], where they get
+//! These are sent to the closure given to [`EventLoop::run(...)`], where they get
 //! processed and used to modify the program state. For more details, see the root-level documentation.
 //!
 //! Some of these events represent different "parts" of a traditional event-handling loop. You could
-//! approximate the basic ordering loop of [`EventLoop::run(...)`][event_loop_run] like this:
+//! approximate the basic ordering loop of [`EventLoop::run(...)`] like this:
 //!
 //! ```rust,ignore
 //! let mut control_flow = ControlFlow::Poll;
@@ -29,10 +29,11 @@
 //! event_handler(LoopDestroyed, ..., &mut control_flow);
 //! ```
 //!
-//! This leaves out timing details like `ControlFlow::WaitUntil` but hopefully
+//! This leaves out timing details like [`ControlFlow::WaitUntil`] but hopefully
 //! describes what happens in what order.
 //!
-//! [event_loop_run]: crate::event_loop::EventLoop::run
+//! [`EventLoop::run(...)`]: crate::event_loop::EventLoop::run
+//! [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
 use instant::Instant;
 use std::path::PathBuf;
 
@@ -73,9 +74,107 @@ pub enum Event<'a, T: 'static> {
     UserEvent(T),
 
     /// Emitted when the application has been suspended.
+    ///
+    /// # Portability
+    ///
+    /// Not all platforms support the notion of suspending applications, and there may be no
+    /// technical way to guarantee being able to emit a `Suspended` event if the OS has
+    /// no formal application lifecycle (currently only Android and iOS do). For this reason,
+    /// Winit does not currently try to emit pseudo `Suspended` events before the application
+    /// quits on platforms without an application lifecycle.
+    ///
+    /// Considering that the implementation of `Suspended` and [`Resumed`] events may be internally
+    /// driven by multiple platform-specific events, and that there may be subtle differences across
+    /// platforms with how these internal events are delivered, it's recommended that applications
+    /// be able to gracefully handle redundant (i.e. back-to-back) `Suspended` or [`Resumed`] events.
+    ///
+    /// Also see [`Resumed`] notes.
+    ///
+    /// ## Android
+    ///
+    /// On Android, the `Suspended` event is only sent when the application's associated
+    /// [`SurfaceView`] is destroyed. This is expected to closely correlate with the [`onPause`]
+    /// lifecycle event but there may technically be a discrepancy.
+    ///
+    /// [`onPause`]: https://developer.android.com/reference/android/app/Activity#onPause()
+    ///
+    /// Applications that need to run on Android should assume their [`SurfaceView`] has been
+    /// destroyed, which indirectly invalidates any existing render surfaces that may have been
+    /// created outside of Winit (such as an `EGLSurface`, [`VkSurfaceKHR`] or [`wgpu::Surface`]).
+    ///
+    /// After being `Suspended` on Android applications must drop all render surfaces before
+    /// the event callback completes, which may be re-created when the application is next [`Resumed`].
+    ///
+    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
+    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
+    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
+    ///
+    /// ## iOS
+    ///
+    /// On iOS, the `Suspended` event is currently emitted in response to an
+    /// [`applicationWillResignActive`] callback which means that the application is
+    /// about to transition from the active to inactive state (according to the
+    /// [iOS application lifecycle]).
+    ///
+    /// [`applicationWillResignActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622950-applicationwillresignactive
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// [`Resumed`]: Self::Resumed
     Suspended,
 
     /// Emitted when the application has been resumed.
+    ///
+    /// For consistency, all platforms emit a `Resumed` event even if they don't themselves have a
+    /// formal suspend/resume lifecycle. For systems without a standard suspend/resume lifecycle
+    /// the `Resumed` event is always emitted after the [`NewEvents(StartCause::Init)`][StartCause::Init]
+    /// event.
+    ///
+    /// # Portability
+    ///
+    /// It's recommended that applications should only initialize their graphics context and create
+    /// a window after they have received their first `Resumed` event. Some systems
+    /// (specifically Android) won't allow applications to create a render surface until they are
+    /// resumed.
+    ///
+    /// Considering that the implementation of [`Suspended`] and `Resumed` events may be internally
+    /// driven by multiple platform-specific events, and that there may be subtle differences across
+    /// platforms with how these internal events are delivered, it's recommended that applications
+    /// be able to gracefully handle redundant (i.e. back-to-back) [`Suspended`] or `Resumed` events.
+    ///
+    /// Also see [`Suspended`] notes.
+    ///
+    /// ## Android
+    ///
+    /// On Android, the `Resumed` event is sent when a new [`SurfaceView`] has been created. This is
+    /// expected to closely correlate with the [`onResume`] lifecycle event but there may technically
+    /// be a discrepancy.
+    ///
+    /// [`onResume`]: https://developer.android.com/reference/android/app/Activity#onResume()
+    ///
+    /// Applications that need to run on Android must wait until they have been `Resumed`
+    /// before they will be able to create a render surface (such as an `EGLSurface`,
+    /// [`VkSurfaceKHR`] or [`wgpu::Surface`]) which depend on having a
+    /// [`SurfaceView`]. Applications must also assume that if they are [`Suspended`], then their
+    /// render surfaces are invalid and should be dropped.
+    ///
+    /// Also see [`Suspended`] notes.
+    ///
+    /// [`SurfaceView`]: https://developer.android.com/reference/android/view/SurfaceView
+    /// [Activity lifecycle]: https://developer.android.com/guide/components/activities/activity-lifecycle
+    /// [`VkSurfaceKHR`]: https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/VkSurfaceKHR.html
+    /// [`wgpu::Surface`]: https://docs.rs/wgpu/latest/wgpu/struct.Surface.html
+    ///
+    /// ## iOS
+    ///
+    /// On iOS, the `Resumed` event is emitted in response to an [`applicationDidBecomeActive`]
+    /// callback which means the application is "active" (according to the
+    /// [iOS application lifecycle]).
+    ///
+    /// [`applicationDidBecomeActive`]: https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1622956-applicationdidbecomeactive
+    /// [iOS application lifecycle]: https://developer.apple.com/documentation/uikit/app_and_environment/managing_your_app_s_life_cycle
+    ///
+    /// [`Suspended`]: Self::Suspended
     Resumed,
 
     /// Emitted when all of the event loop's input events have been processed and redraw processing
@@ -90,7 +189,7 @@ pub enum Event<'a, T: 'static> {
     /// can render here unconditionally for simplicity.
     MainEventsCleared,
 
-    /// Emitted after `MainEventsCleared` when a window should be redrawn.
+    /// Emitted after [`MainEventsCleared`] when a window should be redrawn.
     ///
     /// This gets triggered in two scenarios:
     /// - The OS has performed an operation that's invalidated the window's contents (such as
@@ -102,14 +201,18 @@ pub enum Event<'a, T: 'static> {
     ///
     /// Mainly of interest to applications with mostly-static graphics that avoid redrawing unless
     /// something changes, like most non-game GUIs.
+    ///
+    /// [`MainEventsCleared`]: Self::MainEventsCleared
     RedrawRequested(WindowId),
 
-    /// Emitted after all `RedrawRequested` events have been processed and control flow is about to
+    /// Emitted after all [`RedrawRequested`] events have been processed and control flow is about to
     /// be taken away from the program. If there are no `RedrawRequested` events, it is emitted
     /// immediately after `MainEventsCleared`.
     ///
     /// This event is useful for doing any cleanup or bookkeeping work after all the rendering
     /// tasks have been completed.
+    ///
+    /// [`RedrawRequested`]: Self::RedrawRequested
     RedrawEventsCleared,
 
     /// Emitted when the event loop is being shut down.
@@ -184,9 +287,11 @@ impl<'a, T> Event<'a, T> {
 /// Describes the reason the event loop is resuming.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StartCause {
-    /// Sent if the time specified by `ControlFlow::WaitUntil` has been reached. Contains the
+    /// Sent if the time specified by [`ControlFlow::WaitUntil`] has been reached. Contains the
     /// moment the timeout was requested and the requested resume time. The actual resume time is
     /// guaranteed to be equal to or after the requested resume time.
+    ///
+    /// [`ControlFlow::WaitUntil`]: crate::event_loop::ControlFlow::WaitUntil
     ResumeTimeReached {
         start: Instant,
         requested_resume: Instant,
@@ -200,7 +305,9 @@ pub enum StartCause {
     },
 
     /// Sent if the event loop is being resumed after the loop's control flow was set to
-    /// `ControlFlow::Poll`.
+    /// [`ControlFlow::Poll`].
+    ///
+    /// [`ControlFlow::Poll`]: crate::event_loop::ControlFlow::Poll
     Poll,
 
     /// Sent once, immediately after `run` is called. Indicates that the loop was just initialized.
@@ -268,17 +375,19 @@ pub enum WindowEvent<'a> {
 
     /// The keyboard modifiers have changed.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: This API is currently unimplemented on the web. This isn't by design - it's an
+    /// ## Platform-specific
+    ///
+    /// - **Web:** This API is currently unimplemented on the web. This isn't by design - it's an
     ///   issue, and it should get fixed - but it's the current state of the API.
     ModifiersChanged(ModifiersState),
 
-    /// An event from input method.
+    /// An event from an input method.
     ///
-    /// **Note :** You have to explicitly enable this event using [`Window::set_ime_allowed`].
+    /// **Note:** You have to explicitly enable this event using [`Window::set_ime_allowed`].
     ///
-    /// Platform-specific behavior:
-    /// - **iOS / Android / Web :** Unsupported.
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web:** Unsupported.
     Ime(Ime),
 
     /// The cursor has moved on the window.
@@ -361,8 +470,19 @@ pub enum WindowEvent<'a> {
     /// Applications might wish to react to this to change the theme of the content of the window
     /// when the system changes the window theme.
     ///
+    /// ## Platform-specific
+    ///
     /// At the moment this is only supported on Windows.
     ThemeChanged(Theme),
+
+    /// The window has been occluded (completely hidden from view).
+    ///
+    /// This is different to window visibility as it depends on whether the window is closed,
+    /// minimised, set invisible, or fully occluded by another window.
+    ///
+    /// Platform-specific behavior:
+    /// - **iOS / Android / Web / Wayland / Windows:** Unsupported.
+    Occluded(bool),
 }
 
 impl Clone for WindowEvent<'static> {
@@ -452,6 +572,7 @@ impl Clone for WindowEvent<'static> {
             ScaleFactorChanged { .. } => {
                 unreachable!("Static event can't be about scale factor changing")
             }
+            Occluded(occluded) => Occluded(*occluded),
         };
     }
 }
@@ -537,6 +658,7 @@ impl<'a> WindowEvent<'a> {
             Touch(touch) => Some(Touch(touch)),
             ThemeChanged(theme) => Some(ThemeChanged(theme)),
             ScaleFactorChanged { .. } => None,
+            Occluded(occluded) => Some(Occluded(occluded)),
         }
     }
 }
@@ -550,7 +672,7 @@ impl<'a> WindowEvent<'a> {
 pub struct DeviceId(pub(crate) platform_impl::DeviceId);
 
 impl DeviceId {
-    /// Returns a dummy `DeviceId`, useful for unit testing.
+    /// Returns a dummy id, useful for unit testing.
     ///
     /// # Safety
     ///
@@ -579,7 +701,7 @@ pub enum DeviceEvent {
 
     /// Change in physical position of a pointing device.
     ///
-    /// This represents raw, unfiltered physical motion. Not to be confused with `WindowEvent::CursorMoved`.
+    /// This represents raw, unfiltered physical motion. Not to be confused with [`WindowEvent::CursorMoved`].
     MouseMotion {
         /// (x, y) change in position in unspecified units.
         ///
@@ -592,7 +714,7 @@ pub enum DeviceEvent {
         delta: MouseScrollDelta,
     },
 
-    /// Motion on some analog axis.  This event will be reported for all arbitrary input devices
+    /// Motion on some analog axis. This event will be reported for all arbitrary input devices
     /// that winit supports on this platform, including mouse devices.  If the device is a mouse
     /// device then this will be reported alongside the MouseMotion event.
     Motion {
@@ -673,7 +795,6 @@ pub struct KeyboardInput {
 /// // Press space key
 /// Ime::Commit("啊不")
 /// ```
-///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Ime {
@@ -718,18 +839,18 @@ pub enum TouchPhase {
 
 /// Represents a touch event
 ///
-/// Every time the user touches the screen, a new `Start` event with an unique
-/// identifier for the finger is generated. When the finger is lifted, an `End`
+/// Every time the user touches the screen, a new [`TouchPhase::Started`] event with an unique
+/// identifier for the finger is generated. When the finger is lifted, an [`TouchPhase::Ended`]
 /// event is generated with the same finger id.
 ///
-/// After a `Start` event has been emitted, there may be zero or more `Move`
+/// After a `Started` event has been emitted, there may be zero or more `Move`
 /// events when the finger is moved or the touch pressure changes.
 ///
-/// The finger id may be reused by the system after an `End` event. The user
-/// should assume that a new `Start` event received with the same id has nothing
+/// The finger id may be reused by the system after an `Ended` event. The user
+/// should assume that a new `Started` event received with the same id has nothing
 /// to do with the old finger and is a new finger.
 ///
-/// A `Cancelled` event is emitted when the system has canceled tracking this
+/// A [`TouchPhase::Cancelled`] event is emitted when the system has canceled tracking this
 /// touch, such as when the window loses focus, or on iOS if the user moves the
 /// device against their face.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -783,8 +904,9 @@ pub enum Force {
 
 impl Force {
     /// Returns the force normalized to the range between 0.0 and 1.0 inclusive.
+    ///
     /// Instead of normalizing the force, you should prefer to handle
-    /// `Force::Calibrated` so that the amount of force the user has to apply is
+    /// [`Force::Calibrated`] so that the amount of force the user has to apply is
     /// consistent across devices.
     pub fn normalized(&self) -> f64 {
         match self {
@@ -845,7 +967,7 @@ pub enum MouseScrollDelta {
     /// Amount in pixels to scroll in the horizontal and
     /// vertical direction.
     ///
-    /// Scroll events are expressed as a PixelDelta if
+    /// Scroll events are expressed as a `PixelDelta` if
     /// supported by the device (eg. a touchpad) and
     /// platform.
     ///

@@ -7,7 +7,9 @@ use sctk::reexports::client::Display;
 
 use sctk::reexports::calloop;
 
-use raw_window_handle::WaylandHandle;
+use raw_window_handle::{
+    RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
+};
 use sctk::window::Decorations;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
@@ -17,7 +19,9 @@ use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes};
+use crate::window::{
+    CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
+};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -72,10 +76,13 @@ pub struct Window {
 
     /// Whether the window is decorated.
     decorated: AtomicBool,
+
+    /// Grabbing mode.
+    cursor_grab_mode: Mutex<CursorGrabMode>,
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         event_loop_window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         platform_attributes: PlatformAttributes,
@@ -85,7 +92,7 @@ impl Window {
             .create_surface_with_scale_callback(move |scale, surface, mut dispatch_data| {
                 let winit_state = dispatch_data.get::<WinitState>().unwrap();
 
-                // Get the window that receiced the event.
+                // Get the window that received the event.
                 let window_id = super::make_wid(&surface);
                 let mut window_update = winit_state.window_updates.get_mut(&window_id).unwrap();
 
@@ -249,6 +256,12 @@ impl Window {
 
         winit_state.window_map.insert(window_id, window_handle);
 
+        // On Wayland window doesn't have Focus by default and it'll get it later on. So be
+        // explicit here.
+        winit_state
+            .event_sink
+            .push_window_event(crate::event::WindowEvent::Focused(false), window_id);
+
         winit_state
             .window_updates
             .insert(window_id, WindowUpdate::new());
@@ -285,6 +298,7 @@ impl Window {
             windowing_features,
             resizeable: AtomicBool::new(attributes.resizable),
             decorated: AtomicBool::new(attributes.decorations),
+            cursor_grab_mode: Mutex::new(CursorGrabMode::None),
         };
 
         Ok(window)
@@ -474,12 +488,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        if !self.windowing_features.cursor_grab() {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        if !self.windowing_features.pointer_constraints() {
+            if mode == CursorGrabMode::None {
+                return Ok(());
+            }
+
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 
-        self.send_request(WindowRequest::GrabCursor(grab));
+        *self.cursor_grab_mode.lock().unwrap() = mode;
+        self.send_request(WindowRequest::SetCursorGrabMode(mode));
 
         Ok(())
     }
@@ -494,15 +513,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _: Position) -> Result<(), ExternalError> {
-        // XXX This is possible if the locked pointer is being used. We don't have any
-        // API for that right now, but it could be added in
-        // https://github.com/rust-windowing/winit/issues/1677.
-        //
-        // This function is essential for the locked pointer API.
-        //
-        // See pointer-constraints-unstable-v1.xml.
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        // Positon can be set only for locked cursor.
+        if *self.cursor_grab_mode.lock().unwrap() != CursorGrabMode::Locked {
+            return Err(ExternalError::Os(os_error!(OsError::WaylandMisc(
+                "cursor position can be set only for locked cursor."
+            ))));
+        }
+
+        let scale_factor = self.scale_factor() as f64;
+        let position = position.to_logical(scale_factor);
+        self.send_request(WindowRequest::SetLockedCursorPosition(position));
+
+        Ok(())
     }
 
     #[inline]
@@ -558,11 +581,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> WaylandHandle {
-        let mut handle = WaylandHandle::empty();
-        handle.display = self.display.get_display_ptr() as *mut _;
-        handle.surface = self.surface.as_ref().c_ptr() as *mut _;
-        handle
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut window_handle = WaylandWindowHandle::empty();
+        window_handle.surface = self.surface.as_ref().c_ptr() as *mut _;
+        RawWindowHandle::Wayland(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = WaylandDisplayHandle::empty();
+        display_handle.display = self.display.get_display_ptr() as *mut _;
+        RawDisplayHandle::Wayland(display_handle)
     }
 
     #[inline]

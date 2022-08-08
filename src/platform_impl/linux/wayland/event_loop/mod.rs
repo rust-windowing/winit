@@ -6,6 +6,8 @@ use std::process;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
+use raw_window_handle::{RawDisplayHandle, WaylandDisplayHandle};
+
 use sctk::reexports::client::protocol::wl_compositor::WlCompositor;
 use sctk::reexports::client::protocol::wl_shm::WlShm;
 use sctk::reexports::client::Display;
@@ -24,7 +26,7 @@ use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget
 use super::env::{WindowingFeatures, WinitEnv};
 use super::output::OutputManager;
 use super::seat::SeatManager;
-use super::window::shim::{self, WindowRequest, WindowUpdate};
+use super::window::shim::{self, WindowUpdate};
 use super::{DeviceId, WindowId};
 
 mod proxy;
@@ -64,11 +66,19 @@ pub struct EventLoopWindowTarget<T> {
 
     /// Theme manager to manage cursors.
     ///
-    /// It's being shared amoung all windows to avoid loading
+    /// It's being shared between all windows to avoid loading
     /// multiple similar themes.
     pub theme_manager: ThemeManager,
 
     _marker: std::marker::PhantomData<T>,
+}
+
+impl<T> EventLoopWindowTarget<T> {
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = WaylandDisplayHandle::empty();
+        display_handle.display = self.display.get_display_ptr() as *mut _;
+        RawDisplayHandle::Wayland(display_handle)
+    }
 }
 
 pub struct EventLoop<T: 'static> {
@@ -222,6 +232,10 @@ impl<T: 'static> EventLoop<T> {
             &mut control_flow,
         );
 
+        // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
+        // applications don't themselves have a formal suspend/resume lifecycle.
+        callback(Event::Resumed, &self.window_target, &mut control_flow);
+
         let mut window_updates: Vec<(WindowId, WindowUpdate)> = Vec::new();
         let mut event_sink_back_buffer = Vec::new();
 
@@ -344,8 +358,7 @@ impl<T: 'static> EventLoop<T> {
             }
 
             // Process 'new' pending updates.
-            self.with_window_target(|window_target| {
-                let state = window_target.state.get_mut();
+            self.with_state(|state| {
                 window_updates.clear();
                 window_updates.extend(
                     state
@@ -357,8 +370,7 @@ impl<T: 'static> EventLoop<T> {
 
             for (window_id, window_update) in window_updates.iter_mut() {
                 if let Some(scale_factor) = window_update.scale_factor.map(|f| f as f64) {
-                    let mut physical_size = self.with_window_target(|window_target| {
-                        let state = window_target.state.get_mut();
+                    let mut physical_size = self.with_state(|state| {
                         let window_handle = state.window_map.get(window_id).unwrap();
                         let mut size = window_handle.size.lock().unwrap();
 
@@ -371,9 +383,7 @@ impl<T: 'static> EventLoop<T> {
 
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: crate::window::WindowId(
-                                crate::platform_impl::WindowId::Wayland(*window_id),
-                            ),
+                            window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::ScaleFactorChanged {
                                 scale_factor,
                                 new_inner_size: &mut physical_size,
@@ -391,8 +401,7 @@ impl<T: 'static> EventLoop<T> {
                 }
 
                 if let Some(size) = window_update.size.take() {
-                    let physical_size = self.with_window_target(|window_target| {
-                        let state = window_target.state.get_mut();
+                    let physical_size = self.with_state(|state| {
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         let mut window_size = window_handle.size.lock().unwrap();
 
@@ -418,24 +427,13 @@ impl<T: 'static> EventLoop<T> {
                         // Mark that refresh isn't required, since we've done it right now.
                         window_update.refresh_frame = false;
 
-                        // Queue request for redraw into the next iteration of the loop, since
-                        // resize and scale factor changes are double buffered.
-                        window_handle
-                            .pending_window_requests
-                            .lock()
-                            .unwrap()
-                            .push(WindowRequest::Redraw);
-                        window_target.event_loop_awakener.ping();
-
                         physical_size
                     });
 
                     if let Some(physical_size) = physical_size {
                         sticky_exit_callback(
                             Event::WindowEvent {
-                                window_id: crate::window::WindowId(
-                                    crate::platform_impl::WindowId::Wayland(*window_id),
-                                ),
+                                window_id: crate::window::WindowId(*window_id),
                                 event: WindowEvent::Resized(physical_size),
                             },
                             &self.window_target,
@@ -448,9 +446,7 @@ impl<T: 'static> EventLoop<T> {
                 if window_update.close_window {
                     sticky_exit_callback(
                         Event::WindowEvent {
-                            window_id: crate::window::WindowId(
-                                crate::platform_impl::WindowId::Wayland(*window_id),
-                            ),
+                            window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::CloseRequested,
                         },
                         &self.window_target,
@@ -463,8 +459,7 @@ impl<T: 'static> EventLoop<T> {
             // The purpose of the back buffer and that swap is to not hold borrow_mut when
             // we're doing callback to the user, since we can double borrow if the user decides
             // to create a window in one of those callbacks.
-            self.with_window_target(|window_target| {
-                let state = window_target.state.get_mut();
+            self.with_state(|state| {
                 std::mem::swap(
                     &mut event_sink_back_buffer,
                     &mut state.event_sink.window_events,
@@ -489,8 +484,7 @@ impl<T: 'static> EventLoop<T> {
             for (window_id, window_update) in window_updates.iter() {
                 // Handle refresh of the frame.
                 if window_update.refresh_frame {
-                    self.with_window_target(|window_target| {
-                        let state = window_target.state.get_mut();
+                    self.with_state(|state| {
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         window_handle.window.refresh();
                         if !window_update.redraw_requested {
@@ -502,9 +496,7 @@ impl<T: 'static> EventLoop<T> {
                 // Handle redraw request.
                 if window_update.redraw_requested {
                     sticky_exit_callback(
-                        Event::RedrawRequested(crate::window::WindowId(
-                            crate::platform_impl::WindowId::Wayland(*window_id),
-                        )),
+                        Event::RedrawRequested(crate::window::WindowId(*window_id)),
                         &self.window_target,
                         &mut control_flow,
                         &mut callback,
@@ -535,9 +527,9 @@ impl<T: 'static> EventLoop<T> {
         &self.window_target
     }
 
-    fn with_window_target<U, F: FnOnce(&mut EventLoopWindowTarget<T>) -> U>(&mut self, f: F) -> U {
+    fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&mut self, f: F) -> U {
         let state = match &mut self.window_target.p {
-            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target,
+            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
             #[cfg(feature = "x11")]
             _ => unreachable!(),
         };
@@ -552,6 +544,8 @@ impl<T: 'static> EventLoop<T> {
             _ => unreachable!(),
         };
 
-        self.event_loop.dispatch(timeout, state)
+        self.event_loop
+            .dispatch(timeout, state)
+            .map_err(|error| error.into())
     }
 }

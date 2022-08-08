@@ -1,6 +1,6 @@
 [package]
 name = "winit"
-version = "0.26.1"
+version = "0.27.1"
 authors = ["The winit contributors", "Pierre Krieger <pierre.krieger1708@gmail.com>"]
 description = "Cross-platform window creation library."
 edition = "2021"
@@ -10,11 +10,28 @@ readme = "README.md"
 repository = "https://github.com/rust-windowing/winit"
 documentation = "https://docs.rs/winit"
 categories = ["gui"]
+rust-version = "1.57.0"
 
 [package.metadata.docs.rs]
 features = ["serde"]
 default-target = "x86_64-unknown-linux-gnu"
-targets = ["i686-pc-windows-msvc", "x86_64-pc-windows-msvc", "i686-unknown-linux-gnu", "x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "wasm32-unknown-unknown"]
+# These are all tested in CI
+targets = [
+    # Windows
+    "i686-pc-windows-msvc",
+    "x86_64-pc-windows-msvc",
+    # macOS
+    "x86_64-apple-darwin",
+    # Unix (X11 & Wayland)
+    "i686-unknown-linux-gnu",
+    "x86_64-unknown-linux-gnu",
+    # iOS
+    "x86_64-apple-ios",
+    # Android
+    "aarch64-linux-android",
+    # WebAssembly
+    "wasm32-unknown-unknown",
+]
 
 [features]
 default = ["x11", "wayland", "wayland-dlopen", "wayland-csd-adwaita"]
@@ -26,10 +43,10 @@ wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 
 [dependencies]
 instant = { version = "0.1", features = ["wasm-bindgen"] }
-lazy_static = "1"
+once_cell = "1.12"
 log = "0.4"
 serde = { version = "1", optional = true, features = ["serde_derive"] }
-raw-window-handle = "0.4.2"
+raw-window-handle = "0.5.0"
 bitflags = "1"
 mint = { version = "0.5.6", optional = true }
 
@@ -38,9 +55,9 @@ image = { version = "0.24.0", default-features = false, features = ["png"] }
 simple_logger = "2.1.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ndk = "0.6"
-ndk-sys = "0.3"
-ndk-glue = "0.6"
+# Coordinate the next winit release with android-ndk-rs: https://github.com/rust-windowing/winit/issues/1995
+ndk = "0.7.0"
+ndk-glue = "0.7.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
 objc = "0.2.7"
@@ -50,11 +67,6 @@ cocoa = "0.24"
 core-foundation = "0.9"
 core-graphics = "0.22"
 dispatch = "0.2.0"
-
-[target.'cfg(target_os = "macos")'.dependencies.core-video-sys]
-version = "0.1.4"
-default_features = false
-features = ["display_link"]
 
 [target.'cfg(target_os = "windows")'.dependencies]
 parking_lot = "0.12"
@@ -91,8 +103,8 @@ features = [
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "openbsd", target_os = "netbsd"))'.dependencies]
 wayland-client = { version = "0.29.4", default_features = false,  features = ["use_system_lib"], optional = true }
 wayland-protocols = { version = "0.29.4", features = [ "staging_protocols"], optional = true }
-sctk = { package = "smithay-client-toolkit", version = "0.15.4", default_features = false, features = ["calloop"],  optional = true }
-sctk-adwaita = { version = "0.3.5", optional = true }
+sctk = { package = "smithay-client-toolkit", version = "0.16.0", default_features = false, features = ["calloop"],  optional = true }
+sctk-adwaita = { version = "0.4.1", optional = true }
 mio = { version = "0.8", features = ["os-ext"], optional = true }
 x11-dl = { version = "2.18.5", optional = true }
 percent-encoding = { version = "2.0", optional = true }

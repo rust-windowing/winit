@@ -56,6 +56,7 @@
 //! Also note that app may not receive the LoopDestroyed event if suspended; it might be SIGKILL'ed.
 
 #![cfg(target_os = "ios")]
+#![allow(clippy::let_unit_value)]
 
 // TODO: (mtak-) UIKit requires main thread for virtually all function/method calls. This could be
 // worked around in the future by using GCD (grand central dispatch) and/or caching of values like
@@ -108,9 +109,7 @@ unsafe impl Sync for DeviceId {}
 pub enum OsError {}
 
 impl fmt::Display for OsError {
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            _ => unreachable!(),
-        }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "os error")
     }
 }

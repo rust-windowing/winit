@@ -7,15 +7,15 @@ use crate::{
 use ndk::configuration::Configuration;
 use ndk_glue::Rect;
 
-/// Additional methods on `EventLoop` that are specific to Android.
+/// Additional methods on [`EventLoop`] that are specific to Android.
 pub trait EventLoopExtAndroid {}
 
 impl<T> EventLoopExtAndroid for EventLoop<T> {}
 
-/// Additional methods on `EventLoopWindowTarget` that are specific to Android.
+/// Additional methods on [`EventLoopWindowTarget`] that are specific to Android.
 pub trait EventLoopWindowTargetExtAndroid {}
 
-/// Additional methods on `Window` that are specific to Android.
+/// Additional methods on [`Window`] that are specific to Android.
 pub trait WindowExtAndroid {
     fn content_rect(&self) -> Rect;
 
@@ -34,7 +34,7 @@ impl WindowExtAndroid for Window {
 
 impl<T> EventLoopWindowTargetExtAndroid for EventLoopWindowTarget<T> {}
 
-/// Additional methods on `WindowBuilder` that are specific to Android.
+/// Additional methods on [`WindowBuilder`] that are specific to Android.
 pub trait WindowBuilderExtAndroid {}
 
 impl WindowBuilderExtAndroid for WindowBuilder {}

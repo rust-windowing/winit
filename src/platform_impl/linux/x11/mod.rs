@@ -23,7 +23,7 @@ pub use self::{
 };
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
     ffi::CStr,
     mem::{self, MaybeUninit},
@@ -40,6 +40,7 @@ use std::{
 use libc::{self, setlocale, LC_CTYPE};
 
 use mio::{unix::SourceFd, Events, Interest, Poll, Token, Waker};
+use raw_window_handle::{RawDisplayHandle, XlibDisplayHandle};
 
 use self::{
     dnd::{Dnd, DndState},
@@ -50,8 +51,13 @@ use self::{
 use crate::{
     error::OsError as RootOsError,
     event::{Event, StartCause},
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
-    platform_impl::{platform::sticky_exit_callback, PlatformSpecificWindowBuilderAttributes},
+    event_loop::{
+        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
+    },
+    platform_impl::{
+        platform::{sticky_exit_callback, WindowId},
+        PlatformSpecificWindowBuilderAttributes,
+    },
     window::WindowAttributes,
 };
 
@@ -76,15 +82,16 @@ impl<T> PeekableReceiver<T> {
         if self.first.is_some() {
             return true;
         }
+
         match self.recv.try_recv() {
             Ok(v) => {
                 self.first = Some(v);
-                return true;
+                true
             }
-            Err(TryRecvError::Empty) => return false,
+            Err(TryRecvError::Empty) => false,
             Err(TryRecvError::Disconnected) => {
                 warn!("Channel was disconnected when checking incoming");
-                return false;
+                false
             }
         }
     }
@@ -105,6 +112,7 @@ pub struct EventLoopWindowTarget<T> {
     ime: RefCell<Ime>,
     windows: RefCell<HashMap<WindowId, Weak<UnownedWindow>>>,
     redraw_sender: WakeSender<WindowId>,
+    device_event_filter: Cell<DeviceEventFilter>,
     _marker: ::std::marker::PhantomData<T>,
 }
 
@@ -229,21 +237,27 @@ impl<T: 'static> EventLoop<T> {
         let (user_sender, user_channel) = std::sync::mpsc::channel();
         let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
 
+        let window_target = EventLoopWindowTarget {
+            ime,
+            root,
+            windows: Default::default(),
+            _marker: ::std::marker::PhantomData,
+            ime_sender,
+            xconn,
+            wm_delete_window,
+            net_wm_ping,
+            redraw_sender: WakeSender {
+                sender: redraw_sender, // not used again so no clone
+                waker: waker.clone(),
+            },
+            device_event_filter: Default::default(),
+        };
+
+        // Set initial device event filter.
+        window_target.update_device_event_filter(true);
+
         let target = Rc::new(RootELW {
-            p: super::EventLoopWindowTarget::X(EventLoopWindowTarget {
-                ime,
-                root,
-                windows: Default::default(),
-                _marker: ::std::marker::PhantomData,
-                ime_sender,
-                xconn,
-                wm_delete_window,
-                net_wm_ping,
-                redraw_sender: WakeSender {
-                    sender: redraw_sender, // not used again so no clone
-                    waker: waker.clone(),
-                },
-            }),
+            p: super::EventLoopWindowTarget::X(window_target),
             _marker: ::std::marker::PhantomData,
         });
 
@@ -319,6 +333,17 @@ impl<T: 'static> EventLoop<T> {
                 callback,
             );
 
+            // NB: For consistency all platforms must emit a 'resumed' event even though X11
+            // applications don't themselves have a formal suspend/resume lifecycle.
+            if *cause == StartCause::Init {
+                sticky_exit_callback(
+                    crate::event::Event::Resumed,
+                    &this.target,
+                    control_flow,
+                    callback,
+                );
+            }
+
             // Process all pending events
             this.drain_events(callback, control_flow);
 
@@ -351,7 +376,7 @@ impl<T: 'static> EventLoop<T> {
                 }
 
                 for window_id in windows {
-                    let window_id = crate::window::WindowId(super::WindowId::X(window_id));
+                    let window_id = crate::window::WindowId(window_id);
                     sticky_exit_callback(
                         Event::RedrawRequested(window_id),
                         &this.target,
@@ -407,11 +432,12 @@ impl<T: 'static> EventLoop<T> {
                     deadline = Some(*wait_deadline);
                 }
             }
-            return IterationResult {
+
+            IterationResult {
                 wait_start: start,
                 deadline,
                 timeout,
-            };
+            }
         }
 
         let mut control_flow = ControlFlow::default();
@@ -443,7 +469,7 @@ impl<T: 'static> EventLoop<T> {
                     // must do this because during the execution of the iteration we sometimes wake
                     // the mio waker, and if the waker is already awaken before we call poll(),
                     // then poll doesn't block, but it returns immediately. This caused the event
-                    // loop to run continously even if the control_flow was `Wait`
+                    // loop to run continuously even if the control_flow was `Wait`
                     continue;
                 }
             }
@@ -494,10 +520,7 @@ impl<T: 'static> EventLoop<T> {
                     target,
                     control_flow,
                     &mut |event, window_target, control_flow| {
-                        if let Event::RedrawRequested(crate::window::WindowId(
-                            super::WindowId::X(wid),
-                        )) = event
-                        {
+                        if let Event::RedrawRequested(crate::window::WindowId(wid)) = event {
                             wt.redraw_sender.sender.send(wid).unwrap();
                             wt.redraw_sender.waker.wake().unwrap();
                         } else {
@@ -523,6 +546,37 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn x_connection(&self) -> &Arc<XConnection> {
         &self.xconn
+    }
+
+    pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {
+        self.device_event_filter.set(filter);
+    }
+
+    /// Update the device event filter based on window focus.
+    pub fn update_device_event_filter(&self, focus: bool) {
+        let filter_events = self.device_event_filter.get() == DeviceEventFilter::Never
+            || (self.device_event_filter.get() == DeviceEventFilter::Unfocused && !focus);
+
+        let mut mask = 0;
+        if !filter_events {
+            mask = ffi::XI_RawMotionMask
+                | ffi::XI_RawButtonPressMask
+                | ffi::XI_RawButtonReleaseMask
+                | ffi::XI_RawKeyPressMask
+                | ffi::XI_RawKeyReleaseMask;
+        }
+
+        self.xconn
+            .select_xinput_events(self.root, ffi::XIAllMasterDevices, mask)
+            .queue();
+    }
+
+    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
+        let mut display_handle = XlibDisplayHandle::empty();
+        display_handle.display = self.xconn.display as *mut _;
+        display_handle.screen =
+            unsafe { (self.xconn.xlib.XDefaultScreen)(self.xconn.display as *mut _) };
+        RawDisplayHandle::Xlib(display_handle)
     }
 }
 
@@ -576,15 +630,6 @@ impl<'a> Deref for DeviceInfo<'a> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct WindowId(ffi::Window);
-
-impl WindowId {
-    pub const unsafe fn dummy() -> Self {
-        WindowId(0)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId(c_int);
 
 impl DeviceId {
@@ -604,7 +649,7 @@ impl Deref for Window {
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
@@ -623,7 +668,7 @@ impl Drop for Window {
         let window = self.deref();
         let xconn = &window.xconn;
         unsafe {
-            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0);
+            (xconn.xlib.XDestroyWindow)(xconn.display, window.id().0 as ffi::Window);
             // If the window was somehow already destroyed, we'll get a `BadWindow` error, which we don't care about.
             let _ = xconn.check_errors();
         }
@@ -638,10 +683,7 @@ struct GenericEventCookie<'a> {
 }
 
 impl<'a> GenericEventCookie<'a> {
-    fn from_event<'b>(
-        xconn: &'b XConnection,
-        event: ffi::XEvent,
-    ) -> Option<GenericEventCookie<'b>> {
+    fn from_event(xconn: &XConnection, event: ffi::XEvent) -> Option<GenericEventCookie<'_>> {
         unsafe {
             let mut cookie: ffi::XGenericEventCookie = From::from(event);
             if (xconn.xlib.XGetEventData)(xconn.display, &mut cookie) == ffi::True {
@@ -669,7 +711,7 @@ struct XExtension {
 }
 
 fn mkwid(w: ffi::Window) -> crate::window::WindowId {
-    crate::window::WindowId(crate::platform_impl::WindowId::X(WindowId(w)))
+    crate::window::WindowId(crate::platform_impl::platform::WindowId(w as u64))
 }
 fn mkdid(w: c_int) -> crate::event::DeviceId {
     crate::event::DeviceId(crate::platform_impl::DeviceId::X(DeviceId(w)))
@@ -698,24 +740,11 @@ enum ScrollOrientation {
 }
 
 impl Device {
-    fn new<T: 'static>(el: &EventProcessor<T>, info: &ffi::XIDeviceInfo) -> Self {
+    fn new(info: &ffi::XIDeviceInfo) -> Self {
         let name = unsafe { CStr::from_ptr(info.name).to_string_lossy() };
         let mut scroll_axes = Vec::new();
 
-        let wt = get_xtarget(&el.target);
-
         if Device::physical_device(info) {
-            // Register for global raw events
-            let mask = ffi::XI_RawMotionMask
-                | ffi::XI_RawButtonPressMask
-                | ffi::XI_RawButtonReleaseMask
-                | ffi::XI_RawKeyPressMask
-                | ffi::XI_RawKeyReleaseMask;
-            // The request buffer is flushed when we poll for events
-            wt.xconn
-                .select_xinput_events(wt.root, info.deviceid, mask)
-                .queue();
-
             // Identify scroll axes
             for class_ptr in Device::classes(info) {
                 let class = unsafe { &**class_ptr };

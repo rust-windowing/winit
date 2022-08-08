@@ -17,6 +17,7 @@ use cocoa::{
     foundation::{NSInteger, NSPoint, NSTimeInterval},
 };
 use objc::rc::autoreleasepool;
+use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
     event::Event,
@@ -87,6 +88,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         let monitor = monitor::primary_monitor();
         Some(RootMonitorHandle { inner: monitor })
     }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+    }
 }
 
 impl<T> EventLoopWindowTarget<T> {
@@ -120,7 +126,7 @@ pub struct EventLoop<T: 'static> {
     _callback: Option<Rc<Callback<T>>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) activation_policy: ActivationPolicy,
     pub(crate) default_menu: bool,
@@ -210,10 +216,10 @@ impl<T> EventLoop<T> {
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
-            mem::drop(callback);
+            drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
-            let () = msg_send![app, run];
+            let _: () = msg_send![app, run];
 
             if let Some(panic) = self.panic_info.take() {
                 drop(self._callback.take());
@@ -246,7 +252,7 @@ pub unsafe fn post_dummy_event(target: id) {
         data1: 0 as NSInteger
         data2: 0 as NSInteger
     ];
-    let () = msg_send![target, postEvent: dummy_event atStart: YES];
+    let _: () = msg_send![target, postEvent: dummy_event atStart: YES];
 }
 
 /// Catches panics that happen inside `f` and when a panic
@@ -270,7 +276,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             unsafe {
                 let app_class = class!(NSApplication);
                 let app: id = msg_send![app_class, sharedApplication];
-                let () = msg_send![app, stop: nil];
+                let _: () = msg_send![app, stop: nil];
 
                 // Posting a dummy event to get `stop` to take effect immediately.
                 // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752

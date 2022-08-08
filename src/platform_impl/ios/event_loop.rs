@@ -7,6 +7,8 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
+use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
+
 use crate::{
     dpi::LogicalSize,
     event::Event,
@@ -63,13 +65,17 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
         Some(RootMonitorHandle { inner: monitor })
     }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    }
 }
 
 pub struct EventLoop<T: 'static> {
     window_target: RootEventLoopWindowTarget<T>,
 }
 
-#[derive(Default, Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T: 'static> EventLoop<T> {

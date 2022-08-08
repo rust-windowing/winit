@@ -8,6 +8,26 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On X11, fix min, max and resize increment hints not persisting for resizable windows (e.g. on DPI change).
+- On Windows, respect min/max inner sizes when creating the window.
+
+# 0.27.1 (2022-07-30)
+
+- The minimum supported Rust version was lowered to `1.57.0` and now explicitly tested.
+- On X11, fix crash on start due to inability to create an IME context without any preedit.
+
+# 0.27.0 (2022-07-26)
+
+- On Windows, fix hiding a maximized window.
+- On Android, `ndk-glue`'s `NativeWindow` lock is now held between `Event::Resumed` and `Event::Suspended`.
+- On Web, added `EventLoopExtWebSys` with a `spawn` method to start the event loop without throwing an exception.
+- Added `WindowEvent::Occluded(bool)`, currently implemented on macOS and X11.
+- On X11, fix events for caps lock key not being sent
+- Build docs on `docs.rs` for iOS and Android as well.
+- **Breaking:** Removed the `WindowAttributes` struct, since all its functionality is accessible from `WindowBuilder`.
+- Added `WindowBuilder::transparent` getter to check if the user set `transparent` attribute.
+- On macOS, Fix emitting `Event::LoopDestroyed` on CMD+Q.
+- On macOS, fixed an issue where having multiple windows would prevent run_return from ever returning.
 - On Wayland, fix bug where the cursor wouldn't hide in GNOME.
 - On macOS, Windows, and Wayland, add `set_cursor_hittest` to let the window ignore mouse events.
 - On Windows, added `WindowExtWindows::set_skip_taskbar` and `WindowBuilderExtWindows::with_skip_taskbar`.
@@ -20,6 +40,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, fix for repeated event loop iteration when `ControlFlow` was `Wait`
 - On X11, fix scale factor calculation when the only monitor is reconnected
 - On Wayland, report unaccelerated mouse deltas in `DeviceEvent::MouseMotion`.
+- On Web, a focused event is manually generated when a click occurs to emulate behaviour of other backends.
 - **Breaking:** Bump `ndk` version to 0.6, ndk-sys to `v0.3`, `ndk-glue` to `0.6`.
 - Remove no longer needed `WINIT_LINK_COLORSYNC` environment variable.
 - **Breaking:** Rename the `Exit` variant of `ControlFlow` to `ExitWithCode`, which holds a value to control the exit code after running. Add an `Exit` constant which aliases to `ExitWithCode(0)` instead to avoid major breakage. This shouldn't affect most existing programs.
@@ -30,7 +51,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** Replaced `EventLoopExtUnix` with `EventLoopBuilderExtUnix` (which also has renamed methods).
 - **Breaking:** The platform specific extensions for Windows `winit::platform::windows` have changed. All `HANDLE`-like types e.g. `HWND` and `HMENU` were converted from winapi types or `*mut c_void` to `isize`. This was done to be consistent with the type definitions in windows-sys and to not expose internal dependencies.
 - The internal bindings to the [Windows API](https://docs.microsoft.com/en-us/windows/) were changed from the unofficial [winapi](https://github.com/retep998/winapi-rs) bindings to the official Microsoft [windows-sys](https://github.com/microsoft/windows-rs) bindings.
-- On Wayland, fix resize and scale factor changes not being propagated properly.
 - On Wayland, fix polling during consecutive `EventLoop::run_return` invocations.
 - On Windows, fix race issue creating fullscreen windows with `WindowBuilder::with_fullscreen`
 - On Android, `virtual_keycode` for `KeyboardInput` events is now filled in where a suitable match is found.
@@ -51,6 +71,23 @@ And please only add new entries to the top of this list, right below the `# Unre
 - Added `Window::set_ime_allowed` supported on desktop platforms.
 - **Breaking:** IME input on desktop platforms won't be received unless it's explicitly allowed via `Window::set_ime_allowed` and new `WindowEvent::Ime` events are handled.
 - On macOS, `WindowEvent::Resized` is now emitted in `frameDidChange` instead of `windowDidResize`.
+- **Breaking:** On X11, device events are now ignored for unfocused windows by default, use `EventLoopWindowTarget::set_device_event_filter` to set the filter level.
+- Implemented `Default` on `EventLoop<()>`.
+- Implemented `Eq` for `Fullscreen`, `Theme`, and `UserAttentionType`.
+- **Breaking:** `Window::set_cursor_grab` now accepts `CursorGrabMode` to control grabbing behavior.
+- On Wayland, add support for `Window::set_cursor_position`.
+- Fix on macOS `WindowBuilder::with_disallow_hidpi`, setting true or false by the user no matter the SO default value.
+- `EventLoopBuilder::build` will now panic when the `EventLoop` is being created more than once.
+- Added `From<u64>` for `WindowId` and `From<WindowId>` for `u64`.
+- Added `MonitorHandle::refresh_rate_millihertz` to get monitor's refresh rate.
+- **Breaking**, Replaced `VideoMode::refresh_rate` with `VideoMode::refresh_rate_millihertz` providing better precision.
+- On Web, add `with_prevent_default` and `with_focusable` to `WindowBuilderExtWebSys` to control whether events should be propagated.
+- On Windows, fix focus events being sent to inactive windows.
+- **Breaking**, update `raw-window-handle` to `v0.5` and implement `HasRawDisplayHandle` for `Window` and `EventLoopWindowTarget`.
+- On X11, add function `register_xlib_error_hook` into `winit::platform::unix` to subscribe for errors comming from Xlib.
+- On Android, upgrade `ndk` and `ndk-glue` dependencies to the recently released `0.7.0`.
+- All platforms can now be relied on to emit a `Resumed` event. Applications are recommended to lazily initialize graphics state and windows on first resume for portability.
+- **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
 
 # 0.26.1 (2022-01-05)
 
@@ -59,7 +96,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On X11, add mappings for numpad comma, numpad enter, numlock and pause.
 - On macOS, fix Pinyin IME input by reverting a change that intended to improve IME.
 - On Windows, fix a crash with transparent windows on Windows 11.
-- **Breaking:**: Reverse horizontal scrolling sign in `MouseScrollDelta` to match the direction of vertical scrolling. A positive X value now means moving the content to the right. The meaning of vertical scrolling stays the same: a positive Y value means moving the content down.
 
 # 0.26.0 (2021-12-01)
 
