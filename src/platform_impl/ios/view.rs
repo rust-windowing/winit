@@ -259,7 +259,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                     };
 
                     let physical_location = {
-                        let scale_factor: CGFloat = msg_send![object, contentScaleFactor];
+                        let scale_factor: CGFloat = msg_send![uiscreen, nativeScale];
                         PhysicalPosition::from_logical::<(f64, f64), f64>(
                             (logical_location.x as _, logical_location.y as _),
                             scale_factor,
