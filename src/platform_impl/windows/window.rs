@@ -132,7 +132,7 @@ impl Window {
 
     #[inline]
     pub fn outer_position(&self) -> Result<PhysicalPosition<i32>, NotSupportedError> {
-        util::get_window_rect(self.hwnd())
+        util::WindowArea::Outer.get_rect(self.hwnd())
             .map(|rect| Ok(PhysicalPosition::new(rect.left as i32, rect.top as i32)))
             .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit")
     }
@@ -187,7 +187,8 @@ impl Window {
 
     #[inline]
     pub fn outer_size(&self) -> PhysicalSize<u32> {
-        util::get_window_rect(self.hwnd())
+        util::WindowArea::Outer
+            .get_rect(self.hwnd())
             .map(|rect| {
                 PhysicalSize::new(
                     (rect.right - rect.left) as u32,
@@ -200,7 +201,7 @@ impl Window {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let scale_factor = self.scale_factor();
-        let (width, height) = size.to_physical::<u32>(scale_factor).into();
+        let physical_size = size.to_physical::<u32>(scale_factor).into();
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
@@ -211,7 +212,8 @@ impl Window {
             });
         });
 
-        util::set_inner_size_physical(self.hwnd(), width, height);
+        let window_flags = self.window_state.lock().window_flags;
+        window_flags.set_size(self.hwnd(), physical_size);
     }
 
     #[inline]
@@ -252,7 +254,7 @@ impl Window {
     /// Returns the `hwnd` of this window.
     #[inline]
     pub fn hwnd(&self) -> HWND {
-        self.window.0
+        self.window.0.into()
     }
 
     #[inline]
@@ -577,7 +579,7 @@ impl Window {
         self.thread_executor.execute_in_thread(move || {
             let _ = &window;
             WindowState::set_window_flags(window_state.lock(), window.0, |f| {
-                f.set(WindowFlags::DECORATIONS, decorations)
+                f.set(WindowFlags::MARKER_DECORATIONS, decorations)
             });
         });
     }
@@ -585,7 +587,9 @@ impl Window {
     #[inline]
     pub fn is_decorated(&self) -> bool {
         let window_state = self.window_state.lock();
-        window_state.window_flags.contains(WindowFlags::DECORATIONS)
+        window_state
+            .window_flags
+            .contains(WindowFlags::MARKER_DECORATIONS)
     }
 
     #[inline]
@@ -689,6 +693,19 @@ impl Window {
     pub fn set_skip_taskbar(&self, skip: bool) {
         self.window_state.lock().skip_taskbar = skip;
         unsafe { set_skip_taskbar(self.hwnd(), skip) };
+    }
+
+    #[inline]
+    pub fn set_undecorated_shadow(&self, shadow: bool) {
+        let window = self.window.clone();
+        let window_state = Arc::clone(&self.window_state);
+
+        self.thread_executor.execute_in_thread(move || {
+            let _ = &window;
+            WindowState::set_window_flags(window_state.lock(), window.0, |f| {
+                f.set(WindowFlags::MARKER_UNDECORATED_SHADOW, shadow)
+            });
+        });
     }
 
     #[inline]
@@ -898,6 +915,14 @@ impl<'a, T: 'static> InitData<'a, T> {
             }
         }
 
+        // let margins = MARGINS {
+        //     cxLeftWidth: 1,
+        //     cxRightWidth: 1,
+        //     cyTopHeight: 1,
+        //     cyBottomHeight: 1,
+        // };
+        // dbg!(DwmExtendFrameIntoClientArea(win.hwnd(), &margins as *const _));
+
         if let Some(position) = attributes.position {
             win.set_outer_position(position);
         }
@@ -916,7 +941,11 @@ where
     let class_name = register_window_class::<T>(&attributes.window_icon, &pl_attribs.taskbar_icon);
 
     let mut window_flags = WindowFlags::empty();
-    window_flags.set(WindowFlags::DECORATIONS, attributes.decorations);
+    window_flags.set(WindowFlags::MARKER_DECORATIONS, attributes.decorations);
+    window_flags.set(
+        WindowFlags::MARKER_UNDECORATED_SHADOW,
+        pl_attribs.decoration_shadow,
+    );
     window_flags.set(WindowFlags::ALWAYS_ON_TOP, attributes.always_on_top);
     window_flags.set(
         WindowFlags::NO_BACK_BUFFER,
@@ -997,6 +1026,7 @@ unsafe fn register_window_class<T: 'static>(
         .map(|icon| icon.inner.as_raw_handle())
         .unwrap_or(0);
 
+    use windows_sys::Win32::UI::WindowsAndMessaging::COLOR_WINDOWFRAME;
     let class = WNDCLASSEXW {
         cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
         style: CS_HREDRAW | CS_VREDRAW,
@@ -1006,7 +1036,7 @@ unsafe fn register_window_class<T: 'static>(
         hInstance: util::get_instance_handle(),
         hIcon: h_icon,
         hCursor: 0, // must be null in order for cursor state to work properly
-        hbrBackground: 0,
+        hbrBackground: COLOR_WINDOWFRAME as _,
         lpszMenuName: ptr::null(),
         lpszClassName: class_name.as_ptr(),
         hIconSm: h_icon_small,

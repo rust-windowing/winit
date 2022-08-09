@@ -25,9 +25,9 @@ use windows_sys::Win32::{
     Devices::HumanInterfaceDevice::MOUSE_MOVE_RELATIVE,
     Foundation::{BOOL, HANDLE, HWND, LPARAM, LRESULT, POINT, RECT, WAIT_TIMEOUT, WPARAM},
     Graphics::Gdi::{
-        ClientToScreen, GetMonitorInfoW, GetUpdateRect, MonitorFromRect, MonitorFromWindow,
-        RedrawWindow, ScreenToClient, ValidateRect, MONITORINFO, MONITOR_DEFAULTTONULL,
-        RDW_INTERNALPAINT, SC_SCREENSAVE,
+        GetMonitorInfoW, GetUpdateRect, MonitorFromRect, MonitorFromWindow, RedrawWindow,
+        ScreenToClient, ValidateRect, MONITORINFO, MONITOR_DEFAULTTONULL, RDW_INTERNALPAINT,
+        SC_SCREENSAVE,
     },
     Media::{timeBeginPeriod, timeEndPeriod, timeGetDevCaps, TIMECAPS, TIMERR_NOERROR},
     System::{Ole::RevokeDragDrop, Threading::GetCurrentThreadId, WindowsProgramming::INFINITE},
@@ -50,20 +50,20 @@ use windows_sys::Win32::{
             RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
         },
         WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetClientRect,
-            GetCursorPos, GetMessageW, GetWindowLongW, LoadCursorW, MsgWaitForMultipleObjectsEx,
-            PeekMessageW, PostMessageW, PostThreadMessageW, RegisterClassExW,
-            RegisterWindowMessageA, SetCursor, SetWindowPos, TranslateMessage, CREATESTRUCTW,
-            GIDC_ARRIVAL, GIDC_REMOVAL, GWL_EXSTYLE, GWL_STYLE, GWL_USERDATA, HTCAPTION, HTCLIENT,
-            MAPVK_VK_TO_VSC, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE, PM_NOREMOVE, PM_QS_PAINT,
-            PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL,
-            SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-            SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE,
-            WM_DESTROY, WM_DPICHANGED, WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE,
-            WM_GETMINMAXINFO, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT,
-            WM_IME_STARTCOMPOSITION, WM_INPUT, WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP,
-            WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
-            WM_MOUSEHWHEEL, WM_MOUSEMOVE, WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCREATE, WM_NCDESTROY,
+            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
+            GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
+            PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos,
+            TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
+            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE,
+            NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS,
+            RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
+            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
+            WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED,
+            WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION,
+            WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT,
+            WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
+            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
+            WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
             WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
@@ -624,10 +624,12 @@ pub static TASKBAR_CREATED: Lazy<u32> =
     Lazy::new(|| unsafe { RegisterWindowMessageA("TaskbarCreated\0".as_ptr()) });
 
 fn create_event_target_window<T: 'static>() -> HWND {
+    use windows_sys::Win32::UI::WindowsAndMessaging::CS_HREDRAW;
+    use windows_sys::Win32::UI::WindowsAndMessaging::CS_VREDRAW;
     unsafe {
         let class = WNDCLASSEXW {
             cbSize: mem::size_of::<WNDCLASSEXW>() as u32,
-            style: 0,
+            style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(thread_event_target_callback::<T>),
             cbClsExtra: 0,
             cbWndExtra: 0,
@@ -959,6 +961,32 @@ unsafe fn public_window_callback_inner<T: 'static>(
     // the closure to catch_unwind directly so that the match body indendation wouldn't change and
     // the git blame and history would be preserved.
     let callback = || match msg {
+        WM_NCCALCSIZE => {
+            let window_flags = userdata.window_state.lock().window_flags;
+            if wparam == 0 || window_flags.contains(WindowFlags::MARKER_DECORATIONS) {
+                return DefWindowProcW(window, msg, wparam, lparam);
+            }
+
+            // Extend the client area to cover the whole non-client area.
+            // https://docs.microsoft.com/en-us/windows/win32/winmsg/wm-nccalcsize#remarks
+            //
+            // HACK(msiglreith): To add the drop shadow we slightly tweak the non-client area.
+            // This leads to a small black 1px border on the top. Adding a margin manually
+            // on all 4 borders would result in the caption getting drawn by the DWM.
+            //
+            // Another option would be to allow the DWM to paint inside the client area.
+            // Unfortunately this results in janky resize behavior, where the compositor is
+            // ahead of the window surface. Currently, there seems no option to achieve this
+            // with the Windows API.
+            if window_flags.contains(WindowFlags::MARKER_UNDECORATED_SHADOW) {
+                let params = &mut *(lparam as *mut NCCALCSIZE_PARAMS);
+                params.rgrc[0].top += 1;
+                params.rgrc[0].bottom += 1;
+            }
+
+            0
+        }
+
         WM_ENTERSIZEMOVE => {
             userdata
                 .window_state
@@ -1040,7 +1068,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 const NOMOVE_OR_NOSIZE: u32 = SWP_NOMOVE | SWP_NOSIZE;
 
                 let new_rect = if window_pos.flags & NOMOVE_OR_NOSIZE != 0 {
-                    let cur_rect = util::get_window_rect(window)
+                    let cur_rect = util::WindowArea::Outer.get_rect(window)
                         .expect("Unexpected GetWindowRect failure; please report this error to https://github.com/rust-windowing/winit");
 
                     match window_pos.flags & NOMOVE_OR_NOSIZE {
@@ -1912,11 +1940,13 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let mmi = lparam as *mut MINMAXINFO;
 
             let window_state = userdata.window_state.lock();
+            let window_flags = window_state.window_flags;
 
             if window_state.min_size.is_some() || window_state.max_size.is_some() {
                 if let Some(min_size) = window_state.min_size {
                     let min_size = min_size.to_physical(window_state.scale_factor);
-                    let (width, height): (u32, u32) = util::adjust_size(window, min_size).into();
+                    let (width, height): (u32, u32) =
+                        window_flags.adjust_size(window, min_size).into();
                     (*mmi).ptMinTrackSize = POINT {
                         x: width as i32,
                         y: height as i32,
@@ -1924,7 +1954,8 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 }
                 if let Some(max_size) = window_state.max_size {
                     let max_size = max_size.to_physical(window_state.scale_factor);
-                    let (width, height): (u32, u32) = util::adjust_size(window, max_size).into();
+                    let (width, height): (u32, u32) =
+                        window_flags.adjust_size(window, max_size).into();
                     (*mmi).ptMaxTrackSize = POINT {
                         x: width as i32,
                         y: height as i32,
@@ -1948,7 +1979,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let new_scale_factor = dpi_to_scale_factor(new_dpi_x);
             let old_scale_factor: f64;
 
-            let allow_resize = {
+            let (allow_resize, window_flags) = {
                 let mut window_state = userdata.window_state.lock();
                 old_scale_factor = window_state.scale_factor;
                 window_state.scale_factor = new_scale_factor;
@@ -1957,12 +1988,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     return 0;
                 }
 
-                window_state.fullscreen.is_none()
-                    && !window_state.window_flags().contains(WindowFlags::MAXIMIZED)
-            };
+                let allow_resize = window_state.fullscreen.is_none()
+                    && !window_state.window_flags().contains(WindowFlags::MAXIMIZED);
 
-            let style = GetWindowLongW(window, GWL_STYLE) as u32;
-            let style_ex = GetWindowLongW(window, GWL_EXSTYLE) as u32;
+                (allow_resize, window_state.window_flags)
+            };
 
             // New size as suggested by Windows.
             let suggested_rect = *(lparam as *const RECT);
@@ -1976,28 +2006,18 @@ unsafe fn public_window_callback_inner<T: 'static>(
             // let margin_right: i32;
             // let margin_bottom: i32;
             {
-                let adjusted_rect =
-                    util::adjust_window_rect_with_styles(window, style, style_ex, suggested_rect)
-                        .unwrap_or(suggested_rect);
+                let adjusted_rect = window_flags
+                    .adjust_rect(window, suggested_rect)
+                    .unwrap_or(suggested_rect);
                 margin_left = suggested_rect.left - adjusted_rect.left;
                 margin_top = suggested_rect.top - adjusted_rect.top;
                 // margin_right = adjusted_rect.right - suggested_rect.right;
                 // margin_bottom = adjusted_rect.bottom - suggested_rect.bottom;
             }
 
-            let old_physical_inner_rect = {
-                let mut old_physical_inner_rect = mem::zeroed();
-                GetClientRect(window, &mut old_physical_inner_rect);
-                let mut origin = mem::zeroed();
-                ClientToScreen(window, &mut origin);
-
-                old_physical_inner_rect.left += origin.x;
-                old_physical_inner_rect.right += origin.x;
-                old_physical_inner_rect.top += origin.y;
-                old_physical_inner_rect.bottom += origin.y;
-
-                old_physical_inner_rect
-            };
+            let old_physical_inner_rect = util::WindowArea::Inner
+                .get_rect(window)
+                .expect("failed to query (old) inner window area");
             let old_physical_inner_size = PhysicalSize::new(
                 (old_physical_inner_rect.right - old_physical_inner_rect.left) as u32,
                 (old_physical_inner_rect.bottom - old_physical_inner_rect.top) as u32,
@@ -2051,13 +2071,9 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     bottom: suggested_ul.1 + new_physical_inner_size.height as i32,
                 };
 
-                conservative_rect = util::adjust_window_rect_with_styles(
-                    window,
-                    style,
-                    style_ex,
-                    conservative_rect,
-                )
-                .unwrap_or(conservative_rect);
+                conservative_rect = window_flags
+                    .adjust_rect(window, conservative_rect)
+                    .unwrap_or(conservative_rect);
 
                 // If we're dragging the window, offset the window so that the cursor's
                 // relative horizontal position in the title bar is preserved.
