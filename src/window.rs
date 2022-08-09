@@ -1,6 +1,10 @@
 //! The [`Window`] struct and associated types.
 use std::fmt;
 
+use raw_window_handle::{
+    HasRawDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+};
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError},
@@ -80,6 +84,18 @@ impl WindowId {
     /// **Passing this into a winit function will result in undefined behavior.**
     pub const unsafe fn dummy() -> Self {
         WindowId(platform_impl::WindowId::dummy())
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0.into()
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id.into())
     }
 }
 
@@ -191,20 +207,20 @@ impl WindowBuilder {
     ///
     /// ## Platform-specific
     ///
-    /// - **macOS**: The top left corner position of the window content, the
+    /// - **macOS:** The top left corner position of the window content, the
     ///   window's "inner" position. The window title bar will be placed above
     ///   it. The window will be positioned such that it fits on screen,
     ///   maintaining set `inner_size` if any.
     ///   If you need to precisely position the top left corner of the whole
     ///   window you have to use [`Window::set_outer_position`] after creating
     ///   the window.
-    /// - **Windows**: The top left corner position of the window title bar,
+    /// - **Windows:** The top left corner position of the window title bar,
     ///   the window's "outer" position.
     ///   There may be a small gap between this position and the window due to
     ///   the specifics of the Window Manager.
-    /// - **X11**: The top left corner of the window, the window's "outer"
+    /// - **X11:** The top left corner of the window, the window's "outer"
     ///   position.
-    /// - **Others**: Ignored.
+    /// - **Others:** Ignored.
     #[inline]
     pub fn with_position<P: Into<Position>>(mut self, position: P) -> Self {
         self.window.position = Some(position.into());
@@ -278,6 +294,12 @@ impl WindowBuilder {
         self
     }
 
+    /// Get whether the window will support transparency.
+    #[inline]
+    pub fn transparent(&self) -> bool {
+        self.window.transparent
+    }
+
     /// Sets whether the window should have a border, a title bar, etc.
     ///
     /// The default is `true`.
@@ -315,8 +337,9 @@ impl WindowBuilder {
     ///
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// ## Platform-specific
+    ///
+    /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     #[inline]
     pub fn build<T: 'static>(
@@ -341,8 +364,9 @@ impl Window {
     /// Error should be very rare and only occur in case of permission denied, incompatible system,
     ///  out of memory, etc.
     ///
-    /// Platform-specific behavior:
-    /// - **Web**: The window is created but not inserted into the web page automatically. Please
+    /// ## Platform-specific
+    ///
+    /// - **Web:** The window is created but not inserted into the web page automatically. Please
     ///   see the web platform module for more information.
     ///
     /// [`WindowBuilder::new().build(event_loop)`]: WindowBuilder::build
@@ -607,7 +631,7 @@ impl Window {
         self.window.set_visible(visible)
     }
 
-    /// Gets the window's current vibility state.
+    /// Gets the window's current visibility state.
     ///
     /// `None` means it couldn't be determined, so it is not recommended to use this to drive your rendering backend.
     ///
@@ -630,10 +654,7 @@ impl Window {
     ///
     /// This only has an effect on desktop platforms.
     ///
-    /// Due to a bug in XFCE, this has no effect on Xfwm.
-    ///
-    /// ## Platform-specific
-    ///
+    /// - **X11:** Due to a bug in XFCE, this has no effect on Xfwm.
     /// - **iOS / Android / Web:** Unsupported.
     ///
     /// [`WindowEvent::Resized`]: crate::event::WindowEvent::Resized
@@ -821,7 +842,7 @@ impl Window {
     /// ## Platform-specific
     ///
     /// - **macOS:** IME must be enabled to receive text-input where dead-key sequences are combined.
-    /// - ** iOS / Android / Web :** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     ///
     /// [`Ime`]: crate::event::WindowEvent::Ime
     /// [`KeyboardInput`]: crate::event::WindowEvent::KeyboardInput
@@ -855,7 +876,7 @@ impl Window {
     ///
     /// ## Platform-specific
     ///
-    /// - **iOS / Android / Web :** Unsupported.
+    /// - **iOS / Android / Web:** Unsupported.
     /// - **macOS:** `None` has no effect.
     /// - **X11:** Requests for user attention must be manually cleared.
     /// - **Wayland:** Requires `xdg_activation_v1` protocol, `None` has no effect.
@@ -900,18 +921,24 @@ impl Window {
         self.window.set_cursor_position(position.into())
     }
 
-    /// Grabs the cursor, preventing it from leaving the window.
+    /// Set grabbing [mode]([`CursorGrabMode`]) on the cursor preventing it from leaving the window.
     ///
-    /// There's no guarantee that the cursor will be hidden. You should
-    /// hide it by yourself if you want so.
+    /// # Example
     ///
-    /// ## Platform-specific
+    /// First try confining the cursor, and if that fails, try locking it instead.
     ///
-    /// - **macOS:** This locks the cursor in a fixed location, which looks visually awkward.
-    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    /// ```no_run
+    /// # use winit::event_loop::EventLoop;
+    /// # use winit::window::{CursorGrabMode, Window};
+    /// # let mut event_loop = EventLoop::new();
+    /// # let window = Window::new(&event_loop).unwrap();
+    /// window.set_cursor_grab(CursorGrabMode::Confined)
+    ///             .or_else(|_e| window.set_cursor_grab(CursorGrabMode::Locked))
+    ///             .unwrap();
+    /// ```
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        self.window.set_cursor_grab(grab)
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        self.window.set_cursor_grab(mode)
     }
 
     /// Modifies the cursor's visibility.
@@ -1009,17 +1036,67 @@ impl Window {
         self.window.primary_monitor()
     }
 }
-
-unsafe impl raw_window_handle::HasRawWindowHandle for Window {
+unsafe impl HasRawWindowHandle for Window {
     /// Returns a [`raw_window_handle::RawWindowHandle`] for the Window
     ///
     /// ## Platform-specific
     ///
-    /// - **Android:** Only available after receiving the Resumed event and before Suspended. *If you*
-    /// *try to get the handle outside of that period, this function will panic*!
-    fn raw_window_handle(&self) -> raw_window_handle::RawWindowHandle {
+    /// ### Android
+    ///
+    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
+    /// try to get the handle outside of that period, this function will panic*!
+    ///
+    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
+    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
+    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
+    ///
+    /// [`Event::Resumed`]: crate::event::Event::Resumed
+    /// [`Event::Suspended`]: crate::event::Event::Suspended
+    fn raw_window_handle(&self) -> RawWindowHandle {
         self.window.raw_window_handle()
     }
+}
+
+unsafe impl HasRawDisplayHandle for Window {
+    /// Returns a [`raw_window_handle::RawDisplayHandle`] used by the [`EventLoop`] that
+    /// created a window.
+    ///
+    /// [`EventLoop`]: crate::event_loop::EventLoop
+    fn raw_display_handle(&self) -> RawDisplayHandle {
+        self.window.raw_display_handle()
+    }
+}
+
+/// The behavior of cursor grabbing.
+///
+/// Use this enum with [`Window::set_cursor_grab`] to grab the cursor.
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CursorGrabMode {
+    /// No grabbing of the cursor is performed.
+    None,
+
+    /// The cursor is confined to the window area.
+    ///
+    /// There's no guarantee that the cursor will be hidden. You should hide it by yourself if you
+    /// want to do so.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
+    /// - **iOS / Android / Web:** Always returns an [`ExternalError::NotSupported`].
+    Confined,
+
+    /// The cursor is locked inside the window area to the certain position.
+    ///
+    /// There's no guarantee that the cursor will be hidden. You should hide it by yourself if you
+    /// want to do so.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **X11 / Windows:** Not implemented. Always returns [`ExternalError::NotSupported`] for now.
+    /// - **iOS / Android:** Always returns an [`ExternalError::NotSupported`].
+    Locked,
 }
 
 /// Describes the appearance of the mouse cursor.
@@ -1111,10 +1188,12 @@ pub enum Theme {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserAttentionType {
     /// ## Platform-specific
+    ///
     /// - **macOS:** Bounces the dock icon until the application is in focus.
     /// - **Windows:** Flashes both the window and the taskbar button until the application is in focus.
     Critical,
     /// ## Platform-specific
+    ///
     /// - **macOS:** Bounces the dock icon once.
     /// - **Windows:** Flashes the taskbar button until the application is in focus.
     Informational,

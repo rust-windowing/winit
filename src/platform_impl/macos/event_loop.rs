@@ -17,6 +17,7 @@ use cocoa::{
     foundation::{NSInteger, NSPoint, NSTimeInterval},
 };
 use objc::rc::autoreleasepool;
+use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
     event::Event,
@@ -86,6 +87,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
     pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
         let monitor = monitor::primary_monitor();
         Some(RootMonitorHandle { inner: monitor })
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
 }
 
@@ -210,7 +216,7 @@ impl<T> EventLoop<T> {
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
-            mem::drop(callback);
+            drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
             let _: () = msg_send![app, run];

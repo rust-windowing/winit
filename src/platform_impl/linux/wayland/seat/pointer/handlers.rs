@@ -60,6 +60,7 @@ pub(super) fn handle_pointer(
             let winit_pointer = WinitPointer {
                 pointer,
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
+                locked_pointer: Rc::downgrade(&pointer_data.locked_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
                 latest_enter_serial: pointer_data.latest_enter_serial.clone(),
@@ -104,6 +105,7 @@ pub(super) fn handle_pointer(
             let winit_pointer = WinitPointer {
                 pointer,
                 confined_pointer: Rc::downgrade(&pointer_data.confined_pointer),
+                locked_pointer: Rc::downgrade(&pointer_data.locked_pointer),
                 pointer_constraints: pointer_data.pointer_constraints.clone(),
                 latest_serial: pointer_data.latest_serial.clone(),
                 latest_enter_serial: pointer_data.latest_enter_serial.clone(),

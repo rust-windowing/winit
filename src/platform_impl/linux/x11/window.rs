@@ -1,4 +1,3 @@
-use raw_window_handle::XlibHandle;
 use std::{
     cmp, env,
     ffi::CString,
@@ -8,10 +7,11 @@ use std::{
     ptr, slice,
     sync::Arc,
 };
-use x11_dl::xlib::TrueColor;
 
 use libc;
 use parking_lot::Mutex;
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, XlibWindowHandle};
+use x11_dl::xlib::TrueColor;
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
@@ -22,7 +22,7 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
 };
 
 use super::{
@@ -106,7 +106,7 @@ pub struct UnownedWindow {
     root: ffi::Window,           // never changes
     screen_id: i32,              // never changes
     cursor: Mutex<CursorIcon>,
-    cursor_grabbed: Mutex<bool>,
+    cursor_grabbed_mode: Mutex<CursorGrabMode>,
     cursor_visible: Mutex<bool>,
     ime_sender: Mutex<ImeSender>,
     pub shared_state: Mutex<SharedState>,
@@ -276,7 +276,7 @@ impl UnownedWindow {
             root,
             screen_id,
             cursor: Default::default(),
-            cursor_grabbed: Mutex::new(false),
+            cursor_grabbed_mode: Mutex::new(CursorGrabMode::None),
             cursor_visible: Mutex::new(true),
             ime_sender: Mutex::new(event_loop.ime_sender.clone()),
             shared_state: SharedState::new(guessed_monitor, &window_attrs),
@@ -371,14 +371,14 @@ impl UnownedWindow {
                     } else {
                         max_inner_size = Some(dimensions.into());
                         min_inner_size = Some(dimensions.into());
-
-                        let mut shared_state = window.shared_state.get_mut();
-                        shared_state.min_inner_size = window_attrs.min_inner_size;
-                        shared_state.max_inner_size = window_attrs.max_inner_size;
-                        shared_state.resize_increments = pl_attribs.resize_increments;
-                        shared_state.base_size = pl_attribs.base_size;
                     }
                 }
+
+                let mut shared_state = window.shared_state.get_mut();
+                shared_state.min_inner_size = min_inner_size.map(Into::into);
+                shared_state.max_inner_size = max_inner_size.map(Into::into);
+                shared_state.resize_increments = pl_attribs.resize_increments;
+                shared_state.base_size = pl_attribs.base_size;
 
                 let mut normal_hints = util::NormalHints::new(xconn);
                 normal_hints.set_position(position.map(|PhysicalPosition { x, y }| (x, y)));
@@ -1272,64 +1272,75 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        let mut grabbed_lock = self.cursor_grabbed.lock();
-        if grab == *grabbed_lock {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let mut grabbed_lock = self.cursor_grabbed_mode.lock();
+        if mode == *grabbed_lock {
             return Ok(());
         }
+
         unsafe {
             // We ungrab before grabbing to prevent passive grabs from causing `AlreadyGrabbed`.
             // Therefore, this is common to both codepaths.
             (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
         }
-        let result = if grab {
-            let result = unsafe {
-                (self.xconn.xlib.XGrabPointer)(
-                    self.xconn.display,
-                    self.xwindow,
-                    ffi::True,
-                    (ffi::ButtonPressMask
-                        | ffi::ButtonReleaseMask
-                        | ffi::EnterWindowMask
-                        | ffi::LeaveWindowMask
-                        | ffi::PointerMotionMask
-                        | ffi::PointerMotionHintMask
-                        | ffi::Button1MotionMask
-                        | ffi::Button2MotionMask
-                        | ffi::Button3MotionMask
-                        | ffi::Button4MotionMask
-                        | ffi::Button5MotionMask
-                        | ffi::ButtonMotionMask
-                        | ffi::KeymapStateMask) as c_uint,
-                    ffi::GrabModeAsync,
-                    ffi::GrabModeAsync,
-                    self.xwindow,
-                    0,
-                    ffi::CurrentTime,
-                )
-            };
 
-            match result {
-                ffi::GrabSuccess => Ok(()),
-                ffi::AlreadyGrabbed => {
-                    Err("Cursor could not be grabbed: already grabbed by another client")
-                }
-                ffi::GrabInvalidTime => Err("Cursor could not be grabbed: invalid time"),
-                ffi::GrabNotViewable => {
-                    Err("Cursor could not be grabbed: grab location not viewable")
-                }
-                ffi::GrabFrozen => Err("Cursor could not be grabbed: frozen by another client"),
-                _ => unreachable!(),
-            }
-            .map_err(|err| ExternalError::Os(os_error!(OsError::XMisc(err))))
-        } else {
-            self.xconn
+        let result = match mode {
+            CursorGrabMode::None => self
+                .xconn
                 .flush_requests()
-                .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))
+                .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err)))),
+            CursorGrabMode::Confined => {
+                let result = unsafe {
+                    (self.xconn.xlib.XGrabPointer)(
+                        self.xconn.display,
+                        self.xwindow,
+                        ffi::True,
+                        (ffi::ButtonPressMask
+                            | ffi::ButtonReleaseMask
+                            | ffi::EnterWindowMask
+                            | ffi::LeaveWindowMask
+                            | ffi::PointerMotionMask
+                            | ffi::PointerMotionHintMask
+                            | ffi::Button1MotionMask
+                            | ffi::Button2MotionMask
+                            | ffi::Button3MotionMask
+                            | ffi::Button4MotionMask
+                            | ffi::Button5MotionMask
+                            | ffi::ButtonMotionMask
+                            | ffi::KeymapStateMask) as c_uint,
+                        ffi::GrabModeAsync,
+                        ffi::GrabModeAsync,
+                        self.xwindow,
+                        0,
+                        ffi::CurrentTime,
+                    )
+                };
+
+                match result {
+                    ffi::GrabSuccess => Ok(()),
+                    ffi::AlreadyGrabbed => {
+                        Err("Cursor could not be confined: already confined by another client")
+                    }
+                    ffi::GrabInvalidTime => Err("Cursor could not be confined: invalid time"),
+                    ffi::GrabNotViewable => {
+                        Err("Cursor could not be confined: confine location not viewable")
+                    }
+                    ffi::GrabFrozen => {
+                        Err("Cursor could not be confined: frozen by another client")
+                    }
+                    _ => unreachable!(),
+                }
+                .map_err(|err| ExternalError::Os(os_error!(OsError::XMisc(err))))
+            }
+            CursorGrabMode::Locked => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()));
+            }
         };
+
         if result.is_ok() {
-            *grabbed_lock = grab;
+            *grabbed_lock = mode;
         }
+
         result
     }
 
@@ -1386,14 +1397,14 @@ impl UnownedWindow {
 
         // we can't use `set_cursor_grab(false)` here because it doesn't run `XUngrabPointer`
         // if the cursor isn't currently grabbed
-        let mut grabbed_lock = self.cursor_grabbed.lock();
+        let mut grabbed_lock = self.cursor_grabbed_mode.lock();
         unsafe {
             (self.xconn.xlib.XUngrabPointer)(self.xconn.display, ffi::CurrentTime);
         }
         self.xconn
             .flush_requests()
             .map_err(|err| ExternalError::Os(os_error!(OsError::XError(err))))?;
-        *grabbed_lock = false;
+        *grabbed_lock = CursorGrabMode::None;
 
         // we keep the lock until we are done
         self.xconn
@@ -1485,23 +1496,30 @@ impl UnownedWindow {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        WindowId(self.xwindow)
+        WindowId(self.xwindow as u64)
     }
 
     #[inline]
     pub fn request_redraw(&self) {
         self.redraw_sender
             .sender
-            .send(WindowId(self.xwindow))
+            .send(WindowId(self.xwindow as u64))
             .unwrap();
         self.redraw_sender.waker.wake().unwrap();
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> XlibHandle {
-        let mut handle = XlibHandle::empty();
-        handle.window = self.xlib_window();
-        handle.display = self.xlib_display();
-        handle
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut window_handle = XlibWindowHandle::empty();
+        window_handle.window = self.xlib_window();
+        RawWindowHandle::Xlib(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = XlibDisplayHandle::empty();
+        display_handle.display = self.xlib_display();
+        display_handle.screen = self.screen_id;
+        RawDisplayHandle::Xlib(display_handle)
     }
 }

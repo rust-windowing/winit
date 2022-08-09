@@ -62,9 +62,11 @@ impl Canvas {
         // sequential keyboard navigation, but its order is defined by the
         // document's source order.
         // https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex
-        canvas
-            .set_attribute("tabindex", "0")
-            .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
+        if attr.focusable {
+            canvas
+                .set_attribute("tabindex", "0")
+                .map_err(|_| os_error!(OsError("Failed to set a tabindex".to_owned())))?;
+        }
 
         let mouse_state = if has_pointer_event() {
             MouseState::HasPointerEvent(pointer_handler::PointerHandler::new())
@@ -89,8 +91,8 @@ impl Canvas {
         })
     }
 
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), RootOE> {
-        if grab {
+    pub fn set_cursor_lock(&self, lock: bool) -> Result<(), RootOE> {
+        if lock {
             self.raw().request_pointer_lock();
         } else {
             let window = web_sys::window()
@@ -148,14 +150,17 @@ impl Canvas {
         }));
     }
 
-    pub fn on_keyboard_release<F>(&mut self, mut handler: F)
+    pub fn on_keyboard_release<F>(&mut self, mut handler: F, prevent_default: bool)
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
         self.on_keyboard_release = Some(self.common.add_user_event(
             "keyup",
             move |event: KeyboardEvent| {
-                event.prevent_default();
+                if prevent_default {
+                    event.prevent_default();
+                }
+
                 handler(
                     event::scan_code(&event),
                     event::virtual_key_code(&event),
@@ -165,7 +170,7 @@ impl Canvas {
         ));
     }
 
-    pub fn on_keyboard_press<F>(&mut self, mut handler: F)
+    pub fn on_keyboard_press<F>(&mut self, mut handler: F, prevent_default: bool)
     where
         F: 'static + FnMut(ScanCode, Option<VirtualKeyCode>, ModifiersState),
     {
@@ -173,16 +178,19 @@ impl Canvas {
             "keydown",
             move |event: KeyboardEvent| {
                 // event.prevent_default() would suppress subsequent on_received_character() calls. That
-                // supression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
+                // suppression is correct for key sequences like Tab/Shift-Tab, Ctrl+R, PgUp/Down to
                 // scroll, etc. We should not do it for key sequences that result in meaningful character
                 // input though.
-                let event_key = &event.key();
-                let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
-                let is_shortcut_modifiers =
-                    (event.ctrl_key() || event.alt_key()) && !event.get_modifier_state("AltGr");
-                if !is_key_string || is_shortcut_modifiers {
-                    event.prevent_default();
+                if prevent_default {
+                    let event_key = &event.key();
+                    let is_key_string = event_key.len() == 1 || !event_key.is_ascii();
+                    let is_shortcut_modifiers =
+                        (event.ctrl_key() || event.alt_key()) && !event.get_modifier_state("AltGr");
+                    if !is_key_string || is_shortcut_modifiers {
+                        event.prevent_default();
+                    }
                 }
+
                 handler(
                     event::scan_code(&event),
                     event::virtual_key_code(&event),
@@ -192,7 +200,7 @@ impl Canvas {
         ));
     }
 
-    pub fn on_received_character<F>(&mut self, mut handler: F)
+    pub fn on_received_character<F>(&mut self, mut handler: F, prevent_default: bool)
     where
         F: 'static + FnMut(char),
     {
@@ -204,8 +212,11 @@ impl Canvas {
         self.on_received_character = Some(self.common.add_user_event(
             "keypress",
             move |event: KeyboardEvent| {
-                // Supress further handling to stop keys like the space key from scrolling the page.
-                event.prevent_default();
+                // Suppress further handling to stop keys like the space key from scrolling the page.
+                if prevent_default {
+                    event.prevent_default();
+                }
+
                 handler(event::codepoint(&event));
             },
         ));
@@ -261,12 +272,15 @@ impl Canvas {
         }
     }
 
-    pub fn on_mouse_wheel<F>(&mut self, mut handler: F)
+    pub fn on_mouse_wheel<F>(&mut self, mut handler: F, prevent_default: bool)
     where
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
-            event.prevent_default();
+            if prevent_default {
+                event.prevent_default();
+            }
+
             if let Some(delta) = event::mouse_scroll_delta(&event) {
                 handler(0, delta, event::mouse_modifiers(&event));
             }

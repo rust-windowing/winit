@@ -45,6 +45,12 @@ pub struct WindowState {
 
     pub ime_state: ImeState,
     pub ime_allowed: bool,
+
+    // Used by WM_NCACTIVATE, WM_SETFOCUS and WM_KILLFOCUS
+    pub is_active: bool,
+    pub is_focused: bool,
+
+    pub skip_taskbar: bool,
 }
 
 #[derive(Clone)]
@@ -96,10 +102,9 @@ bitflags! {
 
         const MINIMIZED = 1 << 12;
 
-        const IGNORE_CURSOR_EVENT = 1 << 14;
+        const IGNORE_CURSOR_EVENT = 1 << 15;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
-        const INVISIBLE_AND_MASK = !WindowFlags::MAXIMIZED.bits;
     }
 }
 
@@ -144,6 +149,11 @@ impl WindowState {
 
             ime_state: ImeState::Disabled,
             ime_allowed: false,
+
+            is_active: false,
+            is_focused: false,
+
+            skip_taskbar: false,
         }
     }
 
@@ -168,6 +178,24 @@ impl WindowState {
         F: FnOnce(&mut WindowFlags),
     {
         f(&mut self.window_flags);
+    }
+
+    pub fn has_active_focus(&self) -> bool {
+        self.is_active && self.is_focused
+    }
+
+    // Updates is_active and returns whether active-focus state has changed
+    pub fn set_active(&mut self, is_active: bool) -> bool {
+        let old = self.has_active_focus();
+        self.is_active = is_active;
+        old != self.has_active_focus()
+    }
+
+    // Updates is_focused and returns whether active-focus state has changed
+    pub fn set_focused(&mut self, is_focused: bool) -> bool {
+        let old = self.has_active_focus();
+        self.is_focused = is_focused;
+        old != self.has_active_focus()
     }
 }
 
@@ -199,9 +227,7 @@ impl WindowFlags {
         if self.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN) {
             self |= WindowFlags::EXCLUSIVE_FULLSCREEN_OR_MASK;
         }
-        if !self.contains(WindowFlags::VISIBLE) {
-            self &= WindowFlags::INVISIBLE_AND_MASK;
-        }
+
         self
     }
 
@@ -260,21 +286,17 @@ impl WindowFlags {
         new = new.mask();
 
         let diff = self ^ new;
+
         if diff == WindowFlags::empty() {
             return;
         }
 
-        if diff.contains(WindowFlags::VISIBLE) {
+        if new.contains(WindowFlags::VISIBLE) {
             unsafe {
-                ShowWindow(
-                    window,
-                    match new.contains(WindowFlags::VISIBLE) {
-                        true => SW_SHOW,
-                        false => SW_HIDE,
-                    },
-                );
+                ShowWindow(window, SW_SHOW);
             }
         }
+
         if diff.contains(WindowFlags::ALWAYS_ON_TOP) {
             unsafe {
                 SetWindowPos(
@@ -315,6 +337,12 @@ impl WindowFlags {
                         false => SW_RESTORE,
                     },
                 );
+            }
+        }
+
+        if !new.contains(WindowFlags::VISIBLE) {
+            unsafe {
+                ShowWindow(window, SW_HIDE);
             }
         }
 

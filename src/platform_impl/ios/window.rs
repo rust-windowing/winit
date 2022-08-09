@@ -1,10 +1,10 @@
-use raw_window_handle::{RawWindowHandle, UiKitHandle};
 use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},
 };
 
 use objc::runtime::{Class, Object, BOOL, NO, YES};
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use crate::{
     dpi::{self, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize, Position, Size},
@@ -23,7 +23,8 @@ use crate::{
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
     window::{
-        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
     },
 };
 
@@ -184,7 +185,7 @@ impl Inner {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
-    pub fn set_cursor_grab(&self, _grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), ExternalError> {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
@@ -331,11 +332,15 @@ impl Inner {
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = UiKitHandle::empty();
-        handle.ui_window = self.window as _;
-        handle.ui_view = self.view as _;
-        handle.ui_view_controller = self.view_controller as _;
-        RawWindowHandle::UiKit(handle)
+        let mut window_handle = UiKitWindowHandle::empty();
+        window_handle.ui_window = self.window as _;
+        window_handle.ui_view = self.view as _;
+        window_handle.ui_view_controller = self.view_controller as _;
+        RawWindowHandle::UiKit(window_handle)
+    }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
     }
 }
 
@@ -636,6 +641,20 @@ impl WindowId {
     pub const unsafe fn dummy() -> Self {
         WindowId {
             window: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.window as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self {
+            window: raw_id as _,
         }
     }
 }

@@ -7,10 +7,13 @@
 //!
 //! See the root-level documentation for information on how to create and use an event loop to
 //! handle events.
-use instant::Instant;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::{error, fmt};
+
+use instant::Instant;
+use once_cell::sync::OnceCell;
+use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 
@@ -76,8 +79,11 @@ impl<T> EventLoopBuilder<T> {
 
     /// Builds a new event loop.
     ///
-    /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread.***
-    /// Attempting to create the event loop on a different thread will panic. This restriction isn't
+    /// ***For cross-platform compatibility, the [`EventLoop`] must be created on the main thread,
+    /// and only once per application.***
+    ///
+    /// Attempting to create the event loop on a different thread, or multiple event loops in
+    /// the same application, will panic. This restriction isn't
     /// strictly necessary on all platforms, but is imposed to eliminate any nasty surprises when
     /// porting to platforms that require it. `EventLoopBuilderExt::any_thread` functions are exposed
     /// in the relevant [`platform`] module if the target platform supports creating an event loop on
@@ -95,6 +101,10 @@ impl<T> EventLoopBuilder<T> {
     /// [`platform`]: crate::platform
     #[inline]
     pub fn build(&mut self) -> EventLoop<T> {
+        static EVENT_LOOP_CREATED: OnceCell<()> = OnceCell::new();
+        if EVENT_LOOP_CREATED.set(()).is_err() {
+            panic!("Creating EventLoop multiple times is not supported.");
+        }
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
         EventLoop {
@@ -137,6 +147,7 @@ pub enum ControlFlow {
     /// whether or not new events are available to process.
     ///
     /// ## Platform-specific
+    ///
     /// - **Web:** Events are queued and usually sent when `requestAnimationFrame` fires but sometimes
     ///   the events in the queue may be sent before the next `requestAnimationFrame` callback, for
     ///   example when the scaling of the page has changed. This should be treated as an implementation
@@ -162,8 +173,8 @@ pub enum ControlFlow {
     ///
     /// ## Platform-specific
     ///
-    /// - **Android / iOS / WASM**: The supplied exit code is unused.
-    /// - **Unix**: On most Unix-like platforms, only the 8 least significant bits will be used,
+    /// - **Android / iOS / WASM:** The supplied exit code is unused.
+    /// - **Unix:** On most Unix-like platforms, only the 8 least significant bits will be used,
     ///   which can cause surprises with negative exit values (`-42` would end up as `214`). See
     ///   [`std::process::exit`].
     ///
@@ -255,7 +266,7 @@ impl<T> EventLoop<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **X11 / Wayland**: The program terminates with exit code 1 if the display server
+    /// - **X11 / Wayland:** The program terminates with exit code 1 if the display server
     ///   disconnects.
     ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
@@ -312,7 +323,7 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / Windows / macOS / iOS / Android / Web**: Unsupported.
+    /// - **Wayland / Windows / macOS / iOS / Android / Web:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
@@ -324,6 +335,13 @@ impl<T> EventLoopWindowTarget<T> {
             target_os = "openbsd"
         ))]
         self.p.set_device_event_filter(_filter);
+    }
+}
+
+unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
+    /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
+    fn raw_display_handle(&self) -> RawDisplayHandle {
+        self.p.raw_display_handle()
     }
 }
 
@@ -374,7 +392,7 @@ impl<T> fmt::Display for EventLoopClosed<T> {
 
 impl<T: fmt::Debug> error::Error for EventLoopClosed<T> {}
 
-/// Fiter controlling the propagation of device events.
+/// Filter controlling the propagation of device events.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum DeviceEventFilter {
     /// Always filter out device events.

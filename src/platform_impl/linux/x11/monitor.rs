@@ -1,4 +1,5 @@
 use std::os::raw::*;
+use std::slice;
 
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -6,7 +7,7 @@ use parking_lot::Mutex;
 use super::{
     ffi::{
         RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
-        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRScreenResources,
+        RRScreenChangeNotifyMask, True, Window, XRRCrtcInfo, XRRModeInfo, XRRScreenResources,
     },
     util, XConnection, XError,
 };
@@ -30,7 +31,7 @@ pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
 pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate: u16,
+    pub(crate) refresh_rate_millihertz: u32,
     pub(crate) native_mode: RRMode,
     pub(crate) monitor: Option<MonitorHandle>,
 }
@@ -47,8 +48,8 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn refresh_rate(&self) -> u16 {
-        self.refresh_rate
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        self.refresh_rate_millihertz
     }
 
     #[inline]
@@ -71,6 +72,8 @@ pub struct MonitorHandle {
     position: (i32, i32),
     /// If the monitor is the primary one
     primary: bool,
+    /// The refresh rate used by monitor.
+    refresh_rate_millihertz: Option<u32>,
     /// The DPI scale factor
     pub(crate) scale_factor: f64,
     /// Used to determine which windows are on this monitor
@@ -105,6 +108,15 @@ impl std::hash::Hash for MonitorHandle {
     }
 }
 
+#[inline]
+pub fn mode_refresh_rate_millihertz(mode: &XRRModeInfo) -> Option<u32> {
+    if mode.dotClock > 0 && mode.hTotal > 0 && mode.vTotal > 0 {
+        Some((mode.dotClock as u64 * 1000 / (mode.hTotal as u64 * mode.vTotal as u64)) as u32)
+    } else {
+        None
+    }
+}
+
 impl MonitorHandle {
     fn new(
         xconn: &XConnection,
@@ -116,10 +128,22 @@ impl MonitorHandle {
         let (name, scale_factor, video_modes) = unsafe { xconn.get_output_info(resources, crtc)? };
         let dimensions = unsafe { ((*crtc).width as u32, (*crtc).height as u32) };
         let position = unsafe { ((*crtc).x as i32, (*crtc).y as i32) };
+
+        // Get the refresh rate of the current video mode.
+        let current_mode = unsafe { (*crtc).mode };
+        let screen_modes =
+            unsafe { slice::from_raw_parts((*resources).modes, (*resources).nmode as usize) };
+        let refresh_rate_millihertz = screen_modes
+            .iter()
+            .find(|mode| mode.id == current_mode)
+            .and_then(mode_refresh_rate_millihertz);
+
         let rect = util::AaRect::new(position, dimensions);
+
         Some(MonitorHandle {
             id,
             name,
+            refresh_rate_millihertz,
             scale_factor,
             dimensions,
             position,
@@ -136,6 +160,7 @@ impl MonitorHandle {
             scale_factor: 1.0,
             dimensions: (1, 1),
             position: (0, 0),
+            refresh_rate_millihertz: None,
             primary: true,
             rect: util::AaRect::new((0, 0), (1, 1)),
             video_modes: Vec::new(),
@@ -162,6 +187,10 @@ impl MonitorHandle {
 
     pub fn position(&self) -> PhysicalPosition<i32> {
         self.position.into()
+    }
+
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        self.refresh_rate_millihertz
     }
 
     #[inline]

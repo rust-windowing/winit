@@ -793,7 +793,7 @@ pub unsafe fn handle_main_events_cleared() {
         return;
     }
     match this.state_mut() {
-        &mut AppStateImpl::ProcessingEvents { .. } => {}
+        AppStateImpl::ProcessingEvents { .. } => {}
         _ => bug!("`ProcessingRedraws` happened unexpectedly"),
     };
     drop(this);
@@ -990,20 +990,20 @@ macro_rules! os_capabilities {
 }
 
 os_capabilities! {
-    /// https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiview/2891103-safeareainsets?language=objc>
     #[allow(unused)] // error message unused
     safe_area_err_msg: "-[UIView safeAreaInsets]",
     safe_area: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887509-setneedsupdateofhomeindicatoraut?language=objc>
     home_indicator_hidden_err_msg: "-[UIViewController setNeedsUpdateOfHomeIndicatorAutoHidden]",
     home_indicator_hidden: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiviewcontroller/2887507-setneedsupdateofscreenedgesdefer?language=objc>
     defer_system_gestures_err_msg: "-[UIViewController setNeedsUpdateOfScreenEdgesDeferringSystem]",
     defer_system_gestures: 11-0,
-    /// https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uiscreen/2806814-maximumframespersecond?language=objc>
     maximum_frames_per_second_err_msg: "-[UIScreen maximumFramesPerSecond]",
     maximum_frames_per_second: 10-3,
-    /// https://developer.apple.com/documentation/uikit/uitouch/1618110-force?language=objc
+    /// <https://developer.apple.com/documentation/uikit/uitouch/1618110-force?language=objc>
     #[allow(unused)] // error message unused
     force_touch_err_msg: "-[UITouch force]",
     force_touch: 9-0,

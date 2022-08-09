@@ -2,7 +2,7 @@
 
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex, RwLock},
+    sync::{mpsc, RwLock},
     time::{Duration, Instant},
 };
 
@@ -10,17 +10,21 @@ use ndk::{
     configuration::Configuration,
     event::{InputEvent, KeyAction, Keycode, MotionAction},
     looper::{ForeignLooper, Poll, ThreadLooper},
+    native_window::NativeWindow,
 };
-use ndk_glue::{Event, Rect};
+use ndk_glue::{Event, LockReadGuard, Rect};
 use once_cell::sync::Lazy;
-use raw_window_handle::{HasRawWindowHandle, RawWindowHandle};
+use raw_window_handle::{
+    AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
+};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, VirtualKeyCode},
     event_loop::{self, ControlFlow},
-    monitor, window,
+    monitor,
+    window::{self, CursorGrabMode},
 };
 
 static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {
@@ -233,11 +237,13 @@ fn poll(poll: Poll) -> Option<EventSource> {
 
 pub struct EventLoop<T: 'static> {
     window_target: event_loop::EventLoopWindowTarget<T>,
-    user_queue: Arc<Mutex<VecDeque<T>>>,
+    user_events_sender: mpsc::Sender<T>,
+    user_events_receiver: mpsc::Receiver<T>,
     first_event: Option<EventSource>,
     start_cause: event::StartCause,
     looper: ThreadLooper,
     running: bool,
+    window_lock: Option<LockReadGuard<NativeWindow>>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
@@ -255,6 +261,7 @@ macro_rules! call_event_handler {
 
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
+        let (user_events_sender, user_events_receiver) = mpsc::channel();
         Self {
             window_target: event_loop::EventLoopWindowTarget {
                 p: EventLoopWindowTarget {
@@ -262,11 +269,13 @@ impl<T: 'static> EventLoop<T> {
                 },
                 _marker: std::marker::PhantomData,
             },
-            user_queue: Default::default(),
+            user_events_sender,
+            user_events_receiver,
             first_event: None,
             start_cause: event::StartCause::Init,
             looper: ThreadLooper::for_thread().unwrap(),
             running: false,
+            window_lock: None,
         }
     }
 
@@ -299,22 +308,42 @@ impl<T: 'static> EventLoop<T> {
             match self.first_event.take() {
                 Some(EventSource::Callback) => match ndk_glue::poll_events().unwrap() {
                     Event::WindowCreated => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Resumed
-                        );
+                        // Acquire a lock on the window to prevent Android from destroying
+                        // it until we've notified and waited for the user in Event::Suspended.
+                        // WARNING: ndk-glue is inherently racy (https://github.com/rust-windowing/winit/issues/2293)
+                        // and may have already received onNativeWindowDestroyed while this thread hasn't yet processed
+                        // the event, and would see a `None` lock+window in that case.
+                        if let Some(next_window_lock) = ndk_glue::native_window() {
+                            assert!(
+                                self.window_lock.replace(next_window_lock).is_none(),
+                                "Received `Event::WindowCreated` while we were already holding a lock"
+                            );
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Resumed
+                            );
+                        } else {
+                            warn!("Received `Event::WindowCreated` while `ndk_glue::native_window()` provides no window");
+                        }
                     }
                     Event::WindowResized => resized = true,
                     Event::WindowRedrawNeeded => redraw = true,
                     Event::WindowDestroyed => {
-                        call_event_handler!(
-                            event_handler,
-                            self.window_target(),
-                            control_flow,
-                            event::Event::Suspended
-                        );
+                        // Release the lock, allowing Android to clean up this surface
+                        // WARNING: See above - if ndk-glue is racy, this event may be called
+                        // without having a `self.window_lock` in place.
+                        if self.window_lock.take().is_some() {
+                            call_event_handler!(
+                                event_handler,
+                                self.window_target(),
+                                control_flow,
+                                event::Event::Suspended
+                            );
+                        } else {
+                            warn!("Received `Event::WindowDestroyed` while we were not holding a window lock");
+                        }
                     }
                     Event::Pause => self.running = false,
                     Event::Resume => self.running = true,
@@ -368,7 +397,7 @@ impl<T: 'static> EventLoop<T> {
                 },
                 Some(EventSource::InputQueue) => {
                     if let Some(input_queue) = ndk_glue::input_queue().as_ref() {
-                        while let Some(event) = input_queue.get_event() {
+                        while let Some(event) = input_queue.get_event().expect("get_event") {
                             if let Some(event) = input_queue.pre_dispatch(event) {
                                 let mut handled = true;
                                 let window_id = window::WindowId(WindowId);
@@ -469,8 +498,9 @@ impl<T: 'static> EventLoop<T> {
                     }
                 }
                 Some(EventSource::User) => {
-                    let mut user_queue = self.user_queue.lock().unwrap();
-                    while let Some(event) = user_queue.pop_front() {
+                    // try_recv only errors when empty (expected) or disconnect. But because Self
+                    // contains a Sender it will never disconnect, so no error handling need.
+                    while let Ok(event) = self.user_events_receiver.try_recv() {
                         call_event_handler!(
                             event_handler,
                             self.window_target(),
@@ -571,20 +601,22 @@ impl<T: 'static> EventLoop<T> {
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
         EventLoopProxy {
-            queue: self.user_queue.clone(),
+            user_events_sender: self.user_events_sender.clone(),
             looper: ForeignLooper::for_thread().expect("called from event loop thread"),
         }
     }
 }
 
 pub struct EventLoopProxy<T: 'static> {
-    queue: Arc<Mutex<VecDeque<T>>>,
+    user_events_sender: mpsc::Sender<T>,
     looper: ForeignLooper,
 }
 
 impl<T> EventLoopProxy<T> {
     pub fn send_event(&self, event: T) -> Result<(), event_loop::EventLoopClosed<T>> {
-        self.queue.lock().unwrap().push_back(event);
+        self.user_events_sender
+            .send(event)
+            .map_err(|mpsc::SendError(x)| event_loop::EventLoopClosed(x))?;
         self.looper.wake();
         Ok(())
     }
@@ -593,7 +625,7 @@ impl<T> EventLoopProxy<T> {
 impl<T> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
         EventLoopProxy {
-            queue: self.queue.clone(),
+            user_events_sender: self.user_events_sender.clone(),
             looper: self.looper.clone(),
         }
     }
@@ -615,6 +647,10 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         v.push_back(MonitorHandle);
         v
     }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -623,6 +659,18 @@ pub struct WindowId;
 impl WindowId {
     pub const fn dummy() -> Self {
         WindowId
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(_: WindowId) -> Self {
+        0
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(_: u64) -> Self {
+        Self
     }
 }
 
@@ -765,7 +813,7 @@ impl Window {
         ))
     }
 
-    pub fn set_cursor_grab(&self, _: bool) -> Result<(), error::ExternalError> {
+    pub fn set_cursor_grab(&self, _: CursorGrabMode) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))
@@ -786,11 +834,15 @@ impl Window {
     }
 
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        if let Some(native_window) = ndk_glue::native_window().as_ref() {
+        if let Some(native_window) = ndk_glue::native_window() {
             native_window.raw_window_handle()
         } else {
             panic!("Cannot get the native window, it's null and will always be null before Event::Resumed and after Event::Suspended. Make sure you only call this function between those events.");
         }
+    }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Android(AndroidDisplayHandle::empty())
     }
 
     pub fn config(&self) -> Configuration {
@@ -844,6 +896,11 @@ impl MonitorHandle {
             .unwrap_or(1.0)
     }
 
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        // FIXME no way to get real refresh rate for now.
+        None
+    }
+
     pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
@@ -852,7 +909,7 @@ impl MonitorHandle {
             video_mode: VideoMode {
                 size,
                 bit_depth: 32,
-                refresh_rate: 60,
+                refresh_rate_millihertz: 60000,
                 monitor: self.clone(),
             },
         })
@@ -863,7 +920,7 @@ impl MonitorHandle {
 pub struct VideoMode {
     size: (u32, u32),
     bit_depth: u16,
-    refresh_rate: u16,
+    refresh_rate_millihertz: u32,
     monitor: MonitorHandle,
 }
 
@@ -876,8 +933,8 @@ impl VideoMode {
         self.bit_depth
     }
 
-    pub fn refresh_rate(&self) -> u16 {
-        self.refresh_rate
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        self.refresh_rate_millihertz
     }
 
     pub fn monitor(&self) -> monitor::MonitorHandle {

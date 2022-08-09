@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust_version: [stable, nightly]
+        rust_version: [1.57.0, stable, nightly]
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -49,6 +49,7 @@ jobs:
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
       CMD: ${{ matrix.platform.cmd }}
+      RUSTDOCFLAGS: -Dwarnings
 
     runs-on: ${{ matrix.platform.os }}
     steps:
@@ -66,6 +67,11 @@ jobs:
         targets: ${{ matrix.platform.target }}
         components: clippy
 
+    - name: Setup NDK path
+      shell: bash
+      # "Temporary" workaround until https://github.com/actions/virtual-environments/issues/5879#issuecomment-1195156618
+      # gets looked into.
+      run: echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
     - name: Install Linux dependencies
       if: (matrix.platform.os == 'ubuntu-latest')
       run: sudo apt-get update && sudo apt-get install pkg-config cmake libfreetype6-dev libfontconfig1-dev
@@ -78,7 +84,7 @@ jobs:
 
     - name: Check documentation
       shell: bash
-      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
+      run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
 
     - name: Build
       shell: bash
@@ -97,7 +103,7 @@ jobs:
 
     - name: Lint with clippy
       shell: bash
-      if: (matrix.rust_version != 'nightly') && !contains(matrix.platform.options, '--no-default-features')
+      if: (matrix.rust_version == '1.57.0') && !contains(matrix.platform.options, '--no-default-features')
       run: cargo clippy --all-targets --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES -- -Dwarnings
 
     - name: Build with serde enabled
