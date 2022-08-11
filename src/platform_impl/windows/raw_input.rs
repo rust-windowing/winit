@@ -12,9 +12,9 @@ use windows_sys::Win32::{
         Input::{
             GetRawInputData, GetRawInputDeviceInfoW, GetRawInputDeviceList,
             RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTDEVICELIST,
-            RAWINPUTHEADER, RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDI_DEVICEINFO, RIDI_DEVICENAME,
-            RID_DEVICE_INFO, RID_DEVICE_INFO_HID, RID_DEVICE_INFO_KEYBOARD, RID_DEVICE_INFO_MOUSE,
-            RID_INPUT, RIM_TYPEHID, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
+            RAWINPUTHEADER, RIDEV_DEVNOTIFY, RIDEV_INPUTSINK, RIDEV_REMOVE, RIDI_DEVICEINFO,
+            RIDI_DEVICENAME, RID_DEVICE_INFO, RID_DEVICE_INFO_HID, RID_DEVICE_INFO_KEYBOARD,
+            RID_DEVICE_INFO_MOUSE, RID_INPUT, RIM_TYPEHID, RIM_TYPEKEYBOARD, RIM_TYPEMOUSE,
         },
         WindowsAndMessaging::{
             RI_MOUSE_LEFT_BUTTON_DOWN, RI_MOUSE_LEFT_BUTTON_UP, RI_MOUSE_MIDDLE_BUTTON_DOWN,
@@ -23,7 +23,7 @@ use windows_sys::Win32::{
     },
 };
 
-use crate::{event::ElementState, platform_impl::platform::util};
+use crate::{event::ElementState, event_loop::DeviceEventFilter, platform_impl::platform::util};
 
 #[allow(dead_code)]
 pub fn get_raw_input_device_list() -> Option<Vec<RAWINPUTDEVICELIST>> {
@@ -138,10 +138,21 @@ pub fn register_raw_input_devices(devices: &[RAWINPUTDEVICE]) -> bool {
     }
 }
 
-pub fn register_all_mice_and_keyboards_for_raw_input(window_handle: HWND) -> bool {
+pub fn register_all_mice_and_keyboards_for_raw_input(
+    mut window_handle: HWND,
+    filter: DeviceEventFilter,
+) -> bool {
     // RIDEV_DEVNOTIFY: receive hotplug events
     // RIDEV_INPUTSINK: receive events even if we're not in the foreground
-    let flags = RIDEV_DEVNOTIFY | RIDEV_INPUTSINK;
+    // RIDEV_REMOVE: don't receive device events (requires NULL hwndTarget)
+    let flags = match filter {
+        DeviceEventFilter::Always => {
+            window_handle = 0;
+            RIDEV_REMOVE
+        }
+        DeviceEventFilter::Unfocused => RIDEV_DEVNOTIFY,
+        DeviceEventFilter::Never => RIDEV_DEVNOTIFY | RIDEV_INPUTSINK,
+    };
 
     let devices: [RAWINPUTDEVICE; 2] = [
         RAWINPUTDEVICE {

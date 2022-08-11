@@ -77,7 +77,9 @@ use windows_sys::Win32::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, Ime, KeyboardInput, Touch, TouchPhase, WindowEvent},
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootELW},
+    event_loop::{
+        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
+    },
     monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
@@ -207,7 +209,10 @@ impl<T: 'static> EventLoop<T> {
 
         let thread_msg_sender =
             insert_event_target_window_data::<T>(thread_msg_target, runner_shared.clone());
-        raw_input::register_all_mice_and_keyboards_for_raw_input(thread_msg_target);
+        raw_input::register_all_mice_and_keyboards_for_raw_input(
+            thread_msg_target,
+            Default::default(),
+        );
 
         EventLoop {
             thread_msg_sender,
@@ -321,6 +326,10 @@ impl<T> EventLoopWindowTarget<T> {
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Windows(WindowsDisplayHandle::empty())
+    }
+
+    pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {
+        raw_input::register_all_mice_and_keyboards_for_raw_input(self.thread_msg_target, filter);
     }
 }
 

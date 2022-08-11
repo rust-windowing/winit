@@ -11,6 +11,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On macOS, fixed touch phase reporting when scrolling.
 - On X11, fix min, max and resize increment hints not persisting for resizable windows (e.g. on DPI change).
 - On Windows, respect min/max inner sizes when creating the window.
+- **Breaking:** On Windows, device events are now ignored for unfocused windows by default, use `EventLoopWindowTarget::set_device_event_filter` to set the filter level.
 
 # 0.27.1 (2022-07-30)
 
