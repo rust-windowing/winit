@@ -1,5 +1,5 @@
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MonitorHandle;
@@ -28,7 +28,7 @@ impl MonitorHandle {
         }
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         std::iter::empty()
     }
 }

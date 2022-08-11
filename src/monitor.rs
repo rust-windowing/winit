@@ -169,6 +169,8 @@ impl MonitorHandle {
     /// - **Web:** Always returns an empty iterator
     #[inline]
     pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
-        self.inner.video_modes()
+        self.inner
+            .video_modes()
+            .map(|video_mode| VideoMode { video_mode })
     }
 }

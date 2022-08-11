@@ -227,7 +227,7 @@ impl Inner {
         Some(refresh_rate_millihertz(self.uiscreen))
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         let mut modes = BTreeSet::new();
         unsafe {
             let available_modes: id = msg_send![self.uiscreen, availableModes];
@@ -235,13 +235,14 @@ impl Inner {
 
             for i in 0..available_mode_count {
                 let mode: id = msg_send![available_modes, objectAtIndex: i];
+                // Use Ord impl of RootVideoMode
                 modes.insert(RootVideoMode {
                     video_mode: VideoMode::retained_new(self.uiscreen, mode),
                 });
             }
         }
 
-        modes.into_iter()
+        modes.into_iter().map(|mode| mode.video_mode)
     }
 }
 
@@ -275,12 +276,10 @@ impl Inner {
         self.uiscreen
     }
 
-    pub fn preferred_video_mode(&self) -> RootVideoMode {
+    pub fn preferred_video_mode(&self) -> VideoMode {
         unsafe {
             let mode: id = msg_send![self.uiscreen, preferredMode];
-            RootVideoMode {
-                video_mode: VideoMode::retained_new(self.uiscreen, mode),
-            }
+            VideoMode::retained_new(self.uiscreen, mode)
         }
     }
 }

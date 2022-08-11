@@ -3,7 +3,7 @@ use std::{collections::VecDeque, fmt};
 use super::{ffi, util};
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    monitor::MonitorHandle as RootMonitorHandle,
 };
 use cocoa::{
     appkit::NSScreen,
@@ -237,7 +237,7 @@ impl MonitorHandle {
         }
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         let refresh_rate_millihertz = self.refresh_rate_millihertz().unwrap_or(0);
         let monitor = self.clone();
 
@@ -282,7 +282,7 @@ impl MonitorHandle {
                     unimplemented!()
                 };
 
-                let video_mode = VideoMode {
+                VideoMode {
                     size: (
                         ffi::CGDisplayModeGetPixelWidth(mode) as u32,
                         ffi::CGDisplayModeGetPixelHeight(mode) as u32,
@@ -291,9 +291,7 @@ impl MonitorHandle {
                     bit_depth,
                     monitor: monitor.clone(),
                     native_mode: NativeDisplayMode(mode),
-                };
-
-                RootVideoMode { video_mode }
+                }
             })
         }
     }

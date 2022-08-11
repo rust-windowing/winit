@@ -901,17 +901,15 @@ impl MonitorHandle {
         None
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(monitor::VideoMode {
-            video_mode: VideoMode {
-                size,
-                bit_depth: 32,
-                refresh_rate_millihertz: 60000,
-                monitor: self.clone(),
-            },
+        std::iter::once(VideoMode {
+            size,
+            bit_depth: 32,
+            refresh_rate_millihertz: 60000,
+            monitor: self.clone(),
         })
     }
 }
