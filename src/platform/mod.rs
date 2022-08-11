@@ -21,18 +21,32 @@ pub mod android;
 pub mod ios;
 #[cfg(target_os = "macos")]
 pub mod macos;
-#[cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
+#[cfg(all(
+    feature = "wayland",
+    any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+    )
 ))]
-pub mod unix;
+pub mod wayland;
 #[cfg(target_arch = "wasm32")]
 pub mod web;
 #[cfg(target_os = "windows")]
 pub mod windows;
+#[cfg(all(
+    feature = "x11",
+    any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+    )
+))]
+pub mod x11;
 
 #[cfg(any(
     target_os = "windows",
