@@ -8,32 +8,28 @@ pub use self::window_target::EventLoopWindowTarget;
 
 use super::{backend, device, window};
 use crate::event::Event;
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::ControlFlow;
 
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 pub struct EventLoop<T: 'static> {
-    elw: RootEventLoopWindowTarget<T>,
+    p: PhantomData<T>,
 }
 
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T> EventLoop<T> {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
-        EventLoop {
-            elw: RootEventLoopWindowTarget {
-                p: EventLoopWindowTarget::new(),
-                _marker: PhantomData,
-            },
-        }
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> (Self, EventLoopWindowTarget<T>) {
+        (EventLoop { p: PhantomData }, EventLoopWindowTarget::new())
     }
 
-    pub fn run<F>(self, event_handler: F) -> !
+    pub fn run<F>(self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        self.spawn(event_handler);
+        self.spawn(callback, window_target);
 
         // Throw an exception to break out of Rust execution and use unreachable to tell the
         // compiler this function won't return, giving it a return type of '!'
@@ -44,25 +40,14 @@ impl<T> EventLoop<T> {
         unreachable!();
     }
 
-    pub fn spawn<F>(self, mut event_handler: F)
+    pub fn spawn<F>(self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>)
     where
-        F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        let target = RootEventLoopWindowTarget {
-            p: self.elw.p.clone(),
-            _marker: PhantomData,
-        };
-
-        self.elw.p.run(Box::new(move |event, flow| {
-            event_handler(event, &target, flow)
-        }));
+        window_target.run(Box::new(callback));
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        self.elw.p.proxy()
-    }
-
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
-        &self.elw
+    pub fn create_proxy(&self, window_target: Rc<EventLoopWindowTarget<T>>) -> EventLoopProxy<T> {
+        window_target.proxy()
     }
 }

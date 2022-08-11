@@ -37,10 +37,8 @@ impl<T> EventLoopWindowTargetExtWayland for EventLoopWindowTarget<T> {
 
     #[inline]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
-        match self.p {
-            LinuxEventLoopWindowTarget::Wayland(ref p) => {
-                Some(p.display().get_display_ptr() as *mut _)
-            }
+        match &*self.p {
+            LinuxEventLoopWindowTarget::Wayland(p) => Some(p.display().get_display_ptr() as *mut _),
             #[cfg(feature = "x11")]
             _ => None,
         }

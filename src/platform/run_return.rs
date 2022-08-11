@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
@@ -40,7 +42,7 @@ pub trait EventLoopExtRunReturn {
 impl<T> EventLoopExtRunReturn for EventLoop<T> {
     type UserEvent = T;
 
-    fn run_return<F>(&mut self, event_handler: F) -> i32
+    fn run_return<F>(&mut self, mut event_handler: F) -> i32
     where
         F: FnMut(
             Event<'_, Self::UserEvent>,
@@ -48,6 +50,11 @@ impl<T> EventLoopExtRunReturn for EventLoop<T> {
             &mut ControlFlow,
         ),
     {
-        self.event_loop.run_return(event_handler)
+        let window_target = &self.window_target;
+        let platform_window_target = Rc::clone(&self.window_target.p);
+        self.event_loop.run_return(
+            move |event, control_flow| event_handler(event, window_target, control_flow),
+            platform_window_target,
+        )
     }
 }

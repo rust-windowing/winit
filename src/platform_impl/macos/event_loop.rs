@@ -2,7 +2,6 @@ use std::{
     any::Any,
     cell::{Cell, RefCell},
     collections::VecDeque,
-    marker::PhantomData,
     mem,
     os::raw::c_void,
     panic::{catch_unwind, resume_unwind, RefUnwindSafe, UnwindSafe},
@@ -21,7 +20,7 @@ use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
     event::Event,
-    event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
+    event_loop::{ControlFlow, EventLoopClosed},
     platform::macos::ActivationPolicy,
     platform_impl::{
         get_aux_state_mut,
@@ -113,7 +112,6 @@ pub struct EventLoop<T: 'static> {
     /// it around here as well.
     _delegate: IdRef,
 
-    window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
 
     /// We make sure that the callback closure is dropped during a panic
@@ -141,7 +139,9 @@ impl Default for PlatformSpecificEventLoopAttributes {
 }
 
 impl<T> EventLoop<T> {
-    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
+    pub(crate) fn new(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> (Self, EventLoopWindowTarget<T>) {
         let delegate = unsafe {
             let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
             if is_main_thread == NO {
@@ -168,32 +168,28 @@ impl<T> EventLoop<T> {
         };
         let panic_info: Rc<PanicInfo> = Default::default();
         setup_control_flow_observers(Rc::downgrade(&panic_info));
-        EventLoop {
-            _delegate: delegate,
-            window_target: Rc::new(RootWindowTarget {
-                p: Default::default(),
-                _marker: PhantomData,
-            }),
-            panic_info,
-            _callback: None,
-        }
+
+        (
+            EventLoop {
+                _delegate: delegate,
+                panic_info,
+                _callback: None,
+            },
+            Default::default(),
+        )
     }
 
-    pub fn window_target(&self) -> &RootWindowTarget<T> {
-        &self.window_target
-    }
-
-    pub fn run<F>(mut self, callback: F) -> !
+    pub fn run<F>(mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(callback);
+        let exit_code = self.run_return(callback, window_target);
         process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
+    pub fn run_return<F>(&mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
         // This transmute is always safe, in case it was reached through `run`, since our
         // lifetime will be already 'static. In other cases caller should ensure that all data
@@ -201,8 +197,8 @@ impl<T> EventLoop<T> {
         // everything to event loop, so this is something that they should care about.
         let callback = unsafe {
             mem::transmute::<
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
-                Rc<RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
+                Rc<RefCell<dyn FnMut(Event<'_, T>, &mut ControlFlow)>>,
             >(Rc::new(RefCell::new(callback)))
         };
 
@@ -217,7 +213,7 @@ impl<T> EventLoop<T> {
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
             drop(callback);
 
-            AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
+            AppState::set_callback(weak_cb, window_target);
             let _: () = msg_send![app, run];
 
             if let Some(panic) = self.panic_info.take() {
@@ -231,8 +227,8 @@ impl<T> EventLoop<T> {
         exit_code
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        EventLoopProxy::new(self.window_target.p.sender.clone())
+    pub fn create_proxy(&self, window_target: Rc<EventLoopWindowTarget<T>>) -> EventLoopProxy<T> {
+        EventLoopProxy::new(window_target.sender.clone())
     }
 }
 

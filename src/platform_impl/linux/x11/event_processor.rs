@@ -5,9 +5,9 @@ use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 use parking_lot::MutexGuard;
 
 use super::{
-    events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
-    DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
-    XExtension,
+    events, ffi, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd, DndState,
+    EventLoopWindowTarget, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow,
+    WindowId, XExtension,
 };
 
 use util::modifiers::{ModifierKeyState, ModifierKeymap};
@@ -19,7 +19,6 @@ use crate::{
         DeviceEvent, ElementState, Event, Ime, KeyboardInput, ModifiersState, TouchPhase,
         WindowEvent,
     },
-    event_loop::EventLoopWindowTarget as RootELW,
 };
 
 /// The X11 documentation states: "Keycodes lie in the inclusive range `[8, 255]`".
@@ -32,7 +31,7 @@ pub(super) struct EventProcessor<T: 'static> {
     pub(super) randr_event_offset: c_int,
     pub(super) devices: RefCell<HashMap<DeviceId, Device>>,
     pub(super) xi2ext: XExtension,
-    pub(super) target: Rc<RootELW<T>>,
+    pub(super) window_target: Rc<EventLoopWindowTarget<T>>,
     pub(super) mod_keymap: ModifierKeymap,
     pub(super) device_mod_state: ModifierKeyState,
     // Number of touch events currently in progress
@@ -45,9 +44,8 @@ pub(super) struct EventProcessor<T: 'static> {
 
 impl<T: 'static> EventProcessor<T> {
     pub(super) fn init_device(&self, device: c_int) {
-        let wt = get_xtarget(&self.target);
         let mut devices = self.devices.borrow_mut();
-        if let Some(info) = DeviceInfo::get(&wt.xconn, device) {
+        if let Some(info) = DeviceInfo::get(&self.window_target.xconn, device) {
             for info in info.iter() {
                 devices.insert(DeviceId(info.deviceid), Device::new(info));
             }
@@ -60,8 +58,8 @@ impl<T: 'static> EventProcessor<T> {
     {
         let mut deleted = false;
         let window_id = WindowId(window_id as u64);
-        let wt = get_xtarget(&self.target);
-        let result = wt
+        let result = self
+            .window_target
             .windows
             .borrow()
             .get(&window_id)
@@ -73,7 +71,7 @@ impl<T: 'static> EventProcessor<T> {
             .map(|window| callback(&window));
         if deleted {
             // Garbage collection
-            wt.windows.borrow_mut().remove(&window_id);
+            self.window_target.windows.borrow_mut().remove(&window_id);
         }
         result
     }
@@ -83,14 +81,13 @@ impl<T: 'static> EventProcessor<T> {
     }
 
     pub(super) fn poll(&self) -> bool {
-        let wt = get_xtarget(&self.target);
-        let result = unsafe { (wt.xconn.xlib.XPending)(wt.xconn.display) };
+        let result =
+            unsafe { (self.window_target.xconn.xlib.XPending)(self.window_target.xconn.display) };
 
         result != 0
     }
 
     pub(super) unsafe fn poll_one_event(&mut self, event_ptr: *mut ffi::XEvent) -> bool {
-        let wt = get_xtarget(&self.target);
         // This function is used to poll and remove a single event
         // from the Xlib event queue in a non-blocking, atomic way.
         // XCheckIfEvent is non-blocking and removes events from queue.
@@ -106,8 +103,8 @@ impl<T: 'static> EventProcessor<T> {
             1
         }
 
-        let result = (wt.xconn.xlib.XCheckIfEvent)(
-            wt.xconn.display,
+        let result = (self.window_target.xconn.xlib.XCheckIfEvent)(
+            self.window_target.xconn.display,
             event_ptr,
             Some(predicate),
             std::ptr::null_mut(),
@@ -120,14 +117,13 @@ impl<T: 'static> EventProcessor<T> {
     where
         F: FnMut(Event<'_, T>),
     {
-        let wt = get_xtarget(&self.target);
         // XFilterEvent tells us when an event has been discarded by the input method.
         // Specifically, this involves all of the KeyPress events in compose/pre-edit sequences,
         // along with an extra copy of the KeyRelease events. This also prevents backspace and
         // arrow keys from being detected twice.
         if ffi::True
             == unsafe {
-                (wt.xconn.xlib.XFilterEvent)(xev, {
+                (self.window_target.xconn.xlib.XFilterEvent)(xev, {
                     let xev: &ffi::XAnyEvent = xev.as_ref();
                     xev.window
                 })
@@ -166,13 +162,15 @@ impl<T: 'static> EventProcessor<T> {
                     || mapping.request == ffi::MappingKeyboard
                 {
                     unsafe {
-                        (wt.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
+                        (self.window_target.xconn.xlib.XRefreshKeyboardMapping)(xev.as_mut());
                     }
-                    wt.xconn
+                    self.window_target
+                        .xconn
                         .check_errors()
                         .expect("Failed to call XRefreshKeyboardMapping");
 
-                    self.mod_keymap.reset_from_x_connection(&wt.xconn);
+                    self.mod_keymap
+                        .reset_from_x_connection(&self.window_target.xconn);
                     self.device_mod_state.update_keymap(&self.mod_keymap);
                 }
             }
@@ -183,17 +181,19 @@ impl<T: 'static> EventProcessor<T> {
                 let window = client_msg.window;
                 let window_id = mkwid(window);
 
-                if client_msg.data.get_long(0) as ffi::Atom == wt.wm_delete_window {
+                if client_msg.data.get_long(0) as ffi::Atom == self.window_target.wm_delete_window {
                     callback(Event::WindowEvent {
                         window_id,
                         event: WindowEvent::CloseRequested,
                     });
-                } else if client_msg.data.get_long(0) as ffi::Atom == wt.net_wm_ping {
+                } else if client_msg.data.get_long(0) as ffi::Atom == self.window_target.net_wm_ping
+                {
                     let response_msg: &mut ffi::XClientMessageEvent = xev.as_mut();
-                    response_msg.window = wt.root;
-                    wt.xconn
+                    response_msg.window = self.window_target.root;
+                    self.window_target
+                        .xconn
                         .send_event(
-                            wt.root,
+                            self.window_target.root,
                             Some(ffi::SubstructureNotifyMask | ffi::SubstructureRedirectMask),
                             *response_msg,
                         )
@@ -387,8 +387,10 @@ impl<T: 'static> EventProcessor<T> {
                             .as_ref()
                             .cloned()
                             .unwrap_or_else(|| {
-                                let frame_extents =
-                                    wt.xconn.get_frame_extents_heuristic(xwindow, wt.root);
+                                let frame_extents = self
+                                    .window_target
+                                    .xconn
+                                    .get_frame_extents_heuristic(xwindow, self.window_target.root);
                                 shared_state_lock.frame_extents = Some(frame_extents.clone());
                                 frame_extents
                             });
@@ -419,7 +421,10 @@ impl<T: 'static> EventProcessor<T> {
                         let last_scale_factor = shared_state_lock.last_monitor.scale_factor;
                         let new_scale_factor = {
                             let window_rect = util::AaRect::new(new_outer_position, new_inner_size);
-                            let monitor = wt.xconn.get_monitor_for_window(Some(window_rect));
+                            let monitor = self
+                                .window_target
+                                .xconn
+                                .get_monitor_for_window(Some(window_rect));
 
                             if monitor.is_dummy() {
                                 // Avoid updating monitor using a dummy monitor handle
@@ -498,7 +503,9 @@ impl<T: 'static> EventProcessor<T> {
                 // (which is almost all of them). Failing to correctly update WM info doesn't
                 // really have much impact, since on the WMs affected (xmonad, dwm, etc.) the only
                 // effect is that we waste some time trying to query unsupported properties.
-                wt.xconn.update_cached_wm_info(wt.root);
+                self.window_target
+                    .xconn
+                    .update_cached_wm_info(self.window_target.root);
 
                 self.with_window(xev.window, |window| {
                     window.invalidate_cached_frame_extents();
@@ -513,11 +520,15 @@ impl<T: 'static> EventProcessor<T> {
 
                 // In the event that the window's been destroyed without being dropped first, we
                 // cleanup again here.
-                wt.windows.borrow_mut().remove(&WindowId(window as u64));
+                self.window_target
+                    .windows
+                    .borrow_mut()
+                    .remove(&WindowId(window as u64));
 
                 // Since all XIM stuff needs to happen from the same thread, we destroy the input
                 // context here instead of when dropping the window.
-                wt.ime
+                self.window_target
+                    .ime
                     .borrow_mut()
                     .remove_context(window)
                     .expect("Failed to destroy input context");
@@ -578,7 +589,7 @@ impl<T: 'static> EventProcessor<T> {
                 // a keycode of 0.
                 if keycode != 0 && !self.is_composing {
                     let scancode = keycode - KEYCODE_OFFSET as u32;
-                    let keysym = wt.xconn.lookup_keysym(xkev);
+                    let keysym = self.window_target.xconn.lookup_keysym(xkev);
                     let virtual_keycode = events::keysym_to_element(keysym as c_uint);
 
                     update_modifiers!(
@@ -605,11 +616,12 @@ impl<T: 'static> EventProcessor<T> {
                 }
 
                 if state == Pressed {
-                    let written = if let Some(ic) = wt.ime.borrow().get_context(window) {
-                        wt.xconn.lookup_utf8(ic, xkev)
-                    } else {
-                        return;
-                    };
+                    let written =
+                        if let Some(ic) = self.window_target.ime.borrow().get_context(window) {
+                            self.window_target.xconn.lookup_utf8(ic, xkev)
+                        } else {
+                            return;
+                        };
 
                     // If we're composing right now, send the string we've got from X11 via
                     // Ime::Commit.
@@ -635,7 +647,9 @@ impl<T: 'static> EventProcessor<T> {
             }
 
             ffi::GenericEvent => {
-                let guard = if let Some(e) = GenericEventCookie::from_event(&wt.xconn, *xev) {
+                let guard = if let Some(e) =
+                    GenericEventCookie::from_event(&self.window_target.xconn, *xev)
+                {
                     e
                 } else {
                     return;
@@ -833,7 +847,9 @@ impl<T: 'static> EventProcessor<T> {
                         let window_id = mkwid(xev.event);
                         let device_id = mkdid(xev.deviceid);
 
-                        if let Some(all_info) = DeviceInfo::get(&wt.xconn, ffi::XIAllDevices) {
+                        if let Some(all_info) =
+                            DeviceInfo::get(&self.window_target.xconn, ffi::XIAllDevices)
+                        {
                             let mut devices = self.devices.borrow_mut();
                             for device_info in all_info.iter() {
                                 if device_info.deviceid == xev.sourceid
@@ -866,7 +882,8 @@ impl<T: 'static> EventProcessor<T> {
                             // This needs to only be done after confirming the window still exists,
                             // since otherwise we risk getting a `BadWindow` error if the window was
                             // dropped with queued events.
-                            let modifiers = wt
+                            let modifiers = self
+                                .window_target
                                 .xconn
                                 .query_pointer(xev.event, xev.deviceid)
                                 .expect("Failed to query pointer device")
@@ -900,7 +917,8 @@ impl<T: 'static> EventProcessor<T> {
                     ffi::XI_FocusIn => {
                         let xev: &ffi::XIFocusInEvent = unsafe { &*(xev.data as *const _) };
 
-                        wt.ime
+                        self.window_target
+                            .ime
                             .borrow_mut()
                             .focus(xev.event)
                             .expect("Failed to focus input context");
@@ -912,7 +930,7 @@ impl<T: 'static> EventProcessor<T> {
                         if self.active_window != Some(xev.event) {
                             self.active_window = Some(xev.event);
 
-                            wt.update_device_event_filter(true);
+                            self.window_target.update_device_event_filter(true);
 
                             let window_id = mkwid(xev.event);
                             let position = PhysicalPosition::new(xev.event_x, xev.event_y);
@@ -949,7 +967,7 @@ impl<T: 'static> EventProcessor<T> {
 
                             // Issue key press events for all pressed keys
                             Self::handle_pressed_keys(
-                                wt,
+                                &self.window_target,
                                 window_id,
                                 ElementState::Pressed,
                                 &self.mod_keymap,
@@ -964,7 +982,8 @@ impl<T: 'static> EventProcessor<T> {
                             return;
                         }
 
-                        wt.ime
+                        self.window_target
+                            .ime
                             .borrow_mut()
                             .unfocus(xev.event)
                             .expect("Failed to unfocus input context");
@@ -972,11 +991,11 @@ impl<T: 'static> EventProcessor<T> {
                         if self.active_window.take() == Some(xev.event) {
                             let window_id = mkwid(xev.event);
 
-                            wt.update_device_event_filter(false);
+                            self.window_target.update_device_event_filter(false);
 
                             // Issue key release events for all pressed keys
                             Self::handle_pressed_keys(
-                                wt,
+                                &self.window_target,
                                 window_id,
                                 ElementState::Released,
                                 &self.mod_keymap,
@@ -1121,7 +1140,10 @@ impl<T: 'static> EventProcessor<T> {
                         if scancode < 0 {
                             return;
                         }
-                        let keysym = wt.xconn.keycode_to_keysym(keycode as ffi::KeyCode);
+                        let keysym = self
+                            .window_target
+                            .xconn
+                            .keycode_to_keysym(keycode as ffi::KeyCode);
                         let virtual_keycode = events::keysym_to_element(keysym as c_uint);
                         let modifiers = self.device_mod_state.modifiers();
 
@@ -1189,7 +1211,7 @@ impl<T: 'static> EventProcessor<T> {
                     // In the future, it would be quite easy to emit monitor hotplug events.
                     let prev_list = monitor::invalidate_cached_monitor_list();
                     if let Some(prev_list) = prev_list {
-                        let new_list = wt.xconn.available_monitors();
+                        let new_list = self.window_target.xconn.available_monitors();
                         for new_monitor in new_list {
                             // Previous list may be empty, in case of disconnecting and
                             // reconnecting the only one monitor. We still need to emit events in
@@ -1199,7 +1221,9 @@ impl<T: 'static> EventProcessor<T> {
                                 .find(|prev_monitor| prev_monitor.name == new_monitor.name)
                                 .map(|prev_monitor| prev_monitor.scale_factor);
                             if Some(new_monitor.scale_factor) != maybe_prev_scale_factor {
-                                for (window_id, window) in wt.windows.borrow().iter() {
+                                for (window_id, window) in
+                                    self.window_target.windows.borrow().iter()
+                                {
                                     if let Some(window) = window.upgrade() {
                                         // Check if the window is on this monitor
                                         let monitor = window.current_monitor();
@@ -1248,7 +1272,7 @@ impl<T: 'static> EventProcessor<T> {
 
         // Handle IME requests.
         if let Ok(request) = self.ime_receiver.try_recv() {
-            let mut ime = wt.ime.borrow_mut();
+            let mut ime = self.window_target.ime.borrow_mut();
             match request {
                 ImeRequest::Position(window_id, x, y) => {
                     ime.send_xim_spot(window_id, x, y);
@@ -1305,7 +1329,7 @@ impl<T: 'static> EventProcessor<T> {
     }
 
     fn handle_pressed_keys<F>(
-        wt: &super::EventLoopWindowTarget<T>,
+        wt: &EventLoopWindowTarget<T>,
         window_id: crate::window::WindowId,
         state: ElementState,
         mod_keymap: &ModifierKeymap,

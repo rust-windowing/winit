@@ -2,6 +2,7 @@
 //! allow end users to determine how the page should be laid out. Use the [`WindowExtWebSys`] trait
 //! to retrieve the canvas from the Window. Alternatively, use the [`WindowBuilderExtWebSys`] trait
 //! to provide your own canvas.
+use std::rc::Rc;
 
 use crate::event::Event;
 use crate::event_loop::ControlFlow;
@@ -75,7 +76,7 @@ pub trait EventLoopExtWebSys {
 impl<T> EventLoopExtWebSys for EventLoop<T> {
     type UserEvent = T;
 
-    fn spawn<F>(self, event_handler: F)
+    fn spawn<F>(self, mut event_handler: F)
     where
         F: 'static
             + FnMut(
@@ -84,6 +85,16 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
                 &mut ControlFlow,
             ),
     {
-        self.event_loop.spawn(event_handler)
+        let Self {
+            window_target,
+            event_loop,
+            ..
+        } = self;
+        let platform_window_target = Rc::clone(&window_target.p);
+
+        event_loop.spawn(
+            move |event, control_flow| event_handler(event, &window_target, control_flow),
+            platform_window_target,
+        )
     }
 }

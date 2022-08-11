@@ -26,13 +26,13 @@ use once_cell::sync::Lazy;
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
-    event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
+    event_loop::ControlFlow,
     platform::macos::ActivationPolicy,
     platform_impl::{
         get_aux_state_mut,
         platform::{
             event::{EventProxy, EventWrapper},
-            event_loop::{post_dummy_event, PanicInfo},
+            event_loop::{post_dummy_event, EventLoopWindowTarget, PanicInfo},
             menu,
             observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
             util::{IdRef, Never},
@@ -59,21 +59,17 @@ pub trait EventHandler: Debug {
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow);
 }
 
-pub(crate) type Callback<T> =
-    RefCell<dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>;
+pub(crate) type Callback<T> = RefCell<dyn FnMut(Event<'_, T>, &mut ControlFlow)>;
 
 struct EventLoopHandler<T: 'static> {
     callback: Weak<Callback<T>>,
-    window_target: Rc<RootWindowTarget<T>>,
+    window_target: Rc<EventLoopWindowTarget<T>>,
 }
 
 impl<T> EventLoopHandler<T> {
     fn with_callback<F>(&mut self, f: F)
     where
-        F: FnOnce(
-            &mut EventLoopHandler<T>,
-            RefMut<'_, dyn FnMut(Event<'_, T>, &RootWindowTarget<T>, &mut ControlFlow)>,
-        ),
+        F: FnOnce(&mut EventLoopHandler<T>, RefMut<'_, dyn FnMut(Event<'_, T>, &mut ControlFlow)>),
     {
         if let Some(callback) = self.callback.upgrade() {
             let callback = callback.borrow_mut();
@@ -91,31 +87,31 @@ impl<T> Debug for EventLoopHandler<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("EventLoopHandler")
-            .field("window_target", &self.window_target)
+            .field("window_target", &"EventLoopWindowTarget { .. }")
             .finish()
     }
 }
 
 impl<T> EventHandler for EventLoopHandler<T> {
     fn handle_nonuser_event(&mut self, event: Event<'_, Never>, control_flow: &mut ControlFlow) {
-        self.with_callback(|this, mut callback| {
+        self.with_callback(|_this, mut callback| {
             if let ControlFlow::ExitWithCode(code) = *control_flow {
                 let dummy = &mut ControlFlow::ExitWithCode(code);
-                (callback)(event.userify(), &this.window_target, dummy);
+                (callback)(event.userify(), dummy);
             } else {
-                (callback)(event.userify(), &this.window_target, control_flow);
+                (callback)(event.userify(), control_flow);
             }
         });
     }
 
     fn handle_user_events(&mut self, control_flow: &mut ControlFlow) {
         self.with_callback(|this, mut callback| {
-            for event in this.window_target.p.receiver.try_iter() {
+            for event in this.window_target.receiver.try_iter() {
                 if let ControlFlow::ExitWithCode(code) = *control_flow {
                     let dummy = &mut ControlFlow::ExitWithCode(code);
-                    (callback)(Event::UserEvent(event), &this.window_target, dummy);
+                    (callback)(Event::UserEvent(event), dummy);
                 } else {
-                    (callback)(Event::UserEvent(event), &this.window_target, control_flow);
+                    (callback)(Event::UserEvent(event), control_flow);
                 }
             }
         });
@@ -263,7 +259,10 @@ impl Handler {
 pub enum AppState {}
 
 impl AppState {
-    pub fn set_callback<T>(callback: Weak<Callback<T>>, window_target: Rc<RootWindowTarget<T>>) {
+    pub fn set_callback<T>(
+        callback: Weak<Callback<T>>,
+        window_target: Rc<EventLoopWindowTarget<T>>,
+    ) {
         *HANDLER.callback.lock().unwrap() = Some(Box::new(EventLoopHandler {
             callback,
             window_target,

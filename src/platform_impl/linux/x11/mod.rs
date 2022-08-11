@@ -29,7 +29,7 @@ use std::{
     mem::{self, MaybeUninit},
     ops::Deref,
     os::raw::*,
-    ptr,
+    process, ptr,
     rc::Rc,
     slice,
     sync::mpsc::{Receiver, Sender, TryRecvError},
@@ -51,9 +51,7 @@ use self::{
 use crate::{
     error::OsError as RootOsError,
     event::{Event, StartCause},
-    event_loop::{
-        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
-    },
+    event_loop::{ControlFlow, DeviceEventFilter, EventLoopClosed},
     platform_impl::{
         platform::{sticky_exit_callback, WindowId},
         PlatformSpecificWindowBuilderAttributes,
@@ -123,7 +121,6 @@ pub struct EventLoop<T: 'static> {
     redraw_receiver: PeekableReceiver<WindowId>,
     user_receiver: PeekableReceiver<T>, //waker.wake needs to be called whenever something gets sent
     user_sender: Sender<T>,
-    target: Rc<RootELW<T>>,
 }
 
 pub struct EventLoopProxy<T: 'static> {
@@ -141,7 +138,7 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new(xconn: Arc<XConnection>) -> EventLoop<T> {
+    pub fn new(xconn: Arc<XConnection>) -> (Self, Rc<EventLoopWindowTarget<T>>) {
         let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
@@ -237,7 +234,7 @@ impl<T: 'static> EventLoop<T> {
         let (user_sender, user_channel) = std::sync::mpsc::channel();
         let (redraw_sender, redraw_channel) = std::sync::mpsc::channel();
 
-        let window_target = EventLoopWindowTarget {
+        let window_target = Rc::new(EventLoopWindowTarget {
             ime,
             root,
             windows: Default::default(),
@@ -251,18 +248,13 @@ impl<T: 'static> EventLoop<T> {
                 waker: waker.clone(),
             },
             device_event_filter: Default::default(),
-        };
+        });
 
         // Set initial device event filter.
         window_target.update_device_event_filter(true);
 
-        let target = Rc::new(RootELW {
-            p: super::EventLoopWindowTarget::X(window_target),
-            _marker: ::std::marker::PhantomData,
-        });
-
         let event_processor = EventProcessor {
-            target: target.clone(),
+            window_target: Rc::clone(&window_target),
             dnd,
             devices: Default::default(),
             randr_event_offset,
@@ -279,22 +271,23 @@ impl<T: 'static> EventLoop<T> {
 
         // Register for device hotplug events
         // (The request buffer is flushed during `init_device`)
-        get_xtarget(&target)
+        window_target
             .xconn
             .select_xinput_events(root, ffi::XIAllDevices, ffi::XI_HierarchyChangedMask)
             .queue();
 
         event_processor.init_device(ffi::XIAllDevices);
 
-        EventLoop {
+        let event_loop = EventLoop {
             poll,
             waker,
             event_processor,
             redraw_receiver: PeekableReceiver::from_recv(redraw_channel),
             user_receiver: PeekableReceiver::from_recv(user_channel),
             user_sender,
-            target,
-        }
+        };
+
+        (event_loop, window_target)
     }
 
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
@@ -304,13 +297,21 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub(crate) fn window_target(&self) -> &RootELW<T> {
-        &self.target
+    pub fn run<F>(mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> !
+    where
+        F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
+    {
+        let exit_code = self.run_return(callback, window_target);
+        process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F) -> i32
+    pub fn run_return<F>(
+        &mut self,
+        mut callback: F,
+        window_target: Rc<EventLoopWindowTarget<T>>,
+    ) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
         struct IterationResult {
             deadline: Option<Instant>,
@@ -319,16 +320,16 @@ impl<T: 'static> EventLoop<T> {
         }
         fn single_iteration<T, F>(
             this: &mut EventLoop<T>,
+            window_target: &EventLoopWindowTarget<T>,
             control_flow: &mut ControlFlow,
             cause: &mut StartCause,
             callback: &mut F,
         ) -> IterationResult
         where
-            F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+            F: FnMut(Event<'_, T>, &mut ControlFlow),
         {
             sticky_exit_callback(
                 crate::event::Event::NewEvents(*cause),
-                &this.target,
                 control_flow,
                 callback,
             );
@@ -336,23 +337,17 @@ impl<T: 'static> EventLoop<T> {
             // NB: For consistency all platforms must emit a 'resumed' event even though X11
             // applications don't themselves have a formal suspend/resume lifecycle.
             if *cause == StartCause::Init {
-                sticky_exit_callback(
-                    crate::event::Event::Resumed,
-                    &this.target,
-                    control_flow,
-                    callback,
-                );
+                sticky_exit_callback(crate::event::Event::Resumed, control_flow, callback);
             }
 
             // Process all pending events
-            this.drain_events(callback, control_flow);
+            this.drain_events(callback, window_target, control_flow);
 
             // Empty the user event buffer
             {
                 while let Ok(event) = this.user_receiver.try_recv() {
                     sticky_exit_callback(
                         crate::event::Event::UserEvent(event),
-                        &this.target,
                         control_flow,
                         callback,
                     );
@@ -362,7 +357,6 @@ impl<T: 'static> EventLoop<T> {
             {
                 sticky_exit_callback(
                     crate::event::Event::MainEventsCleared,
-                    &this.target,
                     control_flow,
                     callback,
                 );
@@ -377,19 +371,13 @@ impl<T: 'static> EventLoop<T> {
 
                 for window_id in windows {
                     let window_id = crate::window::WindowId(window_id);
-                    sticky_exit_callback(
-                        Event::RedrawRequested(window_id),
-                        &this.target,
-                        control_flow,
-                        callback,
-                    );
+                    sticky_exit_callback(Event::RedrawRequested(window_id), control_flow, callback);
                 }
             }
             // send RedrawEventsCleared
             {
                 sticky_exit_callback(
                     crate::event::Event::RedrawEventsCleared,
-                    &this.target,
                     control_flow,
                     callback,
                 );
@@ -445,7 +433,13 @@ impl<T: 'static> EventLoop<T> {
         let mut cause = StartCause::Init;
 
         // run the initial loop iteration
-        let mut iter_result = single_iteration(self, &mut control_flow, &mut cause, &mut callback);
+        let mut iter_result = single_iteration(
+            self,
+            &window_target,
+            &mut control_flow,
+            &mut cause,
+            &mut callback,
+        );
 
         let exit_code = loop {
             if let ControlFlow::ExitWithCode(code) = control_flow {
@@ -485,59 +479,42 @@ impl<T: 'static> EventLoop<T> {
                 };
             }
 
-            iter_result = single_iteration(self, &mut control_flow, &mut cause, &mut callback);
+            iter_result = single_iteration(
+                self,
+                &window_target,
+                &mut control_flow,
+                &mut cause,
+                &mut callback,
+            );
         };
 
-        callback(
-            crate::event::Event::LoopDestroyed,
-            &self.target,
-            &mut control_flow,
-        );
+        callback(crate::event::Event::LoopDestroyed, &mut control_flow);
         exit_code
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
-    where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+    fn drain_events<F>(
+        &mut self,
+        callback: &mut F,
+        window_target: &EventLoopWindowTarget<T>,
+        control_flow: &mut ControlFlow,
+    ) where
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(callback);
-        ::std::process::exit(exit_code);
-    }
-
-    fn drain_events<F>(&mut self, callback: &mut F, control_flow: &mut ControlFlow)
-    where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
-    {
-        let target = &self.target;
         let mut xev = MaybeUninit::uninit();
-        let wt = get_xtarget(&self.target);
 
         while unsafe { self.event_processor.poll_one_event(xev.as_mut_ptr()) } {
             let mut xev = unsafe { xev.assume_init() };
             self.event_processor.process_event(&mut xev, |event| {
-                sticky_exit_callback(
-                    event,
-                    target,
-                    control_flow,
-                    &mut |event, window_target, control_flow| {
-                        if let Event::RedrawRequested(crate::window::WindowId(wid)) = event {
-                            wt.redraw_sender.sender.send(wid).unwrap();
-                            wt.redraw_sender.waker.wake().unwrap();
-                        } else {
-                            callback(event, window_target, control_flow);
-                        }
-                    },
-                );
+                sticky_exit_callback(event, control_flow, &mut |event, control_flow| {
+                    if let Event::RedrawRequested(crate::window::WindowId(wid)) = event {
+                        window_target.redraw_sender.sender.send(wid).unwrap();
+                        window_target.redraw_sender.waker.wake().unwrap();
+                    } else {
+                        callback(event, control_flow);
+                    }
+                });
             });
         }
-    }
-}
-
-pub(crate) fn get_xtarget<T>(target: &RootELW<T>) -> &EventLoopWindowTarget<T> {
-    match target.p {
-        super::EventLoopWindowTarget::X(ref target) => target,
-        #[cfg(feature = "wayland")]
-        _ => unreachable!(),
     }
 }
 

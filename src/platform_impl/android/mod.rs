@@ -2,6 +2,8 @@
 
 use std::{
     collections::VecDeque,
+    process,
+    rc::Rc,
     sync::{mpsc, RwLock},
     time::{Duration, Instant},
 };
@@ -236,7 +238,6 @@ fn poll(poll: Poll) -> Option<EventSource> {
 }
 
 pub struct EventLoop<T: 'static> {
-    window_target: event_loop::EventLoopWindowTarget<T>,
     user_events_sender: mpsc::Sender<T>,
     user_events_receiver: mpsc::Receiver<T>,
     first_event: Option<EventSource>,
@@ -250,54 +251,57 @@ pub struct EventLoop<T: 'static> {
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 macro_rules! call_event_handler {
-    ( $event_handler:expr, $window_target:expr, $cf:expr, $event:expr ) => {{
+    ( $event_handler:expr, $cf:expr, $event:expr ) => {{
         if let ControlFlow::ExitWithCode(code) = $cf {
-            $event_handler($event, $window_target, &mut ControlFlow::ExitWithCode(code));
+            $event_handler($event, &mut ControlFlow::ExitWithCode(code));
         } else {
-            $event_handler($event, $window_target, &mut $cf);
+            $event_handler($event, &mut $cf);
         }
     }};
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> Self {
+    pub(crate) fn new(
+        _: &PlatformSpecificEventLoopAttributes,
+    ) -> (Self, EventLoopWindowTarget<T>) {
         let (user_events_sender, user_events_receiver) = mpsc::channel();
-        Self {
-            window_target: event_loop::EventLoopWindowTarget {
-                p: EventLoopWindowTarget {
-                    _marker: std::marker::PhantomData,
-                },
+        (
+            Self {
+                user_events_sender,
+                user_events_receiver,
+                first_event: None,
+                start_cause: event::StartCause::Init,
+                looper: ThreadLooper::for_thread().unwrap(),
+                running: false,
+                window_lock: None,
+            },
+            EventLoopWindowTarget {
                 _marker: std::marker::PhantomData,
             },
-            user_events_sender,
-            user_events_receiver,
-            first_event: None,
-            start_cause: event::StartCause::Init,
-            looper: ThreadLooper::for_thread().unwrap(),
-            running: false,
-            window_lock: None,
-        }
+        )
     }
 
-    pub fn run<F>(mut self, event_handler: F) -> !
+    pub fn run<F>(mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> !
     where
-        F: 'static
-            + FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: 'static + FnMut(event::Event<'_, T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(event_handler);
-        ::std::process::exit(exit_code);
+        let exit_code = self.run_return(callback, window_target);
+        process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
+    pub fn run_return<F>(
+        &mut self,
+        mut event_handler: F,
+        _window_target: Rc<EventLoopWindowTarget<T>>,
+    ) -> i32
     where
-        F: FnMut(event::Event<'_, T>, &event_loop::EventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(event::Event<'_, T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::default();
 
         'event_loop: loop {
             call_event_handler!(
                 event_handler,
-                self.window_target(),
                 control_flow,
                 event::Event::NewEvents(self.start_cause)
             );
@@ -318,12 +322,7 @@ impl<T: 'static> EventLoop<T> {
                                 self.window_lock.replace(next_window_lock).is_none(),
                                 "Received `Event::WindowCreated` while we were already holding a lock"
                             );
-                            call_event_handler!(
-                                event_handler,
-                                self.window_target(),
-                                control_flow,
-                                event::Event::Resumed
-                            );
+                            call_event_handler!(event_handler, control_flow, event::Event::Resumed);
                         } else {
                             warn!("Received `Event::WindowCreated` while `ndk_glue::native_window()` provides no window");
                         }
@@ -337,7 +336,6 @@ impl<T: 'static> EventLoop<T> {
                         if self.window_lock.take().is_some() {
                             call_event_handler!(
                                 event_handler,
-                                self.window_target(),
                                 control_flow,
                                 event::Event::Suspended
                             );
@@ -363,18 +361,12 @@ impl<T: 'static> EventLoop<T> {
                                     scale_factor,
                                 },
                             };
-                            call_event_handler!(
-                                event_handler,
-                                self.window_target(),
-                                control_flow,
-                                event
-                            );
+                            call_event_handler!(event_handler, control_flow, event);
                         }
                     }
                     Event::WindowHasFocus => {
                         call_event_handler!(
                             event_handler,
-                            self.window_target(),
                             control_flow,
                             event::Event::WindowEvent {
                                 window_id: window::WindowId(WindowId),
@@ -385,7 +377,6 @@ impl<T: 'static> EventLoop<T> {
                     Event::WindowLostFocus => {
                         call_event_handler!(
                             event_handler,
-                            self.window_target(),
                             control_flow,
                             event::Event::WindowEvent {
                                 window_id: window::WindowId(WindowId),
@@ -455,7 +446,6 @@ impl<T: 'static> EventLoop<T> {
                                                 };
                                                 call_event_handler!(
                                                     event_handler,
-                                                    self.window_target(),
                                                     control_flow,
                                                     event
                                                 );
@@ -484,12 +474,7 @@ impl<T: 'static> EventLoop<T> {
                                                 is_synthetic: false,
                                             },
                                         };
-                                        call_event_handler!(
-                                            event_handler,
-                                            self.window_target(),
-                                            control_flow,
-                                            event
-                                        );
+                                        call_event_handler!(event_handler, control_flow, event);
                                     }
                                 };
                                 input_queue.finish_event(event, handled);
@@ -503,7 +488,6 @@ impl<T: 'static> EventLoop<T> {
                     while let Ok(event) = self.user_events_receiver.try_recv() {
                         call_event_handler!(
                             event_handler,
-                            self.window_target(),
                             control_flow,
                             event::Event::UserEvent(event)
                         );
@@ -515,12 +499,7 @@ impl<T: 'static> EventLoop<T> {
                 None => {}
             }
 
-            call_event_handler!(
-                event_handler,
-                self.window_target(),
-                control_flow,
-                event::Event::MainEventsCleared
-            );
+            call_event_handler!(event_handler, control_flow, event::Event::MainEventsCleared);
 
             if resized && self.running {
                 let size = MonitorHandle.size();
@@ -528,17 +507,16 @@ impl<T: 'static> EventLoop<T> {
                     window_id: window::WindowId(WindowId),
                     event: event::WindowEvent::Resized(size),
                 };
-                call_event_handler!(event_handler, self.window_target(), control_flow, event);
+                call_event_handler!(event_handler, control_flow, event);
             }
 
             if redraw && self.running {
                 let event = event::Event::RedrawRequested(window::WindowId(WindowId));
-                call_event_handler!(event_handler, self.window_target(), control_flow, event);
+                call_event_handler!(event_handler, control_flow, event);
             }
 
             call_event_handler!(
                 event_handler,
-                self.window_target(),
                 control_flow,
                 event::Event::RedrawEventsCleared
             );
@@ -595,11 +573,7 @@ impl<T: 'static> EventLoop<T> {
         }
     }
 
-    pub fn window_target(&self) -> &event_loop::EventLoopWindowTarget<T> {
-        &self.window_target
-    }
-
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+    pub fn create_proxy(&self, _window_target: Rc<EventLoopWindowTarget<T>>) -> EventLoopProxy<T> {
         EventLoopProxy {
             user_events_sender: self.user_events_sender.clone(),
             looper: ForeignLooper::for_thread().expect("called from event loop thread"),

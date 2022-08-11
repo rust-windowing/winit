@@ -19,9 +19,8 @@ use sctk::seat::pointer::{ThemeManager, ThemeSpec};
 use sctk::WaylandSource;
 
 use crate::event::{Event, StartCause, WindowEvent};
-use crate::event_loop::{ControlFlow, EventLoopWindowTarget as RootEventLoopWindowTarget};
+use crate::event_loop::ControlFlow;
 use crate::platform_impl::platform::sticky_exit_callback;
-use crate::platform_impl::EventLoopWindowTarget as PlatformEventLoopWindowTarget;
 
 use super::env::{WindowingFeatures, WinitEnv};
 use super::output::OutputManager;
@@ -97,15 +96,12 @@ pub struct EventLoop<T: 'static> {
     /// Dispatcher of Wayland events.
     pub wayland_dispatcher: WinitDispatcher,
 
-    /// Window target.
-    window_target: RootEventLoopWindowTarget<T>,
-
     /// Output manager.
     _seat_manager: SeatManager,
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<EventLoop<T>, Box<dyn Error>> {
+    pub fn new() -> Result<(Self, EventLoopWindowTarget<T>), Box<dyn Error>> {
         // Connect to wayland server and setup event queue.
         let display = Display::connect_to_env()?;
         let mut event_queue = display.create_event_queue();
@@ -177,7 +173,7 @@ impl<T: 'static> EventLoop<T> {
         let window_updates = HashMap::new();
 
         // Create event loop window target.
-        let event_loop_window_target = EventLoopWindowTarget {
+        let window_target = EventLoopWindowTarget {
             display: display.clone(),
             env,
             state: RefCell::new(WinitState {
@@ -202,39 +198,35 @@ impl<T: 'static> EventLoop<T> {
             wayland_dispatcher,
             _seat_manager: seat_manager,
             user_events_sender,
-            window_target: RootEventLoopWindowTarget {
-                p: PlatformEventLoopWindowTarget::Wayland(event_loop_window_target),
-                _marker: std::marker::PhantomData,
-            },
         };
 
-        Ok(event_loop)
+        Ok((event_loop, window_target))
     }
 
-    pub fn run<F>(mut self, callback: F) -> !
+    pub fn run<F>(mut self, callback: F, window_target: &EventLoopWindowTarget<T>) -> !
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow) + 'static,
+        F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(callback);
+        let exit_code = self.run_return(callback, window_target);
         process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut callback: F) -> i32
+    pub fn run_return<F>(
+        &mut self,
+        mut callback: F,
+        window_target: &EventLoopWindowTarget<T>,
+    ) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
         let mut control_flow = ControlFlow::Poll;
         let pending_user_events = self.pending_user_events.clone();
 
-        callback(
-            Event::NewEvents(StartCause::Init),
-            &self.window_target,
-            &mut control_flow,
-        );
+        callback(Event::NewEvents(StartCause::Init), &mut control_flow);
 
         // NB: For consistency all platforms must emit a 'resumed' event even though Wayland
         // applications don't themselves have a formal suspend/resume lifecycle.
-        callback(Event::Resumed, &self.window_target, &mut control_flow);
+        callback(Event::Resumed, &mut control_flow);
 
         let mut window_updates: Vec<(WindowId, WindowUpdate)> = Vec::new();
         let mut event_sink_back_buffer = Vec::new();
@@ -259,15 +251,9 @@ impl<T: 'static> EventLoop<T> {
             let instant_wakeup = {
                 let mut wayland_source = self.wayland_dispatcher.as_source_mut();
                 let queue = wayland_source.queue();
-                let state = match &mut self.window_target.p {
-                    PlatformEventLoopWindowTarget::Wayland(window_target) => {
-                        window_target.state.get_mut()
-                    }
-                    #[cfg(feature = "x11")]
-                    _ => unreachable!(),
-                };
+                let mut state = window_target.state.borrow_mut();
 
-                match queue.dispatch_pending(state, |_, _, _| unimplemented!()) {
+                match queue.dispatch_pending(&mut *state, |_, _, _| unimplemented!()) {
                     Ok(dispatched) => dispatched > 0,
                     Err(error) => break error.raw_os_error().unwrap_or(1),
                 }
@@ -278,15 +264,13 @@ impl<T: 'static> EventLoop<T> {
                 ControlFlow::Poll => {
                     // Non-blocking dispatch.
                     let timeout = Duration::from_millis(0);
-                    if let Err(error) = self.loop_dispatch(Some(timeout)) {
+                    if let Err(error) =
+                        self.loop_dispatch(Some(timeout), &mut window_target.state.borrow_mut())
+                    {
                         break error.raw_os_error().unwrap_or(1);
                     }
 
-                    callback(
-                        Event::NewEvents(StartCause::Poll),
-                        &self.window_target,
-                        &mut control_flow,
-                    );
+                    callback(Event::NewEvents(StartCause::Poll), &mut control_flow);
                 }
                 ControlFlow::Wait => {
                     let timeout = if instant_wakeup {
@@ -295,7 +279,9 @@ impl<T: 'static> EventLoop<T> {
                         None
                     };
 
-                    if let Err(error) = self.loop_dispatch(timeout) {
+                    if let Err(error) =
+                        self.loop_dispatch(timeout, &mut window_target.state.borrow_mut())
+                    {
                         break error.raw_os_error().unwrap_or(1);
                     }
 
@@ -304,7 +290,6 @@ impl<T: 'static> EventLoop<T> {
                             start: Instant::now(),
                             requested_resume: None,
                         }),
-                        &self.window_target,
                         &mut control_flow,
                     );
                 }
@@ -318,7 +303,9 @@ impl<T: 'static> EventLoop<T> {
                         Duration::from_millis(0)
                     };
 
-                    if let Err(error) = self.loop_dispatch(Some(duration)) {
+                    if let Err(error) =
+                        self.loop_dispatch(Some(duration), &mut window_target.state.borrow_mut())
+                    {
                         break error.raw_os_error().unwrap_or(1);
                     }
 
@@ -330,7 +317,6 @@ impl<T: 'static> EventLoop<T> {
                                 start,
                                 requested_resume: Some(deadline),
                             }),
-                            &self.window_target,
                             &mut control_flow,
                         )
                     } else {
@@ -339,7 +325,6 @@ impl<T: 'static> EventLoop<T> {
                                 start,
                                 requested_resume: deadline,
                             }),
-                            &self.window_target,
                             &mut control_flow,
                         )
                     }
@@ -351,14 +336,14 @@ impl<T: 'static> EventLoop<T> {
             for user_event in pending_user_events.borrow_mut().drain(..) {
                 sticky_exit_callback(
                     Event::UserEvent(user_event),
-                    &self.window_target,
                     &mut control_flow,
                     &mut callback,
                 );
             }
 
             // Process 'new' pending updates.
-            self.with_state(|state| {
+            {
+                let mut state = window_target.state.borrow_mut();
                 window_updates.clear();
                 window_updates.extend(
                     state
@@ -366,11 +351,12 @@ impl<T: 'static> EventLoop<T> {
                         .iter_mut()
                         .map(|(wid, window_update)| (*wid, window_update.take())),
                 );
-            });
+            }
 
             for (window_id, window_update) in window_updates.iter_mut() {
                 if let Some(scale_factor) = window_update.scale_factor.map(|f| f as f64) {
-                    let mut physical_size = self.with_state(|state| {
+                    let mut physical_size = {
+                        let state = window_target.state.borrow();
                         let window_handle = state.window_map.get(window_id).unwrap();
                         let mut size = window_handle.size.lock().unwrap();
 
@@ -379,7 +365,7 @@ impl<T: 'static> EventLoop<T> {
                         *size = window_size;
 
                         window_size.to_physical(scale_factor)
-                    });
+                    };
 
                     sticky_exit_callback(
                         Event::WindowEvent {
@@ -389,7 +375,6 @@ impl<T: 'static> EventLoop<T> {
                                 new_inner_size: &mut physical_size,
                             },
                         },
-                        &self.window_target,
                         &mut control_flow,
                         &mut callback,
                     );
@@ -401,7 +386,8 @@ impl<T: 'static> EventLoop<T> {
                 }
 
                 if let Some(size) = window_update.size.take() {
-                    let physical_size = self.with_state(|state| {
+                    let physical_size = {
+                        let mut state = window_target.state.borrow_mut();
                         let window_handle = state.window_map.get_mut(window_id).unwrap();
                         let mut window_size = window_handle.size.lock().unwrap();
 
@@ -428,7 +414,7 @@ impl<T: 'static> EventLoop<T> {
                         window_update.refresh_frame = false;
 
                         physical_size
-                    });
+                    };
 
                     if let Some(physical_size) = physical_size {
                         sticky_exit_callback(
@@ -436,7 +422,6 @@ impl<T: 'static> EventLoop<T> {
                                 window_id: crate::window::WindowId(*window_id),
                                 event: WindowEvent::Resized(physical_size),
                             },
-                            &self.window_target,
                             &mut control_flow,
                             &mut callback,
                         );
@@ -449,7 +434,6 @@ impl<T: 'static> EventLoop<T> {
                             window_id: crate::window::WindowId(*window_id),
                             event: WindowEvent::CloseRequested,
                         },
-                        &self.window_target,
                         &mut control_flow,
                         &mut callback,
                     );
@@ -459,45 +443,36 @@ impl<T: 'static> EventLoop<T> {
             // The purpose of the back buffer and that swap is to not hold borrow_mut when
             // we're doing callback to the user, since we can double borrow if the user decides
             // to create a window in one of those callbacks.
-            self.with_state(|state| {
-                std::mem::swap(
-                    &mut event_sink_back_buffer,
-                    &mut state.event_sink.window_events,
-                )
-            });
+            std::mem::swap(
+                &mut event_sink_back_buffer,
+                &mut window_target.state.borrow_mut().event_sink.window_events,
+            );
 
             // Handle pending window events.
             for event in event_sink_back_buffer.drain(..) {
                 let event = event.map_nonuser_event().unwrap();
-                sticky_exit_callback(event, &self.window_target, &mut control_flow, &mut callback);
+                sticky_exit_callback(event, &mut control_flow, &mut callback);
             }
 
             // Send events cleared.
-            sticky_exit_callback(
-                Event::MainEventsCleared,
-                &self.window_target,
-                &mut control_flow,
-                &mut callback,
-            );
+            sticky_exit_callback(Event::MainEventsCleared, &mut control_flow, &mut callback);
 
             // Handle RedrawRequested events.
             for (window_id, window_update) in window_updates.iter() {
                 // Handle refresh of the frame.
                 if window_update.refresh_frame {
-                    self.with_state(|state| {
-                        let window_handle = state.window_map.get_mut(window_id).unwrap();
-                        window_handle.window.refresh();
-                        if !window_update.redraw_requested {
-                            window_handle.window.surface().commit();
-                        }
-                    });
+                    let mut state = window_target.state.borrow_mut();
+                    let window_handle = state.window_map.get_mut(window_id).unwrap();
+                    window_handle.window.refresh();
+                    if !window_update.redraw_requested {
+                        window_handle.window.surface().commit();
+                    }
                 }
 
                 // Handle redraw request.
                 if window_update.redraw_requested {
                     sticky_exit_callback(
                         Event::RedrawRequested(crate::window::WindowId(*window_id)),
-                        &self.window_target,
                         &mut control_flow,
                         &mut callback,
                     );
@@ -505,15 +480,10 @@ impl<T: 'static> EventLoop<T> {
             }
 
             // Send RedrawEventCleared.
-            sticky_exit_callback(
-                Event::RedrawEventsCleared,
-                &self.window_target,
-                &mut control_flow,
-                &mut callback,
-            );
+            sticky_exit_callback(Event::RedrawEventsCleared, &mut control_flow, &mut callback);
         };
 
-        callback(Event::LoopDestroyed, &self.window_target, &mut control_flow);
+        callback(Event::LoopDestroyed, &mut control_flow);
         exit_code
     }
 
@@ -522,28 +492,11 @@ impl<T: 'static> EventLoop<T> {
         EventLoopProxy::new(self.user_events_sender.clone())
     }
 
-    #[inline]
-    pub fn window_target(&self) -> &RootEventLoopWindowTarget<T> {
-        &self.window_target
-    }
-
-    fn with_state<U, F: FnOnce(&mut WinitState) -> U>(&mut self, f: F) -> U {
-        let state = match &mut self.window_target.p {
-            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(feature = "x11")]
-            _ => unreachable!(),
-        };
-
-        f(state)
-    }
-
-    fn loop_dispatch<D: Into<Option<std::time::Duration>>>(&mut self, timeout: D) -> IOResult<()> {
-        let state = match &mut self.window_target.p {
-            PlatformEventLoopWindowTarget::Wayland(window_target) => window_target.state.get_mut(),
-            #[cfg(feature = "x11")]
-            _ => unreachable!(),
-        };
-
+    fn loop_dispatch<D: Into<Option<std::time::Duration>>>(
+        &mut self,
+        timeout: D,
+        state: &mut WinitState,
+    ) -> IOResult<()> {
         self.event_loop
             .dispatch(timeout, state)
             .map_err(|error| error.into())

@@ -12,7 +12,7 @@ compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 #[cfg(feature = "wayland")]
 use std::error::Error;
 
-use std::{collections::VecDeque, env, fmt};
+use std::{collections::VecDeque, env, fmt, rc::Rc};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
@@ -34,9 +34,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
-    event_loop::{
-        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
-    },
+    event_loop::{ControlFlow, DeviceEventFilter, EventLoopClosed},
     icon::Icon,
     window::{CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes},
 };
@@ -647,7 +645,9 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
+    pub(crate) fn new(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> (Self, EventLoopWindowTarget<T>) {
         if !attributes.any_thread && !is_main_thread() {
             panic!(
                 "Initializing the event loop outside of the main thread is a significant \
@@ -717,40 +717,65 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[cfg(feature = "wayland")]
-    fn new_wayland_any_thread() -> Result<EventLoop<T>, Box<dyn Error>> {
-        wayland::EventLoop::new().map(|evlp| EventLoop::Wayland(Box::new(evlp)))
+    fn new_wayland_any_thread() -> Result<(Self, EventLoopWindowTarget<T>), Box<dyn Error>> {
+        wayland::EventLoop::new().map(|(evlp, window_target)| {
+            (
+                Self::Wayland(Box::new(evlp)),
+                EventLoopWindowTarget::Wayland(window_target),
+            )
+        })
     }
 
     #[cfg(feature = "x11")]
-    fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
+    fn new_x11_any_thread() -> Result<(Self, EventLoopWindowTarget<T>), XNotSupported> {
         let xconn = match X11_BACKEND.lock().as_ref() {
             Ok(xconn) => xconn.clone(),
             Err(err) => return Err(err.clone()),
         };
 
-        Ok(EventLoop::X(x11::EventLoop::new(xconn)))
+        let (evlp, window_target) = x11::EventLoop::new(xconn);
+
+        Ok((Self::X(evlp), EventLoopWindowTarget::X(window_target)))
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+    pub fn create_proxy(&self, _window_target: Rc<EventLoopWindowTarget<T>>) -> EventLoopProxy<T> {
         x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
     }
 
-    pub fn run_return<F>(&mut self, callback: F) -> i32
+    pub fn run_return<F>(&mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> i32
     where
-        F: FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run_return(callback))
+        match (self, &*window_target) {
+            #[cfg(feature = "x11")]
+            (Self::X(evlp), EventLoopWindowTarget::X(window_target)) => {
+                evlp.run_return(callback, Rc::clone(window_target))
+            }
+            #[cfg(feature = "wayland")]
+            (Self::Wayland(evlp), EventLoopWindowTarget::Wayland(window_target)) => {
+                evlp.run_return(callback, window_target)
+            }
+            #[cfg(all(feature = "x11", feature = "wayland"))]
+            _ => unreachable!(),
+        }
     }
 
-    pub fn run<F>(self, callback: F) -> !
+    pub fn run<F>(self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> !
     where
-        F: 'static + FnMut(crate::event::Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.run(callback))
-    }
-
-    pub fn window_target(&self) -> &crate::event_loop::EventLoopWindowTarget<T> {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.window_target())
+        match (self, &*window_target) {
+            #[cfg(feature = "x11")]
+            (Self::X(evlp), EventLoopWindowTarget::X(window_target)) => {
+                evlp.run(callback, Rc::clone(window_target))
+            }
+            #[cfg(feature = "wayland")]
+            (Self::Wayland(evlp), EventLoopWindowTarget::Wayland(window_target)) => {
+                evlp.run(callback, window_target)
+            }
+            #[cfg(all(feature = "x11", feature = "wayland"))]
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -764,7 +789,7 @@ pub enum EventLoopWindowTarget<T> {
     #[cfg(feature = "wayland")]
     Wayland(wayland::EventLoopWindowTarget<T>),
     #[cfg(feature = "x11")]
-    X(x11::EventLoopWindowTarget<T>),
+    X(Rc<x11::EventLoopWindowTarget<T>>),
 }
 
 impl<T> EventLoopWindowTarget<T> {
@@ -825,20 +850,16 @@ impl<T> EventLoopWindowTarget<T> {
     }
 }
 
-fn sticky_exit_callback<T, F>(
-    evt: Event<'_, T>,
-    target: &RootELW<T>,
-    control_flow: &mut ControlFlow,
-    callback: &mut F,
-) where
-    F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+fn sticky_exit_callback<T, F>(evt: Event<'_, T>, control_flow: &mut ControlFlow, callback: &mut F)
+where
+    F: FnMut(Event<'_, T>, &mut ControlFlow),
 {
     // make ControlFlow::ExitWithCode sticky by providing a dummy
     // control flow reference if it is already ExitWithCode.
     if let ControlFlow::ExitWithCode(code) = *control_flow {
-        callback(evt, target, &mut ControlFlow::ExitWithCode(code))
+        callback(evt, &mut ControlFlow::ExitWithCode(code))
     } else {
-        callback(evt, target, control_flow)
+        callback(evt, control_flow)
     }
 }
 

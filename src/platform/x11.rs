@@ -58,8 +58,8 @@ impl<T> EventLoopWindowTargetExtX11 for EventLoopWindowTarget<T> {
 
     #[inline]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match self.p {
-            LinuxEventLoopWindowTarget::X(ref e) => Some(e.x_connection().clone()),
+        match &*self.p {
+            LinuxEventLoopWindowTarget::X(e) => Some(e.x_connection().clone()),
             #[cfg(feature = "wayland")]
             _ => None,
         }

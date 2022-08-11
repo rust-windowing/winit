@@ -6,8 +6,7 @@ use std::{
     cell::Cell,
     collections::VecDeque,
     ffi::c_void,
-    marker::PhantomData,
-    mem, panic, ptr,
+    mem, panic, process, ptr,
     rc::Rc,
     sync::{
         mpsc::{self, Receiver, Sender},
@@ -77,9 +76,7 @@ use windows_sys::Win32::{
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     event::{DeviceEvent, Event, Force, Ime, KeyboardInput, Touch, TouchPhase, WindowEvent},
-    event_loop::{
-        ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
-    },
+    event_loop::{ControlFlow, DeviceEventFilter, EventLoopClosed},
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -156,7 +153,6 @@ impl<T> ThreadMsgTargetData<T> {
 
 pub struct EventLoop<T: 'static> {
     thread_msg_sender: Sender<T>,
-    window_target: RootELW<T>,
     msg_hook: Option<Box<dyn FnMut(*const c_void) -> bool + 'static>>,
 }
 
@@ -182,8 +178,18 @@ pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) runner_shared: EventLoopRunnerShared<T>,
 }
 
+impl<T> Drop for EventLoopWindowTarget<T> {
+    fn drop(&mut self) {
+        unsafe {
+            DestroyWindow(self.thread_msg_target);
+        }
+    }
+}
+
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(attributes: &mut PlatformSpecificEventLoopAttributes) -> Self {
+    pub(crate) fn new(
+        attributes: &mut PlatformSpecificEventLoopAttributes,
+    ) -> (Self, EventLoopWindowTarget<T>) {
         let thread_id = unsafe { GetCurrentThreadId() };
 
         if !attributes.any_thread && thread_id != main_thread_id() {
@@ -213,48 +219,36 @@ impl<T: 'static> EventLoop<T> {
             Default::default(),
         );
 
-        EventLoop {
-            thread_msg_sender,
-            window_target: RootELW {
-                p: EventLoopWindowTarget {
-                    thread_id,
-                    thread_msg_target,
-                    runner_shared,
-                },
-                _marker: PhantomData,
+        (
+            EventLoop {
+                thread_msg_sender,
+                msg_hook: attributes.msg_hook.take(),
             },
-            msg_hook: attributes.msg_hook.take(),
-        }
+            EventLoopWindowTarget {
+                thread_id,
+                thread_msg_target,
+                runner_shared,
+            },
+        )
     }
 
-    pub fn window_target(&self) -> &RootELW<T> {
-        &self.window_target
-    }
-
-    pub fn run<F>(mut self, event_handler: F) -> !
+    pub fn run<F>(mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> !
     where
-        F: 'static + FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        let exit_code = self.run_return(event_handler);
-        ::std::process::exit(exit_code);
+        let exit_code = self.run_return(callback, window_target);
+        process::exit(exit_code);
     }
 
-    pub fn run_return<F>(&mut self, mut event_handler: F) -> i32
+    pub fn run_return<F>(&mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> i32
     where
-        F: FnMut(Event<'_, T>, &RootELW<T>, &mut ControlFlow),
+        F: FnMut(Event<'_, T>, &mut ControlFlow),
     {
-        let event_loop_windows_ref = &self.window_target;
-
         unsafe {
-            self.window_target
-                .p
-                .runner_shared
-                .set_event_handler(move |event, control_flow| {
-                    event_handler(event, event_loop_windows_ref, control_flow)
-                });
+            window_target.runner_shared.set_event_handler(callback);
         }
 
-        let runner = &self.window_target.p.runner_shared;
+        let runner = &window_target.runner_shared;
 
         let exit_code = unsafe {
             let mut msg = mem::zeroed();
@@ -296,9 +290,9 @@ impl<T: 'static> EventLoop<T> {
         exit_code
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+    pub fn create_proxy(&self, window_target: Rc<EventLoopWindowTarget<T>>) -> EventLoopProxy<T> {
         EventLoopProxy {
-            target_window: self.window_target.p.thread_msg_target,
+            target_window: window_target.thread_msg_target,
             event_send: self.thread_msg_sender.clone(),
         }
     }
@@ -503,14 +497,6 @@ fn dur2timeout(dur: Duration) -> u32 {
             }
         })
         .unwrap_or(INFINITE)
-}
-
-impl<T> Drop for EventLoop<T> {
-    fn drop(&mut self) {
-        unsafe {
-            DestroyWindow(self.window_target.p.thread_msg_target);
-        }
-    }
 }
 
 pub(crate) struct EventLoopThreadExecutor {

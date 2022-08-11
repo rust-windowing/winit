@@ -9,6 +9,7 @@
 //! handle events.
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::rc::Rc;
 use std::{error, fmt};
 
 use instant::Instant;
@@ -33,6 +34,7 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 ///
 /// [`Window`]: crate::window::Window
 pub struct EventLoop<T: 'static> {
+    pub(crate) window_target: EventLoopWindowTarget<T>,
     pub(crate) event_loop: platform_impl::EventLoop<T>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
@@ -44,7 +46,7 @@ pub struct EventLoop<T: 'static> {
 /// EventLoop<T>`), so functions that take this as a parameter can also take
 /// `&EventLoop`.
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub(crate) p: platform_impl::EventLoopWindowTarget<T>,
+    pub(crate) p: Rc<platform_impl::EventLoopWindowTarget<T>>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
@@ -105,10 +107,18 @@ impl<T> EventLoopBuilder<T> {
         if EVENT_LOOP_CREATED.set(()).is_err() {
             panic!("Creating EventLoop multiple times is not supported.");
         }
+
         // Certain platforms accept a mutable reference in their API.
         #[allow(clippy::unnecessary_mut_passed)]
+        let (event_loop, window_target) =
+            platform_impl::EventLoop::new(&mut self.platform_specific);
+
         EventLoop {
-            event_loop: platform_impl::EventLoop::new(&mut self.platform_specific),
+            window_target: EventLoopWindowTarget {
+                p: Rc::new(window_target),
+                _marker: PhantomData,
+            },
+            event_loop,
             _marker: PhantomData,
         }
     }
@@ -271,17 +281,28 @@ impl<T> EventLoop<T> {
     ///
     /// [`ControlFlow`]: crate::event_loop::ControlFlow
     #[inline]
-    pub fn run<F>(self, event_handler: F) -> !
+    pub fn run<F>(self, mut event_handler: F) -> !
     where
         F: 'static + FnMut(Event<'_, T>, &EventLoopWindowTarget<T>, &mut ControlFlow),
     {
-        self.event_loop.run(event_handler)
+        let Self {
+            window_target,
+            event_loop,
+            ..
+        } = self;
+        let platform_window_target = Rc::clone(&window_target.p);
+
+        event_loop.run(
+            move |event, control_flow| event_handler(event, &window_target, control_flow),
+            platform_window_target,
+        )
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events to the main event loop.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
+        let window_target = Rc::clone(&self.window_target.p);
         EventLoopProxy {
-            event_loop_proxy: self.event_loop.create_proxy(),
+            event_loop_proxy: self.event_loop.create_proxy(window_target),
         }
     }
 }
@@ -289,7 +310,7 @@ impl<T> EventLoop<T> {
 impl<T> Deref for EventLoop<T> {
     type Target = EventLoopWindowTarget<T>;
     fn deref(&self) -> &EventLoopWindowTarget<T> {
-        self.event_loop.window_target()
+        &self.window_target
     }
 }
 
