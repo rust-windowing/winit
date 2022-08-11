@@ -201,7 +201,7 @@ impl Window {
     #[inline]
     pub fn set_inner_size(&self, size: Size) {
         let scale_factor = self.scale_factor();
-        let physical_size = size.to_physical::<u32>(scale_factor).into();
+        let physical_size = size.to_physical::<u32>(scale_factor);
 
         let window_state = Arc::clone(&self.window_state);
         let window = self.window.clone();
@@ -254,7 +254,7 @@ impl Window {
     /// Returns the `hwnd` of this window.
     #[inline]
     pub fn hwnd(&self) -> HWND {
-        self.window.0.into()
+        self.window.0
     }
 
     #[inline]
