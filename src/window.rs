@@ -127,7 +127,7 @@ pub(crate) struct WindowAttributes {
     pub position: Option<Position>,
     pub resizable: bool,
     pub title: String,
-    pub fullscreen: Option<Fullscreen>,
+    pub fullscreen: Option<platform_impl::Fullscreen>,
     pub maximized: bool,
     pub visible: bool,
     pub transparent: bool,
@@ -256,7 +256,7 @@ impl WindowBuilder {
     /// See [`Window::set_fullscreen`] for details.
     #[inline]
     pub fn with_fullscreen(mut self, fullscreen: Option<Fullscreen>) -> Self {
-        self.window.fullscreen = fullscreen;
+        self.window.fullscreen = fullscreen.map(|f| f.into());
         self
     }
 
@@ -727,7 +727,7 @@ impl Window {
     /// - **Android:** Unsupported.
     #[inline]
     pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
-        self.window.set_fullscreen(fullscreen)
+        self.window.set_fullscreen(fullscreen.map(|f| f.into()))
     }
 
     /// Gets the window's current fullscreen state.
@@ -739,7 +739,7 @@ impl Window {
     /// - **Wayland:** Can return `Borderless(None)` when there are no monitors.
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
-        self.window.fullscreen()
+        self.window.fullscreen().map(|f| f.into())
     }
 
     /// Turn window decorations on or off.

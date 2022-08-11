@@ -28,11 +28,10 @@ use crate::{
         view::CursorState,
         view::{self, new_view},
         window_delegate::new_delegate,
-        OsError,
+        Fullscreen, OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
     },
 };
 use cocoa::{
@@ -143,12 +142,12 @@ fn create_window(
     autoreleasepool(|| unsafe {
         let screen = match &attrs.fullscreen {
             Some(Fullscreen::Borderless(Some(monitor))) => {
-                let monitor_screen = monitor.inner.ns_screen();
+                let monitor_screen = monitor.ns_screen();
                 Some(monitor_screen.unwrap_or_else(|| appkit::NSScreen::mainScreen(nil)))
             }
             Some(Fullscreen::Borderless(None)) => Some(appkit::NSScreen::mainScreen(nil)),
             Some(Fullscreen::Exclusive(video_mode)) => {
-                let monitor_screen = video_mode.monitor().inner.ns_screen();
+                let monitor_screen = video_mode.monitor().ns_screen();
                 Some(monitor_screen.unwrap_or_else(|| appkit::NSScreen::mainScreen(nil)))
             }
             None => None,
@@ -296,14 +295,14 @@ static WINDOW_CLASS: Lazy<WindowClass> = Lazy::new(|| unsafe {
 #[derive(Default)]
 pub struct SharedState {
     pub resizable: bool,
-    pub fullscreen: Option<Fullscreen>,
+    pub(crate) fullscreen: Option<Fullscreen>,
     // This is true between windowWillEnterFullScreen and windowDidEnterFullScreen
     // or windowWillExitFullScreen and windowDidExitFullScreen.
     // We must not toggle fullscreen when this is true.
     pub in_fullscreen_transition: bool,
     // If it is attempted to toggle fullscreen when in_fullscreen_transition is true,
     // Set target_fullscreen and do after fullscreen transition is end.
-    pub target_fullscreen: Option<Option<Fullscreen>>,
+    pub(crate) target_fullscreen: Option<Option<Fullscreen>>,
     pub maximized: bool,
     pub standard_frame: Option<NSRect>,
     is_simple_fullscreen: bool,
@@ -393,7 +392,7 @@ unsafe impl Sync for UnownedWindow {}
 
 impl UnownedWindow {
     pub(crate) fn new(
-        mut win_attribs: WindowAttributes,
+        win_attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<(Arc<Self>, IdRef), RootOsError> {
         unsafe {
@@ -447,7 +446,7 @@ impl UnownedWindow {
         // Also, `SharedState` doesn't carry `fullscreen` over; it's set
         // indirectly by us calling `set_fullscreen` below, causing handlers in
         // `WindowDelegate` to update the state.
-        let fullscreen = win_attribs.fullscreen.take();
+        let fullscreen: Option<Fullscreen> = win_attribs.fullscreen.clone();
         let maximized = win_attribs.maximized;
         let visible = win_attribs.visible;
         let decorations = win_attribs.decorations;
@@ -801,7 +800,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         let shared_state_lock = self.lock_shared_state("fullscreen");
         shared_state_lock.fullscreen.clone()
     }
@@ -812,7 +811,7 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         if shared_state_lock.is_simple_fullscreen {
             return;
@@ -834,9 +833,9 @@ impl UnownedWindow {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(Some(monitor)) => monitor.inner.clone(),
+                Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
                 Fullscreen::Borderless(None) => self.current_monitor_inner(),
-                Fullscreen::Exclusive(video_mode) => video_mode.monitor().inner,
+                Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
             }
             .ns_screen()
             .unwrap();
@@ -866,7 +865,7 @@ impl UnownedWindow {
             // parameter, which is not consistent with the docs saying that it
             // takes a `NSDictionary`..
 
-            let display_id = video_mode.monitor().inner.native_identifier();
+            let display_id = video_mode.monitor().native_identifier();
 
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
@@ -902,7 +901,7 @@ impl UnownedWindow {
             unsafe {
                 let result = ffi::CGDisplaySetDisplayMode(
                     display_id,
-                    video_mode.video_mode.native_mode.0,
+                    video_mode.native_mode.0,
                     std::ptr::null(),
                 );
                 assert!(result == ffi::kCGErrorSuccess, "failed to set video mode");
@@ -947,7 +946,7 @@ impl UnownedWindow {
                 );
             },
             (&Some(Fullscreen::Exclusive(ref video_mode)), &None) => unsafe {
-                util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
+                util::restore_display_mode_async(video_mode.monitor().native_identifier());
                 // Rest of the state is restored by `window_did_exit_fullscreen`
                 util::toggle_full_screen_async(
                     *self.ns_window,
@@ -985,7 +984,7 @@ impl UnownedWindow {
                     });
                 NSApp().setPresentationOptions_(presentation_options);
 
-                util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
+                util::restore_display_mode_async(video_mode.monitor().native_identifier());
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.

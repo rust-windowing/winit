@@ -11,8 +11,7 @@ use crate::{
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::{Event, WindowEvent},
     icon::Icon,
-    monitor::MonitorHandle as RootMonitorHandle,
-    platform::ios::{MonitorHandleExtIOS, ScreenEdge, ValidOrientations},
+    platform::ios::{ScreenEdge, ValidOrientations},
     platform_impl::platform::{
         app_state,
         event_loop::{self, EventProxy, EventWrapper},
@@ -20,11 +19,10 @@ use crate::{
             id, CGFloat, CGPoint, CGRect, CGSize, UIEdgeInsets, UIInterfaceOrientationMask,
             UIRectEdge, UIScreenOverscanCompensation,
         },
-        monitor, view, EventLoopWindowTarget, MonitorHandle,
+        monitor, view, EventLoopWindowTarget, Fullscreen, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
-        WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
     },
 };
 
@@ -214,13 +212,12 @@ impl Inner {
         false
     }
 
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         unsafe {
             let uiscreen = match monitor {
                 Some(Fullscreen::Exclusive(video_mode)) => {
-                    let uiscreen = video_mode.video_mode.monitor.ui_screen() as id;
-                    let _: () =
-                        msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
+                    let uiscreen = video_mode.monitor.ui_screen() as id;
+                    let _: () = msg_send![uiscreen, setCurrentMode: video_mode.screen_mode.0];
                     uiscreen
                 }
                 Some(Fullscreen::Borderless(Some(monitor))) => monitor.ui_screen() as id,
@@ -252,7 +249,7 @@ impl Inner {
         }
     }
 
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         unsafe {
             let monitor = self.current_monitor_inner();
             let uiscreen = monitor.ui_screen();
@@ -265,9 +262,7 @@ impl Inner {
                 && screen_space_bounds.size.width == screen_bounds.size.width
                 && screen_space_bounds.size.height == screen_bounds.size.height
             {
-                Some(Fullscreen::Borderless(Some(RootMonitorHandle {
-                    inner: monitor,
-                })))
+                Some(Fullscreen::Borderless(Some(monitor)))
             } else {
                 None
             }
@@ -399,10 +394,8 @@ impl Window {
 
         unsafe {
             let screen = match window_attributes.fullscreen {
-                Some(Fullscreen::Exclusive(ref video_mode)) => {
-                    video_mode.video_mode.monitor.ui_screen() as id
-                }
-                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.inner.ui_screen(),
+                Some(Fullscreen::Exclusive(ref video_mode)) => video_mode.monitor.ui_screen() as id,
+                Some(Fullscreen::Borderless(Some(ref monitor))) => monitor.ui_screen(),
                 Some(Fullscreen::Borderless(None)) | None => {
                     monitor::main_uiscreen().ui_screen() as id
                 }

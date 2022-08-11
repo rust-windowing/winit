@@ -8,7 +8,6 @@ use objc::{
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
-    platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
         app_state::{self, OSCapabilities},
         event_loop::{self, EventProxy, EventWrapper},
@@ -17,9 +16,9 @@ use crate::{
             UIRectEdge, UITouchPhase, UITouchType,
         },
         window::PlatformSpecificWindowBuilderAttributes,
-        DeviceId,
+        DeviceId, Fullscreen,
     },
-    window::{Fullscreen, WindowAttributes, WindowId as RootWindowId},
+    window::{WindowAttributes, WindowId as RootWindowId},
 };
 
 macro_rules! add_property {
@@ -524,7 +523,7 @@ pub(crate) unsafe fn create_window(
     match window_attributes.fullscreen {
         Some(Fullscreen::Exclusive(ref video_mode)) => {
             let uiscreen = video_mode.monitor().ui_screen() as id;
-            let _: () = msg_send![uiscreen, setCurrentMode: video_mode.video_mode.screen_mode.0];
+            let _: () = msg_send![uiscreen, setCurrentMode: video_mode.screen_mode.0];
             msg_send![window, setScreen:video_mode.monitor().ui_screen()]
         }
         Some(Fullscreen::Borderless(ref monitor)) => {

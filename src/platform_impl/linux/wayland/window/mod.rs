@@ -14,14 +14,11 @@ use sctk::window::Decorations;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOsError};
-use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::{
-    MonitorHandle as PlatformMonitorHandle, OsError,
+    Fullscreen, MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{
-    CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
-};
+use crate::window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -205,7 +202,7 @@ impl Window {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland")
             }
             Some(Fullscreen::Borderless(monitor)) => {
-                let monitor = monitor.and_then(|monitor| match monitor.inner {
+                let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
                     #[cfg(feature = "x11")]
                     PlatformMonitorHandle::X(_) => None,
@@ -441,11 +438,11 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.fullscreen.load(Ordering::Relaxed) {
-            let current_monitor = self.current_monitor().map(|monitor| RootMonitorHandle {
-                inner: PlatformMonitorHandle::Wayland(monitor),
-            });
+            let current_monitor = self
+                .current_monitor()
+                .map(|monitor| PlatformMonitorHandle::Wayland(monitor));
 
             Some(Fullscreen::Borderless(current_monitor))
         } else {
@@ -454,14 +451,14 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
         let fullscreen_request = match fullscreen {
             Some(Fullscreen::Exclusive(_)) => {
                 warn!("`Fullscreen::Exclusive` is ignored on Wayland");
                 return;
             }
             Some(Fullscreen::Borderless(monitor)) => {
-                let monitor = monitor.and_then(|monitor| match monitor.inner {
+                let monitor = monitor.and_then(|monitor| match monitor {
                     PlatformMonitorHandle::Wayland(monitor) => Some(monitor.proxy),
                     #[cfg(feature = "x11")]
                     PlatformMonitorHandle::X(_) => None,

@@ -32,6 +32,7 @@ use crate::{
 };
 use objc::rc::autoreleasepool;
 
+pub(self) use super::Fullscreen;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

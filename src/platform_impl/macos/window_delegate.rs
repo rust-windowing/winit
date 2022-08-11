@@ -19,15 +19,15 @@ use once_cell::sync::Lazy;
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
-    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
         window::{get_window_id, UnownedWindow},
+        Fullscreen,
     },
-    window::{Fullscreen, WindowId},
+    window::WindowId,
 };
 
 pub struct WindowDelegateState {
@@ -434,9 +434,7 @@ extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    let current_monitor = Some(RootMonitorHandle {
-                        inner: window.current_monitor_inner(),
-                    });
+                    let current_monitor = Some(window.current_monitor_inner());
                     shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
                 }
             }

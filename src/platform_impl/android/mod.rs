@@ -18,6 +18,7 @@ use raw_window_handle::{
     AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
+use super::Fullscreen;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
@@ -683,7 +684,7 @@ impl DeviceId {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
-pub struct Window;
+pub(crate) struct Window;
 
 impl Window {
     pub(crate) fn new<T: 'static>(
@@ -772,11 +773,11 @@ impl Window {
         false
     }
 
-    pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
+    pub fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {
         warn!("Cannot set fullscreen on Android");
     }
 
-    pub fn fullscreen(&self) -> Option<window::Fullscreen> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         None
     }
 

@@ -69,13 +69,13 @@ use crate::{
         monitor::{self, MonitorHandle},
         util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
-        Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
+        Fullscreen, Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
-    window::{CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, Theme, UserAttentionType, WindowAttributes},
 };
 
 /// The Win32 implementation of the main `Window` object.
-pub struct Window {
+pub(crate) struct Window {
     /// Main handle for the window.
     window: WindowWrapper,
 
@@ -448,12 +448,12 @@ impl Window {
             match (&old_fullscreen, &fullscreen) {
                 (_, Some(Fullscreen::Exclusive(video_mode))) => {
                     let monitor = video_mode.monitor();
-                    let monitor_info = monitor::get_monitor_info(monitor.inner.hmonitor()).unwrap();
+                    let monitor_info = monitor::get_monitor_info(monitor.hmonitor()).unwrap();
 
                     let res = unsafe {
                         ChangeDisplaySettingsExW(
                             monitor_info.szDevice.as_ptr(),
-                            &*video_mode.video_mode.native_video_mode,
+                            &*video_mode.native_video_mode,
                             0,
                             CDS_FULLSCREEN,
                             ptr::null(),
@@ -532,8 +532,8 @@ impl Window {
                     window_state.lock().saved_window = Some(SavedWindow { placement });
 
                     let monitor = match &fullscreen {
-                        Fullscreen::Exclusive(video_mode) => video_mode.monitor().inner,
-                        Fullscreen::Borderless(Some(monitor)) => monitor.inner.clone(),
+                        Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
+                        Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
                         Fullscreen::Borderless(None) => monitor::current_monitor(window.0),
                     };
 
