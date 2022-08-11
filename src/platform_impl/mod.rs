@@ -1,6 +1,9 @@
 use crate::monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode};
 use crate::window::Fullscreen as RootFullscreen;
 
+#[macro_use]
+mod macros;
+
 #[cfg(target_os = "windows")]
 #[path = "windows/mod.rs"]
 mod platform;
@@ -54,6 +57,14 @@ impl From<Fullscreen> for RootFullscreen {
             }
             Fullscreen::Borderless(None) => Self::Borderless(None),
         }
+    }
+}
+
+platform! {
+    #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+    #[non_exhaustive]
+    pub(crate) enum Platform {
+        __Platform__, // Replaced by macro
     }
 }
 

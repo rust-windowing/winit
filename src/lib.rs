@@ -149,14 +149,17 @@ extern crate bitflags;
 #[macro_use]
 extern crate objc;
 
-pub mod dpi;
 #[macro_use]
 pub mod error;
+
+#[macro_use]
+mod platform_impl;
+
+pub mod dpi;
 pub mod event;
 pub mod event_loop;
 mod icon;
 pub mod monitor;
-mod platform_impl;
 pub mod window;
 
 pub mod platform;
