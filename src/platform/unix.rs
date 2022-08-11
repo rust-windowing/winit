@@ -1,11 +1,3 @@
-#![cfg(any(
-    target_os = "linux",
-    target_os = "dragonfly",
-    target_os = "freebsd",
-    target_os = "netbsd",
-    target_os = "openbsd"
-))]
-
 use std::os::raw;
 #[cfg(feature = "x11")]
 use std::{ptr, sync::Arc};
