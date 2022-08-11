@@ -34,6 +34,7 @@ pub(crate) use self::event_loop::{
 pub use self::monitor::{MonitorHandle, VideoMode};
 pub use self::window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId};
 
+pub(self) use super::Fullscreen;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
 #[derive(Clone, Copy)]

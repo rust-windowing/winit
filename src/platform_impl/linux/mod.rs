@@ -41,9 +41,10 @@ use crate::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
     icon::Icon,
-    window::{CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes},
+    window::{CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes},
 };
 
+pub(self) use super::Fullscreen;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
 
 #[cfg(feature = "wayland")]
@@ -457,12 +458,12 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         x11_or_wayland!(match self; Window(w) => w.fullscreen())
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
+    pub(crate) fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
         x11_or_wayland!(match self; Window(w) => w.set_fullscreen(monitor))
     }
 
