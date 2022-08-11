@@ -12,13 +12,15 @@
 /src/platform/ios.rs                @francesca64
 /src/platform_impl/ios              @francesca64
 
-# Wayland
+# Unix in general
 /src/platform/unix.rs               @kchibisov
-/src/platform_impl/linux/wayland    @kchibisov
 /src/platform_impl/linux/mod.rs     @kchibisov
 
-# X11 (no maintainer)
-/src/platform_impl/linux/x11
+# Wayland
+/src/platform_impl/linux/wayland    @kchibisov
+
+# X11
+/src/platform_impl/linux/x11        @kchibisov
 
 # macOS
 /src/platform/macos.rs              @madsmtm
