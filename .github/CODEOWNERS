@@ -1,0 +1,35 @@
+# Core maintainers:
+# - @msiglreith
+# - @kchibisov
+# - @madsmtm
+# - @maroider
+
+# Android
+/src/platform/android.rs            @msiglreith
+/src/platform_impl/android          @msiglreith
+
+# iOS
+/src/platform/ios.rs                @francesca64
+/src/platform_impl/ios              @francesca64
+
+# Unix in general
+/src/platform/unix.rs               @kchibisov
+/src/platform_impl/linux/mod.rs     @kchibisov
+
+# Wayland
+/src/platform_impl/linux/wayland    @kchibisov
+
+# X11
+/src/platform_impl/linux/x11        @kchibisov
+
+# macOS
+/src/platform/macos.rs              @madsmtm
+/src/platform_impl/macos            @madsmtm
+
+# Web (no maintainer)
+/src/platform/web.rs
+/src/platform_impl/web
+
+# Windows
+/src/platform/windows.rs            @msiglreith
+/src/platform_impl/windows          @msiglreith

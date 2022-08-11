@@ -15,9 +15,12 @@ future endeavors:
   vastly more sustainable era of winit.
 * [@goddessfreya]: For selflessly taking over maintainership of glutin, and her
   stellar dedication to improving both winit and glutin.
+* [@ArturKovacs]: For consistently maintaining the macOS backend, and his
+  immense involvement in designing and implementing the new keyboard API.
 
 [@tomaka]: https://github.com/tomaka
 [@vberger]: https://github.com/vberger
 [@francesca64]: https://github.com/francesca64
 [@Osspial]: https://github.com/Osspial
 [@goddessfreya]: https://github.com/goddessfreya
+[@ArturKovacs]: https://github.com/ArturKovacs
