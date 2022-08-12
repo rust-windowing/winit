@@ -188,6 +188,7 @@ impl<T: 'static> EventLoop<T> {
                 event_sink,
                 window_user_requests,
                 window_compositor_updates,
+                display: display.clone(),
             }),
             event_loop_handle,
             output_manager,

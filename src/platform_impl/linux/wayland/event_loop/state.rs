@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use wayland_client::Display;
+
 use super::EventSink;
 use crate::platform_impl::wayland::window::shim::{
     WindowCompositorUpdate, WindowHandle, WindowUserRequest,
@@ -28,4 +30,7 @@ pub struct WinitState {
     /// and requests from winit's windows are being forwarded to them either via
     /// `WindowUpdate` or buffer on the associated with it `WindowHandle`.
     pub window_map: HashMap<WindowId, WindowHandle>,
+
+    /// Handle to the display, to flush events when needed.
+    pub display: Display,
 }
