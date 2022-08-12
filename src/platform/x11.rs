@@ -2,21 +2,21 @@ use std::os::raw;
 use std::{ptr, sync::Arc};
 
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{EventLoopBuilder, EventLoopWindowTarget, InnerEventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
 
 use crate::dpi::Size;
 use crate::platform_impl::{
-    x11::ffi::XVisualInfo, x11::XConnection, ApplicationName, Backend,
-    EventLoopWindowTarget as LinuxEventLoopWindowTarget, Window as LinuxWindow, XLIB_ERROR_HOOKS,
+    x11::ffi::XVisualInfo, x11::XConnection, ApplicationName, Platform, Window as LinuxWindow,
+    XLIB_ERROR_HOOKS,
 };
 
 // TODO: stupid hack so that glutin can do its work
 #[doc(hidden)]
 pub use crate::platform_impl::x11;
-pub use crate::platform_impl::{x11::util::WindowType as XWindowType, XNotSupported};
+pub use crate::platform_impl::x11::{util::WindowType as XWindowType, XNotSupported};
 
 /// The first argument in the provided hook will be the pointer to `XDisplay`
 /// and the second one the pointer to [`XErrorEvent`]. The returned `bool` is an
@@ -53,13 +53,17 @@ pub trait EventLoopWindowTargetExtX11 {
 impl<T> EventLoopWindowTargetExtX11 for EventLoopWindowTarget<T> {
     #[inline]
     fn is_x11(&self) -> bool {
-        !self.p.is_wayland()
+        match self.p {
+            InnerEventLoopWindowTarget::X11(_) => true,
+            #[cfg(feature = "wayland")]
+            _ => false,
+        }
     }
 
     #[inline]
     fn xlib_xconnection(&self) -> Option<Arc<XConnection>> {
-        match &*self.p {
-            LinuxEventLoopWindowTarget::X(e) => Some(e.x_connection().clone()),
+        match &self.p {
+            InnerEventLoopWindowTarget::X11(e) => Some(e.x_connection().clone()),
             #[cfg(feature = "wayland")]
             _ => None,
         }
@@ -81,7 +85,7 @@ pub trait EventLoopBuilderExtX11 {
 impl<T> EventLoopBuilderExtX11 for EventLoopBuilder<T> {
     #[inline]
     fn with_x11(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(Backend::X);
+        self.forced_platform = Some(Platform::X11);
         self
     }
 

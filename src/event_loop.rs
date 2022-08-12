@@ -16,7 +16,14 @@ use instant::Instant;
 use once_cell::sync::OnceCell;
 use raw_window_handle::{HasRawDisplayHandle, RawDisplayHandle};
 
+use crate::platform_impl::Platform;
 use crate::{event::Event, monitor::MonitorHandle, platform_impl};
+
+platform! {
+    pub(crate) enum InnerEventLoop<T: 'static> {
+        __Platform__(platform_impl::__platform__::EventLoop<T>),
+    }
+}
 
 /// Provides a way to retrieve events from the system and from the windows that were registered to
 /// the events loop.
@@ -35,8 +42,14 @@ use crate::{event::Event, monitor::MonitorHandle, platform_impl};
 /// [`Window`]: crate::window::Window
 pub struct EventLoop<T: 'static> {
     pub(crate) window_target: EventLoopWindowTarget<T>,
-    pub(crate) event_loop: platform_impl::EventLoop<T>,
+    pub(crate) event_loop: InnerEventLoop<T>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
+}
+
+platform! {
+    pub(crate) enum InnerEventLoopWindowTarget<T: 'static> {
+        __Platform__(Rc<platform_impl::__platform__::EventLoopWindowTarget<T>>),
+    }
 }
 
 /// Target that associates windows with an [`EventLoop`].
@@ -46,7 +59,7 @@ pub struct EventLoop<T: 'static> {
 /// EventLoop<T>`), so functions that take this as a parameter can also take
 /// `&EventLoop`.
 pub struct EventLoopWindowTarget<T: 'static> {
-    pub(crate) p: Rc<platform_impl::EventLoopWindowTarget<T>>,
+    pub(crate) p: InnerEventLoopWindowTarget<T>,
     pub(crate) _marker: PhantomData<*mut ()>, // Not Send nor Sync
 }
 
@@ -56,6 +69,8 @@ pub struct EventLoopWindowTarget<T: 'static> {
 /// easier. But note that constructing multiple event loops is not supported.
 #[derive(Default)]
 pub struct EventLoopBuilder<T: 'static> {
+    #[allow(unused)]
+    pub(crate) forced_platform: Option<Platform>,
     pub(crate) platform_specific: platform_impl::PlatformSpecificEventLoopAttributes,
     _p: PhantomData<T>,
 }
@@ -74,8 +89,94 @@ impl<T> EventLoopBuilder<T> {
     #[inline]
     pub fn with_user_event() -> Self {
         Self {
+            forced_platform: Default::default(),
             platform_specific: Default::default(),
             _p: PhantomData,
+        }
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "netbsd",
+        target_os = "openbsd",
+    ))]
+    fn build_linux(&mut self) -> (InnerEventLoop<T>, InnerEventLoopWindowTarget<T>) {
+        /// Environment variable specifying which platform should be used.
+        const PLATFORM_PREFERENCE_ENV_VAR: &'static str = "WINIT_UNIX_BACKEND";
+
+        match (
+            self.forced_platform,
+            std::env::var(PLATFORM_PREFERENCE_ENV_VAR).as_deref(),
+        ) {
+            #[cfg(feature = "x11")]
+            (Some(Platform::X11), _) | (None, Ok("x11")) => {
+                let (event_loop, window_target) =
+                    platform_impl::x11::EventLoop::new(&self.platform_specific);
+                (
+                    InnerEventLoop::X11(event_loop),
+                    InnerEventLoopWindowTarget::X11(window_target),
+                )
+            }
+
+            #[cfg(feature = "wayland")]
+            (Some(Platform::Wayland), _) | (None, Ok("wayland")) => {
+                let (event_loop, window_target) =
+                    platform_impl::wayland::EventLoop::new(&self.platform_specific);
+                (
+                    InnerEventLoop::Wayland(event_loop),
+                    InnerEventLoopWindowTarget::Wayland(Rc::new(window_target)),
+                )
+            }
+
+            #[cfg(not(feature = "x11"))]
+            (None, Ok("x11")) => panic!("x11 feature is not enabled"),
+
+            #[cfg(not(feature = "wayland"))]
+            (None, Ok("wayland")) => panic!("wayland feature is not enabled"),
+
+            (None, Ok(_)) => panic!(
+                "Unknown environment variable value for {}, try one of `x11`,`wayland`",
+                PLATFORM_PREFERENCE_ENV_VAR,
+            ),
+
+            (None, Err(_)) => {
+                // Try Wayland first
+                #[cfg(feature = "wayland")]
+                let wayland_err =
+                    match platform_impl::wayland::EventLoop::with_errors(&self.platform_specific) {
+                        Ok((event_loop, window_target)) => {
+                            return (
+                                InnerEventLoop::Wayland(event_loop),
+                                InnerEventLoopWindowTarget::Wayland(Rc::new(window_target)),
+                            );
+                        }
+                        Err(err) => err,
+                    };
+                #[cfg(not(feature = "wayland"))]
+                let wayland_err = "backend disabled";
+
+                // Fall back to X11
+                #[cfg(feature = "x11")]
+                let x11_err =
+                    match platform_impl::x11::EventLoop::with_errors(&self.platform_specific) {
+                        Ok((event_loop, window_target)) => {
+                            return (
+                                InnerEventLoop::X11(event_loop),
+                                InnerEventLoopWindowTarget::X11(window_target),
+                            );
+                        }
+                        Err(err) => err,
+                    };
+                #[cfg(not(feature = "x11"))]
+                let x11_err = "backend disabled";
+
+                panic!(
+                    "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
+                    wayland_err, x11_err,
+                );
+            }
         }
     }
 
@@ -95,10 +196,11 @@ impl<T> EventLoopBuilder<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **Linux:** Backend type can be controlled using an environment variable
-    ///   `WINIT_UNIX_BACKEND`. Legal values are `x11` and `wayland`.
-    ///   If it is not set, winit will try to connect to a Wayland connection, and if that fails,
-    ///   will fall back on X11. If this variable is set with any other value, winit will panic.
+    /// - **Unix:** The desired platform can be controlled using the `WINIT_UNIX_BACKEND` environment
+    ///   variable.  Legal values are `x11` and `wayland`. If this variable is set only the named
+    ///   platform will be tried by `winit`. If it is not set, `winit` will try to connect to a
+    ///   Wayland connection, and if that fails, will fallback on X11. If this variable is set with
+    ///   any other value, `winit` will panic.
     ///
     /// [`platform`]: crate::platform
     #[inline]
@@ -108,14 +210,68 @@ impl<T> EventLoopBuilder<T> {
             panic!("Creating EventLoop multiple times is not supported.");
         }
 
-        // Certain platforms accept a mutable reference in their API.
-        #[allow(clippy::unnecessary_mut_passed)]
-        let (event_loop, window_target) =
-            platform_impl::EventLoop::new(&mut self.platform_specific);
+        #[cfg(target_os = "ios")]
+        let (event_loop, window_target) = {
+            let (event_loop, window_target) =
+                platform_impl::EventLoop::new(&self.platform_specific);
+            (
+                InnerEventLoop::Ios(event_loop),
+                InnerEventLoopWindowTarget::Ios(Rc::new(window_target)),
+            )
+        };
+
+        #[cfg(target_os = "macos")]
+        let (event_loop, window_target) = {
+            let (event_loop, window_target) =
+                platform_impl::EventLoop::new(&self.platform_specific);
+            (
+                InnerEventLoop::Macos(event_loop),
+                InnerEventLoopWindowTarget::Macos(Rc::new(window_target)),
+            )
+        };
+
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+        ))]
+        let (event_loop, window_target) = self.build_linux();
+
+        #[cfg(target_os = "windows")]
+        let (event_loop, window_target) = {
+            let (event_loop, window_target) =
+                platform_impl::EventLoop::new(&mut self.platform_specific);
+            (
+                InnerEventLoop::Windows(event_loop),
+                InnerEventLoopWindowTarget::Windows(Rc::new(window_target)),
+            )
+        };
+
+        #[cfg(target_arch = "wasm32")]
+        let (event_loop, window_target) = {
+            let (event_loop, window_target) =
+                platform_impl::EventLoop::new(&self.platform_specific);
+            (
+                InnerEventLoop::Web(event_loop),
+                InnerEventLoopWindowTarget::Web(Rc::new(window_target)),
+            )
+        };
+
+        #[cfg(target_os = "android")]
+        let (event_loop, window_target) = {
+            let (event_loop, window_target) =
+                platform_impl::EventLoop::new(&self.platform_specific);
+            (
+                InnerEventLoop::Android(event_loop),
+                InnerEventLoopWindowTarget::Android(Rc::new(window_target)),
+            )
+        };
 
         EventLoop {
             window_target: EventLoopWindowTarget {
-                p: Rc::new(window_target),
+                p: window_target,
                 _marker: PhantomData,
             },
             event_loop,
@@ -290,19 +446,34 @@ impl<T> EventLoop<T> {
             event_loop,
             ..
         } = self;
-        let platform_window_target = Rc::clone(&window_target.p);
 
-        event_loop.run(
-            move |event, control_flow| event_handler(event, &window_target, control_flow),
-            platform_window_target,
-        )
+        platform!(match (event_loop, &window_target.p) {
+            (
+                InnerEventLoop::__Platform__(event_loop),
+                InnerEventLoopWindowTarget::__Platform__(platform_window_target),
+            ) => {
+                let platform_window_target = Rc::clone(&platform_window_target);
+
+                event_loop.run(
+                    move |event, control_flow| event_handler(event, &window_target, control_flow),
+                    platform_window_target,
+                )
+            }
+            _ => unreachable!(),
+        })
     }
 
     /// Creates an [`EventLoopProxy`] that can be used to dispatch user events to the main event loop.
     pub fn create_proxy(&self) -> EventLoopProxy<T> {
-        let window_target = Rc::clone(&self.window_target.p);
-        EventLoopProxy {
-            event_loop_proxy: self.event_loop.create_proxy(window_target),
+        platform! {
+            use InnerEventLoopProxy::__Platform__;
+            match (&self.event_loop, &self.window_target.p) {
+                (
+                    InnerEventLoop::__Platform__(event_loop),
+                    InnerEventLoopWindowTarget::__Platform__(window_target),
+                ) => EventLoopProxy(__Platform__(event_loop.create_proxy(Rc::clone(&window_target)))),
+                _ => unreachable!(),
+            }
         }
     }
 }
@@ -318,10 +489,13 @@ impl<T> EventLoopWindowTarget<T> {
     /// Returns the list of all the monitors available on the system.
     #[inline]
     pub fn available_monitors(&self) -> impl Iterator<Item = MonitorHandle> {
-        self.p
-            .available_monitors()
-            .into_iter()
-            .map(|inner| MonitorHandle { inner })
+        platform!(match &self.p {
+            InnerEventLoopWindowTarget::__Platform__(this) => {
+                let res: Box<dyn Iterator<Item = MonitorHandle>> =
+                    Box::new(this.available_monitors().into_iter().map(|_inner| todo!()));
+                res
+            }
+        })
     }
 
     /// Returns the primary monitor of the system.
@@ -333,9 +507,11 @@ impl<T> EventLoopWindowTarget<T> {
     /// **Wayland:** Always returns `None`.
     #[inline]
     pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        self.p
-            .primary_monitor()
-            .map(|inner| MonitorHandle { inner })
+        platform!(match &self.p {
+            InnerEventLoopWindowTarget::__Platform__(this) => {
+                this.primary_monitor().map(|_inner| todo!())
+            }
+        })
     }
 
     /// Change [`DeviceEvent`] filter mode.
@@ -358,26 +534,43 @@ impl<T> EventLoopWindowTarget<T> {
             target_os = "openbsd",
             target_os = "windows"
         ))]
-        self.p.set_device_event_filter(_filter);
+        platform!(match &self.p {
+            InnerEventLoopWindowTarget::__Platform__(this) => {
+                this.set_device_event_filter(_filter)
+            }
+        })
     }
 }
 
 unsafe impl<T> HasRawDisplayHandle for EventLoopWindowTarget<T> {
     /// Returns a [`raw_window_handle::RawDisplayHandle`] for the event loop.
     fn raw_display_handle(&self) -> RawDisplayHandle {
-        self.p.raw_display_handle()
+        platform!(match &self.p {
+            InnerEventLoopWindowTarget::__Platform__(this) => {
+                this.raw_display_handle()
+            }
+        })
+    }
+}
+
+platform! {
+    pub(crate) enum InnerEventLoopProxy<T: 'static> {
+        __Platform__(platform_impl::__platform__::EventLoopProxy<T>),
     }
 }
 
 /// Used to send custom events to [`EventLoop`].
-pub struct EventLoopProxy<T: 'static> {
-    event_loop_proxy: platform_impl::EventLoopProxy<T>,
-}
+pub struct EventLoopProxy<T: 'static>(InnerEventLoopProxy<T>);
 
 impl<T: 'static> Clone for EventLoopProxy<T> {
     fn clone(&self) -> Self {
-        Self {
-            event_loop_proxy: self.event_loop_proxy.clone(),
+        platform! {
+            use InnerEventLoopProxy::__Platform__;
+            match &self.0 {
+                InnerEventLoopProxy::__Platform__(this) => {
+                    Self(__Platform__(this.clone()))
+                }
+            }
         }
     }
 }
@@ -391,7 +584,11 @@ impl<T: 'static> EventLoopProxy<T> {
     ///
     /// [`UserEvent(event)`]: Event::UserEvent
     pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        self.event_loop_proxy.send_event(event)
+        platform!(match &self.0 {
+            InnerEventLoopProxy::__Platform__(this) => {
+                this.send_event(event)
+            }
+        })
     }
 }
 

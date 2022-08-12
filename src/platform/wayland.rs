@@ -1,15 +1,12 @@
 use std::os::raw;
 
 use crate::{
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{EventLoopBuilder, EventLoopWindowTarget, InnerEventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
 
-use crate::platform_impl::{
-    ApplicationName, Backend, EventLoopWindowTarget as LinuxEventLoopWindowTarget,
-    Window as LinuxWindow,
-};
+use crate::platform_impl::{ApplicationName, Platform, Window as LinuxWindow};
 
 pub use crate::window::Theme;
 
@@ -32,13 +29,17 @@ pub trait EventLoopWindowTargetExtWayland {
 impl<T> EventLoopWindowTargetExtWayland for EventLoopWindowTarget<T> {
     #[inline]
     fn is_wayland(&self) -> bool {
-        self.p.is_wayland()
+        match self.p {
+            InnerEventLoopWindowTarget::Wayland(_) => true,
+            #[cfg(feature = "x11")]
+            _ => false,
+        }
     }
 
     #[inline]
     fn wayland_display(&self) -> Option<*mut raw::c_void> {
-        match &*self.p {
-            LinuxEventLoopWindowTarget::Wayland(p) => Some(p.display().get_display_ptr() as *mut _),
+        match &self.p {
+            InnerEventLoopWindowTarget::Wayland(p) => Some(p.display().get_display_ptr() as *mut _),
             #[cfg(feature = "x11")]
             _ => None,
         }
@@ -60,7 +61,7 @@ pub trait EventLoopBuilderExtWayland {
 impl<T> EventLoopBuilderExtWayland for EventLoopBuilder<T> {
     #[inline]
     fn with_wayland(&mut self) -> &mut Self {
-        self.platform_specific.forced_backend = Some(Backend::Wayland);
+        self.forced_platform = Some(Platform::Wayland);
         self
     }
 

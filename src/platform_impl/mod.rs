@@ -61,6 +61,7 @@ impl From<Fullscreen> for RootFullscreen {
 }
 
 platform! {
+    #[allow(dead_code)]
     #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
     #[non_exhaustive]
     pub(crate) enum Platform {

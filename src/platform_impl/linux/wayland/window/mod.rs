@@ -571,7 +571,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         None
     }
 

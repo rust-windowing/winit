@@ -1,7 +1,7 @@
 use std::os::raw::c_void;
 
 use crate::{
-    event_loop::EventLoop,
+    event_loop::{EventLoop, InnerEventLoop},
     monitor::{MonitorHandle, VideoMode},
     window::{Window, WindowBuilder},
 };
@@ -14,7 +14,9 @@ pub trait EventLoopExtIOS {
 
 impl<T: 'static> EventLoopExtIOS for EventLoop<T> {
     fn idiom(&self) -> Idiom {
-        self.event_loop.idiom()
+        platform!(match &self.event_loop {
+            InnerEventLoop::__Platform__(this) => this.idiom(),
+        })
     }
 }
 

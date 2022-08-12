@@ -261,9 +261,7 @@ macro_rules! call_event_handler {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(
-        _: &PlatformSpecificEventLoopAttributes,
-    ) -> (Self, EventLoopWindowTarget<T>) {
+    pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> (Self, EventLoopWindowTarget<T>) {
         let (user_events_sender, user_events_receiver) = mpsc::channel();
         (
             Self {

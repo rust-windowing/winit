@@ -8,6 +8,8 @@ use crate::event::Event;
 use crate::event_loop::ControlFlow;
 use crate::event_loop::EventLoop;
 use crate::event_loop::EventLoopWindowTarget;
+use crate::event_loop::InnerEventLoop;
+use crate::event_loop::InnerEventLoopWindowTarget;
 use crate::window::WindowBuilder;
 
 use web_sys::HtmlCanvasElement;
@@ -90,7 +92,11 @@ impl<T> EventLoopExtWebSys for EventLoop<T> {
             event_loop,
             ..
         } = self;
-        let platform_window_target = Rc::clone(&window_target.p);
+        let (event_loop, platform_window_target) = match (event_loop, &window_target.p) {
+            (InnerEventLoop::Web(event_loop), InnerEventLoopWindowTarget::Web(window_target)) => {
+                (event_loop, Rc::clone(&window_target))
+            }
+        };
 
         event_loop.spawn(
             move |event, control_flow| event_handler(event, &window_target, control_flow),

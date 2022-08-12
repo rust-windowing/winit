@@ -20,7 +20,9 @@ use sctk::WaylandSource;
 
 use crate::event::{Event, StartCause, WindowEvent};
 use crate::event_loop::ControlFlow;
-use crate::platform_impl::platform::sticky_exit_callback;
+use crate::platform_impl::platform::{
+    is_main_thread, sticky_exit_callback, PlatformSpecificEventLoopAttributes,
+};
 
 use super::env::{WindowingFeatures, WinitEnv};
 use super::output::OutputManager;
@@ -101,7 +103,29 @@ pub struct EventLoop<T: 'static> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new() -> Result<(Self, EventLoopWindowTarget<T>), Box<dyn Error>> {
+    pub(crate) fn new(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> (Self, EventLoopWindowTarget<T>) {
+        // TODO: Propagate
+        Self::with_errors(attributes).expect("Failed to initialize Wayland backend")
+    }
+
+    pub(crate) fn with_errors(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> Result<(Self, EventLoopWindowTarget<T>), Box<dyn Error>> {
+        if !attributes.any_thread && !is_main_thread() {
+            panic!(
+                "Initializing the event loop outside of the main thread is a significant \
+                 cross-platform compatibility hazard. If you absolutely need to create an \
+                 EventLoop on a different thread, you can use the \
+                 `EventLoopBuilderExtWayland::any_thread` function."
+            );
+        }
+
+        Self::new_any_thread()
+    }
+
+    pub fn new_any_thread() -> Result<(Self, EventLoopWindowTarget<T>), Box<dyn Error>> {
         // Connect to wayland server and setup event queue.
         let display = Display::connect_to_env()?;
         let mut event_queue = display.create_event_queue();
@@ -203,7 +227,7 @@ impl<T: 'static> EventLoop<T> {
         Ok((event_loop, window_target))
     }
 
-    pub fn run<F>(mut self, callback: F, window_target: &EventLoopWindowTarget<T>) -> !
+    pub fn run<F>(mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> !
     where
         F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
     {
@@ -214,7 +238,7 @@ impl<T: 'static> EventLoop<T> {
     pub fn run_return<F>(
         &mut self,
         mut callback: F,
-        window_target: &EventLoopWindowTarget<T>,
+        window_target: Rc<EventLoopWindowTarget<T>>,
     ) -> i32
     where
         F: FnMut(Event<'_, T>, &mut ControlFlow),
@@ -488,7 +512,7 @@ impl<T: 'static> EventLoop<T> {
     }
 
     #[inline]
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+    pub fn create_proxy(&self, _window_target: Rc<EventLoopWindowTarget<T>>) -> EventLoopProxy<T> {
         EventLoopProxy::new(self.user_events_sender.clone())
     }
 

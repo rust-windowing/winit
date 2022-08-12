@@ -2,7 +2,9 @@ use std::rc::Rc;
 
 use crate::{
     event::Event,
-    event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
+    event_loop::{
+        ControlFlow, EventLoop, EventLoopWindowTarget, InnerEventLoop, InnerEventLoopWindowTarget,
+    },
 };
 
 /// Additional methods on [`EventLoop`] to return control flow to the caller.
@@ -51,10 +53,20 @@ impl<T> EventLoopExtRunReturn for EventLoop<T> {
         ),
     {
         let window_target = &self.window_target;
-        let platform_window_target = Rc::clone(&self.window_target.p);
-        self.event_loop.run_return(
-            move |event, control_flow| event_handler(event, window_target, control_flow),
-            platform_window_target,
-        )
+
+        platform!(match (&mut self.event_loop, &window_target.p) {
+            (
+                InnerEventLoop::__Platform__(event_loop),
+                InnerEventLoopWindowTarget::__Platform__(platform_window_target),
+            ) => {
+                let platform_window_target = Rc::clone(&platform_window_target);
+
+                event_loop.run_return(
+                    move |event, control_flow| event_handler(event, window_target, control_flow),
+                    platform_window_target,
+                )
+            }
+            _ => unreachable!(),
+        })
     }
 }

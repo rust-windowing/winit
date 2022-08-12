@@ -346,12 +346,41 @@ impl WindowBuilder {
         self,
         window_target: &EventLoopWindowTarget<T>,
     ) -> Result<Window, OsError> {
-        platform_impl::Window::new(&window_target.p, self.window, self.platform_specific).map(
-            |window| {
-                window.request_redraw();
-                Window { window }
-            },
-        )
+        // TODO
+        #[cfg(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+        ))]
+        {
+            platform_impl::Window::new(&window_target.p, self.window, self.platform_specific).map(
+                |window| {
+                    window.request_redraw();
+                    Window { window }
+                },
+            )
+        }
+        #[cfg(not(any(
+            target_os = "linux",
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "netbsd",
+            target_os = "openbsd",
+        )))]
+        {
+            use crate::event_loop::InnerEventLoopWindowTarget;
+            platform!(match &window_target.p {
+                InnerEventLoopWindowTarget::__Platform__(window_target) => {
+                    platform_impl::Window::new(&window_target, self.window, self.platform_specific)
+                        .map(|window| {
+                            window.request_redraw();
+                            Window { window }
+                        })
+                }
+            })
+        }
     }
 }
 

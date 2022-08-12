@@ -53,8 +53,8 @@ use crate::{
     event::{Event, StartCause},
     event_loop::{ControlFlow, DeviceEventFilter, EventLoopClosed},
     platform_impl::{
-        platform::{sticky_exit_callback, WindowId},
-        PlatformSpecificWindowBuilderAttributes,
+        platform::{is_main_thread, sticky_exit_callback, WindowId, X11_BACKEND},
+        PlatformSpecificEventLoopAttributes, PlatformSpecificWindowBuilderAttributes,
     },
     window::WindowAttributes,
 };
@@ -138,7 +138,34 @@ impl<T: 'static> Clone for EventLoopProxy<T> {
 }
 
 impl<T: 'static> EventLoop<T> {
-    pub fn new(xconn: Arc<XConnection>) -> (Self, Rc<EventLoopWindowTarget<T>>) {
+    pub(crate) fn new(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> (Self, Rc<EventLoopWindowTarget<T>>) {
+        // TODO: Propagate
+        Self::with_errors(attributes).expect("Failed to initialize X11 backend")
+    }
+
+    pub(crate) fn with_errors(
+        attributes: &PlatformSpecificEventLoopAttributes,
+    ) -> Result<(Self, Rc<EventLoopWindowTarget<T>>), XNotSupported> {
+        if !attributes.any_thread && !is_main_thread() {
+            panic!(
+                "Initializing the event loop outside of the main thread is a significant \
+                 cross-platform compatibility hazard. If you absolutely need to create an \
+                 EventLoop on a different thread, you can use the \
+                 `EventLoopBuilderExtX11::any_thread` function."
+            );
+        }
+
+        Self::new_any_thread()
+    }
+
+    fn new_any_thread() -> Result<(Self, Rc<EventLoopWindowTarget<T>>), XNotSupported> {
+        let xconn = match X11_BACKEND.lock().as_ref() {
+            Ok(xconn) => xconn.clone(),
+            Err(err) => return Err(err.clone()),
+        };
+
         let root = unsafe { (xconn.xlib.XDefaultRootWindow)(xconn.display) };
 
         let wm_delete_window = unsafe { xconn.get_atom_unchecked(b"WM_DELETE_WINDOW\0") };
@@ -287,10 +314,10 @@ impl<T: 'static> EventLoop<T> {
             user_sender,
         };
 
-        (event_loop, window_target)
+        Ok((event_loop, window_target))
     }
 
-    pub fn create_proxy(&self) -> EventLoopProxy<T> {
+    pub fn create_proxy(&self, _window_target: Rc<EventLoopWindowTarget<T>>) -> EventLoopProxy<T> {
         EventLoopProxy {
             user_sender: self.user_sender.clone(),
             waker: self.waker.clone(),
@@ -523,6 +550,14 @@ impl<T> EventLoopWindowTarget<T> {
     #[inline]
     pub fn x_connection(&self) -> &Arc<XConnection> {
         &self.xconn
+    }
+
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(self.xconn.primary_monitor())
+    }
+
+    pub fn available_monitors(&self) -> Vec<MonitorHandle> {
+        self.xconn.available_monitors()
     }
 
     pub fn set_device_event_filter(&self, filter: DeviceEventFilter) {

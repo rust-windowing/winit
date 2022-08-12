@@ -9,10 +9,7 @@
 #[cfg(all(not(feature = "x11"), not(feature = "wayland")))]
 compile_error!("Please select a feature to build for unix: `x11`, `wayland`");
 
-#[cfg(feature = "wayland")]
-use std::error::Error;
-
-use std::{collections::VecDeque, env, fmt, rc::Rc};
+use std::{collections::VecDeque, fmt};
 #[cfg(feature = "x11")]
 use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
 
@@ -34,7 +31,7 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     event::Event,
-    event_loop::{ControlFlow, DeviceEventFilter, EventLoopClosed},
+    event_loop::{ControlFlow, InnerEventLoopWindowTarget},
     icon::Icon,
     window::{CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes},
 };
@@ -47,26 +44,8 @@ pub mod wayland;
 #[cfg(feature = "x11")]
 pub mod x11;
 
-/// Environment variable specifying which backend should be used on unix platform.
-///
-/// Legal values are x11 and wayland. If this variable is set only the named backend
-/// will be tried by winit. If it is not set, winit will try to connect to a wayland connection,
-/// and if it fails will fallback on x11.
-///
-/// If this variable is set with any other value, winit will panic.
-const BACKEND_PREFERENCE_ENV_VAR: &str = "WINIT_UNIX_BACKEND";
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub(crate) enum Backend {
-    #[cfg(feature = "x11")]
-    X,
-    #[cfg(feature = "wayland")]
-    Wayland,
-}
-
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
-    pub(crate) forced_backend: Option<Backend>,
     pub(crate) any_thread: bool,
 }
 
@@ -305,17 +284,17 @@ impl VideoMode {
 impl Window {
     #[inline]
     pub(crate) fn new<T>(
-        window_target: &EventLoopWindowTarget<T>,
+        window_target: &InnerEventLoopWindowTarget<T>,
         attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
         match *window_target {
             #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(ref window_target) => {
+            InnerEventLoopWindowTarget::Wayland(ref window_target) => {
                 wayland::Window::new(window_target, attribs, pl_attribs).map(Window::Wayland)
             }
             #[cfg(feature = "x11")]
-            EventLoopWindowTarget::X(ref window_target) => {
+            InnerEventLoopWindowTarget::X11(ref window_target) => {
                 x11::Window::new(window_target, attribs, pl_attribs).map(Window::X)
             }
         }
@@ -562,7 +541,7 @@ impl Window {
                 Some(primary_monitor)
             }
             #[cfg(feature = "wayland")]
-            Window::Wayland(ref window) => window.primary_monitor(),
+            Window::Wayland(ref window) => window.primary_monitor().map(MonitorHandle::Wayland),
         }
     }
 
@@ -622,232 +601,6 @@ unsafe extern "C" fn x_error_callback(
     }
     // Fun fact: this return value is completely ignored.
     0
-}
-
-pub enum EventLoop<T: 'static> {
-    #[cfg(feature = "wayland")]
-    Wayland(Box<wayland::EventLoop<T>>),
-    #[cfg(feature = "x11")]
-    X(x11::EventLoop<T>),
-}
-
-pub enum EventLoopProxy<T: 'static> {
-    #[cfg(feature = "x11")]
-    X(x11::EventLoopProxy<T>),
-    #[cfg(feature = "wayland")]
-    Wayland(wayland::EventLoopProxy<T>),
-}
-
-impl<T: 'static> Clone for EventLoopProxy<T> {
-    fn clone(&self) -> Self {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.clone(); as EventLoopProxy)
-    }
-}
-
-impl<T: 'static> EventLoop<T> {
-    pub(crate) fn new(
-        attributes: &PlatformSpecificEventLoopAttributes,
-    ) -> (Self, EventLoopWindowTarget<T>) {
-        if !attributes.any_thread && !is_main_thread() {
-            panic!(
-                "Initializing the event loop outside of the main thread is a significant \
-                 cross-platform compatibility hazard. If you absolutely need to create an \
-                 EventLoop on a different thread, you can use the \
-                 `EventLoopBuilderExtUnix::any_thread` function."
-            );
-        }
-
-        #[cfg(feature = "x11")]
-        if attributes.forced_backend == Some(Backend::X) {
-            // TODO: Propagate
-            return EventLoop::new_x11_any_thread().unwrap();
-        }
-
-        #[cfg(feature = "wayland")]
-        if attributes.forced_backend == Some(Backend::Wayland) {
-            // TODO: Propagate
-            return EventLoop::new_wayland_any_thread().expect("failed to open Wayland connection");
-        }
-
-        if let Ok(env_var) = env::var(BACKEND_PREFERENCE_ENV_VAR) {
-            match env_var.as_str() {
-                "x11" => {
-                    // TODO: propagate
-                    #[cfg(feature = "x11")]
-                    return EventLoop::new_x11_any_thread()
-                        .expect("Failed to initialize X11 backend");
-                    #[cfg(not(feature = "x11"))]
-                    panic!("x11 feature is not enabled")
-                }
-                "wayland" => {
-                    #[cfg(feature = "wayland")]
-                    return EventLoop::new_wayland_any_thread()
-                        .expect("Failed to initialize Wayland backend");
-                    #[cfg(not(feature = "wayland"))]
-                    panic!("wayland feature is not enabled");
-                }
-                _ => panic!(
-                    "Unknown environment variable value for {}, try one of `x11`,`wayland`",
-                    BACKEND_PREFERENCE_ENV_VAR,
-                ),
-            }
-        }
-
-        #[cfg(feature = "wayland")]
-        let wayland_err = match EventLoop::new_wayland_any_thread() {
-            Ok(event_loop) => return event_loop,
-            Err(err) => err,
-        };
-
-        #[cfg(feature = "x11")]
-        let x11_err = match EventLoop::new_x11_any_thread() {
-            Ok(event_loop) => return event_loop,
-            Err(err) => err,
-        };
-
-        #[cfg(not(feature = "wayland"))]
-        let wayland_err = "backend disabled";
-        #[cfg(not(feature = "x11"))]
-        let x11_err = "backend disabled";
-
-        panic!(
-            "Failed to initialize any backend! Wayland status: {:?} X11 status: {:?}",
-            wayland_err, x11_err,
-        );
-    }
-
-    #[cfg(feature = "wayland")]
-    fn new_wayland_any_thread() -> Result<(Self, EventLoopWindowTarget<T>), Box<dyn Error>> {
-        wayland::EventLoop::new().map(|(evlp, window_target)| {
-            (
-                Self::Wayland(Box::new(evlp)),
-                EventLoopWindowTarget::Wayland(window_target),
-            )
-        })
-    }
-
-    #[cfg(feature = "x11")]
-    fn new_x11_any_thread() -> Result<(Self, EventLoopWindowTarget<T>), XNotSupported> {
-        let xconn = match X11_BACKEND.lock().as_ref() {
-            Ok(xconn) => xconn.clone(),
-            Err(err) => return Err(err.clone()),
-        };
-
-        let (evlp, window_target) = x11::EventLoop::new(xconn);
-
-        Ok((Self::X(evlp), EventLoopWindowTarget::X(window_target)))
-    }
-
-    pub fn create_proxy(&self, _window_target: Rc<EventLoopWindowTarget<T>>) -> EventLoopProxy<T> {
-        x11_or_wayland!(match self; EventLoop(evlp) => evlp.create_proxy(); as EventLoopProxy)
-    }
-
-    pub fn run_return<F>(&mut self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> i32
-    where
-        F: FnMut(Event<'_, T>, &mut ControlFlow),
-    {
-        match (self, &*window_target) {
-            #[cfg(feature = "x11")]
-            (Self::X(evlp), EventLoopWindowTarget::X(window_target)) => {
-                evlp.run_return(callback, Rc::clone(window_target))
-            }
-            #[cfg(feature = "wayland")]
-            (Self::Wayland(evlp), EventLoopWindowTarget::Wayland(window_target)) => {
-                evlp.run_return(callback, window_target)
-            }
-            #[cfg(all(feature = "x11", feature = "wayland"))]
-            _ => unreachable!(),
-        }
-    }
-
-    pub fn run<F>(self, callback: F, window_target: Rc<EventLoopWindowTarget<T>>) -> !
-    where
-        F: 'static + FnMut(Event<'_, T>, &mut ControlFlow),
-    {
-        match (self, &*window_target) {
-            #[cfg(feature = "x11")]
-            (Self::X(evlp), EventLoopWindowTarget::X(window_target)) => {
-                evlp.run(callback, Rc::clone(window_target))
-            }
-            #[cfg(feature = "wayland")]
-            (Self::Wayland(evlp), EventLoopWindowTarget::Wayland(window_target)) => {
-                evlp.run(callback, window_target)
-            }
-            #[cfg(all(feature = "x11", feature = "wayland"))]
-            _ => unreachable!(),
-        }
-    }
-}
-
-impl<T: 'static> EventLoopProxy<T> {
-    pub fn send_event(&self, event: T) -> Result<(), EventLoopClosed<T>> {
-        x11_or_wayland!(match self; EventLoopProxy(proxy) => proxy.send_event(event))
-    }
-}
-
-pub enum EventLoopWindowTarget<T> {
-    #[cfg(feature = "wayland")]
-    Wayland(wayland::EventLoopWindowTarget<T>),
-    #[cfg(feature = "x11")]
-    X(Rc<x11::EventLoopWindowTarget<T>>),
-}
-
-impl<T> EventLoopWindowTarget<T> {
-    #[inline]
-    pub fn is_wayland(&self) -> bool {
-        match *self {
-            #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(_) => true,
-            #[cfg(feature = "x11")]
-            _ => false,
-        }
-    }
-
-    #[inline]
-    pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
-        match *self {
-            #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(ref evlp) => evlp
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::Wayland)
-                .collect(),
-            #[cfg(feature = "x11")]
-            EventLoopWindowTarget::X(ref evlp) => evlp
-                .x_connection()
-                .available_monitors()
-                .into_iter()
-                .map(MonitorHandle::X)
-                .collect(),
-        }
-    }
-
-    #[inline]
-    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
-        match *self {
-            #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(ref evlp) => evlp.primary_monitor(),
-            #[cfg(feature = "x11")]
-            EventLoopWindowTarget::X(ref evlp) => {
-                let primary_monitor = MonitorHandle::X(evlp.x_connection().primary_monitor());
-                Some(primary_monitor)
-            }
-        }
-    }
-
-    #[inline]
-    pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
-        match *self {
-            #[cfg(feature = "wayland")]
-            EventLoopWindowTarget::Wayland(_) => (),
-            #[cfg(feature = "x11")]
-            EventLoopWindowTarget::X(ref evlp) => evlp.set_device_event_filter(_filter),
-        }
-    }
-
-    pub fn raw_display_handle(&self) -> raw_window_handle::RawDisplayHandle {
-        x11_or_wayland!(match self; Self(evlp) => evlp.raw_display_handle())
-    }
 }
 
 fn sticky_exit_callback<T, F>(evt: Event<'_, T>, control_flow: &mut ControlFlow, callback: &mut F)

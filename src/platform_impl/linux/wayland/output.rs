@@ -8,6 +8,7 @@ use sctk::environment::Environment;
 use sctk::output::OutputStatusListener;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
+use crate::event_loop::DeviceEventFilter;
 use crate::platform_impl::platform::{
     MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode,
 };
@@ -244,4 +245,7 @@ impl<T> EventLoopWindowTarget<T> {
         // There's no primary monitor on Wayland.
         None
     }
+
+    #[inline]
+    pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {}
 }

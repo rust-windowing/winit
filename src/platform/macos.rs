@@ -2,7 +2,7 @@ use std::os::raw::c_void;
 
 use crate::{
     dpi::LogicalSize,
-    event_loop::{EventLoopBuilder, EventLoopWindowTarget},
+    event_loop::{EventLoopBuilder, EventLoopWindowTarget, InnerEventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
 };
@@ -263,10 +263,18 @@ pub trait EventLoopWindowTargetExtMacOS {
 
 impl<T> EventLoopWindowTargetExtMacOS for EventLoopWindowTarget<T> {
     fn hide_application(&self) {
-        self.p.hide_application()
+        platform!(match &self.p {
+            InnerEventLoopWindowTarget::__Platform__(this) => {
+                this.hide_application()
+            }
+        })
     }
 
     fn hide_other_applications(&self) {
-        self.p.hide_other_applications()
+        platform!(match &self.p {
+            InnerEventLoopWindowTarget::__Platform__(this) => {
+                this.hide_other_applications()
+            }
+        })
     }
 }
