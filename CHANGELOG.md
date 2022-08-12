@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, respect min/max inner sizes when creating the window.
 - For backwards compatibility, `Window` now (additionally) implements the old version (`0.4`) of the `HasRawWindowHandle` trait
 - On Windows, added support for `EventLoopWindowTarget::set_device_event_filter`.
+- On Wayland, fix user requested `WindowEvent::RedrawRequested` being delayed by a frame.
 
 # 0.27.1 (2022-07-30)
 
