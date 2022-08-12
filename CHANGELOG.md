@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.27.2 (2022-8-12)
+
 - On macOS, fixed touch phase reporting when scrolling.
 - On X11, fix min, max and resize increment hints not persisting for resizable windows (e.g. on DPI change).
 - On Windows, respect min/max inner sizes when creating the window.
