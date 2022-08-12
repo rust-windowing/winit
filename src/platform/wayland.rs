@@ -142,13 +142,14 @@ impl WindowExtWayland for Window {
 
 /// Additional methods on [`WindowBuilder`] that are specific to Wayland.
 pub trait WindowBuilderExtWayland {
-    /// Build window with the given application ID.
+    /// Build window with the given name.
     ///
-    /// This should match the `.desktop` file destributed with your program.
+    /// The `general` name sets an application ID, which should match the `.desktop`
+    /// file destributed with your program. The `instance` is a `no-op`.
     ///
     /// For details about application ID conventions, see the
     /// [Desktop Entry Spec](https://specifications.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id)
-    fn with_application_id(self, application_id: impl Into<String>) -> Self;
+    fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self;
 
     /// Build window with certain decoration [`Theme`]
     ///
@@ -159,9 +160,8 @@ pub trait WindowBuilderExtWayland {
 
 impl WindowBuilderExtWayland for WindowBuilder {
     #[inline]
-    fn with_application_id(mut self, application_id: impl Into<String>) -> Self {
-        self.platform_specific.name =
-            Some(ApplicationName::new(application_id.into(), String::new()));
+    fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self {
+        self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
         self
     }
 
