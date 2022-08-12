@@ -411,8 +411,8 @@ impl Window {
 
             let frame = match window_attributes.inner_size {
                 Some(dim) => {
-                    let scale_factor = msg_send![screen, scale];
-                    let size = dim.to_logical::<f64>(scale_factor);
+                    let scale_factor: CGFloat = msg_send![screen, scale];
+                    let size = dim.to_logical::<f64>(scale_factor as f64);
                     CGRect {
                         origin: screen_bounds.origin,
                         size: CGSize {
@@ -427,8 +427,8 @@ impl Window {
             let view = view::create_view(&window_attributes, &platform_attributes, frame);
 
             let gl_or_metal_backed = {
-                let view_class: id = msg_send![view, class];
-                let layer_class: id = msg_send![view_class, layerClass];
+                let view_class: *const Class = msg_send![view, class];
+                let layer_class: *const Class = msg_send![view_class, layerClass];
                 let is_metal: BOOL =
                     msg_send![layer_class, isSubclassOfClass: class!(CAMetalLayer)];
                 let is_gl: BOOL = msg_send![layer_class, isSubclassOfClass: class!(CAEAGLLayer)];
