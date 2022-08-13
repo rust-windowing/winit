@@ -84,9 +84,8 @@ fn parse_offer(display: &Display, offer: &DataOffer) -> io::Result<Vec<PathBuf>>
                 Ok(decoded) => decoded,
                 Err(_) => continue,
             };
-            let start = "file://";
-            if decoded.starts_with(start) {
-                paths.push(PathBuf::from(&decoded[start.len()..]));
+            if let Some(path) = decoded.strip_prefix("file://") {
+                paths.push(PathBuf::from(path));
             }
         }
         Ok(paths)

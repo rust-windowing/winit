@@ -183,7 +183,7 @@ impl SeatManagerInner {
             if seat_data.defunct {
                 seat_info.dnd = None;
             } else {
-                seat_info.dnd = Some(Dnd::new(seat, &data_device_manager));
+                seat_info.dnd = Some(Dnd::new(seat, data_device_manager));
             }
         }
     }
