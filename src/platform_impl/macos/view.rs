@@ -1148,12 +1148,27 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
                 MouseScrollDelta::LineDelta(x as f32, y as f32)
             }
         };
-        let phase = match event.phase() {
+
+        // The "momentum phase," if any, has higher priority than touch phase (the two should
+        // be mutually exclusive anyhow, which is why the API is rather incoherent). If no momentum
+        // phase is recorded (or rather, the started/ended cases of the momentum phase) then we
+        // report the touch phase.
+        let phase = match event.momentumPhase() {
             NSEventPhase::NSEventPhaseMayBegin | NSEventPhase::NSEventPhaseBegan => {
                 TouchPhase::Started
             }
-            NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
-            _ => TouchPhase::Moved,
+            NSEventPhase::NSEventPhaseEnded | NSEventPhase::NSEventPhaseCancelled => {
+                TouchPhase::Ended
+            }
+            _ => match event.phase() {
+                NSEventPhase::NSEventPhaseMayBegin | NSEventPhase::NSEventPhaseBegan => {
+                    TouchPhase::Started
+                }
+                NSEventPhase::NSEventPhaseEnded | NSEventPhase::NSEventPhaseCancelled => {
+                    TouchPhase::Ended
+                }
+                _ => TouchPhase::Moved,
+            },
         };
 
         let device_event = Event::DeviceEvent {

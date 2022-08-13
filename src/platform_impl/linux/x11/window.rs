@@ -371,14 +371,14 @@ impl UnownedWindow {
                     } else {
                         max_inner_size = Some(dimensions.into());
                         min_inner_size = Some(dimensions.into());
-
-                        let mut shared_state = window.shared_state.get_mut();
-                        shared_state.min_inner_size = window_attrs.min_inner_size;
-                        shared_state.max_inner_size = window_attrs.max_inner_size;
-                        shared_state.resize_increments = pl_attribs.resize_increments;
-                        shared_state.base_size = pl_attribs.base_size;
                     }
                 }
+
+                let mut shared_state = window.shared_state.get_mut();
+                shared_state.min_inner_size = min_inner_size.map(Into::into);
+                shared_state.max_inner_size = max_inner_size.map(Into::into);
+                shared_state.resize_increments = pl_attribs.resize_increments;
+                shared_state.base_size = pl_attribs.base_size;
 
                 let mut normal_hints = util::NormalHints::new(xconn);
                 normal_hints.set_position(position.map(|PhysicalPosition { x, y }| (x, y)));

@@ -323,7 +323,7 @@ impl<T> EventLoopWindowTarget<T> {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland / Windows / macOS / iOS / Android / Web:** Unsupported.
+    /// - **Wayland / macOS / iOS / Android / Web:** Unsupported.
     ///
     /// [`DeviceEvent`]: crate::event::DeviceEvent
     pub fn set_device_event_filter(&self, _filter: DeviceEventFilter) {
@@ -332,7 +332,8 @@ impl<T> EventLoopWindowTarget<T> {
             target_os = "dragonfly",
             target_os = "freebsd",
             target_os = "netbsd",
-            target_os = "openbsd"
+            target_os = "openbsd",
+            target_os = "windows"
         ))]
         self.p.set_device_event_filter(_filter);
     }

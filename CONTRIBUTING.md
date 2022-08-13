@@ -44,10 +44,9 @@ Once your PR is deemed ready, the merging maintainer will take care of resolving
 
 ## Maintainers & Testers
 
-The current [list of testers and contributors](https://github.com/rust-windowing/winit/wiki/Testers-and-Contributors)
-can be found on the Wiki.
+The current maintainers are listed in the [CODEOWNERS](.github/CODEOWNERS) file.
 
-If you are interested in contributing or testing on a platform, please add yourself to that table!
+If you are interested in being pinged when testing is needed for a certain platform, please add yourself to the [Testers and Contributors](https://github.com/rust-windowing/winit/wiki/Testers-and-Contributors) table!
 
 ## Making a new release
 

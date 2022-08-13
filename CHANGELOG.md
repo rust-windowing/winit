@@ -8,9 +8,17 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On Windows, respect min/max inner sizes when creating the window.
 - On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
 - On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
+
+# 0.27.2 (2022-8-12)
+
+- On macOS, fixed touch phase reporting when scrolling.
+- On X11, fix min, max and resize increment hints not persisting for resizable windows (e.g. on DPI change).
+- On Windows, respect min/max inner sizes when creating the window.
+- For backwards compatibility, `Window` now (additionally) implements the old version (`0.4`) of the `HasRawWindowHandle` trait
+- On Windows, added support for `EventLoopWindowTarget::set_device_event_filter`.
+- On Wayland, fix user requested `WindowEvent::RedrawRequested` being delayed by a frame.
 
 # 0.27.1 (2022-07-30)
 

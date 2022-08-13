@@ -1066,6 +1066,109 @@ unsafe impl HasRawDisplayHandle for Window {
         self.window.raw_display_handle()
     }
 }
+unsafe impl raw_window_handle_04::HasRawWindowHandle for Window {
+    /// Returns a [`raw_window_handle_04::RawWindowHandle`] for the Window
+    ///
+    /// This provides backwards compatibility for downstream crates that have not yet
+    /// upgraded to `raw_window_handle` version 0.5, such as Wgpu version 0.13.
+    ///
+    /// ## Platform-specific
+    ///
+    /// ### Android
+    ///
+    /// Only available after receiving [`Event::Resumed`] and before [`Event::Suspended`]. *If you
+    /// try to get the handle outside of that period, this function will panic*!
+    ///
+    /// Make sure to release or destroy any resources created from this `RawWindowHandle` (ie. Vulkan
+    /// or OpenGL surfaces) before returning from [`Event::Suspended`], at which point Android will
+    /// release the underlying window/surface: any subsequent interaction is undefined behavior.
+    ///
+    /// [`Event::Resumed`]: crate::event::Event::Resumed
+    /// [`Event::Suspended`]: crate::event::Event::Suspended
+    fn raw_window_handle(&self) -> raw_window_handle_04::RawWindowHandle {
+        use raw_window_handle_04::{
+            AndroidNdkHandle, AppKitHandle, HaikuHandle, OrbitalHandle, UiKitHandle, WaylandHandle,
+            WebHandle, Win32Handle, WinRtHandle, XcbHandle, XlibHandle,
+        };
+
+        // XXX: Ideally this would be encapsulated either through a
+        // compatibility API from raw_window_handle_05 or else within the
+        // backends but since this is only to provide short-term backwards
+        // compatibility, we just handle the full mapping inline here.
+        //
+        // The intention is to remove this trait implementation before Winit
+        // 0.28, once crates have had time to upgrade to raw_window_handle 0.5
+
+        match (self.window.raw_window_handle(), self.window.raw_display_handle()) {
+            (RawWindowHandle::UiKit(window_handle), _) => {
+                let mut handle = UiKitHandle::empty();
+                handle.ui_view = window_handle.ui_view;
+                handle.ui_window = window_handle.ui_window;
+                handle.ui_view_controller = window_handle.ui_view_controller;
+                raw_window_handle_04::RawWindowHandle::UiKit(handle)
+            },
+            (RawWindowHandle::AppKit(window_handle), _) => {
+                let mut handle = AppKitHandle::empty();
+                handle.ns_window = window_handle.ns_window;
+                handle.ns_view = window_handle.ns_view;
+                raw_window_handle_04::RawWindowHandle::AppKit(handle)
+            },
+            (RawWindowHandle::Orbital(window_handle), _) => {
+                let mut handle = OrbitalHandle::empty();
+                handle.window = window_handle.window;
+                raw_window_handle_04::RawWindowHandle::Orbital(handle)
+            },
+            (RawWindowHandle::Xlib(window_handle), RawDisplayHandle::Xlib(display_handle)) => {
+                let mut handle = XlibHandle::empty();
+                handle.display = display_handle.display;
+                handle.window = window_handle.window;
+                handle.visual_id = window_handle.visual_id;
+                raw_window_handle_04::RawWindowHandle::Xlib(handle)
+            },
+            (RawWindowHandle::Xcb(window_handle), RawDisplayHandle::Xcb(display_handle)) => {
+                let mut handle = XcbHandle::empty();
+                handle.connection = display_handle.connection;
+                handle.window = window_handle.window;
+                handle.visual_id = window_handle.visual_id;
+                raw_window_handle_04::RawWindowHandle::Xcb(handle)
+            },
+            (RawWindowHandle::Wayland(window_handle), RawDisplayHandle::Wayland(display_handle)) => {
+                let mut handle = WaylandHandle::empty();
+                handle.display = display_handle.display;
+                handle.surface = window_handle.surface;
+                raw_window_handle_04::RawWindowHandle::Wayland(handle)
+            },
+            (RawWindowHandle::Win32(window_handle), _) => {
+                let mut handle = Win32Handle::empty();
+                handle.hwnd = window_handle.hwnd;
+                handle.hinstance = window_handle.hinstance;
+                raw_window_handle_04::RawWindowHandle::Win32(handle)
+            },
+            (RawWindowHandle::WinRt(window_handle), _) => {
+                let mut handle = WinRtHandle::empty();
+                handle.core_window = window_handle.core_window;
+                raw_window_handle_04::RawWindowHandle::WinRt(handle)
+            },
+            (RawWindowHandle::Web(window_handle), _) => {
+                let mut handle = WebHandle::empty();
+                handle.id = window_handle.id;
+                raw_window_handle_04::RawWindowHandle::Web(handle)
+            },
+            (RawWindowHandle::AndroidNdk(window_handle), _) => {
+                let mut handle = AndroidNdkHandle::empty();
+                handle.a_native_window = window_handle.a_native_window;
+                raw_window_handle_04::RawWindowHandle::AndroidNdk(handle)
+            },
+            (RawWindowHandle::Haiku(window_handle), _) => {
+                let mut handle = HaikuHandle::empty();
+                handle.b_window = window_handle.b_window;
+                handle.b_direct_window = window_handle.b_direct_window;
+                raw_window_handle_04::RawWindowHandle::Haiku(handle)
+            },
+            _ => panic!("No HasRawWindowHandle version 0.4 backwards compatibility for new Winit window type"),
+        }
+    }
+}
 
 /// The behavior of cursor grabbing.
 ///
