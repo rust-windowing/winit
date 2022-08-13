@@ -8,8 +8,9 @@ use sctk::data_device::{DataOffer, DndEvent};
 use wayland_client::Display;
 
 use crate::{
+    dpi::PhysicalPosition,
     event::WindowEvent,
-    platform_impl::wayland::{event_loop::WinitState, make_wid},
+    platform_impl::wayland::{event_loop::WinitState, make_wid, DeviceId},
 };
 
 use super::DndInner;
@@ -21,6 +22,8 @@ pub(super) fn handle_dnd(event: DndEvent<'_>, inner: &mut DndInner, winit_state:
         DndEvent::Enter {
             offer: Some(offer),
             surface,
+            x,
+            y,
             ..
         } => {
             let window_id = make_wid(&surface);
@@ -28,6 +31,26 @@ pub(super) fn handle_dnd(event: DndEvent<'_>, inner: &mut DndInner, winit_state:
             if let Ok(paths) = parse_offer(&winit_state.display, offer) {
                 if !paths.is_empty() {
                     offer.accept(Some(MIME_TYPE.into()));
+
+                    winit_state.event_sink.push_window_event(
+                        WindowEvent::CursorEntered {
+                            device_id: crate::event::DeviceId(
+                                crate::platform_impl::DeviceId::Wayland(DeviceId),
+                            ),
+                        },
+                        window_id,
+                    );
+                    winit_state.event_sink.push_window_event(
+                        WindowEvent::CursorMoved {
+                            device_id: crate::event::DeviceId(
+                                crate::platform_impl::DeviceId::Wayland(DeviceId),
+                            ),
+                            position: PhysicalPosition::new(x, y),
+                            modifiers: Default::default(),
+                        },
+                        window_id,
+                    );
+
                     for path in paths {
                         winit_state
                             .event_sink
@@ -57,6 +80,28 @@ pub(super) fn handle_dnd(event: DndEvent<'_>, inner: &mut DndInner, winit_state:
                 winit_state
                     .event_sink
                     .push_window_event(WindowEvent::HoveredFileCancelled, window_id);
+                winit_state.event_sink.push_window_event(
+                    WindowEvent::CursorLeft {
+                        device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
+                            DeviceId,
+                        )),
+                    },
+                    window_id,
+                );
+            }
+        }
+        DndEvent::Motion { x, y, .. } => {
+            if let Some(window_id) = inner.window_id {
+                winit_state.event_sink.push_window_event(
+                    WindowEvent::CursorMoved {
+                        device_id: crate::event::DeviceId(crate::platform_impl::DeviceId::Wayland(
+                            DeviceId,
+                        )),
+                        position: PhysicalPosition::new(x, y),
+                        modifiers: Default::default(),
+                    },
+                    window_id,
+                );
             }
         }
         _ => {}
