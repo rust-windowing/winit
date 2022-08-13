@@ -7,7 +7,10 @@ use percent_encoding::percent_decode_str;
 use sctk::data_device::{DataOffer, DndEvent};
 use wayland_client::Display;
 
-use crate::{event::WindowEvent, platform_impl::wayland::event_loop::WinitState};
+use crate::{
+    event::WindowEvent,
+    platform_impl::wayland::{event_loop::WinitState, make_wid},
+};
 
 use super::DndInner;
 
@@ -20,14 +23,7 @@ pub(super) fn handle_dnd(event: DndEvent<'_>, inner: &mut DndInner, winit_state:
             surface,
             ..
         } => {
-            let window_id = match winit_state
-                .window_map
-                .iter()
-                .find(|(_, window)| window.window.surface() == &surface)
-            {
-                Some((id, _)) => *id,
-                None => return,
-            };
+            let window_id = make_wid(&surface);
 
             if let Ok(paths) = parse_offer(&winit_state.display, offer) {
                 if !paths.is_empty() {
