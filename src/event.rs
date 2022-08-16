@@ -431,7 +431,9 @@ pub enum WindowEvent<'a> {
     /// Positive delta values indicate magnification (zooming in) and
     /// negative delta values indicate shrinking (zooming out).
     ///
-    /// At the moment, only supported on macOS.
+    /// ## Platform-specific
+    ///
+    /// - Only available on **macOS**.
     TouchpadMagnify {
         device_id: DeviceId,
         delta: f64,

@@ -1205,7 +1205,7 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
 }
 
 extern "C" fn magnify_with_event(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `magnifyWithEvent`");
+    trace_scope!("magnifyWithEvent:");
 
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
@@ -1231,11 +1231,10 @@ extern "C" fn magnify_with_event(this: &Object, _sel: Sel, event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `magnifyWithEvent`");
 }
 
 extern "C" fn rotate_with_event(this: &Object, _sel: Sel, event: id) {
-    trace!("Triggered `rotateWithEvent`");
+    trace_scope!("rotateWithEvent:");
 
     unsafe {
         let state_ptr: *mut c_void = *this.get_ivar("winitState");
@@ -1261,7 +1260,6 @@ extern "C" fn rotate_with_event(this: &Object, _sel: Sel, event: id) {
 
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
-    trace!("Completed `rotateWithEvent`");
 }
 
 extern "C" fn pressure_change_with_event(this: &Object, _sel: Sel, event: id) {
