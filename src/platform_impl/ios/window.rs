@@ -172,8 +172,7 @@ impl Inner {
 
     pub fn scale_factor(&self) -> f64 {
         unsafe {
-            let windowScene: *mut Object = msg_send![self.window, windowScene];
-            let screen: *mut Object = msg_send![windowScene, screen];
+            let screen: *mut Object = msg_send![self.window, screen];
             let screenNativeScale: CGFloat = msg_send![screen, nativeScale];
 
             screenNativeScale as _
