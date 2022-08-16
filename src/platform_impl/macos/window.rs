@@ -1,4 +1,3 @@
-use raw_window_handle::{AppKitHandle, RawWindowHandle};
 use std::{
     collections::VecDeque,
     convert::TryInto,
@@ -8,6 +7,10 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, MutexGuard, Weak,
     },
+};
+
+use raw_window_handle::{
+    AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
 use crate::{
@@ -20,7 +23,6 @@ use crate::{
     platform::macos::WindowExtMacOS,
     platform_impl::platform::{
         app_state::AppState,
-        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
@@ -30,7 +32,8 @@ use crate::{
         OsError,
     },
     window::{
-        CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWindowId,
+        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        WindowId as RootWindowId,
     },
 };
 use cocoa::{
@@ -47,6 +50,7 @@ use objc::{
     rc::autoreleasepool,
     runtime::{Class, Object, Sel, BOOL, NO, YES},
 };
+use once_cell::sync::Lazy;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(pub usize);
@@ -54,6 +58,18 @@ pub struct WindowId(pub usize);
 impl WindowId {
     pub const unsafe fn dummy() -> Self {
         Self(0)
+    }
+}
+
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0 as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id as usize)
     }
 }
 
@@ -99,8 +115,13 @@ unsafe fn create_view(
 ) -> Option<(IdRef, Weak<Mutex<CursorState>>)> {
     let (ns_view, cursor_state) = new_view(ns_window);
     ns_view.non_nil().map(|ns_view| {
+        // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
+        // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
+        // always the default system value in favour of the user's code
         if !pl_attribs.disallow_hidpi {
             ns_view.setWantsBestResolutionOpenGLSurface_(YES);
+        } else {
+            ns_view.setWantsBestResolutionOpenGLSurface_(NO);
         }
 
         // On Mojave, views automatically become layer-backed shortly after being added to
@@ -247,32 +268,30 @@ struct WindowClass(*const Class);
 unsafe impl Send for WindowClass {}
 unsafe impl Sync for WindowClass {}
 
-lazy_static! {
-    static ref WINDOW_CLASS: WindowClass = unsafe {
-        let window_superclass = class!(NSWindow);
-        let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
+static WINDOW_CLASS: Lazy<WindowClass> = Lazy::new(|| unsafe {
+    let window_superclass = class!(NSWindow);
+    let mut decl = ClassDecl::new("WinitWindow", window_superclass).unwrap();
 
-        pub extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
-            trace_scope!("canBecomeMainWindow");
-            YES
-        }
+    pub extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
+        trace_scope!("canBecomeMainWindow");
+        YES
+    }
 
-        pub extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
-            trace_scope!("canBecomeKeyWindow");
-            YES
-        }
+    pub extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
+        trace_scope!("canBecomeKeyWindow");
+        YES
+    }
 
-        decl.add_method(
-            sel!(canBecomeMainWindow),
-            can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        decl.add_method(
-            sel!(canBecomeKeyWindow),
-            can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        WindowClass(decl.register())
-    };
-}
+    decl.add_method(
+        sel!(canBecomeMainWindow),
+        can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
+    );
+    decl.add_method(
+        sel!(canBecomeKeyWindow),
+        can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
+    );
+    WindowClass(decl.register())
+});
 
 #[derive(Default)]
 pub struct SharedState {
@@ -373,7 +392,7 @@ unsafe impl Send for UnownedWindow {}
 unsafe impl Sync for UnownedWindow {}
 
 impl UnownedWindow {
-    pub fn new(
+    pub(crate) fn new(
         mut win_attribs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<(Arc<Self>, IdRef), RootOsError> {
@@ -416,7 +435,7 @@ impl UnownedWindow {
 
             use cocoa::foundation::NSArray;
             // register for drag and drop operations.
-            let () = msg_send![
+            let _: () = msg_send![
                 *ns_window,
                 registerForDraggedTypes:
                     NSArray::arrayWithObject(nil, appkit::NSFilenamesPboardType)
@@ -623,9 +642,17 @@ impl UnownedWindow {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let associate_mouse_cursor = match mode {
+            CursorGrabMode::Locked => false,
+            CursorGrabMode::None => true,
+            CursorGrabMode::Confined => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            }
+        };
+
         // TODO: Do this for real https://stackoverflow.com/a/40922095/5435443
-        CGDisplay::associate_mouse_and_mouse_cursor_position(!grab)
+        CGDisplay::associate_mouse_and_mouse_cursor_position(associate_mouse_cursor)
             .map_err(|status| ExternalError::Os(os_error!(OsError::CGError(status))))
     }
 
@@ -907,8 +934,6 @@ impl UnownedWindow {
         let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
         shared_state_lock.fullscreen = fullscreen.clone();
 
-        INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
-
         match (&old_fullscreen, &fullscreen) {
             (&None, &Some(_)) => unsafe {
                 util::toggle_full_screen_async(
@@ -955,7 +980,7 @@ impl UnownedWindow {
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions_(presentation_options);
 
-                let () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
+                let _: () = msg_send![*self.ns_window, setLevel: ffi::CGShieldingWindowLevel() + 1];
             },
             (
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
@@ -973,12 +998,12 @@ impl UnownedWindow {
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.
-                let () = msg_send![
+                let _: () = msg_send![
                     *self.ns_window,
                     setLevel: ffi::NSWindowLevel::NSNormalWindowLevel
                 ];
             },
-            _ => INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst),
+            _ => {}
         };
     }
 
@@ -1122,10 +1147,15 @@ impl UnownedWindow {
 
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = AppKitHandle::empty();
-        handle.ns_window = *self.ns_window as *mut _;
-        handle.ns_view = *self.ns_view as *mut _;
-        RawWindowHandle::AppKit(handle)
+        let mut window_handle = AppKitWindowHandle::empty();
+        window_handle.ns_window = *self.ns_window as *mut _;
+        window_handle.ns_view = *self.ns_view as *mut _;
+        RawWindowHandle::AppKit(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
     }
 }
 
@@ -1259,10 +1289,11 @@ unsafe fn set_min_inner_size<V: NSWindow + Copy>(window: V, mut min_size: Logica
     // Convert from client area size to window size
     min_size.width += (current_rect.size.width - content_rect.size.width) as f64; // this tends to be 0
     min_size.height += (current_rect.size.height - content_rect.size.height) as f64;
-    window.setMinSize_(NSSize {
+    let min_size = NSSize {
         width: min_size.width as CGFloat,
         height: min_size.height as CGFloat,
-    });
+    };
+    window.setMinSize_(min_size);
     // If necessary, resize the window to match constraint
     if current_rect.size.width < min_size.width {
         current_rect.size.width = min_size.width;
@@ -1283,10 +1314,11 @@ unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: Logica
     // Convert from client area size to window size
     max_size.width += (current_rect.size.width - content_rect.size.width) as f64; // this tends to be 0
     max_size.height += (current_rect.size.height - content_rect.size.height) as f64;
-    window.setMaxSize_(NSSize {
+    let max_size = NSSize {
         width: max_size.width as CGFloat,
         height: max_size.height as CGFloat,
-    });
+    };
+    window.setMaxSize_(max_size);
     // If necessary, resize the window to match constraint
     if current_rect.size.width > max_size.width {
         current_rect.size.width = max_size.width;

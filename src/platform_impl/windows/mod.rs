@@ -36,6 +36,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub drag_and_drop: bool,
     pub preferred_theme: Option<Theme>,
     pub skip_taskbar: bool,
+    pub decoration_shadow: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -48,6 +49,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             drag_and_drop: true,
             preferred_theme: None,
             skip_taskbar: false,
+            decoration_shadow: false,
         }
     }
 }
@@ -100,19 +102,37 @@ impl WindowId {
     }
 }
 
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0 as u64
+    }
+}
+
+impl From<WindowId> for HWND {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id as HWND)
+    }
+}
+
 #[inline(always)]
 const fn get_xbutton_wparam(x: u32) -> u16 {
     loword(x)
 }
 
 #[inline(always)]
-const fn get_x_lparam(x: u32) -> u16 {
-    loword(x)
+const fn get_x_lparam(x: u32) -> i16 {
+    loword(x) as _
 }
 
 #[inline(always)]
-const fn get_y_lparam(x: u32) -> u16 {
-    hiword(x)
+const fn get_y_lparam(x: u32) -> i16 {
+    hiword(x) as _
 }
 
 #[inline(always)]

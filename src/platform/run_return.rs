@@ -14,17 +14,18 @@ use crate::{
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
 };
 
-/// Additional methods on `EventLoop` to return control flow to the caller.
+/// Additional methods on [`EventLoop`] to return control flow to the caller.
 pub trait EventLoopExtRunReturn {
-    /// A type provided by the user that can be passed through `Event::UserEvent`.
+    /// A type provided by the user that can be passed through [`Event::UserEvent`].
     type UserEvent;
 
     /// Initializes the `winit` event loop.
     ///
-    /// Unlike `run`, this function accepts non-`'static` (i.e. non-`move`) closures and returns
-    /// control flow to the caller when `control_flow` is set to `ControlFlow::Exit`.
+    /// Unlike [`EventLoop::run`], this function accepts non-`'static` (i.e. non-`move`) closures
+    /// and returns control flow to the caller when `control_flow` is set to [`ControlFlow::Exit`].
     ///
     /// # Caveats
+    ///
     /// Despite its appearance at first glance, this is *not* a perfect replacement for
     /// `poll_events`. For example, this function will not return on Windows or macOS while a
     /// window is getting resized, resulting in all application logic outside of the
@@ -36,7 +37,7 @@ pub trait EventLoopExtRunReturn {
     ///
     /// ## Platform-specific
     ///
-    /// - **Unix-alikes** (**X11** or **Wayland**): This function returns `1` upon disconnection from
+    /// - **X11 / Wayland:** This function returns `1` upon disconnection from
     ///   the display server.
     fn run_return<F>(&mut self, event_handler: F) -> i32
     where

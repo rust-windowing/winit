@@ -1,3 +1,10 @@
+use std::cell::RefCell;
+use std::clone::Clone;
+use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
+use std::rc::Rc;
+
+use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
+
 use super::{
     super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
     window::WindowId,
@@ -10,10 +17,6 @@ use crate::event::{
 use crate::event_loop::ControlFlow;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{Theme, WindowId as RootWindowId};
-use std::cell::RefCell;
-use std::clone::Clone;
-use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
-use std::rc::Rc;
 
 pub struct EventLoopWindowTarget<T: 'static> {
     pub(crate) runner: runner::Shared<T>,
@@ -50,7 +53,12 @@ impl<T> EventLoopWindowTarget<T> {
         WindowId(self.runner.generate_id())
     }
 
-    pub fn register(&self, canvas: &Rc<RefCell<backend::Canvas>>, id: WindowId) {
+    pub fn register(
+        &self,
+        canvas: &Rc<RefCell<backend::Canvas>>,
+        id: WindowId,
+        prevent_default: bool,
+    ) {
         self.runner.add_canvas(RootWindowId(id), canvas);
         let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
@@ -72,48 +80,57 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_keyboard_press(move |scancode, virtual_keycode, modifiers| {
-            #[allow(deprecated)]
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
-                    input: KeyboardInput {
-                        scancode,
-                        state: ElementState::Pressed,
-                        virtual_keycode,
-                        modifiers,
+        canvas.on_keyboard_press(
+            move |scancode, virtual_keycode, modifiers| {
+                #[allow(deprecated)]
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::KeyboardInput {
+                        device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                        input: KeyboardInput {
+                            scancode,
+                            state: ElementState::Pressed,
+                            virtual_keycode,
+                            modifiers,
+                        },
+                        is_synthetic: false,
                     },
-                    is_synthetic: false,
-                },
-            });
-        });
+                });
+            },
+            prevent_default,
+        );
 
         let runner = self.runner.clone();
-        canvas.on_keyboard_release(move |scancode, virtual_keycode, modifiers| {
-            #[allow(deprecated)]
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::KeyboardInput {
-                    device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
-                    input: KeyboardInput {
-                        scancode,
-                        state: ElementState::Released,
-                        virtual_keycode,
-                        modifiers,
+        canvas.on_keyboard_release(
+            move |scancode, virtual_keycode, modifiers| {
+                #[allow(deprecated)]
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::KeyboardInput {
+                        device_id: RootDeviceId(unsafe { DeviceId::dummy() }),
+                        input: KeyboardInput {
+                            scancode,
+                            state: ElementState::Released,
+                            virtual_keycode,
+                            modifiers,
+                        },
+                        is_synthetic: false,
                     },
-                    is_synthetic: false,
-                },
-            });
-        });
+                });
+            },
+            prevent_default,
+        );
 
         let runner = self.runner.clone();
-        canvas.on_received_character(move |char_code| {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::ReceivedCharacter(char_code),
-            });
-        });
+        canvas.on_received_character(
+            move |char_code| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::ReceivedCharacter(char_code),
+                });
+            },
+            prevent_default,
+        );
 
         let runner = self.runner.clone();
         canvas.on_cursor_leave(move |pointer_id| {
@@ -161,12 +178,16 @@ impl<T> EventLoopWindowTarget<T> {
             runner.send_events(
                 std::iter::once(Event::WindowEvent {
                     window_id: RootWindowId(id),
+                    event: WindowEvent::Focused(true),
+                })
+                .chain(std::iter::once(Event::WindowEvent {
+                    window_id: RootWindowId(id),
                     event: WindowEvent::CursorMoved {
                         device_id: RootDeviceId(DeviceId(pointer_id)),
                         position,
                         modifiers,
                     },
-                })
+                }))
                 .chain(std::iter::once(Event::WindowEvent {
                     window_id: RootWindowId(id),
                     event: WindowEvent::MouseInput {
@@ -193,17 +214,20 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_mouse_wheel(move |pointer_id, delta, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::MouseWheel {
-                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                    delta,
-                    phase: TouchPhase::Moved,
-                    modifiers,
-                },
-            });
-        });
+        canvas.on_mouse_wheel(
+            move |pointer_id, delta, modifiers| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::MouseWheel {
+                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        delta,
+                        phase: TouchPhase::Moved,
+                        modifiers,
+                    },
+                });
+            },
+            prevent_default,
+        );
 
         let runner = self.runner.clone();
         let raw = canvas.raw().clone();
@@ -257,5 +281,9 @@ impl<T> EventLoopWindowTarget<T> {
         Some(RootMH {
             inner: MonitorHandle,
         })
+    }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Web(WebDisplayHandle::empty())
     }
 }

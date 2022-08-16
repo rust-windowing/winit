@@ -20,6 +20,7 @@ your description of the issue as detailed as possible:
 
 When making a code contribution to winit, before opening your pull request, please make sure that:
 
+- your patch builds with Winit's minimal supported rust version - Rust 1.57.0.
 - you tested your modifications on all the platforms impacted, or if not possible detail which platforms
   were not tested, and what should be tested, so that a maintainer or another contributor can test them
 - you updated any relevant documentation in winit
@@ -43,10 +44,9 @@ Once your PR is deemed ready, the merging maintainer will take care of resolving
 
 ## Maintainers & Testers
 
-The current [list of testers and contributors](https://github.com/rust-windowing/winit/wiki/Testers-and-Contributors)
-can be found on the Wiki.
+The current maintainers are listed in the [CODEOWNERS](.github/CODEOWNERS) file.
 
-If you are interested in contributing or testing on a platform, please add yourself to that table!
+If you are interested in being pinged when testing is needed for a certain platform, please add yourself to the [Testers and Contributors](https://github.com/rust-windowing/winit/wiki/Testers-and-Contributors) table!
 
 ## Making a new release
 

@@ -6,7 +6,7 @@
 
 ```toml
 [dependencies]
-winit = "0.26.1"
+winit = "0.27.2"
 ```
 
 ## [Documentation](https://docs.rs/winit)
@@ -69,6 +69,14 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 
 ### Platform-specific usage
 
+#### Wayland
+
+Note that windows don't appear on Wayland until you draw/present to them.
+
+`winit` doesn't do drawing, try the examples in [`glutin`] instead.
+
+[`glutin`]: https://github.com/rust-windowing/glutin
+
 #### WebAssembly
 
 To run the web example: `cargo run-wasm --example web`
@@ -93,16 +101,16 @@ book].
 
 This library makes use of the [ndk-rs](https://github.com/rust-windowing/android-ndk-rs) crates, refer to that repo for more documentation.
 
-The `ndk_glue` version needs to match the version used by `winit`. Otherwise, the application will not start correctly as `ndk_glue`'s internal NativeActivity static is not the same due to version mismatch.
+The `ndk-glue` version needs to match the version used by `winit`. Otherwise, the application will not start correctly as `ndk-glue`'s internal `NativeActivity` static is not the same due to version mismatch.
 
-`ndk_glue` <-> `winit` version comparison compatibility:
+`winit` compatibility table with `ndk-glue`:
 
-| winit |       ndk_glue       |
+| winit |       ndk-glue       |
 | :---: | :------------------: |
-| 0.24  | `ndk_glue = "0.2.0"` |
-| 0.25  | `ndk_glue = "0.3.0"` |
-| 0.26  | `ndk_glue = "0.5.0"` |
-| 0.27  | `ndk_glue = "0.6.0"` |
+| 0.24  | `ndk-glue = "0.2.0"` |
+| 0.25  | `ndk-glue = "0.3.0"` |
+| 0.26  | `ndk-glue = "0.5.0"` |
+| 0.27  | `ndk-glue = "0.7.0"` |
 
 Running on an Android device needs a dynamic system library, add this to Cargo.toml:
 
@@ -121,3 +129,16 @@ fn main() {
 ```
 
 And run the application with `cargo apk run --example request_redraw_threaded`
+
+#### MacOS
+
+A lot of functionality expects the application to be ready before you start
+doing anything; this includes creating windows, fetching monitors, drawing,
+and so on, see issues [#2238], [#2051] and [#2087].
+
+If you encounter problems, you should try doing your initialization inside
+`Event::NewEvents(StartCause::Init)`.
+
+[#2238]: https://github.com/rust-windowing/winit/issues/2238
+[#2051]: https://github.com/rust-windowing/winit/issues/2051
+[#2087]: https://github.com/rust-windowing/winit/issues/2087

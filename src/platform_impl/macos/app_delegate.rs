@@ -1,14 +1,16 @@
-use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
+use std::{
+    cell::{RefCell, RefMut},
+    os::raw::c_void,
+};
 
 use cocoa::base::id;
 use objc::{
     declare::ClassDecl,
     runtime::{Class, Object, Sel},
 };
-use std::{
-    cell::{RefCell, RefMut},
-    os::raw::c_void,
-};
+use once_cell::sync::Lazy;
+
+use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
 
 static AUX_DELEGATE_STATE_NAME: &str = "auxState";
 
@@ -21,23 +23,26 @@ pub struct AppDelegateClass(pub *const Class);
 unsafe impl Send for AppDelegateClass {}
 unsafe impl Sync for AppDelegateClass {}
 
-lazy_static! {
-    pub static ref APP_DELEGATE_CLASS: AppDelegateClass = unsafe {
-        let superclass = class!(NSResponder);
-        let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
+pub static APP_DELEGATE_CLASS: Lazy<AppDelegateClass> = Lazy::new(|| unsafe {
+    let superclass = class!(NSResponder);
+    let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
 
-        decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
-        decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
+    decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
+    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
 
-        decl.add_method(
-            sel!(applicationDidFinishLaunching:),
-            did_finish_launching as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
+    decl.add_method(
+        sel!(applicationDidFinishLaunching:),
+        did_finish_launching as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(applicationWillTerminate:),
+        will_terminate as extern "C" fn(&Object, Sel, id),
+    );
 
-        AppDelegateClass(decl.register())
-    };
-}
+    decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
+
+    AppDelegateClass(decl.register())
+});
 
 /// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
 pub unsafe fn get_aux_state_mut(this: &Object) -> RefMut<'_, AuxDelegateState> {
@@ -67,11 +72,18 @@ extern "C" fn dealloc(this: &Object, _: Sel) {
         let state_ptr: *mut c_void = *(this.get_ivar(AUX_DELEGATE_STATE_NAME));
         // As soon as the box is constructed it is immediately dropped, releasing the underlying
         // memory
-        Box::from_raw(state_ptr as *mut RefCell<AuxDelegateState>);
+        drop(Box::from_raw(state_ptr as *mut RefCell<AuxDelegateState>));
     }
 }
 
 extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
     trace_scope!("applicationDidFinishLaunching:");
     AppState::launched(this);
+}
+
+extern "C" fn will_terminate(_this: &Object, _: Sel, _: id) {
+    trace!("Triggered `applicationWillTerminate`");
+    // TODO: Notify every window that it will be destroyed, like done in iOS?
+    AppState::exit();
+    trace!("Completed `applicationWillTerminate`");
 }

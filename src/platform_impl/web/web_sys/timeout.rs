@@ -21,7 +21,7 @@ impl Timeout {
 
         let handle = window
             .set_timeout_with_callback_and_timeout_and_arguments_0(
-                &closure.as_ref().unchecked_ref(),
+                closure.as_ref().unchecked_ref(),
                 duration.as_millis() as i32,
             )
             .expect("Failed to set timeout");
@@ -64,7 +64,7 @@ impl AnimationFrameRequest {
         }) as Box<dyn FnMut()>);
 
         let handle = window
-            .request_animation_frame(&closure.as_ref().unchecked_ref())
+            .request_animation_frame(closure.as_ref().unchecked_ref())
             .expect("Failed to request animation frame");
 
         AnimationFrameRequest {
