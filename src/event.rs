@@ -331,10 +331,12 @@ pub enum WindowEvent<'a> {
 
     /// Touchpad rotation event with two-finger rotation gesture.
     ///
-    /// Positive delta values indicate rotation to left (counterclockwise) and
-    /// negative delta values indicate rotation to right (clockwise).
+    /// Positive delta values indicate rotation counterclockwise and
+    /// negative delta values indicate rotation clockwise.
     ///
-    /// At the moment, only supported on macOS.
+    /// ## Platform-specific
+    ///
+    /// - Only available on **macOS**.
     TouchpadRotate {
         device_id: DeviceId,
         delta: f32,

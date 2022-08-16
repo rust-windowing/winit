@@ -31,9 +31,9 @@ fn main() {
                 }
                 WindowEvent::TouchpadRotate { delta, .. } => {
                     if delta > 0.0 {
-                        println!("Rotated left {}", delta);
+                        println!("Rotated counterclockwise {}", delta);
                     } else {
-                        println!("Rotated right {}", delta);
+                        println!("Rotated clockwise {}", delta);
                     }
                 }
                 _ => (),
