@@ -321,6 +321,10 @@ pub enum WindowEvent<'a> {
     Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** Unsupported.
     Moved(PhysicalPosition<i32>),
 
     /// The window has been requested to close.
