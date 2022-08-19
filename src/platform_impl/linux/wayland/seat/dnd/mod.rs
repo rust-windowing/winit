@@ -1,12 +1,10 @@
-mod handlers;
-
 use sctk::{data_device::DataDevice, reexports::calloop::LoopHandle};
-use wayland_client::{
-    protocol::{wl_data_device_manager::WlDataDeviceManager, wl_seat::WlSeat},
-    Attached,
-};
+use wayland_client::protocol::{wl_data_device_manager::WlDataDeviceManager, wl_seat::WlSeat};
+use wayland_client::Attached;
 
 use crate::platform_impl::{wayland::event_loop::WinitState, WindowId};
+
+mod handlers;
 
 pub(crate) struct Dnd {
     _data_device: DataDevice,

@@ -1,21 +1,15 @@
-use std::{
-    io::{self, Read},
-    os::unix::prelude::{AsRawFd, RawFd},
-    path::PathBuf,
-    str,
-};
+use std::io::{self, Read};
+use std::os::unix::prelude::{AsRawFd, RawFd};
+use std::path::PathBuf;
+use std::str;
 
 use percent_encoding::percent_decode_str;
-use sctk::{
-    data_device::{DataOffer, DndEvent, ReadPipe},
-    reexports::calloop::{generic::Generic, Interest, LoopHandle, Mode, PostAction},
-};
+use sctk::data_device::{DataOffer, DndEvent, ReadPipe};
+use sctk::reexports::calloop::{generic::Generic, Interest, LoopHandle, Mode, PostAction};
 
-use crate::{
-    dpi::PhysicalPosition,
-    event::WindowEvent,
-    platform_impl::wayland::{event_loop::WinitState, make_wid, DeviceId},
-};
+use crate::dpi::PhysicalPosition;
+use crate::event::WindowEvent;
+use crate::platform_impl::wayland::{event_loop::WinitState, make_wid, DeviceId};
 
 use super::DndInner;
 
