@@ -125,7 +125,7 @@ fn parse_offer(
                     continue;
                 }
 
-                let decoded = match percent_decode_str(&line).decode_utf8() {
+                let decoded = match percent_decode_str(line).decode_utf8() {
                     Ok(decoded) => decoded,
                     Err(_) => continue,
                 };
