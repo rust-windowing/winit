@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io::{self, BufRead, Read};
 use std::os::unix::prelude::{AsRawFd, RawFd};
 use std::path::PathBuf;
 use std::str;
@@ -115,8 +115,8 @@ fn parse_offer(
         read_pipe_nonblocking(pipe, loop_handle, move |bytes, winit_state| {
             // Format: https://www.iana.org/assignments/media-types/text/uri-list
             let mut paths = Vec::new();
-            for line in bytes.split(|b| *b == b'\n') {
-                let line = match str::from_utf8(line) {
+            for line in bytes.lines() {
+                let line = match line {
                     Ok(line) => line,
                     Err(_) => continue,
                 };
@@ -125,7 +125,7 @@ fn parse_offer(
                     continue;
                 }
 
-                let decoded = match percent_decode_str(line).decode_utf8() {
+                let decoded = match percent_decode_str(&line).decode_utf8() {
                     Ok(decoded) => decoded,
                     Err(_) => continue,
                 };
