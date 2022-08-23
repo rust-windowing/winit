@@ -9,6 +9,7 @@ use sctk::reexports::client::protocol::wl_shell::WlShell;
 use sctk::reexports::client::protocol::wl_subcompositor::WlSubcompositor;
 use sctk::reexports::client::{Attached, DispatchData};
 use sctk::reexports::client::protocol::wl_shm::WlShm;
+use sctk::reexports::client::protocol::wl_data_device_manager::WlDataDeviceManager;
 use sctk::reexports::protocols::xdg_shell::client::xdg_wm_base::XdgWmBase;
 use sctk::reexports::protocols::unstable::relative_pointer::v1::client::zwp_relative_pointer_manager_v1::ZwpRelativePointerManagerV1;
 use sctk::reexports::protocols::unstable::pointer_constraints::v1::client::zwp_pointer_constraints_v1::ZwpPointerConstraintsV1;
@@ -61,6 +62,7 @@ sctk::environment!(WinitEnv,
         ZwpPointerConstraintsV1 => pointer_constraints,
         ZwpTextInputManagerV3 => text_input_manager,
         XdgActivationV1 => xdg_activation,
+        WlDataDeviceManager => data_device_manager,
     ],
     multis = [
         WlSeat => seats,
@@ -91,6 +93,8 @@ pub struct WinitEnv {
     decoration_manager: SimpleGlobal<ZxdgDecorationManagerV1>,
 
     xdg_activation: SimpleGlobal<XdgActivationV1>,
+
+    data_device_manager: SimpleGlobal<WlDataDeviceManager>,
 }
 
 impl WinitEnv {
@@ -125,6 +129,9 @@ impl WinitEnv {
         // Surface activation.
         let xdg_activation = SimpleGlobal::new();
 
+        // Data device manager.
+        let data_device_manager = SimpleGlobal::new();
+
         Self {
             seats,
             outputs,
@@ -137,6 +144,7 @@ impl WinitEnv {
             pointer_constraints,
             text_input_manager,
             xdg_activation,
+            data_device_manager,
         }
     }
 }
