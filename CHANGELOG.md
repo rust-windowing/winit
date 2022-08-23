@@ -10,7 +10,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 - On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
 - On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
-- On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
+- **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 
