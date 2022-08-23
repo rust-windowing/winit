@@ -212,6 +212,8 @@ pub trait WindowExtUnix {
     ///
     /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     /// Possible values for env variable are: "dark" and light"
+    ///
+    /// When unspecified a theme is automatically selected.
     #[cfg(feature = "wayland")]
     fn wayland_set_csd_theme(&self, config: Theme);
 
@@ -349,6 +351,8 @@ pub trait WindowBuilderExtUnix {
     ///
     /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     /// Possible values for env variable are: "dark" and light"
+    ///
+    /// When unspecified a theme is automatically selected.
     #[cfg(feature = "wayland")]
     fn with_wayland_csd_theme(self, theme: Theme) -> Self;
 
