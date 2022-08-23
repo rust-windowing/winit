@@ -39,6 +39,7 @@ x11 = ["x11-dl", "mio", "percent-encoding", "parking_lot"]
 wayland = ["wayland-client", "wayland-protocols", "sctk"]
 wayland-dlopen = ["sctk/dlopen", "wayland-client/dlopen"]
 wayland-csd-adwaita = ["sctk-adwaita", "sctk-adwaita/ab_glyph"]
+wayland-csd-adwaita-crossfont = ["sctk-adwaita", "sctk-adwaita/crossfont"]
 wayland-csd-adwaita-notitle = ["sctk-adwaita"]
 
 [dependencies]
