@@ -170,18 +170,17 @@ impl Window {
             )
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
 
-        // Set CSD frame config from theme if specified
         #[cfg(feature = "sctk-adwaita")]
         {
-            let theme = platform_attributes.csd_theme.or_else(|| {
-                match std::env::var(WAYLAND_CSD_THEME_ENV_VAR) {
-                    Ok(t) if t.eq_ignore_ascii_case("dark") => Some(Theme::Dark),
-                    Ok(t) if t.eq_ignore_ascii_case("light") => Some(Theme::Light),
-                    _ => None,
-                }
-            });
-            // If not specified use upstream default (automatically selects theme)
-            if let Some(theme) = theme {
+            // Set CSD frame config from theme if specified,
+            // otherwise use upstream automatic selection.
+            if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
+                std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
+                    .ok()?
+                    .as_str()
+                    .try_into()
+                    .ok()
+            }) {
                 window.set_frame_config(theme.into());
             }
         }
