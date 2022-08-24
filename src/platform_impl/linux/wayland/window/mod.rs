@@ -177,7 +177,6 @@ impl Window {
             if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
                 std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
                     .ok()?
-                    .as_str()
                     .try_into()
                     .ok()
             }) {
@@ -634,6 +633,26 @@ impl From<Theme> for sctk_adwaita::FrameConfig {
         match theme {
             Theme::Light => sctk_adwaita::FrameConfig::light(),
             Theme::Dark => sctk_adwaita::FrameConfig::dark(),
+        }
+    }
+}
+
+impl TryFrom<String> for Theme {
+    type Error = ();
+
+    /// ```
+    /// use winit::window::Theme;
+    ///
+    /// assert_eq!(String::from("dark").try_into(), Ok(Theme::Dark));
+    /// assert_eq!(String::from("lIghT").try_into(), Ok(Theme::Light));
+    /// ```
+    fn try_from(theme: String) -> Result<Self, Self::Error> {
+        if theme.eq_ignore_ascii_case("dark") {
+            Ok(Self::Dark)
+        } else if theme.eq_ignore_ascii_case("light") {
+            Ok(Self::Light)
+        } else {
+            Err(())
         }
     }
 }
