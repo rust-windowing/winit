@@ -174,12 +174,10 @@ impl Window {
         {
             // Set CSD frame config from theme if specified,
             // otherwise use upstream automatic selection.
-            if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
-                std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
-                    .ok()?
-                    .try_into()
-                    .ok()
-            }) {
+            if let Some(theme) = platform_attributes
+                .csd_theme
+                .or_else(|| std::env::var(WAYLAND_CSD_THEME_ENV_VAR).try_into().ok())
+            {
                 window.set_frame_config(theme.into());
             }
         }
@@ -637,16 +635,16 @@ impl From<Theme> for sctk_adwaita::FrameConfig {
     }
 }
 
-impl TryFrom<String> for Theme {
+impl TryFrom<&str> for Theme {
     type Error = ();
 
     /// ```
     /// use winit::window::Theme;
     ///
-    /// assert_eq!(String::from("dark").try_into(), Ok(Theme::Dark));
-    /// assert_eq!(String::from("lIghT").try_into(), Ok(Theme::Light));
+    /// assert_eq!("dark".try_into(), Ok(Theme::Dark));
+    /// assert_eq!("lIghT".try_into(), Ok(Theme::Light));
     /// ```
-    fn try_from(theme: String) -> Result<Self, Self::Error> {
+    fn try_from(theme: &str) -> Result<Self, Self::Error> {
         if theme.eq_ignore_ascii_case("dark") {
             Ok(Self::Dark)
         } else if theme.eq_ignore_ascii_case("light") {
@@ -654,5 +652,12 @@ impl TryFrom<String> for Theme {
         } else {
             Err(())
         }
+    }
+}
+impl TryFrom<Result<String, std::env::VarError>> for Theme {
+    type Error = ();
+
+    fn try_from(env: Result<String, std::env::VarError>) -> Result<Self, Self::Error> {
+        env.map_err(|_| ())?.as_str().try_into()
     }
 }
