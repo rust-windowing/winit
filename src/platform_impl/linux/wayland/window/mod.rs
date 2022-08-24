@@ -170,16 +170,15 @@ impl Window {
             )
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
 
+        // Set CSD frame config from theme if specified,
+        // otherwise use upstream automatic selection.
         #[cfg(feature = "sctk-adwaita")]
-        {
-            // Set CSD frame config from theme if specified,
-            // otherwise use upstream automatic selection.
-            if let Some(theme) = platform_attributes
-                .csd_theme
-                .or_else(|| std::env::var(WAYLAND_CSD_THEME_ENV_VAR).try_into().ok())
-            {
-                window.set_frame_config(theme.into());
-            }
+        if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
+            std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
+                .ok()
+                .and_then(|s| s.as_str().try_into().ok())
+        }) {
+            window.set_frame_config(theme.into());
         }
 
         // Set decorations.
@@ -652,12 +651,5 @@ impl TryFrom<&str> for Theme {
         } else {
             Err(())
         }
-    }
-}
-impl TryFrom<Result<String, std::env::VarError>> for Theme {
-    type Error = ();
-
-    fn try_from(env: Result<String, std::env::VarError>) -> Result<Self, Self::Error> {
-        env.map_err(|_| ())?.as_str().try_into()
     }
 }
