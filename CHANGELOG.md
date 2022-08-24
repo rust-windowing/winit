@@ -13,6 +13,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - **Breaking:** On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
+- On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
 
 # 0.27.2 (2022-8-12)
 

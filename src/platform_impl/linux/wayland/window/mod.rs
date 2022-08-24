@@ -170,17 +170,14 @@ impl Window {
             )
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
 
-        // Set CSD frame config
+        // Set CSD frame config from theme if specified,
+        // otherwise use upstream automatic selection.
         #[cfg(feature = "sctk-adwaita")]
-        {
-            let theme = platform_attributes.csd_theme.unwrap_or_else(|| {
-                let env = std::env::var(WAYLAND_CSD_THEME_ENV_VAR).unwrap_or_default();
-                match env.to_lowercase().as_str() {
-                    "dark" => Theme::Dark,
-                    _ => Theme::Light,
-                }
-            });
-
+        if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
+            std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
+                .ok()
+                .and_then(|s| s.as_str().try_into().ok())
+        }) {
             window.set_frame_config(theme.into());
         }
 
@@ -633,6 +630,26 @@ impl From<Theme> for sctk_adwaita::FrameConfig {
         match theme {
             Theme::Light => sctk_adwaita::FrameConfig::light(),
             Theme::Dark => sctk_adwaita::FrameConfig::dark(),
+        }
+    }
+}
+
+impl TryFrom<&str> for Theme {
+    type Error = ();
+
+    /// ```
+    /// use winit::window::Theme;
+    ///
+    /// assert_eq!("dark".try_into(), Ok(Theme::Dark));
+    /// assert_eq!("lIghT".try_into(), Ok(Theme::Light));
+    /// ```
+    fn try_from(theme: &str) -> Result<Self, Self::Error> {
+        if theme.eq_ignore_ascii_case("dark") {
+            Ok(Self::Dark)
+        } else if theme.eq_ignore_ascii_case("light") {
+            Ok(Self::Light)
+        } else {
+            Err(())
         }
     }
 }
