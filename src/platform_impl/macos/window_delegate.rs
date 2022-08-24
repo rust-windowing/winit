@@ -24,7 +24,7 @@ use crate::{
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
-        window::{get_window_id, UnownedWindow},
+        window::{get_ns_theme, get_window_id, UnownedWindow},
     },
     window::{Fullscreen, WindowId},
 };
@@ -224,6 +224,14 @@ static WINDOW_DELEGATE_CLASS: Lazy<WindowDelegateClass> = Lazy::new(|| unsafe {
         sel!(windowDidChangeOcclusionState:),
         window_did_change_occlusion_state as extern "C" fn(&Object, Sel, id),
     );
+    decl.add_method(
+        sel!(effectiveAppearanceDidChange:),
+        effective_appearance_did_change as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(effectiveAppearanceDidChangedOnMainThread:),
+        effective_appearance_did_changed_on_main_thread as extern "C" fn(&Object, Sel, id),
+    );
 
     decl.add_ivar::<*mut c_void>("winitState");
     WindowDelegateClass(decl.register())
@@ -247,6 +255,8 @@ extern "C" fn dealloc(this: &Object, _sel: Sel) {
 
 extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> id {
     unsafe {
+        use cocoa::foundation::NSString;
+
         let this: id = msg_send![this, init];
         if this != nil {
             (*this).set_ivar("winitState", state);
@@ -254,6 +264,20 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
                 let _: () = msg_send![*state.ns_window, setDelegate: this];
             });
         }
+
+        // Enable theme change event
+        let notification_center: &Object =
+            msg_send![class!(NSDistributedNotificationCenter), defaultCenter];
+        let notification_name =
+            NSString::alloc(nil).init_str("AppleInterfaceThemeChangedNotification");
+        let _: () = msg_send![
+            notification_center,
+            addObserver: this
+            selector: sel!(effectiveAppearanceDidChange:)
+            name: notification_name
+            object: nil
+        ];
+
         this
     }
 }
@@ -572,4 +596,28 @@ extern "C" fn window_did_change_occlusion_state(this: &Object, _: Sel, _: id) {
             ))
         });
     }
+}
+
+// Observe theme change
+extern "C" fn effective_appearance_did_change(this: &Object, _: Sel, _: id) {
+    trace!("Triggered `effectiveAppearDidChange:`");
+    unsafe {
+        let _: () = msg_send![this, performSelectorOnMainThread: sel!(effectiveAppearanceDidChangedOnMainThread:) withObject:nil waitUntilDone:false];
+    }
+}
+extern "C" fn effective_appearance_did_changed_on_main_thread(this: &Object, _: Sel, _: id) {
+    with_state(this, |state| {
+        let theme = get_ns_theme();
+        let current_theme = state.window.upgrade().map(|w| {
+            let mut state = w.shared_state.lock().unwrap();
+            let current_theme = state.current_theme;
+            state.current_theme = theme;
+            current_theme
+        });
+        println!("Change Theme: {:?}", theme);
+        if current_theme != Some(theme) {
+            state.emit_event(WindowEvent::ThemeChanged(theme));
+        }
+    });
+    trace!("Completed `effectiveAppearDidChange:`");
 }

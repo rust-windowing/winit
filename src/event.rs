@@ -504,7 +504,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// At the moment this is only supported on Windows.
+    /// - **iOS / Android / Linux:** Unsupported.
     ThemeChanged(Theme),
 
     /// The window has been occluded (completely hidden from view).

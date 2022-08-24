@@ -32,7 +32,7 @@ use crate::{
         OsError,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
         WindowId as RootWindowId,
     },
 };
@@ -42,7 +42,7 @@ use cocoa::{
         NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
-    foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSUInteger},
+    foundation::{NSArray, NSDictionary, NSPoint, NSRect, NSSize, NSString, NSUInteger},
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
@@ -90,6 +90,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub preferred_theme: Option<Theme>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -105,6 +106,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
+            preferred_theme: None,
         }
     }
 }
@@ -315,6 +317,7 @@ pub struct SharedState {
     /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
     pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
+    pub current_theme: Theme,
 }
 
 impl SharedState {
@@ -382,7 +385,7 @@ impl Drop for SharedStateMutexGuard<'_> {
 pub struct UnownedWindow {
     pub ns_window: IdRef, // never changes
     pub ns_view: IdRef,   // never changes
-    shared_state: Arc<Mutex<SharedState>>,
+    pub(super) shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
     cursor_state: Weak<Mutex<CursorState>>,
     pub inner_rect: Option<PhysicalSize<u32>>,
@@ -433,7 +436,6 @@ impl UnownedWindow {
                 set_max_inner_size(*ns_window, logical_dim);
             }
 
-            use cocoa::foundation::NSArray;
             // register for drag and drop operations.
             let _: () = msg_send![
                 *ns_window,
@@ -463,6 +465,18 @@ impl UnownedWindow {
             cursor_state,
             inner_rect,
         });
+
+        match pl_attribs.preferred_theme {
+            Some(theme) => {
+                set_ns_theme(theme);
+                let mut state = window.shared_state.lock().unwrap();
+                state.current_theme = theme;
+            }
+            None => {
+                let mut state = window.shared_state.lock().unwrap();
+                state.current_theme = get_ns_theme();
+            }
+        }
 
         let delegate = new_delegate(&window, fullscreen.is_some());
 
@@ -1271,6 +1285,12 @@ impl WindowExtMacOS for UnownedWindow {
                 .setHasShadow_(if has_shadow { YES } else { NO })
         }
     }
+
+    #[inline]
+    fn theme(&self) -> Theme {
+        let state = self.shared_state.lock().unwrap();
+        state.current_theme
+    }
 }
 
 impl Drop for UnownedWindow {
@@ -1330,5 +1350,51 @@ unsafe fn set_max_inner_size<V: NSWindow + Copy>(window: V, mut max_size: Logica
         current_rect.origin.y += current_rect.size.height - max_size.height;
         current_rect.size.height = max_size.height;
         window.setFrame_display_(current_rect, NO)
+    }
+}
+
+pub(super) fn get_ns_theme() -> Theme {
+    unsafe {
+        let appearances: Vec<id> = vec![
+            NSString::alloc(nil).init_str("NSAppearanceNameAqua"),
+            NSString::alloc(nil).init_str("NSAppearanceNameDarkAqua"),
+        ];
+        let app_class = class!(NSApplication);
+        let app: id = msg_send![app_class, sharedApplication];
+        let has_theme: BOOL = msg_send![app, respondsToSelector: sel!(effectiveAppearance)];
+        if has_theme == NO {
+            return Theme::Light;
+        }
+        let appearance: id = msg_send![app, effectiveAppearance];
+        let name: id = msg_send![
+            appearance,
+            bestMatchFromAppearancesWithNames: NSArray::arrayWithObjects(nil, &appearances)
+        ];
+        let name = {
+            let slice = std::slice::from_raw_parts(name.UTF8String() as *mut u8, name.len());
+            let string = std::str::from_utf8_unchecked(slice);
+            string.to_owned()
+        };
+        match &name[..] {
+            "NSAppearanceNameDarkAqua" => Theme::Dark,
+            _ => Theme::Light,
+        }
+    }
+}
+
+fn set_ns_theme(theme: Theme) {
+    let name = match theme {
+        Theme::Dark => "NSAppearanceNameDarkAqua",
+        Theme::Light => "NSAppearanceNameAqua",
+    };
+    unsafe {
+        let app_class = class!(NSApplication);
+        let app: id = msg_send![app_class, sharedApplication];
+        let has_theme: BOOL = msg_send![app, respondsToSelector: sel!(effectiveAppearance)];
+        if has_theme == YES {
+            let name = NSString::alloc(nil).init_str(name);
+            let appearance: id = msg_send![class!(NSAppearance), appearanceNamed: name];
+            let _: () = msg_send![app, setAppearance: appearance];
+        }
     }
 }
