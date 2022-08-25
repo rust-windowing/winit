@@ -503,8 +503,7 @@ pub enum WindowEvent<'a> {
     /// when the system changes the window theme.
     ///
     /// ## Platform-specific
-    ///
-    /// At the moment this is only supported on Windows.
+    /// - **Android / iOS / macOS / Wayland / X11:** Unsupported.
     ThemeChanged(Theme),
 
     /// The window has been occluded (completely hidden from view).
