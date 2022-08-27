@@ -14,6 +14,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
+- On Windows, fixed ALT+Space shortcut to open window menu.
 
 # 0.27.2 (2022-8-12)
 
