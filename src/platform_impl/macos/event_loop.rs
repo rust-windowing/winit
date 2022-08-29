@@ -16,8 +16,9 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSPoint, NSTimeInterval},
 };
-use objc::foundation::is_main_thread;
+use objc2::foundation::is_main_thread;
 use objc2::rc::{autoreleasepool, Id, Shared};
+use objc2::ClassType;
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
@@ -26,7 +27,7 @@ use crate::{
     monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
     platform_impl::platform::{
-        app::APP_CLASS,
+        app::WinitApplication,
         app_delegate::ApplicationDelegate,
         app_state::{AppState, Callback},
         monitor::{self, MonitorHandle},
@@ -149,7 +150,7 @@ impl<T> EventLoop<T> {
             // `sharedApplication`) is called anywhere else, or we'll end up
             // with the wrong `NSApplication` class and the wrong thread could
             // be marked as main.
-            let app: id = msg_send![APP_CLASS.0, sharedApplication];
+            let app: id = msg_send![WinitApplication::class(), sharedApplication];
 
             use cocoa::appkit::NSApplicationActivationPolicy::*;
             let activation_policy = match attributes.activation_policy {
