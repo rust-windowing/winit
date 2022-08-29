@@ -27,16 +27,16 @@ pub static APP_DELEGATE_CLASS: Lazy<AppDelegateClass> = Lazy::new(|| unsafe {
     let superclass = class!(NSResponder);
     let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
 
-    decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
-    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
+    decl.add_class_method(sel!(new), new as extern "C" fn(_, _) -> _);
+    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(_, _));
 
     decl.add_method(
         sel!(applicationDidFinishLaunching:),
-        did_finish_launching as extern "C" fn(&Object, Sel, id),
+        did_finish_launching as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(applicationWillTerminate:),
-        will_terminate as extern "C" fn(&Object, Sel, id),
+        will_terminate as extern "C" fn(_, _, _),
     );
 
     decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);

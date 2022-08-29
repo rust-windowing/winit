@@ -9,7 +9,7 @@ use std::{
     time::Instant,
 };
 
-use objc::runtime::{BOOL, YES};
+use objc::runtime::{Object, BOOL, YES};
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -582,7 +582,7 @@ pub unsafe fn did_finish_launching() {
             let _: () = msg_send![window, setScreen: screen];
             let _: () = msg_send![screen, release];
             let controller: id = msg_send![window, rootViewController];
-            let _: () = msg_send![window, setRootViewController:ptr::null::<()>()];
+            let _: () = msg_send![window, setRootViewController:ptr::null::<Object>()];
             let _: () = msg_send![window, setRootViewController: controller];
             let _: () = msg_send![window, makeKeyAndVisible];
         }

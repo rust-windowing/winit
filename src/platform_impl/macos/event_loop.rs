@@ -161,7 +161,7 @@ impl<T> EventLoop<T> {
             aux_state.activation_policy = attributes.activation_policy;
             aux_state.default_menu = attributes.default_menu;
 
-            autoreleasepool(|| {
+            autoreleasepool(|_| {
                 let _: () = msg_send![app, setDelegate:*delegate];
             });
 
@@ -209,7 +209,7 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        let exit_code = autoreleasepool(|| unsafe {
+        let exit_code = autoreleasepool(|_| unsafe {
             let app = NSApp();
             assert_ne!(app, nil);
 

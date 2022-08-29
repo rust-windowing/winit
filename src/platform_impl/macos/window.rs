@@ -141,7 +141,7 @@ fn create_window(
     attrs: &WindowAttributes,
     pl_attrs: &PlatformSpecificWindowBuilderAttributes,
 ) -> Option<IdRef> {
-    autoreleasepool(|| unsafe {
+    autoreleasepool(|_| unsafe {
         let screen = match attrs.fullscreen {
             Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
             | Some(Fullscreen::Exclusive(RootVideoMode {
@@ -239,10 +239,7 @@ fn create_window(
             }
 
             if attrs.always_on_top {
-                let _: () = msg_send![
-                    *ns_window,
-                    setLevel: ffi::NSWindowLevel::NSFloatingWindowLevel
-                ];
+                let _: () = msg_send![*ns_window, setLevel: ffi::kCGFloatingWindowLevelKey];
             }
 
             if let Some(increments) = pl_attrs.resize_increments {
@@ -284,11 +281,11 @@ static WINDOW_CLASS: Lazy<WindowClass> = Lazy::new(|| unsafe {
 
     decl.add_method(
         sel!(canBecomeMainWindow),
-        can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
+        can_become_main_window as extern "C" fn(_, _) -> _,
     );
     decl.add_method(
         sel!(canBecomeKeyWindow),
-        can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
+        can_become_key_window as extern "C" fn(_, _) -> _,
     );
     WindowClass(decl.register())
 });
@@ -998,10 +995,7 @@ impl UnownedWindow {
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.
-                let _: () = msg_send![
-                    *self.ns_window,
-                    setLevel: ffi::NSWindowLevel::NSNormalWindowLevel
-                ];
+                let _: () = msg_send![*self.ns_window, setLevel: ffi::kCGBaseWindowLevelKey];
             },
             _ => {}
         };

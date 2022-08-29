@@ -9,7 +9,7 @@ use std::os::raw::c_uchar;
 use cocoa::{
     appkit::{CGFloat, NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSPoint, NSRect, NSString, NSUInteger},
+    foundation::{NSPoint, NSRange, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
 use objc::runtime::{Class, Object, BOOL, NO};
@@ -28,7 +28,7 @@ where
     bitset & flag == flag
 }
 
-pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
+pub const EMPTY_RANGE: NSRange = NSRange {
     location: ffi::NSNotFound as NSUInteger,
     length: 0,
 };

@@ -139,90 +139,89 @@ static WINDOW_DELEGATE_CLASS: Lazy<WindowDelegateClass> = Lazy::new(|| unsafe {
     let superclass = class!(NSResponder);
     let mut decl = ClassDecl::new("WinitWindowDelegate", superclass).unwrap();
 
-    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
+    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(_, _));
     decl.add_method(
         sel!(initWithWinit:),
-        init_with_winit as extern "C" fn(&Object, Sel, *mut c_void) -> id,
+        init_with_winit as extern "C" fn(_, _, _) -> _,
     );
 
     decl.add_method(
         sel!(windowShouldClose:),
-        window_should_close as extern "C" fn(&Object, Sel, id) -> BOOL,
+        window_should_close as extern "C" fn(_, _, _) -> _,
     );
     decl.add_method(
         sel!(windowWillClose:),
-        window_will_close as extern "C" fn(&Object, Sel, id),
+        window_will_close as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowDidResize:),
-        window_did_resize as extern "C" fn(&Object, Sel, id),
+        window_did_resize as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowDidMove:),
-        window_did_move as extern "C" fn(&Object, Sel, id),
+        window_did_move as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowDidChangeBackingProperties:),
-        window_did_change_backing_properties as extern "C" fn(&Object, Sel, id),
+        window_did_change_backing_properties as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowDidBecomeKey:),
-        window_did_become_key as extern "C" fn(&Object, Sel, id),
+        window_did_become_key as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowDidResignKey:),
-        window_did_resign_key as extern "C" fn(&Object, Sel, id),
+        window_did_resign_key as extern "C" fn(_, _, _),
     );
 
     decl.add_method(
         sel!(draggingEntered:),
-        dragging_entered as extern "C" fn(&Object, Sel, id) -> BOOL,
+        dragging_entered as extern "C" fn(_, _, _) -> _,
     );
     decl.add_method(
         sel!(prepareForDragOperation:),
-        prepare_for_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
+        prepare_for_drag_operation as extern "C" fn(_, _, _) -> _,
     );
     decl.add_method(
         sel!(performDragOperation:),
-        perform_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
+        perform_drag_operation as extern "C" fn(_, _, _) -> _,
     );
     decl.add_method(
         sel!(concludeDragOperation:),
-        conclude_drag_operation as extern "C" fn(&Object, Sel, id),
+        conclude_drag_operation as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(draggingExited:),
-        dragging_exited as extern "C" fn(&Object, Sel, id),
+        dragging_exited as extern "C" fn(_, _, _),
     );
 
     decl.add_method(
         sel!(window:willUseFullScreenPresentationOptions:),
-        window_will_use_fullscreen_presentation_options
-            as extern "C" fn(&Object, Sel, id, NSUInteger) -> NSUInteger,
+        window_will_use_fullscreen_presentation_options as extern "C" fn(_, _, _, _) -> _,
     );
     decl.add_method(
         sel!(windowDidEnterFullScreen:),
-        window_did_enter_fullscreen as extern "C" fn(&Object, Sel, id),
+        window_did_enter_fullscreen as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowWillEnterFullScreen:),
-        window_will_enter_fullscreen as extern "C" fn(&Object, Sel, id),
+        window_will_enter_fullscreen as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowDidExitFullScreen:),
-        window_did_exit_fullscreen as extern "C" fn(&Object, Sel, id),
+        window_did_exit_fullscreen as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowWillExitFullScreen:),
-        window_will_exit_fullscreen as extern "C" fn(&Object, Sel, id),
+        window_will_exit_fullscreen as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowDidFailToEnterFullScreen:),
-        window_did_fail_to_enter_fullscreen as extern "C" fn(&Object, Sel, id),
+        window_did_fail_to_enter_fullscreen as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(windowDidChangeOcclusionState:),
-        window_did_change_occlusion_state as extern "C" fn(&Object, Sel, id),
+        window_did_change_occlusion_state as extern "C" fn(_, _, _),
     );
 
     decl.add_ivar::<*mut c_void>("winitState");
@@ -268,7 +267,7 @@ extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
     trace_scope!("windowWillClose:");
     with_state(this, |state| unsafe {
         // `setDelegate:` retains the previous value and then autoreleases it
-        autoreleasepool(|| {
+        autoreleasepool(|_| {
             // Since El Capitan, we need to be careful that delegate methods can't
             // be called after the window closes.
             let _: () = msg_send![*state.ns_window, setDelegate: nil];

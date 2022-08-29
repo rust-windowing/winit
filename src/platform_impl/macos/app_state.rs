@@ -403,7 +403,7 @@ impl AppState {
             unsafe {
                 let app: id = NSApp();
 
-                autoreleasepool(|| {
+                autoreleasepool(|_| {
                     let _: () = msg_send![app, stop: nil];
                     // To stop event loop immediately, we need to post some event here.
                     post_dummy_event(app);

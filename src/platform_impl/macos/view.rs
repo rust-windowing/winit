@@ -12,7 +12,7 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSEvent, NSEventModifierFlags, NSEventPhase, NSView, NSWindow},
     base::{id, nil},
-    foundation::{NSInteger, NSPoint, NSRect, NSSize, NSString, NSUInteger},
+    foundation::{NSInteger, NSPoint, NSRange, NSRect, NSSize, NSString, NSUInteger},
 };
 use objc::{
     declare::ClassDecl,
@@ -165,169 +165,134 @@ unsafe impl Sync for ViewClass {}
 static VIEW_CLASS: Lazy<ViewClass> = Lazy::new(|| unsafe {
     let superclass = class!(NSView);
     let mut decl = ClassDecl::new("WinitView", superclass).unwrap();
-    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
+    decl.add_method(sel!(dealloc), dealloc as extern "C" fn(_, _));
     decl.add_method(
         sel!(initWithWinit:),
-        init_with_winit as extern "C" fn(&Object, Sel, *mut c_void) -> id,
+        init_with_winit as extern "C" fn(_, _, _) -> _,
     );
     decl.add_method(
         sel!(viewDidMoveToWindow),
-        view_did_move_to_window as extern "C" fn(&Object, Sel),
+        view_did_move_to_window as extern "C" fn(_, _),
     );
-    decl.add_method(
-        sel!(drawRect:),
-        draw_rect as extern "C" fn(&Object, Sel, NSRect),
-    );
+    decl.add_method(sel!(drawRect:), draw_rect as extern "C" fn(_, _, _));
     decl.add_method(
         sel!(acceptsFirstResponder),
-        accepts_first_responder as extern "C" fn(&Object, Sel) -> BOOL,
+        accepts_first_responder as extern "C" fn(_, _) -> _,
     );
-    decl.add_method(
-        sel!(touchBar),
-        touch_bar as extern "C" fn(&Object, Sel) -> BOOL,
-    );
+    decl.add_method(sel!(touchBar), touch_bar as extern "C" fn(_, _) -> _);
     decl.add_method(
         sel!(resetCursorRects),
-        reset_cursor_rects as extern "C" fn(&Object, Sel),
+        reset_cursor_rects as extern "C" fn(_, _),
     );
 
     // ------------------------------------------------------------------
     // NSTextInputClient
     decl.add_method(
         sel!(hasMarkedText),
-        has_marked_text as extern "C" fn(&Object, Sel) -> BOOL,
+        has_marked_text as extern "C" fn(_, _) -> _,
     );
-    decl.add_method(
-        sel!(markedRange),
-        marked_range as extern "C" fn(&Object, Sel) -> NSRange,
-    );
+    decl.add_method(sel!(markedRange), marked_range as extern "C" fn(_, _) -> _);
     decl.add_method(
         sel!(selectedRange),
-        selected_range as extern "C" fn(&Object, Sel) -> NSRange,
+        selected_range as extern "C" fn(_, _) -> _,
     );
     decl.add_method(
         sel!(setMarkedText:selectedRange:replacementRange:),
-        set_marked_text as extern "C" fn(&mut Object, Sel, id, NSRange, NSRange),
+        set_marked_text as extern "C" fn(_, _, _, _, _),
     );
-    decl.add_method(sel!(unmarkText), unmark_text as extern "C" fn(&Object, Sel));
+    decl.add_method(sel!(unmarkText), unmark_text as extern "C" fn(_, _));
     decl.add_method(
         sel!(validAttributesForMarkedText),
-        valid_attributes_for_marked_text as extern "C" fn(&Object, Sel) -> id,
+        valid_attributes_for_marked_text as extern "C" fn(_, _) -> _,
     );
     decl.add_method(
         sel!(attributedSubstringForProposedRange:actualRange:),
-        attributed_substring_for_proposed_range
-            as extern "C" fn(&Object, Sel, NSRange, *mut c_void) -> id,
+        attributed_substring_for_proposed_range as extern "C" fn(_, _, _, _) -> _,
     );
     decl.add_method(
         sel!(insertText:replacementRange:),
-        insert_text as extern "C" fn(&Object, Sel, id, NSRange),
+        insert_text as extern "C" fn(_, _, _, _),
     );
     decl.add_method(
         sel!(characterIndexForPoint:),
-        character_index_for_point as extern "C" fn(&Object, Sel, NSPoint) -> NSUInteger,
+        character_index_for_point as extern "C" fn(_, _, _) -> _,
     );
     decl.add_method(
         sel!(firstRectForCharacterRange:actualRange:),
-        first_rect_for_character_range
-            as extern "C" fn(&Object, Sel, NSRange, *mut c_void) -> NSRect,
+        first_rect_for_character_range as extern "C" fn(_, _, _, _) -> _,
     );
     decl.add_method(
         sel!(doCommandBySelector:),
-        do_command_by_selector as extern "C" fn(&Object, Sel, Sel),
+        do_command_by_selector as extern "C" fn(_, _, _),
     );
     // ------------------------------------------------------------------
 
-    decl.add_method(sel!(keyDown:), key_down as extern "C" fn(&Object, Sel, id));
-    decl.add_method(sel!(keyUp:), key_up as extern "C" fn(&Object, Sel, id));
-    decl.add_method(
-        sel!(flagsChanged:),
-        flags_changed as extern "C" fn(&Object, Sel, id),
-    );
-    decl.add_method(
-        sel!(insertTab:),
-        insert_tab as extern "C" fn(&Object, Sel, id),
-    );
+    decl.add_method(sel!(keyDown:), key_down as extern "C" fn(_, _, _));
+    decl.add_method(sel!(keyUp:), key_up as extern "C" fn(_, _, _));
+    decl.add_method(sel!(flagsChanged:), flags_changed as extern "C" fn(_, _, _));
+    decl.add_method(sel!(insertTab:), insert_tab as extern "C" fn(_, _, _));
     decl.add_method(
         sel!(insertBackTab:),
-        insert_back_tab as extern "C" fn(&Object, Sel, id),
+        insert_back_tab as extern "C" fn(_, _, _),
     );
-    decl.add_method(
-        sel!(mouseDown:),
-        mouse_down as extern "C" fn(&Object, Sel, id),
-    );
-    decl.add_method(sel!(mouseUp:), mouse_up as extern "C" fn(&Object, Sel, id));
+    decl.add_method(sel!(mouseDown:), mouse_down as extern "C" fn(_, _, _));
+    decl.add_method(sel!(mouseUp:), mouse_up as extern "C" fn(_, _, _));
     decl.add_method(
         sel!(rightMouseDown:),
-        right_mouse_down as extern "C" fn(&Object, Sel, id),
+        right_mouse_down as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(rightMouseUp:),
-        right_mouse_up as extern "C" fn(&Object, Sel, id),
+        right_mouse_up as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(otherMouseDown:),
-        other_mouse_down as extern "C" fn(&Object, Sel, id),
+        other_mouse_down as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(otherMouseUp:),
-        other_mouse_up as extern "C" fn(&Object, Sel, id),
+        other_mouse_up as extern "C" fn(_, _, _),
     );
-    decl.add_method(
-        sel!(mouseMoved:),
-        mouse_moved as extern "C" fn(&Object, Sel, id),
-    );
-    decl.add_method(
-        sel!(mouseDragged:),
-        mouse_dragged as extern "C" fn(&Object, Sel, id),
-    );
+    decl.add_method(sel!(mouseMoved:), mouse_moved as extern "C" fn(_, _, _));
+    decl.add_method(sel!(mouseDragged:), mouse_dragged as extern "C" fn(_, _, _));
     decl.add_method(
         sel!(rightMouseDragged:),
-        right_mouse_dragged as extern "C" fn(&Object, Sel, id),
+        right_mouse_dragged as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(otherMouseDragged:),
-        other_mouse_dragged as extern "C" fn(&Object, Sel, id),
+        other_mouse_dragged as extern "C" fn(_, _, _),
     );
-    decl.add_method(
-        sel!(mouseEntered:),
-        mouse_entered as extern "C" fn(&Object, Sel, id),
-    );
-    decl.add_method(
-        sel!(mouseExited:),
-        mouse_exited as extern "C" fn(&Object, Sel, id),
-    );
-    decl.add_method(
-        sel!(scrollWheel:),
-        scroll_wheel as extern "C" fn(&Object, Sel, id),
-    );
+    decl.add_method(sel!(mouseEntered:), mouse_entered as extern "C" fn(_, _, _));
+    decl.add_method(sel!(mouseExited:), mouse_exited as extern "C" fn(_, _, _));
+    decl.add_method(sel!(scrollWheel:), scroll_wheel as extern "C" fn(_, _, _));
     decl.add_method(
         sel!(magnifyWithEvent:),
-        magnify_with_event as extern "C" fn(&Object, Sel, id),
+        magnify_with_event as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(rotateWithEvent:),
-        rotate_with_event as extern "C" fn(&Object, Sel, id),
+        rotate_with_event as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(pressureChangeWithEvent:),
-        pressure_change_with_event as extern "C" fn(&Object, Sel, id),
+        pressure_change_with_event as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(_wantsKeyDownForEvent:),
-        wants_key_down_for_event as extern "C" fn(&Object, Sel, id) -> BOOL,
+        wants_key_down_for_event as extern "C" fn(_, _, _) -> _,
     );
     decl.add_method(
         sel!(cancelOperation:),
-        cancel_operation as extern "C" fn(&Object, Sel, id),
+        cancel_operation as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(frameDidChange:),
-        frame_did_change as extern "C" fn(&Object, Sel, id),
+        frame_did_change as extern "C" fn(_, _, _),
     );
     decl.add_method(
         sel!(acceptsFirstMouse:),
-        accepts_first_mouse as extern "C" fn(&Object, Sel, id) -> BOOL,
+        accepts_first_mouse as extern "C" fn(_, _, _) -> _,
     );
     decl.add_ivar::<*mut c_void>("winitState");
     decl.add_ivar::<id>("markedText");
@@ -364,7 +329,7 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
                 notification_center,
                 addObserver: this
                 selector: sel!(frameDidChange:)
-                name: frame_did_change_notification_name
+                name: *frame_did_change_notification_name
                 object: this
             ];
 

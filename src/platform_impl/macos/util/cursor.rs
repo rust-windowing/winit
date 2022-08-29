@@ -148,7 +148,7 @@ pub unsafe fn invisible_cursor() -> id {
         if *cursor_obj.borrow() == nil {
             // Create a cursor from `CURSOR_BYTES`
             let cursor_data: id = msg_send![class!(NSData),
-                dataWithBytesNoCopy:CURSOR_BYTES as *const [u8]
+                dataWithBytesNoCopy:CURSOR_BYTES.as_ptr()
                 length:CURSOR_BYTES.len()
                 freeWhenDone:NO
             ];

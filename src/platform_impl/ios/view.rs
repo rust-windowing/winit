@@ -70,11 +70,11 @@ macro_rules! add_property {
             }
             $decl.add_method(
                 sel!($setter_name:),
-                setter as extern "C" fn(&mut Object, Sel, $t),
+                setter as extern "C" fn(_, _, _),
             );
             $decl.add_method(
                 sel!($getter_name),
-                $getter_name as extern "C" fn(&Object, Sel) -> $t,
+                $getter_name as extern "C" fn(_, _) -> _,
             );
         }
     };
@@ -156,11 +156,12 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             untrusted_scale_factor: CGFloat,
         ) {
             unsafe {
-                let superclass: &'static Class = msg_send![object, superclass];
+                let superclass: &'static Class = msg_send![&*object, superclass];
                 let _: () = msg_send![
-                    super(object, superclass),
+                    super(&mut *object, superclass),
                     setContentScaleFactor: untrusted_scale_factor
                 ];
+                let object = &*object; // Immutable for rest of method
 
                 let window: id = msg_send![object, window];
                 // `window` is null when `setContentScaleFactor` is invoked prior to `[UIWindow
@@ -283,34 +284,28 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
         let mut decl = ClassDecl::new(&format!("WinitUIView{}", ID), root_view_class)
             .expect("Failed to declare class `WinitUIView`");
         ID += 1;
-        decl.add_method(
-            sel!(drawRect:),
-            draw_rect as extern "C" fn(&Object, Sel, CGRect),
-        );
-        decl.add_method(
-            sel!(layoutSubviews),
-            layout_subviews as extern "C" fn(&Object, Sel),
-        );
+        decl.add_method(sel!(drawRect:), draw_rect as extern "C" fn(_, _, _));
+        decl.add_method(sel!(layoutSubviews), layout_subviews as extern "C" fn(_, _));
         decl.add_method(
             sel!(setContentScaleFactor:),
-            set_content_scale_factor as extern "C" fn(&mut Object, Sel, CGFloat),
+            set_content_scale_factor as extern "C" fn(_, _, _),
         );
 
         decl.add_method(
             sel!(touchesBegan:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+            handle_touches as extern "C" fn(_, _, _, _),
         );
         decl.add_method(
             sel!(touchesMoved:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+            handle_touches as extern "C" fn(_, _, _, _),
         );
         decl.add_method(
             sel!(touchesEnded:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+            handle_touches as extern "C" fn(_, _, _, _),
         );
         decl.add_method(
             sel!(touchesCancelled:withEvent:),
-            handle_touches as extern "C" fn(this: &Object, _: Sel, _: id, _: id),
+            handle_touches as extern "C" fn(_, _, _, _),
         );
 
         decl.register()
@@ -333,7 +328,7 @@ unsafe fn get_view_controller_class() -> &'static Class {
             .expect("Failed to declare class `WinitUIViewController`");
         decl.add_method(
             sel!(shouldAutorotate),
-            should_autorotate as extern "C" fn(&Object, Sel) -> BOOL,
+            should_autorotate as extern "C" fn(_, _) -> _,
         );
         add_property! {
             decl,
@@ -416,11 +411,11 @@ unsafe fn get_window_class() -> &'static Class {
             .expect("Failed to declare class `WinitUIWindow`");
         decl.add_method(
             sel!(becomeKeyWindow),
-            become_key_window as extern "C" fn(&Object, Sel),
+            become_key_window as extern "C" fn(_, _),
         );
         decl.add_method(
             sel!(resignKeyWindow),
-            resign_key_window as extern "C" fn(&Object, Sel),
+            resign_key_window as extern "C" fn(_, _),
         );
 
         CLASS = Some(decl.register());
@@ -594,29 +589,29 @@ pub fn create_delegate_class() {
     unsafe {
         decl.add_method(
             sel!(application:didFinishLaunchingWithOptions:),
-            did_finish_launching as extern "C" fn(&mut Object, Sel, id, id) -> BOOL,
+            did_finish_launching as extern "C" fn(_, _, _, _) -> _,
         );
 
         decl.add_method(
             sel!(applicationDidBecomeActive:),
-            did_become_active as extern "C" fn(&Object, Sel, id),
+            did_become_active as extern "C" fn(_, _, _),
         );
         decl.add_method(
             sel!(applicationWillResignActive:),
-            will_resign_active as extern "C" fn(&Object, Sel, id),
+            will_resign_active as extern "C" fn(_, _, _),
         );
         decl.add_method(
             sel!(applicationWillEnterForeground:),
-            will_enter_foreground as extern "C" fn(&Object, Sel, id),
+            will_enter_foreground as extern "C" fn(_, _, _),
         );
         decl.add_method(
             sel!(applicationDidEnterBackground:),
-            did_enter_background as extern "C" fn(&Object, Sel, id),
+            did_enter_background as extern "C" fn(_, _, _),
         );
 
         decl.add_method(
             sel!(applicationWillTerminate:),
-            will_terminate as extern "C" fn(&Object, Sel, id),
+            will_terminate as extern "C" fn(_, _, _),
         );
 
         decl.register();

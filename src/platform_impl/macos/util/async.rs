@@ -229,7 +229,7 @@ pub unsafe fn set_title_async(ns_window: id, title: String) {
 pub unsafe fn close_async(ns_window: IdRef) {
     let ns_window = MainThreadSafe(ns_window);
     Queue::main().exec_async(move || {
-        autoreleasepool(move || {
+        autoreleasepool(move |_| {
             ns_window.close();
         });
     });

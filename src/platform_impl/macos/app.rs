@@ -21,10 +21,7 @@ pub static APP_CLASS: Lazy<AppClass> = Lazy::new(|| unsafe {
     let superclass = class!(NSApplication);
     let mut decl = ClassDecl::new("WinitApp", superclass).unwrap();
 
-    decl.add_method(
-        sel!(sendEvent:),
-        send_event as extern "C" fn(&Object, Sel, id),
-    );
+    decl.add_method(sel!(sendEvent:), send_event as extern "C" fn(_, _, _));
 
     AppClass(decl.register())
 });
