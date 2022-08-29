@@ -10,9 +10,9 @@ use cocoa::{
     foundation::NSUInteger,
 };
 use objc::{
-    declare::ClassDecl,
+    declare::ClassBuilder,
     rc::autoreleasepool,
-    runtime::{Class, Object, Sel, BOOL, NO, YES},
+    runtime::{Bool, Class, Object, Sel},
 };
 use once_cell::sync::Lazy;
 
@@ -137,7 +137,7 @@ unsafe impl Sync for WindowDelegateClass {}
 
 static WINDOW_DELEGATE_CLASS: Lazy<WindowDelegateClass> = Lazy::new(|| unsafe {
     let superclass = class!(NSResponder);
-    let mut decl = ClassDecl::new("WinitWindowDelegate", superclass).unwrap();
+    let mut decl = ClassBuilder::new("WinitWindowDelegate", superclass).unwrap();
 
     decl.add_method(sel!(dealloc), dealloc as extern "C" fn(_, _));
     decl.add_method(
@@ -232,7 +232,7 @@ static WINDOW_DELEGATE_CLASS: Lazy<WindowDelegateClass> = Lazy::new(|| unsafe {
 // boilerplate and wouldn't really clarify anything...
 fn with_state<F: FnOnce(&mut WindowDelegateState) -> T, T>(this: &Object, callback: F) {
     let state_ptr = unsafe {
-        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state_ptr: *mut c_void = *this.ivar("winitState");
         &mut *(state_ptr as *mut WindowDelegateState)
     };
     callback(state_ptr);
@@ -257,10 +257,10 @@ extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> i
     }
 }
 
-extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
+extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> Bool {
     trace_scope!("windowShouldClose:");
     with_state(this, |state| state.emit_event(WindowEvent::CloseRequested));
-    NO
+    Bool::NO
 }
 
 extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
@@ -324,7 +324,7 @@ extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
         // to an id)
         let view_state: &mut ViewState = unsafe {
             let ns_view: &Object = (*state.ns_view).as_ref().expect("failed to deref");
-            let state_ptr: *mut c_void = *ns_view.get_ivar("winitState");
+            let state_ptr: *mut c_void = *ns_view.ivar("winitState");
             &mut *(state_ptr as *mut ViewState)
         };
 
@@ -339,7 +339,7 @@ extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
 }
 
 /// Invoked when the dragged image enters destination bounds or frame
-extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
+extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> Bool {
     trace_scope!("draggingEntered:");
 
     use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
@@ -362,17 +362,17 @@ extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
         }
     }
 
-    YES
+    Bool::YES
 }
 
 /// Invoked when the image is released
-extern "C" fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> BOOL {
+extern "C" fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> Bool {
     trace_scope!("prepareForDragOperation:");
-    YES
+    Bool::YES
 }
 
 /// Invoked after the released image has been removed from the screen
-extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
+extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> Bool {
     trace_scope!("performDragOperation:");
 
     use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
@@ -395,7 +395,7 @@ extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL 
         }
     }
 
-    YES
+    Bool::YES
 }
 
 /// Invoked when the dragging operation is complete

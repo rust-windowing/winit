@@ -5,7 +5,7 @@ use std::{
 
 use cocoa::base::id;
 use objc::{
-    declare::ClassDecl,
+    declare::ClassBuilder,
     runtime::{Class, Object, Sel},
 };
 use once_cell::sync::Lazy;
@@ -25,7 +25,7 @@ unsafe impl Sync for AppDelegateClass {}
 
 pub static APP_DELEGATE_CLASS: Lazy<AppDelegateClass> = Lazy::new(|| unsafe {
     let superclass = class!(NSResponder);
-    let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
+    let mut decl = ClassBuilder::new("WinitAppDelegate", superclass).unwrap();
 
     decl.add_class_method(sel!(new), new as extern "C" fn(_, _) -> _);
     decl.add_method(sel!(dealloc), dealloc as extern "C" fn(_, _));
@@ -46,7 +46,7 @@ pub static APP_DELEGATE_CLASS: Lazy<AppDelegateClass> = Lazy::new(|| unsafe {
 
 /// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
 pub unsafe fn get_aux_state_mut(this: &Object) -> RefMut<'_, AuxDelegateState> {
-    let ptr: *mut c_void = *this.get_ivar(AUX_DELEGATE_STATE_NAME);
+    let ptr: *mut c_void = *this.ivar(AUX_DELEGATE_STATE_NAME);
     // Watch out that this needs to be the correct type
     (*(ptr as *mut RefCell<AuxDelegateState>)).borrow_mut()
 }
@@ -69,7 +69,7 @@ extern "C" fn new(class: &Class, _: Sel) -> id {
 
 extern "C" fn dealloc(this: &Object, _: Sel) {
     unsafe {
-        let state_ptr: *mut c_void = *(this.get_ivar(AUX_DELEGATE_STATE_NAME));
+        let state_ptr: *mut c_void = *(this.ivar(AUX_DELEGATE_STATE_NAME));
         // As soon as the box is constructed it is immediately dropped, releasing the underlying
         // memory
         drop(Box::from_raw(state_ptr as *mut RefCell<AuxDelegateState>));

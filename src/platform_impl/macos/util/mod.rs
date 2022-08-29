@@ -12,7 +12,7 @@ use cocoa::{
     foundation::{NSPoint, NSRange, NSRect, NSString, NSUInteger},
 };
 use core_graphics::display::CGDisplay;
-use objc::runtime::{Class, Object, BOOL, NO};
+use objc::runtime::{Class, Object};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -172,8 +172,8 @@ pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, o
 ///
 /// Safety: Assumes that `string` is an instance of `NSAttributedString` or `NSString`
 pub unsafe fn id_to_string_lossy(string: id) -> String {
-    let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
-    let characters = if has_attr != NO {
+    let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+    let characters = if has_attr {
         // This is a *mut NSAttributedString
         msg_send![string, string]
     } else {

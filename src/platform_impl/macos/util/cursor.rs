@@ -3,7 +3,7 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSDictionary, NSPoint, NSString},
 };
-use objc::{runtime::Sel, runtime::NO};
+use objc::runtime::Sel;
 use std::cell::RefCell;
 
 use crate::window::CursorIcon;
@@ -147,10 +147,11 @@ pub unsafe fn invisible_cursor() -> id {
     CURSOR_OBJECT.with(|cursor_obj| {
         if *cursor_obj.borrow() == nil {
             // Create a cursor from `CURSOR_BYTES`
-            let cursor_data: id = msg_send![class!(NSData),
-                dataWithBytesNoCopy:CURSOR_BYTES.as_ptr()
-                length:CURSOR_BYTES.len()
-                freeWhenDone:NO
+            let cursor_data: id = msg_send![
+                class!(NSData),
+                dataWithBytesNoCopy: CURSOR_BYTES.as_ptr(),
+                length: CURSOR_BYTES.len(),
+                freeWhenDone: false,
             ];
 
             let ns_image: id = msg_send![class!(NSImage), alloc];

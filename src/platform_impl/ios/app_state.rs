@@ -9,7 +9,7 @@ use std::{
     time::Instant,
 };
 
-use objc::runtime::{Object, BOOL, YES};
+use objc::runtime::Object;
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -472,10 +472,7 @@ impl AppState {
 // retains window
 pub unsafe fn set_key_window(window: id) {
     bug_assert!(
-        {
-            let is_window: BOOL = msg_send![window, isKindOfClass: class!(UIWindow)];
-            is_window == YES
-        },
+        msg_send![window, isKindOfClass: class!(UIWindow)],
         "set_key_window called with an incorrect type"
     );
     let mut this = AppState::get_mut();
@@ -502,10 +499,7 @@ pub unsafe fn set_key_window(window: id) {
 // retains window
 pub unsafe fn queue_gl_or_metal_redraw(window: id) {
     bug_assert!(
-        {
-            let is_window: BOOL = msg_send![window, isKindOfClass: class!(UIWindow)];
-            is_window == YES
-        },
+        msg_send![window, isKindOfClass: class!(UIWindow)],
         "set_key_window called with an incorrect type"
     );
     let mut this = AppState::get_mut();
@@ -886,8 +880,11 @@ fn get_view_and_screen_frame(window_id: id) -> (id, CGRect) {
         let bounds: CGRect = msg_send![window_id, bounds];
         let screen: id = msg_send![window_id, screen];
         let screen_space: id = msg_send![screen, coordinateSpace];
-        let screen_frame: CGRect =
-            msg_send![window_id, convertRect:bounds toCoordinateSpace:screen_space];
+        let screen_frame: CGRect = msg_send![
+            window_id,
+            convertRect: bounds,
+            toCoordinateSpace: screen_space,
+        ];
         (view, screen_frame)
     }
 }
@@ -1019,7 +1016,7 @@ pub fn os_capabilities() -> OSCapabilities {
     static OS_CAPABILITIES: Lazy<OSCapabilities> = Lazy::new(|| {
         let version: NSOperatingSystemVersion = unsafe {
             let process_info: id = msg_send![class!(NSProcessInfo), processInfo];
-            let atleast_ios_8: BOOL = msg_send![
+            let atleast_ios_8: bool = msg_send![
                 process_info,
                 respondsToSelector: sel!(operatingSystemVersion)
             ];
@@ -1030,10 +1027,7 @@ pub fn os_capabilities() -> OSCapabilities {
             // has been tested to not even run on macOS 10.15 - Xcode 8 might?
             //
             // The minimum required iOS version is likely to grow in the future.
-            assert!(
-                atleast_ios_8 == YES,
-                "`winit` requires iOS version 8 or greater"
-            );
+            assert!(atleast_ios_8, "`winit` requires iOS version 8 or greater");
             msg_send![process_info, operatingSystemVersion]
         };
         version.into()

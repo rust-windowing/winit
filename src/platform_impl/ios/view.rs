@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use objc::{
-    declare::ClassDecl,
-    runtime::{Class, Object, Sel, BOOL, NO, YES},
+    declare::ClassBuilder,
+    runtime::{Bool, Class, Object, Sel},
 };
 
 use crate::{
@@ -66,7 +66,7 @@ macro_rules! add_property {
             };
             #[allow(non_snake_case)]
             extern "C" fn $getter_name($object: &Object, _: Sel) -> $t {
-                unsafe { *$object.get_ivar::<$t>(VAR_NAME) }
+                unsafe { *$object.ivar::<$t>(VAR_NAME) }
             }
             $decl.add_method(
                 sel!($setter_name:),
@@ -93,11 +93,8 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
 
     classes.entry(root_view_class).or_insert_with(move || {
         let uiview_class = class!(UIView);
-        let is_uiview: BOOL = msg_send![root_view_class, isSubclassOfClass: uiview_class];
-        assert_eq!(
-            is_uiview, YES,
-            "`root_view_class` must inherit from `UIView`"
-        );
+        let is_uiview: bool = msg_send![root_view_class, isSubclassOfClass: uiview_class];
+        assert!(is_uiview, "`root_view_class` must inherit from `UIView`");
 
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
             unsafe {
@@ -126,8 +123,11 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let window_bounds: CGRect = msg_send![window, bounds];
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
-                let screen_frame: CGRect =
-                    msg_send![object, convertRect:window_bounds toCoordinateSpace:screen_space];
+                let screen_frame: CGRect = msg_send![
+                    object,
+                    convertRect: window_bounds,
+                    toCoordinateSpace: screen_space,
+                ];
                 let scale_factor: CGFloat = msg_send![screen, scale];
                 let size = crate::dpi::LogicalSize {
                     width: screen_frame.size.width as f64,
@@ -186,7 +186,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
-                    msg_send![object, convertRect:bounds toCoordinateSpace:screen_space];
+                    msg_send![object, convertRect: bounds, toCoordinateSpace: screen_space];
                 let size = crate::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
@@ -281,7 +281,7 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             }
         }
 
-        let mut decl = ClassDecl::new(&format!("WinitUIView{}", ID), root_view_class)
+        let mut decl = ClassBuilder::new(&format!("WinitUIView{}", ID), root_view_class)
             .expect("Failed to declare class `WinitUIView`");
         ID += 1;
         decl.add_method(sel!(drawRect:), draw_rect as extern "C" fn(_, _, _));
@@ -320,11 +320,11 @@ unsafe fn get_view_controller_class() -> &'static Class {
 
         let uiviewcontroller_class = class!(UIViewController);
 
-        extern "C" fn should_autorotate(_: &Object, _: Sel) -> BOOL {
-            YES
+        extern "C" fn should_autorotate(_: &Object, _: Sel) -> Bool {
+            Bool::YES
         }
 
-        let mut decl = ClassDecl::new("WinitUIViewController", uiviewcontroller_class)
+        let mut decl = ClassBuilder::new("WinitUIViewController", uiviewcontroller_class)
             .expect("Failed to declare class `WinitUIViewController`");
         decl.add_method(
             sel!(shouldAutorotate),
@@ -332,7 +332,7 @@ unsafe fn get_view_controller_class() -> &'static Class {
         );
         add_property! {
             decl,
-            prefers_status_bar_hidden: BOOL,
+            prefers_status_bar_hidden: Bool,
             setPrefersStatusBarHidden: |object| {
                 unsafe {
                     let _: () = msg_send![object, setNeedsStatusBarAppearanceUpdate];
@@ -342,7 +342,7 @@ unsafe fn get_view_controller_class() -> &'static Class {
         }
         add_property! {
             decl,
-            prefers_home_indicator_auto_hidden: BOOL,
+            prefers_home_indicator_auto_hidden: Bool,
             setPrefersHomeIndicatorAutoHidden:
                 os_capabilities.home_indicator_hidden,
                 OSCapabilities::home_indicator_hidden_err_msg;
@@ -407,7 +407,7 @@ unsafe fn get_window_class() -> &'static Class {
             }
         }
 
-        let mut decl = ClassDecl::new("WinitUIWindow", uiwindow_class)
+        let mut decl = ClassBuilder::new("WinitUIWindow", uiwindow_class)
             .expect("Failed to declare class `WinitUIWindow`");
         decl.add_method(
             sel!(becomeKeyWindow),
@@ -435,7 +435,7 @@ pub(crate) unsafe fn create_view(
     assert!(!view.is_null(), "Failed to create `UIView` instance");
     let view: id = msg_send![view, initWithFrame: frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
-    let _: () = msg_send![view, setMultipleTouchEnabled: YES];
+    let _: () = msg_send![view, setMultipleTouchEnabled: Bool::YES];
     if let Some(scale_factor) = platform_attributes.scale_factor {
         let _: () = msg_send![view, setContentScaleFactor: scale_factor as CGFloat];
     }
@@ -461,21 +461,14 @@ pub(crate) unsafe fn create_view_controller(
         !view_controller.is_null(),
         "Failed to initialize `UIViewController` instance"
     );
-    let status_bar_hidden = if platform_attributes.prefers_status_bar_hidden {
-        YES
-    } else {
-        NO
-    };
+    let status_bar_hidden = Bool::new(platform_attributes.prefers_status_bar_hidden);
     let idiom = event_loop::get_idiom();
     let supported_orientations = UIInterfaceOrientationMask::from_valid_orientations_idiom(
         platform_attributes.valid_orientations,
         idiom,
     );
-    let prefers_home_indicator_hidden = if platform_attributes.prefers_home_indicator_hidden {
-        YES
-    } else {
-        NO
-    };
+    let prefers_home_indicator_hidden =
+        Bool::new(platform_attributes.prefers_home_indicator_hidden);
     let edges: UIRectEdge = platform_attributes
         .preferred_screen_edges_deferring_system_gestures
         .into();
@@ -540,11 +533,11 @@ pub(crate) unsafe fn create_window(
 }
 
 pub fn create_delegate_class() {
-    extern "C" fn did_finish_launching(_: &mut Object, _: Sel, _: id, _: id) -> BOOL {
+    extern "C" fn did_finish_launching(_: &mut Object, _: Sel, _: id, _: id) -> Bool {
         unsafe {
             app_state::did_finish_launching();
         }
-        YES
+        Bool::YES
     }
 
     extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
@@ -569,8 +562,8 @@ pub fn create_delegate_class() {
                 if window == nil {
                     break;
                 }
-                let is_winit_window: BOOL = msg_send![window, isKindOfClass: class!(WinitUIWindow)];
-                if is_winit_window == YES {
+                let is_winit_window = msg_send![window, isKindOfClass: class!(WinitUIWindow)];
+                if is_winit_window {
                     events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(window.into()),
                         event: WindowEvent::Destroyed,
@@ -583,8 +576,8 @@ pub fn create_delegate_class() {
     }
 
     let ui_responder = class!(UIResponder);
-    let mut decl =
-        ClassDecl::new("AppDelegate", ui_responder).expect("Failed to declare class `AppDelegate`");
+    let mut decl = ClassBuilder::new("AppDelegate", ui_responder)
+        .expect("Failed to declare class `AppDelegate`");
 
     unsafe {
         decl.add_method(
