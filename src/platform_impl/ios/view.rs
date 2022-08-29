@@ -522,81 +522,61 @@ pub(crate) unsafe fn create_window(
     window
 }
 
-pub fn create_delegate_class() {
-    extern "C" fn did_finish_launching(_: &mut Object, _: Sel, _: id, _: id) -> Bool {
-        unsafe {
-            app_state::did_finish_launching();
-        }
-        Bool::YES
+declare_class!(
+    pub struct WinitApplicationDelegate {}
+
+    unsafe impl ClassType for WinitApplicationDelegate {
+        type Super = NSObject;
     }
 
-    extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
-    }
-
-    extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
-    }
-
-    extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {}
-    extern "C" fn did_enter_background(_: &Object, _: Sel, _: id) {}
-
-    extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
-        unsafe {
-            let app: id = msg_send![class!(UIApplication), sharedApplication];
-            let windows: id = msg_send![app, windows];
-            let windows_enum: id = msg_send![windows, objectEnumerator];
-            let mut events = Vec::new();
-            loop {
-                let window: id = msg_send![windows_enum, nextObject];
-                if window == nil {
-                    break;
-                }
-                let is_winit_window = msg_send![window, isKindOfClass: WinitUIWindow::class()];
-                if is_winit_window {
-                    events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::Destroyed,
-                    }));
-                }
+    // UIApplicationDelegate protocol
+    unsafe impl WinitApplicationDelegate {
+        #[sel(application:didFinishLaunchingWithOptions:)]
+        fn did_finish_launching(&self, _: id, _: id) -> bool {
+            unsafe {
+                app_state::did_finish_launching();
             }
-            app_state::handle_nonuser_events(events);
-            app_state::terminated();
+            true
+        }
+
+        #[sel(applicationDidBecomeActive:)]
+        fn did_become_active(&self, _: id) {
+            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
+        }
+
+        #[sel(applicationWillResignActive:)]
+        fn will_resign_active(&self, _: id) {
+            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
+        }
+
+        #[sel(applicationWillEnterForeground:)]
+        fn will_enter_foreground(&self, _: id) {}
+        #[sel(applicationDidEnterBackground:)]
+        fn did_enter_background(&self, _: id) {}
+
+        #[sel(applicationWillTerminate:)]
+        fn will_terminate(&self, _: id) {
+            unsafe {
+                let app: id = msg_send![class!(UIApplication), sharedApplication];
+                let windows: id = msg_send![app, windows];
+                let windows_enum: id = msg_send![windows, objectEnumerator];
+                let mut events = Vec::new();
+                loop {
+                    let window: id = msg_send![windows_enum, nextObject];
+                    if window == nil {
+                        break;
+                    }
+                    let is_winit_window = msg_send![window, isKindOfClass: WinitUIWindow::class()];
+                    if is_winit_window {
+                        events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                            window_id: RootWindowId(window.into()),
+                            event: WindowEvent::Destroyed,
+                        }));
+                    }
+                }
+                app_state::handle_nonuser_events(events);
+                app_state::terminated();
+            }
         }
     }
-
-    let ui_responder = class!(UIResponder);
-    let mut decl = ClassBuilder::new("AppDelegate", ui_responder)
-        .expect("Failed to declare class `AppDelegate`");
-
-    unsafe {
-        decl.add_method(
-            sel!(application:didFinishLaunchingWithOptions:),
-            did_finish_launching as extern "C" fn(_, _, _, _) -> _,
-        );
-
-        decl.add_method(
-            sel!(applicationDidBecomeActive:),
-            did_become_active as extern "C" fn(_, _, _),
-        );
-        decl.add_method(
-            sel!(applicationWillResignActive:),
-            will_resign_active as extern "C" fn(_, _, _),
-        );
-        decl.add_method(
-            sel!(applicationWillEnterForeground:),
-            will_enter_foreground as extern "C" fn(_, _, _),
-        );
-        decl.add_method(
-            sel!(applicationDidEnterBackground:),
-            did_enter_background as extern "C" fn(_, _, _),
-        );
-
-        decl.add_method(
-            sel!(applicationWillTerminate:),
-            will_terminate as extern "C" fn(_, _, _),
-        );
-
-        decl.register();
-    }
-}
+);
