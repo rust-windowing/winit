@@ -374,7 +374,6 @@ pub struct UnownedWindow {
     pub ns_view: IdRef,   // never changes
     shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
-    pub inner_rect: Option<PhysicalSize<u32>>,
 }
 
 unsafe impl Send for UnownedWindow {}
@@ -437,16 +436,12 @@ impl UnownedWindow {
         let maximized = win_attribs.maximized;
         let visible = win_attribs.visible;
         let decorations = win_attribs.decorations;
-        let inner_rect = win_attribs
-            .inner_size
-            .map(|size| size.to_physical(scale_factor));
 
         let window = Arc::new(UnownedWindow {
             ns_view,
             ns_window,
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
-            inner_rect,
         });
 
         let delegate = new_delegate(&window, fullscreen.is_some());
