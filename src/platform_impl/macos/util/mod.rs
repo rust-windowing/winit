@@ -1,7 +1,6 @@
 mod r#async;
-mod cursor;
 
-pub use self::{cursor::*, r#async::*};
+pub use self::r#async::*;
 
 use std::ops::{BitAnd, Deref};
 use std::os::raw::c_uchar;
