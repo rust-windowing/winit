@@ -11,14 +11,13 @@ use std::{
     rc::Rc,
     sync::{
         mpsc::{self, Receiver, Sender},
-        Arc,
+        Arc, Mutex, MutexGuard,
     },
     thread,
     time::{Duration, Instant},
 };
 
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 use raw_window_handle::{RawDisplayHandle, WindowsDisplayHandle};
 
 use windows_sys::Win32::{
@@ -141,6 +140,10 @@ pub(crate) struct WindowData<T: 'static> {
 impl<T> WindowData<T> {
     unsafe fn send_event(&self, event: Event<'_, T>) {
         self.event_loop_runner.send_event(event);
+    }
+
+    fn window_state_lock(&self) -> MutexGuard<'_, WindowState> {
+        self.window_state.lock().unwrap()
     }
 }
 
@@ -718,7 +721,7 @@ unsafe fn capture_mouse(window: HWND, window_state: &mut WindowState) {
 
 /// Release mouse input, stopping windows on this thread from receiving mouse input when the cursor
 /// is outside the window.
-unsafe fn release_mouse(mut window_state: parking_lot::MutexGuard<'_, WindowState>) {
+unsafe fn release_mouse(mut window_state: MutexGuard<'_, WindowState>) {
     window_state.mouse.capture_count = window_state.mouse.capture_count.saturating_sub(1);
     if window_state.mouse.capture_count == 0 {
         // ReleaseCapture() causes a WM_CAPTURECHANGED where we lock the window_state.
@@ -802,7 +805,7 @@ fn update_modifiers<T>(window: HWND, userdata: &WindowData<T>) {
     use crate::event::WindowEvent::ModifiersChanged;
 
     let modifiers = event::get_key_mods();
-    let mut window_state = userdata.window_state.lock();
+    let mut window_state = userdata.window_state_lock();
     if window_state.modifiers_state != modifiers {
         window_state.modifiers_state = modifiers;
 
@@ -874,7 +877,7 @@ unsafe fn lose_active_focus<T>(window: HWND, userdata: &WindowData<T>) {
         })
     }
 
-    userdata.window_state.lock().modifiers_state = ModifiersState::empty();
+    userdata.window_state_lock().modifiers_state = ModifiersState::empty();
     userdata.send_event(Event::WindowEvent {
         window_id: RootWindowId(WindowId(window)),
         event: ModifiersChanged(ModifiersState::empty()),
@@ -971,7 +974,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
     // the git blame and history would be preserved.
     let callback = || match msg {
         WM_NCCALCSIZE => {
-            let window_flags = userdata.window_state.lock().window_flags;
+            let window_flags = userdata.window_state_lock().window_flags;
             if wparam == 0 || window_flags.contains(WindowFlags::MARKER_DECORATIONS) {
                 return DefWindowProcW(window, msg, wparam, lparam);
             }
@@ -998,16 +1001,14 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_ENTERSIZEMOVE => {
             userdata
-                .window_state
-                .lock()
+                .window_state_lock()
                 .set_window_flags_in_place(|f| f.insert(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
         }
 
         WM_EXITSIZEMOVE => {
             userdata
-                .window_state
-                .lock()
+                .window_state_lock()
                 .set_window_flags_in_place(|f| f.remove(WindowFlags::MARKER_IN_SIZE_MOVE));
             0
         }
@@ -1064,7 +1065,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_WINDOWPOSCHANGING => {
-            let mut window_state = userdata.window_state.lock();
+            let mut window_state = userdata.window_state_lock();
             if let Some(ref mut fullscreen) = window_state.fullscreen {
                 let window_pos = &mut *(lparam as *mut WINDOWPOS);
                 let new_rect = RECT {
@@ -1173,7 +1174,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             };
 
             {
-                let mut w = userdata.window_state.lock();
+                let mut w = userdata.window_state_lock();
                 // See WindowFlags::MARKER_RETAIN_STATE_ON_SIZE docs for info on why this `if` check exists.
                 if !w
                     .window_flags()
@@ -1195,9 +1196,9 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let is_low_surrogate = (0xDC00..=0xDFFF).contains(&wparam);
 
             if is_high_surrogate {
-                userdata.window_state.lock().high_surrogate = Some(wparam as u16);
+                userdata.window_state_lock().high_surrogate = Some(wparam as u16);
             } else if is_low_surrogate {
-                let high_surrogate = userdata.window_state.lock().high_surrogate.take();
+                let high_surrogate = userdata.window_state_lock().high_surrogate.take();
 
                 if let Some(high_surrogate) = high_surrogate {
                     let pair = [high_surrogate, wparam as u16];
@@ -1209,7 +1210,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     }
                 }
             } else {
-                userdata.window_state.lock().high_surrogate = None;
+                userdata.window_state_lock().high_surrogate = None;
 
                 if let Some(chr) = char::from_u32(wparam as u32) {
                     userdata.send_event(Event::WindowEvent {
@@ -1222,9 +1223,9 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_IME_STARTCOMPOSITION => {
-            let ime_allowed = userdata.window_state.lock().ime_allowed;
+            let ime_allowed = userdata.window_state_lock().ime_allowed;
             if ime_allowed {
-                userdata.window_state.lock().ime_state = ImeState::Enabled;
+                userdata.window_state_lock().ime_state = ImeState::Enabled;
 
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
@@ -1237,7 +1238,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_IME_COMPOSITION => {
             let ime_allowed_and_composing = {
-                let w = userdata.window_state.lock();
+                let w = userdata.window_state_lock();
                 w.ime_allowed && w.ime_state != ImeState::Disabled
             };
             // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
@@ -1256,7 +1257,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // first, receive composing result if exist.
                 if (lparam as u32 & GCS_RESULTSTR) != 0 {
                     if let Some(text) = ime_context.get_composed_text() {
-                        userdata.window_state.lock().ime_state = ImeState::Enabled;
+                        userdata.window_state_lock().ime_state = ImeState::Enabled;
 
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
@@ -1268,7 +1269,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // Next, receive preedit range for next composing if exist.
                 if (lparam as u32 & GCS_COMPSTR) != 0 {
                     if let Some((text, first, last)) = ime_context.get_composing_text_and_cursor() {
-                        userdata.window_state.lock().ime_state = ImeState::Preedit;
+                        userdata.window_state_lock().ime_state = ImeState::Preedit;
                         let cursor_range = first.map(|f| (f, last.unwrap_or(f)));
 
                         userdata.send_event(Event::WindowEvent {
@@ -1285,11 +1286,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_IME_ENDCOMPOSITION => {
             let ime_allowed_or_composing = {
-                let w = userdata.window_state.lock();
+                let w = userdata.window_state_lock();
                 w.ime_allowed || w.ime_state != ImeState::Disabled
             };
             if ime_allowed_or_composing {
-                if userdata.window_state.lock().ime_state == ImeState::Preedit {
+                if userdata.window_state_lock().ime_state == ImeState::Preedit {
                     // Windows Hangul IME sends WM_IME_COMPOSITION after WM_IME_ENDCOMPOSITION, so
                     // trying receiving composing result and commit if exists.
                     let ime_context = ImeContext::current(window);
@@ -1301,7 +1302,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     }
                 }
 
-                userdata.window_state.lock().ime_state = ImeState::Disabled;
+                userdata.window_state_lock().ime_state = ImeState::Disabled;
 
                 userdata.send_event(Event::WindowEvent {
                     window_id: RootWindowId(WindowId(window)),
@@ -1322,17 +1323,17 @@ unsafe fn public_window_callback_inner<T: 'static>(
         // this is necessary for us to maintain minimize/restore state
         WM_SYSCOMMAND => {
             if wparam == SC_RESTORE as usize {
-                let mut w = userdata.window_state.lock();
+                let mut w = userdata.window_state_lock();
                 w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, false));
             }
             if wparam == SC_MINIMIZE as usize {
-                let mut w = userdata.window_state.lock();
+                let mut w = userdata.window_state_lock();
                 w.set_window_flags_in_place(|f| f.set(WindowFlags::MINIMIZED, true));
             }
             // Send `WindowEvent::Minimized` here if we decide to implement one
 
             if wparam == SC_SCREENSAVE as usize {
-                let window_state = userdata.window_state.lock();
+                let window_state = userdata.window_state_lock();
                 if window_state.fullscreen.is_some() {
                     return 0;
                 }
@@ -1344,7 +1345,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         WM_MOUSEMOVE => {
             use crate::event::WindowEvent::{CursorEntered, CursorMoved};
             let mouse_was_outside_window = {
-                let mut w = userdata.window_state.lock();
+                let mut w = userdata.window_state_lock();
 
                 let was_outside_window = !w.mouse.cursor_flags().contains(CursorFlags::IN_WINDOW);
                 w.mouse
@@ -1378,7 +1379,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 // handle spurious WM_MOUSEMOVE messages
                 // see https://devblogs.microsoft.com/oldnewthing/20031001-00/?p=42343
                 // and http://debugandconquer.blogspot.com/2015/08/the-cause-of-spurious-mouse-move.html
-                let mut w = userdata.window_state.lock();
+                let mut w = userdata.window_state_lock();
                 cursor_moved = w.mouse.last_position != Some(position);
                 w.mouse.last_position = Some(position);
             }
@@ -1401,7 +1402,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         WM_MOUSELEAVE => {
             use crate::event::WindowEvent::CursorLeft;
             {
-                let mut w = userdata.window_state.lock();
+                let mut w = userdata.window_state_lock();
                 w.mouse
                     .set_cursor_flags(window, |f| f.set(CursorFlags::IN_WINDOW, false))
                     .ok();
@@ -1522,7 +1523,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         WM_LBUTTONDOWN => {
             use crate::event::{ElementState::Pressed, MouseButton::Left, WindowEvent::MouseInput};
 
-            capture_mouse(window, &mut *userdata.window_state.lock());
+            capture_mouse(window, &mut *userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1543,7 +1544,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Released, MouseButton::Left, WindowEvent::MouseInput,
             };
 
-            release_mouse(userdata.window_state.lock());
+            release_mouse(userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1564,7 +1565,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Pressed, MouseButton::Right, WindowEvent::MouseInput,
             };
 
-            capture_mouse(window, &mut *userdata.window_state.lock());
+            capture_mouse(window, &mut *userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1585,7 +1586,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Released, MouseButton::Right, WindowEvent::MouseInput,
             };
 
-            release_mouse(userdata.window_state.lock());
+            release_mouse(userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1606,7 +1607,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Pressed, MouseButton::Middle, WindowEvent::MouseInput,
             };
 
-            capture_mouse(window, &mut *userdata.window_state.lock());
+            capture_mouse(window, &mut *userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1627,7 +1628,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 ElementState::Released, MouseButton::Middle, WindowEvent::MouseInput,
             };
 
-            release_mouse(userdata.window_state.lock());
+            release_mouse(userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1649,7 +1650,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             };
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
-            capture_mouse(window, &mut *userdata.window_state.lock());
+            capture_mouse(window, &mut *userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1671,7 +1672,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             };
             let xbutton = super::get_xbutton_wparam(wparam as u32);
 
-            release_mouse(userdata.window_state.lock());
+            release_mouse(userdata.window_state_lock());
 
             update_modifiers(window, userdata);
 
@@ -1693,7 +1694,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             // can happen if `SetCapture` is called on our window when it already has the mouse
             // capture.
             if lparam != window {
-                userdata.window_state.lock().mouse.capture_count = 0;
+                userdata.window_state_lock().mouse.capture_count = 0;
             }
             0
         }
@@ -1889,7 +1890,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_NCACTIVATE => {
             let is_active = wparam == 1;
-            let active_focus_changed = userdata.window_state.lock().set_active(is_active);
+            let active_focus_changed = userdata.window_state_lock().set_active(is_active);
             if active_focus_changed {
                 if is_active {
                     gain_active_focus(window, userdata);
@@ -1901,7 +1902,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_SETFOCUS => {
-            let active_focus_changed = userdata.window_state.lock().set_focused(true);
+            let active_focus_changed = userdata.window_state_lock().set_focused(true);
             if active_focus_changed {
                 gain_active_focus(window, userdata);
             }
@@ -1909,7 +1910,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_KILLFOCUS => {
-            let active_focus_changed = userdata.window_state.lock().set_focused(false);
+            let active_focus_changed = userdata.window_state_lock().set_focused(false);
             if active_focus_changed {
                 lose_active_focus(window, userdata);
             }
@@ -1918,7 +1919,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_SETCURSOR => {
             let set_cursor_to = {
-                let window_state = userdata.window_state.lock();
+                let window_state = userdata.window_state_lock();
                 // The return value for the preceding `WM_NCHITTEST` message is conveniently
                 // provided through the low-order word of lParam. We use that here since
                 // `WM_MOUSEMOVE` seems to come after `WM_SETCURSOR` for a given cursor movement.
@@ -1948,7 +1949,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         WM_GETMINMAXINFO => {
             let mmi = lparam as *mut MINMAXINFO;
 
-            let window_state = userdata.window_state.lock();
+            let window_state = userdata.window_state_lock();
             let window_flags = window_state.window_flags;
 
             if window_state.min_size.is_some() || window_state.max_size.is_some() {
@@ -1989,7 +1990,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let old_scale_factor: f64;
 
             let (allow_resize, window_flags) = {
-                let mut window_state = userdata.window_state.lock();
+                let mut window_state = userdata.window_state_lock();
                 old_scale_factor = window_state.scale_factor;
                 window_state.scale_factor = new_scale_factor;
 
@@ -2054,7 +2055,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             let dragging_window: bool;
 
             {
-                let window_state = userdata.window_state.lock();
+                let window_state = userdata.window_state_lock();
                 dragging_window = window_state
                     .window_flags()
                     .contains(WindowFlags::MARKER_IN_SIZE_MOVE);
@@ -2183,11 +2184,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
         WM_SETTINGCHANGE => {
             use crate::event::WindowEvent::ThemeChanged;
 
-            let preferred_theme = userdata.window_state.lock().preferred_theme;
+            let preferred_theme = userdata.window_state_lock().preferred_theme;
 
             if preferred_theme == None {
                 let new_theme = try_theme(window, preferred_theme);
-                let mut window_state = userdata.window_state.lock();
+                let mut window_state = userdata.window_state_lock();
 
                 if window_state.current_theme != new_theme {
                     window_state.current_theme = new_theme;
@@ -2207,13 +2208,13 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 DestroyWindow(window);
                 0
             } else if msg == *SET_RETAIN_STATE_ON_SIZE_MSG_ID {
-                let mut window_state = userdata.window_state.lock();
+                let mut window_state = userdata.window_state_lock();
                 window_state.set_window_flags_in_place(|f| {
                     f.set(WindowFlags::MARKER_RETAIN_STATE_ON_SIZE, wparam != 0)
                 });
                 0
             } else if msg == *TASKBAR_CREATED {
-                let window_state = userdata.window_state.lock();
+                let window_state = userdata.window_state_lock();
                 set_skip_taskbar(window, window_state.skip_taskbar);
                 DefWindowProcW(window, msg, wparam, lparam)
             } else {
