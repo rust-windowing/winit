@@ -36,7 +36,7 @@ use windows_sys::Win32::{
             Ime::{GCS_COMPSTR, GCS_RESULTSTR, ISC_SHOWUICOMPOSITIONWINDOW},
             KeyboardAndMouse::{
                 MapVirtualKeyA, ReleaseCapture, SetCapture, TrackMouseEvent, TME_LEAVE,
-                TRACKMOUSEEVENT, VK_F4,
+                TRACKMOUSEEVENT,
             },
             Pointer::{
                 POINTER_FLAG_DOWN, POINTER_FLAG_UP, POINTER_FLAG_UPDATE, POINTER_INFO,
@@ -53,7 +53,7 @@ use windows_sys::Win32::{
             GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
             PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
-            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MSG, MWMO_INPUTAVAILABLE,
+            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
             NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS,
             RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
             SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
@@ -61,11 +61,11 @@ use windows_sys::Win32::{
             WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION,
             WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT,
             WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
-            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
+            WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MENUCHAR, WM_MOUSEHWHEEL, WM_MOUSEMOVE,
             WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
-            WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
+            WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
             WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
             WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
             WS_VISIBLE,
@@ -1189,7 +1189,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             0
         }
 
-        WM_CHAR | WM_SYSCHAR => {
+        WM_CHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
             use std::char;
             let is_high_surrogate = (0xD800..=0xDBFF).contains(&wparam);
@@ -1219,8 +1219,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     });
                 }
             }
+
             0
         }
+
+        WM_MENUCHAR => (MNC_CLOSE << 16) as isize,
 
         WM_IME_STARTCOMPOSITION => {
             let ime_allowed = userdata.window_state_lock().ime_allowed;
@@ -1464,35 +1467,36 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_KEYDOWN | WM_SYSKEYDOWN => {
             use crate::event::{ElementState::Pressed, VirtualKeyCode};
-            if msg == WM_SYSKEYDOWN && wparam == VK_F4 as usize {
-                DefWindowProcW(window, msg, wparam, lparam)
-            } else {
-                if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
-                    update_modifiers(window, userdata);
+            if let Some((scancode, vkey)) = process_key_params(wparam, lparam) {
+                update_modifiers(window, userdata);
 
-                    #[allow(deprecated)]
+                #[allow(deprecated)]
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::KeyboardInput {
+                        device_id: DEVICE_ID,
+                        input: KeyboardInput {
+                            state: Pressed,
+                            scancode,
+                            virtual_keycode: vkey,
+                            modifiers: event::get_key_mods(),
+                        },
+                        is_synthetic: false,
+                    },
+                });
+                // Windows doesn't emit a delete character by default, but in order to make it
+                // consistent with the other platforms we'll emit a delete character here.
+                if vkey == Some(VirtualKeyCode::Delete) {
                     userdata.send_event(Event::WindowEvent {
                         window_id: RootWindowId(WindowId(window)),
-                        event: WindowEvent::KeyboardInput {
-                            device_id: DEVICE_ID,
-                            input: KeyboardInput {
-                                state: Pressed,
-                                scancode,
-                                virtual_keycode: vkey,
-                                modifiers: event::get_key_mods(),
-                            },
-                            is_synthetic: false,
-                        },
+                        event: WindowEvent::ReceivedCharacter('\u{7F}'),
                     });
-                    // Windows doesn't emit a delete character by default, but in order to make it
-                    // consistent with the other platforms we'll emit a delete character here.
-                    if vkey == Some(VirtualKeyCode::Delete) {
-                        userdata.send_event(Event::WindowEvent {
-                            window_id: RootWindowId(WindowId(window)),
-                            event: WindowEvent::ReceivedCharacter('\u{7F}'),
-                        });
-                    }
                 }
+            }
+
+            if msg == WM_SYSKEYDOWN {
+                DefWindowProcW(window, msg, wparam, lparam)
+            } else {
                 0
             }
         }
