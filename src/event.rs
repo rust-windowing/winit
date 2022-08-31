@@ -324,7 +324,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - **Wayland:** Unsupported.
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
     Moved(PhysicalPosition<i32>),
 
     /// The window has been requested to close.
