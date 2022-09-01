@@ -374,7 +374,7 @@ pub trait NSStringRust: Sized {
 
 impl NSStringRust for id {
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id {
-        msg_send![self, initWithUTF8String: c_string as id]
+        msg_send![self, initWithUTF8String: c_string]
     }
 
     unsafe fn stringByAppendingString_(self, other: id) -> id {
