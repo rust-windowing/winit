@@ -1,7 +1,6 @@
 use std::os::raw;
 use std::{ptr, sync::Arc};
 
-#[cfg(feature = "x11")]
 use crate::window::WindowId;
 use crate::{
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
@@ -175,7 +174,7 @@ pub trait WindowBuilderExtX11 {
     fn with_x11_screen(self, screen_id: i32) -> Self;
     #[cfg(feature = "x11")]
     /// Build window with X11's parent window. Only relevant on X11.
-    fn with_x11_parent(self, parent_id: WindowId) -> Self;
+    fn with_parent(self, parent_id: WindowId) -> Self;
 
     /// Build window with the given `general` and `instance` names.
     ///
@@ -233,8 +232,7 @@ impl WindowBuilderExtX11 for WindowBuilder {
     }
 
     #[inline]
-    #[cfg(feature = "x11")]
-    fn with_x11_parent(mut self, parent_id: WindowId) -> Self {
+    fn with_parent(mut self, parent_id: WindowId) -> Self {
         self.platform_specific.parent_id = Some(parent_id.0);
         self
     }
