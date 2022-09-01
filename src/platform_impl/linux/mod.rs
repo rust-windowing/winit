@@ -30,7 +30,7 @@ pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
 #[cfg(feature = "x11")]
-use crate::platform::unix::XlibErrorHook;
+use crate::platform::x11::XlibErrorHook;
 #[cfg(feature = "wayland")]
 use crate::window::Theme;
 use crate::{
