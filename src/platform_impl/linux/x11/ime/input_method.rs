@@ -4,11 +4,10 @@ use std::{
     fmt,
     os::raw::c_char,
     ptr,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 use once_cell::sync::Lazy;
-use parking_lot::Mutex;
 
 use super::{ffi, util, XConnection, XError};
 

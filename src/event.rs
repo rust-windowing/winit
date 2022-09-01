@@ -321,6 +321,10 @@ pub enum WindowEvent<'a> {
     Resized(PhysicalSize<u32>),
 
     /// The position of the window has changed. Contains the window's new position.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland:** Unsupported.
     Moved(PhysicalPosition<i32>),
 
     /// The window has been requested to close.
@@ -424,6 +428,34 @@ pub enum WindowEvent<'a> {
         button: MouseButton,
         #[deprecated = "Deprecated in favor of WindowEvent::ModifiersChanged"]
         modifiers: ModifiersState,
+    },
+
+    /// Touchpad magnification event with two-finger pinch gesture.
+    ///
+    /// Positive delta values indicate magnification (zooming in) and
+    /// negative delta values indicate shrinking (zooming out).
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **macOS**.
+    TouchpadMagnify {
+        device_id: DeviceId,
+        delta: f64,
+        phase: TouchPhase,
+    },
+
+    /// Touchpad rotation event with two-finger rotation gesture.
+    ///
+    /// Positive delta values indicate rotation counterclockwise and
+    /// negative delta values indicate rotation clockwise.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - Only available on **macOS**.
+    TouchpadRotate {
+        device_id: DeviceId,
+        delta: f32,
+        phase: TouchPhase,
     },
 
     /// Touchpad pressure event.
@@ -549,6 +581,24 @@ impl Clone for WindowEvent<'static> {
                 button: *button,
                 modifiers: *modifiers,
             },
+            TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
+            } => TouchpadMagnify {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
+            TouchpadRotate {
+                device_id,
+                delta,
+                phase,
+            } => TouchpadRotate {
+                device_id: *device_id,
+                delta: *delta,
+                phase: *phase,
+            },
             TouchpadPressure {
                 device_id,
                 pressure,
@@ -636,6 +686,24 @@ impl<'a> WindowEvent<'a> {
                 state,
                 button,
                 modifiers,
+            }),
+            TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
+            } => Some(TouchpadMagnify {
+                device_id,
+                delta,
+                phase,
+            }),
+            TouchpadRotate {
+                device_id,
+                delta,
+                phase,
+            } => Some(TouchpadRotate {
+                device_id,
+                delta,
+                phase,
             }),
             TouchpadPressure {
                 device_id,

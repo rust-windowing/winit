@@ -302,6 +302,14 @@ static VIEW_CLASS: Lazy<ViewClass> = Lazy::new(|| unsafe {
         scroll_wheel as extern "C" fn(&Object, Sel, id),
     );
     decl.add_method(
+        sel!(magnifyWithEvent:),
+        magnify_with_event as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
+        sel!(rotateWithEvent:),
+        rotate_with_event as extern "C" fn(&Object, Sel, id),
+    );
+    decl.add_method(
         sel!(pressureChangeWithEvent:),
         pressure_change_with_event as extern "C" fn(&Object, Sel, id),
     );
@@ -1192,6 +1200,64 @@ extern "C" fn scroll_wheel(this: &Object, _sel: Sel, event: id) {
         };
 
         AppState::queue_event(EventWrapper::StaticEvent(device_event));
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
+    }
+}
+
+extern "C" fn magnify_with_event(this: &Object, _sel: Sel, event: id) {
+    trace_scope!("magnifyWithEvent:");
+
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        let delta = event.magnification();
+        let phase = match event.phase() {
+            NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
+            NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
+            NSEventPhase::NSEventPhaseCancelled => TouchPhase::Cancelled,
+            NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
+            _ => return,
+        };
+
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::TouchpadMagnify {
+                device_id: DEVICE_ID,
+                delta,
+                phase,
+            },
+        };
+
+        AppState::queue_event(EventWrapper::StaticEvent(window_event));
+    }
+}
+
+extern "C" fn rotate_with_event(this: &Object, _sel: Sel, event: id) {
+    trace_scope!("rotateWithEvent:");
+
+    unsafe {
+        let state_ptr: *mut c_void = *this.get_ivar("winitState");
+        let state = &mut *(state_ptr as *mut ViewState);
+
+        let delta = event.rotation();
+        let phase = match event.phase() {
+            NSEventPhase::NSEventPhaseBegan => TouchPhase::Started,
+            NSEventPhase::NSEventPhaseChanged => TouchPhase::Moved,
+            NSEventPhase::NSEventPhaseCancelled => TouchPhase::Cancelled,
+            NSEventPhase::NSEventPhaseEnded => TouchPhase::Ended,
+            _ => return,
+        };
+
+        let window_event = Event::WindowEvent {
+            window_id: WindowId(get_window_id(state.ns_window)),
+            event: WindowEvent::TouchpadRotate {
+                device_id: DEVICE_ID,
+                delta,
+                phase,
+            },
+        };
+
         AppState::queue_event(EventWrapper::StaticEvent(window_event));
     }
 }

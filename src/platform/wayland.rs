@@ -92,7 +92,9 @@ pub trait WindowExtWayland {
     /// Updates [`Theme`] of window decorations.
     ///
     /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    /// Possible values for env variable are: "dark" and light"
+    /// Possible values for env variable are: "dark" and light".
+    ///
+    /// When unspecified a theme is automatically selected.
     fn wayland_set_csd_theme(&self, config: Theme);
 }
 
@@ -140,7 +142,9 @@ pub trait WindowBuilderExtWayland {
     /// Build window with certain decoration [`Theme`]
     ///
     /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
-    /// Possible values for env variable are: "dark" and light"
+    /// Possible values for env variable are: "dark" and light".
+    ///
+    /// When unspecified a theme is automatically selected.
     fn with_wayland_csd_theme(self, theme: Theme) -> Self;
 }
 

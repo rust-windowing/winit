@@ -30,7 +30,7 @@ use super::{EventLoopWindowTarget, WindowId};
 
 pub mod shim;
 
-use shim::{WindowHandle, WindowRequest, WindowUpdate};
+use shim::{WindowCompositorUpdate, WindowHandle, WindowRequest, WindowUserRequest};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
@@ -94,11 +94,20 @@ impl Window {
 
                 // Get the window that received the event.
                 let window_id = super::make_wid(&surface);
-                let mut window_update = winit_state.window_updates.get_mut(&window_id).unwrap();
+                let mut window_compositor_update = winit_state
+                    .window_compositor_updates
+                    .get_mut(&window_id)
+                    .unwrap();
+
+                // Mark that we need a frame refresh on the DPI change.
+                winit_state
+                    .window_user_requests
+                    .get_mut(&window_id)
+                    .unwrap()
+                    .refresh_frame = true;
 
                 // Set pending scale factor.
-                window_update.scale_factor = Some(scale);
-                window_update.redraw_requested = true;
+                window_compositor_update.scale_factor = Some(scale);
 
                 surface.set_buffer_scale(scale);
             })
@@ -128,11 +137,19 @@ impl Window {
                     use sctk::window::{Event, State};
 
                     let winit_state = dispatch_data.get::<WinitState>().unwrap();
-                    let mut window_update = winit_state.window_updates.get_mut(&window_id).unwrap();
+                    let mut window_compositor_update = winit_state
+                        .window_compositor_updates
+                        .get_mut(&window_id)
+                        .unwrap();
+
+                    let mut window_user_requests = winit_state
+                        .window_user_requests
+                        .get_mut(&window_id)
+                        .unwrap();
 
                     match event {
                         Event::Refresh => {
-                            window_update.refresh_frame = true;
+                            window_user_requests.refresh_frame = true;
                         }
                         Event::Configure { new_size, states } => {
                             let is_maximized = states.contains(&State::Maximized);
@@ -140,31 +157,27 @@ impl Window {
                             let is_fullscreen = states.contains(&State::Fullscreen);
                             fullscreen_clone.store(is_fullscreen, Ordering::Relaxed);
 
-                            window_update.refresh_frame = true;
-                            window_update.redraw_requested = true;
+                            window_user_requests.refresh_frame = true;
                             if let Some((w, h)) = new_size {
-                                window_update.size = Some(LogicalSize::new(w, h));
+                                window_compositor_update.size = Some(LogicalSize::new(w, h));
                             }
                         }
                         Event::Close => {
-                            window_update.close_window = true;
+                            window_compositor_update.close_window = true;
                         }
                     }
                 },
             )
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
 
-        // Set CSD frame config
+        // Set CSD frame config from theme if specified,
+        // otherwise use upstream automatic selection.
         #[cfg(feature = "sctk-adwaita")]
-        {
-            let theme = platform_attributes.csd_theme.unwrap_or_else(|| {
-                let env = std::env::var(WAYLAND_CSD_THEME_ENV_VAR).unwrap_or_default();
-                match env.to_lowercase().as_str() {
-                    "dark" => Theme::Dark,
-                    _ => Theme::Light,
-                }
-            });
-
+        if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
+            std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
+                .ok()
+                .and_then(|s| s.as_str().try_into().ok())
+        }) {
             window.set_frame_config(theme.into());
         }
 
@@ -234,9 +247,9 @@ impl Window {
         let size = Arc::new(Mutex::new(LogicalSize::new(width, height)));
 
         // We should trigger redraw and commit the surface for the newly created window.
-        let mut window_update = WindowUpdate::new();
-        window_update.refresh_frame = true;
-        window_update.redraw_requested = true;
+        let mut window_user_request = WindowUserRequest::new();
+        window_user_request.refresh_frame = true;
+        window_user_request.redraw_requested = true;
 
         let window_id = super::make_wid(&surface);
         let window_requests = Arc::new(Mutex::new(Vec::with_capacity(64)));
@@ -262,9 +275,13 @@ impl Window {
             .event_sink
             .push_window_event(crate::event::WindowEvent::Focused(false), window_id);
 
+        // Add state for the window.
         winit_state
-            .window_updates
-            .insert(window_id, WindowUpdate::new());
+            .window_user_requests
+            .insert(window_id, window_user_request);
+        winit_state
+            .window_compositor_updates
+            .insert(window_id, WindowCompositorUpdate::new());
 
         let windowing_features = event_loop_window_target.windowing_features;
 
@@ -613,6 +630,26 @@ impl From<Theme> for sctk_adwaita::FrameConfig {
         match theme {
             Theme::Light => sctk_adwaita::FrameConfig::light(),
             Theme::Dark => sctk_adwaita::FrameConfig::dark(),
+        }
+    }
+}
+
+impl TryFrom<&str> for Theme {
+    type Error = ();
+
+    /// ```
+    /// use winit::window::Theme;
+    ///
+    /// assert_eq!("dark".try_into(), Ok(Theme::Dark));
+    /// assert_eq!("lIghT".try_into(), Ok(Theme::Light));
+    /// ```
+    fn try_from(theme: &str) -> Result<Self, Self::Error> {
+        if theme.eq_ignore_ascii_case("dark") {
+            Ok(Self::Dark)
+        } else if theme.eq_ignore_ascii_case("light") {
+            Ok(Self::Light)
+        } else {
+            Err(())
         }
     }
 }

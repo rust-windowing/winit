@@ -14,7 +14,7 @@ use windows_sys::{
     core::{HRESULT, PCWSTR},
     Win32::{
         Foundation::{BOOL, HINSTANCE, HWND, RECT},
-        Graphics::Gdi::{ClientToScreen, InvalidateRgn, HMONITOR},
+        Graphics::Gdi::{ClientToScreen, HMONITOR},
         System::{
             LibraryLoader::{GetProcAddress, LoadLibraryA},
             SystemServices::IMAGE_DOS_HEADER,
@@ -23,19 +23,16 @@ use windows_sys::{
             HiDpi::{DPI_AWARENESS_CONTEXT, MONITOR_DPI_TYPE, PROCESS_DPI_AWARENESS},
             Input::KeyboardAndMouse::GetActiveWindow,
             WindowsAndMessaging::{
-                AdjustWindowRectEx, ClipCursor, GetClientRect, GetClipCursor, GetMenu,
-                GetSystemMetrics, GetWindowLongW, GetWindowRect, SetWindowPos, ShowCursor,
-                GWL_EXSTYLE, GWL_STYLE, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP,
-                IDC_IBEAM, IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE,
-                IDC_WAIT, SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN,
-                SM_YVIRTUALSCREEN, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE,
-                SWP_NOREPOSITION, SWP_NOZORDER, WINDOW_EX_STYLE, WINDOW_STYLE,
+                ClipCursor, GetClientRect, GetClipCursor, GetSystemMetrics, GetWindowRect,
+                ShowCursor, IDC_APPSTARTING, IDC_ARROW, IDC_CROSS, IDC_HAND, IDC_HELP, IDC_IBEAM,
+                IDC_NO, IDC_SIZEALL, IDC_SIZENESW, IDC_SIZENS, IDC_SIZENWSE, IDC_SIZEWE, IDC_WAIT,
+                SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN,
             },
         },
     },
 };
 
-use crate::{dpi::PhysicalSize, window::CursorIcon};
+use crate::window::CursorIcon;
 
 pub fn encode_wide(string: impl AsRef<OsStr>) -> Vec<u16> {
     string.as_ref().encode_wide().chain(once(0)).collect()
@@ -56,111 +53,40 @@ where
     bitset & flag == flag
 }
 
-pub unsafe fn status_map<T, F: FnMut(&mut T) -> BOOL>(mut fun: F) -> Option<T> {
-    let mut data: T = mem::zeroed();
-    if fun(&mut data) != false.into() {
-        Some(data)
-    } else {
-        None
-    }
-}
-
-fn win_to_err<F: FnOnce() -> BOOL>(f: F) -> Result<(), io::Error> {
-    if f() != false.into() {
+pub(crate) fn win_to_err(result: BOOL) -> Result<(), io::Error> {
+    if result != false.into() {
         Ok(())
     } else {
         Err(io::Error::last_os_error())
     }
 }
 
-pub fn get_window_rect(hwnd: HWND) -> Option<RECT> {
-    unsafe { status_map(|rect| GetWindowRect(hwnd, rect)) }
+pub enum WindowArea {
+    Outer,
+    Inner,
 }
 
-pub fn get_client_rect(hwnd: HWND) -> Result<RECT, io::Error> {
-    unsafe {
-        let mut rect = mem::zeroed();
-        let mut top_left = mem::zeroed();
+impl WindowArea {
+    pub fn get_rect(self, hwnd: HWND) -> Result<RECT, io::Error> {
+        let mut rect = unsafe { mem::zeroed() };
 
-        win_to_err(|| ClientToScreen(hwnd, &mut top_left))?;
-        win_to_err(|| GetClientRect(hwnd, &mut rect))?;
-        rect.left += top_left.x;
-        rect.top += top_left.y;
-        rect.right += top_left.x;
-        rect.bottom += top_left.y;
+        match self {
+            WindowArea::Outer => {
+                win_to_err(unsafe { GetWindowRect(hwnd, &mut rect) })?;
+            }
+            WindowArea::Inner => unsafe {
+                let mut top_left = mem::zeroed();
+
+                win_to_err(ClientToScreen(hwnd, &mut top_left))?;
+                win_to_err(GetClientRect(hwnd, &mut rect))?;
+                rect.left += top_left.x;
+                rect.top += top_left.y;
+                rect.right += top_left.x;
+                rect.bottom += top_left.y;
+            },
+        }
 
         Ok(rect)
-    }
-}
-
-pub fn adjust_size(hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
-    let (width, height): (u32, u32) = size.into();
-    let rect = RECT {
-        left: 0,
-        right: width as i32,
-        top: 0,
-        bottom: height as i32,
-    };
-    let rect = adjust_window_rect(hwnd, rect).unwrap_or(rect);
-    PhysicalSize::new((rect.right - rect.left) as _, (rect.bottom - rect.top) as _)
-}
-
-pub(crate) fn set_inner_size_physical(window: HWND, x: u32, y: u32) {
-    unsafe {
-        let rect = adjust_window_rect(
-            window,
-            RECT {
-                top: 0,
-                left: 0,
-                bottom: y as i32,
-                right: x as i32,
-            },
-        )
-        .expect("adjust_window_rect failed");
-
-        let outer_x = (rect.right - rect.left).abs() as _;
-        let outer_y = (rect.top - rect.bottom).abs() as _;
-        SetWindowPos(
-            window,
-            0,
-            0,
-            0,
-            outer_x,
-            outer_y,
-            SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOREPOSITION | SWP_NOMOVE | SWP_NOACTIVATE,
-        );
-        InvalidateRgn(window, 0, false.into());
-    }
-}
-
-pub fn adjust_window_rect(hwnd: HWND, rect: RECT) -> Option<RECT> {
-    unsafe {
-        let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
-        let style_ex = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
-        adjust_window_rect_with_styles(hwnd, style, style_ex, rect)
-    }
-}
-
-pub fn adjust_window_rect_with_styles(
-    hwnd: HWND,
-    style: WINDOW_STYLE,
-    style_ex: WINDOW_EX_STYLE,
-    rect: RECT,
-) -> Option<RECT> {
-    unsafe {
-        status_map(|r| {
-            *r = rect;
-
-            let b_menu = GetMenu(hwnd) != 0;
-            if let (Some(get_dpi_for_window), Some(adjust_window_rect_ex_for_dpi)) =
-                (*GET_DPI_FOR_WINDOW, *ADJUST_WINDOW_RECT_EX_FOR_DPI)
-            {
-                let dpi = get_dpi_for_window(hwnd);
-                adjust_window_rect_ex_for_dpi(r, style, b_menu.into(), style_ex, dpi)
-            } else {
-                AdjustWindowRectEx(r, style, b_menu.into(), style_ex)
-            }
-        })
     }
 }
 
@@ -175,7 +101,7 @@ pub fn set_cursor_hidden(hidden: bool) {
 pub fn get_cursor_clip() -> Result<RECT, io::Error> {
     unsafe {
         let mut rect: RECT = mem::zeroed();
-        win_to_err(|| GetClipCursor(&mut rect)).map(|_| rect)
+        win_to_err(GetClipCursor(&mut rect)).map(|_| rect)
     }
 }
 
@@ -188,7 +114,7 @@ pub fn set_cursor_clip(rect: Option<RECT>) -> Result<(), io::Error> {
             .as_ref()
             .map(|r| r as *const RECT)
             .unwrap_or(ptr::null());
-        win_to_err(|| ClipCursor(rect_ptr))
+        win_to_err(ClipCursor(rect_ptr))
     }
 }
 

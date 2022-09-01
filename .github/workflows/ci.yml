@@ -44,7 +44,6 @@ jobs:
     env:
       RUST_BACKTRACE: 1
       CARGO_INCREMENTAL: 0
-      PKG_CONFIG_ALLOW_CROSS: 1
       RUSTFLAGS: "-C debuginfo=0 --deny warnings"
       OPTIONS: ${{ matrix.platform.options }}
       FEATURES: ${{ format(',{0}', matrix.platform.features ) }}
@@ -72,12 +71,9 @@ jobs:
       # "Temporary" workaround until https://github.com/actions/virtual-environments/issues/5879#issuecomment-1195156618
       # gets looked into.
       run: echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
-    - name: Install Linux dependencies
-      if: (matrix.platform.os == 'ubuntu-latest')
-      run: sudo apt-get update && sudo apt-get install pkg-config cmake libfreetype6-dev libfontconfig1-dev
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
-      run: sudo dpkg --add-architecture i386 && sudo apt-get update && sudo apt-get install g++-multilib gcc-multilib libfreetype6-dev:i386 libfontconfig1-dev:i386
+      run: sudo apt-get update && sudo apt-get install gcc-multilib
     - name: Install cargo-apk
       if: contains(matrix.platform.target, 'android')
       run: cargo install cargo-apk
@@ -85,10 +81,6 @@ jobs:
     - name: Check documentation
       shell: bash
       run: cargo $CMD doc --no-deps --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES --document-private-items
-
-    - name: Build
-      shell: bash
-      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES
 
     - name: Build tests
       shell: bash
@@ -105,10 +97,6 @@ jobs:
       shell: bash
       if: (matrix.rust_version == '1.57.0') && !contains(matrix.platform.options, '--no-default-features')
       run: cargo clippy --all-targets --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES -- -Dwarnings
-
-    - name: Build with serde enabled
-      shell: bash
-      run: cargo $CMD build --verbose --target ${{ matrix.platform.target }} $OPTIONS --features serde,$FEATURES
 
     - name: Build tests with serde enabled
       shell: bash

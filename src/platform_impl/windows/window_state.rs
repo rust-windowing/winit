@@ -1,24 +1,25 @@
 use crate::{
-    dpi::{PhysicalPosition, Size},
+    dpi::{PhysicalPosition, PhysicalSize, Size},
     event::ModifiersState,
     icon::Icon,
     platform_impl::platform::{event_loop, util},
     window::{CursorIcon, Fullscreen, Theme, WindowAttributes},
 };
-use parking_lot::MutexGuard;
 use std::io;
+use std::sync::MutexGuard;
 use windows_sys::Win32::{
     Foundation::{HWND, RECT},
     Graphics::Gdi::InvalidateRgn,
     UI::WindowsAndMessaging::{
-        SendMessageW, SetWindowLongW, SetWindowPos, ShowWindow, GWL_EXSTYLE, GWL_STYLE,
-        HWND_NOTOPMOST, HWND_TOPMOST, SWP_ASYNCWINDOWPOS, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-        SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE,
-        SW_SHOW, WINDOWPLACEMENT, WINDOW_EX_STYLE, WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD,
-        WS_CLIPCHILDREN, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED,
-        WS_EX_LEFT, WS_EX_NOREDIRECTIONBITMAP, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE,
-        WS_MAXIMIZE, WS_MAXIMIZEBOX, WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPED,
-        WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU, WS_VISIBLE,
+        AdjustWindowRectEx, GetMenu, GetWindowLongW, SendMessageW, SetWindowLongW, SetWindowPos,
+        ShowWindow, GWL_EXSTYLE, GWL_STYLE, HWND_NOTOPMOST, HWND_TOPMOST, SWP_ASYNCWINDOWPOS,
+        SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOREPOSITION, SWP_NOSIZE, SWP_NOZORDER,
+        SW_HIDE, SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, SW_SHOW, WINDOWPLACEMENT, WINDOW_EX_STYLE,
+        WINDOW_STYLE, WS_BORDER, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN, WS_CLIPSIBLINGS,
+        WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOREDIRECTIONBITMAP,
+        WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_EX_WINDOWEDGE, WS_MAXIMIZE, WS_MAXIMIZEBOX,
+        WS_MINIMIZE, WS_MINIMIZEBOX, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_SIZEBOX, WS_SYSMENU,
+        WS_VISIBLE,
     },
 };
 
@@ -76,36 +77,39 @@ bitflags! {
 bitflags! {
     pub struct WindowFlags: u32 {
         const RESIZABLE      = 1 << 0;
-        const DECORATIONS    = 1 << 1;
-        const VISIBLE        = 1 << 2;
-        const ON_TASKBAR     = 1 << 3;
-        const ALWAYS_ON_TOP  = 1 << 4;
-        const NO_BACK_BUFFER = 1 << 5;
-        const TRANSPARENT    = 1 << 6;
-        const CHILD          = 1 << 7;
-        const MAXIMIZED      = 1 << 8;
-        const POPUP          = 1 << 14;
+        const VISIBLE        = 1 << 1;
+        const ON_TASKBAR     = 1 << 2;
+        const ALWAYS_ON_TOP  = 1 << 3;
+        const NO_BACK_BUFFER = 1 << 4;
+        const TRANSPARENT    = 1 << 5;
+        const CHILD          = 1 << 6;
+        const MAXIMIZED      = 1 << 7;
+        const POPUP          = 1 << 8;
 
         /// Marker flag for fullscreen. Should always match `WindowState::fullscreen`, but is
         /// included here to make masking easier.
         const MARKER_EXCLUSIVE_FULLSCREEN = 1 << 9;
-        const MARKER_BORDERLESS_FULLSCREEN = 1 << 13;
+        const MARKER_BORDERLESS_FULLSCREEN = 1 << 10;
 
         /// The `WM_SIZE` event contains some parameters that can effect the state of `WindowFlags`.
         /// In most cases, it's okay to let those parameters change the state. However, when we're
         /// running the `WindowFlags::apply_diff` function, we *don't* want those parameters to
         /// effect our stored state, because the purpose of `apply_diff` is to update the actual
         /// window's state to match our stored state. This controls whether to accept those changes.
-        const MARKER_RETAIN_STATE_ON_SIZE = 1 << 10;
+        const MARKER_RETAIN_STATE_ON_SIZE = 1 << 11;
 
-        const MARKER_IN_SIZE_MOVE = 1 << 11;
+        const MARKER_IN_SIZE_MOVE = 1 << 12;
 
-        const MINIMIZED = 1 << 12;
+        const MINIMIZED = 1 << 13;
 
-        const IGNORE_CURSOR_EVENT = 1 << 15;
+        const IGNORE_CURSOR_EVENT = 1 << 14;
+
+        /// Fully decorated window (incl. caption, border and drop shadow).
+        const MARKER_DECORATIONS = 1 << 15;
+        /// Drop shadow for undecorated windows.
+        const MARKER_UNDECORATED_SHADOW = 1 << 16;
 
         const EXCLUSIVE_FULLSCREEN_OR_MASK = WindowFlags::ALWAYS_ON_TOP.bits;
-        const NO_DECORATIONS_AND_MASK = !WindowFlags::RESIZABLE.bits;
     }
 }
 
@@ -228,21 +232,21 @@ impl WindowFlags {
         if self.contains(WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN) {
             self |= WindowFlags::EXCLUSIVE_FULLSCREEN_OR_MASK;
         }
-        if !self.contains(WindowFlags::DECORATIONS) {
-            self &= WindowFlags::NO_DECORATIONS_AND_MASK;
-        }
         self
     }
 
     pub fn to_window_styles(self) -> (WINDOW_STYLE, WINDOW_EX_STYLE) {
-        let (mut style, mut style_ex) = (WS_OVERLAPPED, WS_EX_LEFT);
+        // Required styles to properly support common window functionality like aero snap.
+        let mut style = WS_CAPTION
+            | WS_MINIMIZEBOX
+            | WS_BORDER
+            | WS_CLIPSIBLINGS
+            | WS_CLIPCHILDREN
+            | WS_SYSMENU;
+        let mut style_ex = WS_EX_WINDOWEDGE | WS_EX_ACCEPTFILES;
 
         if self.contains(WindowFlags::RESIZABLE) {
             style |= WS_SIZEBOX | WS_MAXIMIZEBOX;
-        }
-        if self.contains(WindowFlags::DECORATIONS) {
-            style |= WS_CAPTION | WS_MINIMIZEBOX | WS_BORDER;
-            style_ex = WS_EX_WINDOWEDGE;
         }
         if self.contains(WindowFlags::VISIBLE) {
             style |= WS_VISIBLE;
@@ -271,9 +275,6 @@ impl WindowFlags {
         if self.contains(WindowFlags::IGNORE_CURSOR_EVENT) {
             style_ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
         }
-
-        style |= WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_SYSMENU;
-        style_ex |= WS_EX_ACCEPTFILES;
 
         if self.intersects(
             WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN | WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
@@ -379,11 +380,69 @@ impl WindowFlags {
             }
         }
     }
+
+    pub fn adjust_rect(self, hwnd: HWND, mut rect: RECT) -> Result<RECT, io::Error> {
+        unsafe {
+            let mut style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
+            let style_ex = GetWindowLongW(hwnd, GWL_EXSTYLE) as u32;
+
+            // Frameless style implemented by manually overriding the non-client area in `WM_NCCALCSIZE`.
+            if !self.contains(WindowFlags::MARKER_DECORATIONS) {
+                style &= !(WS_CAPTION | WS_SIZEBOX);
+            }
+
+            util::win_to_err({
+                let b_menu = GetMenu(hwnd) != 0;
+                if let (Some(get_dpi_for_window), Some(adjust_window_rect_ex_for_dpi)) = (
+                    *util::GET_DPI_FOR_WINDOW,
+                    *util::ADJUST_WINDOW_RECT_EX_FOR_DPI,
+                ) {
+                    let dpi = get_dpi_for_window(hwnd);
+                    adjust_window_rect_ex_for_dpi(&mut rect, style, b_menu.into(), style_ex, dpi)
+                } else {
+                    AdjustWindowRectEx(&mut rect, style, b_menu.into(), style_ex)
+                }
+            })?;
+            Ok(rect)
+        }
+    }
+
+    pub fn adjust_size(self, hwnd: HWND, size: PhysicalSize<u32>) -> PhysicalSize<u32> {
+        let (width, height): (u32, u32) = size.into();
+        let rect = RECT {
+            left: 0,
+            right: width as i32,
+            top: 0,
+            bottom: height as i32,
+        };
+        let rect = self.adjust_rect(hwnd, rect).unwrap_or(rect);
+
+        let outer_x = (rect.right - rect.left).abs();
+        let outer_y = (rect.top - rect.bottom).abs();
+
+        PhysicalSize::new(outer_x as _, outer_y as _)
+    }
+
+    pub fn set_size(self, hwnd: HWND, size: PhysicalSize<u32>) {
+        unsafe {
+            let (width, height): (u32, u32) = self.adjust_size(hwnd, size).into();
+            SetWindowPos(
+                hwnd,
+                0,
+                0,
+                0,
+                width as _,
+                height as _,
+                SWP_ASYNCWINDOWPOS | SWP_NOZORDER | SWP_NOREPOSITION | SWP_NOMOVE | SWP_NOACTIVATE,
+            );
+            InvalidateRgn(hwnd, 0, false.into());
+        }
+    }
 }
 
 impl CursorFlags {
     fn refresh_os_cursor(self, window: HWND) -> Result<(), io::Error> {
-        let client_rect = util::get_client_rect(window)?;
+        let client_rect = util::WindowArea::Inner.get_rect(window)?;
 
         if util::is_focused(window) {
             let cursor_clip = match self.contains(CursorFlags::GRABBED) {

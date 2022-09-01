@@ -16,7 +16,10 @@ use crate::{
     dpi::PhysicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::ControlFlow,
-    platform_impl::platform::util,
+    platform_impl::platform::{
+        event_loop::{WindowData, GWL_USERDATA},
+        get_window_long,
+    },
     window::WindowId,
 };
 
@@ -434,11 +437,13 @@ impl<T> BufferedEvent<T> {
                         new_inner_size: &mut new_inner_size,
                     },
                 });
-                util::set_inner_size_physical(
-                    (window_id.0).0,
-                    new_inner_size.width as _,
-                    new_inner_size.height as _,
-                );
+
+                let window_flags = unsafe {
+                    let userdata =
+                        get_window_long(window_id.0.into(), GWL_USERDATA) as *mut WindowData<T>;
+                    (*userdata).window_state_lock().window_flags
+                };
+                window_flags.set_size((window_id.0).0, new_inner_size);
             }
         }
     }
