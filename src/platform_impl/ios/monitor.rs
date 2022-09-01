@@ -4,12 +4,14 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use objc::foundation::{NSInteger, NSUInteger};
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
         app_state,
-        ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
+        ffi::{id, nil, CGFloat, CGRect, CGSize},
     },
 };
 

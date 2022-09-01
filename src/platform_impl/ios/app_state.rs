@@ -9,6 +9,7 @@ use std::{
     time::Instant,
 };
 
+use objc::foundation::{NSInteger, NSUInteger};
 use objc::runtime::Object;
 use once_cell::sync::Lazy;
 
@@ -21,8 +22,8 @@ use crate::{
         ffi::{
             id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
             CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize, NSInteger,
-            NSOperatingSystemVersion, NSUInteger,
+            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize,
+            NSOperatingSystemVersion,
         },
     },
     window::WindowId as RootWindowId,

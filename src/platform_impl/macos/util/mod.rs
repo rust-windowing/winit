@@ -9,9 +9,10 @@ use std::os::raw::c_uchar;
 use cocoa::{
     appkit::{CGFloat, NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSPoint, NSRange, NSRect, NSString, NSUInteger},
+    foundation::{NSPoint, NSRect, NSString},
 };
 use core_graphics::display::CGDisplay;
+use objc::foundation::{NSRange, NSUInteger};
 use objc::runtime::{Class, Object};
 
 use crate::dpi::LogicalPosition;

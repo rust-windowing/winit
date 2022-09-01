@@ -2,6 +2,7 @@
 
 use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
 
+use objc::foundation::{NSInteger, NSUInteger};
 use objc::{runtime::Object, Encode, Encoding};
 
 use crate::{
@@ -16,9 +17,6 @@ pub const nil: id = 0 as id;
 pub type CGFloat = f32;
 #[cfg(target_pointer_width = "64")]
 pub type CGFloat = f64;
-
-pub type NSInteger = isize;
-pub type NSUInteger = usize;
 
 #[repr(C)]
 #[derive(Clone, Debug)]

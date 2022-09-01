@@ -7,10 +7,10 @@ use std::{
 use cocoa::{
     appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow, NSWindowOcclusionState},
     base::{id, nil},
-    foundation::NSUInteger,
 };
 use objc::{
     declare::ClassBuilder,
+    foundation::NSUInteger,
     rc::autoreleasepool,
     runtime::{Bool, Class, Object, Sel},
 };
@@ -477,7 +477,7 @@ extern "C" fn window_will_use_fullscreen_presentation_options(
                 options = (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
                     | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
                     | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
-                    .bits();
+                    .bits() as NSUInteger;
             }
         })
     });

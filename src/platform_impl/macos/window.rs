@@ -42,12 +42,12 @@ use cocoa::{
         NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
-    foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSUInteger},
+    foundation::{NSDictionary, NSPoint, NSRect, NSSize},
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc::{
     declare::ClassBuilder,
-    foundation::is_main_thread,
+    foundation::{is_main_thread, NSUInteger},
     rc::autoreleasepool,
     runtime::{Bool, Class, Object, Sel},
 };

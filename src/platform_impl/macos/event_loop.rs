@@ -14,9 +14,10 @@ use std::{
 use cocoa::{
     appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
     base::{id, nil},
-    foundation::{NSInteger, NSPoint, NSTimeInterval},
+    foundation::{NSPoint, NSTimeInterval},
 };
-use objc::{foundation::is_main_thread, rc::autoreleasepool};
+use objc::foundation::is_main_thread;
+use objc::rc::autoreleasepool;
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
@@ -245,11 +246,11 @@ pub unsafe fn post_dummy_event(target: id) {
         location: NSPoint::new(0.0, 0.0)
         modifierFlags: NSEventModifierFlags::empty()
         timestamp: 0 as NSTimeInterval
-        windowNumber: 0 as NSInteger
+        windowNumber: 0isize
         context: nil
         subtype: NSEventSubtype::NSWindowExposedEventType
-        data1: 0 as NSInteger
-        data2: 0 as NSInteger
+        data1: 0isize
+        data2: 0isize
     ];
     let _: () = msg_send![target, postEvent: dummy_event, atStart: true];
 }
