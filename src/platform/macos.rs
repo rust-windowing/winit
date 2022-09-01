@@ -113,6 +113,8 @@ pub trait WindowBuilderExtMacOS {
     fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
+    /// Window accepts click-through mouse events.
+    fn with_accepts_first_mouse(self, accepts_first_mouse: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtMacOS for WindowBuilder {
@@ -170,6 +172,12 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_has_shadow(mut self, has_shadow: bool) -> WindowBuilder {
         self.platform_specific.has_shadow = has_shadow;
+        self
+    }
+
+    #[inline]
+    fn with_accepts_first_mouse(mut self, accepts_first_mouse: bool) -> WindowBuilder {
+        self.platform_specific.accepts_first_mouse = accepts_first_mouse;
         self
     }
 }

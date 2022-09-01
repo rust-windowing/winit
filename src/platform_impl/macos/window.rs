@@ -90,6 +90,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub accepts_first_mouse: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -105,6 +106,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
+            accepts_first_mouse: true,
         }
     }
 }
@@ -113,7 +115,7 @@ unsafe fn create_view(
     ns_window: id,
     pl_attribs: &PlatformSpecificWindowBuilderAttributes,
 ) -> Option<(IdRef, Weak<Mutex<CursorState>>)> {
-    let (ns_view, cursor_state) = new_view(ns_window);
+    let (ns_view, cursor_state) = new_view(ns_window, pl_attribs);
     ns_view.non_nil().map(|ns_view| {
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
