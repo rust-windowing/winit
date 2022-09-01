@@ -123,7 +123,11 @@ pub trait WindowBuilderExtMacOS {
     fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
-    /// Forces a theme or uses the system settings if `None` was provided.
+    /// Sets a specific theme for the window.
+    ///
+    /// If `None` is provided, the window will use the system theme.
+    ///
+    /// The default is `None`.
     fn with_theme(self, theme: Option<Theme>) -> WindowBuilder;
 }
 
