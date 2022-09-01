@@ -2,8 +2,6 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc, slice, sync::Arc};
 
 use libc::{c_char, c_int, c_long, c_uint, c_ulong};
 
-use parking_lot::MutexGuard;
-
 use super::{
     events, ffi, get_xtarget, mkdid, mkwid, monitor, util, Device, DeviceId, DeviceInfo, Dnd,
     DndState, GenericEventCookie, ImeReceiver, ScrollOrientation, UnownedWindow, WindowId,
@@ -351,9 +349,9 @@ impl<T: 'static> EventProcessor<T> {
                     let new_inner_size = (xev.width as u32, xev.height as u32);
                     let new_inner_position = (xev.x as i32, xev.y as i32);
 
-                    let mut shared_state_lock = window.shared_state.lock();
-
                     let (mut resized, moved) = {
+                        let mut shared_state_lock = window.shared_state_lock();
+
                         let resized =
                             util::maybe_change(&mut shared_state_lock.size, new_inner_size);
                         let moved = if is_synthetic {
@@ -380,7 +378,13 @@ impl<T: 'static> EventProcessor<T> {
                         (resized, moved)
                     };
 
-                    let new_outer_position = if moved || shared_state_lock.position.is_none() {
+                    let position = window.shared_state_lock().position;
+
+                    let new_outer_position = if let (Some(position), false) = (position, moved) {
+                        position
+                    } else {
+                        let mut shared_state_lock = window.shared_state_lock();
+
                         // We need to convert client area position to window position.
                         let frame_extents = shared_state_lock
                             .frame_extents
@@ -395,21 +399,21 @@ impl<T: 'static> EventProcessor<T> {
                         let outer = frame_extents
                             .inner_pos_to_outer(new_inner_position.0, new_inner_position.1);
                         shared_state_lock.position = Some(outer);
+
+                        // Unlock shared state to prevent deadlock in callback below
+                        drop(shared_state_lock);
+
                         if moved {
-                            // Temporarily unlock shared state to prevent deadlock
-                            MutexGuard::unlocked(&mut shared_state_lock, || {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::Moved(outer.into()),
-                                });
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::Moved(outer.into()),
                             });
                         }
                         outer
-                    } else {
-                        shared_state_lock.position.unwrap()
                     };
 
                     if is_synthetic {
+                        let mut shared_state_lock = window.shared_state_lock();
                         // If we don't use the existing adjusted value when available, then the user can screw up the
                         // resizing by dragging across monitors *without* dropping the window.
                         let (width, height) = shared_state_lock
@@ -441,15 +445,15 @@ impl<T: 'static> EventProcessor<T> {
                             let old_inner_size = PhysicalSize::new(width, height);
                             let mut new_inner_size = PhysicalSize::new(new_width, new_height);
 
-                            // Temporarily unlock shared state to prevent deadlock
-                            MutexGuard::unlocked(&mut shared_state_lock, || {
-                                callback(Event::WindowEvent {
-                                    window_id,
-                                    event: WindowEvent::ScaleFactorChanged {
-                                        scale_factor: new_scale_factor,
-                                        new_inner_size: &mut new_inner_size,
-                                    },
-                                });
+                            // Unlock shared state to prevent deadlock in callback below
+                            drop(shared_state_lock);
+
+                            callback(Event::WindowEvent {
+                                window_id,
+                                event: WindowEvent::ScaleFactorChanged {
+                                    scale_factor: new_scale_factor,
+                                    new_inner_size: &mut new_inner_size,
+                                },
                             });
 
                             if new_inner_size != old_inner_size {
@@ -457,13 +461,16 @@ impl<T: 'static> EventProcessor<T> {
                                     new_inner_size.width,
                                     new_inner_size.height,
                                 );
-                                shared_state_lock.dpi_adjusted = Some(new_inner_size.into());
+                                window.shared_state_lock().dpi_adjusted =
+                                    Some(new_inner_size.into());
                                 // if the DPI factor changed, force a resize event to ensure the logical
                                 // size is computed with the right DPI factor
                                 resized = true;
                             }
                         }
                     }
+
+                    let mut shared_state_lock = window.shared_state_lock();
 
                     // This is a hack to ensure that the DPI adjusted resize is actually applied on all WMs. KWin
                     // doesn't need this, but Xfwm does. The hack should not be run on other WMs, since tiling
@@ -478,10 +485,10 @@ impl<T: 'static> EventProcessor<T> {
                         }
                     }
 
-                    if resized {
-                        // Drop the shared state lock to prevent deadlock
-                        drop(shared_state_lock);
+                    // Unlock shared state to prevent deadlock in callback below
+                    drop(shared_state_lock);
 
+                    if resized {
                         callback(Event::WindowEvent {
                             window_id,
                             event: WindowEvent::Resized(new_inner_size.into()),
@@ -747,7 +754,7 @@ impl<T: 'static> EventProcessor<T> {
                         update_modifiers!(modifiers, None);
 
                         let cursor_moved = self.with_window(xev.event, |window| {
-                            let mut shared_state_lock = window.shared_state.lock();
+                            let mut shared_state_lock = window.shared_state_lock();
                             util::maybe_change(&mut shared_state_lock.cursor_pos, new_cursor_pos)
                         });
                         if cursor_moved == Some(true) {
@@ -1215,7 +1222,7 @@ impl<T: 'static> EventProcessor<T> {
                                                 new_monitor.scale_factor,
                                                 width,
                                                 height,
-                                                &*window.shared_state.lock(),
+                                                &*window.shared_state_lock(),
                                             );
 
                                             let window_id = crate::window::WindowId(*window_id);

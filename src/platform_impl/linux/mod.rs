@@ -14,12 +14,15 @@ use std::error::Error;
 
 use std::{collections::VecDeque, env, fmt};
 #[cfg(feature = "x11")]
-use std::{ffi::CStr, mem::MaybeUninit, os::raw::*, sync::Arc};
+use std::{
+    ffi::CStr,
+    mem::MaybeUninit,
+    os::raw::*,
+    sync::{Arc, Mutex},
+};
 
 #[cfg(feature = "x11")]
 use once_cell::sync::Lazy;
-#[cfg(feature = "x11")]
-use parking_lot::Mutex;
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 
 #[cfg(feature = "x11")]
@@ -27,7 +30,7 @@ pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
 #[cfg(feature = "x11")]
-use crate::platform::unix::XlibErrorHook;
+use crate::platform::x11::XlibErrorHook;
 #[cfg(feature = "wayland")]
 use crate::window::Theme;
 use crate::{
@@ -595,11 +598,11 @@ unsafe extern "C" fn x_error_callback(
     display: *mut x11::ffi::Display,
     event: *mut x11::ffi::XErrorEvent,
 ) -> c_int {
-    let xconn_lock = X11_BACKEND.lock();
+    let xconn_lock = X11_BACKEND.lock().unwrap();
     if let Ok(ref xconn) = *xconn_lock {
         // Call all the hooks.
         let mut error_handled = false;
-        for hook in XLIB_ERROR_HOOKS.lock().iter() {
+        for hook in XLIB_ERROR_HOOKS.lock().unwrap().iter() {
             error_handled |= hook(display as *mut _, event as *mut _);
         }
 
@@ -626,7 +629,7 @@ unsafe extern "C" fn x_error_callback(
             error!("X11 error: {:#?}", error);
         }
 
-        *xconn.latest_error.lock() = Some(error);
+        *xconn.latest_error.lock().unwrap() = Some(error);
     }
     // Fun fact: this return value is completely ignored.
     0
@@ -729,7 +732,7 @@ impl<T: 'static> EventLoop<T> {
 
     #[cfg(feature = "x11")]
     fn new_x11_any_thread() -> Result<EventLoop<T>, XNotSupported> {
-        let xconn = match X11_BACKEND.lock().as_ref() {
+        let xconn = match X11_BACKEND.lock().unwrap().as_ref() {
             Ok(xconn) => xconn.clone(),
             Err(err) => return Err(err.clone()),
         };

@@ -1,5 +1,3 @@
-#![cfg(target_os = "macos")]
-
 use std::os::raw::c_void;
 
 use crate::{

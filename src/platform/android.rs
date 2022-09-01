@@ -1,5 +1,3 @@
-#![cfg(any(target_os = "android"))]
-
 use crate::{
     event_loop::{EventLoop, EventLoopWindowTarget},
     window::{Window, WindowBuilder},
