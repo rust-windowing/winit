@@ -150,7 +150,7 @@ pub trait WindowBuilderExtWayland {
 
 impl WindowBuilderExtWayland for WindowBuilder {
     #[inline]
-    fn with_name(self, general: impl Into<String>, instance: impl Into<String>) -> Self {
+    fn with_name(mut self, general: impl Into<String>, instance: impl Into<String>) -> Self {
         self.platform_specific.name = Some(ApplicationName::new(general.into(), instance.into()));
         self
     }
