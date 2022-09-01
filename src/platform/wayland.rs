@@ -94,15 +94,6 @@ pub trait WindowExtWayland {
     /// You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
     /// Possible values for env variable are: "dark" and light"
     fn wayland_set_csd_theme(&self, config: Theme);
-
-    /// Check if the window is ready for drawing
-    ///
-    /// It is a remnant of a previous implementation detail for the
-    /// wayland backend, and is no longer relevant.
-    ///
-    /// Always return `true`.
-    #[deprecated]
-    fn is_ready(&self) -> bool;
 }
 
 impl WindowExtWayland for Window {
@@ -132,11 +123,6 @@ impl WindowExtWayland for Window {
             #[cfg(feature = "x11")]
             _ => (),
         }
-    }
-
-    #[inline]
-    fn is_ready(&self) -> bool {
-        true
     }
 }
 

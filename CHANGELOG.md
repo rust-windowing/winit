@@ -9,6 +9,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 # Unreleased
 
 - **Breaking:** Split the `platform::unix` module into `platform::x11` and `platform::wayland`. The extension types are similarly renamed.
+- **Breaking:**: Removed deprecated method `platform::unix::WindowExtUnix::is_ready`.
 - On macOS, fixed touch phase reporting when scrolling.
 - On X11, fix min, max and resize increment hints not persisting for resizable windows (e.g. on DPI change).
 - On Windows, respect min/max inner sizes when creating the window.

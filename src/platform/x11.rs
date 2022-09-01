@@ -117,15 +117,6 @@ pub trait WindowExtX11 {
     ///
     /// The pointer will become invalid when the [`Window`] is destroyed.
     fn xcb_connection(&self) -> Option<*mut raw::c_void>;
-
-    /// Check if the window is ready for drawing
-    ///
-    /// It is a remnant of a previous implementation detail for the
-    /// wayland backend, and is no longer relevant.
-    ///
-    /// Always return `true`.
-    #[deprecated]
-    fn is_ready(&self) -> bool;
 }
 
 impl WindowExtX11 for Window {
@@ -172,11 +163,6 @@ impl WindowExtX11 for Window {
             #[cfg(feature = "wayland")]
             _ => None,
         }
-    }
-
-    #[inline]
-    fn is_ready(&self) -> bool {
-        true
     }
 }
 
