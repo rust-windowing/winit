@@ -614,7 +614,6 @@ extern "C" fn effective_appearance_did_changed_on_main_thread(this: &Object, _: 
             state.current_theme = theme;
             current_theme
         });
-        println!("Change Theme: {:?}", theme);
         if current_theme != Some(theme) {
             state.emit_event(WindowEvent::ThemeChanged(theme));
         }
