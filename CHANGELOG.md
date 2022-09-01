@@ -11,7 +11,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
 - On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
 - On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
-- On macOS, to support theme, add `WindowExtMacOS::theme`, `WindowBuilderExtMacOS::with_theme` and support `ThemeChanged` event.
+- On macOS, added `WindowBuilderExtMacOS::with_theme` and `WindowExtMacOS::theme` to support per-window dark/light/system theme configuration.
+- On macOS, added support for `WindowEvent::ThemeChanged`.
 
 # 0.27.2 (2022-8-12)
 
