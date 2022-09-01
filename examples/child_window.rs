@@ -6,7 +6,7 @@ use winit::{
     dpi::{LogicalPosition, LogicalSize, Position},
     event::{ElementState, Event, KeyboardInput, WindowEvent},
     event_loop::{ControlFlow, EventLoop, EventLoopWindowTarget},
-    platform::unix::{WindowBuilderExtUnix, WindowExtUnix},
+    platform::x11::{WindowBuilderExtX11, WindowExtX11},
     window::{Window, WindowBuilder, WindowId},
 };
 
@@ -17,7 +17,7 @@ fn spawn_child_window(
     windows: &mut HashMap<u32, Window>,
 ) {
     let child_window = WindowBuilder::new()
-        .with_x11_parent(WindowId::from(parent as u64))
+        .with_parent(WindowId::from(parent as u64))
         .with_title("child window")
         .with_inner_size(LogicalSize::new(200.0f32, 200.0f32))
         .with_position(Position::Logical(LogicalPosition::new(0.0, 0.0)))
