@@ -310,3 +310,16 @@ bitflags! {
 unsafe impl Encode for NSWindowStyleMask {
     const ENCODING: Encoding = NSUInteger::ENCODING;
 }
+
+#[allow(dead_code)]
+#[repr(usize)] // NSUInteger
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NSBackingStoreType {
+    NSBackingStoreRetained = 0,
+    NSBackingStoreNonretained = 1,
+    NSBackingStoreBuffered = 2,
+}
+
+unsafe impl Encode for NSBackingStoreType {
+    const ENCODING: Encoding = NSUInteger::ENCODING;
+}

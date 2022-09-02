@@ -24,9 +24,9 @@ use crate::{
         app_state::AppState,
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
-        util::{self, IdRef},
+        util,
         view::WinitView,
-        window_delegate::new_delegate,
+        window_delegate::WinitWindowDelegate,
         OsError,
     },
     window::{
@@ -34,20 +34,18 @@ use crate::{
         WindowId as RootWindowId,
     },
 };
-use cocoa::{appkit, base::id};
-use core_graphics::display::CGDisplay;
+use core_graphics::display::{CGDisplay, CGPoint};
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
     is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
-use objc2::runtime::Object;
 use objc2::{declare_class, ClassType};
 
 use super::appkit::{
-    NSApp, NSApplicationPresentationOptions, NSColor, NSCursor, NSFilenamesPboardType,
-    NSRequestUserAttentionType, NSResponder, NSScreen, NSWindow, NSWindowButton, NSWindowLevel,
-    NSWindowStyleMask, NSWindowTitleVisibility,
+    NSApp, NSAppKitVersion, NSApplicationPresentationOptions, NSBackingStoreType, NSColor,
+    NSCursor, NSFilenamesPboardType, NSRequestUserAttentionType, NSResponder, NSScreen, NSWindow,
+    NSWindowButton, NSWindowLevel, NSWindowStyleMask, NSWindowTitleVisibility,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -69,12 +67,6 @@ impl From<u64> for WindowId {
     fn from(raw_id: u64) -> Self {
         Self(raw_id as usize)
     }
-}
-
-// Convert the `cocoa::base::id` associated with a window to a usize to use as a unique identifier
-// for the window.
-pub fn get_window_id(window_cocoa_id: id) -> WindowId {
-    WindowId(window_cocoa_id as *const Object as _)
 }
 
 #[derive(Clone)]
@@ -210,7 +202,7 @@ impl WinitWindow {
     pub(crate) fn new(
         attrs: WindowAttributes,
         pl_attrs: PlatformSpecificWindowBuilderAttributes,
-    ) -> Result<(Id<Self, Shared>, IdRef), RootOsError> {
+    ) -> Result<(Id<Self, Shared>, Id<WinitWindowDelegate, Shared>), RootOsError> {
         trace_scope!("WinitWindow::new");
 
         if !is_main_thread() {
@@ -283,7 +275,7 @@ impl WinitWindow {
                     msg_send_id![WinitWindow::class(), alloc],
                     initWithContentRect: frame,
                     styleMask: masks,
-                    backing: appkit::NSBackingStoreBuffered,
+                    backing: NSBackingStoreType::NSBackingStoreBuffered,
                     defer: false,
                 ]
             };
@@ -370,8 +362,7 @@ impl WinitWindow {
         // the view and its associated OpenGL context. To work around this, on Mojave we
         // explicitly make the view layer-backed up front so that AppKit doesn't do it
         // itself and break the association with its context.
-        if f64::floor(unsafe { appkit::NSAppKitVersionNumber }) > appkit::NSAppKitVersionNumber10_12
-        {
+        if NSAppKitVersion::current().floor() > NSAppKitVersion::NSAppKitVersionNumber10_12 {
             view.setWantsLayer(true);
         }
 
@@ -396,7 +387,7 @@ impl WinitWindow {
             unsafe { NSFilenamesPboardType }.copy()
         ]));
 
-        let delegate = new_delegate(this.clone(), attrs.fullscreen.is_some());
+        let delegate = WinitWindowDelegate::new(this.clone(), attrs.fullscreen.is_some());
 
         // Set fullscreen mode after we setup everything
         this.set_fullscreen(attrs.fullscreen);
@@ -438,7 +429,7 @@ impl WinitWindow {
     }
 
     pub fn id(&self) -> WindowId {
-        get_window_id(self as *const Self as *mut Self as _)
+        WindowId(self as *const Self as usize)
     }
 
     pub fn set_title(&self, title: &str) {
@@ -636,7 +627,7 @@ impl WinitWindow {
         let scale_factor = self.scale_factor();
         let window_position = physical_window_position.to_logical::<CGFloat>(scale_factor);
         let logical_cursor_position = cursor_position.to_logical::<CGFloat>(scale_factor);
-        let point = appkit::CGPoint {
+        let point = CGPoint {
             x: logical_cursor_position.x + window_position.x,
             y: logical_cursor_position.y + window_position.y,
         };

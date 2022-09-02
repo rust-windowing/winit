@@ -21,6 +21,7 @@ mod window_delegate;
 use std::{fmt, ops::Deref};
 
 use self::window::WinitWindow;
+use self::window_delegate::WinitWindowDelegate;
 pub(crate) use self::{
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
@@ -50,7 +51,7 @@ pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 pub(crate) struct Window {
     pub(crate) window: Id<WinitWindow, Shared>,
     // We keep this around so that it doesn't get dropped until the window does.
-    _delegate: util::IdRef,
+    _delegate: Id<WinitWindowDelegate, Shared>,
 }
 
 impl Drop for Window {

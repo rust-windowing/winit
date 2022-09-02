@@ -4,7 +4,7 @@ use objc2::runtime::Object;
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 use objc2::{Encode, Encoding};
 
-use super::{NSEvent, NSResponder, NSWindow};
+use super::{NSEvent, NSMenu, NSResponder, NSWindow};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -78,6 +78,9 @@ extern_methods!(
 
         #[sel(setActivationPolicy:)]
         pub fn setActivationPolicy(&self, policy: NSApplicationActivationPolicy);
+
+        #[sel(setMainMenu:)]
+        pub fn setMainMenu(&self, menu: &NSMenu);
 
         #[sel(run)]
         pub unsafe fn run(&self);

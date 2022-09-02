@@ -11,9 +11,6 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
-use objc2::foundation::NSInteger;
-
-pub const NSNotFound: NSInteger = NSInteger::max_value();
 
 pub type CGDisplayFadeInterval = f32;
 pub type CGDisplayReservationInterval = f32;
