@@ -62,12 +62,14 @@ ndk = "0.7.0"
 ndk-glue = "0.7.0"
 
 [target.'cfg(any(target_os = "ios", target_os = "macos"))'.dependencies]
-objc = "0.2.7"
+objc = { version = "=0.3.0-beta.3", package = "objc2" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocoa = "0.24"
-core-foundation = "0.9"
-core-graphics = "0.22"
+# Branch: objc2
+# TODO: Use non-git versions before we release
+cocoa = { git = "https://github.com/madsmtm/core-foundation-rs.git", rev = "c770e620ba0766fc1d2a9f83327b0fee905eb5cb" }
+core-foundation = { git = "https://github.com/madsmtm/core-foundation-rs.git", rev = "c770e620ba0766fc1d2a9f83327b0fee905eb5cb" }
+core-graphics = { git = "https://github.com/madsmtm/core-foundation-rs.git", rev = "c770e620ba0766fc1d2a9f83327b0fee905eb5cb" }
 dispatch = "0.2.0"
 
 [target.'cfg(target_os = "windows")'.dependencies.windows-sys]
