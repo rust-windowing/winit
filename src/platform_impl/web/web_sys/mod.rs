@@ -82,10 +82,25 @@ pub fn inner_size(raw: &HtmlCanvasElement) -> Option<LogicalSize<f64>> {
         .unwrap()
         .expect("`getComputedStyle` returned `None`");
 
+    let display_none = style.get_property_value("display").unwrap() == "none";
+
     let prop = |name| -> f64 {
         let value = style.get_property_value(name).unwrap();
-        // Cut off the last two characters to remove the `px` from the end.
-        value[..value.len() - 2].parse().unwrap()
+        if display_none && name.starts_with("padding") {
+            // When `display` is `none`, the value returned for padding isn't
+            // guaranteed to be in `px` (it's left as a percentage if the
+            // property is specified as such, when normally it's resolved to
+            // `px`).
+            // So, return 0, since getting the size right isn't particularly
+            // important for an invisible element.
+            return 0.0;
+        }
+        // Remove the `px` from the end of the value and parse it.
+        value
+            .strip_suffix("px")
+            .expect("border and padding should always be in units of `px`")
+            .parse()
+            .unwrap()
     };
 
     Some(LogicalSize {
