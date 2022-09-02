@@ -5,7 +5,7 @@ use std::{
     os::raw::c_void,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard, Weak,
+        Arc, Mutex, MutexGuard,
     },
 };
 
@@ -26,8 +26,7 @@ use crate::{
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
-        view::CursorState,
-        view::{self, new_view},
+        view::{self, new_view, ViewState},
         window_delegate::new_delegate,
         OsError,
     },
@@ -50,7 +49,7 @@ use objc2::rc::autoreleasepool;
 use objc2::runtime::{Bool, Object};
 use objc2::{declare_class, ClassType};
 
-use super::appkit::{NSResponder, NSWindow as NSWindowClass};
+use super::appkit::{NSCursor, NSResponder, NSWindow as NSWindowClass};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct WindowId(pub usize);
@@ -112,8 +111,8 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 unsafe fn create_view(
     ns_window: id,
     pl_attribs: &PlatformSpecificWindowBuilderAttributes,
-) -> Option<(IdRef, Weak<Mutex<CursorState>>)> {
-    let (ns_view, cursor_state) = new_view(ns_window);
+) -> Option<IdRef> {
+    let ns_view = new_view(ns_window);
     ns_view.non_nil().map(|ns_view| {
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
@@ -133,7 +132,7 @@ unsafe fn create_view(
             ns_view.setWantsLayer(Bool::YES.as_raw());
         }
 
-        (ns_view, cursor_state)
+        ns_view
     })
 }
 
@@ -375,7 +374,6 @@ pub struct UnownedWindow {
     pub ns_view: IdRef,   // never changes
     shared_state: Arc<Mutex<SharedState>>,
     decorations: AtomicBool,
-    cursor_state: Weak<Mutex<CursorState>>,
     pub inner_rect: Option<PhysicalSize<u32>>,
 }
 
@@ -395,7 +393,7 @@ impl UnownedWindow {
         let ns_window = create_window(&win_attribs, &pl_attribs)
             .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        let (ns_view, cursor_state) = unsafe { create_view(*ns_window, &pl_attribs) }
+        let ns_view = unsafe { create_view(*ns_window, &pl_attribs) }
             .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSView`")))?;
 
         // Configure the new view as the "key view" for the window
@@ -448,7 +446,6 @@ impl UnownedWindow {
             ns_window,
             shared_state: Arc::new(Mutex::new(win_attribs.into())),
             decorations: AtomicBool::new(decorations),
-            cursor_state,
             inner_rect,
         });
 
@@ -616,14 +613,19 @@ impl UnownedWindow {
         unsafe { msg_send![*self.ns_window, isResizable] }
     }
 
-    pub fn set_cursor_icon(&self, cursor: CursorIcon) {
-        let cursor = util::Cursor::from(cursor);
-        if let Some(cursor_access) = self.cursor_state.upgrade() {
-            cursor_access.lock().unwrap().cursor = cursor;
-        }
+    pub fn set_cursor_icon(&self, icon: CursorIcon) {
+        let view_state: &ViewState = unsafe {
+            let ns_view: &Object = (*self.ns_view).as_ref().expect("failed to deref");
+            let state_ptr: *const c_void = *ns_view.ivar("winitState");
+            &*(state_ptr as *const ViewState)
+        };
+        let mut cursor_state = view_state.cursor_state.lock().unwrap();
+        cursor_state.cursor = NSCursor::from_icon(icon);
+        drop(cursor_state);
         unsafe {
-            let _: () = msg_send![*self.ns_window,
-                invalidateCursorRectsForView:*self.ns_view
+            let _: () = msg_send![
+                *self.ns_window,
+                invalidateCursorRectsForView: *self.ns_view,
             ];
         }
     }
@@ -645,16 +647,19 @@ impl UnownedWindow {
 
     #[inline]
     pub fn set_cursor_visible(&self, visible: bool) {
-        if let Some(cursor_access) = self.cursor_state.upgrade() {
-            let mut cursor_state = cursor_access.lock().unwrap();
-            if visible != cursor_state.visible {
-                cursor_state.visible = visible;
-                drop(cursor_state);
-                unsafe {
-                    let _: () = msg_send![*self.ns_window,
-                        invalidateCursorRectsForView:*self.ns_view
-                    ];
-                }
+        let view_state: &ViewState = unsafe {
+            let ns_view: &Object = (*self.ns_view).as_ref().expect("failed to deref");
+            let state_ptr: *const c_void = *ns_view.ivar("winitState");
+            &*(state_ptr as *const ViewState)
+        };
+        let mut cursor_state = view_state.cursor_state.lock().unwrap();
+        if visible != cursor_state.visible {
+            cursor_state.visible = visible;
+            drop(cursor_state);
+            unsafe {
+                let _: () = msg_send![*self.ns_window,
+                    invalidateCursorRectsForView:*self.ns_view
+                ];
             }
         }
     }

@@ -5,7 +5,7 @@ use std::{
     ptr, slice, str,
     sync::{
         atomic::{compiler_fence, Ordering},
-        Arc, Mutex, Weak,
+        Mutex,
     },
 };
 
@@ -15,10 +15,11 @@ use cocoa::{
     foundation::{NSPoint, NSRect, NSSize, NSString},
 };
 use objc2::foundation::{NSInteger, NSObject, NSRange, NSUInteger};
+use objc2::rc::{Id, Shared};
 use objc2::runtime::{Bool, Object, Sel};
 use objc2::{declare_class, ClassType};
 
-use super::appkit::{NSResponder, NSView as NSViewClass};
+use super::appkit::{NSCursor, NSResponder, NSView as NSViewClass};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{
@@ -41,7 +42,7 @@ use crate::{
 
 pub struct CursorState {
     pub visible: bool,
-    pub cursor: util::Cursor,
+    pub(super) cursor: Id<NSCursor, Shared>,
 }
 
 impl Default for CursorState {
@@ -70,7 +71,7 @@ enum ImeState {
 
 pub(super) struct ViewState {
     ns_window: id,
-    pub cursor_state: Arc<Mutex<CursorState>>,
+    pub cursor_state: Mutex<CursorState>,
     ime_position: LogicalPosition<f64>,
     pub(super) modifiers: ModifiersState,
     tracking_rect: Option<NSInteger>,
@@ -97,12 +98,10 @@ impl ViewState {
     }
 }
 
-pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
-    let cursor_state = Default::default();
-    let cursor_access = Arc::downgrade(&cursor_state);
+pub fn new_view(ns_window: id) -> IdRef {
     let state = ViewState {
         ns_window,
-        cursor_state,
+        cursor_state: Default::default(),
         ime_position: LogicalPosition::new(0.0, 0.0),
         modifiers: Default::default(),
         tracking_rect: None,
@@ -115,10 +114,7 @@ pub fn new_view(ns_window: id) -> (IdRef, Weak<Mutex<CursorState>>) {
         // This is free'd in `dealloc`
         let state_ptr = Box::into_raw(Box::new(state)) as *mut c_void;
         let ns_view: id = msg_send![WinitView::class(), alloc];
-        (
-            IdRef::new(msg_send![ns_view, initWithWinit: state_ptr]),
-            cursor_access,
-        )
+        IdRef::new(msg_send![ns_view, initWithWinit: state_ptr])
     }
 }
 
@@ -432,21 +428,17 @@ declare_class!(
         #[sel(resetCursorRects)]
         fn reset_cursor_rects(&self) {
             trace_scope!("resetCursorRects");
-            unsafe {
+            let state = unsafe {
                 let state_ptr: *mut c_void = *self.ivar("winitState");
-                let state = &mut *(state_ptr as *mut ViewState);
+                &mut *(state_ptr as *mut ViewState)
+            };
 
-                let bounds: NSRect = msg_send![self, bounds];
-                let cursor_state = state.cursor_state.lock().unwrap();
-                let cursor = if cursor_state.visible {
-                    cursor_state.cursor.load()
-                } else {
-                    util::invisible_cursor()
-                };
-                let _: () = msg_send![self,
-                    addCursorRect:bounds
-                    cursor:cursor
-                ];
+            let bounds = self.bounds();
+            let cursor_state = state.cursor_state.lock().unwrap();
+            if cursor_state.visible {
+                self.addCursorRect(bounds, &cursor_state.cursor);
+            } else {
+                self.addCursorRect(bounds, &NSCursor::invisible());
             }
         }
     }
