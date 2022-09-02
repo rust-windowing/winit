@@ -1,14 +1,14 @@
 use std::os::raw::c_void;
 
 use cocoa::{
-    appkit::{self, NSApplicationPresentationOptions},
+    appkit,
     base::{id, nil},
 };
-use objc2::foundation::{NSObject, NSUInteger};
+use objc2::foundation::NSObject;
 use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::{declare_class, ClassType};
 
-use super::appkit::NSWindowOcclusionState;
+use super::appkit::{NSApplicationPresentationOptions, NSWindowOcclusionState};
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
@@ -78,9 +78,8 @@ impl WindowDelegateState {
         };
 
         self.previous_scale_factor = scale_factor;
-        let ns_window: *const WinitWindow = &*self.window;
         let wrapper = EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
-            ns_window: IdRef::retain(ns_window as _),
+            window: self.window.clone(),
             suggested_size: self.view_size(),
             scale_factor,
         });
@@ -361,8 +360,8 @@ declare_class!(
         fn window_will_use_fullscreen_presentation_options(
             &self,
             _: id,
-            proposed_options: NSUInteger,
-        ) -> NSUInteger {
+            proposed_options: NSApplicationPresentationOptions,
+        ) -> NSApplicationPresentationOptions {
             trace_scope!("window:willUseFullScreenPresentationOptions:");
             // Generally, games will want to disable the menu bar and the dock. Ideally,
             // this would be configurable by the user. Unfortunately because of our
@@ -372,16 +371,15 @@ declare_class!(
             // still want to make this configurable for borderless fullscreen. Right now
             // we don't, for consistency. If we do, it should be documented that the
             // user-provided options are ignored in exclusive fullscreen.
-            let mut options: NSUInteger = proposed_options;
+            let mut options = proposed_options;
             self.with_state(|state| {
                 state.with_window(|window| {
                     let shared_state =
                         window.lock_shared_state("window_will_use_fullscreen_presentation_options");
                     if let Some(Fullscreen::Exclusive(_)) = shared_state.fullscreen {
-                        options = (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                        options = NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
                             | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                            | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
-                            .bits() as NSUInteger;
+                            | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                     }
                 })
             });

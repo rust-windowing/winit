@@ -177,13 +177,17 @@ extern_methods!(
         pub fn close(&self);
 
         #[sel(performWindowDragWithEvent:)]
-        pub fn performWindowDragWithEvent(&self, event: &NSEvent);
+        // TODO: Can this actually accept NULL?
+        pub fn performWindowDragWithEvent(&self, event: Option<&NSEvent>);
 
         #[sel(invalidateCursorRectsForView:)]
         pub fn invalidateCursorRectsForView(&self, view: &NSView);
 
         #[sel(setDelegate:)]
         pub fn setDelegate(&self, delegate: Option<&NSObject>);
+
+        #[sel(sendEvent:)]
+        pub unsafe fn sendEvent(&self, event: &NSEvent);
     }
 );
 

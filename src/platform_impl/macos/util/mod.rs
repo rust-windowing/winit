@@ -5,7 +5,6 @@ pub(crate) use self::r#async::*;
 use std::ops::{BitAnd, Deref};
 
 use cocoa::{
-    appkit::NSApp,
     base::{id, nil},
     foundation::NSString,
 };
@@ -131,9 +130,4 @@ pub unsafe fn app_name() -> Option<id> {
     } else {
         None
     }
-}
-
-#[allow(dead_code)]
-pub unsafe fn open_emoji_picker() {
-    let _: () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
 }
