@@ -388,7 +388,7 @@ impl WinitWindow {
             unsafe { NSFilenamesPboardType }.copy()
         ]));
 
-        let delegate = WinitWindowDelegate::new(this.clone(), attrs.fullscreen.is_some());
+        let delegate = WinitWindowDelegate::new(&this, attrs.fullscreen.is_some());
 
         // Set fullscreen mode after we setup everything
         this.set_fullscreen(attrs.fullscreen);
