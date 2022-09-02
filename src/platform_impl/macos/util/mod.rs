@@ -3,7 +3,6 @@ mod r#async;
 pub use self::r#async::*;
 
 use std::ops::{BitAnd, Deref};
-use std::os::raw::c_uchar;
 
 use cocoa::{
     appkit::{CGFloat, NSApp, NSWindowStyleMask},
@@ -159,22 +158,4 @@ pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, o
 
     // If we don't do this, key handling will break. Therefore, never call `setStyleMask` directly!
     window.makeFirstResponder_(view);
-}
-
-/// For invalid utf8 sequences potentially returned by `UTF8String`,
-/// it behaves identically to `String::from_utf8_lossy`
-///
-/// Safety: Assumes that `string` is an instance of `NSAttributedString` or `NSString`
-pub unsafe fn id_to_string_lossy(string: id) -> String {
-    let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
-    let characters = if has_attr {
-        // This is a *mut NSAttributedString
-        msg_send![string, string]
-    } else {
-        // This is already a *mut NSString
-        string
-    };
-    let utf8_sequence =
-        std::slice::from_raw_parts(characters.UTF8String() as *const c_uchar, characters.len());
-    String::from_utf8_lossy(utf8_sequence).into_owned()
 }

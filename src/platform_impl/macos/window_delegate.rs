@@ -230,12 +230,12 @@ declare_class!(
                 // easily fall out of synchrony with reality.  This requires us to emit
                 // a synthetic ModifiersChanged event when we lose focus.
                 //
-                // Here we (very unsafely) acquire the winitState (a ViewState) from the
+                // Here we (very unsafely) acquire the state (a ViewState) from the
                 // Object referenced by state.ns_view (an IdRef, which is dereferenced
                 // to an id)
                 let view_state: &mut ViewState = unsafe {
                     let ns_view: &Object = (*state.ns_view).as_ref().expect("failed to deref");
-                    let state_ptr: *mut c_void = *ns_view.ivar("winitState");
+                    let state_ptr: *mut c_void = *ns_view.ivar("state");
                     &mut *(state_ptr as *mut ViewState)
                 };
 
