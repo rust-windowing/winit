@@ -39,7 +39,7 @@ static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {
 //
 // This allows us to inject event into the event loop without going through `ndk-glue` and
 // calling unsafe function that should only be called by Android.
-static INTERNAL_EVENT: Lazy<RwLock<Option<InternalEvent>>> = Lazy::new(|| RwLock::new(None));
+static INTERNAL_EVENT: RwLock<Option<InternalEvent>> = RwLock::new(None);
 
 enum InternalEvent {
     RedrawRequested,

@@ -2,8 +2,6 @@ use std::os::raw::*;
 use std::slice;
 use std::sync::Mutex;
 
-use once_cell::sync::Lazy;
-
 use super::{
     ffi::{
         RRCrtc, RRCrtcChangeNotifyMask, RRMode, RROutputPropertyNotifyMask,
@@ -20,7 +18,7 @@ use crate::{
 // Used for testing. This should always be committed as false.
 const DISABLE_MONITOR_LIST_CACHING: bool = false;
 
-static MONITORS: Lazy<Mutex<Option<Vec<MonitorHandle>>>> = Lazy::new(Mutex::default);
+static MONITORS: Mutex<Option<Vec<MonitorHandle>>> = Mutex::new(None);
 
 pub fn invalidate_cached_monitor_list() -> Option<Vec<MonitorHandle>> {
     // We update this lazily.

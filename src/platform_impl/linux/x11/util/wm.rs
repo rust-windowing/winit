@@ -1,13 +1,11 @@
 use std::sync::Mutex;
 
-use once_cell::sync::Lazy;
-
 use super::*;
 
 // This info is global to the window manager.
-static SUPPORTED_HINTS: Lazy<Mutex<Vec<ffi::Atom>>> =
-    Lazy::new(|| Mutex::new(Vec::with_capacity(0)));
-static WM_NAME: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+static SUPPORTED_HINTS: Mutex<Vec<ffi::Atom>> = Mutex::new(Vec::new());
+
+static WM_NAME: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn hint_is_supported(hint: ffi::Atom) -> bool {
     (*SUPPORTED_HINTS.lock().unwrap()).contains(&hint)
