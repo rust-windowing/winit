@@ -34,25 +34,20 @@ use crate::{
         WindowId as RootWindowId,
     },
 };
-use cocoa::{
-    appkit::{
-        self, NSApp, NSApplication, NSApplicationPresentationOptions, NSRequestUserAttentionType,
-    },
-    base::id,
-};
-use core_graphics::display::{CGDisplay, CGDisplayMode};
+use cocoa::{appkit, base::id};
+use core_graphics::display::CGDisplay;
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
     is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
-use objc2::runtime::{Bool, Object};
+use objc2::runtime::Object;
 use objc2::{declare_class, ClassType};
 
 use super::appkit::{
-    NSColor, NSCursor, NSEvent, NSFilenamesPboardType, NSResponder, NSScreen,
-    NSWindow as NSWindowClass, NSWindowButton, NSWindowLevel, NSWindowStyleMask,
-    NSWindowTitleVisibility,
+    NSApp, NSApplicationPresentationOptions, NSColor, NSCursor, NSFilenamesPboardType,
+    NSRequestUserAttentionType, NSResponder, NSScreen, NSWindow, NSWindowButton, NSWindowLevel,
+    NSWindowStyleMask, NSWindowTitleVisibility,
 };
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -113,6 +108,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
 }
 
 declare_class!(
+    #[derive(Debug)]
     pub(crate) struct WinitWindow {
         // TODO: Fix unnecessary boxing here
         // SAFETY: These are initialized in WinitWindow::new, right after it is created.
@@ -122,7 +118,7 @@ declare_class!(
 
     unsafe impl ClassType for WinitWindow {
         #[inherits(NSResponder, NSObject)]
-        type Super = NSWindowClass;
+        type Super = NSWindow;
     }
 
     unsafe impl WinitWindow {
@@ -140,7 +136,7 @@ declare_class!(
     }
 );
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct SharedState {
     pub resizable: bool,
     /// This field tracks the current fullscreen state of the window
@@ -163,7 +159,6 @@ pub struct SharedState {
     /// bar in exclusive fullscreen but want to restore the original options when
     /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
-    pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
 }
 
 impl SharedState {
@@ -655,8 +650,8 @@ impl WinitWindow {
 
     #[inline]
     pub fn drag_window(&self) -> Result<(), ExternalError> {
-        let event: &NSEvent = unsafe { msg_send![NSApp(), currentEvent] };
-        self.performWindowDragWithEvent(event);
+        let event = NSApp().currentEvent();
+        self.performWindowDragWithEvent(event.as_deref());
         Ok(())
     }
 
@@ -820,11 +815,9 @@ impl WinitWindow {
             let mut fade_token = ffi::kCGDisplayFadeReservationInvalidToken;
 
             if matches!(old_fullscreen, Some(Fullscreen::Borderless(_))) {
-                unsafe {
-                    let app = NSApp();
-                    let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
-                    shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
-                }
+                let app = NSApp();
+                let mut shared_state_lock = self.lock_shared_state("set_fullscreen");
+                shared_state_lock.save_presentation_opts = Some(app.presentationOptions());
             }
 
             unsafe {
@@ -904,7 +897,7 @@ impl WinitWindow {
                     Arc::downgrade(&*self.shared_state),
                 );
             }
-            (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => unsafe {
+            (&Some(Fullscreen::Borderless(_)), &Some(Fullscreen::Exclusive(_))) => {
                 // If we're already in fullscreen mode, calling
                 // `CGDisplayCapture` will place the shielding window on top of
                 // our window, which results in a black display and is not what
@@ -914,34 +907,36 @@ impl WinitWindow {
                 // that the menu bar is disabled. This is done in the window
                 // delegate in `window:willUseFullScreenPresentationOptions:`.
                 let app = NSApp();
-                shared_state_lock.save_presentation_opts = Some(app.presentationOptions_());
+                shared_state_lock.save_presentation_opts = Some(app.presentationOptions());
 
                 let presentation_options =
                     NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
-                app.setPresentationOptions_(presentation_options);
+                app.setPresentationOptions(presentation_options);
 
-                let _: () = msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1];
-            },
+                let _: () = unsafe { msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1] };
+            }
             (
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
                 &Some(Fullscreen::Borderless(_)),
-            ) => unsafe {
+            ) => {
                 let presentation_options =
                     shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
                         NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
                         | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
                         | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar
                     });
-                NSApp().setPresentationOptions_(presentation_options);
+                NSApp().setPresentationOptions(presentation_options);
 
-                util::restore_display_mode_async(video_mode.monitor().inner.native_identifier());
+                unsafe {
+                    util::restore_display_mode_async(video_mode.monitor().inner.native_identifier())
+                };
 
                 // Restore the normal window level following the Borderless fullscreen
                 // `CGShieldingWindowLevel() + 1` hack.
                 self.setLevel(NSWindowLevel::Normal);
-            },
+            }
             _ => {}
         };
     }
@@ -1031,10 +1026,8 @@ impl WinitWindow {
         let is_visible = self.isVisible();
 
         if !is_minimized && is_visible {
-            unsafe {
-                NSApp().activateIgnoringOtherApps_(Bool::YES.as_raw());
-                util::make_key_and_order_front_async(self);
-            }
+            NSApp().activateIgnoringOtherApps(true);
+            util::make_key_and_order_front_async(self);
         }
     }
 
@@ -1044,10 +1037,8 @@ impl WinitWindow {
             UserAttentionType::Critical => NSRequestUserAttentionType::NSCriticalRequest,
             UserAttentionType::Informational => NSRequestUserAttentionType::NSInformationalRequest,
         });
-        unsafe {
-            if let Some(ty) = ns_request_type {
-                NSApp().requestUserAttention_(ty);
-            }
+        if let Some(ty) = ns_request_type {
+            NSApp().requestUserAttention(ty);
         }
     }
 
@@ -1120,7 +1111,7 @@ impl WindowExtMacOS for WinitWindow {
     fn set_simple_fullscreen(&self, fullscreen: bool) -> bool {
         let mut shared_state_lock = self.shared_state.lock().unwrap();
 
-        let app = unsafe { NSApp() };
+        let app = NSApp();
         let is_native_fullscreen = shared_state_lock.fullscreen.is_some();
         let is_simple_fullscreen = shared_state_lock.is_simple_fullscreen;
 
@@ -1137,7 +1128,7 @@ impl WindowExtMacOS for WinitWindow {
             // Exclude title bar
             shared_state_lock.standard_frame = Some(self.contentRectForFrameRect(self.frame()));
             shared_state_lock.saved_style = Some(self.styleMask());
-            shared_state_lock.save_presentation_opts = Some(unsafe { app.presentationOptions_() });
+            shared_state_lock.save_presentation_opts = Some(app.presentationOptions());
 
             // Tell our window's state that we're in fullscreen
             shared_state_lock.is_simple_fullscreen = true;
@@ -1146,7 +1137,7 @@ impl WindowExtMacOS for WinitWindow {
             let presentation_options =
                 NSApplicationPresentationOptions::NSApplicationPresentationAutoHideDock
                     | NSApplicationPresentationOptions::NSApplicationPresentationAutoHideMenuBar;
-            unsafe { app.setPresentationOptions_(presentation_options) };
+            app.setPresentationOptions(presentation_options);
 
             // Hide the titlebar
             self.toggle_style_mask(NSWindowStyleMask::NSTitledWindowMask, false);
@@ -1167,7 +1158,7 @@ impl WindowExtMacOS for WinitWindow {
             shared_state_lock.is_simple_fullscreen = false;
 
             if let Some(presentation_opts) = shared_state_lock.save_presentation_opts {
-                unsafe { app.setPresentationOptions_(presentation_opts) };
+                app.setPresentationOptions(presentation_opts);
             }
 
             let frame = shared_state_lock.saved_standard_frame();

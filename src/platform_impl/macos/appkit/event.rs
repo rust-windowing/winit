@@ -1,7 +1,9 @@
 use std::os::raw::c_ushort;
 
 use objc2::encode::{Encode, Encoding};
-use objc2::foundation::{CGFloat, NSCopying, NSInteger, NSObject, NSPoint, NSString, NSUInteger};
+use objc2::foundation::{
+    CGFloat, NSCopying, NSInteger, NSObject, NSPoint, NSString, NSTimeInterval, NSUInteger,
+};
 use objc2::rc::{Id, Shared};
 use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
 
@@ -22,6 +24,49 @@ extern_class!(
 
 extern_methods!(
     unsafe impl NSEvent {
+        unsafe fn otherEventWithType(
+            type_: NSEventType,
+            location: NSPoint,
+            flags: NSEventModifierFlags,
+            time: NSTimeInterval,
+            window_num: NSInteger,
+            context: Option<&NSObject>, // NSGraphicsContext
+            subtype: NSEventSubtype,
+            data1: NSInteger,
+            data2: NSInteger,
+        ) -> Id<Self, Shared> {
+            unsafe {
+                msg_send_id![
+                    Self::class(),
+                    otherEventWithType: type_,
+                    location: location,
+                    modifierFlags: flags,
+                    timestamp: time,
+                    windowNumber: window_num,
+                    context: context,
+                    subtype: subtype,
+                    data1: data1,
+                    data2: data2,
+                ]
+            }
+        }
+
+        pub fn dummy() -> Id<Self, Shared> {
+            unsafe {
+                Self::otherEventWithType(
+                    NSEventType::NSApplicationDefined,
+                    NSPoint::new(0.0, 0.0),
+                    NSEventModifierFlags::empty(),
+                    0.0,
+                    0,
+                    None,
+                    NSEventSubtype::NSWindowExposedEventType,
+                    0,
+                    0,
+                )
+            }
+        }
+
         #[sel(locationInWindow)]
         pub fn locationInWindow(&self) -> NSPoint;
 
@@ -31,6 +76,9 @@ extern_methods!(
 
         #[sel(modifierFlags)]
         pub fn modifierFlags(&self) -> NSEventModifierFlags;
+
+        #[sel(type)]
+        pub fn type_(&self) -> NSEventType;
 
         // In AppKit, `keyCode` refers to the position (scancode) of a key rather than its character,
         // and there is no easy way to navtively retrieve the layout-dependent character.
@@ -47,6 +95,15 @@ extern_methods!(
 
         #[sel(momentumPhase)]
         pub fn momentumPhase(&self) -> NSEventPhase;
+
+        #[sel(deltaX)]
+        pub fn deltaX(&self) -> CGFloat;
+
+        #[sel(deltaY)]
+        pub fn deltaY(&self) -> CGFloat;
+
+        #[sel(buttonNumber)]
+        pub fn buttonNumber(&self) -> NSInteger;
 
         #[sel(scrollingDeltaX)]
         pub fn scrollingDeltaX(&self) -> CGFloat;

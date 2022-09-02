@@ -1,11 +1,13 @@
 use super::util::IdRef;
-use cocoa::appkit::{NSApp, NSApplication, NSEventModifierFlags, NSMenu, NSMenuItem};
+use cocoa::appkit::{NSMenu, NSMenuItem};
 use cocoa::base::{nil, selector};
 use cocoa::foundation::{NSProcessInfo, NSString};
 use objc::{
     rc::autoreleasepool,
     runtime::{Object, Sel},
 };
+
+use super::appkit::{NSApp, NSEventModifierFlags};
 
 struct KeyEquivalent<'a> {
     key: &'a str,
@@ -18,7 +20,7 @@ pub fn initialize() {
         let app_menu_item = IdRef::new(NSMenuItem::new(nil));
         menubar.addItem_(*app_menu_item);
         let app = NSApp();
-        app.setMainMenu_(*menubar);
+        app.setMainMenu(*menubar);
 
         let app_menu = NSMenu::new(nil);
         let process_name = NSProcessInfo::processInfo(nil).processName();
@@ -107,7 +109,7 @@ fn menu_item(
         };
         let item = NSMenuItem::alloc(nil).initWithTitle_action_keyEquivalent_(title, selector, key);
         if let Some(masks) = masks {
-            item.setKeyEquivalentModifierMask_(masks)
+            item.setKeyEquivalentModifierMask_(cocoa::appkit::NSEventModifierFlags::from_bits(masks.bits() as _).unwrap())
         }
 
         item

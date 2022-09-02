@@ -8,6 +8,7 @@
 // Objective-C methods have different conventions, and it's much easier to
 // understand if we just use the same names
 #![allow(non_snake_case)]
+#![allow(clippy::too_many_arguments)]
 #![allow(clippy::enum_variant_names)]
 #![allow(non_upper_case_globals)]
 
@@ -25,12 +26,18 @@ mod text_input_context;
 mod view;
 mod window;
 
-pub(crate) use self::application::{NSApp, NSApplication};
+pub(crate) use self::application::{
+    NSApp, NSApplication, NSApplicationActivationPolicy, NSApplicationPresentationOptions,
+    NSRequestUserAttentionType,
+};
 pub(crate) use self::button::NSButton;
 pub(crate) use self::color::NSColor;
 pub(crate) use self::control::NSControl;
 pub(crate) use self::cursor::NSCursor;
-pub(crate) use self::event::{NSEvent, NSEventModifierFlags, NSEventPhase};
+#[allow(unused_imports)]
+pub(crate) use self::event::{
+    NSEvent, NSEventModifierFlags, NSEventPhase, NSEventSubtype, NSEventType,
+};
 pub(crate) use self::image::NSImage;
 pub(crate) use self::pasteboard::{NSFilenamesPboardType, NSPasteboardType};
 pub(crate) use self::responder::NSResponder;

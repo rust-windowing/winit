@@ -1,25 +1,25 @@
 use std::os::raw::c_ushort;
 
+use objc2::rc::{Id, Shared};
+
 use super::appkit::{NSEvent, NSEventModifierFlags};
+use super::window::WinitWindow;
 use crate::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
-    platform_impl::platform::{
-        util::{IdRef, Never},
-        DEVICE_ID,
-    },
+    platform_impl::platform::{util::Never, DEVICE_ID},
 };
 
 #[derive(Debug)]
-pub enum EventWrapper {
+pub(crate) enum EventWrapper {
     StaticEvent(Event<'static, Never>),
     EventProxy(EventProxy),
 }
 
-#[derive(Debug, PartialEq)]
-pub enum EventProxy {
+#[derive(Debug)]
+pub(crate) enum EventProxy {
     DpiChangedProxy {
-        ns_window: IdRef,
+        window: Id<WinitWindow, Shared>,
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     },
