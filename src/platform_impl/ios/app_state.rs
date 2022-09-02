@@ -144,7 +144,7 @@ impl AppState {
             #[inline(never)]
             #[cold]
             unsafe fn init_guard(guard: &mut RefMut<'static, Option<AppState>>) {
-                let waker = EventLoopWaker::new(CFRunLoopGetMain());
+                let waker = EventLoopWaker::new(unsafe { CFRunLoopGetMain() });
                 **guard = Some(AppState {
                     app_state: Some(AppStateImpl::NotLaunched {
                         queued_windows: Vec::new(),

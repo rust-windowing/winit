@@ -1,5 +1,4 @@
-#![cfg(target_os = "macos")]
-#![allow(clippy::let_unit_value)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 #[macro_use]
 mod util;
