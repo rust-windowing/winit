@@ -907,7 +907,10 @@ impl WinitWindow {
                         | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar;
                 app.setPresentationOptions(presentation_options);
 
-                let _: () = unsafe { msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1] };
+                #[allow(clippy::let_unit_value)]
+                unsafe {
+                    let _: () = msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1];
+                }
             }
             (
                 &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),

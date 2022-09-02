@@ -35,7 +35,7 @@ declare_class!(
                 }
             } else {
                 maybe_dispatch_device_event(event);
-                let _: () = unsafe { msg_send![super(self), sendEvent: event] };
+                unsafe { msg_send![super(self), sendEvent: event] }
             }
         }
     }

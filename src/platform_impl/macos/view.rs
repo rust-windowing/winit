@@ -173,15 +173,16 @@ declare_class!(
                 // About frame change
                 let frame_did_change_notification_name =
                     NSString::from_str("NSViewFrameDidChangeNotification");
-                let _: () = unsafe {
-                    msg_send![
+                #[allow(clippy::let_unit_value)]
+                unsafe {
+                    let _: () = msg_send![
                         notification_center,
                         addObserver: &*this,
                         selector: sel!(frameDidChange:),
                         name: &*frame_did_change_notification_name,
                         object: &*this,
-                    ]
-                };
+                    ];
+                }
 
                 this.state.input_source = this.current_input_source();
                 this
@@ -230,6 +231,7 @@ declare_class!(
 
             AppState::handle_redraw(self.window_id());
 
+            #[allow(clippy::let_unit_value)]
             unsafe {
                 let _: () = msg_send![super(self), drawRect: rect];
             }

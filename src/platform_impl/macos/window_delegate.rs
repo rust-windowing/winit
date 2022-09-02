@@ -427,6 +427,7 @@ declare_class!(
                     shared_state.target_fullscreen = None;
                 });
                 if state.initial_fullscreen {
+                    #[allow(clippy::let_unit_value)]
                     unsafe {
                         let _: () = msg_send![
                             &*state.window,

@@ -131,8 +131,11 @@ pub(crate) fn toggle_full_screen_async(
 
 pub(crate) unsafe fn restore_display_mode_async(ns_screen: u32) {
     Queue::main().exec_async(move || {
-        ffi::CGRestorePermanentDisplayConfiguration();
-        assert_eq!(ffi::CGDisplayRelease(ns_screen), ffi::kCGErrorSuccess);
+        unsafe { ffi::CGRestorePermanentDisplayConfiguration() };
+        assert_eq!(
+            unsafe { ffi::CGDisplayRelease(ns_screen) },
+            ffi::kCGErrorSuccess
+        );
     });
 }
 
