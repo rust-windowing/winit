@@ -13,9 +13,10 @@ use std::{
 
 use cocoa::{
     appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
-    base::{id, nil, BOOL, NO, YES},
-    foundation::{NSInteger, NSPoint, NSTimeInterval},
+    base::{id, nil},
+    foundation::{NSPoint, NSTimeInterval},
 };
+use objc::foundation::is_main_thread;
 use objc::rc::autoreleasepool;
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
@@ -144,8 +145,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 impl<T> EventLoop<T> {
     pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         let delegate = unsafe {
-            let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
-            if is_main_thread == NO {
+            if !is_main_thread() {
                 panic!("On macOS, `EventLoop` must be created on the main thread!");
             }
 
@@ -161,7 +161,7 @@ impl<T> EventLoop<T> {
             aux_state.activation_policy = attributes.activation_policy;
             aux_state.default_menu = attributes.default_menu;
 
-            autoreleasepool(|| {
+            autoreleasepool(|_| {
                 let _: () = msg_send![app, setDelegate:*delegate];
             });
 
@@ -209,7 +209,7 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        let exit_code = autoreleasepool(|| unsafe {
+        let exit_code = autoreleasepool(|_| unsafe {
             let app = NSApp();
             assert_ne!(app, nil);
 
@@ -246,13 +246,13 @@ pub unsafe fn post_dummy_event(target: id) {
         location: NSPoint::new(0.0, 0.0)
         modifierFlags: NSEventModifierFlags::empty()
         timestamp: 0 as NSTimeInterval
-        windowNumber: 0 as NSInteger
+        windowNumber: 0isize
         context: nil
         subtype: NSEventSubtype::NSWindowExposedEventType
-        data1: 0 as NSInteger
-        data2: 0 as NSInteger
+        data1: 0isize
+        data2: 0isize
     ];
-    let _: () = msg_send![target, postEvent: dummy_event atStart: YES];
+    let _: () = msg_send![target, postEvent: dummy_event, atStart: true];
 }
 
 /// Catches panics that happen inside `f` and when a panic

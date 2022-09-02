@@ -18,8 +18,9 @@ use cocoa::{
     foundation::NSSize,
 };
 use objc::{
+    foundation::is_main_thread,
     rc::autoreleasepool,
-    runtime::{Object, BOOL, NO, YES},
+    runtime::{Bool, Object},
 };
 use once_cell::sync::Lazy;
 
@@ -288,7 +289,7 @@ impl AppState {
             let ns_app = NSApp();
             window_activation_hack(ns_app);
             // TODO: Consider allowing the user to specify they don't want their application activated
-            ns_app.activateIgnoringOtherApps_(YES);
+            ns_app.activateIgnoringOtherApps_(Bool::YES.as_raw());
         };
         HANDLER.set_ready();
         HANDLER.waker().start();
@@ -361,16 +362,14 @@ impl AppState {
     }
 
     pub fn queue_event(wrapper: EventWrapper) {
-        let is_main_thread: BOOL = unsafe { msg_send!(class!(NSThread), isMainThread) };
-        if is_main_thread == NO {
+        if !is_main_thread() {
             panic!("Event queued from different thread: {:#?}", wrapper);
         }
         HANDLER.events().push_back(wrapper);
     }
 
     pub fn queue_events(mut wrappers: VecDeque<EventWrapper>) {
-        let is_main_thread: BOOL = unsafe { msg_send!(class!(NSThread), isMainThread) };
-        if is_main_thread == NO {
+        if !is_main_thread() {
             panic!("Events queued from different thread: {:#?}", wrappers);
         }
         HANDLER.events().append(&mut wrappers);
@@ -403,7 +402,7 @@ impl AppState {
             unsafe {
                 let app: id = NSApp();
 
-                autoreleasepool(|| {
+                autoreleasepool(|_| {
                     let _: () = msg_send![app, stop: nil];
                     // To stop event loop immediately, we need to post some event here.
                     post_dummy_event(app);
@@ -443,7 +442,7 @@ unsafe fn window_activation_hack(ns_app: id) {
         // And call `makeKeyAndOrderFront` if it was called on the window in `UnownedWindow::new`
         // This way we preserve the user's desired initial visiblity status
         // TODO: Also filter on the type/"level" of the window, and maybe other things?
-        if ns_window.isVisible() == YES {
+        if Bool::from_raw(ns_window.isVisible()).as_bool() {
             trace!("Activating visible window");
             ns_window.makeKeyAndOrderFront_(nil);
         } else {

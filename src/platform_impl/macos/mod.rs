@@ -75,7 +75,7 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = autoreleasepool(|| UnownedWindow::new(attributes, pl_attribs))?;
+        let (window, _delegate) = autoreleasepool(|_| UnownedWindow::new(attributes, pl_attribs))?;
         Ok(Window { window, _delegate })
     }
 }

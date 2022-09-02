@@ -9,8 +9,9 @@ use cocoa::{
     foundation::{NSPoint, NSSize, NSString},
 };
 use dispatch::Queue;
+use objc::foundation::is_main_thread;
 use objc::rc::autoreleasepool;
-use objc::runtime::{BOOL, NO, YES};
+use objc::runtime::Bool;
 
 use crate::{
     dpi::LogicalSize,
@@ -55,8 +56,7 @@ pub unsafe fn set_style_mask_async(ns_window: id, ns_view: id, mask: NSWindowSty
     });
 }
 pub unsafe fn set_style_mask_sync(ns_window: id, ns_view: id, mask: NSWindowStyleMask) {
-    let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
-    if is_main_thread != NO {
+    if is_main_thread() {
         set_style_mask(ns_window, ns_view, mask);
     } else {
         let ns_window = MainThreadSafe(ns_window);
@@ -97,7 +97,7 @@ pub unsafe fn set_level_async(ns_window: id, level: ffi::NSWindowLevel) {
 pub unsafe fn set_ignore_mouse_events(ns_window: id, ignore: bool) {
     let ns_window = MainThreadSafe(ns_window);
     Queue::main().exec_async(move || {
-        ns_window.setIgnoresMouseEvents_(if ignore { YES } else { NO });
+        ns_window.setIgnoresMouseEvents_(Bool::from(ignore).as_raw());
     });
 }
 
@@ -186,7 +186,7 @@ pub unsafe fn set_maximized_async(
                 } else {
                     shared_state_lock.saved_standard_frame()
                 };
-                ns_window.setFrame_display_(new_rect, NO);
+                ns_window.setFrame_display_(new_rect, Bool::NO.as_raw());
             }
         }
     });
@@ -229,7 +229,7 @@ pub unsafe fn set_title_async(ns_window: id, title: String) {
 pub unsafe fn close_async(ns_window: IdRef) {
     let ns_window = MainThreadSafe(ns_window);
     Queue::main().exec_async(move || {
-        autoreleasepool(move || {
+        autoreleasepool(move |_| {
             ns_window.close();
         });
     });

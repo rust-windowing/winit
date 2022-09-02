@@ -8,7 +8,6 @@ use crate::{
 use cocoa::{
     appkit::NSScreen,
     base::{id, nil},
-    foundation::NSUInteger,
 };
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex},
@@ -16,6 +15,7 @@ use core_foundation::{
     string::CFString,
 };
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
+use objc::foundation::NSUInteger;
 
 #[derive(Clone)]
 pub struct VideoMode {

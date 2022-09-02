@@ -9,10 +9,11 @@ use std::os::raw::c_uchar;
 use cocoa::{
     appkit::{CGFloat, NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSPoint, NSRect, NSString, NSUInteger},
+    foundation::{NSPoint, NSRect, NSString},
 };
 use core_graphics::display::CGDisplay;
-use objc::runtime::{Class, Object, BOOL, NO};
+use objc::foundation::{NSRange, NSUInteger};
+use objc::runtime::{Class, Object};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -28,7 +29,7 @@ where
     bitset & flag == flag
 }
 
-pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
+pub const EMPTY_RANGE: NSRange = NSRange {
     location: ffi::NSNotFound as NSUInteger,
     length: 0,
 };
@@ -172,8 +173,8 @@ pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, o
 ///
 /// Safety: Assumes that `string` is an instance of `NSAttributedString` or `NSString`
 pub unsafe fn id_to_string_lossy(string: id) -> String {
-    let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
-    let characters = if has_attr != NO {
+    let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+    let characters = if has_attr {
         // This is a *mut NSAttributedString
         msg_send![string, string]
     } else {
