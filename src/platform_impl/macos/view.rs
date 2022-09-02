@@ -86,7 +86,7 @@ pub(super) struct ViewState {
     /// True if the current key event should be forwarded
     /// to the application, even during IME
     forward_key_to_app: bool,
-    pub accepts_first_mouse: bool,
+    accepts_first_mouse: bool,
 }
 
 impl ViewState {
