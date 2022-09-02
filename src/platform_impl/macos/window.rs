@@ -26,7 +26,7 @@ use crate::{
         ffi,
         monitor::{self, MonitorHandle, VideoMode},
         util::{self, IdRef},
-        view::{self, new_view, ViewState},
+        view::{ViewState, WinitView},
         window_delegate::new_delegate,
         OsError,
     },
@@ -106,34 +106,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             has_shadow: true,
         }
     }
-}
-
-unsafe fn create_view(
-    ns_window: id,
-    pl_attribs: &PlatformSpecificWindowBuilderAttributes,
-) -> Option<IdRef> {
-    let ns_view = new_view(ns_window);
-    ns_view.non_nil().map(|ns_view| {
-        // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
-        // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
-        // always the default system value in favour of the user's code
-        if !pl_attribs.disallow_hidpi {
-            ns_view.setWantsBestResolutionOpenGLSurface_(Bool::YES.as_raw());
-        } else {
-            ns_view.setWantsBestResolutionOpenGLSurface_(Bool::NO.as_raw());
-        }
-
-        // On Mojave, views automatically become layer-backed shortly after being added to
-        // a window. Changing the layer-backedness of a view breaks the association between
-        // the view and its associated OpenGL context. To work around this, on Mojave we
-        // explicitly make the view layer-backed up front so that AppKit doesn't do it
-        // itself and break the association with its context.
-        if f64::floor(appkit::NSAppKitVersionNumber) > appkit::NSAppKitVersionNumber10_12 {
-            ns_view.setWantsLayer(Bool::YES.as_raw());
-        }
-
-        ns_view
-    })
 }
 
 fn create_window(
@@ -392,8 +364,26 @@ impl UnownedWindow {
         let ns_window = create_window(&win_attribs, &pl_attribs)
             .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        let ns_view = unsafe { create_view(*ns_window, &pl_attribs) }
-            .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSView`")))?;
+        let ns_view = WinitView::new(*ns_window);
+
+        // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
+        // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
+        // always the default system value in favour of the user's code
+        if !pl_attribs.disallow_hidpi {
+            unsafe { ns_view.setWantsBestResolutionOpenGLSurface_(Bool::YES.as_raw()) };
+        } else {
+            unsafe { ns_view.setWantsBestResolutionOpenGLSurface_(Bool::NO.as_raw()) };
+        }
+
+        // On Mojave, views automatically become layer-backed shortly after being added to
+        // a window. Changing the layer-backedness of a view breaks the association between
+        // the view and its associated OpenGL context. To work around this, on Mojave we
+        // explicitly make the view layer-backed up front so that AppKit doesn't do it
+        // itself and break the association with its context.
+        if f64::floor(unsafe { appkit::NSAppKitVersionNumber }) > appkit::NSAppKitVersionNumber10_12
+        {
+            unsafe { ns_view.setWantsLayer(Bool::YES.as_raw()) };
+        }
 
         // Configure the new view as the "key view" for the window
         unsafe {
@@ -611,7 +601,7 @@ impl UnownedWindow {
     pub fn set_cursor_icon(&self, icon: CursorIcon) {
         let view_state: &ViewState = unsafe {
             let ns_view: &Object = (*self.ns_view).as_ref().expect("failed to deref");
-            let state_ptr: *const c_void = *ns_view.ivar("winitState");
+            let state_ptr: *const c_void = *ns_view.ivar("state");
             &*(state_ptr as *const ViewState)
         };
         let mut cursor_state = view_state.cursor_state.lock().unwrap();
@@ -644,7 +634,7 @@ impl UnownedWindow {
     pub fn set_cursor_visible(&self, visible: bool) {
         let view_state: &ViewState = unsafe {
             let ns_view: &Object = (*self.ns_view).as_ref().expect("failed to deref");
-            let state_ptr: *const c_void = *ns_view.ivar("winitState");
+            let state_ptr: *const c_void = *ns_view.ivar("state");
             &*(state_ptr as *const ViewState)
         };
         let mut cursor_state = view_state.cursor_state.lock().unwrap();
@@ -1059,14 +1049,14 @@ impl UnownedWindow {
     pub fn set_ime_position(&self, spot: Position) {
         let scale_factor = self.scale_factor();
         let logical_spot = spot.to_logical(scale_factor);
-        unsafe { view::set_ime_position(*self.ns_view, logical_spot) };
+        let view: *mut WinitView = self.ns_view.cast();
+        unsafe { &mut *view }.set_ime_position(logical_spot);
     }
 
     #[inline]
     pub fn set_ime_allowed(&self, allowed: bool) {
-        unsafe {
-            view::set_ime_allowed(*self.ns_view, allowed);
-        }
+        let view: *mut WinitView = self.ns_view.cast();
+        unsafe { &mut *view }.set_ime_allowed(allowed);
     }
 
     #[inline]

@@ -1,10 +1,6 @@
 use std::os::raw::c_ushort;
 
-use cocoa::{
-    appkit::{NSEvent, NSEventModifierFlags},
-    base::id,
-};
-
+use super::appkit::{NSEvent, NSEventModifierFlags};
 use crate::{
     dpi::LogicalSize,
     event::{ElementState, Event, KeyboardInput, ModifiersState, VirtualKeyCode, WindowEvent},
@@ -241,8 +237,8 @@ pub fn check_function_keys(string: &str) -> Option<VirtualKeyCode> {
     None
 }
 
-pub fn event_mods(event: id) -> ModifiersState {
-    let flags = unsafe { NSEvent::modifierFlags(event) };
+pub(super) fn event_mods(event: &NSEvent) -> ModifiersState {
+    let flags = event.modifierFlags();
     let mut m = ModifiersState::empty();
     m.set(
         ModifiersState::SHIFT,
@@ -263,21 +259,13 @@ pub fn event_mods(event: id) -> ModifiersState {
     m
 }
 
-pub fn get_scancode(event: cocoa::base::id) -> c_ushort {
-    // In AppKit, `keyCode` refers to the position (scancode) of a key rather than its character,
-    // and there is no easy way to navtively retrieve the layout-dependent character.
-    // In winit, we use keycode to refer to the key's character, and so this function aligns
-    // AppKit's terminology with ours.
-    unsafe { msg_send![event, keyCode] }
-}
-
-pub unsafe fn modifier_event(
-    ns_event: id,
+pub(super) fn modifier_event(
+    event: &NSEvent,
     keymask: NSEventModifierFlags,
     was_key_pressed: bool,
 ) -> Option<WindowEvent<'static>> {
-    if !was_key_pressed && NSEvent::modifierFlags(ns_event).contains(keymask)
-        || was_key_pressed && !NSEvent::modifierFlags(ns_event).contains(keymask)
+    if !was_key_pressed && event.modifierFlags().contains(keymask)
+        || was_key_pressed && !event.modifierFlags().contains(keymask)
     {
         let state = if was_key_pressed {
             ElementState::Released
@@ -285,7 +273,7 @@ pub unsafe fn modifier_event(
             ElementState::Pressed
         };
 
-        let scancode = get_scancode(ns_event);
+        let scancode = event.scancode();
         let virtual_keycode = scancode_to_keycode(scancode);
         #[allow(deprecated)]
         Some(WindowEvent::KeyboardInput {
@@ -294,7 +282,7 @@ pub unsafe fn modifier_event(
                 state,
                 scancode: scancode as _,
                 virtual_keycode,
-                modifiers: event_mods(ns_event),
+                modifiers: event_mods(event),
             },
             is_synthetic: false,
         })

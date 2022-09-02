@@ -4,7 +4,6 @@
 
 use std::ffi::c_void;
 
-use cocoa::base::id;
 use core_foundation::{
     array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
 };
@@ -12,49 +11,9 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
-use objc::foundation::{NSInteger, NSUInteger};
+use objc2::foundation::NSInteger;
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
-
-pub trait NSMutableAttributedString: Sized {
-    unsafe fn alloc(_: Self) -> id {
-        msg_send![class!(NSMutableAttributedString), alloc]
-    }
-
-    unsafe fn init(self) -> id; // *mut NSMutableAttributedString
-    unsafe fn initWithString(self, string: id) -> id;
-    unsafe fn initWithAttributedString(self, string: id) -> id;
-
-    unsafe fn string(self) -> id; // *mut NSString
-    unsafe fn mutableString(self) -> id; // *mut NSMutableString
-    unsafe fn length(self) -> NSUInteger;
-}
-
-impl NSMutableAttributedString for id {
-    unsafe fn init(self) -> id {
-        msg_send![self, init]
-    }
-
-    unsafe fn initWithString(self, string: id) -> id {
-        msg_send![self, initWithString: string]
-    }
-
-    unsafe fn initWithAttributedString(self, string: id) -> id {
-        msg_send![self, initWithAttributedString: string]
-    }
-
-    unsafe fn string(self) -> id {
-        msg_send![self, string]
-    }
-
-    unsafe fn mutableString(self) -> id {
-        msg_send![self, mutableString]
-    }
-
-    unsafe fn length(self) -> NSUInteger {
-        msg_send![self, length]
-    }
-}
 
 pub const kCGBaseWindowLevelKey: NSInteger = 0;
 pub const kCGMinimumWindowLevelKey: NSInteger = 1;
