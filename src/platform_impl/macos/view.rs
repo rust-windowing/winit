@@ -1306,6 +1306,6 @@ extern "C" fn accepts_first_mouse(this: &Object, _sel: Sel, _event: id) -> BOOL 
         let state_ptr: *const c_void = *this.get_ivar("winitState");
         let state = &*(state_ptr as *const ViewState);
 
-        state.accepts_first_mouse
+        state.accepts_first_mouse as BOOL
     }
 }
