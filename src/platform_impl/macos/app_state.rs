@@ -13,32 +13,26 @@ use std::{
 };
 
 use cocoa::{
-    appkit::{NSApp, NSApplication, NSWindow},
+    appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSWindow},
     base::{id, nil},
     foundation::NSSize,
 };
-use objc::{
-    foundation::is_main_thread,
-    rc::autoreleasepool,
-    runtime::{Bool, Object},
-};
+use objc::foundation::is_main_thread;
+use objc::rc::autoreleasepool;
+use objc::runtime::Bool;
 use once_cell::sync::Lazy;
 
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
-    platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            event::{EventProxy, EventWrapper},
-            event_loop::{post_dummy_event, PanicInfo},
-            menu,
-            observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
-            util::{IdRef, Never},
-            window::get_window_id,
-        },
+    platform_impl::platform::{
+        event::{EventProxy, EventWrapper},
+        event_loop::{post_dummy_event, PanicInfo},
+        menu,
+        observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
+        util::{IdRef, Never},
+        window::get_window_id,
     },
     window::WindowId,
 };
@@ -283,17 +277,21 @@ impl AppState {
         }
     }
 
-    pub fn launched(app_delegate: &Object) {
-        apply_activation_policy(app_delegate);
+    pub fn launched(activation_policy: NSApplicationActivationPolicy, create_default_menu: bool) {
         unsafe {
             let ns_app = NSApp();
+
+            // We need to delay setting the activation policy and activating the app
+            // until `applicationDidFinishLaunching` has been called. Otherwise the
+            // menu bar is initially unresponsive on macOS 10.15.
+            ns_app.setActivationPolicy_(activation_policy);
+
             window_activation_hack(ns_app);
             // TODO: Consider allowing the user to specify they don't want their application activated
             ns_app.activateIgnoringOtherApps_(Bool::YES.as_raw());
         };
         HANDLER.set_ready();
         HANDLER.waker().start();
-        let create_default_menu = unsafe { get_aux_state_mut(app_delegate).default_menu };
         if create_default_menu {
             // The menubar initialization should be before the `NewEvents` event, to allow
             // overriding of the default menu even if it's created
@@ -448,20 +446,5 @@ unsafe fn window_activation_hack(ns_app: id) {
         } else {
             trace!("Skipping activating invisible window");
         }
-    }
-}
-fn apply_activation_policy(app_delegate: &Object) {
-    unsafe {
-        use cocoa::appkit::NSApplicationActivationPolicy::*;
-        let ns_app = NSApp();
-        // We need to delay setting the activation policy and activating the app
-        // until `applicationDidFinishLaunching` has been called. Otherwise the
-        // menu bar is initially unresponsive on macOS 10.15.
-        let act_pol = get_aux_state_mut(app_delegate).activation_policy;
-        ns_app.setActivationPolicy_(match act_pol {
-            ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
-            ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
-            ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
-        });
     }
 }

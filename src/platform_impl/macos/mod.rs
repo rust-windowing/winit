@@ -21,7 +21,6 @@ mod window_delegate;
 use std::{fmt, ops::Deref, sync::Arc};
 
 pub(crate) use self::{
-    app_delegate::get_aux_state_mut,
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
