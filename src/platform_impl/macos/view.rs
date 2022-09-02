@@ -1,6 +1,4 @@
-use std::{
-    boxed::Box, collections::VecDeque, mem::ManuallyDrop, os::raw::*, ptr, str, sync::Mutex,
-};
+use std::{boxed::Box, collections::VecDeque, os::raw::*, ptr, str, sync::Mutex};
 
 use objc2::declare::{Ivar, IvarDrop};
 use objc2::foundation::{
@@ -27,7 +25,7 @@ use crate::{
             char_to_keycode, check_function_keys, event_mods, modifier_event, scancode_to_keycode,
             EventWrapper,
         },
-        util::{self, IdRef},
+        util,
         window::get_window_id,
         DEVICE_ID,
     },
@@ -136,7 +134,7 @@ declare_class!(
     #[allow(non_snake_case)]
     pub(super) struct WinitView {
         _ns_window: IvarDrop<Id<NSWindow, Shared>>,
-        state: IvarDrop<Box<ViewState>>,
+        pub(super) state: IvarDrop<Box<ViewState>>,
         marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
     }
 
@@ -914,11 +912,8 @@ declare_class!(
 );
 
 impl WinitView {
-    pub(super) fn new(window_id: *mut Object) -> IdRef {
-        let obj: Id<_, Owned> =
-            unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithId: window_id] };
-        let mut obj = ManuallyDrop::new(obj);
-        IdRef::new(Id::as_mut_ptr(&mut obj))
+    pub(super) fn new(window: &NSWindow) -> Id<Self, Shared> {
+        unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithId: window] }
     }
 
     fn window(&self) -> Id<NSWindow, Shared> {
