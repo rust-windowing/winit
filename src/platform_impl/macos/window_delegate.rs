@@ -1,18 +1,14 @@
-use std::{
-    f64,
-    os::raw::c_void,
-    sync::{Arc, Weak},
-};
+use std::os::raw::c_void;
 
 use cocoa::{
-    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow, NSWindowOcclusionState},
+    appkit::{self, NSApplicationPresentationOptions},
     base::{id, nil},
 };
 use objc2::foundation::{NSObject, NSUInteger};
-use objc2::rc::autoreleasepool;
-use objc2::runtime::Object;
+use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::{declare_class, ClassType};
 
+use super::appkit::NSWindowOcclusionState;
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
@@ -20,17 +16,13 @@ use crate::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
-        view::ViewState,
-        window::{get_window_id, UnownedWindow},
+        window::WinitWindow,
     },
     window::{Fullscreen, WindowId},
 };
 
 struct WindowDelegateState {
-    ns_window: IdRef, // never changes
-    ns_view: IdRef,   // never changes
-
-    window: Weak<UnownedWindow>,
+    window: Id<WinitWindow, Shared>,
 
     // TODO: It's possible for delegate methods to be called asynchronously,
     // causing data races / `RefCell` panics.
@@ -47,12 +39,10 @@ struct WindowDelegateState {
 }
 
 impl WindowDelegateState {
-    fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
+    fn new(window: Id<WinitWindow, Shared>, initial_fullscreen: bool) -> Self {
         let scale_factor = window.scale_factor();
         let mut delegate_state = WindowDelegateState {
-            ns_window: window.ns_window.clone(),
-            ns_view: window.ns_view.clone(),
-            window: Arc::downgrade(window),
+            window,
             initial_fullscreen,
             previous_position: None,
             previous_scale_factor: scale_factor,
@@ -65,16 +55,17 @@ impl WindowDelegateState {
         delegate_state
     }
 
+    // TODO: Remove this
     fn with_window<F, T>(&mut self, callback: F) -> Option<T>
     where
-        F: FnOnce(&UnownedWindow) -> T,
+        F: FnOnce(&WinitWindow) -> T,
     {
-        self.window.upgrade().map(|ref window| callback(window))
+        Some(callback(&self.window.clone()))
     }
 
     fn emit_event(&mut self, event: WindowEvent<'static>) {
         let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*self.ns_window)),
+            window_id: WindowId(self.window.id()),
             event,
         };
         AppState::queue_event(EventWrapper::StaticEvent(event));
@@ -87,8 +78,9 @@ impl WindowDelegateState {
         };
 
         self.previous_scale_factor = scale_factor;
+        let ns_window: *const WinitWindow = &*self.window;
         let wrapper = EventWrapper::EventProxy(EventProxy::DpiChangedProxy {
-            ns_window: IdRef::retain(*self.ns_window),
+            ns_window: IdRef::retain(ns_window as _),
             suggested_size: self.view_size(),
             scale_factor,
         });
@@ -96,7 +88,7 @@ impl WindowDelegateState {
     }
 
     fn emit_move_event(&mut self) {
-        let rect = unsafe { NSWindow::frame(*self.ns_window) };
+        let rect = self.window.frame();
         let x = rect.origin.x as f64;
         let y = util::bottom_left_to_top_left(rect);
         let moved = self.previous_position != Some((x, y));
@@ -109,16 +101,16 @@ impl WindowDelegateState {
     }
 
     fn get_scale_factor(&self) -> f64 {
-        (unsafe { NSWindow::backingScaleFactor(*self.ns_window) }) as f64
+        self.window.scale_factor()
     }
 
     fn view_size(&self) -> LogicalSize<f64> {
-        let ns_size = unsafe { NSView::frame(*self.ns_view).size };
-        LogicalSize::new(ns_size.width as f64, ns_size.height as f64)
+        let size = self.window.contentView().frame().size;
+        LogicalSize::new(size.width as f64, size.height as f64)
     }
 }
 
-pub fn new_delegate(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> IdRef {
+pub(crate) fn new_delegate(window: Id<WinitWindow, Shared>, initial_fullscreen: bool) -> IdRef {
     let state = WindowDelegateState::new(window, initial_fullscreen);
     unsafe {
         // This is free'd in `dealloc`
@@ -152,7 +144,7 @@ declare_class!(
             this.map(|this| {
                 *this.state = state;
                 this.with_state(|state| {
-                    let _: () = unsafe { msg_send![*state.ns_window, setDelegate: &*this] };
+                    state.window.setDelegate(Some(&*this));
                 });
                 this
             })
@@ -171,12 +163,12 @@ declare_class!(
         #[sel(windowWillClose:)]
         fn window_will_close(&self, _: id) {
             trace_scope!("windowWillClose:");
-            self.with_state(|state| unsafe {
+            self.with_state(|state| {
                 // `setDelegate:` retains the previous value and then autoreleases it
                 autoreleasepool(|_| {
                     // Since El Capitan, we need to be careful that delegate methods can't
                     // be called after the window closes.
-                    let _: () = msg_send![*state.ns_window, setDelegate: nil];
+                    state.window.setDelegate(None);
                 });
                 state.emit_event(WindowEvent::Destroyed);
             });
@@ -229,20 +221,14 @@ declare_class!(
                 // NSWindowDelegate, and as a result a tracked modifiers state can quite
                 // easily fall out of synchrony with reality.  This requires us to emit
                 // a synthetic ModifiersChanged event when we lose focus.
-                //
-                // Here we (very unsafely) acquire the state (a ViewState) from the
-                // Object referenced by state.ns_view (an IdRef, which is dereferenced
-                // to an id)
-                let view_state: &mut ViewState = unsafe {
-                    let ns_view: &Object = (*state.ns_view).as_ref().expect("failed to deref");
-                    let state_ptr: *mut c_void = *ns_view.ivar("state");
-                    &mut *(state_ptr as *mut ViewState)
-                };
+
+                // TODO(madsmtm): Remove the need for this unsafety
+                let mut view = unsafe { Id::from_shared(state.window.view()) };
 
                 // Both update the state and emit a ModifiersChanged event.
-                if !view_state.modifiers.is_empty() {
-                    view_state.modifiers = ModifiersState::empty();
-                    state.emit_event(WindowEvent::ModifiersChanged(view_state.modifiers));
+                if !view.state.modifiers.is_empty() {
+                    view.state.modifiers = ModifiersState::empty();
+                    state.emit_event(WindowEvent::ModifiersChanged(view.state.modifiers));
                 }
 
                 state.emit_event(WindowEvent::Focused(false));
@@ -468,10 +454,11 @@ declare_class!(
                 });
                 if state.initial_fullscreen {
                     unsafe {
-                        let _: () = msg_send![*state.ns_window,
-                            performSelector:sel!(toggleFullScreen:)
-                            withObject:nil
-                            afterDelay: 0.5
+                        let _: () = msg_send![
+                            &*state.window,
+                            performSelector: sel!(toggleFullScreen:),
+                            withObject: nil,
+                            afterDelay: 0.5,
                         ];
                     };
                 } else {
@@ -484,16 +471,14 @@ declare_class!(
         #[sel(windowDidChangeOcclusionState:)]
         fn window_did_change_occlusion_state(&self, _: id) {
             trace_scope!("windowDidChangeOcclusionState:");
-            unsafe {
-                self.with_state(|state| {
-                    state.emit_event(WindowEvent::Occluded(
-                        !state
-                            .ns_window
-                            .occlusionState()
-                            .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible),
-                    ))
-                });
-            }
+            self.with_state(|state| {
+                state.emit_event(WindowEvent::Occluded(
+                    !state
+                        .window
+                        .occlusionState()
+                        .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible),
+                ))
+            });
         }
     }
 );

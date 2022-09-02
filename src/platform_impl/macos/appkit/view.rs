@@ -56,10 +56,10 @@ extern_methods!(
 
     unsafe impl NSView {
         #[sel(setWantsBestResolutionOpenGLSurface:)]
-        pub fn setWantsBestResolutionOpenGLSurface(&mut self, value: bool);
+        pub fn setWantsBestResolutionOpenGLSurface(&self, value: bool);
 
         #[sel(setWantsLayer:)]
-        pub fn setWantsLayer(&mut self, wants_layer: bool);
+        pub fn setWantsLayer(&self, wants_layer: bool);
 
         #[sel(setPostsFrameChangedNotifications:)]
         pub fn setPostsFrameChangedNotifications(&mut self, value: bool);
@@ -85,6 +85,9 @@ extern_methods!(
         #[sel(addCursorRect:cursor:)]
         // NSCursor safe to take by shared reference since it is already immutable
         pub fn addCursorRect(&self, rect: NSRect, cursor: &NSCursor);
+
+        #[sel(setHidden:)]
+        pub fn setHidden(&self, hidden: bool);
     }
 );
 

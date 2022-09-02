@@ -1,16 +1,16 @@
 mod r#async;
 
-pub use self::r#async::*;
+pub(crate) use self::r#async::*;
 
 use std::ops::{BitAnd, Deref};
 
 use cocoa::{
-    appkit::{CGFloat, NSApp, NSWindowStyleMask},
+    appkit::NSApp,
     base::{id, nil},
-    foundation::{NSPoint, NSRect, NSString},
+    foundation::NSString,
 };
 use core_graphics::display::CGDisplay;
-use objc2::foundation::{NSRange, NSUInteger};
+use objc2::foundation::{CGFloat, NSPoint, NSRange, NSRect, NSUInteger};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -44,14 +44,6 @@ impl IdRef {
             let _: id = unsafe { msg_send![inner, retain] };
         }
         IdRef(inner)
-    }
-
-    pub fn non_nil(self) -> Option<IdRef> {
-        if self.0 == nil {
-            None
-        } else {
-            Some(self)
-        }
     }
 }
 
@@ -144,18 +136,4 @@ pub unsafe fn app_name() -> Option<id> {
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
     let _: () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
-}
-
-pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, on: bool) {
-    use cocoa::appkit::NSWindow;
-
-    let current_style_mask = window.styleMask();
-    if on {
-        window.setStyleMask_(current_style_mask | mask);
-    } else {
-        window.setStyleMask_(current_style_mask & (!mask));
-    }
-
-    // If we don't do this, key handling will break. Therefore, never call `setStyleMask` directly!
-    window.makeFirstResponder_(view);
 }
