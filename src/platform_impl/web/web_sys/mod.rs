@@ -91,6 +91,9 @@ pub fn inner_size(raw: &HtmlCanvasElement) -> Option<LogicalSize<f64>> {
             // guaranteed to be in `px` (it's left as a percentage if the
             // property is specified as such, when normally it's resolved to
             // `px`).
+            // Note: that's also true when `display` is `contents`, but for
+            // `<canvas>` that gets resolved to `display: none` and can never
+            // happen.
             // So, return 0, since getting the size right isn't particularly
             // important for an invisible element.
             return 0.0;
