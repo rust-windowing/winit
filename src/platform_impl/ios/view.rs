@@ -5,13 +5,13 @@ use objc2::foundation::NSObject;
 use objc2::runtime::{Bool, Class, Object, Sel};
 use objc2::{declare_class, ClassType};
 
-use super::uikit::{UIResponder, UIWindow};
+use super::uikit::{UIResponder, UIViewController, UIWindow};
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
-        app_state::{self, OSCapabilities},
+        app_state,
         event_loop::{self, EventProxy, EventWrapper},
         ffi::{
             id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
@@ -22,64 +22,6 @@ use crate::{
     },
     window::{Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
-
-macro_rules! add_property {
-    (
-        $decl:ident,
-        $name:ident: $t:ty,
-        $setter_name:ident: |$object:ident| $after_set:expr,
-        $getter_name:ident,
-    ) => {
-        add_property!(
-            $decl,
-            $name: $t,
-            $setter_name: true, |_, _|{}; |$object| $after_set,
-            $getter_name,
-        )
-    };
-    (
-        $decl:ident,
-        $name:ident: $t:ty,
-        $setter_name:ident: $capability:expr, $err:expr; |$object:ident| $after_set:expr,
-        $getter_name:ident,
-    ) => {
-        {
-            const VAR_NAME: &'static str = concat!("_", stringify!($name));
-            $decl.add_ivar::<$t>(VAR_NAME);
-            let setter = if $capability {
-                #[allow(non_snake_case)]
-                extern "C" fn $setter_name($object: &mut Object, _: Sel, value: $t) {
-                    unsafe {
-                        $object.set_ivar::<$t>(VAR_NAME, value);
-                    }
-                    $after_set
-                }
-                $setter_name
-            } else {
-                #[allow(non_snake_case)]
-                extern "C" fn $setter_name($object: &mut Object, _: Sel, value: $t) {
-                    unsafe {
-                        $object.set_ivar::<$t>(VAR_NAME, value);
-                    }
-                    $err(&app_state::os_capabilities(), "ignoring")
-                }
-                $setter_name
-            };
-            #[allow(non_snake_case)]
-            extern "C" fn $getter_name($object: &Object, _: Sel) -> $t {
-                unsafe { *$object.ivar::<$t>(VAR_NAME) }
-            }
-            $decl.add_method(
-                sel!($setter_name:),
-                setter as extern "C" fn(_, _, _),
-            );
-            $decl.add_method(
-                sel!($getter_name),
-                $getter_name as extern "C" fn(_, _) -> _,
-            );
-        }
-    };
-}
 
 // requires main thread
 unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
@@ -313,74 +255,94 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
     })
 }
 
-// requires main thread
-unsafe fn get_view_controller_class() -> &'static Class {
-    static mut CLASS: Option<&'static Class> = None;
-    if CLASS.is_none() {
-        let os_capabilities = app_state::os_capabilities();
-
-        let uiviewcontroller_class = class!(UIViewController);
-
-        extern "C" fn should_autorotate(_: &Object, _: Sel) -> Bool {
-            Bool::YES
-        }
-
-        let mut decl = ClassBuilder::new("WinitUIViewController", uiviewcontroller_class)
-            .expect("Failed to declare class `WinitUIViewController`");
-        decl.add_method(
-            sel!(shouldAutorotate),
-            should_autorotate as extern "C" fn(_, _) -> _,
-        );
-        add_property! {
-            decl,
-            prefers_status_bar_hidden: Bool,
-            setPrefersStatusBarHidden: |object| {
-                unsafe {
-                    let _: () = msg_send![object, setNeedsStatusBarAppearanceUpdate];
-                }
-            },
-            prefersStatusBarHidden,
-        }
-        add_property! {
-            decl,
-            prefers_home_indicator_auto_hidden: Bool,
-            setPrefersHomeIndicatorAutoHidden:
-                os_capabilities.home_indicator_hidden,
-                OSCapabilities::home_indicator_hidden_err_msg;
-                |object| {
-                    unsafe {
-                        let _: () = msg_send![object, setNeedsUpdateOfHomeIndicatorAutoHidden];
-                    }
-                },
-            prefersHomeIndicatorAutoHidden,
-        }
-        add_property! {
-            decl,
-            supported_orientations: UIInterfaceOrientationMask,
-            setSupportedInterfaceOrientations: |object| {
-                unsafe {
-                    let _: () = msg_send![class!(UIViewController), attemptRotationToDeviceOrientation];
-                }
-            },
-            supportedInterfaceOrientations,
-        }
-        add_property! {
-            decl,
-            preferred_screen_edges_deferring_system_gestures: UIRectEdge,
-            setPreferredScreenEdgesDeferringSystemGestures:
-                os_capabilities.defer_system_gestures,
-                OSCapabilities::defer_system_gestures_err_msg;
-                |object| {
-                    unsafe {
-                        let _: () = msg_send![object, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
-                    }
-                },
-            preferredScreenEdgesDeferringSystemGestures,
-        }
-        CLASS = Some(decl.register());
+declare_class!(
+    struct WinitViewController {
+        _prefers_status_bar_hidden: bool,
+        _prefers_home_indicator_auto_hidden: bool,
+        _supported_orientations: UIInterfaceOrientationMask,
+        _preferred_screen_edges_deferring_system_gestures: UIRectEdge,
     }
-    CLASS.unwrap()
-}
+
+    unsafe impl ClassType for WinitViewController {
+        #[inherits(UIResponder, NSObject)]
+        type Super = UIViewController;
+        const NAME: &'static str = "WinitUIViewController";
+    }
+
+    unsafe impl WinitViewController {
+        #[sel(shouldAutorotate)]
+        fn should_autorotate(&self) -> bool {
+            true
+        }
+    }
+
+    unsafe impl WinitViewController {
+        #[sel(prefersStatusBarHidden)]
+        fn prefers_status_bar_hidden(&self) -> bool {
+            *self._prefers_status_bar_hidden
+        }
+
+        #[sel(setPrefersStatusBarHidden:)]
+        fn set_prefers_status_bar_hidden(&mut self, val: bool) {
+            *self._prefers_status_bar_hidden = val;
+            unsafe {
+                let _: () = msg_send![self, setNeedsStatusBarAppearanceUpdate];
+            }
+        }
+
+        #[sel(prefersHomeIndicatorAutoHidden)]
+        fn prefers_home_indicator_auto_hidden(&self) -> bool {
+            *self._prefers_home_indicator_auto_hidden
+        }
+
+        #[sel(setPrefersHomeIndicatorAutoHidden:)]
+        fn set_prefers_home_indicator_auto_hidden(&mut self, val: bool) {
+            *self._prefers_home_indicator_auto_hidden = val;
+            let os_capabilities = app_state::os_capabilities();
+            if os_capabilities.home_indicator_hidden {
+                unsafe {
+                    let _: () = msg_send![self, setNeedsUpdateOfHomeIndicatorAutoHidden];
+                }
+            } else {
+                os_capabilities.home_indicator_hidden_err_msg("ignoring")
+            }
+        }
+
+        #[sel(supportedInterfaceOrientations)]
+        fn supported_orientations(&self) -> UIInterfaceOrientationMask {
+            *self._supported_orientations
+        }
+
+        #[sel(setSupportedInterfaceOrientations:)]
+        fn set_supported_orientations(&mut self, val: UIInterfaceOrientationMask) {
+            *self._supported_orientations = val;
+            unsafe {
+                let _: () = msg_send![
+                    UIViewController::class(),
+                    attemptRotationToDeviceOrientation
+                ];
+            }
+        }
+
+        #[sel(preferredScreenEdgesDeferringSystemGestures)]
+        fn preferred_screen_edges_deferring_system_gestures(&self) -> UIRectEdge {
+            *self._preferred_screen_edges_deferring_system_gestures
+        }
+
+        #[sel(setPreferredScreenEdgesDeferringSystemGestures:)]
+        fn set_preferred_screen_edges_deferring_system_gestures(&mut self, val: UIRectEdge) {
+            *self._preferred_screen_edges_deferring_system_gestures = val;
+            let os_capabilities = app_state::os_capabilities();
+            if os_capabilities.defer_system_gestures {
+                unsafe {
+                    let _: () = msg_send![self, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+                }
+            } else {
+                os_capabilities.defer_system_gestures_err_msg("ignoring")
+            }
+        }
+    }
+);
 
 declare_class!(
     struct WinitUIWindow {}
@@ -441,7 +403,7 @@ pub(crate) unsafe fn create_view_controller(
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     view: id,
 ) -> id {
-    let class = get_view_controller_class();
+    let class = WinitViewController::class();
 
     let view_controller: id = msg_send![class, alloc];
     assert!(
