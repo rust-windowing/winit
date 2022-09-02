@@ -13,7 +13,7 @@ use std::{
 
 use objc2::foundation::is_main_thread;
 use objc2::rc::{autoreleasepool, Id, Shared};
-use objc2::ClassType;
+use objc2::{msg_send_id, ClassType};
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use super::appkit::{NSApp, NSApplicationActivationPolicy, NSEvent};
@@ -141,8 +141,8 @@ impl<T> EventLoop<T> {
         // `sharedApplication`) is called anywhere else, or we'll end up
         // with the wrong `NSApplication` class and the wrong thread could
         // be marked as main.
-        let app: &WinitApplication =
-            unsafe { msg_send![WinitApplication::class(), sharedApplication] };
+        let app: Id<WinitApplication, Shared> =
+            unsafe { msg_send_id![WinitApplication::class(), sharedApplication] };
 
         use NSApplicationActivationPolicy::*;
         let activation_policy = match attributes.activation_policy {

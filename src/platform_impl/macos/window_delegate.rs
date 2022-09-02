@@ -4,7 +4,7 @@ use std::ptr;
 use objc2::foundation::{NSArray, NSObject, NSString};
 use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::runtime::Object;
-use objc2::{declare_class, ClassType};
+use objc2::{declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
     NSApplicationPresentationOptions, NSFilenamesPboardType, NSPasteboard, NSWindowOcclusionState,

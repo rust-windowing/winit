@@ -145,7 +145,7 @@ extern crate log;
 extern crate serde;
 #[macro_use]
 extern crate bitflags;
-#[cfg(any(target_os = "macos", target_os = "ios"))]
+#[cfg(target_os = "ios")]
 #[macro_use]
 extern crate objc;
 #[cfg(target_os = "macos")]

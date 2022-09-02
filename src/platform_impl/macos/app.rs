@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 
 use objc2::foundation::NSObject;
-use objc2::{declare_class, ClassType};
+use objc2::{declare_class, msg_send, ClassType};
 
 use super::appkit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
 use super::{app_state::AppState, event::EventWrapper, DEVICE_ID};

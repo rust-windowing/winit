@@ -1,7 +1,7 @@
 use objc2::foundation::{NSProcessInfo, NSString};
-use objc2::ns_string;
 use objc2::rc::{Id, Shared};
 use objc2::runtime::Sel;
+use objc2::{ns_string, sel};
 
 use super::appkit::{NSApp, NSEventModifierFlags, NSMenu, NSMenuItem};
 

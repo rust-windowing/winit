@@ -40,7 +40,7 @@ use objc2::foundation::{
     is_main_thread, CGFloat, NSArray, NSCopying, NSObject, NSPoint, NSRect, NSSize, NSString,
 };
 use objc2::rc::{autoreleasepool, Id, Owned, Shared};
-use objc2::{declare_class, ClassType};
+use objc2::{declare_class, msg_send, msg_send_id, ClassType};
 
 use super::appkit::{
     NSApp, NSAppKitVersion, NSApplicationPresentationOptions, NSBackingStoreType, NSColor,

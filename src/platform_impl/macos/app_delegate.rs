@@ -1,7 +1,7 @@
 use objc2::foundation::NSObject;
 use objc2::rc::{Id, Shared};
 use objc2::runtime::Object;
-use objc2::{declare_class, ClassType};
+use objc2::{declare_class, msg_send, msg_send_id, ClassType};
 
 use super::app_state::AppState;
 use super::appkit::NSApplicationActivationPolicy;

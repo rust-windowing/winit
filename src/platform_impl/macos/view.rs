@@ -7,7 +7,7 @@ use objc2::foundation::{
 };
 use objc2::rc::{Id, Owned, Shared};
 use objc2::runtime::{Object, Sel};
-use objc2::{declare_class, ClassType};
+use objc2::{class, declare_class, msg_send, msg_send_id, sel, ClassType};
 
 use super::appkit::{
     NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSTrackingRectTag,

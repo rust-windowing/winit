@@ -1,7 +1,7 @@
 use objc2::foundation::{CGFloat, NSArray, NSDictionary, NSNumber, NSObject, NSRect, NSString};
 use objc2::rc::{Id, Shared};
 use objc2::runtime::Object;
-use objc2::{extern_class, extern_methods, msg_send_id, ClassType};
+use objc2::{extern_class, extern_methods, msg_send_id, ns_string, ClassType};
 
 extern_class!(
     #[derive(Debug, PartialEq, Eq, Hash)]
