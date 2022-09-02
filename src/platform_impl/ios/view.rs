@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use objc2::declare::ClassBuilder;
 use objc2::foundation::NSObject;
 use objc2::runtime::{Bool, Class, Object, Sel};
@@ -24,21 +22,9 @@ use crate::{
 };
 
 // requires main thread
-unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
-    static mut CLASSES: Option<HashMap<*const Class, &'static Class>> = None;
-    static mut ID: usize = 0;
-
-    if CLASSES.is_none() {
-        CLASSES = Some(HashMap::default());
-    }
-
-    let classes = CLASSES.as_mut().unwrap();
-
-    classes.entry(root_view_class).or_insert_with(move || {
-        let uiview_class = class!(UIView);
-        let is_uiview: bool = msg_send![root_view_class, isSubclassOfClass: uiview_class];
-        assert!(is_uiview, "`root_view_class` must inherit from `UIView`");
-
+unsafe fn get_view_class() -> &'static Class {
+    static mut CLASS: Option<&'static Class> = None;
+    if CLASS.is_none() {
         extern "C" fn draw_rect(object: &Object, _: Sel, rect: CGRect) {
             unsafe {
                 let window: id = msg_send![object, window];
@@ -224,9 +210,8 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             }
         }
 
-        let mut decl = ClassBuilder::new(&format!("WinitUIView{}", ID), root_view_class)
+        let mut decl = ClassBuilder::new("WinitUIView", class!(UIView))
             .expect("Failed to declare class `WinitUIView`");
-        ID += 1;
         decl.add_method(sel!(drawRect:), draw_rect as extern "C" fn(_, _, _));
         decl.add_method(sel!(layoutSubviews), layout_subviews as extern "C" fn(_, _));
         decl.add_method(
@@ -251,8 +236,9 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
             handle_touches as extern "C" fn(_, _, _, _),
         );
 
-        decl.register()
-    })
+        CLASS = Some(decl.register());
+    }
+    CLASS.unwrap()
 }
 
 declare_class!(
@@ -383,7 +369,7 @@ pub(crate) unsafe fn create_view(
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,
 ) -> id {
-    let class = get_view_class(platform_attributes.root_view_class);
+    let class = get_view_class();
 
     let view: id = msg_send![class, alloc];
     assert!(!view.is_null(), "Failed to create `UIView` instance");

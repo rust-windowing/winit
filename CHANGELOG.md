@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** Removed `WindowBuilderExtIOS::with_root_view_class`; instead, you should use `[[view layer] addSublayer: ...]` to add an instance of the desired layer class (e.g. `CAEAGLLayer` or `CAMetalLayer`). See `vulkano-win` or `wgpu` for examples of this.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
 - Added `Window::resize_increments`/`Window::set_resize_increments` to update resize increments at runtime for X11/macOS.
 - macOS/iOS: Use `objc2` instead of `objc` internally.

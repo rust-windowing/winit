@@ -148,7 +148,6 @@ If your PR makes notable changes to Winit's features, please update this section
 * Home indicator visibility
 * Status bar visibility
 * Deferrring system gestures
-* Support for custom `UIView` derived class
 * Getting the device idiom
 * Getting the preferred video mode
 
