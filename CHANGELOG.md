@@ -8,8 +8,9 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On macOS, added `WindowBuilderExtMacOS::with_theme` and `WindowExtMacOS::theme` to support per-window dark/light/system theme configuration.
-- On macOS, added support for `WindowEvent::ThemeChanged`.
+- On Windows, added `WindowExtWindows::set_undecorated_shadow` and `WindowBuilderExtWindows::with_undecorated_shadow` to draw the drop shadow behind a borderless window.
+- On Windows, fixed default window features (ie snap, animations, shake, etc.) when decorations are disabled.
+- On macOS, add support for two-finger touchpad magnification and rotation gestures with new events `WindowEvent::TouchpadMagnify` and `WindowEvent::TouchpadRotate`.
 - **Breaking:** Split the `platform::unix` module into `platform::x11` and `platform::wayland`. The extension types are similarly renamed.
 - **Breaking:**: Removed deprecated method `platform::unix::WindowExtUnix::is_ready`.
 - Removed `parking_lot` dependency.
@@ -20,6 +21,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
 - On Windows, fixed ALT+Space shortcut to open window menu.
+- Added support for `WindowBuilder::with_theme` and `Window::theme` to support per-window dark/light/system theme configuration on macos, windows and wayland.
+- On macOS, added support for `WindowEvent::ThemeChanged`.
 
 # 0.27.2 (2022-8-12)
 
