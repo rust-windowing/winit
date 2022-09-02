@@ -4,7 +4,7 @@ use objc2::foundation::NSObject;
 use objc2::{declare_class, ClassType};
 
 use super::appkit::{NSApplication, NSEvent, NSEventModifierFlags, NSEventType, NSResponder};
-use super::{app_state::AppState, event::EventWrapper, util, DEVICE_ID};
+use super::{app_state::AppState, event::EventWrapper, DEVICE_ID};
 use crate::event::{DeviceEvent, ElementState, Event};
 
 declare_class!(
@@ -28,7 +28,7 @@ declare_class!(
             let event_type = event.type_();
             let modifier_flags = event.modifierFlags();
             if event_type == NSEventType::NSKeyUp
-                && util::has_flag(modifier_flags, NSEventModifierFlags::NSCommandKeyMask)
+                && modifier_flags.contains(NSEventModifierFlags::NSCommandKeyMask)
             {
                 if let Some(key_window) = self.keyWindow() {
                     unsafe { key_window.sendEvent(event) };

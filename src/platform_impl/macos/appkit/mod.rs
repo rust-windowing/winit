@@ -19,10 +19,13 @@ mod control;
 mod cursor;
 mod event;
 mod image;
+mod menu;
+mod menu_item;
 mod pasteboard;
 mod responder;
 mod screen;
 mod text_input_context;
+mod version;
 mod view;
 mod window;
 
@@ -39,13 +42,19 @@ pub(crate) use self::event::{
     NSEvent, NSEventModifierFlags, NSEventPhase, NSEventSubtype, NSEventType,
 };
 pub(crate) use self::image::NSImage;
-pub(crate) use self::pasteboard::{NSFilenamesPboardType, NSPasteboardType};
+pub(crate) use self::menu::NSMenu;
+pub(crate) use self::menu_item::NSMenuItem;
+pub(crate) use self::pasteboard::{NSFilenamesPboardType, NSPasteboard, NSPasteboardType};
 pub(crate) use self::responder::NSResponder;
 #[allow(unused_imports)]
 pub(crate) use self::screen::{NSDeviceDescriptionKey, NSScreen};
 pub(crate) use self::text_input_context::NSTextInputContext;
+pub(crate) use self::version::NSAppKitVersion;
 pub(crate) use self::view::{NSTrackingRectTag, NSView};
 pub(crate) use self::window::{
-    NSWindow, NSWindowButton, NSWindowLevel, NSWindowOcclusionState, NSWindowStyleMask,
-    NSWindowTitleVisibility,
+    NSBackingStoreType, NSWindow, NSWindowButton, NSWindowLevel, NSWindowOcclusionState,
+    NSWindowStyleMask, NSWindowTitleVisibility,
 };
+
+#[link(name = "AppKit", kind = "framework")]
+extern "C" {}

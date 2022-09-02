@@ -214,7 +214,7 @@ pub(crate) fn set_title_async(window: &NSWindow, title: String) {
 // thread. Though, it's a good idea to look into that more...
 //
 // ArturKovacs: It's important that this operation keeps the underlying window alive
-// through the `IdRef` because otherwise it would dereference free'd memory
+// through the `Id` because otherwise it would dereference free'd memory
 pub(crate) fn close_async(window: Id<NSWindow, Shared>) {
     let window = MainThreadSafe(window);
     Queue::main().exec_async(move || {

@@ -11,7 +11,7 @@ use objc2::{declare_class, ClassType};
 
 use super::appkit::{
     NSApp, NSCursor, NSEvent, NSEventModifierFlags, NSEventPhase, NSResponder, NSTrackingRectTag,
-    NSView, NSWindow,
+    NSView,
 };
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
@@ -26,7 +26,7 @@ use crate::{
             EventWrapper,
         },
         util,
-        window::get_window_id,
+        window::WinitWindow,
         DEVICE_ID,
     },
     window::WindowId,
@@ -133,7 +133,7 @@ declare_class!(
     #[derive(Debug)]
     #[allow(non_snake_case)]
     pub(super) struct WinitView {
-        _ns_window: IvarDrop<Id<NSWindow, Shared>>,
+        _ns_window: IvarDrop<Id<WinitWindow, Shared>>,
         pub(super) state: IvarDrop<Box<ViewState>>,
         marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
     }
@@ -145,7 +145,7 @@ declare_class!(
 
     unsafe impl WinitView {
         #[sel(initWithId:)]
-        fn init_with_id(&mut self, window: *mut NSWindow) -> Option<&mut Self> {
+        fn init_with_id(&mut self, window: *mut WinitWindow) -> Option<&mut Self> {
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 let state = ViewState {
@@ -911,11 +911,11 @@ declare_class!(
 );
 
 impl WinitView {
-    pub(super) fn new(window: &NSWindow) -> Id<Self, Shared> {
+    pub(super) fn new(window: &WinitWindow) -> Id<Self, Shared> {
         unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithId: window] }
     }
 
-    fn window(&self) -> Id<NSWindow, Shared> {
+    fn window(&self) -> Id<WinitWindow, Shared> {
         // TODO: Simply use `window` property on `NSView`.
         // That only returns a window _after_ the view has been attached though!
         // (which is incompatible with `frameDidChange:`)
@@ -925,8 +925,7 @@ impl WinitView {
     }
 
     fn window_id(&self) -> WindowId {
-        let ptr = Id::as_ptr(&*self._ns_window);
-        WindowId(get_window_id(ptr as _))
+        WindowId(self._ns_window.id())
     }
 
     fn scale_factor(&self) -> f64 {
