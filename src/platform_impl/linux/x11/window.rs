@@ -1531,4 +1531,9 @@ impl UnownedWindow {
         display_handle.screen = self.screen_id;
         RawDisplayHandle::Xlib(display_handle)
     }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        None
+    }
 }

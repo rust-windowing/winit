@@ -726,6 +726,11 @@ impl Window {
             unsafe { force_window_active(window.0) };
         }
     }
+
+    #[inline]
+    pub fn theme(&self) -> Option<Theme> {
+        Some(self.window_state.lock().current_theme)
+    }
 }
 
 impl Drop for Window {
@@ -777,7 +782,7 @@ impl<'a, T: 'static> InitData<'a, T> {
         // If the system theme is dark, we need to set the window theme now
         // before we update the window flags (and possibly show the
         // window for the first time).
-        let current_theme = try_theme(window, self.pl_attribs.preferred_theme);
+        let current_theme = try_theme(window, self.attributes.preferred_theme);
 
         let window_state = {
             let window_state = WindowState::new(
@@ -785,7 +790,7 @@ impl<'a, T: 'static> InitData<'a, T> {
                 self.pl_attribs.taskbar_icon.clone(),
                 scale_factor,
                 current_theme,
-                self.pl_attribs.preferred_theme,
+                self.attributes.preferred_theme,
             );
             let window_state = Arc::new(Mutex::new(window_state));
             WindowState::set_window_flags(window_state.lock().unwrap(), window, |f| {

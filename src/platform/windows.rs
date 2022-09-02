@@ -136,9 +136,6 @@ pub trait WindowExtWindows {
     /// This sets `ICON_BIG`. A good ceiling here is 256x256.
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>);
 
-    /// Returns the current window theme.
-    fn theme(&self) -> Theme;
-
     /// Whether to show or hide the window icon in the taskbar.
     fn set_skip_taskbar(&self, skip: bool);
 
@@ -167,11 +164,6 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_taskbar_icon(&self, taskbar_icon: Option<Icon>) {
         self.window.set_taskbar_icon(taskbar_icon)
-    }
-
-    #[inline]
-    fn theme(&self) -> Theme {
-        self.window.theme()
     }
 
     #[inline]
@@ -232,9 +224,6 @@ pub trait WindowBuilderExtWindows {
     /// See <https://docs.microsoft.com/en-us/windows/win32/api/objbase/nf-objbase-coinitialize#remarks> for more information.
     fn with_drag_and_drop(self, flag: bool) -> WindowBuilder;
 
-    /// Forces a theme or uses the system settings if `None` was provided.
-    fn with_theme(self, theme: Option<Theme>) -> WindowBuilder;
-
     /// Whether show or hide the window icon in the taskbar.
     fn with_skip_taskbar(self, skip: bool) -> WindowBuilder;
 
@@ -279,12 +268,6 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_drag_and_drop(mut self, flag: bool) -> WindowBuilder {
         self.platform_specific.drag_and_drop = flag;
-        self
-    }
-
-    #[inline]
-    fn with_theme(mut self, theme: Option<Theme>) -> WindowBuilder {
-        self.platform_specific.preferred_theme = theme;
         self
     }
 

@@ -852,6 +852,10 @@ impl Window {
     pub fn content_rect(&self) -> Rect {
         ndk_glue::content_rect()
     }
+
+    pub fn theme(&self) -> Option<Theme> {
+        None
+    }
 }
 
 #[derive(Default, Clone, Debug)]

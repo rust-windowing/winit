@@ -342,6 +342,11 @@ impl Inner {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
     }
+
+    pub fn theme(&self) -> Option<Theme> {
+        warn!("`Window::theme` is ignored on iOS");
+        None
+    }
 }
 
 pub struct Window {

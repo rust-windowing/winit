@@ -30,9 +30,9 @@ pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
 #[cfg(feature = "x11")]
-use crate::platform::x11::XlibErrorHook;
 #[cfg(feature = "wayland")]
 use crate::window::Theme;
+use crate::platform::unix::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
@@ -104,8 +104,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub x11_window_types: Vec<XWindowType>,
     #[cfg(feature = "x11")]
     pub gtk_theme_variant: Option<String>,
-    #[cfg(feature = "wayland")]
-    pub csd_theme: Option<Theme>,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -126,8 +124,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             x11_window_types: vec![XWindowType::Normal],
             #[cfg(feature = "x11")]
             gtk_theme_variant: None,
-            #[cfg(feature = "wayland")]
-            csd_theme: None,
         }
     }
 }

@@ -368,6 +368,11 @@ impl Window {
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
         RawDisplayHandle::Web(WebDisplayHandle::empty())
     }
+
+    #[inline]
+    pub fn theme(&self) -> Some(Theme) {
+        None
+    }
 }
 
 impl Drop for Window {
