@@ -16,8 +16,9 @@ use cocoa::{
     base::{id, nil},
     foundation::{NSPoint, NSTimeInterval},
 };
-use objc::foundation::is_main_thread;
-use objc::rc::autoreleasepool;
+use objc2::foundation::is_main_thread;
+use objc2::rc::{autoreleasepool, Id, Shared};
+use objc2::ClassType;
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
@@ -25,16 +26,12 @@ use crate::{
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            app::APP_CLASS,
-            app_delegate::APP_DELEGATE_CLASS,
-            app_state::{AppState, Callback},
-            monitor::{self, MonitorHandle},
-            observer::*,
-            util::IdRef,
-        },
+    platform_impl::platform::{
+        app::WinitApplication,
+        app_delegate::ApplicationDelegate,
+        app_state::{AppState, Callback},
+        monitor::{self, MonitorHandle},
+        observer::*,
     },
 };
 
@@ -113,7 +110,7 @@ impl<T> EventLoopWindowTarget<T> {
 pub struct EventLoop<T: 'static> {
     /// The delegate is only weakly referenced by NSApplication, so we keep
     /// it around here as well.
-    _delegate: IdRef,
+    _delegate: Id<ApplicationDelegate, Shared>,
 
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
@@ -153,16 +150,18 @@ impl<T> EventLoop<T> {
             // `sharedApplication`) is called anywhere else, or we'll end up
             // with the wrong `NSApplication` class and the wrong thread could
             // be marked as main.
-            let app: id = msg_send![APP_CLASS.0, sharedApplication];
+            let app: id = msg_send![WinitApplication::class(), sharedApplication];
 
-            let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
-
-            let mut aux_state = get_aux_state_mut(&**delegate);
-            aux_state.activation_policy = attributes.activation_policy;
-            aux_state.default_menu = attributes.default_menu;
+            use cocoa::appkit::NSApplicationActivationPolicy::*;
+            let activation_policy = match attributes.activation_policy {
+                ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
+                ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
+                ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
+            };
+            let delegate = ApplicationDelegate::new(activation_policy, attributes.default_menu);
 
             autoreleasepool(|_| {
-                let _: () = msg_send![app, setDelegate:*delegate];
+                let _: () = msg_send![app, setDelegate: &*delegate];
             });
 
             delegate
