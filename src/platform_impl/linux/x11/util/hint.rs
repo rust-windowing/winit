@@ -197,11 +197,17 @@ impl<'a> NormalHints<'a> {
     }
 
     pub fn get_position(&self) -> Option<(i32, i32)> {
-        if has_flag(self.size_hints.flags, ffi::PPosition) {
-            Some((self.size_hints.x as i32, self.size_hints.y as i32))
-        } else {
-            None
-        }
+        has_flag(self.size_hints.flags, ffi::PPosition)
+            .then(|| (self.size_hints.x as i32, self.size_hints.y as i32))
+    }
+
+    pub fn get_resize_increments(&self) -> Option<(u32, u32)> {
+        has_flag(self.size_hints.flags, ffi::PResizeInc).then(|| {
+            (
+                self.size_hints.width_inc as u32,
+                self.size_hints.height_inc as u32,
+            )
+        })
     }
 
     pub fn set_position(&mut self, position: Option<(i32, i32)>) {
