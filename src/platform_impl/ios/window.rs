@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc::runtime::{Class, Object, BOOL, NO, YES};
+use objc::runtime::{Class, Object};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use crate::{
@@ -51,14 +51,7 @@ impl Inner {
     }
 
     pub fn set_visible(&self, visible: bool) {
-        match visible {
-            true => unsafe {
-                let _: () = msg_send![self.window, setHidden: NO];
-            },
-            false => unsafe {
-                let _: () = msg_send![self.window, setHidden: YES];
-            },
-        }
+        unsafe { msg_send![self.window, setHidden: !visible] }
     }
 
     pub fn is_visible(&self) -> Option<bool> {
@@ -355,9 +348,7 @@ pub struct Window {
 
 impl Drop for Window {
     fn drop(&mut self) {
-        unsafe {
-            assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
-        }
+        assert_main_thread!("`Window::drop` can only be run on the main thread on iOS");
     }
 }
 
@@ -368,18 +359,14 @@ impl Deref for Window {
     type Target = Inner;
 
     fn deref(&self) -> &Inner {
-        unsafe {
-            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
-        }
+        assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
         &self.inner
     }
 }
 
 impl DerefMut for Window {
     fn deref_mut(&mut self) -> &mut Inner {
-        unsafe {
-            assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
-        }
+        assert_main_thread!("`Window` methods can only be run on the main thread on iOS");
         &mut self.inner
     }
 }
@@ -434,10 +421,9 @@ impl Window {
             let gl_or_metal_backed = {
                 let view_class: *const Class = msg_send![view, class];
                 let layer_class: *const Class = msg_send![view_class, layerClass];
-                let is_metal: BOOL =
-                    msg_send![layer_class, isSubclassOfClass: class!(CAMetalLayer)];
-                let is_gl: BOOL = msg_send![layer_class, isSubclassOfClass: class!(CAEAGLLayer)];
-                is_metal == YES || is_gl == YES
+                let is_metal = msg_send![layer_class, isSubclassOfClass: class!(CAMetalLayer)];
+                let is_gl = msg_send![layer_class, isSubclassOfClass: class!(CAEAGLLayer)];
+                is_metal || is_gl
             };
 
             let view_controller =
@@ -468,7 +454,7 @@ impl Window {
                 let screen: id = msg_send![window, screen];
                 let screen_space: id = msg_send![screen, coordinateSpace];
                 let screen_frame: CGRect =
-                    msg_send![view, convertRect:bounds toCoordinateSpace:screen_space];
+                    msg_send![view, convertRect: bounds, toCoordinateSpace: screen_space];
                 let size = crate::dpi::LogicalSize {
                     width: screen_frame.size.width as _,
                     height: screen_frame.size.height as _,
@@ -532,10 +518,9 @@ impl Inner {
 
     pub fn set_prefers_home_indicator_hidden(&self, hidden: bool) {
         unsafe {
-            let prefers_home_indicator_hidden = if hidden { YES } else { NO };
             let _: () = msg_send![
                 self.view_controller,
-                setPrefersHomeIndicatorAutoHidden: prefers_home_indicator_hidden
+                setPrefersHomeIndicatorAutoHidden: hidden,
             ];
         }
     }
@@ -552,11 +537,7 @@ impl Inner {
 
     pub fn set_prefers_status_bar_hidden(&self, hidden: bool) {
         unsafe {
-            let status_bar_hidden = if hidden { YES } else { NO };
-            let _: () = msg_send![
-                self.view_controller,
-                setPrefersStatusBarHidden: status_bar_hidden
-            ];
+            let _: () = msg_send![self.view_controller, setPrefersStatusBarHidden: hidden,];
         }
     }
 }
@@ -572,7 +553,11 @@ impl Inner {
         let screen: id = msg_send![self.window, screen];
         if !screen.is_null() {
             let screen_space: id = msg_send![screen, coordinateSpace];
-            msg_send![self.window, convertRect:rect toCoordinateSpace:screen_space]
+            msg_send![
+                self.window,
+                convertRect: rect,
+                toCoordinateSpace: screen_space,
+            ]
         } else {
             rect
         }
@@ -583,7 +568,11 @@ impl Inner {
         let screen: id = msg_send![self.window, screen];
         if !screen.is_null() {
             let screen_space: id = msg_send![screen, coordinateSpace];
-            msg_send![self.window, convertRect:rect fromCoordinateSpace:screen_space]
+            msg_send![
+                self.window,
+                convertRect: rect,
+                fromCoordinateSpace: screen_space,
+            ]
         } else {
             rect
         }

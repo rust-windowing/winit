@@ -1,7 +1,6 @@
 mod r#async;
-mod cursor;
 
-pub use self::{cursor::*, r#async::*};
+pub use self::r#async::*;
 
 use std::ops::{BitAnd, Deref};
 use std::os::raw::c_uchar;
@@ -9,10 +8,10 @@ use std::os::raw::c_uchar;
 use cocoa::{
     appkit::{CGFloat, NSApp, NSWindowStyleMask},
     base::{id, nil},
-    foundation::{NSPoint, NSRect, NSString, NSUInteger},
+    foundation::{NSPoint, NSRect, NSString},
 };
 use core_graphics::display::CGDisplay;
-use objc::runtime::{Class, Object, BOOL, NO};
+use objc2::foundation::{NSRange, NSUInteger};
 
 use crate::dpi::LogicalPosition;
 use crate::platform_impl::platform::ffi;
@@ -28,7 +27,7 @@ where
     bitset & flag == flag
 }
 
-pub const EMPTY_RANGE: ffi::NSRange = ffi::NSRange {
+pub const EMPTY_RANGE: NSRange = NSRange {
     location: ffi::NSNotFound as NSUInteger,
     length: 0,
 };
@@ -143,11 +142,6 @@ pub unsafe fn app_name() -> Option<id> {
     }
 }
 
-pub unsafe fn superclass(this: &Object) -> &Class {
-    let superclass: *const Class = msg_send![this, superclass];
-    &*superclass
-}
-
 #[allow(dead_code)]
 pub unsafe fn open_emoji_picker() {
     let _: () = msg_send![NSApp(), orderFrontCharacterPalette: nil];
@@ -172,8 +166,8 @@ pub unsafe fn toggle_style_mask(window: id, view: id, mask: NSWindowStyleMask, o
 ///
 /// Safety: Assumes that `string` is an instance of `NSAttributedString` or `NSString`
 pub unsafe fn id_to_string_lossy(string: id) -> String {
-    let has_attr: BOOL = msg_send![string, isKindOfClass: class!(NSAttributedString)];
-    let characters = if has_attr != NO {
+    let has_attr = msg_send![string, isKindOfClass: class!(NSAttributedString)];
+    let characters = if has_attr {
         // This is a *mut NSAttributedString
         msg_send![string, string]
     } else {

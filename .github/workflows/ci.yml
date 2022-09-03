@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        rust_version: [1.57.0, stable, nightly]
+        rust_version: ['1.60.0', stable, nightly]
         platform:
           # Note: Make sure that we test all the `docs.rs` targets defined in Cargo.toml!
           - { target: x86_64-pc-windows-msvc,   os: windows-latest,  }
@@ -95,7 +95,7 @@ jobs:
 
     - name: Lint with clippy
       shell: bash
-      if: (matrix.rust_version == '1.57.0') && !contains(matrix.platform.options, '--no-default-features')
+      if: (matrix.rust_version == '1.60.0') && !contains(matrix.platform.options, '--no-default-features')
       run: cargo clippy --all-targets --target ${{ matrix.platform.target }} $OPTIONS --features $FEATURES -- -Dwarnings
 
     - name: Build tests with serde enabled

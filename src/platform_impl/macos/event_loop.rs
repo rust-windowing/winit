@@ -13,10 +13,12 @@ use std::{
 
 use cocoa::{
     appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
-    base::{id, nil, BOOL, NO, YES},
-    foundation::{NSInteger, NSPoint, NSTimeInterval},
+    base::{id, nil},
+    foundation::{NSPoint, NSTimeInterval},
 };
-use objc::rc::autoreleasepool;
+use objc2::foundation::is_main_thread;
+use objc2::rc::{autoreleasepool, Id, Shared};
+use objc2::ClassType;
 use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
@@ -24,16 +26,12 @@ use crate::{
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            app::APP_CLASS,
-            app_delegate::APP_DELEGATE_CLASS,
-            app_state::{AppState, Callback},
-            monitor::{self, MonitorHandle},
-            observer::*,
-            util::IdRef,
-        },
+    platform_impl::platform::{
+        app::WinitApplication,
+        app_delegate::ApplicationDelegate,
+        app_state::{AppState, Callback},
+        monitor::{self, MonitorHandle},
+        observer::*,
     },
 };
 
@@ -112,7 +110,7 @@ impl<T> EventLoopWindowTarget<T> {
 pub struct EventLoop<T: 'static> {
     /// The delegate is only weakly referenced by NSApplication, so we keep
     /// it around here as well.
-    _delegate: IdRef,
+    _delegate: Id<ApplicationDelegate, Shared>,
 
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
@@ -144,8 +142,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 impl<T> EventLoop<T> {
     pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         let delegate = unsafe {
-            let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
-            if is_main_thread == NO {
+            if !is_main_thread() {
                 panic!("On macOS, `EventLoop` must be created on the main thread!");
             }
 
@@ -153,16 +150,18 @@ impl<T> EventLoop<T> {
             // `sharedApplication`) is called anywhere else, or we'll end up
             // with the wrong `NSApplication` class and the wrong thread could
             // be marked as main.
-            let app: id = msg_send![APP_CLASS.0, sharedApplication];
+            let app: id = msg_send![WinitApplication::class(), sharedApplication];
 
-            let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
+            use cocoa::appkit::NSApplicationActivationPolicy::*;
+            let activation_policy = match attributes.activation_policy {
+                ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
+                ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
+                ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
+            };
+            let delegate = ApplicationDelegate::new(activation_policy, attributes.default_menu);
 
-            let mut aux_state = get_aux_state_mut(&**delegate);
-            aux_state.activation_policy = attributes.activation_policy;
-            aux_state.default_menu = attributes.default_menu;
-
-            autoreleasepool(|| {
-                let _: () = msg_send![app, setDelegate:*delegate];
+            autoreleasepool(|_| {
+                let _: () = msg_send![app, setDelegate: &*delegate];
             });
 
             delegate
@@ -209,7 +208,7 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        let exit_code = autoreleasepool(|| unsafe {
+        let exit_code = autoreleasepool(|_| unsafe {
             let app = NSApp();
             assert_ne!(app, nil);
 
@@ -246,13 +245,13 @@ pub unsafe fn post_dummy_event(target: id) {
         location: NSPoint::new(0.0, 0.0)
         modifierFlags: NSEventModifierFlags::empty()
         timestamp: 0 as NSTimeInterval
-        windowNumber: 0 as NSInteger
+        windowNumber: 0isize
         context: nil
         subtype: NSEventSubtype::NSWindowExposedEventType
-        data1: 0 as NSInteger
-        data2: 0 as NSInteger
+        data1: 0isize
+        data2: 0isize
     ];
-    let _: () = msg_send![target, postEvent: dummy_event atStart: YES];
+    let _: () = msg_send![target, postEvent: dummy_event, atStart: true];
 }
 
 /// Catches panics that happen inside `f` and when a panic

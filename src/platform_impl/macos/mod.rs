@@ -7,6 +7,7 @@ mod util;
 mod app;
 mod app_delegate;
 mod app_state;
+mod appkit;
 mod event;
 mod event_loop;
 mod ffi;
@@ -20,7 +21,6 @@ mod window_delegate;
 use std::{fmt, ops::Deref, sync::Arc};
 
 pub(crate) use self::{
-    app_delegate::get_aux_state_mut,
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
@@ -75,7 +75,7 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = autoreleasepool(|| UnownedWindow::new(attributes, pl_attribs))?;
+        let (window, _delegate) = autoreleasepool(|_| UnownedWindow::new(attributes, pl_attribs))?;
         Ok(Window { window, _delegate })
     }
 }
