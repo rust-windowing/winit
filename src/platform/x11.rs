@@ -260,7 +260,6 @@ impl WindowBuilderExtX11 for WindowBuilder {
     }
 
     #[inline]
-    #[cfg(feature = "x11")]
     fn with_resize_increments<S: Into<Size>>(mut self, increments: S) -> Self {
         self.platform_specific.resize_increments = Some(increments.into());
         self
