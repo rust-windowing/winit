@@ -7,7 +7,7 @@ use std::{
 use cocoa::{
     appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow, NSWindowOcclusionState},
     base::{id, nil},
-    foundation::NSString
+    foundation::NSString,
 };
 use objc2::foundation::{NSObject, NSUInteger};
 use objc2::rc::autoreleasepool;

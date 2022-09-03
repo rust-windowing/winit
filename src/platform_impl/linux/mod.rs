@@ -29,10 +29,10 @@ use raw_window_handle::{RawDisplayHandle, RawWindowHandle};
 pub use self::x11::XNotSupported;
 #[cfg(feature = "x11")]
 use self::x11::{ffi::XVisualInfo, util::WindowType as XWindowType, XConnection, XError};
+use crate::platform::unix::XlibErrorHook;
 #[cfg(feature = "x11")]
 #[cfg(feature = "wayland")]
 use crate::window::Theme;
-use crate::platform::unix::XlibErrorHook;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},

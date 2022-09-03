@@ -41,7 +41,7 @@ use cocoa::{
         NSRequestUserAttentionType, NSScreen, NSView, NSWindow, NSWindowButton, NSWindowStyleMask,
     },
     base::{id, nil},
-    foundation::{NSDictionary, NSPoint, NSRect, NSSize, NSString, NSArray},
+    foundation::{NSArray, NSDictionary, NSPoint, NSRect, NSSize, NSString},
 };
 use core_graphics::display::{CGDisplay, CGDisplayMode};
 use objc2::foundation::{is_main_thread, NSObject, NSUInteger};
