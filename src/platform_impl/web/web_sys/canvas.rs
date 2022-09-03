@@ -32,7 +32,7 @@ pub struct Canvas {
     on_fullscreen_change: Option<EventListener>,
     on_dark_mode: Option<MediaQueryListHandle>,
     mouse_state: MouseState,
-    disable_web_scroll: Option<[EventListener; 5]>,
+    disable_mobile_scroll: Option<[EventListener; 3]>,
 }
 
 struct Common {
@@ -82,11 +82,8 @@ impl Canvas {
             wants_fullscreen: Rc::new(RefCell::new(false)),
         };
 
-        let disable_web_scroll = if !attr.enable_web_page_scroll && attr.prevent_default {
+        let disable_mobile_scroll = if attr.prevent_default {
             Some([
-                common.add_event("pointermove", move |event: Event| {
-                    event.prevent_default();
-                }),
                 common.add_event("pointermove", move |event: Event| {
                     event.prevent_default();
                 }),
@@ -94,9 +91,6 @@ impl Canvas {
                     event.prevent_default();
                 }),
                 common.add_event("touchend", move |event: Event| {
-                    event.prevent_default();
-                }),
-                common.add_event("wheel", move |event: Event| {
                     event.prevent_default();
                 }),
             ])
@@ -114,7 +108,7 @@ impl Canvas {
             on_fullscreen_change: None,
             on_dark_mode: None,
             mouse_state,
-            disable_web_scroll,
+            disable_mobile_scroll,
             common,
         })
     }
@@ -300,11 +294,15 @@ impl Canvas {
         }
     }
 
-    pub fn on_mouse_wheel<F>(&mut self, mut handler: F, _prevent_default: bool)
+    pub fn on_mouse_wheel<F>(&mut self, mut handler: F, prevent_default: bool)
     where
         F: 'static + FnMut(i32, MouseScrollDelta, ModifiersState),
     {
         self.on_mouse_wheel = Some(self.common.add_event("wheel", move |event: WheelEvent| {
+            if prevent_default {
+                event.prevent_default();
+            }
+
             if let Some(delta) = event::mouse_scroll_delta(&event) {
                 handler(0, delta, event::mouse_modifiers(&event));
             }
