@@ -21,7 +21,9 @@ use crate::{
         MonitorHandle as PlatformMonitorHandle, OsError, PlatformSpecificWindowBuilderAttributes,
         VideoMode as PlatformVideoMode,
     },
-    window::{CursorGrabMode, CursorIcon, Fullscreen, Icon, UserAttentionType, WindowAttributes},
+    window::{
+        CursorGrabMode, CursorIcon, Fullscreen, Icon, Theme, UserAttentionType, WindowAttributes,
+    },
 };
 
 use super::{

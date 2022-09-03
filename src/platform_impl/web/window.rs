@@ -4,7 +4,8 @@ use crate::event;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{
-    CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
+    WindowId as RootWI,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
@@ -370,7 +371,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn theme(&self) -> Some(Theme) {
+    pub fn theme(&self) -> Option<Theme> {
         None
     }
 }

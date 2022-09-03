@@ -23,7 +23,7 @@ use crate::{
         monitor, view, EventLoopWindowTarget, MonitorHandle,
     },
     window::{
-        CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes,
+        CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
         WindowId as RootWindowId,
     },
 };

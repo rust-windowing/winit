@@ -24,7 +24,7 @@ use crate::{
     event::{self, VirtualKeyCode},
     event_loop::{self, ControlFlow},
     monitor,
-    window::{self, CursorGrabMode},
+    window::{self, CursorGrabMode, Theme},
 };
 
 static CONFIG: Lazy<RwLock<Configuration>> = Lazy::new(|| {

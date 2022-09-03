@@ -6,7 +6,7 @@ use crate::{
     event_loop::EventLoopBuilder,
     monitor::MonitorHandle,
     platform_impl::{Parent, WinIcon},
-    window::{BadIcon, Icon, Theme, Window, WindowBuilder},
+    window::{BadIcon, Icon, Window, WindowBuilder},
 };
 
 /// Window Handle type used by Win32 API

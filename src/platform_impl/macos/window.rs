@@ -1344,7 +1344,7 @@ pub(super) fn get_ns_theme() -> Theme {
         let app_class = class!(NSApplication);
         let app: id = msg_send![app_class, sharedApplication];
         let has_theme: bool = msg_send![app, respondsToSelector: sel!(effectiveAppearance)];
-        if !Bool::from_raw(has_theme).as_bool() {
+        if !has_theme {
             return Theme::Light;
         }
         let appearance: id = msg_send![app, effectiveAppearance];
@@ -1373,7 +1373,7 @@ fn set_ns_theme(theme: Theme) {
         let app_class = class!(NSApplication);
         let app: id = msg_send![app_class, sharedApplication];
         let has_theme: bool = msg_send![app, respondsToSelector: sel!(effectiveAppearance)];
-        if Bool::from_raw(has_theme).as_bool() {
+        if has_theme {
             let name = NSString::alloc(nil).init_str(name);
             let appearance: id = msg_send![class!(NSAppearance), appearanceNamed: name];
             let _: () = msg_send![app, setAppearance: appearance];

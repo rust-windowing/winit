@@ -690,8 +690,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn theme(&self) -> Theme {
-        self.window_state_lock().current_theme
+    pub fn theme(&self) -> Option<Theme> {
+        Some(self.window_state_lock().current_theme)
     }
 
     #[inline]
@@ -725,11 +725,6 @@ impl Window {
         if is_visible && !is_minimized && !is_foreground {
             unsafe { force_window_active(window.0) };
         }
-    }
-
-    #[inline]
-    pub fn theme(&self) -> Option<Theme> {
-        Some(self.window_state.lock().current_theme)
     }
 }
 
