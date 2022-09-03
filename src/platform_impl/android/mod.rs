@@ -757,6 +757,12 @@ impl Window {
 
     pub fn set_max_inner_size(&self, _: Option<Size>) {}
 
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {}
+
     pub fn set_title(&self, _title: &str) {}
 
     pub fn set_visible(&self, _visibility: bool) {}

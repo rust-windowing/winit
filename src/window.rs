@@ -134,6 +134,7 @@ pub(crate) struct WindowAttributes {
     pub decorations: bool,
     pub always_on_top: bool,
     pub window_icon: Option<Icon>,
+    pub resize_increments: Option<Size>,
 }
 
 impl Default for WindowAttributes {
@@ -153,6 +154,7 @@ impl Default for WindowAttributes {
             decorations: true,
             always_on_top: false,
             window_icon: None,
+            resize_increments: None,
         }
     }
 }
@@ -330,6 +332,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_window_icon(mut self, window_icon: Option<Icon>) -> Self {
         self.window.window_icon = window_icon;
+        self
+    }
+
+    /// Build window with resize increments hint.
+    ///
+    /// The default is `None`.
+    ///
+    /// See [`Window::set_resize_increments`] for details.
+    #[inline]
+    pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
+        self.window.resize_increments = Some(resize_increments.into());
         self
     }
 
@@ -603,6 +616,32 @@ impl Window {
     #[inline]
     pub fn set_max_inner_size<S: Into<Size>>(&self, max_size: Option<S>) {
         self.window.set_max_inner_size(max_size.map(|s| s.into()))
+    }
+
+    /// Returns window resize increments if any were set.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS / Android / Web / Wayland / Windows:** Always returns [`None`].
+    #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        self.window.resize_increments()
+    }
+
+    /// Sets window resize increments.
+    ///
+    /// This is a niche constraint hint usually employed by terminal emulators
+    /// and other apps that need "blocky" resizes.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **macOS:** Increments are converted to logical size and then macOS rounds them to whole numbers.
+    /// - **Wayland / Windows:** Not implemented.
+    /// - **iOS / Android / Web:** Unsupported.
+    #[inline]
+    pub fn set_resize_increments<S: Into<Size>>(&self, increments: Option<S>) {
+        self.window
+            .set_resize_increments(increments.map(Into::into))
     }
 }
 

@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
+- Added `Window::resize_increments`/`Window::set_resize_increments` to update resize increments at runtime for X11/macOS.
 - macOS/iOS: Use `objc2` instead of `objc` internally.
 - **Breaking:** Bump MSRV from `1.57` to `1.60`.
 - **Breaking:** Split the `platform::unix` module into `platform::x11` and `platform::wayland`. The extension types are similarly renamed.
