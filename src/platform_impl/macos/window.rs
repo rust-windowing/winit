@@ -305,7 +305,7 @@ pub struct SharedState {
     /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
     pub saved_desktop_display_mode: Option<(CGDisplay, CGDisplayMode)>,
-    pub current_theme: Theme,
+    pub current_theme: Option<Theme>,
 }
 
 impl SharedState {
@@ -454,11 +454,11 @@ impl UnownedWindow {
             Some(theme) => {
                 set_ns_theme(theme);
                 let mut state = window.shared_state.lock().unwrap();
-                state.current_theme = theme;
+                state.current_theme = Some(theme);
             }
             None => {
                 let mut state = window.shared_state.lock().unwrap();
-                state.current_theme = get_ns_theme();
+                state.current_theme = Some(get_ns_theme());
             }
         }
 
@@ -1160,7 +1160,7 @@ impl UnownedWindow {
     #[inline]
     pub fn theme(&self) -> Option<Theme> {
         let state = self.shared_state.lock().unwrap();
-        Some(state.current_theme)
+        state.current_theme
     }
 }
 

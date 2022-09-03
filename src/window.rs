@@ -1304,13 +1304,6 @@ pub enum Theme {
     Dark,
 }
 
-impl Default for Theme {
-    #[inline]
-    fn default() -> Self {
-        Self::Light
-    }
-}
-
 /// ## Platform-specific
 ///
 /// - **X11:** Sets the WM's `XUrgencyHint`. No distinction between [`Critical`] and [`Informational`].

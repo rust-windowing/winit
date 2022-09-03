@@ -528,10 +528,10 @@ declare_class!(
                 let current_theme = state.window.upgrade().map(|w| {
                     let mut state = w.shared_state.lock().unwrap();
                     let current_theme = state.current_theme;
-                    state.current_theme = theme;
+                    state.current_theme = Some(theme);
                     current_theme
                 });
-                if current_theme != Some(theme) {
+                if current_theme != Some(Some(theme)) {
                     state.emit_event(WindowEvent::ThemeChanged(theme));
                 }
             });
