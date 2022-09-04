@@ -342,6 +342,12 @@ impl WindowBuilder {
     /// If `None` is provided, the window will use the system theme.
     ///
     /// The default is `None`.
+    /// 
+    /// ## Platform-specific
+    ///
+    /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
+    ///   Possible values for env variable are: "dark" and light".
+    /// - **iOS / Android / Web / x11:** Ignored.
     #[inline]
     pub fn with_theme(mut self, theme: Option<Theme>) -> Self {
         self.window.preferred_theme = theme;
