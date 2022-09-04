@@ -342,7 +342,7 @@ impl WindowBuilder {
     /// If `None` is provided, the window will use the system theme.
     ///
     /// The default is `None`.
-    /// 
+    ///
     /// ## Platform-specific
     ///
     /// - **Wayland:** This control only CSD. You can also use `WINIT_WAYLAND_CSD_THEME` env variable to set the theme.
