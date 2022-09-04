@@ -242,10 +242,14 @@ fn create_window(
             }
 
             if let Some(increments) = pl_attrs.resize_increments {
-                let (x, y) = (increments.width, increments.height);
-                if x >= 1.0 && y >= 1.0 {
-                    let size = NSSize::new(x as CGFloat, y as CGFloat);
-                    ns_window.setResizeIncrements_(size);
+                let (w, h) = (increments.width, increments.height);
+                if w >= 1.0 && h >= 1.0 {
+                    let size = NSSize::new(w as CGFloat, h as CGFloat);
+                    // It was concluded (#2411) that there is never a use-case for
+                    // "outer" resize increments, hence we set "inner" ones here.
+                    // ("outer" in macOS being just resizeIncrements, and "inner" - contentResizeIncrements)
+                    // This is consistent with X11 size hints behavior
+                    ns_window.setContentResizeIncrements_(size);
                 }
             }
 
@@ -600,6 +604,28 @@ impl UnownedWindow {
             }));
             let scale_factor = self.scale_factor();
             set_max_inner_size(*self.ns_window, dimensions.to_logical(scale_factor));
+        }
+    }
+
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        let increments = unsafe { self.ns_window.contentResizeIncrements() };
+        let (x, y) = (increments.width, increments.height);
+        if x > 1.0 || y > 1.0 {
+            Some(LogicalSize::new(x, y).to_physical(self.scale_factor()))
+        } else {
+            None
+        }
+    }
+
+    pub fn set_resize_increments(&self, increments: Option<Size>) {
+        let size = increments
+            .map(|increments| {
+                let logical = increments.to_logical::<f64>(self.scale_factor());
+                NSSize::new(logical.width.max(1.0), logical.height.max(1.0))
+            })
+            .unwrap_or_else(|| NSSize::new(1.0, 1.0));
+        unsafe {
+            self.ns_window.setContentResizeIncrements_(size);
         }
     }
 

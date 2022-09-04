@@ -190,20 +190,6 @@ pub trait WindowBuilderExtX11 {
     /// Build window with `_GTK_THEME_VARIANT` hint set to the specified value. Currently only relevant on X11.
     fn with_gtk_theme_variant(self, variant: String) -> Self;
 
-    /// Build window with resize increment hint. Only implemented on X11.
-    ///
-    /// ```
-    /// # use winit::dpi::{LogicalSize, PhysicalSize};
-    /// # use winit::window::WindowBuilder;
-    /// # use winit::platform::x11::WindowBuilderExtX11;
-    /// // Specify the size in logical dimensions like this:
-    /// WindowBuilder::new().with_resize_increments(LogicalSize::new(400.0, 200.0));
-    ///
-    /// // Or specify the size in physical dimensions like this:
-    /// WindowBuilder::new().with_resize_increments(PhysicalSize::new(400, 200));
-    /// ```
-    fn with_resize_increments<S: Into<Size>>(self, increments: S) -> Self;
-
     /// Build window with base size hint. Only implemented on X11.
     ///
     /// ```
@@ -256,12 +242,6 @@ impl WindowBuilderExtX11 for WindowBuilder {
     #[inline]
     fn with_gtk_theme_variant(mut self, variant: String) -> Self {
         self.platform_specific.gtk_theme_variant = Some(variant);
-        self
-    }
-
-    #[inline]
-    fn with_resize_increments<S: Into<Size>>(mut self, increments: S) -> Self {
-        self.platform_specific.resize_increments = Some(increments.into());
         self
     }
 

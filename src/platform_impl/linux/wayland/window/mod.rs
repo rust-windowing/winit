@@ -405,6 +405,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {
+        warn!("`set_resize_increments` is not implemented for Wayland");
+    }
+
+    #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         self.resizeable.store(resizable, Ordering::Relaxed);
         self.send_request(WindowRequest::Resizeable(resizable));

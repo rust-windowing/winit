@@ -380,7 +380,7 @@ impl UnownedWindow {
                 let mut shared_state = window.shared_state.get_mut().unwrap();
                 shared_state.min_inner_size = min_inner_size.map(Into::into);
                 shared_state.max_inner_size = max_inner_size.map(Into::into);
-                shared_state.resize_increments = pl_attribs.resize_increments;
+                shared_state.resize_increments = window_attrs.resize_increments;
                 shared_state.base_size = pl_attribs.base_size;
 
                 let mut normal_hints = util::NormalHints::new(xconn);
@@ -389,7 +389,7 @@ impl UnownedWindow {
                 normal_hints.set_min_size(min_inner_size.map(Into::into));
                 normal_hints.set_max_size(max_inner_size.map(Into::into));
                 normal_hints.set_resize_increments(
-                    pl_attribs
+                    window_attrs
                         .resize_increments
                         .map(|size| size.to_physical::<u32>(scale_factor).into()),
                 );
@@ -1172,6 +1172,24 @@ impl UnownedWindow {
         let physical_dimensions =
             dimensions.map(|dimensions| dimensions.to_physical::<u32>(self.scale_factor()).into());
         self.set_max_inner_size_physical(physical_dimensions);
+    }
+
+    #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        self.xconn
+            .get_normal_hints(self.xwindow)
+            .ok()
+            .and_then(|hints| hints.get_resize_increments())
+            .map(Into::into)
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, increments: Option<Size>) {
+        self.shared_state_lock().resize_increments = increments;
+        let physical_increments =
+            increments.map(|increments| increments.to_physical::<u32>(self.scale_factor()).into());
+        self.update_normal_hints(|hints| hints.set_resize_increments(physical_increments))
+            .expect("Failed to call `XSetWMNormalHints`");
     }
 
     pub(crate) fn adjust_for_dpi(

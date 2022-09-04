@@ -88,13 +88,20 @@ impl PointerHandler {
         ));
     }
 
-    pub fn on_cursor_move<F>(&mut self, canvas_common: &super::Common, mut handler: F)
-    where
+    pub fn on_cursor_move<F>(
+        &mut self,
+        canvas_common: &super::Common,
+        mut handler: F,
+        prevent_default: bool,
+    ) where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
     {
         self.on_cursor_move = Some(canvas_common.add_event(
             "pointermove",
             move |event: PointerEvent| {
+                if prevent_default {
+                    event.prevent_default();
+                }
                 handler(
                     event.pointer_id(),
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
