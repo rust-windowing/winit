@@ -18,21 +18,20 @@ use web_sys::{
 mod mouse_handler;
 mod pointer_handler;
 
-type EventListener = EventListenerHandle<dyn FnMut(Event)>;
-
 #[allow(dead_code)]
 pub struct Canvas {
     common: Common,
+    on_touch_start: Option<EventListenerHandle<dyn FnMut(Event)>>,
+    on_touch_end: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_focus: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_blur: Option<EventListenerHandle<dyn FnMut(FocusEvent)>>,
     on_keyboard_release: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_keyboard_press: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_received_character: Option<EventListenerHandle<dyn FnMut(KeyboardEvent)>>,
     on_mouse_wheel: Option<EventListenerHandle<dyn FnMut(WheelEvent)>>,
-    on_fullscreen_change: Option<EventListener>,
+    on_fullscreen_change: Option<EventListenerHandle<dyn FnMut(Event)>>,
     on_dark_mode: Option<MediaQueryListHandle>,
     mouse_state: MouseState,
-    disable_mobile_scroll: Option<[EventListener; 3]>,
 }
 
 struct Common {
@@ -77,28 +76,13 @@ impl Canvas {
             MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
         };
 
-        let common = Common {
-            raw: canvas,
-            wants_fullscreen: Rc::new(RefCell::new(false)),
-        };
-
-        let disable_mobile_scroll = if attr.prevent_default {
-            Some([
-                common.add_event("pointermove", move |event: Event| {
-                    event.prevent_default();
-                }),
-                common.add_event("touchstart", move |event: Event| {
-                    event.prevent_default();
-                }),
-                common.add_event("touchend", move |event: Event| {
-                    event.prevent_default();
-                }),
-            ])
-        } else {
-            None
-        };
-
         Ok(Canvas {
+            common: Common {
+                raw: canvas,
+                wants_fullscreen: Rc::new(RefCell::new(false)),
+            },
+            on_touch_start: None,
+            on_touch_end: None,
             on_blur: None,
             on_focus: None,
             on_keyboard_release: None,
@@ -108,8 +92,6 @@ impl Canvas {
             on_fullscreen_change: None,
             on_dark_mode: None,
             mouse_state,
-            disable_mobile_scroll,
-            common,
         })
     }
 
@@ -152,6 +134,22 @@ impl Canvas {
 
     pub fn raw(&self) -> &HtmlCanvasElement {
         &self.common.raw
+    }
+
+    pub fn on_touch_start(&mut self, prevent_default: bool) {
+        self.on_touch_start = Some(self.common.add_event("touchstart", move |event: Event| {
+            if prevent_default {
+                event.prevent_default();
+            }
+        }));
+    }
+
+    pub fn on_touch_end(&mut self, prevent_default: bool) {
+        self.on_touch_end = Some(self.common.add_event("touchend", move |event: Event| {
+            if prevent_default {
+                event.prevent_default();
+            }
+        }));
     }
 
     pub fn on_blur<F>(&mut self, mut handler: F)
@@ -284,12 +282,14 @@ impl Canvas {
         }
     }
 
-    pub fn on_cursor_move<F>(&mut self, handler: F)
+    pub fn on_cursor_move<F>(&mut self, handler: F, prevent_default: bool)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, PhysicalPosition<f64>, ModifiersState),
     {
         match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_cursor_move(&self.common, handler),
+            MouseState::HasPointerEvent(h) => {
+                h.on_cursor_move(&self.common, handler, prevent_default)
+            }
             MouseState::NoPointerEvent(h) => h.on_cursor_move(&self.common, handler),
         }
     }
