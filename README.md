@@ -141,8 +141,9 @@ If you encounter problems, you should try doing your initialization inside
 
 #### iOS
 
-Similiar like MacOS, iOS's main `UIApplicationMain` did some init work that required
-by all UI related code. see issue [#1705], you should create Window inside event loop.
+Similar to macOS, iOS's main `UIApplicationMain` does some init work that's required
+by all UI related code, see issue [#1705]. You should consider creating your windows
+inside `Event::NewEvents(StartCause::Init)`.
 
 
 [#2238]: https://github.com/rust-windowing/winit/issues/2238
