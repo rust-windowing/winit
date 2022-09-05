@@ -332,10 +332,14 @@ impl WinitWindow {
                 }
 
                 if let Some(increments) = pl_attrs.resize_increments {
-                    let (x, y) = (increments.width, increments.height);
-                    if x >= 1.0 && y >= 1.0 {
-                        let size = objc2::foundation::NSSize::new(x as CGFloat, y as CGFloat);
-                        this.setResizeIncrements(size);
+                    let (w, h) = (increments.width, increments.height);
+                    if w >= 1.0 && h >= 1.0 {
+                        let size = NSSize::new(w as CGFloat, h as CGFloat);
+                        // It was concluded (#2411) that there is never a use-case for
+                        // "outer" resize increments, hence we set "inner" ones here.
+                        // ("outer" in macOS being just resizeIncrements, and "inner" - contentResizeIncrements)
+                        // This is consistent with X11 size hints behavior
+                        this.setContentResizeIncrements(size);
                     }
                 }
 
@@ -558,6 +562,26 @@ impl WinitWindow {
             current_rect.size.height = max_size.height;
             self.setFrame_display(current_rect, false)
         }
+    }
+
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        let increments = self.contentResizeIncrements();
+        let (w, h) = (increments.width, increments.height);
+        if w > 1.0 || h > 1.0 {
+            Some(LogicalSize::new(w, h).to_physical(self.scale_factor()))
+        } else {
+            None
+        }
+    }
+
+    pub fn set_resize_increments(&self, increments: Option<Size>) {
+        let size = increments
+            .map(|increments| {
+                let logical = increments.to_logical::<f64>(self.scale_factor());
+                NSSize::new(logical.width.max(1.0), logical.height.max(1.0))
+            })
+            .unwrap_or_else(|| NSSize::new(1.0, 1.0));
+        self.setContentResizeIncrements(size);
     }
 
     #[inline]

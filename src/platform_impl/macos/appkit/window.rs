@@ -72,6 +72,12 @@ extern_methods!(
         #[sel(setResizeIncrements:)]
         pub fn setResizeIncrements(&self, increments: NSSize);
 
+        #[sel(contentResizeIncrements)]
+        pub fn contentResizeIncrements(&self) -> NSSize;
+
+        #[sel(setContentResizeIncrements:)]
+        pub fn setContentResizeIncrements(&self, increments: NSSize);
+
         #[sel(setFrame:display:)]
         pub fn setFrame_display(&self, frameRect: NSRect, flag: bool);
 

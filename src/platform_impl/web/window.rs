@@ -154,6 +154,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {
+        // Intentionally a no-op: users can't resize canvas elements
+    }
+
+    #[inline]
     pub fn set_resizable(&self, _resizable: bool) {
         // Intentionally a no-op: users can't resize canvas elements
     }

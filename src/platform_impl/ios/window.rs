@@ -154,6 +154,15 @@ impl Inner {
         warn!("`Window::set_max_inner_size` is ignored on iOS")
     }
 
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {
+        warn!("`Window::set_resize_increments` is ignored on iOS")
+    }
+
     pub fn set_resizable(&self, _resizable: bool) {
         warn!("`Window::set_resizable` is ignored on iOS")
     }
