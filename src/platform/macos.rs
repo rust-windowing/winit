@@ -1,7 +1,6 @@
 use std::os::raw::c_void;
 
 use crate::{
-    dpi::LogicalSize,
     event_loop::{EventLoopBuilder, EventLoopWindowTarget},
     monitor::MonitorHandle,
     window::{Window, WindowBuilder},
@@ -109,8 +108,6 @@ pub trait WindowBuilderExtMacOS {
     fn with_titlebar_buttons_hidden(self, titlebar_buttons_hidden: bool) -> WindowBuilder;
     /// Makes the window content appear behind the titlebar.
     fn with_fullsize_content_view(self, fullsize_content_view: bool) -> WindowBuilder;
-    /// Build window with `resizeIncrements` property. Values must not be 0.
-    fn with_resize_increments(self, increments: LogicalSize<f64>) -> WindowBuilder;
     fn with_disallow_hidpi(self, disallow_hidpi: bool) -> WindowBuilder;
     fn with_has_shadow(self, has_shadow: bool) -> WindowBuilder;
     /// Window accepts click-through mouse events.
@@ -154,12 +151,6 @@ impl WindowBuilderExtMacOS for WindowBuilder {
     #[inline]
     fn with_fullsize_content_view(mut self, fullsize_content_view: bool) -> WindowBuilder {
         self.platform_specific.fullsize_content_view = fullsize_content_view;
-        self
-    }
-
-    #[inline]
-    fn with_resize_increments(mut self, increments: LogicalSize<f64>) -> WindowBuilder {
-        self.platform_specific.resize_increments = Some(increments);
         self
     }
 

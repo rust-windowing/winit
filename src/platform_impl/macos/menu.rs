@@ -13,7 +13,7 @@ struct KeyEquivalent<'a> {
 }
 
 pub fn initialize() {
-    autoreleasepool(|| unsafe {
+    autoreleasepool(|_| unsafe {
         let menubar = IdRef::new(NSMenu::new(nil));
         let app_menu_item = IdRef::new(NSMenuItem::new(nil));
         menubar.addItem_(*app_menu_item);

@@ -81,9 +81,10 @@ pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> EventLoop<T> {
+        assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
+
         static mut SINGLETON_INIT: bool = false;
         unsafe {
-            assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
             assert!(
                 !SINGLETON_INIT,
                 "Only one `EventLoop` is supported on iOS. \

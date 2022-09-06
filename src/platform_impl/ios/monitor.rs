@@ -4,12 +4,14 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use objc::foundation::{NSInteger, NSUInteger};
+
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::platform::{
         app_state,
-        ffi::{id, nil, CGFloat, CGRect, CGSize, NSInteger, NSUInteger},
+        ffi::{id, nil, CGFloat, CGRect, CGSize},
     },
 };
 
@@ -113,22 +115,14 @@ impl Deref for MonitorHandle {
     type Target = Inner;
 
     fn deref(&self) -> &Inner {
-        unsafe {
-            assert_main_thread!(
-                "`MonitorHandle` methods can only be run on the main thread on iOS"
-            );
-        }
+        assert_main_thread!("`MonitorHandle` methods can only be run on the main thread on iOS");
         &self.inner
     }
 }
 
 impl DerefMut for MonitorHandle {
     fn deref_mut(&mut self) -> &mut Inner {
-        unsafe {
-            assert_main_thread!(
-                "`MonitorHandle` methods can only be run on the main thread on iOS"
-            );
-        }
+        assert_main_thread!("`MonitorHandle` methods can only be run on the main thread on iOS");
         &mut self.inner
     }
 }
@@ -144,9 +138,7 @@ impl Clone for MonitorHandle {
 
 impl Drop for MonitorHandle {
     fn drop(&mut self) {
-        unsafe {
-            assert_main_thread!("`MonitorHandle` can only be dropped on the main thread on iOS");
-        }
+        assert_main_thread!("`MonitorHandle` can only be dropped on the main thread on iOS");
     }
 }
 
@@ -175,8 +167,8 @@ impl fmt::Debug for MonitorHandle {
 
 impl MonitorHandle {
     pub fn retained_new(uiscreen: id) -> MonitorHandle {
+        assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
         unsafe {
-            assert_main_thread!("`MonitorHandle` can only be cloned on the main thread on iOS");
             let _: id = msg_send![uiscreen, retain];
         }
         MonitorHandle {

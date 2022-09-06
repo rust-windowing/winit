@@ -63,6 +63,9 @@ impl<T> EventLoopWindowTarget<T> {
         let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
+        canvas.on_touch_start(prevent_default);
+        canvas.on_touch_end(prevent_default);
+
         let runner = self.runner.clone();
         canvas.on_blur(move || {
             runner.send_event(Event::WindowEvent {
@@ -153,22 +156,25 @@ impl<T> EventLoopWindowTarget<T> {
         });
 
         let runner = self.runner.clone();
-        canvas.on_cursor_move(move |pointer_id, position, delta, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::CursorMoved {
+        canvas.on_cursor_move(
+            move |pointer_id, position, delta, modifiers| {
+                runner.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::CursorMoved {
+                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        position,
+                        modifiers,
+                    },
+                });
+                runner.send_event(Event::DeviceEvent {
                     device_id: RootDeviceId(DeviceId(pointer_id)),
-                    position,
-                    modifiers,
-                },
-            });
-            runner.send_event(Event::DeviceEvent {
-                device_id: RootDeviceId(DeviceId(pointer_id)),
-                event: DeviceEvent::MouseMotion {
-                    delta: (delta.x, delta.y),
-                },
-            });
-        });
+                    event: DeviceEvent::MouseMotion {
+                        delta: (delta.x, delta.y),
+                    },
+                });
+            },
+            prevent_default,
+        );
 
         let runner = self.runner.clone();
         canvas.on_mouse_press(move |pointer_id, position, button, modifiers| {

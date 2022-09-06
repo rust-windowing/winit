@@ -178,7 +178,7 @@ Legend:
 |Window decorations               |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window decorations toggle        |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window resizing                  |✔️     |▢[#219]|✔️         |▢[#306]        |**N/A**|**N/A**|✔️        |
-|Window resize increments         |❌     |❌     |❌         |❌             |❌    |❌     |**N/A**|
+|Window resize increments         |❌     |✔️     |✔️         |❌             |**N/A**|**N/A**|**N/A**|
 |Window transparency              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|N/A        |
 |Window maximization              |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|
 |Window maximization toggle       |✔️     |✔️     |✔️         |✔️             |**N/A**|**N/A**|**N/A**|

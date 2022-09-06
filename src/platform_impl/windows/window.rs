@@ -236,6 +236,14 @@ impl Window {
     }
 
     #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {}
+
+    #[inline]
     pub fn set_resizable(&self, resizable: bool) {
         let window = self.window.clone();
         let window_state = Arc::clone(&self.window_state);

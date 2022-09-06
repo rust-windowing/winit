@@ -95,8 +95,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     #[cfg(feature = "x11")]
     pub screen_id: Option<i32>,
     #[cfg(feature = "x11")]
-    pub resize_increments: Option<Size>,
-    #[cfg(feature = "x11")]
     pub base_size: Option<Size>,
     #[cfg(feature = "x11")]
     pub override_redirect: bool,
@@ -116,8 +114,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             visual_infos: None,
             #[cfg(feature = "x11")]
             screen_id: None,
-            #[cfg(feature = "x11")]
-            resize_increments: None,
             #[cfg(feature = "x11")]
             base_size: None,
             #[cfg(feature = "x11")]
@@ -389,6 +385,16 @@ impl Window {
     #[inline]
     pub fn set_max_inner_size(&self, dimensions: Option<Size>) {
         x11_or_wayland!(match self; Window(w) => w.set_max_inner_size(dimensions))
+    }
+
+    #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        x11_or_wayland!(match self; Window(w) => w.resize_increments())
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, increments: Option<Size>) {
+        x11_or_wayland!(match self; Window(w) => w.set_resize_increments(increments))
     }
 
     #[inline]
