@@ -2,7 +2,7 @@ use crate::dpi::LogicalPosition;
 use crate::event::{ModifiersState, MouseButton, MouseScrollDelta, ScanCode, VirtualKeyCode};
 
 use std::convert::TryInto;
-use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent};
+use web_sys::{HtmlCanvasElement, KeyboardEvent, MouseEvent, WheelEvent, PointerEvent};
 
 pub fn mouse_button(event: &MouseEvent) -> MouseButton {
     match event.button() {
@@ -245,4 +245,12 @@ pub fn codepoint(event: &KeyboardEvent) -> char {
     // never panic.
     // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
     event.key().chars().next().unwrap()
+}
+
+pub fn touch_position(event: &PointerEvent) -> LogicalPosition<f64> {
+    LogicalPosition {
+        x: event.client_x() as f64,
+        // Flip the Y axis because canvas's origin is top-left.
+        y: event.client_y() as f64,
+    }
 }
