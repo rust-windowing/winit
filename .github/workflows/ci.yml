@@ -66,11 +66,6 @@ jobs:
         targets: ${{ matrix.platform.target }}
         components: clippy
 
-    - name: Setup NDK path
-      shell: bash
-      # "Temporary" workaround until https://github.com/actions/virtual-environments/issues/5879#issuecomment-1195156618
-      # gets looked into.
-      run: echo "ANDROID_NDK_ROOT=$ANDROID_NDK_LATEST_HOME" >> $GITHUB_ENV
     - name: Install GCC Multilib
       if: (matrix.platform.os == 'ubuntu-latest') && contains(matrix.platform.target, 'i686')
       run: sudo apt-get update && sudo apt-get install gcc-multilib
