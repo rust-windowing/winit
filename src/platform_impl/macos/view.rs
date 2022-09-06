@@ -99,10 +99,7 @@ impl ViewState {
     }
 }
 
-pub fn new_view(
-    ns_window: id,
-    pl_attribs: &PlatformSpecificWindowBuilderAttributes,
-) -> IdRef {
+pub fn new_view(ns_window: id, pl_attribs: &PlatformSpecificWindowBuilderAttributes) -> IdRef {
     let state = ViewState {
         ns_window,
         cursor_state: Default::default(),
