@@ -648,14 +648,6 @@ pub unsafe fn handle_nonuser_events<I: IntoIterator<Item = EventWrapper>>(events
     for wrapper in events {
         match wrapper {
             EventWrapper::StaticEvent(event) => {
-                if !processing_redraws && event.is_redraw() {
-                    log::info!("processing `RedrawRequested` during the main event loop");
-                } else if processing_redraws && !event.is_redraw() {
-                    log::warn!(
-                        "processing non `RedrawRequested` event after the main event loop: {:#?}",
-                        event
-                    );
-                }
                 event_handler.handle_nonuser_event(event, &mut control_flow)
             }
             EventWrapper::EventProxy(proxy) => {
