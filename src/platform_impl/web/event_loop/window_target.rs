@@ -187,18 +187,6 @@ impl<T> EventLoopWindowTarget<T> {
 
         });
 
-        let runner = self.runner.clone();
-        canvas.on_mouse_release(move |pointer_id, button, modifiers| {
-            runner.send_event(Event::WindowEvent {
-                window_id: RootWindowId(id),
-                event: WindowEvent::MouseInput {
-                    device_id: RootDeviceId(DeviceId(pointer_id)),
-                    state: ElementState::Released,
-                    button,
-                    modifiers,
-                },
-            });
-        });
 
         let runner = self.runner.clone();
         canvas.on_mouse_wheel(
