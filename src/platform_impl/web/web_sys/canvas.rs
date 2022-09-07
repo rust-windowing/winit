@@ -71,7 +71,7 @@ impl Canvas {
         }
 
         let mouse_state = if has_pointer_event() {
-            MouseState::HasPointerEvent(pointer_handler::PointerHandler::new())
+            MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
         } else {
             MouseState::NoPointerEvent(mouse_handler::MouseHandler::new())
         };

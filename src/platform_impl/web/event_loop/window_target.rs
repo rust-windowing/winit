@@ -4,7 +4,6 @@ use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::rc::Rc;
 
 use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
-use web_sys::console;
 
 use super::{
     super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
@@ -64,8 +63,8 @@ impl<T> EventLoopWindowTarget<T> {
         let mut canvas = canvas.borrow_mut();
         canvas.set_attribute("data-raw-handle", &id.0.to_string());
 
-        //canvas.on_touch_start(prevent_default);
-        //canvas.on_touch_end(prevent_default);
+        canvas.on_touch_start(prevent_default);
+        canvas.on_touch_end(prevent_default);
 
         let runner = self.runner.clone();
         canvas.on_blur(move || {
@@ -182,11 +181,43 @@ impl<T> EventLoopWindowTarget<T> {
             // A mouse down event may come in without any prior CursorMoved events,
             // therefore we should send a CursorMoved event to make sure that the
             // user code has the correct cursor position.
-            console::log_1(&"ahahahahh!".into());
-       
-
+            runner.send_events(
+                std::iter::once(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::Focused(true),
+                })
+                .chain(std::iter::once(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::CursorMoved {
+                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        position,
+                        modifiers,
+                    },
+                }))
+                .chain(std::iter::once(Event::WindowEvent {
+                    window_id: RootWindowId(id),
+                    event: WindowEvent::MouseInput {
+                        device_id: RootDeviceId(DeviceId(pointer_id)),
+                        state: ElementState::Pressed,
+                        button,
+                        modifiers,
+                    },
+                })),
+            );
         });
 
+        let runner = self.runner.clone();
+        canvas.on_mouse_release(move |pointer_id, button, modifiers| {
+            runner.send_event(Event::WindowEvent {
+                window_id: RootWindowId(id),
+                event: WindowEvent::MouseInput {
+                    device_id: RootDeviceId(DeviceId(pointer_id)),
+                    state: ElementState::Released,
+                    button,
+                    modifiers,
+                },
+            });
+        });
 
         let runner = self.runner.clone();
         canvas.on_mouse_wheel(
