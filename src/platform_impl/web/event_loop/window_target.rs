@@ -4,6 +4,7 @@ use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::rc::Rc;
 
 use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
+use web_sys::console;
 
 use super::{
     super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
@@ -181,6 +182,7 @@ impl<T> EventLoopWindowTarget<T> {
             // A mouse down event may come in without any prior CursorMoved events,
             // therefore we should send a CursorMoved event to make sure that the
             // user code has the correct cursor position.
+            console::log_1(&"ahahahahh!".into());
             runner.send_events(
                 std::iter::once(Event::WindowEvent {
                     window_id: RootWindowId(id),
