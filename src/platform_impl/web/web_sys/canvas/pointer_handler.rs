@@ -69,7 +69,7 @@ impl PointerHandler {
     pub fn on_mouse_press<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
-    {console::log_1(&"pointer!".into());
+    {
         let canvas = canvas_common.raw.clone();
         self.on_pointer_press = Some(canvas_common.add_user_event(
             "pointerdown",

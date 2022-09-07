@@ -128,7 +128,7 @@ impl MouseHandler {
     pub fn on_mouse_press<F>(&mut self, canvas_common: &super::Common, mut handler: F)
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, MouseButton, ModifiersState),
-    {console::log_1(&"mouse!".into());
+    {
         let mouse_capture_state = self.mouse_capture_state.clone();
         let canvas = canvas_common.raw.clone();
         self.on_mouse_press = Some(canvas_common.add_window_mouse_event(
