@@ -183,29 +183,8 @@ impl<T> EventLoopWindowTarget<T> {
             // therefore we should send a CursorMoved event to make sure that the
             // user code has the correct cursor position.
             console::log_1(&"ahahahahh!".into());
-            runner.send_events(
-                std::iter::once(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::Focused(true),
-                })
-                .chain(std::iter::once(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::CursorMoved {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                        position,
-                        modifiers,
-                    },
-                }))
-                .chain(std::iter::once(Event::WindowEvent {
-                    window_id: RootWindowId(id),
-                    event: WindowEvent::MouseInput {
-                        device_id: RootDeviceId(DeviceId(pointer_id)),
-                        state: ElementState::Pressed,
-                        button,
-                        modifiers,
-                    },
-                })),
-            );
+       
+
         });
 
         let runner = self.runner.clone();
