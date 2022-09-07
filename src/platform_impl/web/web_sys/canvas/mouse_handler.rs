@@ -98,7 +98,7 @@ impl MouseHandler {
                     }
                     MouseCaptureState::Captured => {}
                 }
-                event.stop_propagation();
+                //event.stop_propagation();
                 handler(
                     0,
                     event::mouse_button(&event),
@@ -150,7 +150,7 @@ impl MouseHandler {
                     _ => {}
                 }
                 *mouse_capture_state = MouseCaptureState::Captured;
-                event.stop_propagation();
+                //event.stop_propagation();
                 handler(
                     0,
                     event::mouse_position(&event).to_physical(super::super::scale_factor()),
