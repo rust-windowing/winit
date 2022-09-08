@@ -3,10 +3,18 @@ use std::{
     ffi::c_void,
     fmt::{self, Debug},
     marker::PhantomData,
-    mem, ptr,
+    ptr,
     sync::mpsc::{self, Receiver, Sender},
 };
 
+use core_foundation::base::{CFIndex, CFRelease};
+use core_foundation::runloop::{
+    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
+    kCFRunLoopEntry, kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource,
+    CFRunLoopGetMain, CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext,
+    CFRunLoopSourceCreate, CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal,
+    CFRunLoopWakeUp,
+};
 use objc2::runtime::Object;
 use objc2::{class, msg_send, ClassType};
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
@@ -23,15 +31,7 @@ use crate::{
 
 use crate::platform_impl::platform::{
     app_state,
-    ffi::{
-        id, kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes,
-        kCFRunLoopDefaultMode, kCFRunLoopEntry, kCFRunLoopExit, nil, CFIndex, CFRelease,
-        CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
-        CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext,
-        CFRunLoopSourceCreate, CFRunLoopSourceInvalidate, CFRunLoopSourceRef,
-        CFRunLoopSourceSignal, CFRunLoopWakeUp, NSStringRust, UIApplicationMain,
-        UIUserInterfaceIdiom,
-    },
+    ffi::{id, nil, NSStringRust, UIApplicationMain, UIUserInterfaceIdiom},
     monitor, view, MonitorHandle,
 };
 
@@ -184,14 +184,23 @@ impl<T> EventLoopProxy<T> {
     fn new(sender: Sender<T>) -> EventLoopProxy<T> {
         unsafe {
             // just wake up the eventloop
-            extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}
+            extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and
             // process user events through the normal OS EventLoop mechanisms.
             let rl = CFRunLoopGetMain();
-            // we want all the members of context to be zero/null, except one
-            let mut context: CFRunLoopSourceContext = mem::zeroed();
-            context.perform = Some(event_loop_proxy_handler);
+            let mut context = CFRunLoopSourceContext {
+                version: 0,
+                info: ptr::null_mut(),
+                retain: None,
+                release: None,
+                copyDescription: None,
+                equal: None,
+                hash: None,
+                schedule: None,
+                cancel: None,
+                perform: event_loop_proxy_handler,
+            };
             let source =
                 CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
