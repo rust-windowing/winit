@@ -4,7 +4,6 @@ use crate::dpi::PhysicalPosition;
 use crate::event::Force;
 use crate::event::{ModifiersState, MouseButton};
 
-use web_sys::HtmlCanvasElement;
 use web_sys::PointerEvent;
 
 #[allow(dead_code)]
@@ -155,7 +154,7 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.on_touch_move =
-            Some(canvas_common.add_event("pointermove", touch_handler(handler, canvas_common)));
+            Some(canvas_common.add_event("pointermove", touch_handler(handler)));
     }
 
     pub fn on_touch_down<F>(&mut self, canvas_common: &super::Common, handler: F)
@@ -163,7 +162,7 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.on_touch_down =
-            Some(canvas_common.add_event("pointerdown", touch_handler(handler, canvas_common)));
+            Some(canvas_common.add_event("pointerdown", touch_handler(handler)));
     }
 
     pub fn on_touch_up<F>(&mut self, canvas_common: &super::Common, handler: F)
@@ -171,7 +170,7 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.on_touch_up =
-            Some(canvas_common.add_event("pointerup", touch_handler(handler, canvas_common)));
+            Some(canvas_common.add_event("pointerup", touch_handler(handler)));
     }
 
     pub fn on_touch_cancel<F>(&mut self, canvas_common: &super::Common, handler: F)
@@ -179,7 +178,7 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.on_touch_cancel =
-            Some(canvas_common.add_event("pointercancel", touch_handler(handler, canvas_common)));
+            Some(canvas_common.add_event("pointercancel", touch_handler(handler)));
     }
 
     pub fn remove_listeners(&mut self) {
@@ -195,11 +194,10 @@ impl PointerHandler {
     }
 }
 
-fn touch_handler<F>(mut handler: F, canvas_common: &super::Common) -> impl FnMut(PointerEvent)
+fn touch_handler<F>(mut handler: F) -> impl FnMut(PointerEvent)
 where
     F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
 {
-    let canvas = canvas_common.raw.clone();
     move |event: PointerEvent| {
         if event.pointer_type() != "touch" {
             return;
@@ -207,22 +205,9 @@ where
 
         handler(
             event.pointer_id(),
-            touch_physical_position(&event, &canvas),
+            event::touch_position(&event)
+                .to_physical(super::super::scale_factor()),
             Force::Normalized(event.pressure() as f64),
         );
-    }
-}
-
-fn touch_physical_position(
-    event: &PointerEvent,
-    canvas: &HtmlCanvasElement,
-) -> PhysicalPosition<f64> {
-    // Calculate the scale factor every time, since it's possible for the canvas's width and height attributes to get out of sync with its actual HTML size.
-    let dpi_width = canvas.width() as f64 / canvas.offset_width() as f64;
-    let dpi_height = canvas.height() as f64 / canvas.offset_height() as f64;
-    PhysicalPosition {
-        x: event.client_x() as f64 * dpi_width,
-        // Flip the Y axis because canvas's origin is top-left.
-        y: canvas.height() as f64 - event.client_y() as f64 * dpi_height,
     }
 }
