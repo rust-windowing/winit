@@ -130,7 +130,7 @@ unsafe fn control_flow_handler<F>(panic_info: *mut c_void, f: F)
 where
     F: FnOnce(Weak<PanicInfo>) + UnwindSafe,
 {
-    let info_from_raw = Weak::from_raw(panic_info as *mut PanicInfo);
+    let info_from_raw = unsafe { Weak::from_raw(panic_info as *mut PanicInfo) };
     // Asserting unwind safety on this type should be fine because `PanicInfo` is
     // `RefUnwindSafe` and `Rc<T>` is `UnwindSafe` if `T` is `RefUnwindSafe`.
     let panic_info = AssertUnwindSafe(Weak::clone(&info_from_raw));
@@ -195,7 +195,7 @@ struct RunLoop(CFRunLoopRef);
 
 impl RunLoop {
     unsafe fn get() -> Self {
-        RunLoop(CFRunLoopGetMain())
+        RunLoop(unsafe { CFRunLoopGetMain() })
     }
 
     unsafe fn add_observer(
@@ -205,15 +205,17 @@ impl RunLoop {
         handler: CFRunLoopObserverCallBack,
         context: *mut CFRunLoopObserverContext,
     ) {
-        let observer = CFRunLoopObserverCreate(
-            ptr::null_mut(),
-            flags,
-            ffi::TRUE, // Indicates we want this to run repeatedly
-            priority,  // The lower the value, the sooner this will run
-            handler,
-            context,
-        );
-        CFRunLoopAddObserver(self.0, observer, kCFRunLoopCommonModes);
+        let observer = unsafe {
+            CFRunLoopObserverCreate(
+                ptr::null_mut(),
+                flags,
+                ffi::TRUE, // Indicates we want this to run repeatedly
+                priority,  // The lower the value, the sooner this will run
+                handler,
+                context,
+            )
+        };
+        unsafe { CFRunLoopAddObserver(self.0, observer, kCFRunLoopCommonModes) };
     }
 }
 
