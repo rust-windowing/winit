@@ -251,6 +251,6 @@ pub fn touch_position(event: &PointerEvent, canvas: &HtmlCanvasElement) -> Logic
     LogicalPosition {
         x: event.client_x() as f64,
         // Flip the Y axis because canvas's origin is top-left.
-        y: canvas.height() as f64 - event.client_y() as f64,
+        y: canvas.client_height() as f64 - event.client_y() as f64,
     }
 }
