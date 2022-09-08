@@ -139,6 +139,14 @@ and so on, see issues [#2238], [#2051] and [#2087].
 If you encounter problems, you should try doing your initialization inside
 `Event::NewEvents(StartCause::Init)`.
 
+#### iOS
+
+Similar to macOS, iOS's main `UIApplicationMain` does some init work that's required
+by all UI related code, see issue [#1705]. You should consider creating your windows
+inside `Event::NewEvents(StartCause::Init)`.
+
+
 [#2238]: https://github.com/rust-windowing/winit/issues/2238
 [#2051]: https://github.com/rust-windowing/winit/issues/2051
 [#2087]: https://github.com/rust-windowing/winit/issues/2087
+[#1705]: https://github.com/rust-windowing/winit/issues/1705
