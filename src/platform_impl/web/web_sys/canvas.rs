@@ -300,9 +300,8 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_touch_move(&self.common, handler),
-            _ => {}
+        if let MouseState::HasPointerEvent(h) = &mut self.mouse_state {
+            h.on_touch_move(&self.common, handler)
         }
     }
 
@@ -310,9 +309,8 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_touch_down(&self.common, handler),
-            _ => {}
+        if let MouseState::HasPointerEvent(h) = &mut self.mouse_state {
+            h.on_touch_down(&self.common, handler)
         }
     }
 
@@ -320,9 +318,8 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_touch_up(&self.common, handler),
-            _ => {}
+        if let MouseState::HasPointerEvent(h) = &mut self.mouse_state {
+            h.on_touch_up(&self.common, handler)
         }
     }
 
@@ -330,9 +327,8 @@ impl Canvas {
     where
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
-        match &mut self.mouse_state {
-            MouseState::HasPointerEvent(h) => h.on_touch_cancel(&self.common, handler),
-            _ => {}
+        if let MouseState::HasPointerEvent(h) = &mut self.mouse_state {
+            h.on_touch_cancel(&self.common, handler)
         }
     }
 
