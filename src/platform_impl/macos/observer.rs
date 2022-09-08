@@ -15,8 +15,8 @@ use crate::platform_impl::platform::{
 use core_foundation::base::{CFIndex, CFOptionFlags, CFRelease};
 use core_foundation::date::CFAbsoluteTimeGetCurrent;
 use core_foundation::runloop::{
-    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopEntry,
-    kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
+    kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopExit,
+    CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddTimer, CFRunLoopGetMain,
     CFRunLoopObserverCallBack, CFRunLoopObserverContext, CFRunLoopObserverCreate,
     CFRunLoopObserverRef, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
     CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
@@ -57,7 +57,6 @@ extern "C" fn control_flow_begin_handler(
                     AppState::wakeup(panic_info);
                     //trace!("Completed `CFRunLoopAfterWaiting`");
                 }
-                kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
                 _ => unreachable!(),
             }
         });
@@ -126,7 +125,7 @@ pub fn setup_control_flow_observers(panic_info: Weak<PanicInfo>) {
         };
         let run_loop = RunLoop::get();
         run_loop.add_observer(
-            kCFRunLoopEntry | kCFRunLoopAfterWaiting,
+            kCFRunLoopAfterWaiting,
             CFIndex::min_value(),
             control_flow_begin_handler,
             &mut context as *mut _,

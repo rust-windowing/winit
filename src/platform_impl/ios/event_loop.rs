@@ -10,10 +10,9 @@ use std::{
 use core_foundation::base::{CFIndex, CFRelease};
 use core_foundation::runloop::{
     kCFRunLoopAfterWaiting, kCFRunLoopBeforeWaiting, kCFRunLoopCommonModes, kCFRunLoopDefaultMode,
-    kCFRunLoopEntry, kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource,
-    CFRunLoopGetMain, CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext,
-    CFRunLoopSourceCreate, CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal,
-    CFRunLoopWakeUp,
+    kCFRunLoopExit, CFRunLoopActivity, CFRunLoopAddObserver, CFRunLoopAddSource, CFRunLoopGetMain,
+    CFRunLoopObserverCreate, CFRunLoopObserverRef, CFRunLoopSourceContext, CFRunLoopSourceCreate,
+    CFRunLoopSourceInvalidate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
 };
 use objc2::runtime::Object;
 use objc2::{class, msg_send, ClassType};
@@ -236,7 +235,6 @@ fn setup_control_flow_observers() {
                 #[allow(non_upper_case_globals)]
                 match activity {
                     kCFRunLoopAfterWaiting => app_state::handle_wakeup_transition(),
-                    kCFRunLoopEntry => unimplemented!(), // not expected to ever happen
                     _ => unreachable!(),
                 }
             }
@@ -288,7 +286,7 @@ fn setup_control_flow_observers() {
 
         let begin_observer = CFRunLoopObserverCreate(
             ptr::null_mut(),
-            kCFRunLoopEntry | kCFRunLoopAfterWaiting,
+            kCFRunLoopAfterWaiting,
             1, // repeat = true
             CFIndex::min_value(),
             control_flow_begin_handler,
