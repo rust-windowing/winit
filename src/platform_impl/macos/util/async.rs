@@ -1,6 +1,5 @@
 use std::mem;
 use std::ops::Deref;
-use std::sync::{Mutex, Weak};
 
 use dispatch::Queue;
 use objc2::foundation::{is_main_thread, CGFloat, NSPoint, NSSize, NSString};
@@ -11,7 +10,7 @@ use crate::{
     platform_impl::platform::{
         appkit::{NSScreen, NSWindow, NSWindowLevel, NSWindowStyleMask},
         ffi,
-        window::{SharedState, SharedStateMutexGuard},
+        window::WinitWindow,
     },
 };
 
@@ -95,13 +94,8 @@ pub(crate) fn set_ignore_mouse_events(window: &NSWindow, ignore: bool) {
 
 // `toggleFullScreen` is thread-safe, but our additional logic to account for
 // window styles isn't.
-pub(crate) fn toggle_full_screen_async(
-    window: &NSWindow,
-    not_fullscreen: bool,
-    shared_state: Weak<Mutex<SharedState>>,
-) {
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    let shared_state = MainThreadSafe(shared_state);
+pub(crate) fn toggle_full_screen_async(window: Id<WinitWindow, Shared>, not_fullscreen: bool) {
+    let window = MainThreadSafe(window);
     Queue::main().exec_async(move || {
         // `toggleFullScreen` doesn't work if the `StyleMask` is none, so we
         // set a normal style temporarily. The previous state will be
@@ -112,13 +106,9 @@ pub(crate) fn toggle_full_screen_async(
                 NSWindowStyleMask::NSTitledWindowMask | NSWindowStyleMask::NSResizableWindowMask;
             if !curr_mask.contains(required) {
                 set_style_mask(&window, required);
-                if let Some(shared_state) = shared_state.upgrade() {
-                    let mut shared_state_lock = SharedStateMutexGuard::new(
-                        shared_state.lock().unwrap(),
-                        "toggle_full_screen_callback",
-                    );
-                    shared_state_lock.saved_style = Some(curr_mask);
-                }
+                window
+                    .lock_shared_state("toggle_full_screen_async")
+                    .saved_style = Some(curr_mask);
             }
         }
         // Window level must be restored from `CGShieldingWindowLevel()
@@ -141,46 +131,40 @@ pub(crate) unsafe fn restore_display_mode_async(ns_screen: u32) {
 
 // `setMaximized` is not thread-safe
 pub(crate) fn set_maximized_async(
-    window: &NSWindow,
+    window: Id<WinitWindow, Shared>,
     is_zoomed: bool,
     maximized: bool,
-    shared_state: Weak<Mutex<SharedState>>,
 ) {
-    let window = unsafe { MainThreadSafe(mem::transmute::<&NSWindow, &'static NSWindow>(window)) };
-    let shared_state = MainThreadSafe(shared_state);
+    let window = MainThreadSafe(window);
     Queue::main().exec_async(move || {
-        if let Some(shared_state) = shared_state.upgrade() {
-            let mut shared_state_lock =
-                SharedStateMutexGuard::new(shared_state.lock().unwrap(), "set_maximized");
+        let mut shared_state = window.lock_shared_state("set_maximized_async");
+        // Save the standard frame sized if it is not zoomed
+        if !is_zoomed {
+            shared_state.standard_frame = Some(window.frame());
+        }
 
-            // Save the standard frame sized if it is not zoomed
-            if !is_zoomed {
-                shared_state_lock.standard_frame = Some(window.frame());
-            }
+        shared_state.maximized = maximized;
 
-            shared_state_lock.maximized = maximized;
+        if shared_state.fullscreen.is_some() {
+            // Handle it in window_did_exit_fullscreen
+            return;
+        }
 
-            if shared_state_lock.fullscreen.is_some() {
-                // Handle it in window_did_exit_fullscreen
-                return;
-            }
-
-            if window
-                .styleMask()
-                .contains(NSWindowStyleMask::NSResizableWindowMask)
-            {
-                // Just use the native zoom if resizable
-                window.zoom(None);
+        if window
+            .styleMask()
+            .contains(NSWindowStyleMask::NSResizableWindowMask)
+        {
+            // Just use the native zoom if resizable
+            window.zoom(None);
+        } else {
+            // if it's not resizable, we set the frame directly
+            let new_rect = if maximized {
+                let screen = NSScreen::main().expect("no screen found");
+                screen.visibleFrame()
             } else {
-                // if it's not resizable, we set the frame directly
-                let new_rect = if maximized {
-                    let screen = NSScreen::main().expect("no screen found");
-                    screen.visibleFrame()
-                } else {
-                    shared_state_lock.saved_standard_frame()
-                };
-                window.setFrame_display(new_rect, false);
-            }
+                shared_state.saved_standard_frame()
+            };
+            window.setFrame_display(new_rect, false);
         }
     });
 }
