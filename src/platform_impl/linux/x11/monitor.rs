@@ -13,7 +13,6 @@ use super::{
 };
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::{MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode},
 };
 
@@ -53,10 +52,8 @@ impl VideoMode {
     }
 
     #[inline]
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: PlatformMonitorHandle::X(self.monitor.clone().unwrap()),
-        }
+    pub fn monitor(&self) -> PlatformMonitorHandle {
+        PlatformMonitorHandle::X(self.monitor.clone().unwrap())
     }
 }
 

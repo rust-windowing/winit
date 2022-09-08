@@ -10,10 +10,7 @@ use objc2::rc::{Id, Shared};
 
 use super::appkit::NSScreen;
 use super::ffi;
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::MonitorHandle as RootMonitorHandle,
-};
+use crate::dpi::{PhysicalPosition, PhysicalSize};
 
 #[derive(Clone)]
 pub struct VideoMode {
@@ -89,10 +86,8 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }
 

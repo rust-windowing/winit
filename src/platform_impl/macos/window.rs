@@ -789,12 +789,8 @@ impl WinitWindow {
         // does not take a screen parameter, but uses the current screen)
         if let Some(ref fullscreen) = fullscreen {
             let new_screen = match fullscreen {
-                Fullscreen::Borderless(borderless) => {
-                    let RootMonitorHandle { inner: monitor } = borderless
-                        .clone()
-                        .unwrap_or_else(|| self.current_monitor_inner());
-                    monitor
-                }
+                Fullscreen::Borderless(Some(monitor)) => monitor.clone().inner,
+                Fullscreen::Borderless(None) => self.current_monitor_inner(),
                 Fullscreen::Exclusive(RootVideoMode {
                     video_mode: VideoMode { ref monitor, .. },
                 }) => monitor.clone(),
@@ -901,7 +897,7 @@ impl WinitWindow {
                     Arc::downgrade(&*self.shared_state),
                 );
             }
-            (&Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })), &None) => {
+            (&Some(Fullscreen::Exclusive(ref video_mode)), &None) => {
                 unsafe {
                     util::restore_display_mode_async(video_mode.monitor().inner.native_identifier())
                 };
@@ -935,10 +931,7 @@ impl WinitWindow {
                     let _: () = msg_send![self, setLevel: ffi::CGShieldingWindowLevel() + 1];
                 }
             }
-            (
-                &Some(Fullscreen::Exclusive(RootVideoMode { ref video_mode })),
-                &Some(Fullscreen::Borderless(_)),
-            ) => {
+            (&Some(Fullscreen::Exclusive(ref video_mode)), &Some(Fullscreen::Borderless(_))) => {
                 let presentation_options =
                     shared_state_lock.save_presentation_opts.unwrap_or_else(|| {
                         NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
@@ -1062,15 +1055,13 @@ impl WinitWindow {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    pub(crate) fn current_monitor_inner(&self) -> RootMonitorHandle {
+    pub(crate) fn current_monitor_inner(&self) -> MonitorHandle {
         let display_id = self.screen().expect("expected screen").display_id();
-        RootMonitorHandle {
-            inner: MonitorHandle::new(display_id),
-        }
+        MonitorHandle::new(display_id)
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.current_monitor_inner())
     }
 
@@ -1080,9 +1071,9 @@ impl WinitWindow {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     #[inline]

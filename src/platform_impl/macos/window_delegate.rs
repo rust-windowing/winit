@@ -12,6 +12,7 @@ use super::appkit::{
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
+    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         app_state::AppState,
         event::{EventProxy, EventWrapper},
@@ -225,7 +226,9 @@ declare_class!(
                 // Otherwise, we must've reached fullscreen by the user clicking
                 // on the green fullscreen button. Update state!
                 None => {
-                    let current_monitor = Some(self.window.current_monitor_inner());
+                    let current_monitor = Some(RootMonitorHandle {
+                        inner: self.window.current_monitor_inner(),
+                    });
                     shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
                 }
             }

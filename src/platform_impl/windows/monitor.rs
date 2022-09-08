@@ -17,7 +17,7 @@ use windows_sys::Win32::{
 use super::util::decode_wide;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+    monitor::VideoMode as RootVideoMode,
     platform_impl::platform::{
         dpi::{dpi_to_scale_factor, get_monitor_dpi},
         util::has_flag,
@@ -79,10 +79,8 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: self.monitor.clone(),
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }
 
@@ -136,9 +134,9 @@ impl Window {
         available_monitors()
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 }
 

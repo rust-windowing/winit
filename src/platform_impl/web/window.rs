@@ -2,7 +2,7 @@ use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
-use crate::monitor::MonitorHandle as RootMH;
+use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::window::{
     CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
@@ -283,7 +283,9 @@ impl Window {
     #[inline]
     pub fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
-            Some(Fullscreen::Borderless(Some(self.current_monitor_inner())))
+            Some(Fullscreen::Borderless(Some(RootMonitorHandle {
+                inner: self.current_monitor_inner(),
+            })))
         } else {
             None
         }
@@ -339,14 +341,12 @@ impl Window {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    fn current_monitor_inner(&self) -> RootMH {
-        RootMH {
-            inner: MonitorHandle,
-        }
+    fn current_monitor_inner(&self) -> MonitorHandle {
+        MonitorHandle
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMH> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.current_monitor_inner())
     }
 
@@ -356,10 +356,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMH> {
-        Some(RootMH {
-            inner: MonitorHandle,
-        })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     #[inline]

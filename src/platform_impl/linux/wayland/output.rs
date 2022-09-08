@@ -8,7 +8,6 @@ use sctk::environment::Environment;
 use sctk::output::OutputStatusListener;
 
 use crate::dpi::{PhysicalPosition, PhysicalSize};
-use crate::monitor::MonitorHandle as RootMonitorHandle;
 use crate::platform_impl::platform::{
     MonitorHandle as PlatformMonitorHandle, VideoMode as PlatformVideoMode,
 };
@@ -224,10 +223,8 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> RootMonitorHandle {
-        RootMonitorHandle {
-            inner: PlatformMonitorHandle::Wayland(self.monitor.clone()),
-        }
+    pub fn monitor(&self) -> PlatformMonitorHandle {
+        PlatformMonitorHandle::Wayland(self.monitor.clone())
     }
 }
 
@@ -243,7 +240,7 @@ impl<T> EventLoopWindowTarget<T> {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<PlatformMonitorHandle> {
         // There's no primary monitor on Wayland.
         None
     }

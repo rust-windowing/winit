@@ -24,7 +24,6 @@ use crate::{
     event_loop::{
         ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootEventLoopWindowTarget,
     },
-    monitor::MonitorHandle as RootMonitorHandle,
     platform::ios::Idiom,
 };
 
@@ -60,11 +59,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         unsafe { monitor::uiscreens() }
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         // guaranteed to be on main thread
         let monitor = unsafe { monitor::main_uiscreen() };
 
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {

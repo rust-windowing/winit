@@ -55,7 +55,6 @@ use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
-    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
         definitions::{
@@ -66,7 +65,8 @@ use crate::{
         event_loop::{self, EventLoopWindowTarget, DESTROY_MSG_ID},
         icon::{self, IconType},
         ime::ImeContext,
-        monitor, util,
+        monitor::{self, MonitorHandle},
+        util,
         window_state::{CursorFlags, SavedWindow, WindowFlags, WindowState},
         Parent, PlatformSpecificWindowBuilderAttributes, WindowId,
     },
@@ -547,11 +547,9 @@ impl Window {
                     window_state.lock().unwrap().saved_window = Some(SavedWindow { placement });
 
                     let monitor = match &fullscreen {
-                        Fullscreen::Exclusive(video_mode) => video_mode.monitor(),
-                        Fullscreen::Borderless(Some(monitor)) => monitor.clone(),
-                        Fullscreen::Borderless(None) => RootMonitorHandle {
-                            inner: monitor::current_monitor(window.0),
-                        },
+                        Fullscreen::Exclusive(video_mode) => video_mode.monitor().inner,
+                        Fullscreen::Borderless(Some(monitor)) => monitor.inner.clone(),
+                        Fullscreen::Borderless(None) => monitor::current_monitor(window.0),
                     };
 
                     let position: (i32, i32) = monitor.position().into();
@@ -619,10 +617,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMonitorHandle> {
-        Some(RootMonitorHandle {
-            inner: monitor::current_monitor(self.hwnd()),
-        })
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        Some(monitor::current_monitor(self.hwnd()))
     }
 
     #[inline]

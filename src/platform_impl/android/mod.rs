@@ -23,7 +23,6 @@ use crate::{
     error,
     event::{self, VirtualKeyCode},
     event_loop::{self, ControlFlow},
-    monitor,
     window::{self, CursorGrabMode},
 };
 
@@ -636,10 +635,8 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
-    pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -702,10 +699,8 @@ impl Window {
         WindowId
     }
 
-    pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -714,10 +709,8 @@ impl Window {
         v
     }
 
-    pub fn current_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -941,9 +934,7 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> monitor::MonitorHandle {
-        monitor::MonitorHandle {
-            inner: self.monitor.clone(),
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }
