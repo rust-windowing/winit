@@ -77,7 +77,6 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub titlebar_hidden: bool,
     pub titlebar_buttons_hidden: bool,
     pub fullsize_content_view: bool,
-    pub resize_increments: Option<LogicalSize<f64>>,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
 }
@@ -92,7 +91,6 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             titlebar_hidden: false,
             titlebar_buttons_hidden: false,
             fullsize_content_view: false,
-            resize_increments: None,
             disallow_hidpi: false,
             has_shadow: true,
         }
@@ -331,10 +329,11 @@ impl WinitWindow {
                     this.setLevel(NSWindowLevel::Floating);
                 }
 
-                if let Some(increments) = pl_attrs.resize_increments {
+                if let Some(increments) = attrs.resize_increments {
+                    let increments = increments.to_logical(this.scale_factor());
                     let (w, h) = (increments.width, increments.height);
                     if w >= 1.0 && h >= 1.0 {
-                        let size = NSSize::new(w as CGFloat, h as CGFloat);
+                        let size = NSSize::new(w, h);
                         // It was concluded (#2411) that there is never a use-case for
                         // "outer" resize increments, hence we set "inner" ones here.
                         // ("outer" in macOS being just resizeIncrements, and "inner" - contentResizeIncrements)
