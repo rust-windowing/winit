@@ -257,7 +257,9 @@ impl MonitorHandleExtIOS for MonitorHandle {
 
     #[inline]
     fn preferred_video_mode(&self) -> VideoMode {
-        self.inner.preferred_video_mode()
+        VideoMode {
+            video_mode: self.inner.preferred_video_mode(),
+        }
     }
 }
 

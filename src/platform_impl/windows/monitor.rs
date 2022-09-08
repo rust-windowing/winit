@@ -224,7 +224,7 @@ impl MonitorHandle {
     }
 
     #[inline]
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         // EnumDisplaySettingsExW can return duplicate values (or some of the
         // fields are probably changing, but we aren't looking at those fields
         // anyway), so we're using a BTreeSet deduplicate
@@ -246,6 +246,7 @@ impl MonitorHandle {
                     (DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY) as u32;
                 assert!(has_flag(mode.dmFields, REQUIRED_FIELDS));
 
+                // Use Ord impl of RootVideoMode
                 modes.insert(RootVideoMode {
                     video_mode: VideoMode {
                         size: (mode.dmPelsWidth, mode.dmPelsHeight),
@@ -258,6 +259,6 @@ impl MonitorHandle {
             }
         }
 
-        modes.into_iter()
+        modes.into_iter().map(|mode| mode.video_mode)
     }
 }
