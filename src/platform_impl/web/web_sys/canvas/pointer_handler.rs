@@ -154,7 +154,7 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.on_touch_move =
-            Some(canvas_common.add_event("pointermove", touch_handler(handler)));
+            Some(canvas_common.add_event("pointermove", touch_handler(handler, canvas_common)));
     }
 
     pub fn on_touch_down<F>(&mut self, canvas_common: &super::Common, handler: F)
@@ -162,7 +162,7 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.on_touch_down =
-            Some(canvas_common.add_event("pointerdown", touch_handler(handler)));
+            Some(canvas_common.add_event("pointerdown", touch_handler(handler, canvas_common)));
     }
 
     pub fn on_touch_up<F>(&mut self, canvas_common: &super::Common, handler: F)
@@ -170,7 +170,7 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.on_touch_up =
-            Some(canvas_common.add_event("pointerup", touch_handler(handler)));
+            Some(canvas_common.add_event("pointerup", touch_handler(handler, canvas_common)));
     }
 
     pub fn on_touch_cancel<F>(&mut self, canvas_common: &super::Common, handler: F)
@@ -178,7 +178,7 @@ impl PointerHandler {
         F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
     {
         self.on_touch_cancel =
-            Some(canvas_common.add_event("pointercancel", touch_handler(handler)));
+            Some(canvas_common.add_event("pointercancel", touch_handler(handler, canvas_common)));
     }
 
     pub fn remove_listeners(&mut self) {
@@ -194,10 +194,11 @@ impl PointerHandler {
     }
 }
 
-fn touch_handler<F>(mut handler: F) -> impl FnMut(PointerEvent)
+fn touch_handler<F>(mut handler: F, canvas_common: &super::Common) -> impl FnMut(PointerEvent)
 where
     F: 'static + FnMut(i32, PhysicalPosition<f64>, Force),
 {
+    let canvas = canvas_common.raw.clone();
     move |event: PointerEvent| {
         if event.pointer_type() != "touch" {
             return;
@@ -205,8 +206,7 @@ where
 
         handler(
             event.pointer_id(),
-            event::touch_position(&event)
-                .to_physical(super::super::scale_factor()),
+            event::touch_position(&event, &canvas).to_physical(super::super::scale_factor()),
             Force::Normalized(event.pressure() as f64),
         );
     }
