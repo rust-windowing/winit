@@ -1,3 +1,5 @@
+#![allow(clippy::single_match)]
+
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use winit::{

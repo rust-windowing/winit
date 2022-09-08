@@ -24,23 +24,23 @@ use sctk::shm::ShmHandler;
 /// Set of extra features that are supported by the compositor.
 #[derive(Debug, Clone, Copy)]
 pub struct WindowingFeatures {
-    cursor_grab: bool,
+    pointer_constraints: bool,
     xdg_activation: bool,
 }
 
 impl WindowingFeatures {
     /// Create `WindowingFeatures` based on the presented interfaces.
     pub fn new(env: &Environment<WinitEnv>) -> Self {
-        let cursor_grab = env.get_global::<ZwpPointerConstraintsV1>().is_some();
+        let pointer_constraints = env.get_global::<ZwpPointerConstraintsV1>().is_some();
         let xdg_activation = env.get_global::<XdgActivationV1>().is_some();
         Self {
-            cursor_grab,
+            pointer_constraints,
             xdg_activation,
         }
     }
 
-    pub fn cursor_grab(&self) -> bool {
-        self.cursor_grab
+    pub fn pointer_constraints(&self) -> bool {
+        self.pointer_constraints
     }
 
     pub fn xdg_activation(&self) -> bool {

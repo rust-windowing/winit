@@ -1,10 +1,9 @@
-use std::{fmt, io, mem, path::Path, ptr, sync::Arc};
+use std::{fmt, io, mem, path::Path, sync::Arc};
 
 use windows_sys::{
     core::PCWSTR,
     Win32::{
         Foundation::HWND,
-        System::LibraryLoader::GetModuleHandleW,
         UI::WindowsAndMessaging::{
             CreateIcon, DestroyIcon, LoadImageW, SendMessageW, HICON, ICON_BIG, ICON_SMALL,
             IMAGE_ICON, LR_DEFAULTSIZE, LR_LOADFROMFILE, WM_SETICON,
@@ -111,7 +110,7 @@ impl WinIcon {
         let (width, height) = size.map(Into::into).unwrap_or((0, 0));
         let handle = unsafe {
             LoadImageW(
-                GetModuleHandleW(ptr::null()),
+                util::get_instance_handle(),
                 resource_id as PCWSTR,
                 IMAGE_ICON,
                 width as i32,

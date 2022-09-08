@@ -4,16 +4,14 @@ use std::{
     fmt,
     os::raw::c_char,
     ptr,
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
-use parking_lot::Mutex;
+use once_cell::sync::Lazy;
 
 use super::{ffi, util, XConnection, XError};
 
-lazy_static! {
-    static ref GLOBAL_LOCK: Mutex<()> = Default::default();
-}
+static GLOBAL_LOCK: Lazy<Mutex<()>> = Lazy::new(Default::default);
 
 unsafe fn open_im(xconn: &Arc<XConnection>, locale_modifiers: &CStr) -> Option<ffi::XIM> {
     let _lock = GLOBAL_LOCK.lock();
@@ -181,10 +179,10 @@ impl PotentialInputMethod {
 }
 
 // By logging this struct, you get a sequential listing of every locale modifier tried, where it
-// came from, and if it succceeded.
+// came from, and if it succeeded.
 #[derive(Debug, Clone)]
 pub struct PotentialInputMethods {
-    // On correctly configured systems, the XMODIFIERS environemnt variable tells us everything we
+    // On correctly configured systems, the XMODIFIERS environment variable tells us everything we
     // need to know.
     xmodifiers: Option<PotentialInputMethod>,
     // We have some standard options at our disposal that should ostensibly always work. For users
@@ -214,7 +212,7 @@ impl PotentialInputMethods {
             // that case, we get `None` and end up skipping ahead to the next method.
             xmodifiers,
             fallbacks: [
-                // This is a standard input method that supports compose equences, which should
+                // This is a standard input method that supports compose sequences, which should
                 // always be available. `@im=none` appears to mean the same thing.
                 PotentialInputMethod::from_str("@im=local"),
                 // This explicitly specifies to use the implementation-dependent default, though

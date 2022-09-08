@@ -98,9 +98,9 @@
 //! # Drawing on the window
 //!
 //! Winit doesn't directly provide any methods for drawing on a [`Window`]. However it allows you to
-//! retrieve the raw handle of the window (see the [`platform`] module and/or the
-//! [`raw_window_handle`] method), which in turn allows you to create an
-//! OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
+//! retrieve the raw handle of the window and display (see the [`platform`] module and/or the
+//! [`raw_window_handle`] and [`raw_display_handle`] methods), which in turn allows
+//!  you to create an OpenGL/Vulkan/DirectX/Metal/etc. context that can be used to render graphics.
 //!
 //! Note that many platforms will display garbage data in the window's client area if the
 //! application doesn't render anything to the window by the time the desktop compositor is ready to
@@ -129,13 +129,14 @@
 //! [`LoopDestroyed`]: event::Event::LoopDestroyed
 //! [`platform`]: platform
 //! [`raw_window_handle`]: ./window/struct.Window.html#method.raw_window_handle
+//! [`raw_display_handle`]: ./window/struct.Window.html#method.raw_display_handle
 
 #![deny(rust_2018_idioms)]
 #![deny(rustdoc::broken_intra_doc_links)]
+#![deny(clippy::all)]
+#![cfg_attr(feature = "cargo-clippy", deny(warnings))]
+#![allow(clippy::missing_safety_doc)]
 
-#[allow(unused_imports)]
-#[macro_use]
-extern crate lazy_static;
 #[allow(unused_imports)]
 #[macro_use]
 extern crate log;
@@ -147,6 +148,8 @@ extern crate bitflags;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 #[macro_use]
 extern crate objc;
+#[cfg(target_os = "macos")]
+extern crate objc as objc2;
 
 pub mod dpi;
 #[macro_use]

@@ -7,6 +7,9 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
+use objc::runtime::Object;
+use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
+
 use crate::{
     dpi::LogicalSize,
     event::Event,
@@ -63,20 +66,25 @@ impl<T: 'static> EventLoopWindowTarget<T> {
 
         Some(RootMonitorHandle { inner: monitor })
     }
+
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::UiKit(UiKitDisplayHandle::empty())
+    }
 }
 
 pub struct EventLoop<T: 'static> {
     window_target: RootEventLoopWindowTarget<T>,
 }
 
-#[derive(Default, Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {}
 
 impl<T: 'static> EventLoop<T> {
     pub(crate) fn new(_: &PlatformSpecificEventLoopAttributes) -> EventLoop<T> {
+        assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
+
         static mut SINGLETON_INIT: bool = false;
         unsafe {
-            assert_main_thread!("`EventLoop` can only be created on the main thread on iOS");
             assert!(
                 !SINGLETON_INIT,
                 "Only one `EventLoop` is supported on iOS. \
@@ -107,7 +115,7 @@ impl<T: 'static> EventLoop<T> {
         F: 'static + FnMut(Event<'_, T>, &RootEventLoopWindowTarget<T>, &mut ControlFlow),
     {
         unsafe {
-            let application: *mut c_void = msg_send![class!(UIApplication), sharedApplication];
+            let application: *mut Object = msg_send![class!(UIApplication), sharedApplication];
             assert_eq!(
                 application,
                 ptr::null_mut(),

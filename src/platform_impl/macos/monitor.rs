@@ -8,7 +8,6 @@ use crate::{
 use cocoa::{
     appkit::NSScreen,
     base::{id, nil},
-    foundation::NSUInteger,
 };
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex},
@@ -16,16 +15,13 @@ use core_foundation::{
     string::CFString,
 };
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
-use core_video_sys::{
-    kCVReturnSuccess, kCVTimeIsIndefinite, CVDisplayLinkCreateWithCGDisplay,
-    CVDisplayLinkGetNominalOutputVideoRefreshPeriod, CVDisplayLinkRelease,
-};
+use objc::foundation::NSUInteger;
 
 #[derive(Clone)]
 pub struct VideoMode {
     pub(crate) size: (u32, u32),
     pub(crate) bit_depth: u16,
-    pub(crate) refresh_rate: u16,
+    pub(crate) refresh_rate_millihertz: u32,
     pub(crate) monitor: MonitorHandle,
     pub(crate) native_mode: NativeDisplayMode,
 }
@@ -34,7 +30,7 @@ impl PartialEq for VideoMode {
     fn eq(&self, other: &Self) -> bool {
         self.size == other.size
             && self.bit_depth == other.bit_depth
-            && self.refresh_rate == other.refresh_rate
+            && self.refresh_rate_millihertz == other.refresh_rate_millihertz
             && self.monitor == other.monitor
     }
 }
@@ -45,7 +41,7 @@ impl std::hash::Hash for VideoMode {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.size.hash(state);
         self.bit_depth.hash(state);
-        self.refresh_rate.hash(state);
+        self.refresh_rate_millihertz.hash(state);
         self.monitor.hash(state);
     }
 }
@@ -55,7 +51,7 @@ impl std::fmt::Debug for VideoMode {
         f.debug_struct("VideoMode")
             .field("size", &self.size)
             .field("bit_depth", &self.bit_depth)
-            .field("refresh_rate", &self.refresh_rate)
+            .field("refresh_rate_millihertz", &self.refresh_rate_millihertz)
             .field("monitor", &self.monitor)
             .finish()
     }
@@ -91,8 +87,8 @@ impl VideoMode {
         self.bit_depth
     }
 
-    pub fn refresh_rate(&self) -> u16 {
-        self.refresh_rate
+    pub fn refresh_rate_millihertz(&self) -> u32 {
+        self.refresh_rate_millihertz
     }
 
     pub fn monitor(&self) -> RootMonitorHandle {
@@ -224,22 +220,25 @@ impl MonitorHandle {
         unsafe { NSScreen::backingScaleFactor(screen) as f64 }
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
-        let cv_refresh_rate = unsafe {
+    pub fn refresh_rate_millihertz(&self) -> Option<u32> {
+        unsafe {
             let mut display_link = std::ptr::null_mut();
             assert_eq!(
-                CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link),
-                kCVReturnSuccess
+                ffi::CVDisplayLinkCreateWithCGDisplay(self.0, &mut display_link),
+                ffi::kCVReturnSuccess
             );
-            let time = CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
-            CVDisplayLinkRelease(display_link);
+            let time = ffi::CVDisplayLinkGetNominalOutputVideoRefreshPeriod(display_link);
+            ffi::CVDisplayLinkRelease(display_link);
 
             // This value is indefinite if an invalid display link was specified
-            assert!(time.flags & kCVTimeIsIndefinite == 0);
+            assert!(time.flags & ffi::kCVTimeIsIndefinite == 0);
 
-            time.timeScale as i64 / time.timeValue
-        };
+            Some((time.time_scale as i64 / time.time_value * 1000) as u32)
+        }
+    }
 
+    pub fn video_modes(&self) -> impl Iterator<Item = RootVideoMode> {
+        let refresh_rate_millihertz = self.refresh_rate_millihertz().unwrap_or(0);
         let monitor = self.clone();
 
         unsafe {
@@ -259,14 +258,15 @@ impl MonitorHandle {
             };
 
             modes.into_iter().map(move |mode| {
-                let cg_refresh_rate = ffi::CGDisplayModeGetRefreshRate(mode).round() as i64;
+                let cg_refresh_rate_millihertz =
+                    ffi::CGDisplayModeGetRefreshRate(mode).round() as i64;
 
                 // CGDisplayModeGetRefreshRate returns 0.0 for any display that
                 // isn't a CRT
-                let refresh_rate = if cg_refresh_rate > 0 {
-                    cg_refresh_rate
+                let refresh_rate_millihertz = if cg_refresh_rate_millihertz > 0 {
+                    (cg_refresh_rate_millihertz * 1000) as u32
                 } else {
-                    cv_refresh_rate
+                    refresh_rate_millihertz
                 };
 
                 let pixel_encoding =
@@ -287,7 +287,7 @@ impl MonitorHandle {
                         ffi::CGDisplayModeGetPixelWidth(mode) as u32,
                         ffi::CGDisplayModeGetPixelHeight(mode) as u32,
                     ),
-                    refresh_rate: refresh_rate as u16,
+                    refresh_rate_millihertz,
                     bit_depth,
                     monitor: monitor.clone(),
                     native_mode: NativeDisplayMode(mode),

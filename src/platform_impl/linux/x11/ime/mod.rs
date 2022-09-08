@@ -120,7 +120,33 @@ impl Ime {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
-            let event = if with_preedit {
+            let context = unsafe {
+                ImeContext::new(
+                    &self.inner.xconn,
+                    self.inner.im,
+                    window,
+                    None,
+                    with_preedit,
+                    self.inner.event_sender.clone(),
+                )
+                .or_else(|_| {
+                    debug!(
+                        "failed to create an IME context {} preedit support",
+                        if with_preedit { "with" } else { "without" }
+                    );
+                    ImeContext::new(
+                        &self.inner.xconn,
+                        self.inner.im,
+                        window,
+                        None,
+                        !with_preedit,
+                        self.inner.event_sender.clone(),
+                    )
+                })
+            }?;
+
+            // Check the state on the context, since it could fail to enable or disable preedit.
+            let event = if context.is_allowed {
                 ImeEvent::Enabled
             } else {
                 // There's no IME without preedit.
@@ -132,16 +158,7 @@ impl Ime {
                 .send((window, event))
                 .expect("Failed to send enabled event");
 
-            Some(unsafe {
-                ImeContext::new(
-                    &self.inner.xconn,
-                    self.inner.im,
-                    window,
-                    None,
-                    with_preedit,
-                    self.inner.event_sender.clone(),
-                )
-            }?)
+            Some(context)
         };
         self.inner.contexts.insert(window, context);
         Ok(!self.is_destroyed())

@@ -1,4 +1,5 @@
 #![cfg(target_os = "macos")]
+#![allow(clippy::let_unit_value)]
 
 #[macro_use]
 mod util;
@@ -6,6 +7,7 @@ mod util;
 mod app;
 mod app_delegate;
 mod app_state;
+mod appkit;
 mod event;
 mod event_loop;
 mod ffi;
@@ -19,7 +21,6 @@ mod window_delegate;
 use std::{fmt, ops::Deref, sync::Arc};
 
 pub(crate) use self::{
-    app_delegate::get_aux_state_mut,
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
@@ -69,12 +70,12 @@ impl Deref for Window {
 }
 
 impl Window {
-    pub fn new<T: 'static>(
+    pub(crate) fn new<T: 'static>(
         _window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = autoreleasepool(|| UnownedWindow::new(attributes, pl_attribs))?;
+        let (window, _delegate) = autoreleasepool(|_| UnownedWindow::new(attributes, pl_attribs))?;
         Ok(Window { window, _delegate })
     }
 }

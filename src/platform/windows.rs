@@ -1,5 +1,3 @@
-#![cfg(target_os = "windows")]
-
 use std::{ffi::c_void, path::Path};
 
 use crate::{
@@ -143,6 +141,11 @@ pub trait WindowExtWindows {
 
     /// Whether to show or hide the window icon in the taskbar.
     fn set_skip_taskbar(&self, skip: bool);
+
+    /// Shows or hides the background drop shadow for undecorated windows.
+    ///
+    /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
+    fn set_undecorated_shadow(&self, shadow: bool);
 }
 
 impl WindowExtWindows for Window {
@@ -174,6 +177,11 @@ impl WindowExtWindows for Window {
     #[inline]
     fn set_skip_taskbar(&self, skip: bool) {
         self.window.set_skip_taskbar(skip)
+    }
+
+    #[inline]
+    fn set_undecorated_shadow(&self, shadow: bool) {
+        self.window.set_undecorated_shadow(shadow)
     }
 }
 
@@ -229,6 +237,12 @@ pub trait WindowBuilderExtWindows {
 
     /// Whether show or hide the window icon in the taskbar.
     fn with_skip_taskbar(self, skip: bool) -> WindowBuilder;
+
+    /// Shows or hides the background drop shadow for undecorated windows.
+    ///
+    /// The shadow is hidden by default.
+    /// Enabling the shadow causes a thin 1px line to appear on the top of the window.
+    fn with_undecorated_shadow(self, shadow: bool) -> WindowBuilder;
 }
 
 impl WindowBuilderExtWindows for WindowBuilder {
@@ -277,6 +291,12 @@ impl WindowBuilderExtWindows for WindowBuilder {
     #[inline]
     fn with_skip_taskbar(mut self, skip: bool) -> WindowBuilder {
         self.platform_specific.skip_taskbar = skip;
+        self
+    }
+
+    #[inline]
+    fn with_undecorated_shadow(mut self, shadow: bool) -> WindowBuilder {
+        self.platform_specific.decoration_shadow = shadow;
         self
     }
 }

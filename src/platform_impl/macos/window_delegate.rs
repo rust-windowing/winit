@@ -1,26 +1,23 @@
 use std::{
     f64,
     os::raw::c_void,
-    sync::{atomic::Ordering, Arc, Weak},
+    sync::{Arc, Weak},
 };
 
 use cocoa::{
-    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow},
+    appkit::{self, NSApplicationPresentationOptions, NSView, NSWindow, NSWindowOcclusionState},
     base::{id, nil},
-    foundation::NSUInteger,
 };
-use objc::{
-    declare::ClassDecl,
-    rc::autoreleasepool,
-    runtime::{Class, Object, Sel, BOOL, NO, YES},
-};
+use objc2::foundation::{NSObject, NSUInteger};
+use objc2::rc::autoreleasepool;
+use objc2::runtime::Object;
+use objc2::{declare_class, ClassType};
 
 use crate::{
     dpi::{LogicalPosition, LogicalSize},
     event::{Event, ModifiersState, WindowEvent},
     platform_impl::platform::{
         app_state::AppState,
-        app_state::INTERRUPT_EVENT_LOOP_EXIT,
         event::{EventProxy, EventWrapper},
         util::{self, IdRef},
         view::ViewState,
@@ -29,7 +26,7 @@ use crate::{
     window::{Fullscreen, WindowId},
 };
 
-pub struct WindowDelegateState {
+struct WindowDelegateState {
     ns_window: IdRef, // never changes
     ns_view: IdRef,   // never changes
 
@@ -50,7 +47,7 @@ pub struct WindowDelegateState {
 }
 
 impl WindowDelegateState {
-    pub fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
+    fn new(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Self {
         let scale_factor = window.scale_factor();
         let mut delegate_state = WindowDelegateState {
             ns_window: window.ns_window.clone(),
@@ -75,7 +72,7 @@ impl WindowDelegateState {
         self.window.upgrade().map(|ref window| callback(window))
     }
 
-    pub fn emit_event(&mut self, event: WindowEvent<'static>) {
+    fn emit_event(&mut self, event: WindowEvent<'static>) {
         let event = Event::WindowEvent {
             window_id: WindowId(get_window_id(*self.ns_window)),
             event,
@@ -83,7 +80,7 @@ impl WindowDelegateState {
         AppState::queue_event(EventWrapper::StaticEvent(event));
     }
 
-    pub fn emit_static_scale_factor_changed_event(&mut self) {
+    fn emit_static_scale_factor_changed_event(&mut self) {
         let scale_factor = self.get_scale_factor();
         if scale_factor == self.previous_scale_factor {
             return;
@@ -126,439 +123,389 @@ pub fn new_delegate(window: &Arc<UnownedWindow>, initial_fullscreen: bool) -> Id
     unsafe {
         // This is free'd in `dealloc`
         let state_ptr = Box::into_raw(Box::new(state)) as *mut c_void;
-        let delegate: id = msg_send![WINDOW_DELEGATE_CLASS.0, alloc];
+        let delegate: id = msg_send![WinitWindowDelegate::class(), alloc];
         IdRef::new(msg_send![delegate, initWithWinit: state_ptr])
     }
 }
 
-struct WindowDelegateClass(*const Class);
-unsafe impl Send for WindowDelegateClass {}
-unsafe impl Sync for WindowDelegateClass {}
-
-lazy_static! {
-    static ref WINDOW_DELEGATE_CLASS: WindowDelegateClass = unsafe {
-        let superclass = class!(NSResponder);
-        let mut decl = ClassDecl::new("WinitWindowDelegate", superclass).unwrap();
-
-        decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
-        decl.add_method(
-            sel!(initWithWinit:),
-            init_with_winit as extern "C" fn(&Object, Sel, *mut c_void) -> id,
-        );
-
-        decl.add_method(
-            sel!(windowShouldClose:),
-            window_should_close as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(windowWillClose:),
-            window_will_close as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidResize:),
-            window_did_resize as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidMove:),
-            window_did_move as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidChangeBackingProperties:),
-            window_did_change_backing_properties as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidBecomeKey:),
-            window_did_become_key as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidResignKey:),
-            window_did_resign_key as extern "C" fn(&Object, Sel, id),
-        );
-
-        decl.add_method(
-            sel!(draggingEntered:),
-            dragging_entered as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(prepareForDragOperation:),
-            prepare_for_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(performDragOperation:),
-            perform_drag_operation as extern "C" fn(&Object, Sel, id) -> BOOL,
-        );
-        decl.add_method(
-            sel!(concludeDragOperation:),
-            conclude_drag_operation as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(draggingExited:),
-            dragging_exited as extern "C" fn(&Object, Sel, id),
-        );
-
-        decl.add_method(
-            sel!(window:willUseFullScreenPresentationOptions:),
-            window_will_use_fullscreen_presentation_options
-                as extern "C" fn(&Object, Sel, id, NSUInteger) -> NSUInteger,
-        );
-        decl.add_method(
-            sel!(windowDidEnterFullScreen:),
-            window_did_enter_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowWillEnterFullScreen:),
-            window_will_enter_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidExitFullScreen:),
-            window_did_exit_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowWillExitFullScreen:),
-            window_will_exit_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_method(
-            sel!(windowDidFailToEnterFullScreen:),
-            window_did_fail_to_enter_fullscreen as extern "C" fn(&Object, Sel, id),
-        );
-
-        decl.add_ivar::<*mut c_void>("winitState");
-        WindowDelegateClass(decl.register())
-    };
-}
-
-// This function is definitely unsafe, but labeling that would increase
-// boilerplate and wouldn't really clarify anything...
-fn with_state<F: FnOnce(&mut WindowDelegateState) -> T, T>(this: &Object, callback: F) {
-    let state_ptr = unsafe {
-        let state_ptr: *mut c_void = *this.get_ivar("winitState");
-        &mut *(state_ptr as *mut WindowDelegateState)
-    };
-    callback(state_ptr);
-}
-
-extern "C" fn dealloc(this: &Object, _sel: Sel) {
-    with_state(this, |state| unsafe {
-        Box::from_raw(state as *mut WindowDelegateState);
-    });
-}
-
-extern "C" fn init_with_winit(this: &Object, _sel: Sel, state: *mut c_void) -> id {
-    unsafe {
-        let this: id = msg_send![this, init];
-        if this != nil {
-            (*this).set_ivar("winitState", state);
-            with_state(&*this, |state| {
-                let () = msg_send![*state.ns_window, setDelegate: this];
-            });
-        }
-        this
+declare_class!(
+    #[derive(Debug)]
+    struct WinitWindowDelegate {
+        state: *mut c_void,
     }
-}
 
-extern "C" fn window_should_close(this: &Object, _: Sel, _: id) -> BOOL {
-    trace_scope!("windowShouldClose:");
-    with_state(this, |state| state.emit_event(WindowEvent::CloseRequested));
-    NO
-}
+    unsafe impl ClassType for WinitWindowDelegate {
+        type Super = NSObject;
+    }
 
-extern "C" fn window_will_close(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowWillClose:");
-    with_state(this, |state| unsafe {
-        // `setDelegate:` retains the previous value and then autoreleases it
-        autoreleasepool(|| {
-            // Since El Capitan, we need to be careful that delegate methods can't
-            // be called after the window closes.
-            let () = msg_send![*state.ns_window, setDelegate: nil];
-        });
-        state.emit_event(WindowEvent::Destroyed);
-    });
-}
-
-extern "C" fn window_did_resize(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowDidResize:");
-    with_state(this, |state| {
-        // NOTE: WindowEvent::Resized is reported in frameDidChange.
-        state.emit_move_event();
-    });
-}
-
-// This won't be triggered if the move was part of a resize.
-extern "C" fn window_did_move(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowDidMove:");
-    with_state(this, |state| {
-        state.emit_move_event();
-    });
-}
-
-extern "C" fn window_did_change_backing_properties(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowDidChangeBackingProperties:");
-    with_state(this, |state| {
-        state.emit_static_scale_factor_changed_event();
-    });
-}
-
-extern "C" fn window_did_become_key(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowDidBecomeKey:");
-    with_state(this, |state| {
-        // TODO: center the cursor if the window had mouse grab when it
-        // lost focus
-        state.emit_event(WindowEvent::Focused(true));
-    });
-}
-
-extern "C" fn window_did_resign_key(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowDidResignKey:");
-    with_state(this, |state| {
-        // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
-        // NSWindowDelegate will receive a didResignKey event despite no event
-        // being received when the modifiers are released.  This is because
-        // flagsChanged events are received by the NSView instead of the
-        // NSWindowDelegate, and as a result a tracked modifiers state can quite
-        // easily fall out of synchrony with reality.  This requires us to emit
-        // a synthetic ModifiersChanged event when we lose focus.
-        //
-        // Here we (very unsafely) acquire the winitState (a ViewState) from the
-        // Object referenced by state.ns_view (an IdRef, which is dereferenced
-        // to an id)
-        let view_state: &mut ViewState = unsafe {
-            let ns_view: &Object = (*state.ns_view).as_ref().expect("failed to deref");
-            let state_ptr: *mut c_void = *ns_view.get_ivar("winitState");
-            &mut *(state_ptr as *mut ViewState)
-        };
-
-        // Both update the state and emit a ModifiersChanged event.
-        if !view_state.modifiers.is_empty() {
-            view_state.modifiers = ModifiersState::empty();
-            state.emit_event(WindowEvent::ModifiersChanged(view_state.modifiers));
+    unsafe impl WinitWindowDelegate {
+        #[sel(dealloc)]
+        fn dealloc(&mut self) {
+            self.with_state(|state| unsafe {
+                drop(Box::from_raw(state as *mut WindowDelegateState));
+            });
         }
 
-        state.emit_event(WindowEvent::Focused(false));
-    });
-}
-
-/// Invoked when the dragged image enters destination bounds or frame
-extern "C" fn dragging_entered(this: &Object, _: Sel, sender: id) -> BOOL {
-    trace_scope!("draggingEntered:");
-
-    use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
-    use std::path::PathBuf;
-
-    let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
-    let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
-
-    for file in unsafe { filenames.iter() } {
-        use cocoa::foundation::NSString;
-        use std::ffi::CStr;
-
-        unsafe {
-            let f = NSString::UTF8String(file);
-            let path = CStr::from_ptr(f).to_string_lossy().into_owned();
-
-            with_state(this, |state| {
-                state.emit_event(WindowEvent::HoveredFile(PathBuf::from(path)));
-            });
+        #[sel(initWithWinit:)]
+        fn init_with_winit(&mut self, state: *mut c_void) -> Option<&mut Self> {
+            let this: Option<&mut Self> = unsafe { msg_send![self, init] };
+            this.map(|this| {
+                *this.state = state;
+                this.with_state(|state| {
+                    let _: () = unsafe { msg_send![*state.ns_window, setDelegate: &*this] };
+                });
+                this
+            })
         }
     }
 
-    YES
-}
+    // NSWindowDelegate + NSDraggingDestination protocols
+    unsafe impl WinitWindowDelegate {
+        #[sel(windowShouldClose:)]
+        fn window_should_close(&self, _: id) -> bool {
+            trace_scope!("windowShouldClose:");
+            self.with_state(|state| state.emit_event(WindowEvent::CloseRequested));
+            false
+        }
 
-/// Invoked when the image is released
-extern "C" fn prepare_for_drag_operation(_: &Object, _: Sel, _: id) -> BOOL {
-    trace_scope!("prepareForDragOperation:");
-    YES
-}
-
-/// Invoked after the released image has been removed from the screen
-extern "C" fn perform_drag_operation(this: &Object, _: Sel, sender: id) -> BOOL {
-    trace_scope!("performDragOperation:");
-
-    use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
-    use std::path::PathBuf;
-
-    let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
-    let filenames = unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
-
-    for file in unsafe { filenames.iter() } {
-        use cocoa::foundation::NSString;
-        use std::ffi::CStr;
-
-        unsafe {
-            let f = NSString::UTF8String(file);
-            let path = CStr::from_ptr(f).to_string_lossy().into_owned();
-
-            with_state(this, |state| {
-                state.emit_event(WindowEvent::DroppedFile(PathBuf::from(path)));
+        #[sel(windowWillClose:)]
+        fn window_will_close(&self, _: id) {
+            trace_scope!("windowWillClose:");
+            self.with_state(|state| unsafe {
+                // `setDelegate:` retains the previous value and then autoreleases it
+                autoreleasepool(|_| {
+                    // Since El Capitan, we need to be careful that delegate methods can't
+                    // be called after the window closes.
+                    let _: () = msg_send![*state.ns_window, setDelegate: nil];
+                });
+                state.emit_event(WindowEvent::Destroyed);
             });
         }
-    }
 
-    YES
-}
+        #[sel(windowDidResize:)]
+        fn window_did_resize(&self, _: id) {
+            trace_scope!("windowDidResize:");
+            self.with_state(|state| {
+                // NOTE: WindowEvent::Resized is reported in frameDidChange.
+                state.emit_move_event();
+            });
+        }
 
-/// Invoked when the dragging operation is complete
-extern "C" fn conclude_drag_operation(_: &Object, _: Sel, _: id) {
-    trace_scope!("concludeDragOperation:");
-}
+        // This won't be triggered if the move was part of a resize.
+        #[sel(windowDidMove:)]
+        fn window_did_move(&self, _: id) {
+            trace_scope!("windowDidMove:");
+            self.with_state(|state| {
+                state.emit_move_event();
+            });
+        }
 
-/// Invoked when the dragging operation is cancelled
-extern "C" fn dragging_exited(this: &Object, _: Sel, _: id) {
-    trace_scope!("draggingExited:");
-    with_state(this, |state| {
-        state.emit_event(WindowEvent::HoveredFileCancelled)
-    });
-}
+        #[sel(windowDidChangeBackingProperties:)]
+        fn window_did_change_backing_properties(&self, _: id) {
+            trace_scope!("windowDidChangeBackingProperties:");
+            self.with_state(|state| {
+                state.emit_static_scale_factor_changed_event();
+            });
+        }
 
-/// Invoked when before enter fullscreen
-extern "C" fn window_will_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowWillEnterFullscreen:");
+        #[sel(windowDidBecomeKey:)]
+        fn window_did_become_key(&self, _: id) {
+            trace_scope!("windowDidBecomeKey:");
+            self.with_state(|state| {
+                // TODO: center the cursor if the window had mouse grab when it
+                // lost focus
+                state.emit_event(WindowEvent::Focused(true));
+            });
+        }
 
-    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
+        #[sel(windowDidResignKey:)]
+        fn window_did_resign_key(&self, _: id) {
+            trace_scope!("windowDidResignKey:");
+            self.with_state(|state| {
+                // It happens rather often, e.g. when the user is Cmd+Tabbing, that the
+                // NSWindowDelegate will receive a didResignKey event despite no event
+                // being received when the modifiers are released.  This is because
+                // flagsChanged events are received by the NSView instead of the
+                // NSWindowDelegate, and as a result a tracked modifiers state can quite
+                // easily fall out of synchrony with reality.  This requires us to emit
+                // a synthetic ModifiersChanged event when we lose focus.
+                //
+                // Here we (very unsafely) acquire the winitState (a ViewState) from the
+                // Object referenced by state.ns_view (an IdRef, which is dereferenced
+                // to an id)
+                let view_state: &mut ViewState = unsafe {
+                    let ns_view: &Object = (*state.ns_view).as_ref().expect("failed to deref");
+                    let state_ptr: *mut c_void = *ns_view.ivar("winitState");
+                    &mut *(state_ptr as *mut ViewState)
+                };
 
-    with_state(this, |state| {
-        state.with_window(|window| {
-            let mut shared_state = window.lock_shared_state("window_will_enter_fullscreen");
-            shared_state.maximized = window.is_zoomed();
-            match shared_state.fullscreen {
-                // Exclusive mode sets the state in `set_fullscreen` as the user
-                // can't enter exclusive mode by other means (like the
-                // fullscreen button on the window decorations)
-                Some(Fullscreen::Exclusive(_)) => (),
-                // `window_will_enter_fullscreen` was triggered and we're already
-                // in fullscreen, so we must've reached here by `set_fullscreen`
-                // as it updates the state
-                Some(Fullscreen::Borderless(_)) => (),
-                // Otherwise, we must've reached fullscreen by the user clicking
-                // on the green fullscreen button. Update state!
-                None => {
-                    let current_monitor = Some(window.current_monitor_inner());
-                    shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
+                // Both update the state and emit a ModifiersChanged event.
+                if !view_state.modifiers.is_empty() {
+                    view_state.modifiers = ModifiersState::empty();
+                    state.emit_event(WindowEvent::ModifiersChanged(view_state.modifiers));
+                }
+
+                state.emit_event(WindowEvent::Focused(false));
+            });
+        }
+
+        /// Invoked when the dragged image enters destination bounds or frame
+        #[sel(draggingEntered:)]
+        fn dragging_entered(&self, sender: id) -> bool {
+            trace_scope!("draggingEntered:");
+
+            use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames =
+                unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    self.with_state(|state| {
+                        state.emit_event(WindowEvent::HoveredFile(PathBuf::from(path)));
+                    });
                 }
             }
-            shared_state.in_fullscreen_transition = true;
-        })
-    });
-}
 
-/// Invoked when before exit fullscreen
-extern "C" fn window_will_exit_fullscreen(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowWillExitFullScreen:");
-
-    INTERRUPT_EVENT_LOOP_EXIT.store(true, Ordering::SeqCst);
-
-    with_state(this, |state| {
-        state.with_window(|window| {
-            let mut shared_state = window.lock_shared_state("window_will_exit_fullscreen");
-            shared_state.in_fullscreen_transition = true;
-        });
-    });
-}
-
-extern "C" fn window_will_use_fullscreen_presentation_options(
-    this: &Object,
-    _: Sel,
-    _: id,
-    proposed_options: NSUInteger,
-) -> NSUInteger {
-    trace_scope!("window:willUseFullScreenPresentationOptions:");
-    // Generally, games will want to disable the menu bar and the dock. Ideally,
-    // this would be configurable by the user. Unfortunately because of our
-    // `CGShieldingWindowLevel() + 1` hack (see `set_fullscreen`), our window is
-    // placed on top of the menu bar in exclusive fullscreen mode. This looks
-    // broken so we always disable the menu bar in exclusive fullscreen. We may
-    // still want to make this configurable for borderless fullscreen. Right now
-    // we don't, for consistency. If we do, it should be documented that the
-    // user-provided options are ignored in exclusive fullscreen.
-    let mut options: NSUInteger = proposed_options;
-    with_state(this, |state| {
-        state.with_window(|window| {
-            let shared_state =
-                window.lock_shared_state("window_will_use_fullscreen_presentation_options");
-            if let Some(Fullscreen::Exclusive(_)) = shared_state.fullscreen {
-                options = (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
-                    | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
-                    | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
-                    .bits();
-            }
-        })
-    });
-
-    options
-}
-
-/// Invoked when entered fullscreen
-extern "C" fn window_did_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowDidEnterFullscreen:");
-    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
-
-    with_state(this, |state| {
-        state.initial_fullscreen = false;
-        state.with_window(|window| {
-            let mut shared_state = window.lock_shared_state("window_did_enter_fullscreen");
-            shared_state.in_fullscreen_transition = false;
-            let target_fullscreen = shared_state.target_fullscreen.take();
-            drop(shared_state);
-            if let Some(target_fullscreen) = target_fullscreen {
-                window.set_fullscreen(target_fullscreen);
-            }
-        });
-    });
-}
-
-/// Invoked when exited fullscreen
-extern "C" fn window_did_exit_fullscreen(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowDidExitFullscreen:");
-    INTERRUPT_EVENT_LOOP_EXIT.store(false, Ordering::SeqCst);
-
-    with_state(this, |state| {
-        state.with_window(|window| {
-            window.restore_state_from_fullscreen();
-            let mut shared_state = window.lock_shared_state("window_did_exit_fullscreen");
-            shared_state.in_fullscreen_transition = false;
-            let target_fullscreen = shared_state.target_fullscreen.take();
-            drop(shared_state);
-            if let Some(target_fullscreen) = target_fullscreen {
-                window.set_fullscreen(target_fullscreen);
-            }
-        })
-    });
-}
-
-/// Invoked when fail to enter fullscreen
-///
-/// When this window launch from a fullscreen app (e.g. launch from VS Code
-/// terminal), it creates a new virtual destkop and a transition animation.
-/// This animation takes one second and cannot be disable without
-/// elevated privileges. In this animation time, all toggleFullscreen events
-/// will be failed. In this implementation, we will try again by using
-/// performSelector:withObject:afterDelay: until window_did_enter_fullscreen.
-/// It should be fine as we only do this at initialzation (i.e with_fullscreen
-/// was set).
-///
-/// From Apple doc:
-/// In some cases, the transition to enter full-screen mode can fail,
-/// due to being in the midst of handling some other animation or user gesture.
-/// This method indicates that there was an error, and you should clean up any
-/// work you may have done to prepare to enter full-screen mode.
-extern "C" fn window_did_fail_to_enter_fullscreen(this: &Object, _: Sel, _: id) {
-    trace_scope!("windowDidFailToEnterFullscreen:");
-    with_state(this, |state| {
-        state.with_window(|window| {
-            let mut shared_state = window.lock_shared_state("window_did_fail_to_enter_fullscreen");
-            shared_state.in_fullscreen_transition = false;
-            shared_state.target_fullscreen = None;
-        });
-        if state.initial_fullscreen {
-            let _: () = unsafe {
-                msg_send![*state.ns_window,
-                    performSelector:sel!(toggleFullScreen:)
-                    withObject:nil
-                    afterDelay: 0.5
-                ]
-            };
-        } else {
-            state.with_window(|window| window.restore_state_from_fullscreen());
+            true
         }
-    });
+
+        /// Invoked when the image is released
+        #[sel(prepareForDragOperation:)]
+        fn prepare_for_drag_operation(&self, _: id) -> bool {
+            trace_scope!("prepareForDragOperation:");
+            true
+        }
+
+        /// Invoked after the released image has been removed from the screen
+        #[sel(performDragOperation:)]
+        fn perform_drag_operation(&self, sender: id) -> bool {
+            trace_scope!("performDragOperation:");
+
+            use cocoa::{appkit::NSPasteboard, foundation::NSFastEnumeration};
+            use std::path::PathBuf;
+
+            let pb: id = unsafe { msg_send![sender, draggingPasteboard] };
+            let filenames =
+                unsafe { NSPasteboard::propertyListForType(pb, appkit::NSFilenamesPboardType) };
+
+            for file in unsafe { filenames.iter() } {
+                use cocoa::foundation::NSString;
+                use std::ffi::CStr;
+
+                unsafe {
+                    let f = NSString::UTF8String(file);
+                    let path = CStr::from_ptr(f).to_string_lossy().into_owned();
+
+                    self.with_state(|state| {
+                        state.emit_event(WindowEvent::DroppedFile(PathBuf::from(path)));
+                    });
+                }
+            }
+
+            true
+        }
+
+        /// Invoked when the dragging operation is complete
+        #[sel(concludeDragOperation:)]
+        fn conclude_drag_operation(&self, _: id) {
+            trace_scope!("concludeDragOperation:");
+        }
+
+        /// Invoked when the dragging operation is cancelled
+        #[sel(draggingExited:)]
+        fn dragging_exited(&self, _: id) {
+            trace_scope!("draggingExited:");
+            self.with_state(|state| state.emit_event(WindowEvent::HoveredFileCancelled));
+        }
+
+        /// Invoked when before enter fullscreen
+        #[sel(windowWillEnterFullscreen:)]
+        fn window_will_enter_fullscreen(&self, _: id) {
+            trace_scope!("windowWillEnterFullscreen:");
+
+            self.with_state(|state| {
+                state.with_window(|window| {
+                    let mut shared_state = window.lock_shared_state("window_will_enter_fullscreen");
+                    shared_state.maximized = window.is_zoomed();
+                    let fullscreen = shared_state.fullscreen.as_ref();
+                    match fullscreen {
+                        // Exclusive mode sets the state in `set_fullscreen` as the user
+                        // can't enter exclusive mode by other means (like the
+                        // fullscreen button on the window decorations)
+                        Some(Fullscreen::Exclusive(_)) => (),
+                        // `window_will_enter_fullscreen` was triggered and we're already
+                        // in fullscreen, so we must've reached here by `set_fullscreen`
+                        // as it updates the state
+                        Some(Fullscreen::Borderless(_)) => (),
+                        // Otherwise, we must've reached fullscreen by the user clicking
+                        // on the green fullscreen button. Update state!
+                        None => {
+                            let current_monitor = Some(window.current_monitor_inner());
+                            shared_state.fullscreen = Some(Fullscreen::Borderless(current_monitor))
+                        }
+                    }
+                    shared_state.in_fullscreen_transition = true;
+                })
+            });
+        }
+
+        /// Invoked when before exit fullscreen
+        #[sel(windowWillExitFullScreen:)]
+        fn window_will_exit_fullscreen(&self, _: id) {
+            trace_scope!("windowWillExitFullScreen:");
+
+            self.with_state(|state| {
+                state.with_window(|window| {
+                    let mut shared_state = window.lock_shared_state("window_will_exit_fullscreen");
+                    shared_state.in_fullscreen_transition = true;
+                });
+            });
+        }
+
+        #[sel(window:willUseFullScreenPresentationOptions:)]
+        fn window_will_use_fullscreen_presentation_options(
+            &self,
+            _: id,
+            proposed_options: NSUInteger,
+        ) -> NSUInteger {
+            trace_scope!("window:willUseFullScreenPresentationOptions:");
+            // Generally, games will want to disable the menu bar and the dock. Ideally,
+            // this would be configurable by the user. Unfortunately because of our
+            // `CGShieldingWindowLevel() + 1` hack (see `set_fullscreen`), our window is
+            // placed on top of the menu bar in exclusive fullscreen mode. This looks
+            // broken so we always disable the menu bar in exclusive fullscreen. We may
+            // still want to make this configurable for borderless fullscreen. Right now
+            // we don't, for consistency. If we do, it should be documented that the
+            // user-provided options are ignored in exclusive fullscreen.
+            let mut options: NSUInteger = proposed_options;
+            self.with_state(|state| {
+                state.with_window(|window| {
+                    let shared_state =
+                        window.lock_shared_state("window_will_use_fullscreen_presentation_options");
+                    if let Some(Fullscreen::Exclusive(_)) = shared_state.fullscreen {
+                        options = (NSApplicationPresentationOptions::NSApplicationPresentationFullScreen
+                            | NSApplicationPresentationOptions::NSApplicationPresentationHideDock
+                            | NSApplicationPresentationOptions::NSApplicationPresentationHideMenuBar)
+                            .bits() as NSUInteger;
+                    }
+                })
+            });
+
+            options
+        }
+
+        /// Invoked when entered fullscreen
+        #[sel(windowDidEnterFullscreen:)]
+        fn window_did_enter_fullscreen(&self, _: id) {
+            trace_scope!("windowDidEnterFullscreen:");
+            self.with_state(|state| {
+                state.initial_fullscreen = false;
+                state.with_window(|window| {
+                    let mut shared_state = window.lock_shared_state("window_did_enter_fullscreen");
+                    shared_state.in_fullscreen_transition = false;
+                    let target_fullscreen = shared_state.target_fullscreen.take();
+                    drop(shared_state);
+                    if let Some(target_fullscreen) = target_fullscreen {
+                        window.set_fullscreen(target_fullscreen);
+                    }
+                });
+            });
+        }
+
+        /// Invoked when exited fullscreen
+        #[sel(windowDidExitFullscreen:)]
+        fn window_did_exit_fullscreen(&self, _: id) {
+            trace_scope!("windowDidExitFullscreen:");
+
+            self.with_state(|state| {
+                state.with_window(|window| {
+                    window.restore_state_from_fullscreen();
+                    let mut shared_state = window.lock_shared_state("window_did_exit_fullscreen");
+                    shared_state.in_fullscreen_transition = false;
+                    let target_fullscreen = shared_state.target_fullscreen.take();
+                    drop(shared_state);
+                    if let Some(target_fullscreen) = target_fullscreen {
+                        window.set_fullscreen(target_fullscreen);
+                    }
+                })
+            });
+        }
+
+        /// Invoked when fail to enter fullscreen
+        ///
+        /// When this window launch from a fullscreen app (e.g. launch from VS Code
+        /// terminal), it creates a new virtual destkop and a transition animation.
+        /// This animation takes one second and cannot be disable without
+        /// elevated privileges. In this animation time, all toggleFullscreen events
+        /// will be failed. In this implementation, we will try again by using
+        /// performSelector:withObject:afterDelay: until window_did_enter_fullscreen.
+        /// It should be fine as we only do this at initialzation (i.e with_fullscreen
+        /// was set).
+        ///
+        /// From Apple doc:
+        /// In some cases, the transition to enter full-screen mode can fail,
+        /// due to being in the midst of handling some other animation or user gesture.
+        /// This method indicates that there was an error, and you should clean up any
+        /// work you may have done to prepare to enter full-screen mode.
+        #[sel(windowDidFailToEnterFullscreen:)]
+        fn window_did_fail_to_enter_fullscreen(&self, _: id) {
+            trace_scope!("windowDidFailToEnterFullscreen:");
+            self.with_state(|state| {
+                state.with_window(|window| {
+                    let mut shared_state =
+                        window.lock_shared_state("window_did_fail_to_enter_fullscreen");
+                    shared_state.in_fullscreen_transition = false;
+                    shared_state.target_fullscreen = None;
+                });
+                if state.initial_fullscreen {
+                    unsafe {
+                        let _: () = msg_send![*state.ns_window,
+                            performSelector:sel!(toggleFullScreen:)
+                            withObject:nil
+                            afterDelay: 0.5
+                        ];
+                    };
+                } else {
+                    state.with_window(|window| window.restore_state_from_fullscreen());
+                }
+            });
+        }
+
+        // Invoked when the occlusion state of the window changes
+        #[sel(windowDidChangeOcclusionState:)]
+        fn window_did_change_occlusion_state(&self, _: id) {
+            trace_scope!("windowDidChangeOcclusionState:");
+            unsafe {
+                self.with_state(|state| {
+                    state.emit_event(WindowEvent::Occluded(
+                        !state
+                            .ns_window
+                            .occlusionState()
+                            .contains(NSWindowOcclusionState::NSWindowOcclusionStateVisible),
+                    ))
+                });
+            }
+        }
+    }
+);
+
+impl WinitWindowDelegate {
+    // This function is definitely unsafe (&self -> &mut state), but labeling that
+    // would increase boilerplate and wouldn't really clarify anything...
+    fn with_state<F: FnOnce(&mut WindowDelegateState) -> T, T>(&self, callback: F) {
+        let state_ptr = unsafe {
+            let state_ptr: *mut c_void = *self.state;
+            &mut *(state_ptr as *mut WindowDelegateState)
+        };
+        callback(state_ptr);
+    }
 }

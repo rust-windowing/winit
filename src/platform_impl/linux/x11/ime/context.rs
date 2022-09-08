@@ -1,12 +1,13 @@
-use std::mem::transmute;
+use std::ffi::CStr;
 use std::os::raw::c_short;
-use std::ptr;
 use std::sync::Arc;
+use std::{mem, ptr};
+
+use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
+
+use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
 
 use super::{ffi, util, XConnection, XError};
-use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
-use std::ffi::CStr;
-use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
 /// IME creation error.
 #[derive(Debug)]
@@ -65,12 +66,10 @@ extern "C" fn preedit_done_callback(
         .expect("failed to send preedit end event");
 }
 
-fn calc_byte_position(text: &Vec<char>, pos: usize) -> usize {
-    let mut byte_pos = 0;
-    for i in 0..pos {
-        byte_pos += text[i].len_utf8();
-    }
-    byte_pos
+fn calc_byte_position(text: &[char], pos: usize) -> usize {
+    text.iter()
+        .take(pos)
+        .fold(0, |byte_pos, text| byte_pos + text.len_utf8())
 }
 
 /// Preedit text information to be drawn inline by the client.
@@ -103,7 +102,14 @@ extern "C" fn preedit_draw_callback(
         if xim_text.encoding_is_wchar > 0 {
             return;
         }
-        let new_text = unsafe { CStr::from_ptr(xim_text.string.multi_byte) };
+
+        let new_text = unsafe { xim_text.string.multi_byte };
+
+        if new_text.is_null() {
+            return;
+        }
+
+        let new_text = unsafe { CStr::from_ptr(new_text) };
 
         String::from(new_text.to_str().expect("Invalid UTF-8 String from IME"))
             .chars()
@@ -158,7 +164,7 @@ struct PreeditCallbacks {
 impl PreeditCallbacks {
     pub fn new(client_data: ffi::XPointer) -> PreeditCallbacks {
         let start_callback = create_xim_callback(client_data, unsafe {
-            transmute(preedit_start_callback as usize)
+            mem::transmute(preedit_start_callback as usize)
         });
         let done_callback = create_xim_callback(client_data, preedit_done_callback);
         let caret_callback = create_xim_callback(client_data, preedit_caret_callback);

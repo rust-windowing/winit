@@ -22,10 +22,7 @@ pub enum State {
 
 impl State {
     pub fn is_exit(&self) -> bool {
-        match self {
-            State::Exit => true,
-            _ => false,
-        }
+        matches!(self, State::Exit)
     }
 
     pub fn control_flow(&self) -> ControlFlow {

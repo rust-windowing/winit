@@ -4,10 +4,7 @@
 
 use std::ffi::c_void;
 
-use cocoa::{
-    base::id,
-    foundation::{NSInteger, NSUInteger},
-};
+use cocoa::base::id;
 use core_foundation::{
     array::CFArrayRef, dictionary::CFDictionaryRef, string::CFStringRef, uuid::CFUUIDRef,
 };
@@ -15,33 +12,9 @@ use core_graphics::{
     base::CGError,
     display::{CGDirectDisplayID, CGDisplayConfigRef},
 };
+use objc::foundation::{NSInteger, NSUInteger};
 
 pub const NSNotFound: NSInteger = NSInteger::max_value();
-
-#[repr(C)]
-pub struct NSRange {
-    pub location: NSUInteger,
-    pub length: NSUInteger,
-}
-
-impl NSRange {
-    #[inline]
-    pub fn new(location: NSUInteger, length: NSUInteger) -> NSRange {
-        NSRange { location, length }
-    }
-}
-
-unsafe impl objc::Encode for NSRange {
-    fn encode() -> objc::Encoding {
-        let encoding = format!(
-            // TODO: Verify that this is correct
-            "{{NSRange={}{}}}",
-            NSUInteger::encode().as_str(),
-            NSUInteger::encode().as_str(),
-        );
-        unsafe { objc::Encoding::from_str(&encoding) }
-    }
-}
 
 pub trait NSMutableAttributedString: Sized {
     unsafe fn alloc(_: Self) -> id {
@@ -221,3 +194,45 @@ extern "C" {
     pub fn CGDisplayModeRetain(mode: CGDisplayModeRef);
     pub fn CGDisplayModeRelease(mode: CGDisplayModeRef);
 }
+
+mod core_video {
+    use super::*;
+
+    #[link(name = "CoreVideo", kind = "framework")]
+    extern "C" {}
+
+    // CVBase.h
+
+    pub type CVTimeFlags = i32; // int32_t
+    pub const kCVTimeIsIndefinite: CVTimeFlags = 1 << 0;
+
+    #[repr(C)]
+    #[derive(Debug, Clone)]
+    pub struct CVTime {
+        pub time_value: i64, // int64_t
+        pub time_scale: i32, // int32_t
+        pub flags: i32,      // int32_t
+    }
+
+    // CVReturn.h
+
+    pub type CVReturn = i32; // int32_t
+    pub const kCVReturnSuccess: CVReturn = 0;
+
+    // CVDisplayLink.h
+
+    pub type CVDisplayLinkRef = *mut c_void;
+
+    extern "C" {
+        pub fn CVDisplayLinkCreateWithCGDisplay(
+            displayID: CGDirectDisplayID,
+            displayLinkOut: *mut CVDisplayLinkRef,
+        ) -> CVReturn;
+        pub fn CVDisplayLinkGetNominalOutputVideoRefreshPeriod(
+            displayLink: CVDisplayLinkRef,
+        ) -> CVTime;
+        pub fn CVDisplayLinkRelease(displayLink: CVDisplayLinkRef);
+    }
+}
+
+pub use core_video::*;

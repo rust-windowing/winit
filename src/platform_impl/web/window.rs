@@ -4,10 +4,10 @@ use crate::event;
 use crate::icon::Icon;
 use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{
-    CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
-use raw_window_handle::{RawWindowHandle, WebHandle};
+use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
 
 use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget};
 
@@ -26,7 +26,7 @@ pub struct Window {
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         target: &EventLoopWindowTarget<T>,
         attr: WindowAttributes,
         platform_attr: PlatformSpecificWindowBuilderAttributes,
@@ -35,12 +35,14 @@ impl Window {
 
         let id = target.generate_id();
 
+        let prevent_default = platform_attr.prevent_default;
+
         let canvas = backend::Canvas::create(platform_attr)?;
-        let mut canvas = Rc::new(RefCell::new(canvas));
+        let canvas = Rc::new(RefCell::new(canvas));
 
         let register_redraw_request = Box::new(move || runner.request_redraw(RootWI(id)));
 
-        target.register(&mut canvas, id);
+        target.register(&canvas, id, prevent_default);
 
         let runner = target.runner.clone();
         let resize_notify_fn = Box::new(move |new_size| {
@@ -77,7 +79,7 @@ impl Window {
         Ok(window)
     }
 
-    pub fn canvas<'a>(&'a self) -> Ref<'a, backend::Canvas> {
+    pub fn canvas(&self) -> Ref<'_, backend::Canvas> {
         self.canvas.borrow()
     }
 
@@ -152,6 +154,16 @@ impl Window {
     }
 
     #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {
+        // Intentionally a no-op: users can't resize canvas elements
+    }
+
+    #[inline]
     pub fn set_resizable(&self, _resizable: bool) {
         // Intentionally a no-op: users can't resize canvas elements
     }
@@ -216,11 +228,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        let lock = match mode {
+            CursorGrabMode::None => false,
+            CursorGrabMode::Locked => true,
+            CursorGrabMode::Confined => {
+                return Err(ExternalError::NotSupported(NotSupportedError::new()))
+            }
+        };
+
         self.canvas
             .borrow()
-            .set_cursor_grab(grab)
-            .map_err(|e| ExternalError::Os(e))
+            .set_cursor_lock(lock)
+            .map_err(ExternalError::Os)
     }
 
     #[inline]
@@ -344,14 +364,19 @@ impl Window {
 
     #[inline]
     pub fn id(&self) -> WindowId {
-        return self.id;
+        self.id
     }
 
     #[inline]
     pub fn raw_window_handle(&self) -> RawWindowHandle {
-        let mut handle = WebHandle::empty();
-        handle.id = self.id.0;
-        RawWindowHandle::Web(handle)
+        let mut window_handle = WebWindowHandle::empty();
+        window_handle.id = self.id.0;
+        RawWindowHandle::Web(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::Web(WebDisplayHandle::empty())
     }
 }
 
@@ -372,7 +397,31 @@ impl WindowId {
     }
 }
 
-#[derive(Default, Clone)]
+impl From<WindowId> for u64 {
+    fn from(window_id: WindowId) -> Self {
+        window_id.0 as u64
+    }
+}
+
+impl From<u64> for WindowId {
+    fn from(raw_id: u64) -> Self {
+        Self(raw_id as u32)
+    }
+}
+
+#[derive(Clone)]
 pub struct PlatformSpecificWindowBuilderAttributes {
     pub(crate) canvas: Option<backend::RawCanvasType>,
+    pub(crate) prevent_default: bool,
+    pub(crate) focusable: bool,
+}
+
+impl Default for PlatformSpecificWindowBuilderAttributes {
+    fn default() -> Self {
+        Self {
+            canvas: None,
+            prevent_default: true,
+            focusable: true,
+        }
+    }
 }

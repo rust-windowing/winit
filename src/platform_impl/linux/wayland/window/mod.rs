@@ -7,7 +7,9 @@ use sctk::reexports::client::Display;
 
 use sctk::reexports::calloop;
 
-use raw_window_handle::WaylandHandle;
+use raw_window_handle::{
+    RawDisplayHandle, RawWindowHandle, WaylandDisplayHandle, WaylandWindowHandle,
+};
 use sctk::window::Decorations;
 
 use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
@@ -17,7 +19,9 @@ use crate::platform_impl::{
     MonitorHandle as PlatformMonitorHandle, OsError,
     PlatformSpecificWindowBuilderAttributes as PlatformAttributes,
 };
-use crate::window::{CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes};
+use crate::window::{
+    CursorGrabMode, CursorIcon, Fullscreen, Theme, UserAttentionType, WindowAttributes,
+};
 
 use super::env::WindowingFeatures;
 use super::event_loop::WinitState;
@@ -26,7 +30,7 @@ use super::{EventLoopWindowTarget, WindowId};
 
 pub mod shim;
 
-use shim::{WindowHandle, WindowRequest, WindowUpdate};
+use shim::{WindowCompositorUpdate, WindowHandle, WindowRequest, WindowUserRequest};
 
 #[cfg(feature = "sctk-adwaita")]
 pub type WinitFrame = sctk_adwaita::AdwaitaFrame;
@@ -72,10 +76,13 @@ pub struct Window {
 
     /// Whether the window is decorated.
     decorated: AtomicBool,
+
+    /// Grabbing mode.
+    cursor_grab_mode: Mutex<CursorGrabMode>,
 }
 
 impl Window {
-    pub fn new<T>(
+    pub(crate) fn new<T>(
         event_loop_window_target: &EventLoopWindowTarget<T>,
         attributes: WindowAttributes,
         platform_attributes: PlatformAttributes,
@@ -85,13 +92,22 @@ impl Window {
             .create_surface_with_scale_callback(move |scale, surface, mut dispatch_data| {
                 let winit_state = dispatch_data.get::<WinitState>().unwrap();
 
-                // Get the window that receiced the event.
+                // Get the window that received the event.
                 let window_id = super::make_wid(&surface);
-                let mut window_update = winit_state.window_updates.get_mut(&window_id).unwrap();
+                let mut window_compositor_update = winit_state
+                    .window_compositor_updates
+                    .get_mut(&window_id)
+                    .unwrap();
+
+                // Mark that we need a frame refresh on the DPI change.
+                winit_state
+                    .window_user_requests
+                    .get_mut(&window_id)
+                    .unwrap()
+                    .refresh_frame = true;
 
                 // Set pending scale factor.
-                window_update.scale_factor = Some(scale);
-                window_update.redraw_requested = true;
+                window_compositor_update.scale_factor = Some(scale);
 
                 surface.set_buffer_scale(scale);
             })
@@ -121,11 +137,19 @@ impl Window {
                     use sctk::window::{Event, State};
 
                     let winit_state = dispatch_data.get::<WinitState>().unwrap();
-                    let mut window_update = winit_state.window_updates.get_mut(&window_id).unwrap();
+                    let mut window_compositor_update = winit_state
+                        .window_compositor_updates
+                        .get_mut(&window_id)
+                        .unwrap();
+
+                    let mut window_user_requests = winit_state
+                        .window_user_requests
+                        .get_mut(&window_id)
+                        .unwrap();
 
                     match event {
                         Event::Refresh => {
-                            window_update.refresh_frame = true;
+                            window_user_requests.refresh_frame = true;
                         }
                         Event::Configure { new_size, states } => {
                             let is_maximized = states.contains(&State::Maximized);
@@ -133,31 +157,27 @@ impl Window {
                             let is_fullscreen = states.contains(&State::Fullscreen);
                             fullscreen_clone.store(is_fullscreen, Ordering::Relaxed);
 
-                            window_update.refresh_frame = true;
-                            window_update.redraw_requested = true;
+                            window_user_requests.refresh_frame = true;
                             if let Some((w, h)) = new_size {
-                                window_update.size = Some(LogicalSize::new(w, h));
+                                window_compositor_update.size = Some(LogicalSize::new(w, h));
                             }
                         }
                         Event::Close => {
-                            window_update.close_window = true;
+                            window_compositor_update.close_window = true;
                         }
                     }
                 },
             )
             .map_err(|_| os_error!(OsError::WaylandMisc("failed to create window.")))?;
 
-        // Set CSD frame config
+        // Set CSD frame config from theme if specified,
+        // otherwise use upstream automatic selection.
         #[cfg(feature = "sctk-adwaita")]
-        {
-            let theme = platform_attributes.csd_theme.unwrap_or_else(|| {
-                let env = std::env::var(WAYLAND_CSD_THEME_ENV_VAR).unwrap_or_default();
-                match env.to_lowercase().as_str() {
-                    "dark" => Theme::Dark,
-                    _ => Theme::Light,
-                }
-            });
-
+        if let Some(theme) = platform_attributes.csd_theme.or_else(|| {
+            std::env::var(WAYLAND_CSD_THEME_ENV_VAR)
+                .ok()
+                .and_then(|s| s.as_str().try_into().ok())
+        }) {
             window.set_frame_config(theme.into());
         }
 
@@ -227,9 +247,9 @@ impl Window {
         let size = Arc::new(Mutex::new(LogicalSize::new(width, height)));
 
         // We should trigger redraw and commit the surface for the newly created window.
-        let mut window_update = WindowUpdate::new();
-        window_update.refresh_frame = true;
-        window_update.redraw_requested = true;
+        let mut window_user_request = WindowUserRequest::new();
+        window_user_request.refresh_frame = true;
+        window_user_request.redraw_requested = true;
 
         let window_id = super::make_wid(&surface);
         let window_requests = Arc::new(Mutex::new(Vec::with_capacity(64)));
@@ -249,9 +269,19 @@ impl Window {
 
         winit_state.window_map.insert(window_id, window_handle);
 
+        // On Wayland window doesn't have Focus by default and it'll get it later on. So be
+        // explicit here.
         winit_state
-            .window_updates
-            .insert(window_id, WindowUpdate::new());
+            .event_sink
+            .push_window_event(crate::event::WindowEvent::Focused(false), window_id);
+
+        // Add state for the window.
+        winit_state
+            .window_user_requests
+            .insert(window_id, window_user_request);
+        winit_state
+            .window_compositor_updates
+            .insert(window_id, WindowCompositorUpdate::new());
 
         let windowing_features = event_loop_window_target.windowing_features;
 
@@ -285,6 +315,7 @@ impl Window {
             windowing_features,
             resizeable: AtomicBool::new(attributes.resizable),
             decorated: AtomicBool::new(attributes.decorations),
+            cursor_grab_mode: Mutex::new(CursorGrabMode::None),
         };
 
         Ok(window)
@@ -371,6 +402,16 @@ impl Window {
         let size = dimensions.map(|size| size.to_logical::<u32>(scale_factor));
 
         self.send_request(WindowRequest::MaxSize(size));
+    }
+
+    #[inline]
+    pub fn resize_increments(&self) -> Option<PhysicalSize<u32>> {
+        None
+    }
+
+    #[inline]
+    pub fn set_resize_increments(&self, _increments: Option<Size>) {
+        warn!("`set_resize_increments` is not implemented for Wayland");
     }
 
     #[inline]
@@ -474,12 +515,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_grab(&self, grab: bool) -> Result<(), ExternalError> {
-        if !self.windowing_features.cursor_grab() {
+    pub fn set_cursor_grab(&self, mode: CursorGrabMode) -> Result<(), ExternalError> {
+        if !self.windowing_features.pointer_constraints() {
+            if mode == CursorGrabMode::None {
+                return Ok(());
+            }
+
             return Err(ExternalError::NotSupported(NotSupportedError::new()));
         }
 
-        self.send_request(WindowRequest::GrabCursor(grab));
+        *self.cursor_grab_mode.lock().unwrap() = mode;
+        self.send_request(WindowRequest::SetCursorGrabMode(mode));
 
         Ok(())
     }
@@ -494,15 +540,19 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_cursor_position(&self, _: Position) -> Result<(), ExternalError> {
-        // XXX This is possible if the locked pointer is being used. We don't have any
-        // API for that right now, but it could be added in
-        // https://github.com/rust-windowing/winit/issues/1677.
-        //
-        // This function is essential for the locked pointer API.
-        //
-        // See pointer-constraints-unstable-v1.xml.
-        Err(ExternalError::NotSupported(NotSupportedError::new()))
+    pub fn set_cursor_position(&self, position: Position) -> Result<(), ExternalError> {
+        // Positon can be set only for locked cursor.
+        if *self.cursor_grab_mode.lock().unwrap() != CursorGrabMode::Locked {
+            return Err(ExternalError::Os(os_error!(OsError::WaylandMisc(
+                "cursor position can be set only for locked cursor."
+            ))));
+        }
+
+        let scale_factor = self.scale_factor() as f64;
+        let position = position.to_logical(scale_factor);
+        self.send_request(WindowRequest::SetLockedCursorPosition(position));
+
+        Ok(())
     }
 
     #[inline]
@@ -558,11 +608,17 @@ impl Window {
     }
 
     #[inline]
-    pub fn raw_window_handle(&self) -> WaylandHandle {
-        let mut handle = WaylandHandle::empty();
-        handle.display = self.display.get_display_ptr() as *mut _;
-        handle.surface = self.surface.as_ref().c_ptr() as *mut _;
-        handle
+    pub fn raw_window_handle(&self) -> RawWindowHandle {
+        let mut window_handle = WaylandWindowHandle::empty();
+        window_handle.surface = self.surface.as_ref().c_ptr() as *mut _;
+        RawWindowHandle::Wayland(window_handle)
+    }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        let mut display_handle = WaylandDisplayHandle::empty();
+        display_handle.display = self.display.get_display_ptr() as *mut _;
+        RawDisplayHandle::Wayland(display_handle)
     }
 
     #[inline]
@@ -584,6 +640,26 @@ impl From<Theme> for sctk_adwaita::FrameConfig {
         match theme {
             Theme::Light => sctk_adwaita::FrameConfig::light(),
             Theme::Dark => sctk_adwaita::FrameConfig::dark(),
+        }
+    }
+}
+
+impl TryFrom<&str> for Theme {
+    type Error = ();
+
+    /// ```
+    /// use winit::window::Theme;
+    ///
+    /// assert_eq!("dark".try_into(), Ok(Theme::Dark));
+    /// assert_eq!("lIghT".try_into(), Ok(Theme::Light));
+    /// ```
+    fn try_from(theme: &str) -> Result<Self, Self::Error> {
+        if theme.eq_ignore_ascii_case("dark") {
+            Ok(Self::Dark)
+        } else if theme.eq_ignore_ascii_case("light") {
+            Ok(Self::Light)
+        } else {
+            Err(())
         }
     }
 }

@@ -13,26 +13,25 @@ use std::{
 
 use cocoa::{
     appkit::{NSApp, NSEventModifierFlags, NSEventSubtype, NSEventType::NSApplicationDefined},
-    base::{id, nil, BOOL, NO, YES},
-    foundation::{NSInteger, NSPoint, NSTimeInterval},
+    base::{id, nil},
+    foundation::{NSPoint, NSTimeInterval},
 };
-use objc::rc::autoreleasepool;
+use objc2::foundation::is_main_thread;
+use objc2::rc::{autoreleasepool, Id, Shared};
+use objc2::ClassType;
+use raw_window_handle::{AppKitDisplayHandle, RawDisplayHandle};
 
 use crate::{
     event::Event,
     event_loop::{ControlFlow, EventLoopClosed, EventLoopWindowTarget as RootWindowTarget},
     monitor::MonitorHandle as RootMonitorHandle,
     platform::macos::ActivationPolicy,
-    platform_impl::{
-        get_aux_state_mut,
-        platform::{
-            app::APP_CLASS,
-            app_delegate::APP_DELEGATE_CLASS,
-            app_state::{AppState, Callback},
-            monitor::{self, MonitorHandle},
-            observer::*,
-            util::IdRef,
-        },
+    platform_impl::platform::{
+        app::WinitApplication,
+        app_delegate::ApplicationDelegate,
+        app_state::{AppState, Callback},
+        monitor::{self, MonitorHandle},
+        observer::*,
     },
 };
 
@@ -87,6 +86,11 @@ impl<T: 'static> EventLoopWindowTarget<T> {
         let monitor = monitor::primary_monitor();
         Some(RootMonitorHandle { inner: monitor })
     }
+
+    #[inline]
+    pub fn raw_display_handle(&self) -> RawDisplayHandle {
+        RawDisplayHandle::AppKit(AppKitDisplayHandle::empty())
+    }
 }
 
 impl<T> EventLoopWindowTarget<T> {
@@ -106,7 +110,7 @@ impl<T> EventLoopWindowTarget<T> {
 pub struct EventLoop<T: 'static> {
     /// The delegate is only weakly referenced by NSApplication, so we keep
     /// it around here as well.
-    _delegate: IdRef,
+    _delegate: Id<ApplicationDelegate, Shared>,
 
     window_target: Rc<RootWindowTarget<T>>,
     panic_info: Rc<PanicInfo>,
@@ -120,7 +124,7 @@ pub struct EventLoop<T: 'static> {
     _callback: Option<Rc<Callback<T>>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct PlatformSpecificEventLoopAttributes {
     pub(crate) activation_policy: ActivationPolicy,
     pub(crate) default_menu: bool,
@@ -138,8 +142,7 @@ impl Default for PlatformSpecificEventLoopAttributes {
 impl<T> EventLoop<T> {
     pub(crate) fn new(attributes: &PlatformSpecificEventLoopAttributes) -> Self {
         let delegate = unsafe {
-            let is_main_thread: BOOL = msg_send!(class!(NSThread), isMainThread);
-            if is_main_thread == NO {
+            if !is_main_thread() {
                 panic!("On macOS, `EventLoop` must be created on the main thread!");
             }
 
@@ -147,16 +150,18 @@ impl<T> EventLoop<T> {
             // `sharedApplication`) is called anywhere else, or we'll end up
             // with the wrong `NSApplication` class and the wrong thread could
             // be marked as main.
-            let app: id = msg_send![APP_CLASS.0, sharedApplication];
+            let app: id = msg_send![WinitApplication::class(), sharedApplication];
 
-            let delegate = IdRef::new(msg_send![APP_DELEGATE_CLASS.0, new]);
+            use cocoa::appkit::NSApplicationActivationPolicy::*;
+            let activation_policy = match attributes.activation_policy {
+                ActivationPolicy::Regular => NSApplicationActivationPolicyRegular,
+                ActivationPolicy::Accessory => NSApplicationActivationPolicyAccessory,
+                ActivationPolicy::Prohibited => NSApplicationActivationPolicyProhibited,
+            };
+            let delegate = ApplicationDelegate::new(activation_policy, attributes.default_menu);
 
-            let mut aux_state = get_aux_state_mut(&**delegate);
-            aux_state.activation_policy = attributes.activation_policy;
-            aux_state.default_menu = attributes.default_menu;
-
-            autoreleasepool(|| {
-                let _: () = msg_send![app, setDelegate:*delegate];
+            autoreleasepool(|_| {
+                let _: () = msg_send![app, setDelegate: &*delegate];
             });
 
             delegate
@@ -203,17 +208,17 @@ impl<T> EventLoop<T> {
 
         self._callback = Some(Rc::clone(&callback));
 
-        let exit_code = autoreleasepool(|| unsafe {
+        let exit_code = autoreleasepool(|_| unsafe {
             let app = NSApp();
             assert_ne!(app, nil);
 
             // A bit of juggling with the callback references to make sure
             // that `self.callback` is the only owner of the callback.
             let weak_cb: Weak<_> = Rc::downgrade(&callback);
-            mem::drop(callback);
+            drop(callback);
 
             AppState::set_callback(weak_cb, Rc::clone(&self.window_target));
-            let () = msg_send![app, run];
+            let _: () = msg_send![app, run];
 
             if let Some(panic) = self.panic_info.take() {
                 drop(self._callback.take());
@@ -240,13 +245,13 @@ pub unsafe fn post_dummy_event(target: id) {
         location: NSPoint::new(0.0, 0.0)
         modifierFlags: NSEventModifierFlags::empty()
         timestamp: 0 as NSTimeInterval
-        windowNumber: 0 as NSInteger
+        windowNumber: 0isize
         context: nil
         subtype: NSEventSubtype::NSWindowExposedEventType
-        data1: 0 as NSInteger
-        data2: 0 as NSInteger
+        data1: 0isize
+        data2: 0isize
     ];
-    let () = msg_send![target, postEvent: dummy_event atStart: YES];
+    let _: () = msg_send![target, postEvent: dummy_event, atStart: true];
 }
 
 /// Catches panics that happen inside `f` and when a panic
@@ -270,7 +275,7 @@ pub fn stop_app_on_panic<F: FnOnce() -> R + UnwindSafe, R>(
             unsafe {
                 let app_class = class!(NSApplication);
                 let app: id = msg_send![app_class, sharedApplication];
-                let () = msg_send![app, stop: nil];
+                let _: () = msg_send![app, stop: nil];
 
                 // Posting a dummy event to get `stop` to take effect immediately.
                 // See: https://stackoverflow.com/questions/48041279/stopping-the-nsapplication-main-event-loop/48064752#48064752

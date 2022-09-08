@@ -1,77 +1,64 @@
-use crate::{platform::macos::ActivationPolicy, platform_impl::platform::app_state::AppState};
+use cocoa::appkit::NSApplicationActivationPolicy;
+use objc2::foundation::NSObject;
+use objc2::rc::{Id, Shared};
+use objc2::runtime::Object;
+use objc2::{declare_class, ClassType};
 
-use cocoa::base::id;
-use objc::{
-    declare::ClassDecl,
-    runtime::{Class, Object, Sel},
-};
-use std::{
-    cell::{RefCell, RefMut},
-    os::raw::c_void,
-};
+use super::app_state::AppState;
 
-static AUX_DELEGATE_STATE_NAME: &str = "auxState";
-
-pub struct AuxDelegateState {
-    pub activation_policy: ActivationPolicy,
-    pub default_menu: bool,
-}
-
-pub struct AppDelegateClass(pub *const Class);
-unsafe impl Send for AppDelegateClass {}
-unsafe impl Sync for AppDelegateClass {}
-
-lazy_static! {
-    pub static ref APP_DELEGATE_CLASS: AppDelegateClass = unsafe {
-        let superclass = class!(NSResponder);
-        let mut decl = ClassDecl::new("WinitAppDelegate", superclass).unwrap();
-
-        decl.add_class_method(sel!(new), new as extern "C" fn(&Class, Sel) -> id);
-        decl.add_method(sel!(dealloc), dealloc as extern "C" fn(&Object, Sel));
-
-        decl.add_method(
-            sel!(applicationDidFinishLaunching:),
-            did_finish_launching as extern "C" fn(&Object, Sel, id),
-        );
-        decl.add_ivar::<*mut c_void>(AUX_DELEGATE_STATE_NAME);
-
-        AppDelegateClass(decl.register())
-    };
-}
-
-/// Safety: Assumes that Object is an instance of APP_DELEGATE_CLASS
-pub unsafe fn get_aux_state_mut(this: &Object) -> RefMut<'_, AuxDelegateState> {
-    let ptr: *mut c_void = *this.get_ivar(AUX_DELEGATE_STATE_NAME);
-    // Watch out that this needs to be the correct type
-    (*(ptr as *mut RefCell<AuxDelegateState>)).borrow_mut()
-}
-
-extern "C" fn new(class: &Class, _: Sel) -> id {
-    unsafe {
-        let this: id = msg_send![class, alloc];
-        let this: id = msg_send![this, init];
-        // TODO: Remove the need for this initialization here
-        (*this).set_ivar(
-            AUX_DELEGATE_STATE_NAME,
-            Box::into_raw(Box::new(RefCell::new(AuxDelegateState {
-                activation_policy: ActivationPolicy::Regular,
-                default_menu: true,
-            }))) as *mut c_void,
-        );
-        this
+declare_class!(
+    #[derive(Debug)]
+    pub(super) struct ApplicationDelegate {
+        activation_policy: NSApplicationActivationPolicy,
+        default_menu: bool,
     }
-}
 
-extern "C" fn dealloc(this: &Object, _: Sel) {
-    unsafe {
-        let state_ptr: *mut c_void = *(this.get_ivar(AUX_DELEGATE_STATE_NAME));
-        // As soon as the box is constructed it is immediately dropped, releasing the underlying
-        // memory
-        Box::from_raw(state_ptr as *mut RefCell<AuxDelegateState>);
+    unsafe impl ClassType for ApplicationDelegate {
+        type Super = NSObject;
+        const NAME: &'static str = "WinitApplicationDelegate";
     }
-}
 
-extern "C" fn did_finish_launching(this: &Object, _: Sel, _: id) {
-    trace_scope!("applicationDidFinishLaunching:");
-    AppState::launched(this);
+    unsafe impl ApplicationDelegate {
+        #[sel(initWithActivationPolicy:defaultMenu:)]
+        fn init(
+            &mut self,
+            activation_policy: NSApplicationActivationPolicy,
+            default_menu: bool,
+        ) -> Option<&mut Self> {
+            let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
+            this.map(|this| {
+                *this.activation_policy = activation_policy;
+                *this.default_menu = default_menu;
+                this
+            })
+        }
+
+        #[sel(applicationDidFinishLaunching:)]
+        fn did_finish_launching(&self, _sender: *const Object) {
+            trace_scope!("applicationDidFinishLaunching:");
+            AppState::launched(*self.activation_policy, *self.default_menu);
+        }
+
+        #[sel(applicationWillTerminate:)]
+        fn will_terminate(&self, _sender: *const Object) {
+            trace_scope!("applicationWillTerminate:");
+            // TODO: Notify every window that it will be destroyed, like done in iOS?
+            AppState::exit();
+        }
+    }
+);
+
+impl ApplicationDelegate {
+    pub(super) fn new(
+        activation_policy: NSApplicationActivationPolicy,
+        default_menu: bool,
+    ) -> Id<Self, Shared> {
+        unsafe {
+            msg_send_id![
+                msg_send_id![Self::class(), alloc],
+                initWithActivationPolicy: activation_policy,
+                defaultMenu: default_menu,
+            ]
+        }
+    }
 }

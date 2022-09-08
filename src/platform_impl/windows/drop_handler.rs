@@ -80,7 +80,7 @@ impl FileDropHandler {
         let count = drop_handler.refcount.fetch_sub(1, Ordering::Release) - 1;
         if count == 0 {
             // Destroy the underlying data
-            Box::from_raw(drop_handler as *mut FileDropHandlerData);
+            drop(Box::from_raw(drop_handler as *mut FileDropHandlerData));
         }
         count as u32
     }

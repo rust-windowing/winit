@@ -80,19 +80,18 @@ impl ImeContext {
         let data = self.get_composition_data(gcs_mode)?;
         let (prefix, shorts, suffix) = data.align_to::<u16>();
         if prefix.is_empty() && suffix.is_empty() {
-            OsString::from_wide(&shorts).into_string().ok()
+            OsString::from_wide(shorts).into_string().ok()
         } else {
             None
         }
     }
 
     unsafe fn get_composition_data(&self, gcs_mode: u32) -> Option<Vec<u8>> {
-        let size = ImmGetCompositionStringW(self.himc, gcs_mode, null_mut(), 0);
-        if size < 0 {
-            return None;
-        } else if size == 0 {
-            return Some(Vec::new());
-        }
+        let size = match ImmGetCompositionStringW(self.himc, gcs_mode, null_mut(), 0) {
+            0 => return Some(Vec::new()),
+            size if size < 0 => return None,
+            size => size,
+        };
 
         let mut buf = Vec::<u8>::with_capacity(size as _);
         let size = ImmGetCompositionStringW(
@@ -139,7 +138,7 @@ impl ImeContext {
     }
 
     unsafe fn system_has_ime() -> bool {
-        return GetSystemMetrics(SM_IMMENABLED) != 0;
+        GetSystemMetrics(SM_IMMENABLED) != 0
     }
 }
 

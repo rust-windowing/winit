@@ -2,6 +2,7 @@
 
 use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
 
+use objc::foundation::{NSInteger, NSUInteger};
 use objc::{runtime::Object, Encode, Encoding};
 
 use crate::{
@@ -17,9 +18,6 @@ pub type CGFloat = f32;
 #[cfg(target_pointer_width = "64")]
 pub type CGFloat = f64;
 
-pub type NSInteger = isize;
-pub type NSUInteger = usize;
-
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct NSOperatingSystemVersion {
@@ -28,11 +26,26 @@ pub struct NSOperatingSystemVersion {
     pub patch: NSInteger,
 }
 
+unsafe impl Encode for NSOperatingSystemVersion {
+    const ENCODING: Encoding = Encoding::Struct(
+        "NSOperatingSystemVersion",
+        &[
+            NSInteger::ENCODING,
+            NSInteger::ENCODING,
+            NSInteger::ENCODING,
+        ],
+    );
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGPoint {
     pub x: CGFloat,
     pub y: CGFloat,
+}
+
+unsafe impl Encode for CGPoint {
+    const ENCODING: Encoding = Encoding::Struct("CGPoint", &[CGFloat::ENCODING, CGFloat::ENCODING]);
 }
 
 #[repr(C)]
@@ -51,6 +64,10 @@ impl CGSize {
     }
 }
 
+unsafe impl Encode for CGSize {
+    const ENCODING: Encoding = Encoding::Struct("CGSize", &[CGFloat::ENCODING, CGFloat::ENCODING]);
+}
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CGRect {
@@ -65,18 +82,9 @@ impl CGRect {
 }
 
 unsafe impl Encode for CGRect {
-    fn encode() -> Encoding {
-        unsafe {
-            if cfg!(target_pointer_width = "32") {
-                Encoding::from_str("{CGRect={CGPoint=ff}{CGSize=ff}}")
-            } else if cfg!(target_pointer_width = "64") {
-                Encoding::from_str("{CGRect={CGPoint=dd}{CGSize=dd}}")
-            } else {
-                unimplemented!()
-            }
-        }
-    }
+    const ENCODING: Encoding = Encoding::Struct("CGRect", &[CGPoint::ENCODING, CGSize::ENCODING]);
 }
+
 #[derive(Debug)]
 #[allow(dead_code)]
 #[repr(isize)]
@@ -88,7 +96,11 @@ pub enum UITouchPhase {
     Cancelled,
 }
 
-#[derive(Debug, PartialEq)]
+unsafe impl Encode for UITouchPhase {
+    const ENCODING: Encoding = NSInteger::ENCODING;
+}
+
+#[derive(Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 #[repr(isize)]
 pub enum UIForceTouchCapability {
@@ -97,13 +109,21 @@ pub enum UIForceTouchCapability {
     Available,
 }
 
-#[derive(Debug, PartialEq)]
+unsafe impl Encode for UIForceTouchCapability {
+    const ENCODING: Encoding = NSInteger::ENCODING;
+}
+
+#[derive(Debug, PartialEq, Eq)]
 #[allow(dead_code)]
 #[repr(isize)]
 pub enum UITouchType {
     Direct = 0,
     Indirect,
     Pencil,
+}
+
+unsafe impl Encode for UITouchType {
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }
 
 #[repr(C)]
@@ -115,14 +135,24 @@ pub struct UIEdgeInsets {
     pub right: CGFloat,
 }
 
+unsafe impl Encode for UIEdgeInsets {
+    const ENCODING: Encoding = Encoding::Struct(
+        "UIEdgeInsets",
+        &[
+            CGFloat::ENCODING,
+            CGFloat::ENCODING,
+            CGFloat::ENCODING,
+            CGFloat::ENCODING,
+        ],
+    );
+}
+
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct UIUserInterfaceIdiom(NSInteger);
 
 unsafe impl Encode for UIUserInterfaceIdiom {
-    fn encode() -> Encoding {
-        NSInteger::encode()
-    }
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }
 
 impl UIUserInterfaceIdiom {
@@ -144,10 +174,9 @@ impl From<Idiom> for UIUserInterfaceIdiom {
         }
     }
 }
-
-impl Into<Idiom> for UIUserInterfaceIdiom {
-    fn into(self) -> Idiom {
-        match self {
+impl From<UIUserInterfaceIdiom> for Idiom {
+    fn from(ui_idiom: UIUserInterfaceIdiom) -> Idiom {
+        match ui_idiom {
             UIUserInterfaceIdiom::Unspecified => Idiom::Unspecified,
             UIUserInterfaceIdiom::Phone => Idiom::Phone,
             UIUserInterfaceIdiom::Pad => Idiom::Pad,
@@ -163,9 +192,7 @@ impl Into<Idiom> for UIUserInterfaceIdiom {
 pub struct UIInterfaceOrientationMask(NSUInteger);
 
 unsafe impl Encode for UIInterfaceOrientationMask {
-    fn encode() -> Encoding {
-        NSUInteger::encode()
-    }
+    const ENCODING: Encoding = NSUInteger::ENCODING;
 }
 
 impl UIInterfaceOrientationMask {
@@ -214,9 +241,7 @@ impl UIInterfaceOrientationMask {
 pub struct UIRectEdge(NSUInteger);
 
 unsafe impl Encode for UIRectEdge {
-    fn encode() -> Encoding {
-        NSUInteger::encode()
-    }
+    const ENCODING: Encoding = NSUInteger::ENCODING;
 }
 
 impl From<ScreenEdge> for UIRectEdge {
@@ -230,9 +255,9 @@ impl From<ScreenEdge> for UIRectEdge {
     }
 }
 
-impl Into<ScreenEdge> for UIRectEdge {
-    fn into(self) -> ScreenEdge {
-        let bits: u8 = self.0.try_into().expect("invalid `UIRectEdge`");
+impl From<UIRectEdge> for ScreenEdge {
+    fn from(ui_rect_edge: UIRectEdge) -> ScreenEdge {
+        let bits: u8 = ui_rect_edge.0.try_into().expect("invalid `UIRectEdge`");
         ScreenEdge::from_bits(bits).expect("invalid `ScreenEdge`")
     }
 }
@@ -242,9 +267,7 @@ impl Into<ScreenEdge> for UIRectEdge {
 pub struct UIScreenOverscanCompensation(NSInteger);
 
 unsafe impl Encode for UIScreenOverscanCompensation {
-    fn encode() -> Encoding {
-        NSInteger::encode()
-    }
+    const ENCODING: Encoding = NSInteger::ENCODING;
 }
 
 #[allow(dead_code)]
@@ -375,7 +398,7 @@ pub trait NSStringRust: Sized {
 
 impl NSStringRust for id {
     unsafe fn initWithUTF8String_(self, c_string: *const c_char) -> id {
-        msg_send![self, initWithUTF8String: c_string as id]
+        msg_send![self, initWithUTF8String: c_string]
     }
 
     unsafe fn stringByAppendingString_(self, other: id) -> id {
