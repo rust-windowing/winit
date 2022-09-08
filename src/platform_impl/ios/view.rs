@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use objc2::declare::ClassBuilder;
 use objc2::foundation::NSObject;
 use objc2::runtime::{Bool, Class, Object, Sel};
-use objc2::{declare_class, ClassType};
+use objc2::{class, declare_class, msg_send, sel, ClassType};
 
 use super::uikit::{UIResponder, UIViewController, UIWindow};
 use crate::{

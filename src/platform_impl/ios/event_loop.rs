@@ -7,8 +7,8 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
-use objc2::ClassType;
 use objc2::runtime::Object;
+use objc2::{class, msg_send, ClassType};
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
 use crate::{

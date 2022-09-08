@@ -9,8 +9,9 @@ use std::{
     time::Instant,
 };
 
-use objc::foundation::{NSInteger, NSUInteger};
-use objc::runtime::Object;
+use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::runtime::Object;
+use objc2::{class, msg_send, sel};
 use once_cell::sync::Lazy;
 
 use crate::{
