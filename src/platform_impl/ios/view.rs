@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
-use objc::{
-    declare::ClassBuilder,
-    runtime::{Bool, Class, Object, Sel},
-};
+use objc2::declare::ClassBuilder;
+use objc2::foundation::NSObject;
+use objc2::runtime::{Bool, Class, Object, Sel};
+use objc2::{declare_class, ClassType};
 
+use super::uikit::{UIResponder, UIWindow};
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
@@ -381,47 +382,38 @@ unsafe fn get_view_controller_class() -> &'static Class {
     CLASS.unwrap()
 }
 
-// requires main thread
-unsafe fn get_window_class() -> &'static Class {
-    static mut CLASS: Option<&'static Class> = None;
-    if CLASS.is_none() {
-        let uiwindow_class = class!(UIWindow);
+declare_class!(
+    struct WinitUIWindow {}
 
-        extern "C" fn become_key_window(object: &Object, _: Sel) {
+    unsafe impl ClassType for WinitUIWindow {
+        #[inherits(UIResponder, NSObject)]
+        type Super = UIWindow;
+    }
+
+    unsafe impl WinitUIWindow {
+        #[sel(becomeKeyWindow)]
+        fn become_key_window(&self) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(object.into()),
+                    window_id: RootWindowId((&*****self).into()),
                     event: WindowEvent::Focused(true),
                 }));
-                let _: () = msg_send![super(object, class!(UIWindow)), becomeKeyWindow];
+                let _: () = msg_send![super(self), becomeKeyWindow];
             }
         }
 
-        extern "C" fn resign_key_window(object: &Object, _: Sel) {
+        #[sel(resignKeyWindow)]
+        fn resign_key_window(&self) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(object.into()),
+                    window_id: RootWindowId((&*****self).into()),
                     event: WindowEvent::Focused(false),
                 }));
-                let _: () = msg_send![super(object, class!(UIWindow)), resignKeyWindow];
+                let _: () = msg_send![super(self), resignKeyWindow];
             }
         }
-
-        let mut decl = ClassBuilder::new("WinitUIWindow", uiwindow_class)
-            .expect("Failed to declare class `WinitUIWindow`");
-        decl.add_method(
-            sel!(becomeKeyWindow),
-            become_key_window as extern "C" fn(_, _),
-        );
-        decl.add_method(
-            sel!(resignKeyWindow),
-            resign_key_window as extern "C" fn(_, _),
-        );
-
-        CLASS = Some(decl.register());
     }
-    CLASS.unwrap()
-}
+);
 
 // requires main thread
 pub(crate) unsafe fn create_view(
@@ -499,9 +491,7 @@ pub(crate) unsafe fn create_window(
     frame: CGRect,
     view_controller: id,
 ) -> id {
-    let class = get_window_class();
-
-    let window: id = msg_send![class, alloc];
+    let window: id = msg_send![WinitUIWindow::class(), alloc];
     assert!(!window.is_null(), "Failed to create `UIWindow` instance");
     let window: id = msg_send![window, initWithFrame: frame];
     assert!(
@@ -562,7 +552,7 @@ pub fn create_delegate_class() {
                 if window == nil {
                     break;
                 }
-                let is_winit_window = msg_send![window, isKindOfClass: class!(WinitUIWindow)];
+                let is_winit_window = msg_send![window, isKindOfClass: WinitUIWindow::class()];
                 if is_winit_window {
                     events.push(EventWrapper::StaticEvent(Event::WindowEvent {
                         window_id: RootWindowId(window.into()),

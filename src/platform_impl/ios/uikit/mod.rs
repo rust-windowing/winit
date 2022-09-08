@@ -10,5 +10,4 @@ pub(crate) use self::responder::UIResponder;
 pub(crate) use self::view::UIView;
 #[allow(unused)]
 pub(crate) use self::view_controller::UIViewController;
-#[allow(unused)]
 pub(crate) use self::window::UIWindow;
