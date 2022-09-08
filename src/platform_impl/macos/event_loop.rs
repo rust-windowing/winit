@@ -11,6 +11,11 @@ use std::{
     sync::mpsc,
 };
 
+use core_foundation::base::{CFIndex, CFRelease};
+use core_foundation::runloop::{
+    kCFRunLoopCommonModes, CFRunLoopAddSource, CFRunLoopGetMain, CFRunLoopSourceContext,
+    CFRunLoopSourceCreate, CFRunLoopSourceRef, CFRunLoopSourceSignal, CFRunLoopWakeUp,
+};
 use objc2::foundation::is_main_thread;
 use objc2::rc::{autoreleasepool, Id, Shared};
 use objc2::{msg_send_id, ClassType};
@@ -27,7 +32,7 @@ use crate::{
         app_delegate::ApplicationDelegate,
         app_state::{AppState, Callback},
         monitor::{self, MonitorHandle},
-        observer::*,
+        observer::setup_control_flow_observers,
     },
 };
 
@@ -278,13 +283,23 @@ impl<T> EventLoopProxy<T> {
     fn new(sender: mpsc::Sender<T>) -> Self {
         unsafe {
             // just wake up the eventloop
-            extern "C" fn event_loop_proxy_handler(_: *mut c_void) {}
+            extern "C" fn event_loop_proxy_handler(_: *const c_void) {}
 
             // adding a Source to the main CFRunLoop lets us wake it up and
             // process user events through the normal OS EventLoop mechanisms.
             let rl = CFRunLoopGetMain();
-            let mut context: CFRunLoopSourceContext = mem::zeroed();
-            context.perform = Some(event_loop_proxy_handler);
+            let mut context = CFRunLoopSourceContext {
+                version: 0,
+                info: ptr::null_mut(),
+                retain: None,
+                release: None,
+                copyDescription: None,
+                equal: None,
+                hash: None,
+                schedule: None,
+                cancel: None,
+                perform: event_loop_proxy_handler,
+            };
             let source =
                 CFRunLoopSourceCreate(ptr::null_mut(), CFIndex::max_value() - 1, &mut context);
             CFRunLoopAddSource(rl, source, kCFRunLoopCommonModes);
