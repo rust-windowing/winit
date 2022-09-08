@@ -2,8 +2,10 @@
 
 use std::{convert::TryInto, ffi::CString, ops::BitOr, os::raw::*};
 
-use objc::foundation::{NSInteger, NSUInteger};
-use objc::{runtime::Object, Encode, Encoding};
+use objc2::encode::{Encode, Encoding};
+use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::runtime::Object;
+use objc2::{class, msg_send};
 
 use crate::{
     dpi::LogicalSize,

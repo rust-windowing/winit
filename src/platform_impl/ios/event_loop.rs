@@ -7,7 +7,8 @@ use std::{
     sync::mpsc::{self, Receiver, Sender},
 };
 
-use objc::runtime::Object;
+use objc2::runtime::Object;
+use objc2::{class, msg_send, ClassType};
 use raw_window_handle::{RawDisplayHandle, UiKitDisplayHandle};
 
 use crate::{
@@ -91,7 +92,6 @@ impl<T: 'static> EventLoop<T> {
                  `EventLoopProxy` might be helpful"
             );
             SINGLETON_INIT = true;
-            view::create_delegate_class();
         }
 
         let (sender_to_clone, receiver) = mpsc::channel();
@@ -128,11 +128,14 @@ impl<T: 'static> EventLoop<T> {
                 event_loop: self.window_target,
             }));
 
+            // Ensure application delegate is initialized
+            view::WinitApplicationDelegate::class();
+
             UIApplicationMain(
                 0,
                 ptr::null(),
                 nil,
-                NSStringRust::alloc(nil).init_str("AppDelegate"),
+                NSStringRust::alloc(nil).init_str("WinitApplicationDelegate"),
             );
             unreachable!()
         }

@@ -1,16 +1,17 @@
 use std::collections::HashMap;
 
-use objc::{
-    declare::ClassBuilder,
-    runtime::{Bool, Class, Object, Sel},
-};
+use objc2::declare::ClassBuilder;
+use objc2::foundation::NSObject;
+use objc2::runtime::{Bool, Class, Object, Sel};
+use objc2::{class, declare_class, msg_send, sel, ClassType};
 
+use super::uikit::{UIResponder, UIViewController, UIWindow};
 use crate::{
     dpi::PhysicalPosition,
     event::{DeviceId as RootDeviceId, Event, Force, Touch, TouchPhase, WindowEvent},
     platform::ios::MonitorHandleExtIOS,
     platform_impl::platform::{
-        app_state::{self, OSCapabilities},
+        app_state,
         event_loop::{self, EventProxy, EventWrapper},
         ffi::{
             id, nil, CGFloat, CGPoint, CGRect, UIForceTouchCapability, UIInterfaceOrientationMask,
@@ -21,64 +22,6 @@ use crate::{
     },
     window::{Fullscreen, WindowAttributes, WindowId as RootWindowId},
 };
-
-macro_rules! add_property {
-    (
-        $decl:ident,
-        $name:ident: $t:ty,
-        $setter_name:ident: |$object:ident| $after_set:expr,
-        $getter_name:ident,
-    ) => {
-        add_property!(
-            $decl,
-            $name: $t,
-            $setter_name: true, |_, _|{}; |$object| $after_set,
-            $getter_name,
-        )
-    };
-    (
-        $decl:ident,
-        $name:ident: $t:ty,
-        $setter_name:ident: $capability:expr, $err:expr; |$object:ident| $after_set:expr,
-        $getter_name:ident,
-    ) => {
-        {
-            const VAR_NAME: &'static str = concat!("_", stringify!($name));
-            $decl.add_ivar::<$t>(VAR_NAME);
-            let setter = if $capability {
-                #[allow(non_snake_case)]
-                extern "C" fn $setter_name($object: &mut Object, _: Sel, value: $t) {
-                    unsafe {
-                        $object.set_ivar::<$t>(VAR_NAME, value);
-                    }
-                    $after_set
-                }
-                $setter_name
-            } else {
-                #[allow(non_snake_case)]
-                extern "C" fn $setter_name($object: &mut Object, _: Sel, value: $t) {
-                    unsafe {
-                        $object.set_ivar::<$t>(VAR_NAME, value);
-                    }
-                    $err(&app_state::os_capabilities(), "ignoring")
-                }
-                $setter_name
-            };
-            #[allow(non_snake_case)]
-            extern "C" fn $getter_name($object: &Object, _: Sel) -> $t {
-                unsafe { *$object.ivar::<$t>(VAR_NAME) }
-            }
-            $decl.add_method(
-                sel!($setter_name:),
-                setter as extern "C" fn(_, _, _),
-            );
-            $decl.add_method(
-                sel!($getter_name),
-                $getter_name as extern "C" fn(_, _) -> _,
-            );
-        }
-    };
-}
 
 // requires main thread
 unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
@@ -312,116 +255,127 @@ unsafe fn get_view_class(root_view_class: &'static Class) -> &'static Class {
     })
 }
 
-// requires main thread
-unsafe fn get_view_controller_class() -> &'static Class {
-    static mut CLASS: Option<&'static Class> = None;
-    if CLASS.is_none() {
-        let os_capabilities = app_state::os_capabilities();
-
-        let uiviewcontroller_class = class!(UIViewController);
-
-        extern "C" fn should_autorotate(_: &Object, _: Sel) -> Bool {
-            Bool::YES
-        }
-
-        let mut decl = ClassBuilder::new("WinitUIViewController", uiviewcontroller_class)
-            .expect("Failed to declare class `WinitUIViewController`");
-        decl.add_method(
-            sel!(shouldAutorotate),
-            should_autorotate as extern "C" fn(_, _) -> _,
-        );
-        add_property! {
-            decl,
-            prefers_status_bar_hidden: Bool,
-            setPrefersStatusBarHidden: |object| {
-                unsafe {
-                    let _: () = msg_send![object, setNeedsStatusBarAppearanceUpdate];
-                }
-            },
-            prefersStatusBarHidden,
-        }
-        add_property! {
-            decl,
-            prefers_home_indicator_auto_hidden: Bool,
-            setPrefersHomeIndicatorAutoHidden:
-                os_capabilities.home_indicator_hidden,
-                OSCapabilities::home_indicator_hidden_err_msg;
-                |object| {
-                    unsafe {
-                        let _: () = msg_send![object, setNeedsUpdateOfHomeIndicatorAutoHidden];
-                    }
-                },
-            prefersHomeIndicatorAutoHidden,
-        }
-        add_property! {
-            decl,
-            supported_orientations: UIInterfaceOrientationMask,
-            setSupportedInterfaceOrientations: |object| {
-                unsafe {
-                    let _: () = msg_send![class!(UIViewController), attemptRotationToDeviceOrientation];
-                }
-            },
-            supportedInterfaceOrientations,
-        }
-        add_property! {
-            decl,
-            preferred_screen_edges_deferring_system_gestures: UIRectEdge,
-            setPreferredScreenEdgesDeferringSystemGestures:
-                os_capabilities.defer_system_gestures,
-                OSCapabilities::defer_system_gestures_err_msg;
-                |object| {
-                    unsafe {
-                        let _: () = msg_send![object, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
-                    }
-                },
-            preferredScreenEdgesDeferringSystemGestures,
-        }
-        CLASS = Some(decl.register());
+declare_class!(
+    struct WinitViewController {
+        _prefers_status_bar_hidden: bool,
+        _prefers_home_indicator_auto_hidden: bool,
+        _supported_orientations: UIInterfaceOrientationMask,
+        _preferred_screen_edges_deferring_system_gestures: UIRectEdge,
     }
-    CLASS.unwrap()
-}
 
-// requires main thread
-unsafe fn get_window_class() -> &'static Class {
-    static mut CLASS: Option<&'static Class> = None;
-    if CLASS.is_none() {
-        let uiwindow_class = class!(UIWindow);
+    unsafe impl ClassType for WinitViewController {
+        #[inherits(UIResponder, NSObject)]
+        type Super = UIViewController;
+        const NAME: &'static str = "WinitUIViewController";
+    }
 
-        extern "C" fn become_key_window(object: &Object, _: Sel) {
+    unsafe impl WinitViewController {
+        #[sel(shouldAutorotate)]
+        fn should_autorotate(&self) -> bool {
+            true
+        }
+    }
+
+    unsafe impl WinitViewController {
+        #[sel(prefersStatusBarHidden)]
+        fn prefers_status_bar_hidden(&self) -> bool {
+            *self._prefers_status_bar_hidden
+        }
+
+        #[sel(setPrefersStatusBarHidden:)]
+        fn set_prefers_status_bar_hidden(&mut self, val: bool) {
+            *self._prefers_status_bar_hidden = val;
+            unsafe {
+                let _: () = msg_send![self, setNeedsStatusBarAppearanceUpdate];
+            }
+        }
+
+        #[sel(prefersHomeIndicatorAutoHidden)]
+        fn prefers_home_indicator_auto_hidden(&self) -> bool {
+            *self._prefers_home_indicator_auto_hidden
+        }
+
+        #[sel(setPrefersHomeIndicatorAutoHidden:)]
+        fn set_prefers_home_indicator_auto_hidden(&mut self, val: bool) {
+            *self._prefers_home_indicator_auto_hidden = val;
+            let os_capabilities = app_state::os_capabilities();
+            if os_capabilities.home_indicator_hidden {
+                unsafe {
+                    let _: () = msg_send![self, setNeedsUpdateOfHomeIndicatorAutoHidden];
+                }
+            } else {
+                os_capabilities.home_indicator_hidden_err_msg("ignoring")
+            }
+        }
+
+        #[sel(supportedInterfaceOrientations)]
+        fn supported_orientations(&self) -> UIInterfaceOrientationMask {
+            *self._supported_orientations
+        }
+
+        #[sel(setSupportedInterfaceOrientations:)]
+        fn set_supported_orientations(&mut self, val: UIInterfaceOrientationMask) {
+            *self._supported_orientations = val;
+            unsafe {
+                let _: () = msg_send![
+                    UIViewController::class(),
+                    attemptRotationToDeviceOrientation
+                ];
+            }
+        }
+
+        #[sel(preferredScreenEdgesDeferringSystemGestures)]
+        fn preferred_screen_edges_deferring_system_gestures(&self) -> UIRectEdge {
+            *self._preferred_screen_edges_deferring_system_gestures
+        }
+
+        #[sel(setPreferredScreenEdgesDeferringSystemGestures:)]
+        fn set_preferred_screen_edges_deferring_system_gestures(&mut self, val: UIRectEdge) {
+            *self._preferred_screen_edges_deferring_system_gestures = val;
+            let os_capabilities = app_state::os_capabilities();
+            if os_capabilities.defer_system_gestures {
+                unsafe {
+                    let _: () = msg_send![self, setNeedsUpdateOfScreenEdgesDeferringSystemGestures];
+                }
+            } else {
+                os_capabilities.defer_system_gestures_err_msg("ignoring")
+            }
+        }
+    }
+);
+
+declare_class!(
+    struct WinitUIWindow {}
+
+    unsafe impl ClassType for WinitUIWindow {
+        #[inherits(UIResponder, NSObject)]
+        type Super = UIWindow;
+    }
+
+    unsafe impl WinitUIWindow {
+        #[sel(becomeKeyWindow)]
+        fn become_key_window(&self) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(object.into()),
+                    window_id: RootWindowId((&*****self).into()),
                     event: WindowEvent::Focused(true),
                 }));
-                let _: () = msg_send![super(object, class!(UIWindow)), becomeKeyWindow];
+                let _: () = msg_send![super(self), becomeKeyWindow];
             }
         }
 
-        extern "C" fn resign_key_window(object: &Object, _: Sel) {
+        #[sel(resignKeyWindow)]
+        fn resign_key_window(&self) {
             unsafe {
                 app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::WindowEvent {
-                    window_id: RootWindowId(object.into()),
+                    window_id: RootWindowId((&*****self).into()),
                     event: WindowEvent::Focused(false),
                 }));
-                let _: () = msg_send![super(object, class!(UIWindow)), resignKeyWindow];
+                let _: () = msg_send![super(self), resignKeyWindow];
             }
         }
-
-        let mut decl = ClassBuilder::new("WinitUIWindow", uiwindow_class)
-            .expect("Failed to declare class `WinitUIWindow`");
-        decl.add_method(
-            sel!(becomeKeyWindow),
-            become_key_window as extern "C" fn(_, _),
-        );
-        decl.add_method(
-            sel!(resignKeyWindow),
-            resign_key_window as extern "C" fn(_, _),
-        );
-
-        CLASS = Some(decl.register());
     }
-    CLASS.unwrap()
-}
+);
 
 // requires main thread
 pub(crate) unsafe fn create_view(
@@ -449,7 +403,7 @@ pub(crate) unsafe fn create_view_controller(
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     view: id,
 ) -> id {
-    let class = get_view_controller_class();
+    let class = WinitViewController::class();
 
     let view_controller: id = msg_send![class, alloc];
     assert!(
@@ -499,9 +453,7 @@ pub(crate) unsafe fn create_window(
     frame: CGRect,
     view_controller: id,
 ) -> id {
-    let class = get_window_class();
-
-    let window: id = msg_send![class, alloc];
+    let window: id = msg_send![WinitUIWindow::class(), alloc];
     assert!(!window.is_null(), "Failed to create `UIWindow` instance");
     let window: id = msg_send![window, initWithFrame: frame];
     assert!(
@@ -532,81 +484,61 @@ pub(crate) unsafe fn create_window(
     window
 }
 
-pub fn create_delegate_class() {
-    extern "C" fn did_finish_launching(_: &mut Object, _: Sel, _: id, _: id) -> Bool {
-        unsafe {
-            app_state::did_finish_launching();
-        }
-        Bool::YES
+declare_class!(
+    pub struct WinitApplicationDelegate {}
+
+    unsafe impl ClassType for WinitApplicationDelegate {
+        type Super = NSObject;
     }
 
-    extern "C" fn did_become_active(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
-    }
-
-    extern "C" fn will_resign_active(_: &Object, _: Sel, _: id) {
-        unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
-    }
-
-    extern "C" fn will_enter_foreground(_: &Object, _: Sel, _: id) {}
-    extern "C" fn did_enter_background(_: &Object, _: Sel, _: id) {}
-
-    extern "C" fn will_terminate(_: &Object, _: Sel, _: id) {
-        unsafe {
-            let app: id = msg_send![class!(UIApplication), sharedApplication];
-            let windows: id = msg_send![app, windows];
-            let windows_enum: id = msg_send![windows, objectEnumerator];
-            let mut events = Vec::new();
-            loop {
-                let window: id = msg_send![windows_enum, nextObject];
-                if window == nil {
-                    break;
-                }
-                let is_winit_window = msg_send![window, isKindOfClass: class!(WinitUIWindow)];
-                if is_winit_window {
-                    events.push(EventWrapper::StaticEvent(Event::WindowEvent {
-                        window_id: RootWindowId(window.into()),
-                        event: WindowEvent::Destroyed,
-                    }));
-                }
+    // UIApplicationDelegate protocol
+    unsafe impl WinitApplicationDelegate {
+        #[sel(application:didFinishLaunchingWithOptions:)]
+        fn did_finish_launching(&self, _: id, _: id) -> bool {
+            unsafe {
+                app_state::did_finish_launching();
             }
-            app_state::handle_nonuser_events(events);
-            app_state::terminated();
+            true
+        }
+
+        #[sel(applicationDidBecomeActive:)]
+        fn did_become_active(&self, _: id) {
+            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Resumed)) }
+        }
+
+        #[sel(applicationWillResignActive:)]
+        fn will_resign_active(&self, _: id) {
+            unsafe { app_state::handle_nonuser_event(EventWrapper::StaticEvent(Event::Suspended)) }
+        }
+
+        #[sel(applicationWillEnterForeground:)]
+        fn will_enter_foreground(&self, _: id) {}
+        #[sel(applicationDidEnterBackground:)]
+        fn did_enter_background(&self, _: id) {}
+
+        #[sel(applicationWillTerminate:)]
+        fn will_terminate(&self, _: id) {
+            unsafe {
+                let app: id = msg_send![class!(UIApplication), sharedApplication];
+                let windows: id = msg_send![app, windows];
+                let windows_enum: id = msg_send![windows, objectEnumerator];
+                let mut events = Vec::new();
+                loop {
+                    let window: id = msg_send![windows_enum, nextObject];
+                    if window == nil {
+                        break;
+                    }
+                    let is_winit_window = msg_send![window, isKindOfClass: WinitUIWindow::class()];
+                    if is_winit_window {
+                        events.push(EventWrapper::StaticEvent(Event::WindowEvent {
+                            window_id: RootWindowId(window.into()),
+                            event: WindowEvent::Destroyed,
+                        }));
+                    }
+                }
+                app_state::handle_nonuser_events(events);
+                app_state::terminated();
+            }
         }
     }
-
-    let ui_responder = class!(UIResponder);
-    let mut decl = ClassBuilder::new("AppDelegate", ui_responder)
-        .expect("Failed to declare class `AppDelegate`");
-
-    unsafe {
-        decl.add_method(
-            sel!(application:didFinishLaunchingWithOptions:),
-            did_finish_launching as extern "C" fn(_, _, _, _) -> _,
-        );
-
-        decl.add_method(
-            sel!(applicationDidBecomeActive:),
-            did_become_active as extern "C" fn(_, _, _),
-        );
-        decl.add_method(
-            sel!(applicationWillResignActive:),
-            will_resign_active as extern "C" fn(_, _, _),
-        );
-        decl.add_method(
-            sel!(applicationWillEnterForeground:),
-            will_enter_foreground as extern "C" fn(_, _, _),
-        );
-        decl.add_method(
-            sel!(applicationDidEnterBackground:),
-            did_enter_background as extern "C" fn(_, _, _),
-        );
-
-        decl.add_method(
-            sel!(applicationWillTerminate:),
-            will_terminate as extern "C" fn(_, _, _),
-        );
-
-        decl.register();
-    }
-}
+);
