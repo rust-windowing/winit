@@ -25,6 +25,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Windows, fixed ALT+Space shortcut to open window menu.
 - On Wayland, fixed `Ime::Preedit` not being sent on IME reset.
 - Fixed unbound version specified for `raw-window-handle` leading to compilation failures.
+- Empty `Ime::Preedit` event will be sent before `Ime::Commit` to help clearing preedit.
 
 # 0.27.2 (2022-8-12)
 
