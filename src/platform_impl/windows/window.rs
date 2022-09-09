@@ -52,7 +52,7 @@ use windows_sys::Win32::{
 };
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
+    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     icon::Icon,
     monitor::MonitorHandle as RootMonitorHandle,
@@ -944,13 +944,27 @@ impl<'a, T: 'static> InitData<'a, T> {
     }
 }
 unsafe fn init<T>(
-    attributes: WindowAttributes,
+    mut attributes: WindowAttributes,
     pl_attribs: PlatformSpecificWindowBuilderAttributes,
     event_loop: &EventLoopWindowTarget<T>,
 ) -> Result<Window, RootOsError>
 where
     T: 'static,
 {
+    if attributes.centered.is_some() {
+        let inner_size = attributes
+            .inner_size
+            .unwrap_or_else(|| Size::Physical(PhysicalSize::new(800, 600)))
+            .to_physical::<u32>(1.0);
+        if inner_size.width > 0 && inner_size.height > 0 {
+            let monitor_size_width = GetSystemMetrics(0) as u32;
+            let monitor_size_height = GetSystemMetrics(1) as u32;
+            let x = (monitor_size_width / 2) - (inner_size.width / 2);
+            let y = (monitor_size_height / 2) - (inner_size.height / 2);
+            attributes.position = Some(Position::Logical(LogicalPosition::new(x as _, y as _)));
+        }
+    }
+
     let title = util::encode_wide(&attributes.title);
 
     let class_name = register_window_class::<T>(&attributes.window_icon, &pl_attribs.taskbar_icon);

@@ -135,6 +135,7 @@ pub(crate) struct WindowAttributes {
     pub always_on_top: bool,
     pub window_icon: Option<Icon>,
     pub resize_increments: Option<Size>,
+    pub(crate) centered: Option<bool>,
 }
 
 impl Default for WindowAttributes {
@@ -155,6 +156,7 @@ impl Default for WindowAttributes {
             always_on_top: false,
             window_icon: None,
             resize_increments: None,
+            centered: None,
         }
     }
 }
@@ -343,6 +345,17 @@ impl WindowBuilder {
     #[inline]
     pub fn with_resize_increments<S: Into<Size>>(mut self, resize_increments: S) -> Self {
         self.window.resize_increments = Some(resize_increments.into());
+        self
+    }
+
+    /// Center the window position at initialization.
+    ///
+    /// ## Platform-specific
+    ///
+    /// - **iOS**, **Web**, **Android** and **Wayland** are not supported.
+    #[inline]
+    pub fn with_centered_position(mut self) -> Self {
+        self.window.centered = Some(true);
         self
     }
 

@@ -89,27 +89,29 @@ impl Window {
     ) -> Result<Self, RootOsError> {
         let surface = event_loop_window_target
             .env
-            .create_surface_with_scale_callback(move |scale, surface, mut dispatch_data| {
-                let winit_state = dispatch_data.get::<WinitState>().unwrap();
+            .create_surface_with_scale_callback({
+                move |scale, surface, mut dispatch_data| {
+                    let winit_state = dispatch_data.get::<WinitState>().unwrap();
 
-                // Get the window that received the event.
-                let window_id = super::make_wid(&surface);
-                let mut window_compositor_update = winit_state
-                    .window_compositor_updates
-                    .get_mut(&window_id)
-                    .unwrap();
+                    // Get the window that received the event.
+                    let window_id = super::make_wid(&surface);
+                    let mut window_compositor_update = winit_state
+                        .window_compositor_updates
+                        .get_mut(&window_id)
+                        .unwrap();
 
-                // Mark that we need a frame refresh on the DPI change.
-                winit_state
-                    .window_user_requests
-                    .get_mut(&window_id)
-                    .unwrap()
-                    .refresh_frame = true;
+                    // Mark that we need a frame refresh on the DPI change.
+                    winit_state
+                        .window_user_requests
+                        .get_mut(&window_id)
+                        .unwrap()
+                        .refresh_frame = true;
 
-                // Set pending scale factor.
-                window_compositor_update.scale_factor = Some(scale);
+                    // Set pending scale factor.
+                    window_compositor_update.scale_factor = Some(scale);
 
-                surface.set_buffer_scale(scale);
+                    surface.set_buffer_scale(scale);
+                }
             })
             .detach();
 

@@ -7,7 +7,7 @@ Please keep one empty line before and after all headers. (This is required for `
 And please only add new entries to the top of this list, right below the `# Unreleased` header.
 
 # Unreleased
-
+- Added `WindowBuilder::with_centered_position` for Windows, macOS and x11.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
 - Added `Window::resize_increments`/`Window::set_resize_increments` to update resize increments at runtime for X11/macOS.
 - macOS/iOS: Use `objc2` instead of `objc` internally.

@@ -208,6 +208,8 @@ impl WinitWindow {
             panic!("Windows can only be created on the main thread on macOS");
         }
 
+        let centered = attrs.centered.is_some();
+
         let this = autoreleasepool(|_| {
             let screen = match attrs.fullscreen {
                 Some(Fullscreen::Borderless(Some(RootMonitorHandle { inner: ref monitor })))
@@ -345,7 +347,8 @@ impl WinitWindow {
                 if !pl_attrs.has_shadow {
                     this.setHasShadow(false);
                 }
-                if attrs.position.is_none() {
+
+                if centered || attrs.position.is_none() {
                     this.center();
                 }
 

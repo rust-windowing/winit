@@ -13,7 +13,7 @@ use raw_window_handle::{RawDisplayHandle, RawWindowHandle, XlibDisplayHandle, Xl
 use x11_dl::xlib::TrueColor;
 
 use crate::{
-    dpi::{PhysicalPosition, PhysicalSize, Position, Size},
+    dpi::{LogicalPosition, PhysicalPosition, PhysicalSize, Position, Size},
     error::{ExternalError, NotSupportedError, OsError as RootOsError},
     monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
     platform_impl::{
@@ -116,7 +116,7 @@ pub struct UnownedWindow {
 impl UnownedWindow {
     pub(crate) fn new<T>(
         event_loop: &EventLoopWindowTarget<T>,
-        window_attrs: WindowAttributes,
+        mut window_attrs: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
@@ -142,6 +142,21 @@ impl UnownedWindow {
                 })
                 .unwrap_or_else(|| monitors.swap_remove(0))
         };
+
+        if window_attrs.centered.is_some() {
+            let inner_size = window_attrs
+                .inner_size
+                .unwrap_or_else(|| Size::Physical(PhysicalSize::new(800, 600)))
+                .to_physical::<u32>(1.0);
+            if inner_size.width > 0 && inner_size.height > 0 {
+                let monitor_size = guessed_monitor.size();
+                let x = (monitor_size.width / 2) - (inner_size.width / 2);
+                let y = (monitor_size.height / 2) - (inner_size.height / 2);
+                window_attrs.position =
+                    Some(Position::Logical(LogicalPosition::new(x as _, y as _)));
+            }
+        }
+
         let scale_factor = guessed_monitor.scale_factor();
 
         info!("Guessed window scale factor: {}", scale_factor);
