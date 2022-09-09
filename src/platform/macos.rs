@@ -1,3 +1,4 @@
+use objc2::rc::Id;
 use std::os::raw::c_void;
 
 use crate::{
@@ -248,7 +249,7 @@ impl MonitorHandleExtMacOS for MonitorHandle {
     }
 
     fn ns_screen(&self) -> Option<*mut c_void> {
-        self.inner.ns_screen().map(|s| s as *mut c_void)
+        self.inner.ns_screen().map(|s| Id::as_ptr(&s) as _)
     }
 }
 

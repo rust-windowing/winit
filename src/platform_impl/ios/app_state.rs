@@ -9,8 +9,15 @@ use std::{
     time::Instant,
 };
 
-use objc::foundation::{NSInteger, NSUInteger};
-use objc::runtime::Object;
+use core_foundation::base::CFRelease;
+use core_foundation::date::CFAbsoluteTimeGetCurrent;
+use core_foundation::runloop::{
+    kCFRunLoopCommonModes, CFRunLoopAddTimer, CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate,
+    CFRunLoopTimerInvalidate, CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate,
+};
+use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::runtime::Object;
+use objc2::{class, msg_send, sel};
 use once_cell::sync::Lazy;
 
 use crate::{
@@ -19,12 +26,7 @@ use crate::{
     event_loop::ControlFlow,
     platform_impl::platform::{
         event_loop::{EventHandler, EventProxy, EventWrapper, Never},
-        ffi::{
-            id, kCFRunLoopCommonModes, CFAbsoluteTimeGetCurrent, CFRelease, CFRunLoopAddTimer,
-            CFRunLoopGetMain, CFRunLoopRef, CFRunLoopTimerCreate, CFRunLoopTimerInvalidate,
-            CFRunLoopTimerRef, CFRunLoopTimerSetNextFireDate, CGRect, CGSize,
-            NSOperatingSystemVersion,
-        },
+        ffi::{id, CGRect, CGSize, NSOperatingSystemVersion},
     },
     window::WindowId as RootWindowId,
 };
