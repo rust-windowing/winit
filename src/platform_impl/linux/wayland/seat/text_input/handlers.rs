@@ -92,15 +92,21 @@ pub(super) fn handle_text_input(
                 event_sink.push_window_event(WindowEvent::Ime(Ime::Commit(text)), window_id);
             }
 
-            // Push preedit string we've got after latest commit.
-            if let Some(preedit) = inner.pending_preedit.take() {
-                let cursor_range = preedit
-                    .cursor_begin
-                    .map(|b| (b, preedit.cursor_end.unwrap_or(b)));
+            // Always send preedit on `Done` events.
+            let (text, range) = inner
+                .pending_preedit
+                .take()
+                .map(|preedit| {
+                    let cursor_range = preedit
+                        .cursor_begin
+                        .map(|b| (b, preedit.cursor_end.unwrap_or(b)));
 
-                let event = Ime::Preedit(preedit.text, cursor_range);
-                event_sink.push_window_event(WindowEvent::Ime(event), window_id);
-            }
+                    (preedit.text, cursor_range)
+                })
+                .unwrap_or_default();
+
+            let event = Ime::Preedit(text, range);
+            event_sink.push_window_event(WindowEvent::Ime(event), window_id);
         }
         _ => (),
     }
