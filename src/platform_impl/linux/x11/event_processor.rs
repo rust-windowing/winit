@@ -616,6 +616,12 @@ impl<T: 'static> EventProcessor<T> {
                     if self.is_composing && keycode == 0 && !written.is_empty() {
                         let event = Event::WindowEvent {
                             window_id,
+                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        };
+                        callback(event);
+
+                        let event = Event::WindowEvent {
+                            window_id,
                             event: WindowEvent::Ime(Ime::Commit(written)),
                         };
 
