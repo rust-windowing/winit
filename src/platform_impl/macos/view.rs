@@ -643,6 +643,10 @@ extern "C" fn insert_text(this: &Object, _sel: Sel, string: id, _replacement_ran
         if state.is_ime_enabled() && !is_control {
             AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
                 window_id: WindowId(get_window_id(state.ns_window)),
+                event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+            }));
+            AppState::queue_event(EventWrapper::StaticEvent(Event::WindowEvent {
+                window_id: WindowId(get_window_id(state.ns_window)),
                 event: WindowEvent::Ime(Ime::Commit(string)),
             }));
             state.ime_state = ImeState::Commited;
