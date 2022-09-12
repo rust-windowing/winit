@@ -3,7 +3,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc::runtime::{Class, Object};
+use objc2::runtime::{Class, Object};
+use objc2::{class, msg_send};
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, UiKitDisplayHandle, UiKitWindowHandle};
 
 use crate::{

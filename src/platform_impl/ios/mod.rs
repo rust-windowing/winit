@@ -63,7 +63,7 @@
 // window size/position.
 macro_rules! assert_main_thread {
     ($($t:tt)*) => {
-        if !::objc::foundation::is_main_thread() {
+        if !::objc2::foundation::is_main_thread() {
             panic!($($t)*);
         }
     };
@@ -73,6 +73,7 @@ mod app_state;
 mod event_loop;
 mod ffi;
 mod monitor;
+mod uikit;
 mod view;
 mod window;
 

@@ -1,21 +1,19 @@
 use std::{collections::VecDeque, fmt};
 
-use super::{ffi, util};
-use crate::{
-    dpi::{PhysicalPosition, PhysicalSize},
-    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
-};
-use cocoa::{
-    appkit::NSScreen,
-    base::{id, nil},
-};
 use core_foundation::{
     array::{CFArrayGetCount, CFArrayGetValueAtIndex},
     base::{CFRelease, TCFType},
     string::CFString,
 };
 use core_graphics::display::{CGDirectDisplayID, CGDisplay, CGDisplayBounds};
-use objc::foundation::NSUInteger;
+use objc2::rc::{Id, Shared};
+
+use super::appkit::NSScreen;
+use super::ffi;
+use crate::{
+    dpi::{PhysicalPosition, PhysicalSize},
+    monitor::{MonitorHandle as RootMonitorHandle, VideoMode as RootVideoMode},
+};
 
 #[derive(Clone)]
 pub struct VideoMode {
@@ -213,11 +211,10 @@ impl MonitorHandle {
     }
 
     pub fn scale_factor(&self) -> f64 {
-        let screen = match self.ns_screen() {
-            Some(screen) => screen,
-            None => return 1.0, // default to 1.0 when we can't find the screen
-        };
-        unsafe { NSScreen::backingScaleFactor(screen) as f64 }
+        match self.ns_screen() {
+            Some(screen) => screen.backingScaleFactor() as f64,
+            None => 1.0, // default to 1.0 when we can't find the screen
+        }
     }
 
     pub fn refresh_rate_millihertz(&self) -> Option<u32> {
@@ -298,26 +295,19 @@ impl MonitorHandle {
         }
     }
 
-    pub(crate) fn ns_screen(&self) -> Option<id> {
-        unsafe {
-            let uuid = ffi::CGDisplayCreateUUIDFromDisplayID(self.0);
-            let screens = NSScreen::screens(nil);
-            let count: NSUInteger = msg_send![screens, count];
-            let key = util::ns_string_id_ref("NSScreenNumber");
-            for i in 0..count {
-                let screen = msg_send![screens, objectAtIndex: i as NSUInteger];
-                let device_description = NSScreen::deviceDescription(screen);
-                let value: id = msg_send![device_description, objectForKey:*key];
-                if value != nil {
-                    let other_native_id: NSUInteger = msg_send![value, unsignedIntegerValue];
-                    let other_uuid =
-                        ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID);
-                    if uuid == other_uuid {
-                        return Some(screen);
-                    }
-                }
-            }
-            None
-        }
+    pub(crate) fn ns_screen(&self) -> Option<Id<NSScreen, Shared>> {
+        let uuid = unsafe { ffi::CGDisplayCreateUUIDFromDisplayID(self.0) };
+        NSScreen::screens()
+            .into_iter()
+            .find(|screen| {
+                let other_native_id = screen.display_id();
+                let other_uuid = unsafe {
+                    ffi::CGDisplayCreateUUIDFromDisplayID(other_native_id as CGDirectDisplayID)
+                };
+                uuid == other_uuid
+            })
+            .map(|screen| unsafe {
+                Id::retain(screen as *const NSScreen as *mut NSScreen).unwrap()
+            })
     }
 }

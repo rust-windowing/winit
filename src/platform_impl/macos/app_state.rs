@@ -2,7 +2,6 @@ use std::{
     cell::{RefCell, RefMut},
     collections::VecDeque,
     fmt::{self, Debug},
-    hint::unreachable_unchecked,
     mem,
     rc::{Rc, Weak},
     sync::{
@@ -12,27 +11,23 @@ use std::{
     time::Instant,
 };
 
-use cocoa::{
-    appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSWindow},
-    base::{id, nil},
-    foundation::NSSize,
-};
-use objc::foundation::is_main_thread;
-use objc::rc::autoreleasepool;
-use objc::runtime::Bool;
+use core_foundation::runloop::{CFRunLoopGetMain, CFRunLoopWakeUp};
+use objc2::foundation::{is_main_thread, NSSize};
+use objc2::rc::autoreleasepool;
 use once_cell::sync::Lazy;
 
+use super::appkit::{NSApp, NSApplication, NSApplicationActivationPolicy, NSEvent};
 use crate::{
     dpi::LogicalSize,
     event::{Event, StartCause, WindowEvent},
     event_loop::{ControlFlow, EventLoopWindowTarget as RootWindowTarget},
     platform_impl::platform::{
         event::{EventProxy, EventWrapper},
-        event_loop::{post_dummy_event, PanicInfo},
+        event_loop::PanicInfo,
         menu,
-        observer::{CFRunLoopGetMain, CFRunLoopWakeUp, EventLoopWaker},
-        util::{IdRef, Never},
-        window::get_window_id,
+        observer::EventLoopWaker,
+        util::Never,
+        window::WinitWindow,
     },
     window::WindowId,
 };
@@ -44,7 +39,7 @@ impl<'a, Never> Event<'a, Never> {
         self.map_nonuser_event()
             // `Never` can't be constructed, so the `UserEvent` variant can't
             // be present here.
-            .unwrap_or_else(|_| unsafe { unreachable_unchecked() })
+            .unwrap_or_else(|_| unreachable!())
     }
 }
 
@@ -217,14 +212,14 @@ impl Handler {
     fn handle_scale_factor_changed_event(
         &self,
         callback: &mut Box<dyn EventHandler + 'static>,
-        ns_window: IdRef,
+        window: &WinitWindow,
         suggested_size: LogicalSize<f64>,
         scale_factor: f64,
     ) {
         let mut size = suggested_size.to_physical(scale_factor);
         let new_inner_size = &mut size;
         let event = Event::WindowEvent {
-            window_id: WindowId(get_window_id(*ns_window)),
+            window_id: WindowId(window.id()),
             event: WindowEvent::ScaleFactorChanged {
                 scale_factor,
                 new_inner_size,
@@ -236,18 +231,18 @@ impl Handler {
         let physical_size = *new_inner_size;
         let logical_size = physical_size.to_logical(scale_factor);
         let size = NSSize::new(logical_size.width, logical_size.height);
-        unsafe { NSWindow::setContentSize_(*ns_window, size) };
+        window.setContentSize(size);
     }
 
     fn handle_proxy(&self, proxy: EventProxy, callback: &mut Box<dyn EventHandler + 'static>) {
         match proxy {
             EventProxy::DpiChangedProxy {
-                ns_window,
+                window,
                 suggested_size,
                 scale_factor,
             } => self.handle_scale_factor_changed_event(
                 callback,
-                ns_window,
+                &window,
                 suggested_size,
                 scale_factor,
             ),
@@ -255,7 +250,7 @@ impl Handler {
     }
 }
 
-pub enum AppState {}
+pub(crate) enum AppState {}
 
 impl AppState {
     pub fn set_callback<T>(callback: Weak<Callback<T>>, window_target: Rc<RootWindowTarget<T>>) {
@@ -278,18 +273,16 @@ impl AppState {
     }
 
     pub fn launched(activation_policy: NSApplicationActivationPolicy, create_default_menu: bool) {
-        unsafe {
-            let ns_app = NSApp();
+        let app = NSApp();
+        // We need to delay setting the activation policy and activating the app
+        // until `applicationDidFinishLaunching` has been called. Otherwise the
+        // menu bar is initially unresponsive on macOS 10.15.
+        app.setActivationPolicy(activation_policy);
 
-            // We need to delay setting the activation policy and activating the app
-            // until `applicationDidFinishLaunching` has been called. Otherwise the
-            // menu bar is initially unresponsive on macOS 10.15.
-            ns_app.setActivationPolicy_(activation_policy);
+        window_activation_hack(&app);
+        // TODO: Consider allowing the user to specify they don't want their application activated
+        app.activateIgnoringOtherApps(true);
 
-            window_activation_hack(ns_app);
-            // TODO: Consider allowing the user to specify they don't want their application activated
-            ns_app.activateIgnoringOtherApps_(Bool::YES.as_raw());
-        };
         HANDLER.set_ready();
         HANDLER.waker().start();
         if create_default_menu {
@@ -397,15 +390,12 @@ impl AppState {
         HANDLER.set_in_callback(false);
 
         if HANDLER.should_exit() {
-            unsafe {
-                let app: id = NSApp();
-
-                autoreleasepool(|_| {
-                    let _: () = msg_send![app, stop: nil];
-                    // To stop event loop immediately, we need to post some event here.
-                    post_dummy_event(app);
-                });
-            };
+            let app = NSApp();
+            autoreleasepool(|_| {
+                app.stop(None);
+                // To stop event loop immediately, we need to post some event here.
+                app.postEvent_atStart(&NSEvent::dummy(), true);
+            });
         }
         HANDLER.update_start_time();
         match HANDLER.get_old_and_new_control_flow() {
@@ -426,25 +416,17 @@ impl AppState {
 ///
 /// If this becomes too bothersome to maintain, it can probably be removed
 /// without too much damage.
-unsafe fn window_activation_hack(ns_app: id) {
-    // Get the application's windows
+fn window_activation_hack(app: &NSApplication) {
     // TODO: Proper ordering of the windows
-    let ns_windows: id = msg_send![ns_app, windows];
-    let ns_enumerator: id = msg_send![ns_windows, objectEnumerator];
-    loop {
-        // Enumerate over the windows
-        let ns_window: id = msg_send![ns_enumerator, nextObject];
-        if ns_window == nil {
-            break;
-        }
-        // And call `makeKeyAndOrderFront` if it was called on the window in `UnownedWindow::new`
+    app.windows().into_iter().for_each(|window| {
+        // Call `makeKeyAndOrderFront` if it was called on the window in `WinitWindow::new`
         // This way we preserve the user's desired initial visiblity status
         // TODO: Also filter on the type/"level" of the window, and maybe other things?
-        if Bool::from_raw(ns_window.isVisible()).as_bool() {
+        if window.isVisible() {
             trace!("Activating visible window");
-            ns_window.makeKeyAndOrderFront_(nil);
+            window.makeKeyAndOrderFront(None);
         } else {
             trace!("Skipping activating invisible window");
         }
-    }
+    })
 }

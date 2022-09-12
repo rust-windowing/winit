@@ -17,8 +17,9 @@ use self::{
     callbacks::*,
     context::ImeContext,
     inner::{close_im, ImeInner},
-    input_method::PotentialInputMethods,
+    input_method::{PotentialInputMethods, Style},
 };
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ImeEvent {
@@ -87,7 +88,6 @@ impl Ime {
 
         let is_fallback = input_method.is_fallback();
         if let Some(input_method) = input_method.ok() {
-            inner.im = input_method.im;
             inner.is_fallback = is_fallback;
             unsafe {
                 let result = set_destroy_callback(&xconn, input_method.im, &*inner)
@@ -97,6 +97,7 @@ impl Ime {
                 }
                 result?;
             }
+            inner.im = Some(input_method);
             Ok(Ime { xconn, inner })
         } else {
             Err(ImeCreationError::OpenFailure(inner.potential_input_methods))
@@ -120,37 +121,35 @@ impl Ime {
             // Create empty entry in map, so that when IME is rebuilt, this window has a context.
             None
         } else {
+            let im = self.inner.im.as_ref().unwrap();
+            let style = if with_preedit {
+                im.preedit_style
+            } else {
+                im.none_style
+            };
+
             let context = unsafe {
                 ImeContext::new(
                     &self.inner.xconn,
-                    self.inner.im,
+                    im.im,
+                    style,
                     window,
                     None,
-                    with_preedit,
                     self.inner.event_sender.clone(),
-                )
-                .or_else(|_| {
-                    debug!(
-                        "failed to create an IME context {} preedit support",
-                        if with_preedit { "with" } else { "without" }
-                    );
-                    ImeContext::new(
-                        &self.inner.xconn,
-                        self.inner.im,
-                        window,
-                        None,
-                        !with_preedit,
-                        self.inner.event_sender.clone(),
-                    )
-                })
-            }?;
+                )?
+            };
 
             // Check the state on the context, since it could fail to enable or disable preedit.
-            let event = if context.is_allowed {
-                ImeEvent::Enabled
-            } else {
-                // There's no IME without preedit.
+            let event = if matches!(style, Style::None(_)) {
+                if with_preedit {
+                    debug!("failed to create IME context with preedit support.")
+                }
                 ImeEvent::Disabled
+            } else {
+                if !with_preedit {
+                    debug!("failed to create IME context without preedit support.")
+                }
+                ImeEvent::Enabled
             };
 
             self.inner
@@ -160,6 +159,7 @@ impl Ime {
 
             Some(context)
         };
+
         self.inner.contexts.insert(window, context);
         Ok(!self.is_destroyed())
     }
@@ -223,7 +223,7 @@ impl Ime {
         }
 
         if let Some(&mut Some(ref mut context)) = self.inner.contexts.get_mut(&window) {
-            if allowed == context.is_allowed {
+            if allowed == context.is_allowed() {
                 return;
             }
         }
