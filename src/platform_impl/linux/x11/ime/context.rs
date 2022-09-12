@@ -5,6 +5,7 @@ use std::{mem, ptr};
 
 use x11_dl::xlib::{XIMCallback, XIMPreeditCaretCallbackStruct, XIMPreeditDrawCallbackStruct};
 
+use crate::platform_impl::platform::x11::ime::input_method::{Style, XIMStyle};
 use crate::platform_impl::platform::x11::ime::{ImeEvent, ImeEventSender};
 
 use super::{ffi, util, XConnection, XError};
@@ -191,9 +192,9 @@ struct ImeContextClientData {
 // still exists on the server. Since `ImeInner` has that awareness, destruction must be handled
 // through `ImeInner`.
 pub struct ImeContext {
-    pub(super) ic: ffi::XIC,
-    pub(super) ic_spot: ffi::XPoint,
-    pub(super) is_allowed: bool,
+    pub(crate) ic: ffi::XIC,
+    pub(crate) ic_spot: ffi::XPoint,
+    pub(crate) style: Style,
     // Since the data is passed shared between X11 XIM callbacks, but couldn't be direclty free from
     // there we keep the pointer to automatically deallocate it.
     _client_data: Box<ImeContextClientData>,
@@ -203,9 +204,9 @@ impl ImeContext {
     pub unsafe fn new(
         xconn: &Arc<XConnection>,
         im: ffi::XIM,
+        style: Style,
         window: ffi::Window,
         ic_spot: Option<ffi::XPoint>,
-        is_allowed: bool,
         event_sender: ImeEventSender,
     ) -> Result<Self, ImeContextCreationError> {
         let client_data = Box::into_raw(Box::new(ImeContextClientData {
@@ -215,12 +216,18 @@ impl ImeContext {
             cursor_pos: 0,
         }));
 
-        let ic = if is_allowed {
-            ImeContext::create_ic(xconn, im, window, client_data as ffi::XPointer)
-                .ok_or(ImeContextCreationError::Null)?
-        } else {
-            ImeContext::create_none_ic(xconn, im, window).ok_or(ImeContextCreationError::Null)?
-        };
+        let ic = match style as _ {
+            Style::Preedit(style) => ImeContext::create_preedit_ic(
+                xconn,
+                im,
+                style,
+                window,
+                client_data as ffi::XPointer,
+            ),
+            Style::Nothing(style) => ImeContext::create_nothing_ic(xconn, im, style, window),
+            Style::None(style) => ImeContext::create_none_ic(xconn, im, style, window),
+        }
+        .ok_or(ImeContextCreationError::Null)?;
 
         xconn
             .check_errors()
@@ -229,7 +236,7 @@ impl ImeContext {
         let mut context = ImeContext {
             ic,
             ic_spot: ffi::XPoint { x: 0, y: 0 },
-            is_allowed,
+            style,
             _client_data: Box::from_raw(client_data),
         };
 
@@ -244,12 +251,13 @@ impl ImeContext {
     unsafe fn create_none_ic(
         xconn: &Arc<XConnection>,
         im: ffi::XIM,
+        style: XIMStyle,
         window: ffi::Window,
     ) -> Option<ffi::XIC> {
         let ic = (xconn.xlib.XCreateIC)(
             im,
             ffi::XNInputStyle_0.as_ptr() as *const _,
-            ffi::XIMPreeditNone | ffi::XIMStatusNone,
+            style,
             ffi::XNClientWindow_0.as_ptr() as *const _,
             window,
             ptr::null_mut::<()>(),
@@ -258,9 +266,10 @@ impl ImeContext {
         (!ic.is_null()).then(|| ic)
     }
 
-    unsafe fn create_ic(
+    unsafe fn create_preedit_ic(
         xconn: &Arc<XConnection>,
         im: ffi::XIM,
+        style: XIMStyle,
         window: ffi::Window,
         client_data: ffi::XPointer,
     ) -> Option<ffi::XIC> {
@@ -282,32 +291,34 @@ impl ImeContext {
         )
         .expect("XVaCreateNestedList returned NULL");
 
-        let ic = {
-            let ic = (xconn.xlib.XCreateIC)(
-                im,
-                ffi::XNInputStyle_0.as_ptr() as *const _,
-                ffi::XIMPreeditCallbacks | ffi::XIMStatusNothing,
-                ffi::XNClientWindow_0.as_ptr() as *const _,
-                window,
-                ffi::XNPreeditAttributes_0.as_ptr() as *const _,
-                preedit_attr.ptr,
-                ptr::null_mut::<()>(),
-            );
+        let ic = (xconn.xlib.XCreateIC)(
+            im,
+            ffi::XNInputStyle_0.as_ptr() as *const _,
+            style,
+            ffi::XNClientWindow_0.as_ptr() as *const _,
+            window,
+            ffi::XNPreeditAttributes_0.as_ptr() as *const _,
+            preedit_attr.ptr,
+            ptr::null_mut::<()>(),
+        );
 
-            // If we've failed to create IC with preedit callbacks fallback to normal one.
-            if ic.is_null() {
-                (xconn.xlib.XCreateIC)(
-                    im,
-                    ffi::XNInputStyle_0.as_ptr() as *const _,
-                    ffi::XIMPreeditNothing | ffi::XIMStatusNothing,
-                    ffi::XNClientWindow_0.as_ptr() as *const _,
-                    window,
-                    ptr::null_mut::<()>(),
-                )
-            } else {
-                ic
-            }
-        };
+        (!ic.is_null()).then(|| ic)
+    }
+
+    unsafe fn create_nothing_ic(
+        xconn: &Arc<XConnection>,
+        im: ffi::XIM,
+        style: XIMStyle,
+        window: ffi::Window,
+    ) -> Option<ffi::XIC> {
+        let ic = (xconn.xlib.XCreateIC)(
+            im,
+            ffi::XNInputStyle_0.as_ptr() as *const _,
+            style,
+            ffi::XNClientWindow_0.as_ptr() as *const _,
+            window,
+            ptr::null_mut::<()>(),
+        );
 
         (!ic.is_null()).then(|| ic)
     }
@@ -326,13 +337,17 @@ impl ImeContext {
         xconn.check_errors()
     }
 
+    pub fn is_allowed(&self) -> bool {
+        !matches!(self.style, Style::None(_))
+    }
+
     // Set the spot for preedit text. Setting spot isn't working with libX11 when preedit callbacks
     // are being used. Certain IMEs do show selection window, but it's placed in bottom left of the
     // window and couldn't be changed.
     //
     // For me see: https://bugs.freedesktop.org/show_bug.cgi?id=1580.
     pub fn set_spot(&mut self, xconn: &Arc<XConnection>, x: c_short, y: c_short) {
-        if !self.is_allowed || self.ic_spot.x == x && self.ic_spot.y == y {
+        if !self.is_allowed() || self.ic_spot.x == x && self.ic_spot.y == y {
             return;
         }
 
