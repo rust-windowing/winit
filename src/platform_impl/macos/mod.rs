@@ -1,5 +1,4 @@
-#![cfg(target_os = "macos")]
-#![allow(clippy::let_unit_value)]
+#![deny(unsafe_op_in_unsafe_fn)]
 
 #[macro_use]
 mod util;
@@ -18,19 +17,21 @@ mod view;
 mod window;
 mod window_delegate;
 
-use std::{fmt, ops::Deref, sync::Arc};
+use std::{fmt, ops::Deref};
 
+use self::window::WinitWindow;
+use self::window_delegate::WinitWindowDelegate;
 pub(crate) use self::{
     event_loop::{
         EventLoop, EventLoopProxy, EventLoopWindowTarget, PlatformSpecificEventLoopAttributes,
     },
     monitor::{MonitorHandle, VideoMode},
-    window::{PlatformSpecificWindowBuilderAttributes, UnownedWindow, WindowId},
+    window::{PlatformSpecificWindowBuilderAttributes, WindowId},
 };
 use crate::{
     error::OsError as RootOsError, event::DeviceId as RootDeviceId, window::WindowAttributes,
 };
-use objc::rc::autoreleasepool;
+use objc2::rc::{autoreleasepool, Id, Shared};
 
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
 
@@ -46,10 +47,17 @@ impl DeviceId {
 // Constant device ID; to be removed when if backend is updated to report real device IDs.
 pub(crate) const DEVICE_ID: RootDeviceId = RootDeviceId(DeviceId);
 
-pub struct Window {
-    window: Arc<UnownedWindow>,
+pub(crate) struct Window {
+    pub(crate) window: Id<WinitWindow, Shared>,
     // We keep this around so that it doesn't get dropped until the window does.
-    _delegate: util::IdRef,
+    _delegate: Id<WinitWindowDelegate, Shared>,
+}
+
+impl Drop for Window {
+    fn drop(&mut self) {
+        // Ensure the window is closed
+        util::close_async(Id::into_super(self.window.clone()));
+    }
 }
 
 #[derive(Debug)]
@@ -62,7 +70,7 @@ unsafe impl Send for Window {}
 unsafe impl Sync for Window {}
 
 impl Deref for Window {
-    type Target = UnownedWindow;
+    type Target = WinitWindow;
     #[inline]
     fn deref(&self) -> &Self::Target {
         &*self.window
@@ -75,7 +83,7 @@ impl Window {
         attributes: WindowAttributes,
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<Self, RootOsError> {
-        let (window, _delegate) = autoreleasepool(|_| UnownedWindow::new(attributes, pl_attribs))?;
+        let (window, _delegate) = autoreleasepool(|_| WinitWindow::new(attributes, pl_attribs))?;
         Ok(Window { window, _delegate })
     }
 }

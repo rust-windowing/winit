@@ -4,7 +4,8 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use objc::foundation::{NSInteger, NSUInteger};
+use objc2::foundation::{NSInteger, NSUInteger};
+use objc2::{class, msg_send};
 
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize},

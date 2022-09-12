@@ -23,6 +23,10 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
 - On Windows, fixed ALT+Space shortcut to open window menu.
+- On Wayland, fixed `Ime::Preedit` not being sent on IME reset.
+- Fixed unbound version specified for `raw-window-handle` leading to compilation failures.
+- Empty `Ime::Preedit` event will be sent before `Ime::Commit` to help clearing preedit.
+- On X11, fixed IME context picking by querying for supported styles beforehand.
 
 # 0.27.2 (2022-8-12)
 

@@ -1264,6 +1264,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        });
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Commit(text)),
                         });
                     }
@@ -1298,6 +1302,10 @@ unsafe fn public_window_callback_inner<T: 'static>(
                     // trying receiving composing result and commit if exists.
                     let ime_context = ImeContext::current(window);
                     if let Some(text) = ime_context.get_composed_text() {
+                        userdata.send_event(Event::WindowEvent {
+                            window_id: RootWindowId(WindowId(window)),
+                            event: WindowEvent::Ime(Ime::Preedit(String::new(), None)),
+                        });
                         userdata.send_event(Event::WindowEvent {
                             window_id: RootWindowId(WindowId(window)),
                             event: WindowEvent::Ime(Ime::Commit(text)),
