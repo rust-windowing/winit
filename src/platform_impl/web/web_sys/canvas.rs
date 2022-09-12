@@ -12,7 +12,7 @@ use std::rc::Rc;
 use wasm_bindgen::{closure::Closure, JsCast};
 use web_sys::{
     AddEventListenerOptions, Event, FocusEvent, HtmlCanvasElement, KeyboardEvent,
-    MediaQueryListEvent, MouseEvent, WheelEvent,
+    MediaQueryListEvent, MouseEvent, WheelEvent, console,
 };
 
 mod mouse_handler;
@@ -303,7 +303,7 @@ impl Canvas {
                 event.prevent_default();
             }
 
-            if let Some(delta) = event::mouse_scroll_delta(&event) {
+            if let Some(delta) = event::mouse_scroll_delta(&event) {console::log_1(&"scroll".into());
                 handler(0, delta, event::mouse_modifiers(&event));
             }
         }));

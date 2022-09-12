@@ -4,7 +4,6 @@ use std::collections::{vec_deque::IntoIter as VecDequeIter, VecDeque};
 use std::rc::Rc;
 
 use raw_window_handle::{RawDisplayHandle, WebDisplayHandle};
-use web_sys::console;
 
 use super::{
     super::monitor::MonitorHandle, backend, device::DeviceId, proxy::EventLoopProxy, runner,
@@ -219,7 +218,7 @@ impl<T> EventLoopWindowTarget<T> {
                 },
             });
         });
-        console::log_1(&"scroll".into());
+
         let runner = self.runner.clone();
         canvas.on_mouse_wheel(
             move |pointer_id, delta, modifiers| {
