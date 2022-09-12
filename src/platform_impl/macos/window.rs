@@ -151,7 +151,6 @@ pub struct SharedState {
     /// bar in exclusive fullscreen but want to restore the original options when
     /// transitioning back to borderless fullscreen.
     save_presentation_opts: Option<NSApplicationPresentationOptions>,
-    accepts_first_mouse: bool,
 }
 
 impl SharedState {
@@ -290,7 +289,6 @@ impl WinitWindow {
                 let state = SharedState {
                     resizable: attrs.resizable,
                     maximized: attrs.maximized,
-                    accepts_first_mouse: pl_attrs.accepts_first_mouse,
                     ..Default::default()
                 };
                 Ivar::write(
@@ -358,7 +356,7 @@ impl WinitWindow {
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        let view = WinitView::new(&this);
+        let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
@@ -1109,12 +1107,6 @@ impl WinitWindow {
         } else {
             util::set_style_mask_sync(self, current_style_mask & (!mask));
         }
-    }
-
-    #[inline]
-    pub fn accepts_first_mouse(&self) -> bool {
-        let shared_state_lock = self.shared_state.lock().unwrap();
-        shared_state_lock.accepts_first_mouse
     }
 }
 

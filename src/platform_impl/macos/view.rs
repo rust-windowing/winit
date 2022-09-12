@@ -136,6 +136,7 @@ declare_class!(
         _ns_window: IvarDrop<Id<WinitWindow, Shared>>,
         pub(super) state: IvarDrop<Box<ViewState>>,
         marked_text: IvarDrop<Id<NSMutableAttributedString, Owned>>,
+        accepts_first_mouse: bool,
     }
 
     unsafe impl ClassType for WinitView {
@@ -144,8 +145,12 @@ declare_class!(
     }
 
     unsafe impl WinitView {
-        #[sel(initWithId:)]
-        fn init_with_id(&mut self, window: *mut WinitWindow) -> Option<&mut Self> {
+        #[sel(initWithId:acceptsFirstMouse:)]
+        fn init_with_id(
+            &mut self,
+            window: *mut WinitWindow,
+            accepts_first_mouse: bool,
+        ) -> Option<&mut Self> {
             let this: Option<&mut Self> = unsafe { msg_send![super(self), init] };
             this.map(|this| {
                 let state = ViewState {
@@ -185,6 +190,7 @@ declare_class!(
                 }
 
                 this.state.input_source = this.current_input_source();
+                Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
                 this
             })
         }
@@ -907,14 +913,21 @@ declare_class!(
         #[sel(acceptsFirstMouse:)]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
             trace_scope!("acceptsFirstMouse:");
-            self.window().accepts_first_mouse()
+            println!("acceptsFirstMouse = {}", *self.accepts_first_mouse);
+            *self.accepts_first_mouse
         }
     }
 );
 
 impl WinitView {
-    pub(super) fn new(window: &WinitWindow) -> Id<Self, Shared> {
-        unsafe { msg_send_id![msg_send_id![Self::class(), alloc], initWithId: window] }
+    pub(super) fn new(window: &WinitWindow, accepts_first_mouse: bool) -> Id<Self, Shared> {
+        unsafe {
+            msg_send_id![
+                msg_send_id![Self::class(), alloc],
+                initWithId: window,
+                acceptsFirstMouse: accepts_first_mouse,
+            ]
+        }
     }
 
     fn window(&self) -> Id<WinitWindow, Shared> {
