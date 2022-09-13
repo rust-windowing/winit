@@ -79,6 +79,7 @@ pub struct PlatformSpecificWindowBuilderAttributes {
     pub fullsize_content_view: bool,
     pub disallow_hidpi: bool,
     pub has_shadow: bool,
+    pub accepts_first_mouse: bool,
 }
 
 impl Default for PlatformSpecificWindowBuilderAttributes {
@@ -93,6 +94,7 @@ impl Default for PlatformSpecificWindowBuilderAttributes {
             fullsize_content_view: false,
             disallow_hidpi: false,
             has_shadow: true,
+            accepts_first_mouse: true,
         }
     }
 }
@@ -354,7 +356,7 @@ impl WinitWindow {
         })
         .ok_or_else(|| os_error!(OsError::CreationError("Couldn't create `NSWindow`")))?;
 
-        let view = WinitView::new(&this);
+        let view = WinitView::new(&this, pl_attrs.accepts_first_mouse);
 
         // The default value of `setWantsBestResolutionOpenGLSurface:` was `false` until
         // macos 10.14 and `true` after 10.15, we should set it to `YES` or `NO` to avoid
