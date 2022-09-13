@@ -170,6 +170,7 @@ declare_class!(
                 );
                 Ivar::write(&mut this.state, Box::new(state));
                 Ivar::write(&mut this.marked_text, NSMutableAttributedString::new());
+                Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
 
                 this.setPostsFrameChangedNotifications(true);
 
@@ -190,7 +191,6 @@ declare_class!(
                 }
 
                 this.state.input_source = this.current_input_source();
-                Ivar::write(&mut this.accepts_first_mouse, accepts_first_mouse);
                 this
             })
         }
@@ -917,7 +917,6 @@ declare_class!(
         #[sel(acceptsFirstMouse:)]
         fn accepts_first_mouse(&self, _event: &NSEvent) -> bool {
             trace_scope!("acceptsFirstMouse:");
-            println!("acceptsFirstMouse = {}", *self.accepts_first_mouse);
             *self.accepts_first_mouse
         }
     }
