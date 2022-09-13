@@ -430,7 +430,7 @@ unsafe fn get_window_class() -> &'static Class {
 
 // requires main thread
 pub(crate) unsafe fn create_view(
-    _window_attributes: &WindowAttributes,
+    window_attributes: &WindowAttributes,
     platform_attributes: &PlatformSpecificWindowBuilderAttributes,
     frame: CGRect,
 ) -> id {
@@ -440,7 +440,11 @@ pub(crate) unsafe fn create_view(
     assert!(!view.is_null(), "Failed to create `UIView` instance");
     let view: id = msg_send![view, initWithFrame: frame];
     assert!(!view.is_null(), "Failed to initialize `UIView` instance");
-    let _: () = msg_send![view, setMultipleTouchEnabled: YES];
+    if window_attributes.multitouch_enabled {
+        let _: () = msg_send![view, setMultipleTouchEnabled: YES];
+    } else {
+        let _: () = msg_send![view, setMultipleTouchEnabled: NO];
+    }
     if let Some(scale_factor) = platform_attributes.scale_factor {
         let _: () = msg_send![view, setContentScaleFactor: scale_factor as CGFloat];
     }

@@ -118,6 +118,7 @@ pub(crate) struct WindowAttributes {
     pub decorations: bool,
     pub always_on_top: bool,
     pub window_icon: Option<Icon>,
+    pub multitouch_enabled: bool,
 }
 
 impl Default for WindowAttributes {
@@ -137,6 +138,7 @@ impl Default for WindowAttributes {
             decorations: true,
             always_on_top: false,
             window_icon: None,
+            multitouch_enabled: false,
         }
     }
 }
