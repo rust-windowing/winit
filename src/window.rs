@@ -319,6 +319,17 @@ impl WindowBuilder {
         self
     }
 
+    /// Sets the window icon.
+    ///
+    /// The default is `false`.
+    ///
+    /// iOS only for now.
+    #[inline]
+    pub fn with_multitouch_enabled(mut self, enabled: bool) -> Self {
+        self.window.multitouch_enabled = enabled;
+        self
+    }
+
     /// Builds the window.
     ///
     /// Possible causes of error include denied permission, incompatible system, and lack of memory.
