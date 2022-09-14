@@ -616,10 +616,17 @@ pub fn create_delegate_class() {
         _: &mut Object,
         _: Sel,
         _application: id,
-        _user_activity: id,
-        _restoration_handler: id,
+        user_activity: id,
+        restoration_handler: id,
     ) -> BOOL {
-        println!("LOG application:continueUserActivity:restorationHandler");
+        unsafe {
+            app_state::handle_nonuser_event(EventWrapper::StaticEvent(
+                Event::ContinueUserActivity {
+                    user_activity,
+                    restoration_handler,
+                },
+            ))
+        }
         YES
     }
 

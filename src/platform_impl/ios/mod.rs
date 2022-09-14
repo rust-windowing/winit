@@ -77,6 +77,7 @@ mod monitor;
 mod view;
 mod window;
 
+pub use ffi::id;
 use std::fmt;
 
 pub(crate) use self::{

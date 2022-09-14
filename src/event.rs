@@ -130,6 +130,13 @@ pub enum Event<'a, T: 'static> {
     OpenURL {
         url: String,
     },
+
+    /// Emitted when the app receives a Universal Link
+    #[cfg(target_os = "ios")]
+    ContinueUserActivity {
+        user_activity: crate::platform_impl::id,
+        restoration_handler: crate::platform_impl::id,
+    },
 }
 
 impl<T: Clone> Clone for Event<'static, T> {
@@ -154,6 +161,14 @@ impl<T: Clone> Clone for Event<'static, T> {
             Resumed => Resumed,
             MemoryWarning => MemoryWarning,
             OpenURL { url } => OpenURL { url: url.clone() },
+            #[cfg(target_os = "ios")]
+            ContinueUserActivity {
+                user_activity,
+                restoration_handler,
+            } => ContinueUserActivity {
+                user_activity: user_activity.clone(),
+                restoration_handler: restoration_handler.clone(),
+            },
         }
     }
 }
@@ -174,6 +189,14 @@ impl<'a, T> Event<'a, T> {
             Resumed => Ok(Resumed),
             MemoryWarning => Ok(MemoryWarning),
             OpenURL { url } => Ok(OpenURL { url }),
+            #[cfg(target_os = "ios")]
+            ContinueUserActivity {
+                user_activity,
+                restoration_handler,
+            } => Ok(ContinueUserActivity {
+                user_activity,
+                restoration_handler,
+            }),
         }
     }
 
@@ -196,6 +219,14 @@ impl<'a, T> Event<'a, T> {
             Resumed => Some(Resumed),
             MemoryWarning => Some(MemoryWarning),
             OpenURL { url } => Some(OpenURL { url }),
+            #[cfg(target_os = "ios")]
+            ContinueUserActivity {
+                user_activity,
+                restoration_handler,
+            } => Some(ContinueUserActivity {
+                user_activity,
+                restoration_handler,
+            }),
         }
     }
 }
