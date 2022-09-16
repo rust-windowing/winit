@@ -33,8 +33,8 @@ use crate::{
 };
 use objc2::rc::{autoreleasepool, Id, Shared};
 
-pub(self) use super::Fullscreen;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+pub(self) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId;

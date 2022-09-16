@@ -87,8 +87,8 @@ pub(crate) use self::{
     window::{PlatformSpecificWindowBuilderAttributes, Window, WindowId},
 };
 
-pub(self) use super::Fullscreen;
 pub(crate) use crate::icon::NoIcon as PlatformIcon;
+pub(self) use crate::platform_impl::Fullscreen;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeviceId {

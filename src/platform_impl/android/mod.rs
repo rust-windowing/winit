@@ -18,7 +18,7 @@ use raw_window_handle::{
     AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
-use super::Fullscreen;
+use crate::platform_impl::Fullscreen;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,

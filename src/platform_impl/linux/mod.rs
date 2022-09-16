@@ -44,8 +44,8 @@ use crate::{
     window::{CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes},
 };
 
-pub(self) use super::Fullscreen;
 pub(crate) use crate::icon::RgbaIcon as PlatformIcon;
+pub(self) use crate::platform_impl::Fullscreen;
 
 #[cfg(feature = "wayland")]
 pub mod wayland;
