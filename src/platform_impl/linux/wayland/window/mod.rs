@@ -467,9 +467,7 @@ impl Window {
     #[inline]
     pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.fullscreen.load(Ordering::Relaxed) {
-            let current_monitor = self
-                .current_monitor()
-                .map(|monitor| PlatformMonitorHandle::Wayland(monitor));
+            let current_monitor = self.current_monitor().map(PlatformMonitorHandle::Wayland);
 
             Some(Fullscreen::Borderless(current_monitor))
         } else {
