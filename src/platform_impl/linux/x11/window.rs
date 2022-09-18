@@ -120,12 +120,8 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        // root should be a type ffi::Window and it is finally c_ulong.
-        // cf. https://docs.rs/x11-dl/2.19.1/x11_dl/xlib/type.Window.html
         let root = if let Some(id) = pl_attribs.parent_id {
-            // XID is defined as 32-bit value in the X11 protocol so
-            // there's no problem about higher bits truncation.
-            // cf. https://www.x.org/docs/XProtocol/proto.pdf
+            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
             u64::from(id) as _
         } else {
             event_loop.root
