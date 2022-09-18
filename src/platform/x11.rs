@@ -172,8 +172,7 @@ pub trait WindowBuilderExtX11 {
     fn with_x11_visual<T>(self, visual_infos: *const T) -> Self;
 
     fn with_x11_screen(self, screen_id: i32) -> Self;
-    #[cfg(feature = "x11")]
-    /// Build window with X11's parent window. Only relevant on X11.
+    /// Build window with parent window.
     fn with_parent(self, parent_id: WindowId) -> Self;
 
     /// Build window with the given `general` and `instance` names.
