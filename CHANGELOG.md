@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- Fixed focus event not being triggered on Windows (#2495).
 - On MacOS, made `accepts_first_mouse` configurable.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
 - Added `Window::resize_increments`/`Window::set_resize_increments` to update resize increments at runtime for X11/macOS.
@@ -870,4 +871,3 @@ _Yanked_
 - Fixed the Wayland backend to produce `Refresh` event after window creation.
 - Changed the `Suspended` event to be outside of `WindowEvent`.
 - Fixed the X11 backend sometimes reporting the wrong virtual key (#273).
-- Fixed focus event not being triggered on Windows (#2495).
