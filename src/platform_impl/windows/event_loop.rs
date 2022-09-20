@@ -1901,7 +1901,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
         }
 
         WM_NCACTIVATE => {
-            let is_active = wparam != 0;
+            let is_active = wparam != false.into();
             let active_focus_changed = userdata.window_state_lock().set_active(is_active);
             if active_focus_changed {
                 if is_active {
