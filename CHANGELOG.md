@@ -870,3 +870,4 @@ _Yanked_
 - Fixed the Wayland backend to produce `Refresh` event after window creation.
 - Changed the `Suspended` event to be outside of `WindowEvent`.
 - Fixed the X11 backend sometimes reporting the wrong virtual key (#273).
+- Fixed focus event not being triggered on Windows (#2495).
