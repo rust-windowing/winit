@@ -17,8 +17,9 @@ use crate::{
         event::{EventProxy, EventWrapper},
         util,
         window::WinitWindow,
+        Fullscreen,
     },
-    window::{Fullscreen, WindowId},
+    window::WindowId,
 };
 
 declare_class!(

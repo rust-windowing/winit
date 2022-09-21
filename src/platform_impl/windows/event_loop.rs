@@ -79,7 +79,6 @@ use crate::{
     event_loop::{
         ControlFlow, DeviceEventFilter, EventLoopClosed, EventLoopWindowTarget as RootELW,
     },
-    monitor::MonitorHandle as RootMonitorHandle,
     platform_impl::platform::{
         dark_mode::try_theme,
         dpi::{become_dpi_aware, dpi_to_scale_factor},
@@ -90,9 +89,9 @@ use crate::{
         raw_input, util,
         window::InitData,
         window_state::{CursorFlags, ImeState, WindowFlags, WindowState},
-        wrap_device_id, WindowId, DEVICE_ID,
+        wrap_device_id, Fullscreen, WindowId, DEVICE_ID,
     },
-    window::{Fullscreen, WindowId as RootWindowId},
+    window::WindowId as RootWindowId,
 };
 use runner::{EventLoopRunner, EventLoopRunnerShared};
 
@@ -322,9 +321,9 @@ impl<T> EventLoopWindowTarget<T> {
         monitor::available_monitors()
     }
 
-    pub fn primary_monitor(&self) -> Option<RootMonitorHandle> {
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
         let monitor = monitor::primary_monitor();
-        Some(RootMonitorHandle { inner: monitor })
+        Some(monitor)
     }
 
     pub fn raw_display_handle(&self) -> RawDisplayHandle {
@@ -1111,7 +1110,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
                             if new_monitor != 0
                                 && fullscreen_monitor
                                     .as_ref()
-                                    .map(|monitor| new_monitor != monitor.inner.hmonitor())
+                                    .map(|monitor| new_monitor != monitor.hmonitor())
                                     .unwrap_or(true)
                             {
                                 if let Ok(new_monitor_info) = monitor::get_monitor_info(new_monitor)
@@ -1122,13 +1121,11 @@ unsafe fn public_window_callback_inner<T: 'static>(
                                     window_pos.cx = new_monitor_rect.right - new_monitor_rect.left;
                                     window_pos.cy = new_monitor_rect.bottom - new_monitor_rect.top;
                                 }
-                                *fullscreen_monitor = Some(crate::monitor::MonitorHandle {
-                                    inner: MonitorHandle::new(new_monitor),
-                                });
+                                *fullscreen_monitor = Some(MonitorHandle::new(new_monitor));
                             }
                         }
                         Fullscreen::Exclusive(ref video_mode) => {
-                            let old_monitor = video_mode.video_mode.monitor.hmonitor();
+                            let old_monitor = video_mode.monitor.hmonitor();
                             if let Ok(old_monitor_info) = monitor::get_monitor_info(old_monitor) {
                                 let old_monitor_rect = old_monitor_info.monitorInfo.rcMonitor;
                                 window_pos.x = old_monitor_rect.left;
