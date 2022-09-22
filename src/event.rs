@@ -437,7 +437,7 @@ pub enum WindowEvent<'a> {
     ///
     /// ## Platform-specific
     ///
-    /// - Only available on **macOS**.
+    /// - Only available on **macOS** and **Windows**.
     TouchpadMagnify {
         device_id: DeviceId,
         delta: f64,

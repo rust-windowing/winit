@@ -53,11 +53,11 @@ use windows_sys::Win32::{
             GetMessageW, LoadCursorW, MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW,
             PostThreadMessageW, RegisterClassExW, RegisterWindowMessageA, SetCursor, SetWindowPos,
             TranslateMessage, CREATESTRUCTW, GIDC_ARRIVAL, GIDC_REMOVAL, GWL_STYLE, GWL_USERDATA,
-            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MNC_CLOSE, MSG, MWMO_INPUTAVAILABLE,
-            NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN, PT_TOUCH, QS_ALLEVENTS,
-            RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE, SIZE_MAXIMIZED,
-            SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA, WINDOWPOS,
-            WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED,
+            HTCAPTION, HTCLIENT, MAPVK_VK_TO_VSC, MINMAXINFO, MK_CONTROL, MNC_CLOSE, MSG,
+            MWMO_INPUTAVAILABLE, NCCALCSIZE_PARAMS, PM_NOREMOVE, PM_QS_PAINT, PM_REMOVE, PT_PEN,
+            PT_TOUCH, QS_ALLEVENTS, RI_KEY_E0, RI_KEY_E1, RI_MOUSE_WHEEL, SC_MINIMIZE, SC_RESTORE,
+            SIZE_MAXIMIZED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WHEEL_DELTA,
+            WINDOWPOS, WM_CAPTURECHANGED, WM_CHAR, WM_CLOSE, WM_CREATE, WM_DESTROY, WM_DPICHANGED,
             WM_DROPFILES, WM_ENTERSIZEMOVE, WM_EXITSIZEMOVE, WM_GETMINMAXINFO, WM_IME_COMPOSITION,
             WM_IME_ENDCOMPOSITION, WM_IME_SETCONTEXT, WM_IME_STARTCOMPOSITION, WM_INPUT,
             WM_INPUT_DEVICE_CHANGE, WM_KEYDOWN, WM_KEYUP, WM_KILLFOCUS, WM_LBUTTONDOWN,
@@ -1428,6 +1428,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
         WM_MOUSEWHEEL => {
             use crate::event::MouseScrollDelta::LineDelta;
+            use crate::platform_impl::platform::loword;
 
             let value = (wparam >> 16) as i16;
             let value = value as i32;
@@ -1435,15 +1436,30 @@ unsafe fn public_window_callback_inner<T: 'static>(
 
             update_modifiers(window, userdata);
 
-            userdata.send_event(Event::WindowEvent {
-                window_id: RootWindowId(WindowId(window)),
-                event: WindowEvent::MouseWheel {
-                    device_id: DEVICE_ID,
-                    delta: LineDelta(0.0, value),
-                    phase: TouchPhase::Moved,
-                    modifiers: event::get_key_mods(),
-                },
-            });
+            // The MK_CONTROL parameter means that the control key is pressed
+            // while the mouse wheel is turning, according to the Microsoft
+            // documentation, it is a trigger for the zoom gesture.
+            if loword(wparam as u32) == MK_CONTROL as _ {
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::TouchpadMagnify {
+                        device_id: DEVICE_ID,
+                        delta: value as f64,
+                        phase: TouchPhase::Moved,
+                    },
+                });
+            // Otherwise, it's a basic MouseWheel event.
+            } else {
+                userdata.send_event(Event::WindowEvent {
+                    window_id: RootWindowId(WindowId(window)),
+                    event: WindowEvent::MouseWheel {
+                        device_id: DEVICE_ID,
+                        delta: LineDelta(0.0, value),
+                        phase: TouchPhase::Moved,
+                        modifiers: event::get_key_mods(),
+                    },
+                });
+            }
 
             0
         }

@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- **Breaking:** On Windows, add support for two-finger touchpad magnification gesture with new event `WindowEvent::TouchpadMagnify`.
 - On Windows, fixed focus event emission on minimize.
 - On MacOS, made `accepts_first_mouse` configurable.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
