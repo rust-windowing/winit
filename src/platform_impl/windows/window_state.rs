@@ -275,6 +275,9 @@ impl WindowFlags {
         if self.contains(WindowFlags::IGNORE_CURSOR_EVENT) {
             style_ex |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
         }
+        if self.contains(WindowFlags::TRANSPARENT) {
+            style_ex |= WS_EX_LAYERED;
+        }
 
         if self.intersects(
             WindowFlags::MARKER_EXCLUSIVE_FULLSCREEN | WindowFlags::MARKER_BORDERLESS_FULLSCREEN,
