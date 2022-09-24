@@ -14,7 +14,11 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    println!("Only supported on macOS at the moment.");
+    println!(
+        r"
+        Zoom is supported on both Windows and macOS,
+        while rotation is only supported on Macos for now."
+        );
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
