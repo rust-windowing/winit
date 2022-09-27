@@ -18,12 +18,12 @@ use raw_window_handle::{
     AndroidDisplayHandle, HasRawWindowHandle, RawDisplayHandle, RawWindowHandle,
 };
 
+use crate::platform_impl::Fullscreen;
 use crate::{
     dpi::{PhysicalPosition, PhysicalSize, Position, Size},
     error,
     event::{self, VirtualKeyCode},
     event_loop::{self, ControlFlow},
-    monitor,
     window::{self, CursorGrabMode},
 };
 
@@ -636,10 +636,8 @@ pub struct EventLoopWindowTarget<T: 'static> {
 }
 
 impl<T: 'static> EventLoopWindowTarget<T> {
-    pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -686,7 +684,7 @@ impl DeviceId {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct PlatformSpecificWindowBuilderAttributes;
 
-pub struct Window;
+pub(crate) struct Window;
 
 impl Window {
     pub(crate) fn new<T: 'static>(
@@ -702,10 +700,8 @@ impl Window {
         WindowId
     }
 
-    pub fn primary_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     pub fn available_monitors(&self) -> VecDeque<MonitorHandle> {
@@ -714,10 +710,8 @@ impl Window {
         v
     }
 
-    pub fn current_monitor(&self) -> Option<monitor::MonitorHandle> {
-        Some(monitor::MonitorHandle {
-            inner: MonitorHandle,
-        })
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     pub fn scale_factor(&self) -> f64 {
@@ -785,11 +779,11 @@ impl Window {
         false
     }
 
-    pub fn set_fullscreen(&self, _monitor: Option<window::Fullscreen>) {
+    pub fn set_fullscreen(&self, _monitor: Option<Fullscreen>) {
         warn!("Cannot set fullscreen on Android");
     }
 
-    pub fn fullscreen(&self) -> Option<window::Fullscreen> {
+    pub fn fullscreen(&self) -> Option<Fullscreen> {
         None
     }
 
@@ -907,17 +901,15 @@ impl MonitorHandle {
         None
     }
 
-    pub fn video_modes(&self) -> impl Iterator<Item = monitor::VideoMode> {
+    pub fn video_modes(&self) -> impl Iterator<Item = VideoMode> {
         let size = self.size().into();
         // FIXME this is not the real refresh rate
         // (it is guaranteed to support 32 bit color though)
-        std::iter::once(monitor::VideoMode {
-            video_mode: VideoMode {
-                size,
-                bit_depth: 32,
-                refresh_rate_millihertz: 60000,
-                monitor: self.clone(),
-            },
+        std::iter::once(VideoMode {
+            size,
+            bit_depth: 32,
+            refresh_rate_millihertz: 60000,
+            monitor: self.clone(),
         })
     }
 }
@@ -943,9 +935,7 @@ impl VideoMode {
         self.refresh_rate_millihertz
     }
 
-    pub fn monitor(&self) -> monitor::MonitorHandle {
-        monitor::MonitorHandle {
-            inner: self.monitor.clone(),
-        }
+    pub fn monitor(&self) -> MonitorHandle {
+        self.monitor.clone()
     }
 }

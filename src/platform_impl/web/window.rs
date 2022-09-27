@@ -2,14 +2,13 @@ use crate::dpi::{LogicalSize, PhysicalPosition, PhysicalSize, Position, Size};
 use crate::error::{ExternalError, NotSupportedError, OsError as RootOE};
 use crate::event;
 use crate::icon::Icon;
-use crate::monitor::MonitorHandle as RootMH;
 use crate::window::{
-    CursorGrabMode, CursorIcon, Fullscreen, UserAttentionType, WindowAttributes, WindowId as RootWI,
+    CursorGrabMode, CursorIcon, UserAttentionType, WindowAttributes, WindowId as RootWI,
 };
 
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, WebDisplayHandle, WebWindowHandle};
 
-use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget};
+use super::{backend, monitor::MonitorHandle, EventLoopWindowTarget, Fullscreen};
 
 use std::cell::{Ref, RefCell};
 use std::collections::vec_deque::IntoIter as VecDequeIter;
@@ -281,7 +280,7 @@ impl Window {
     }
 
     #[inline]
-    pub fn fullscreen(&self) -> Option<Fullscreen> {
+    pub(crate) fn fullscreen(&self) -> Option<Fullscreen> {
         if self.canvas.borrow().is_fullscreen() {
             Some(Fullscreen::Borderless(Some(self.current_monitor_inner())))
         } else {
@@ -290,8 +289,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn set_fullscreen(&self, monitor: Option<Fullscreen>) {
-        if monitor.is_some() {
+    pub(crate) fn set_fullscreen(&self, fullscreen: Option<Fullscreen>) {
+        if fullscreen.is_some() {
             self.canvas.borrow().request_fullscreen();
         } else if self.canvas.borrow().is_fullscreen() {
             backend::exit_fullscreen();
@@ -339,14 +338,12 @@ impl Window {
 
     #[inline]
     // Allow directly accessing the current monitor internally without unwrapping.
-    fn current_monitor_inner(&self) -> RootMH {
-        RootMH {
-            inner: MonitorHandle,
-        }
+    fn current_monitor_inner(&self) -> MonitorHandle {
+        MonitorHandle
     }
 
     #[inline]
-    pub fn current_monitor(&self) -> Option<RootMH> {
+    pub fn current_monitor(&self) -> Option<MonitorHandle> {
         Some(self.current_monitor_inner())
     }
 
@@ -356,10 +353,8 @@ impl Window {
     }
 
     #[inline]
-    pub fn primary_monitor(&self) -> Option<RootMH> {
-        Some(RootMH {
-            inner: MonitorHandle,
-        })
+    pub fn primary_monitor(&self) -> Option<MonitorHandle> {
+        Some(MonitorHandle)
     }
 
     #[inline]
