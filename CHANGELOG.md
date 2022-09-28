@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, emit `ReceivedCharacter` events on system keybindings.
 - On Windows, fixed focus event emission on minimize.
 - On MacOS, made `accepts_first_mouse` configurable.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
