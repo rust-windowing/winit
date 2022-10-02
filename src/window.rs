@@ -1109,6 +1109,8 @@ unsafe impl HasRawDisplayHandle for Window {
         self.window.raw_display_handle()
     }
 }
+
+#[cfg(feature = "raw_window_handle_04")]
 unsafe impl raw_window_handle_04::HasRawWindowHandle for Window {
     /// Returns a [`raw_window_handle_04::RawWindowHandle`] for the Window
     ///

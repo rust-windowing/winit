@@ -66,6 +66,7 @@ Winit provides the following features, which can be enabled in your `Cargo.toml`
 * `x11` (enabled by default): On Unix platform, compiles with the X11 backend
 * `wayland` (enabled by default): On Unix platform, compiles with the Wayland backend
 * `mint`: Enables mint (math interoperability standard types) conversions.
+* `raw_window_handle_04` (enabled by default): Enables support for `raw-window-handle` 0.4
 
 ### Platform-specific usage
 

@@ -22,6 +22,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, `wayland-csd-adwaita` now uses `ab_glyph` instead of `crossfont` to render the title for decorations.
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
+- `raw-window-handle` 0.4 support was made optional behind the `raw_window_handle_04` feature.
 
 # 0.27.3
 
