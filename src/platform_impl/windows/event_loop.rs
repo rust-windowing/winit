@@ -66,7 +66,7 @@ use windows_sys::Win32::{
             WM_MOUSEWHEEL, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCCREATE, WM_NCDESTROY,
             WM_NCLBUTTONDOWN, WM_PAINT, WM_POINTERDOWN, WM_POINTERUP, WM_POINTERUPDATE,
             WM_RBUTTONDOWN, WM_RBUTTONUP, WM_SETCURSOR, WM_SETFOCUS, WM_SETTINGCHANGE, WM_SIZE,
-            WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
+            WM_SYSCHAR, WM_SYSCOMMAND, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_TOUCH, WM_WINDOWPOSCHANGED,
             WM_WINDOWPOSCHANGING, WM_XBUTTONDOWN, WM_XBUTTONUP, WNDCLASSEXW, WS_EX_LAYERED,
             WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT, WS_OVERLAPPED, WS_POPUP,
             WS_VISIBLE,
@@ -1188,7 +1188,7 @@ unsafe fn public_window_callback_inner<T: 'static>(
             0
         }
 
-        WM_CHAR => {
+        WM_CHAR | WM_SYSCHAR => {
             use crate::event::WindowEvent::ReceivedCharacter;
             use std::char;
             let is_high_surrogate = (0xD800..=0xDBFF).contains(&wparam);
@@ -1219,7 +1219,18 @@ unsafe fn public_window_callback_inner<T: 'static>(
                 }
             }
 
-            0
+            // todo(msiglreith):
+            //   Ideally, `WM_SYSCHAR` shouldn't emit a `ReceivedChar` event
+            //   indicating user text input. As we lack dedicated support
+            //   accelerators/keybindings these events will be additionally
+            //   emitted for downstream users.
+            //   This means certain key combinations (ie Alt + Space) will
+            //   trigger the default system behavior **and** emit a char event.
+            if msg == WM_SYSCHAR {
+                DefWindowProcW(window, msg, wparam, lparam)
+            } else {
+                0
+            }
         }
 
         WM_MENUCHAR => (MNC_CLOSE << 16) as isize,
