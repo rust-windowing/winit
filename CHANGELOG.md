@@ -8,6 +8,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+- On Windows, emit `ReceivedCharacter` events on system keybindings.
 - On Windows, fixed focus event emission on minimize.
 
 # 0.27.3 (2022-9-10)
