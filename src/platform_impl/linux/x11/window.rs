@@ -119,7 +119,12 @@ impl UnownedWindow {
         pl_attribs: PlatformSpecificWindowBuilderAttributes,
     ) -> Result<UnownedWindow, RootOsError> {
         let xconn = &event_loop.xconn;
-        let root = event_loop.root;
+        let root = if let Some(id) = pl_attribs.parent_id {
+            // WindowId is XID under the hood which doesn't exceed u32, so this conversion is lossless
+            u64::from(id) as _
+        } else {
+            event_loop.root
+        };
 
         let mut monitors = xconn.available_monitors();
         let guessed_monitor = if monitors.is_empty() {
