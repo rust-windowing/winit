@@ -108,10 +108,21 @@ unsafe fn replace_im(inner: *mut ImeInner) -> Result<(), ReplaceImError> {
     let mut new_contexts = HashMap::new();
     for (window, old_context) in (*inner).contexts.iter() {
         let spot = old_context.as_ref().map(|old_context| old_context.ic_spot);
-        let style = old_context
+
+        // Check if the IME was allowed on that context.
+        let is_allowed = old_context
             .as_ref()
-            .map(|old_context| old_context.style)
+            .map(|old_context| old_context.is_allowed())
             .unwrap_or_default();
+
+        // We can't use the style from the old context here, since it may change on reload, so
+        // pick style from the new XIM based on the old state.
+        let style = if is_allowed {
+            new_im.preedit_style
+        } else {
+            new_im.none_style
+        };
+
         let new_context = {
             let result = ImeContext::new(
                 xconn,
