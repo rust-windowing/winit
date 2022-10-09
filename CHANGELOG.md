@@ -8,6 +8,8 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
+# 0.27.4
+
 - On Windows, emit `ReceivedCharacter` events on system keybindings.
 - On Windows, fixed focus event emission on minimize.
 - On X11, fixed IME crashing during reload.
