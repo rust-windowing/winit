@@ -8,8 +8,6 @@ And please only add new entries to the top of this list, right below the `# Unre
 
 # Unreleased
 
-- On Windows, emit `ReceivedCharacter` events on system keybindings.
-- On Windows, fixed focus event emission on minimize.
 - On MacOS, made `accepts_first_mouse` configurable.
 - Migrated `WindowBuilderExtUnix::with_resize_increments` to `WindowBuilder`.
 - Added `Window::resize_increments`/`Window::set_resize_increments` to update resize increments at runtime for X11/macOS.
@@ -24,6 +22,11 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
 - On X11, added `WindowExtX11::with_parent` to create child windows.
+
+# 0.27.4
+
+- On Windows, emit `ReceivedCharacter` events on system keybindings.
+- On Windows, fixed focus event emission on minimize.
 - On X11, fixed IME crashing during reload.
 
 # 0.27.3
