@@ -24,6 +24,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, a new `wayland-csd-adwaita-crossfont` feature was added to use `crossfont` instead of `ab_glyph` for decorations.
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
 - On X11, added `WindowExtX11::with_parent` to create child windows.
+- On X11, fixed IME crashing during reload.
 
 # 0.27.3
 
