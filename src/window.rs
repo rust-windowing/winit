@@ -944,6 +944,7 @@ impl Window {
     }
 
     /// Returns the current window theme.
+    ///
     /// ## Platform-specific
     ///
     /// - **iOS / Android / Web / x11:** Unsupported.
