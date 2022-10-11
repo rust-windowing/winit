@@ -215,6 +215,7 @@ Legend:
 |Gamepad/Joystick events |❌[#804] |❌      |❌       |❌          |❌    |❌     |❓        |**N/A** |
 |Device movement events  |❓        |❓       |❓       |❓           |❌    |❌     |❓        |**N/A** |
 |Drag window with cursor |✔️       |✔️      |✔️       |✔️          |**N/A**|**N/A**|**N/A**   |**N/A** |
+|Resize with cursor      |❌         |❌       |✔️       |❌       |**N/A**|**N/A**|**N/A**   |**N/A** |
 
 ### Pending API Reworks
 Changes in the API that have been agreed upon but aren't implemented across all platforms.

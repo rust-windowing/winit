@@ -21,8 +21,8 @@ use crate::{
         PlatformSpecificWindowBuilderAttributes, VideoMode as PlatformVideoMode,
     },
     window::{
-        CursorGrabMode, CursorIcon, Icon, Theme, UserAttentionType, WindowAttributes,
-        WindowButtons, WindowLevel,
+        CursorGrabMode, CursorIcon, Icon, ResizeDirection, Theme, UserAttentionType,
+        WindowAttributes, WindowButtons, WindowLevel,
     },
 };
 
@@ -1433,7 +1433,27 @@ impl UnownedWindow {
         Err(ExternalError::NotSupported(NotSupportedError::new()))
     }
 
+    /// Moves the window while it is being dragged.
     pub fn drag_window(&self) -> Result<(), ExternalError> {
+        self.drag_initiate(util::MOVERESIZE_MOVE)
+    }
+
+    /// Resizes the window while it is being dragged.
+    pub fn drag_resize_window(&self, direction: ResizeDirection) -> Result<(), ExternalError> {
+        self.drag_initiate(match direction {
+            ResizeDirection::East => util::MOVERESIZE_RIGHT,
+            ResizeDirection::North => util::MOVERESIZE_TOP,
+            ResizeDirection::NorthEast => util::MOVERESIZE_TOPRIGHT,
+            ResizeDirection::NorthWest => util::MOVERESIZE_TOPLEFT,
+            ResizeDirection::South => util::MOVERESIZE_BOTTOM,
+            ResizeDirection::SouthEast => util::MOVERESIZE_BOTTOMRIGHT,
+            ResizeDirection::SouthWest => util::MOVERESIZE_BOTTOMLEFT,
+            ResizeDirection::West => util::MOVERESIZE_LEFT,
+        })
+    }
+
+    /// Initiates a drag operation while the left mouse button is pressed.
+    fn drag_initiate(&self, action: isize) -> Result<(), ExternalError> {
         let pointer = self
             .xconn
             .query_pointer(self.xwindow, util::VIRTUAL_CORE_POINTER)
@@ -1464,7 +1484,7 @@ impl UnownedWindow {
                 [
                     (window.x as c_long + pointer.win_x as c_long),
                     (window.y as c_long + pointer.win_y as c_long),
-                    8, // _NET_WM_MOVERESIZE_MOVE
+                    action.try_into().unwrap(),
                     ffi::Button1 as c_long,
                     1,
                 ],

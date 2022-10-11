@@ -52,6 +52,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, `RedrawRequested` not emitted during resize.
 - **Breaking:** Remove the unstable `xlib_xconnection()` function from the private interface.
 - Added Orbital support for Redox OS
+- On X11, added `drag_resize_window` method.
 
 # 0.27.5
 

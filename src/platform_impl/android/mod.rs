@@ -24,7 +24,7 @@ use crate::{
     error,
     event::{self, StartCause, VirtualKeyCode},
     event_loop::{self, ControlFlow, EventLoopWindowTarget as RootELW},
-    window::{self, CursorGrabMode, Theme, WindowButtons, WindowLevel},
+    window::{self, CursorGrabMode, ResizeDirection, Theme, WindowButtons, WindowLevel},
 };
 
 fn ndk_keycode_to_virtualkeycode(keycode: Keycode) -> Option<event::VirtualKeyCode> {
@@ -1016,6 +1016,15 @@ impl Window {
     pub fn set_cursor_visible(&self, _: bool) {}
 
     pub fn drag_window(&self) -> Result<(), error::ExternalError> {
+        Err(error::ExternalError::NotSupported(
+            error::NotSupportedError::new(),
+        ))
+    }
+
+    pub fn drag_resize_window(
+        &self,
+        _direction: ResizeDirection,
+    ) -> Result<(), error::ExternalError> {
         Err(error::ExternalError::NotSupported(
             error::NotSupportedError::new(),
         ))
