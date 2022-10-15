@@ -25,6 +25,7 @@ And please only add new entries to the top of this list, right below the `# Unre
 - On Wayland, if not otherwise specified use upstream automatic CSD theme selection.
 - On X11, added `WindowExtX11::with_parent` to create child windows.
 - On X11, fixed IME crashing during reload.
+- On Wayland, fix byte offset in `Ime::Preedit` pointing to invalid bytes.
 
 # 0.27.3
 
